@@ -14,11 +14,8 @@ import {
     ShieldCheck,
     CloudCheck,
     HardDrive,
-    User,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import {
@@ -31,7 +28,8 @@ import {
     LANDING_PROFILE_PRIVACY_NOTE,
     LANDING_UPLOAD_PRIVACY_NOTE,
 } from "@/lib/jobs/resume-privacy-copy";
-import type { ResumeData, ResumeProfile } from "@/types/resume";
+import type { ResumeData } from "@/types/resume";
+import { ResumeReviewFields } from "@/components/resume-builder/ResumeReviewFields";
 import { OnboardingStepLabel } from "@/components/onboarding/onboarding-step-label";
 
 export interface LandingOnboardingViewProps {
@@ -70,10 +68,6 @@ export function LandingOnboardingView({
     const [uploading, setUploading] = useState(false);
     const [uploadedFile, setUploadedFile] = useState<File | null>(null);
     const [parsedResume, setParsedResume] = useState<ResumeData | null>(initialParsedResume ?? null);
-    const [skillsString, setSkillsString] = useState<string>(() => {
-        if (!initialParsedResume?.competencies) return "";
-        return initialParsedResume.competencies.flatMap((c) => c.skills).join(", ");
-    });
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [liveRoleCount, setLiveRoleCount] = useState<string>("2.4M+");
     const [compactLiveRoleCount, setCompactLiveRoleCount] = useState<string>("~2.4M");
@@ -90,7 +84,7 @@ export function LandingOnboardingView({
         params.set("mode", mode);
         if (provider) params.set("provider", provider);
         const query = params.toString();
-        window.location.href = `/auth/start${query ? `?${query}` : ""}`;
+        window.location.href = `/auth/start${query ? `?${query}` : ""}`; // signup-gate-exempt: onboarding step that is the account-creation flow itself
     };
 
     const handleStartAuth = (provider?: string) => {
@@ -159,38 +153,6 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    const updateProfileField = (field: keyof ResumeProfile, val: string | number) => {
-        setParsedResume((prev) => {
-            if (!prev) return prev;
-            return {
-                ...prev,
-                profile: {
-                    ...prev.profile,
-                    [field]: val,
-                },
-            };
-        });
-    };
-
-    const updateSkills = (val: string) => {
-        const list = val.split(",").map((s) => s.trim()).filter(Boolean);
-        setParsedResume((prev) => {
-            if (!prev) return prev;
-            const comps =
-                prev.competencies && prev.competencies.length > 0
-                    ? [...prev.competencies]
-                    : [{ category: "Core Skills", skills: [] }];
-            comps[0] = {
-                category: comps[0].category || "Core Skills",
-                skills: list,
-            };
-            return {
-                ...prev,
-                competencies: comps,
-            };
-        });
-    };
-
     const handleFileSelected = async (file: File) => {
         setUploadError(null);
         const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -201,7 +163,6 @@ export function LandingOnboardingView({
 
         setUploadedFile(file);
         setParsedResume(null);
-        setSkillsString("");
         setUploading(true);
 
         try {
@@ -211,10 +172,8 @@ export function LandingOnboardingView({
                 return;
             }
             setParsedResume(outcome.parsed);
-            setSkillsString(outcome.skillsString);
         } catch {
             setParsedResume(null);
-            setSkillsString("");
             setUploadError(PROFILE_REVIEW_UNREADABLE_ERROR);
         } finally {
             setUploading(false);
@@ -240,10 +199,10 @@ export function LandingOnboardingView({
                 >
                     <div className="space-y-2">
                         <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
-                            Create your free account
+                            {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                         </h2>
                         <p className="text-sm leading-relaxed text-muted-foreground">
-                            Sign in to save matches, tailored résumés, and applications to your private Velai profile.
+                            {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Sign in to save matches, tailored résumés, and applications to your private Velai profile.
                         </p>
                     </div>
 
@@ -293,9 +252,11 @@ export function LandingOnboardingView({
                         <span className="text-muted-foreground">·</span>
                         <OnboardingStepLabel step={resumeOnboardingStep} total={2} />
                     </div>
-                    <span className="max-w-[130px] truncate text-xs font-semibold text-muted-foreground sm:max-w-none">
-                        {userName || userEmail || "Account"} ✓
-                    </span>
+                    {isAuthenticated && (userName || userEmail) ? (
+                        <span className="max-w-[130px] truncate text-xs font-semibold text-muted-foreground sm:max-w-none">
+                            {userName || userEmail} ✓
+                        </span>
+                    ) : null}
                 </div>
 
                 <div className="grid w-full grid-cols-2 gap-1.5">
@@ -366,8 +327,7 @@ export function LandingOnboardingView({
                                         onClick={() => {
                                             setUploadedFile(null);
                                             setParsedResume(null);
-                                            setSkillsString("");
-                                            fileInputRef.current?.click();
+                                                                            fileInputRef.current?.click();
                                         }}
                                         className="text-xs text-muted-foreground underline hover:text-foreground shrink-0"
                                     >
@@ -375,68 +335,8 @@ export function LandingOnboardingView({
                                     </button>
                                 </div>
 
-                                {/* Form Grid */}
-                                <div className="rounded-panel border border-border bg-card p-3 sm:p-3.5 space-y-2.5">
-                                    <div className="flex items-center justify-between pb-1.5 border-b border-border">
-                                        <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                            <User size={16} className="text-brand shrink-0" />
-                                            <span>Your Profile Details</span>
-                                        </div>
-                                        <span className="text-xs text-muted-foreground">Adjust to fine-tune your matches</span>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-foreground">Full Name</Label>
-                                            <Input
-                                                value={parsedResume.profile.name || ""}
-                                                onChange={(e) => updateProfileField("name", e.target.value)}
-                                                placeholder="Your Name"
-                                                className="ctl-md text-xs rounded-ctl"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-foreground">Target Job Title</Label>
-                                            <Input
-                                                value={parsedResume.profile.profession || ""}
-                                                onChange={(e) => updateProfileField("profession", e.target.value)}
-                                                placeholder="e.g. Senior Software Engineer"
-                                                className="ctl-md text-xs rounded-ctl"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-foreground">Years of Experience</Label>
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={50}
-                                                value={parsedResume.profile.yearsOfExperience || 0}
-                                                onChange={(e) => updateProfileField("yearsOfExperience", parseInt(e.target.value, 10) || 0)}
-                                                className="ctl-md text-xs rounded-ctl"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label className="text-xs text-foreground">Preferred Location</Label>
-                                            <Input
-                                                value={parsedResume.profile.location || ""}
-                                                onChange={(e) => updateProfileField("location", e.target.value)}
-                                                placeholder="e.g. San Francisco, CA or Remote"
-                                                className="ctl-md text-xs rounded-ctl"
-                                            />
-                                        </div>
-                                        <div className="space-y-1 sm:col-span-2">
-                                            <Label className="text-xs text-foreground">Core Skills (comma separated)</Label>
-                                            <Input
-                                                value={skillsString}
-                                                onChange={(e) => {
-                                                    setSkillsString(e.target.value);
-                                                    updateSkills(e.target.value);
-                                                }}
-                                                placeholder="e.g. TypeScript, React, Next.js, Python, SQL"
-                                                className="ctl-md text-xs rounded-ctl"
-                                            />
-                                        </div>
-                                    </div>
+                                <div className="rounded-panel border border-border bg-card p-3 sm:p-3.5">
+                                    <ResumeReviewFields data={parsedResume} onChange={setParsedResume} />
                                 </div>
 
                                 {/* Privacy Note */}

@@ -320,7 +320,8 @@ export function JobCard({
             <span className="flex h-fit flex-col items-end gap-1 self-start">
                 <span className="flex items-center gap-1">
                     {onGoAfter && (
-                        <span data-rulebook-exempt>
+                        // Saving is not opening: on mobile the row's panel is a sheet that would cover the save gate.
+                        <span data-rulebook-exempt onClick={(e) => e.stopPropagation()}>
                             <RowBookmarkButton
                                 pursuit={pursuit}
                                 onGoAfter={onGoAfter}

@@ -232,7 +232,7 @@ export function FirstTimeOnboardingModal({
 
                         <div className="flex justify-end pt-1">
                             <Button onClick={() => setStep(2)} className="gap-2 text-xs font-semibold">
-                                Next: Create your account <ArrowRight size={16} />
+                                {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Next: Create your account <ArrowRight size={16} />
                             </Button>
                         </div>
                     </div>
@@ -243,7 +243,7 @@ export function FirstTimeOnboardingModal({
                     <div className="p-6 sm:p-7 space-y-5">
                         <div className="space-y-1">
                             <h2 className="text-lg sm:text-xl font-semibold text-foreground">
-                                Create your free account
+                                {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                             </h2>
                             <p className="text-xs text-muted-foreground">
                                 Save your matched roles, track applications, and get email alerts when new verified jobs open up.

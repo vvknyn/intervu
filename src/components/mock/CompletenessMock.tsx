@@ -495,7 +495,7 @@ function MockJobDetail({
                     )}
                     <Button variant="quiet" className="gap-2" onClick={onSignIn}>
                         <Check size={16} />
-                        Sign in to save
+                        {/* signup-gate-exempt: dev mock harness, not shipped UI */}Sign in to save
                     </Button>
                 </div>
                 <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 px-5">
@@ -963,7 +963,7 @@ export function CompletenessMock() {
                 trigger="user"
                 valueLine={
                     <>
-                        <b className="text-foreground">Create a free account</b> — save roles to your tracker and sync across
+                        {/* signup-gate-exempt: dev mock harness, not shipped UI */}<b className="text-foreground">Create a free account</b> — save roles to your tracker and sync across
                         devices.
                     </>
                 }

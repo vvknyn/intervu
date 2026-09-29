@@ -98,18 +98,17 @@ function ResumeContent() {
     // The one auth gate (`use-auth-gate.ts`), same mechanism /jobs uses: signed
     // in → run the handler now; signed out → persist the action (survives both
     // in-place login and a hard OAuth/passkey navigation away and back) and
-    // open the popover. `apply`/`report` are never queued from this page —
+    // open the popover. `apply` is never queued from this page —
     // `PendingAction`'s kinds are shared with /jobs, and
     // `takePersistedPendingAction` is path-scoped (pending-actions.ts), so a
     // /jobs-queued action can never replay here — but the hook's handler map
-    // is total over every kind, so they're still typed, inert no-ops.
-    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never, never>({
+    // is total over every kind, so it's still a typed, inert no-op.
+    const { gate, authOpen, setAuthOpen, onAuthed } = useAuthGate<never>({
         handlers: {
             apply: () => {},
             upload: () => {
                 setImportModalOpen(true);
             },
-            report: () => {},
         },
         user,
     });
@@ -173,7 +172,7 @@ function ResumeContent() {
                                     <FileText size={20} className="text-live shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
-                                        <p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}<p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -208,7 +207,7 @@ function ResumeContent() {
                                         onClick={() => openResumeAuth()}
                                         className="rounded-ctl text-xs font-semibold"
                                     >
-                                        Sign up to sync
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}Sign up to sync
                                     </Button>
                                 </div>
                             </div>

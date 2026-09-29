@@ -53,7 +53,7 @@ export function HistoryHeader() {
 function HistoryGate({ onLoginClick }: { onLoginClick: () => void }) {
     return (
         <EmptyState
-            title="Sign in to see your history."
+            title="Sign in to see your history." // signup-gate-exempt: private tracker history page, sign-in is its only signed-out state
             description="We keep track of every job you open so you can find your way back to it."
             actions={
                 <Button className="rounded-ctl font-semibold" onClick={onLoginClick}>

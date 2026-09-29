@@ -3,8 +3,8 @@
  * import always parses on-device now (founder rule: résumé interpretation
  * never happens on our servers); this flag instead gates other on-device
  * features that DO still have a choice: job-tailoring/customization
- * (LocalCustomizePanel) and guest résumé caching on /jobs and public job
- * pages. Default OFF. Enable via the Settings toggle (LocalAiSettingsSection)
+ * (LocalCustomizePanel). A guest's parsed résumé is kept in this browser
+ * regardless of this flag. Default OFF. Enable via the Settings toggle (LocalAiSettingsSection)
  * or `?localAi=1` on any page (persists to localStorage for the session and
  * future visits).
  */

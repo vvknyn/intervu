@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { X } from "@phosphor-icons/react";
 import { countNewSinceAction } from "@/actions/jobs";
 import { hasVisitCursor, readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
-import { resolveVisitBannerState } from "@/lib/jobs/visit-banner";
+import { resolveVisitBannerState, visitBannerFitsResults } from "@/lib/jobs/visit-banner";
+import { cn } from "@/lib/utils";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 
 const NO_COUNT: CorpusCount = { kind: "exact", value: 0 };
@@ -15,7 +16,15 @@ const NO_COUNT: CorpusCount = { kind: "exact", value: 0 };
  * `resolveVisitBannerState`: a visitor with no PRIOR stored board cursor
  * never sees a "since your last visit" claim, however large the count.
  */
-export function BoardVisitBanner() {
+export function BoardVisitBanner({
+    resultCount,
+    aboveMobileCta,
+}: {
+    /** Rows the page is showing right now — a zero or thin state hides the toast. */
+    resultCount: number;
+    /** Whether the page's fixed mobile search bar is up; the toast docks above it. */
+    aboveMobileCta: boolean;
+}) {
     const [count, setCount] = useState<CorpusCount>(NO_COUNT);
     const [state, setState] = useState<"hidden" | "shown">("hidden");
     const [dismissed, setDismissed] = useState(false);
@@ -48,36 +57,37 @@ export function BoardVisitBanner() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Auto-dismiss toast after 6 seconds
+    const visible = state === "shown" && !dismissed && visitBannerFitsResults(resultCount);
+
+    // Auto-dismiss toast after 6 seconds, counted from when it is on screen
     useEffect(() => {
-        if (state === "shown" && !dismissed) {
+        if (visible) {
             const timer = setTimeout(() => {
                 setDismissed(true);
             }, 6000);
             return () => clearTimeout(timer);
         }
-    }, [state, dismissed]);
+    }, [visible]);
 
-    if (state === "hidden" || dismissed) return null;
+    if (!visible) return null;
 
     return (
         <div
             data-testid="board-visit-banner"
             role="status"
             aria-live="polite"
-            // Below lg, two OTHER fixed bars can occupy the viewport's own
-            // bottom edge at the same time as this toast: the tab bar
-            // (always) and, on the landing/ask view, `mobile-search-cta`
-            // stacked above it — together up to `--mobile-tabbar-h +
-            // --mobile-search-cta-h` tall. A flat `bottom-6` sits inside
-            // that band and the toast renders fully hidden underneath them
-            // (z-50 loses to the CTA's z-[180]). This component has no way
-            // to know whether the CTA is showing right now, so it clears
-            // the worst case unconditionally, using the SAME two tokens
-            // those bars size themselves from — never a restated px guess.
-            // lg+ has neither bar (both `lg:hidden`), so `lg:bottom-6`
-            // restores the plain corner-toast position there.
-            className="fixed bottom-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px)+1rem)] right-4 z-50 flex max-w-sm items-center justify-between gap-3 rounded-panel bg-surface border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300 lg:bottom-6 lg:right-6"
+            // Below lg the tab bar always occupies the viewport's bottom edge
+            // and, when `aboveMobileCta`, the page's fixed search bar sits on
+            // top of it — the toast docks above whichever are up, reading the
+            // same tokens those bars size themselves from (the global
+            // Toaster's dock is the tab-bar-only case). lg+ has neither bar,
+            // so `lg:bottom-6` restores the plain corner-toast position.
+            className={cn(
+                aboveMobileCta
+                    ? "bottom-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px)+1rem)]"
+                    : "bottom-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px)+1rem)]",
+                "fixed right-4 z-50 flex max-w-sm items-center justify-between gap-3 rounded-panel bg-surface border border-border px-4 py-3 animate-in fade-in slide-in-from-bottom-4 duration-300 lg:bottom-6 lg:right-6",
+            )}
         >
             <div className="flex items-center gap-2.5">
                 <span className="h-2 w-2 rounded-pill bg-brand" aria-hidden />

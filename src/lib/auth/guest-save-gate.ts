@@ -26,6 +26,11 @@ export function getGuestSaveCount(): number {
     return Number.isNaN(n) ? 0 : Math.max(0, n);
 }
 
+/** The one rule: a guest's first save is free, every later one needs an account. */
+export function guestSaveGateReached(): boolean {
+    return getGuestSaveCount() >= 1;
+}
+
 /** Increment the guest save counter and return the new count. */
 export function recordGuestSave(): number {
     const next = getGuestSaveCount() + 1;

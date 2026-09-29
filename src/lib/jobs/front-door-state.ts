@@ -33,3 +33,24 @@ export function showsFrontDoorBand(input: {
 }): boolean {
     return input.atRest && needsResumeEntry(input);
 }
+
+/**
+ * The job-packs hub greeting, derived from real state only. The hub renders
+ * for signed-out visitors too, so it never says "Welcome back" (that claims a
+ * prior visit we do not know about) and never says "tailored to your
+ * background" when there is no résumé to tailor to.
+ */
+export function hubGreeting(input: {
+    signedIn: boolean;
+    userName?: string | null;
+    hasResume: boolean;
+}): { title: string; subtitle: string } {
+    const firstName = input.userName?.trim().split(/\s+/)[0] || null;
+    const title = input.signedIn
+        ? firstName ? `Welcome, ${firstName}` : "Welcome"
+        : input.hasResume ? "Your matches" : "Job packs";
+    const subtitle = input.hasResume
+        ? "Choose a category below to browse verified roles ranked against your résumé."
+        : "Choose a category below to browse verified roles.";
+    return { title, subtitle };
+}

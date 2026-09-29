@@ -111,8 +111,40 @@ export function beginGateAttempt(
     return attempt;
 }
 
+/**
+ * The conversion-gate id `signup_completed` carries as `gate` — which door the
+ * visitor last walked through. One row per `AuthGateReason`, so adding a reason
+ * without saying which gate it is fails to compile (no silent `undefined` gate).
+ */
+export type SignupGateId =
+    | "resume_fit"
+    | "save"
+    | "follow"
+    | "alert"
+    | "depth"
+    | "header"
+    | "apply"
+    | "tailor"
+    | "generic";
+
+export const SIGNUP_GATE_ID_BY_REASON: Record<AuthGateReason, SignupGateId> = {
+    fit: "resume_fit",
+    resume: "resume_fit",
+    save: "save",
+    tracker: "save",
+    follow: "follow",
+    alert: "alert",
+    depth: "depth",
+    topbar: "header",
+    apply: "apply",
+    tailor: "tailor",
+    generic: "generic",
+};
+
 /** Shared payload fields for auth funnel events. */
 export interface GateAttemptEventFields {
+    /** Gate the visitor last engaged before converting (from `last_gate_reason`). */
+    gate?: SignupGateId;
     first_gate_reason?: AuthGateReason;
     last_gate_reason?: AuthGateReason;
     pending_action_id?: string;
@@ -122,6 +154,7 @@ export interface GateAttemptEventFields {
 export function gateAttemptEventFields(attempt: GateAttempt | null): GateAttemptEventFields {
     if (!attempt) return {};
     return {
+        gate: SIGNUP_GATE_ID_BY_REASON[attempt.lastGateReason],
         first_gate_reason: attempt.firstGateReason,
         last_gate_reason: attempt.lastGateReason,
         pending_action_id: attempt.pendingActionId,

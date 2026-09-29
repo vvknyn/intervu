@@ -50,14 +50,14 @@ export function ErrorCard({ message }: { message: string }) {
  * fresh user mid-install resumes the approval instead of losing it.
  */
 export function LoggedOutCard({ returnTo }: { returnTo: string }) {
-    const loginUrl = `/login?${new URLSearchParams({ next: returnTo }).toString()}`;
+    const loginUrl = `/login?${new URLSearchParams({ next: returnTo }).toString()}`; // signup-gate-exempt: OAuth consent screen, part of the auth flow itself
     return (
         <CenteredCard>
             <CardHeader>
-                <CardTitle>Sign in to continue</CardTitle>
+                {/* signup-gate-exempt: OAuth consent screen, part of the auth flow itself */}<CardTitle>Sign in to continue</CardTitle>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
-                <p>Sign in to approve connecting your agent.</p>
+                {/* signup-gate-exempt: OAuth consent screen, part of the auth flow itself */}<p>Sign in to approve connecting your agent.</p>
             </CardContent>
             <CardFooter>
                 <Button asChild className="w-full" size="lg">

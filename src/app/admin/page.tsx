@@ -6,7 +6,7 @@ import { isAdminUser } from "@/lib/llm/credit-gate";
 export default async function AdminPage() {
     const user = await getServerUser();
     if (!user) {
-        redirect("/login?next=/admin");
+        redirect("/login?next=/admin"); // signup-gate-exempt: server redirect into the auth flow, not a rendered prompt
     }
     if (!(await isAdminUser(user))) {
         redirect("/");

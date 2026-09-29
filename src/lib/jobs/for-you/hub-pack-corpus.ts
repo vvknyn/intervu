@@ -1,7 +1,9 @@
 /**
  * Corpus-scale Meilisearch counts for hub pack pills — same live-vacancy +
- * hide-ghosts + places baseline as `getCachedDefaultBrowse`, not the fit
- * probe's 30d window or browse page hits.
+ * hide-ghosts + places baseline as `getCachedDefaultBrowse`, in the same
+ * posted window as the list a pill opens (`DEFAULT_URL_STATE.postedBucket`),
+ * never browse page hits. A pill counting all-time beside a 30-day list is
+ * two filter states under one label.
  *
  * Query-string `OR` is not a disjunction on this index: the token is dropped,
  * `matchingStrategy: "all"` then requires every remaining word (0 hits), and
@@ -19,6 +21,7 @@ import {
 } from "@/lib/jobs/meilisearch";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PlaceClause } from "@/lib/jobs/types";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { DEFAULT_URL_STATE } from "@/lib/jobs/url-state";
 
 const HAS_SALARY_FILTER =
     "(salary_min > 0 OR salary_max > 0 OR normalized_salary_min > 0 OR normalized_salary_max > 0)";
@@ -72,6 +75,7 @@ const HAYSTACK_ATTRIBUTES = ["title", "tags", "company"] as const;
 function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
     return {
         hideGhosts: true,
+        postedBucket: DEFAULT_URL_STATE.postedBucket,
         places,
         limit: 0,
         offset: 0,
@@ -88,7 +92,7 @@ function extraFiltersForPack(packId: HubPackId): string[] {
     return extra;
 }
 
-function packSearchParams(packId: HubPackId, places: PlaceClause[] | undefined): JobSearchParams {
+export function hubPackCorpusParams(packId: HubPackId, places: PlaceClause[] | undefined): JobSearchParams {
     const base = baseBrowseParams(places);
     switch (packId) {
         case "all":
@@ -119,7 +123,7 @@ function packSearchBody(
     legacy: boolean,
     q?: string,
 ) {
-    const params = packSearchParams(packId, places);
+    const params = hubPackCorpusParams(packId, places);
     const body = buildSearchBody(q ? { ...params, q } : params, legacy, "all", {});
     const extra = extraFiltersForPack(packId);
     if (extra.length) body.filter = [...body.filter, ...extra];

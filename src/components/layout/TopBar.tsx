@@ -241,7 +241,7 @@ export function TopBar() {
                                 }}
                                 className={CHROME_FOCUS_VISIBLE}
                             >
-                                Create account
+                                {/* signup-gate-exempt: header entry point (gate id header), not an in-content gate */}Create account
                             </Button>
                         </>
                     )}

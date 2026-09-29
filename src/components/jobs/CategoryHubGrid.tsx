@@ -47,6 +47,7 @@ import {
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
 import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { hubGreeting } from "@/lib/jobs/front-door-state";
 
 export interface RoleDetailListing {
     id: string;
@@ -947,13 +948,11 @@ export function CategoryHubGrid({
         return () => window.removeEventListener("keydown", handleKeyDown);
     }, [modalCategory, handleNext, handlePrev, handleShuffle]);
 
-    if (!isAuthenticated) {
-        return null;
-    }
-
-    const firstName = userName ? userName.trim().split(/\s+/)[0] : null;
-    const greetingTitle = firstName ? `Welcome back, ${firstName}` : "Welcome back";
-    const greetingSubtitle = "Choose a category below to browse verified roles tailored to your background.";
+    const { title: greetingTitle, subtitle: greetingSubtitle } = hubGreeting({
+        signedIn: isAuthenticated,
+        userName,
+        hasResume,
+    });
 
     const resolveCountLabel = (category: CategoryHubItem): string => {
         const live = hubCountLabels?.[category.id];

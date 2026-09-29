@@ -20,6 +20,7 @@ import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
+import { isRoleTitlePhrase } from "@/lib/resume/title-text";
 import { formatQuotedOrQuery } from "./fit-phrases";
 
 export interface DerivedQuery {
@@ -167,7 +168,7 @@ export function capExploreTerms(terms: string[], max = 4): string[] {
     const out: string[] = [];
     for (const raw of terms) {
         const term = (raw ?? "").trim();
-        if (!term) continue;
+        if (!isRoleTitlePhrase(term)) continue;
         if (out.some((t) => t.toLowerCase() === term.toLowerCase())) continue;
         out.push(term);
         if (out.length >= max) break;
