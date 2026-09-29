@@ -4,7 +4,8 @@ import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent 
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
-import { Check, CircleNotch } from "@phosphor-icons/react";
+import { Check } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
     countryCommitFieldForQuery,
@@ -224,7 +225,7 @@ export function LocationCombobox({
         <ul id="location-suggestions" role="listbox" aria-label="Location suggestions" className="max-h-[300px] overflow-y-auto py-2">
             {showLoading && (
                 <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
-                    <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
+                    <InlineSpinner size={16} className="shrink-0" />
                     Loading locations…
                 </li>
             )}

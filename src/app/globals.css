@@ -823,6 +823,29 @@ h4 {
   @apply bg-muted animate-pulse rounded-none;
 }
 
+/* Wait-state progress bar (components/ui/wait-state.tsx `WaitProgressBar`).
+   Native <progress>: determinate when it has a value, pulsing when it has
+   none (`:indeterminate`). Flat track + brand fill, no radius, no depth. */
+.wait-progress {
+  @apply h-2 w-full appearance-none overflow-hidden rounded-none border-0 bg-muted;
+}
+
+.wait-progress::-webkit-progress-bar {
+  @apply bg-muted;
+}
+
+.wait-progress::-webkit-progress-value {
+  @apply bg-brand;
+}
+
+.wait-progress::-moz-progress-bar {
+  @apply bg-brand;
+}
+
+.wait-progress:indeterminate {
+  @apply bg-brand animate-pulse;
+}
+
 /* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on
    mount to surfaces that previously just popped in with no transition at
    all: the desktop detail panel (app/page.tsx aside) and the apply-gate's

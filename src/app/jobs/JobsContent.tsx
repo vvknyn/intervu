@@ -16,9 +16,9 @@ import {
     X,
     Check,
     Question,
-    CircleNotch,
     Bell,
 } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
@@ -495,7 +495,7 @@ function ToolbarSegment({
                 pressed && "underline underline-offset-2",
             )}
         >
-            {pending && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+            {pending && <InlineSpinner size={16} className="shrink-0" />}
             {label}
         </button>
     );
@@ -5541,7 +5541,7 @@ export function JobsContent({
                         "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
                     )}
                 >
-                    {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+                    {fitResolving && <InlineSpinner size={16} className="shrink-0" />}
                     Sort: {sortLabel}
                     <CaretDown size={16} aria-hidden />
                 </button>

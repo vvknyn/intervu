@@ -1,7 +1,8 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
-import { CircleNotch } from "@phosphor-icons/react";
+import {  } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 
 function ConsentSubmitButton({
@@ -16,7 +17,7 @@ function ConsentSubmitButton({
     const { pending } = useFormStatus();
     return (
         <Button type="submit" variant={variant} className="w-full" disabled={pending}>
-            {pending && <CircleNotch size={16} className="mr-2 animate-spin" />}
+            {pending && <InlineSpinner size={16} className="mr-2" />}
             {pending ? pendingLabel : label}
         </Button>
     );

@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
+import { WaitBar } from "@/components/ui/wait-state";
 
 /**
  * The job detail panel — everything we know about one posting.
@@ -260,28 +261,28 @@ export function JobDetailSkeleton() {
         <div className="overflow-hidden border border-border bg-surface" aria-hidden="true">
             <div className="border-b border-border p-6">
                 <div className="flex items-start gap-4">
-                    <div className="skeleton-bar h-12 w-12 shrink-0" />
+                    <WaitBar className="h-12 w-12 shrink-0" />
                     <div className="min-w-0 flex-1 space-y-2">
-                        <div className="skeleton-bar h-5 w-2/3" />
-                        <div className="skeleton-bar h-3.5 w-1/3" />
+                        <WaitBar className="h-5 w-2/3" />
+                        <WaitBar className="h-3.5 w-1/3" />
                         <div className="flex flex-wrap gap-2 pt-1">
-                            <div className="skeleton-bar h-5 w-20" />
-                            <div className="skeleton-bar h-5 w-24" />
-                            <div className="skeleton-bar h-5 w-16" />
+                            <WaitBar className="h-5 w-20" />
+                            <WaitBar className="h-5 w-24" />
+                            <WaitBar className="h-5 w-16" />
                         </div>
                     </div>
                 </div>
                 <div className="mt-5 flex flex-wrap gap-2">
-                    <div className="skeleton-bar h-9 w-40" />
-                    <div className="skeleton-bar h-9 w-48" />
-                    <div className="skeleton-bar h-9 w-32" />
+                    <WaitBar className="h-9 w-40" />
+                    <WaitBar className="h-9 w-48" />
+                    <WaitBar className="h-9 w-32" />
                 </div>
             </div>
             <div className="space-y-2 p-6">
-                <div className="skeleton-bar h-3.5 w-full" />
-                <div className="skeleton-bar h-3.5 w-full" />
-                <div className="skeleton-bar h-3.5 w-5/6" />
-                <div className="skeleton-bar h-3.5 w-2/3" />
+                <WaitBar className="h-3.5 w-full" />
+                <WaitBar className="h-3.5 w-full" />
+                <WaitBar className="h-3.5 w-5/6" />
+                <WaitBar className="h-3.5 w-2/3" />
             </div>
         </div>
     );
@@ -1230,9 +1231,9 @@ export function JobDetail({
                                     // `.skeleton-bar` idiom as JobDetailSkeleton.
                                     <>
                                         <div className="space-y-2" aria-hidden="true">
-                                            <div className="skeleton-bar h-3.5 w-full" />
-                                            <div className="skeleton-bar h-3.5 w-full" />
-                                            <div className="skeleton-bar h-3.5 w-5/6" />
+                                            <WaitBar className="h-3.5 w-full" />
+                                            <WaitBar className="h-3.5 w-full" />
+                                            <WaitBar className="h-3.5 w-5/6" />
                                         </div>
                                         <div className="mt-3">
                                             <DescriptionLoadingStatus />

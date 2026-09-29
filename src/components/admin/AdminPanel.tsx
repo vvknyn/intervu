@@ -5,7 +5,8 @@ import { getAppConfig, updateAppConfig } from "@/actions/admin";
 import { fetchAllFeedback, FeedbackItem } from "@/actions/feedback";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { CircleNotch, Check, Bug, ChatCircle, DotsThree, ArrowLeft } from "@phosphor-icons/react";
+import { Check, Bug, ChatCircle, DotsThree, ArrowLeft } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -145,7 +146,7 @@ export function AdminPanel() {
 
                     <Button onClick={handleSave} disabled={isSaving} className="gap-2">
                         {isSaving ? (
-                            <CircleNotch size={16} className="animate-spin" />
+                            <InlineSpinner size={16} />
                         ) : (
                             <Check size={16} weight="bold" />
                         )}

@@ -4,6 +4,7 @@
  * Order: Nano → WebLLM (WebGPU) → Transformers WASM → heuristic rules.
  */
 
+import { IDLE_MODEL_LOAD, reduceModelLoad, type ModelLoadEvent, type ModelLoadState } from "./model-load";
 import { nanoEngine } from "./engines/nano";
 import { transformersWasmEngine } from "./engines/transformers-wasm";
 import { webllmEngine } from "./engines/webllm";
@@ -18,7 +19,27 @@ const INIT_TIMEOUT_MS = 10_000;
 let activeEngine: LocalAiEngine | null = null;
 let initPromise: Promise<LocalAiEngine | null> | null = null;
 let initStartedAt: number | null = null;
-let initTimedOut = false;
+
+// Load progress lives here, not in a component, so any UI sees a load that
+// started elsewhere (e.g. the landing pre-warm).
+let modelLoad: ModelLoadState = IDLE_MODEL_LOAD;
+const modelLoadListeners = new Set<() => void>();
+
+function reportModelLoad(event: ModelLoadEvent): void {
+    modelLoad = reduceModelLoad(modelLoad, event, Date.now());
+    modelLoadListeners.forEach((listener) => listener());
+}
+
+export function getModelLoadState(): ModelLoadState {
+    return modelLoad;
+}
+
+export function subscribeModelLoad(listener: () => void): () => void {
+    modelLoadListeners.add(listener);
+    return () => {
+        modelLoadListeners.delete(listener);
+    };
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -40,12 +61,20 @@ async function initFirstAvailableEngine(): Promise<LocalAiEngine | null> {
     for (const engine of LADDER) {
         try {
             if (!(await engine.isAvailable())) continue;
-            await engine.init();
+            reportModelLoad({
+                kind: "begin",
+                engine: engine.id,
+                cached: await engine.isCached(),
+                expectedBytes: engine.downloadBytes,
+            });
+            await engine.init(reportModelLoad);
+            reportModelLoad({ kind: "end", ok: true });
             return engine;
         } catch (e) {
             console.warn(`[local-ai] ${engine.id} init failed`, e);
         }
     }
+    reportModelLoad({ kind: "end", ok: false });
     return null;
 }
 
@@ -64,24 +93,36 @@ export function getActiveEngineLabel(): string {
     return ENGINE_LABELS.heuristic;
 }
 
+async function findAvailableEngine(): Promise<LocalAiEngine | null> {
+    for (const engine of LADDER) {
+        if (await engine.isAvailable()) return engine;
+    }
+    return null;
+}
+
 /** Probe ladder without downloading — returns first engine that reports available. */
 export async function probeBestEngine(): Promise<LocalAiEngineId> {
-    for (const engine of LADDER) {
-        if (await engine.isAvailable()) return engine.id;
-    }
-    return "heuristic";
+    return (await findAvailableEngine())?.id ?? "heuristic";
+}
+
+/** What the best available engine would download on first use — for consent copy. Touches no network. */
+export async function probeBestDownload(): Promise<{ id: LocalAiEngineId; bytes: number | null }> {
+    const engine = await findAvailableEngine();
+    return { id: engine?.id ?? "heuristic", bytes: engine?.downloadBytes ?? null };
 }
 
 /**
  * Init the first available engine in ladder order. Caches singleton.
  * Falls through to heuristic (no throw) if all model inits fail.
+ *
+ * `waitMs` bounds how long THIS call waits (the init itself keeps going in the
+ * background); `Infinity` waits for the model however long the download takes.
  */
-export async function initLocalAiLadder(): Promise<LocalAiEngineId> {
+export async function initLocalAiLadder({ waitMs = INIT_TIMEOUT_MS }: { waitMs?: number } = {}): Promise<LocalAiEngineId> {
     if (activeEngine) return activeEngine.id;
 
     if (!initPromise) {
         initStartedAt = Date.now();
-        initTimedOut = false;
         initPromise = initFirstAvailableEngine()
             .then((engine) => {
                 if (engine) activeEngine = engine;
@@ -93,18 +134,13 @@ export async function initLocalAiLadder(): Promise<LocalAiEngineId> {
             });
     }
 
-    if (!initTimedOut) {
-        const elapsed = initStartedAt ? Date.now() - initStartedAt : 0;
-        const remaining = Math.max(0, INIT_TIMEOUT_MS - elapsed);
-        if (remaining > 0) {
-            try {
-                await withTimeout(initPromise, remaining);
-            } catch (e) {
-                initTimedOut = true;
-                console.warn("[local-ai] init timed out, proceeding with heuristic", e);
-            }
-        } else {
-            initTimedOut = true;
+    const remaining = waitMs - (initStartedAt ? Date.now() - initStartedAt : 0);
+    if (remaining > 0) {
+        try {
+            // setTimeout(Infinity) fires at once, so an unbounded wait skips the timer.
+            await (Number.isFinite(remaining) ? withTimeout(initPromise, remaining) : initPromise);
+        } catch (e) {
+            console.warn("[local-ai] init timed out, proceeding with heuristic", e);
         }
     }
 
@@ -143,5 +179,5 @@ export function resetLocalAiLadderForTests(): void {
     activeEngine = null;
     initPromise = null;
     initStartedAt = null;
-    initTimedOut = false;
+    modelLoad = IDLE_MODEL_LOAD;
 }

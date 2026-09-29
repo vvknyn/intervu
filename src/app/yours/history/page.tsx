@@ -35,6 +35,7 @@ import {
     HISTORY_EMPTY_DESCRIPTION,
     HISTORY_EMPTY_TITLE,
 } from "@/lib/pursuits/tracker-voice-copy";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Exported so `/mock/history` (fixture preview — `useViewed()` has no
  *  guest fallback, so the real route can't show filled/empty states
@@ -162,25 +163,28 @@ export function HistoryList({
     );
 }
 
-/** §6: "skeleton-bar bars shaped like the row anatomy" — decomposed into
+/** §6: wait-state bars shaped like the row anatomy — decomposed into
  *  title/company/meta bars (matches the jobs/page.tsx reference skeleton),
  *  not one flat block standing in for the whole row. */
 function HistoryLoading() {
     return (
-        <div className={posterListPanelClassName} role="status" aria-busy="true">
-            <div aria-hidden className="divide-y divide-border border-t border-border">
-                {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="px-[var(--list-inset)] pt-4">
-                        <div className="space-y-1.5 border-b border-border pb-4">
-                            <div className="skeleton-bar h-4 w-2/3" />
-                            <div className="skeleton-bar h-3 w-1/3" />
-                            <div className="skeleton-bar h-3 w-24" />
+        <WaitState
+            label="Loading your history"
+            className={posterListPanelClassName}
+            skeleton={
+                <div className="divide-y divide-border border-t border-border">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                        <div key={i} className="px-[var(--list-inset)] pt-4">
+                            <div className="space-y-1.5 border-b border-border pb-4">
+                                <WaitBar className="h-4 w-2/3" />
+                                <WaitBar className="h-3 w-1/3" />
+                                <WaitBar className="h-3 w-24" />
+                            </div>
                         </div>
-                    </div>
-                ))}
-            </div>
-            <span className="sr-only">Loading your history…</span>
-        </div>
+                    ))}
+                </div>
+            }
+        />
     );
 }
 

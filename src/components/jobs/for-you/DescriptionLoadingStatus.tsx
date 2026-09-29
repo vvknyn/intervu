@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
+import {  } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { DETAIL_FETCH_TIMEOUT_MS } from "@/lib/jobs/detail-fetch";
 import {
     DESCRIPTION_STALL_COPY_MS,
@@ -60,7 +61,7 @@ export function DescriptionLoadingStatus({ onRetry }: { onRetry?: () => void } =
     if (phase === "stall") {
         return (
             <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="for-you-jd-load-stall">
-                <CircleNotch size={16} className="animate-spin" aria-hidden />
+                <InlineSpinner size={16} />
                 {copy}
             </p>
         );
@@ -69,7 +70,7 @@ export function DescriptionLoadingStatus({ onRetry }: { onRetry?: () => void } =
     return (
         <RotatingLoadingCopy
             variant="jd"
-            leading={<CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+            leading={<InlineSpinner size={16} className="shrink-0" />}
         />
     );
 }

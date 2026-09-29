@@ -1,5 +1,6 @@
 import { useId } from "react";
-import { CircleNotch } from "@phosphor-icons/react";
+import {  } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 /** Labeled loading row for settings cards (P1-8 — not bare "Loading…"). */
@@ -12,7 +13,7 @@ export function SettingsSectionLoading({ label, className }: { label: string; cl
             aria-busy="true"
             aria-labelledby={labelId}
         >
-            <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />
+            <InlineSpinner size={16} className="shrink-0" />
             <span id={labelId}>{label}</span>
         </div>
     );

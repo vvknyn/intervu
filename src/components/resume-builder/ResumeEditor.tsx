@@ -25,7 +25,6 @@ import {
     ArrowLeft,
     Eye,
     PencilSimple,
-    CircleNotch,
     Check,
     ClockCounterClockwise,
     Trash,
@@ -34,6 +33,7 @@ import {
     BookmarkSimple,
     ArrowCounterClockwise,
 } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 interface ResumeEditorProps {
@@ -364,7 +364,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         disabled={saving}
                         className="gap-1.5 text-xs font-semibold rounded-ctl"
                     >
-                        {saving ? <CircleNotch className="animate-spin" /> : <FloppyDisk />}
+                        {saving ? <InlineSpinner /> : <FloppyDisk />}
                         <span className="sm:hidden">{saving ? "Saving…" : "Save"}</span>
                         <span className="hidden sm:inline">{saving ? "Saving…" : "Save changes"}</span>
                     </Button>
@@ -513,7 +513,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
 
                                 {loadingVersions ? (
                                     <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground">
-                                        <CircleNotch size={16} className="animate-spin" /> Loading history…
+                                        <InlineSpinner size={16} /> Loading history…
                                     </div>
                                 ) : versions.length === 0 ? (
                                     <div className="py-8 text-center text-xs text-muted-foreground border border-border p-4">
@@ -559,7 +559,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                                                                 className="text-xs gap-1 rounded-ctl"
                                                             >
                                                                 {deletingId === ver.id ? (
-                                                                    <CircleNotch className="animate-spin" />
+                                                                    <InlineSpinner />
                                                                 ) : (
                                                                     <Trash />
                                                                 )}

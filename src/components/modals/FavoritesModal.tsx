@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Star, X, Trash, NotePencil, CircleNotch, ChatCircleDots } from "@phosphor-icons/react";
+import { Star, X, Trash, NotePencil, ChatCircleDots } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -85,7 +86,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                     <DialogBody className="p-6">
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
-                                <CircleNotch size={24} className="animate-spin text-muted-foreground" />
+                                <InlineSpinner size={24} className="text-muted-foreground" />
                             </div>
                         ) : favorites.length === 0 ? (
                             <div className="text-center py-12">
@@ -173,7 +174,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                     >
                                                         {savingNotes ? (
                                                             <>
-                                                                <CircleNotch className="animate-spin mr-1" />
+                                                                <InlineSpinner className="mr-1" />
                                                                 Saving...
                                                             </>
                                                         ) : (

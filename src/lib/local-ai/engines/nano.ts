@@ -2,6 +2,7 @@
  * Chrome built-in Prompt API / Gemini Nano (window.ai.languageModel).
  */
 
+import type { ModelLoadReport } from "../model-load";
 import type { LocalAiEngine, ModelParseOutput } from "./types";
 
 const PARSE_PROMPT = (text: string) => `Extract resume data as JSON only. Fields: profile (name, profession, yearsOfExperience, location, email, phone, linkedin), experience (company, role, dates, description), competencies (category, skills array), education (degree, institution, year), generatedSummary.
@@ -15,12 +16,25 @@ Return ONLY valid JSON matching this shape:
 {"profile":{},"experience":[],"competencies":[],"education":[],"generatedSummary":""}`;
 
 type LanguageModelFactory = {
-    create(options?: { temperature?: number }): Promise<{
+    create(options?: {
+        temperature?: number;
+        monitor?: (m: EventTarget) => void;
+    }): Promise<{
         prompt(input: string): Promise<string>;
         destroy?: () => void;
     }>;
     capabilities?: () => Promise<{ available: string }>;
 };
+
+async function nanoAvailability(): Promise<string | null> {
+    const factory = getLanguageModelFactory();
+    if (!factory?.capabilities) return null;
+    try {
+        return (await factory.capabilities()).available;
+    } catch {
+        return null;
+    }
+}
 
 function getLanguageModelFactory(): LanguageModelFactory | null {
     if (typeof window === "undefined") return null;
@@ -47,6 +61,11 @@ let session: { prompt(input: string): Promise<string>; destroy?: () => void } | 
 
 export const nanoEngine: LocalAiEngine = {
     id: "nano",
+    downloadBytes: null,
+
+    async isCached() {
+        return (await nanoAvailability()) === "readily";
+    },
 
     async isAvailable() {
         const factory = getLanguageModelFactory();
@@ -62,10 +81,18 @@ export const nanoEngine: LocalAiEngine = {
         }
     },
 
-    async init() {
+    async init(report?: ModelLoadReport) {
         const factory = getLanguageModelFactory();
         if (!factory) throw new Error("Prompt API unavailable");
-        session = await factory.create({ temperature: 0.1 });
+        session = await factory.create({
+            temperature: 0.1,
+            monitor: (m) =>
+                m.addEventListener("downloadprogress", (e) => {
+                    const { loaded, total } = e as Event & { loaded: number; total: number };
+                    // loaded/total is a fraction whether Chrome reports bytes or a 0..1 value.
+                    if (total > 0) report?.({ kind: "fraction", fraction: loaded / total });
+                }),
+        });
     },
 
     async parseResumeText(text: string) {

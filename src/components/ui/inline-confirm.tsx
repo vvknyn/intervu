@@ -8,7 +8,8 @@
  * `PursuitDetailSheet.tsx`'s Remove flow — one shape, one place it can drift.
  */
 
-import { CircleNotch, Trash } from "@phosphor-icons/react";
+import { Trash } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +49,7 @@ export function InlineConfirm({
                     onClick={onConfirm}
                     className="w-full gap-1.5 sm:w-auto"
                 >
-                    {busy ? <CircleNotch className="animate-spin" /> : <Trash />}
+                    {busy ? <InlineSpinner /> : <Trash />}
                     {busy ? busyLabel : confirmLabel}
                 </Button>
                 <Button

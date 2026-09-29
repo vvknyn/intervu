@@ -18,7 +18,10 @@ import { ConfidenceIndicator, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeReviewFields } from "./ResumeReviewFields";
 import { ResumeData, ParsedResumeResult } from "@/types/resume";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
-import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
+import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-resume";
+import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
+import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
+import { formatBytes } from "@/lib/local-ai/model-load";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
@@ -27,7 +30,7 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
-import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { initLocalAiLadder, probeBestDownload } from "@/lib/local-ai/ladder";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 import { captureEvent } from "@/lib/analytics/events";
 import {
@@ -101,18 +104,11 @@ type InputMethod = 'file' | 'paste';
  */
 export function ResumeParsingStep() {
     return (
-        <div className="py-12 text-center space-y-4">
-            <div className="w-16 h-16 rounded-pill bg-surface-2 flex items-center justify-center mx-auto animate-pulse shadow-[var(--shadow-bevel-inset)]">
-                <Cpu size={24} weight="fill" className="text-live" />
-            </div>
-            <div>
-                <p className="text-foreground">Parsing your résumé...</p>
-                <p className="text-sm text-muted-foreground mt-1">Structuring on this device — no cloud LLM</p>
-            </div>
-            <div className="w-48 h-1 rounded-pill bg-surface-3 mx-auto overflow-hidden">
-                <div className="h-full w-full rounded-pill bg-live animate-pulse" />
-            </div>
-        </div>
+        <WaitState
+            label="Reading your résumé"
+            status="Structuring your résumé on this device"
+            className="py-12"
+        />
     );
 }
 
@@ -134,10 +130,17 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [localAiConsent, setLocalAiConsent] = useState(false);
     const [consentDeclined, setConsentDeclined] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
+    // Model upgrade of the quick (rules) parse — see `startEnhancement`.
+    const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
+    const [improved, setImproved] = useState<LocalParseResult | null>(null);
+    const enhancementRun = useRef(0);
+    const skipEnhancement = useRef<(() => void) | null>(null);
+    const [downloadBytes, setDownloadBytes] = useState<number | null>(null);
 
     useEffect(() => {
         if (!isOpen) return;
         setLocalAiConsent(readLocalAiConsent());
+        void probeBestDownload().then((best) => setDownloadBytes(best.bytes));
         captureEvent(
             "resume_gate_shown",
             buildResumeFunnelPayload({
@@ -147,6 +150,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             }),
         );
     }, [isOpen, funnelContext?.reason, funnelContext?.surface, funnelContext?.signed_in]);
+
+    // A new parse (or closing) invalidates any in-flight model upgrade of the old one.
+    const abandonEnhancement = () => {
+        enhancementRun.current += 1;
+        setEnhancement(null);
+        setImproved(null);
+    };
 
     const resetState = () => {
         setStep('input');
@@ -158,6 +168,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setIsProcessing(false);
         setEngineLabel(null);
         setConsentDeclined(false);
+        abandonEnhancement();
     };
 
     const handleClose = () => {
@@ -268,9 +279,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         return result.text || "";
     };
 
+    // The quick (rules) parse is instant, so review opens at once; the model —
+    // which may be a large first-time download — upgrades it in the background.
     const runParse = async (textContent: string) => {
         const started = Date.now();
-        const local = await parseResumeLocally(textContent, { skipDownload: consentDeclined });
+        const local = await parseResumeLocally(textContent, { skipDownload: true });
         const refusal = refuseResumeReview(local.data.parsed, textContent);
         if (refusal) {
             throw new Error(refusal);
@@ -303,7 +316,46 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setConsentDeclined(true);
     };
 
+    const adoptImproved = (result: LocalParseResult) => {
+        setEngineLabel(result.engineLabel);
+        setParseResult(result.data);
+        setEditedData(result.data.parsed);
+        setImproved(null);
+        setEnhancement(null);
+    };
+
+    // Waits for the model however long the download takes — the user can skip
+    // at any time. Skipping only stops the wait: transformers.js can't cancel a
+    // download, so it finishes in the background and is cached for next time.
+    const startEnhancement = async (textContent: string) => {
+        const run = ++enhancementRun.current;
+        setEnhancement("loading");
+        const skipped = new Promise<"skipped">((resolve) => {
+            skipEnhancement.current = () => resolve("skipped");
+        });
+        const upgraded = (async () => {
+            if ((await initLocalAiLadder({ waitMs: Infinity })) === "heuristic") return null;
+            return parseResumeLocally(textContent);
+        })().catch(() => null);
+        const outcome = await Promise.race([upgraded, skipped]);
+        if (enhancementRun.current !== run) return;
+        if (outcome === "skipped") return setEnhancement("skipped");
+        if (outcome === null || outcome.engine === "heuristic" || refuseResumeReview(outcome.data.parsed, textContent)) {
+            return setEnhancement("unimproved");
+        }
+        setImproved(outcome);
+        setEnhancement("improved-pending");
+    };
+
+    // Untouched quick match → swap in the model's parse silently. Edited → the
+    // strip offers it as a button instead of overwriting the user's work.
+    useEffect(() => {
+        if (improved && parseResult && editedData === parseResult.parsed) adoptImproved(improved);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [improved, parseResult, editedData]);
+
     const handleParse = async () => {
+        abandonEnhancement();
         setIsProcessing(true);
         setError(null);
         captureEvent(
@@ -329,14 +381,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             setStep('parsing');
             captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
+            await runParse(textContent);
+
             // Explicitly declining the download means heuristic rules only —
             // never trigger a model download the user asked to skip.
             if (!consentDeclined) {
                 if (!localAiConsent) grantConsent();
-                await initLocalAiLadder();
+                void startEnhancement(textContent);
             }
-
-            await runParse(textContent);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Failed to parse resume";
             setError(message);
@@ -413,7 +465,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     To read your résumé, Velai downloads an AI model to this browser once and runs it here.
-                    The download can be large, but it only happens once.
+                    {localAiConsent
+                        ? null
+                        : downloadBytes !== null
+                          ? ` The model is about ${formatBytes(downloadBytes)}. It's a one-time download, cached for next time.`
+                          : " Chrome manages this model's download, so its size isn't shown here. It's a one-time download, cached for next time."}
                 </p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                     {RESUME_IMPORT_PARSE_LINE} {storageNote}
@@ -548,6 +604,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 </div>
 
+                {enhancement && (
+                    <ModelEnhancementStrip
+                        phase={enhancement}
+                        onSkip={() => skipEnhancement.current?.()}
+                        onUseImproved={() => improved && adoptImproved(improved)}
+                    />
+                )}
+
                 {/* Warnings */}
                 {parseResult.warnings.length > 0 && (
                     <div className="px-6">
@@ -640,7 +704,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             >
                                 {isProcessing ? (
                                     <>
-                                        <div className="mr-2 h-4 w-4 animate-spin rounded-pill border-2 border-background border-t-transparent" />
+                                        <InlineSpinner className="mr-2" />
                                         Processing...
                                     </>
                                 ) : (

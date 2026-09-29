@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CircleNotch, UploadSimple } from "@phosphor-icons/react";
+import { UploadSimple } from "@phosphor-icons/react";
+import { InlineSpinner, WaitBar } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
     JOBS_SESSION_FRAME_CLASS,
     JobsSessionLoadingShell,
@@ -104,11 +104,11 @@ function RankedListSkeleton() {
         <div className="overflow-hidden rounded-panel border border-border bg-surface" aria-hidden>
             {Array.from({ length: 6 }, (_, index) => (
                 <div key={index} className="flex gap-3 border-b border-border px-[var(--list-inset)] py-4 last:border-b-0">
-                    <Skeleton className="size-10 shrink-0" />
+                    <WaitBar className="size-10 shrink-0" />
                     <div className="flex-1 space-y-2">
-                        <Skeleton className="h-4 w-2/3" />
-                        <Skeleton className="h-3 w-1/2" />
-                        <Skeleton className="h-3 w-1/3" />
+                        <WaitBar className="h-4 w-2/3" />
+                        <WaitBar className="h-3 w-1/2" />
+                        <WaitBar className="h-3 w-1/3" />
                     </div>
                 </div>
             ))}
@@ -581,7 +581,7 @@ export function ForYouHome({
                                 >
                                     {applying ? (
                                         <>
-                                            <CircleNotch size={16} className="mr-2 animate-spin" aria-hidden />
+                                            <InlineSpinner size={16} className="mr-2" />
                                             Preparing…
                                         </>
                                     ) : (
