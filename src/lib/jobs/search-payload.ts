@@ -1,6 +1,7 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
 import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
 import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
+import { urlSortToMode, type JobsUrlState, type UrlSort } from "@/lib/jobs/url-state";
 
 /**
  * The ONE place that turns (FilterState, query, sort) into the shared subset
@@ -86,4 +87,30 @@ export function buildJobSearchPayload(
         companyDomain: state.companyDomain ?? undefined,
         suppressLocationDefault: suppressLocationDefault || undefined,
     };
+}
+
+/**
+ * The backend sort a URL `sort` value resolves to. `fit` is a client-side
+ * reorder of the relevance results, so it sends no override: with a query,
+ * `resolveEffectiveSort` (sort.ts) lands on relevance by itself.
+ */
+export function urlSortToBackendSort(sort: UrlSort | null): JobSortMode | null {
+    if (!sort) return null;
+    const mode = urlSortToMode(sort);
+    return mode === "fit" ? null : mode;
+}
+
+/** A `/jobs` URL state as the search payload `/jobs` itself would send for it. */
+export function searchParamsFromUrlState(
+    state: JobsUrlState,
+    postedDateSupported = true,
+    suppressLocationDefault?: boolean,
+): ReturnType<typeof buildJobSearchPayload> {
+    return buildJobSearchPayload(
+        state,
+        state.q,
+        urlSortToBackendSort(state.sort),
+        postedDateSupported,
+        suppressLocationDefault,
+    );
 }

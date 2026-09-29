@@ -40,6 +40,16 @@ export function seniorityFromYears(years: number): Seniority | null {
     return "senior";
 }
 
+/**
+ * The `experience_level` facet values a candidate at `seniority` retrieves.
+ * Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
+ * would hide most of those titles from Rank retrieval.
+ */
+export function experienceLevelFacet(seniority: Seniority | null): string[] | null {
+    if (seniority === "senior") return ["mid", "senior"];
+    return seniority ? [seniority] : null;
+}
+
 /** Distinct experience role titles in résumé order (most recent first). */
 function experienceRoleTitles(resume: ResumeData): string[] {
     const out: string[] = [];
@@ -118,16 +128,8 @@ export function buildMatchQuery(resume: ResumeData): DerivedQuery {
 
     const q = formatQuotedOrQuery(terms);
     const facets: Partial<Record<FacetKey, string[]>> = {};
-    const seniority = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
-    if (seniority === "senior") {
-        // Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
-        // would hide most of those titles from Rank retrieval.
-        facets.experience_level = ["mid", "senior"];
-    } else if (seniority === "mid") {
-        facets.experience_level = ["mid"];
-    } else if (seniority === "entry") {
-        facets.experience_level = ["entry"];
-    }
+    const levels = experienceLevelFacet(seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0));
+    if (levels) facets.experience_level = levels;
     return { q, facets, phrases: terms };
 }
 

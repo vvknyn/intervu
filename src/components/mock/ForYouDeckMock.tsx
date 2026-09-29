@@ -103,6 +103,8 @@ function ForYouDeckMockInner() {
                 onSkip={handleSkip}
                 matchScores={matchScores}
                 resume={MOCK_FOR_YOU_DECK_RESUME}
+                // No signals: the fixture deck has no search to count or filter against (no Meili).
+                signals={null}
                 nowMs={MOCK_FOR_YOU_DECK_NOW_MS}
                 fitResolving={false}
                 loading={false}

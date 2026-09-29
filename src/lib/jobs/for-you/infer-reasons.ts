@@ -101,9 +101,10 @@ export function inferReasons(
         // above); this only asks whether qualifying evidence exists.
         const hasQualifyingComponent = score.components.some(
             (component) =>
-                (component.key === "relevance" && component.score >= 0.35) ||
-                (component.key === "seniority" && component.score >= 0.5) ||
-                (component.key === "location" && component.score >= 0.5),
+                !component.unknown &&
+                ((component.key === "relevance" && component.score >= 0.35) ||
+                    (component.key === "seniority" && component.score >= 0.5) ||
+                    (component.key === "location" && component.score >= 0.5)),
         );
         if (bullets.length === 0 && !hasQualifyingComponent) {
             bullets.push("Limited overlap we could compare — review the role details below.");

@@ -516,6 +516,22 @@ function cityVariantIndex(gazetteer: Gazetteer): Map<string, string[]> {
   return idx;
 }
 
+/**
+ * Every known spelling of a city, for a name typed or picked as ONE literal:
+ * the name as given first, then each other spelling `CITY_NAME_VARIANTS`
+ * records for the same city (either direction — "Bangalore" reaches
+ * "Bengaluru" and "Bengaluru" reaches "Bangalore"). A name with no recorded
+ * variants comes back alone. The picked-facet path (`resolvePickedFacetValue`)
+ * uses this so a literal `city=` matches the city's whole split corpus history,
+ * the same as typing it does (`resolveCity`).
+ */
+export function citySpellings(name: string, gazetteer: Gazetteer): string[] {
+  const key = name.trim().toLowerCase();
+  const group = [...cityVariantIndex(gazetteer).values()].find((spellings) => spellings.includes(key));
+  const others = (group ?? []).filter((spelling) => spelling !== key).map(titleCase);
+  return [name, ...others];
+}
+
 /** One curated alias entry: a short/nickname phrase a searcher might type,
  *  and which SPECIFIC gazetteer entity it names. `kind` picks the resolver
  *  DIRECTLY (never the general country-then-admin1-then-city ambiguity

@@ -105,6 +105,8 @@ import {
     buildDockedChips,
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
+import { BroadenOptions } from "@/components/jobs/BroadenOptions";
+import { isThinResults } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
@@ -245,7 +247,7 @@ import {
 } from "@/lib/jobs/result-state";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
+import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -292,7 +294,6 @@ import {
     parseJobsUrl,
     serializeJobsUrl,
     DEFAULT_URL_STATE,
-    urlSortToMode,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
     type UrlSort,
@@ -321,11 +322,9 @@ import {
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
-import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
-import {
-    candidateLocationFromResume,
-    packApplyLocationFacets,
-} from "@/lib/jobs/for-you/pack-apply-location";
+import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
+import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
@@ -344,7 +343,7 @@ import {
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
-import { buildJobSearchPayload } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
@@ -589,25 +588,6 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
             ))}
         </div>
     );
-}
-
-/**
- * Resolve the URL's `sort` to the backend `JobSortMode` this page sends to
- * `searchJobsAction`. `fit` isn't a backend sort mode — "ranked by résumé"
- * is achieved by putting the résumé-derived text into `query` (see
- * `applyFit`) and letting relevance ranking do the work, exactly like the
- * old Match mode did. So `fit` resolves to `null` here (no override), and
- * `resolveEffectiveSort` naturally lands on "relevance" once that query is
- * non-empty. Whether "ranked by résumé" is ACTIVE (for the Select label +
- * dismissible chip) is tracked separately by the `fitActive` state, derived
- * straight from the raw URL value — see its declaration below. This is the
- * ONE call site for `urlSortToMode`, so this is the only place sort=fit
- * needs handling.
- */
-function resolveUrlSort(s: UrlSort | null): JobSortMode | null {
-    if (!s) return null;
-    const mode = urlSortToMode(s);
-    return mode === "fit" ? null : mode;
 }
 
 /**
@@ -885,6 +865,7 @@ function EmptyResults({
     seeds,
     onSubmitSeed,
     searchAlertSlot,
+    broadenSlot,
 }: {
     entries: FilterEntry[];
     onClearEntry: (entry: FilterEntry) => void;
@@ -907,6 +888,8 @@ function EmptyResults({
     seeds: string[];
     onSubmitSeed: (seed: string) => void;
     searchAlertSlot?: React.ReactNode;
+    /** The "broaden this search" options — see `broadenNudge` in `JobsContent`. */
+    broadenSlot?: React.ReactNode;
 }) {
     const hasQuery = query.trim().length > 0;
     const hasFilters = entries.length > 0 || !!locationDefault;
@@ -935,6 +918,7 @@ function EmptyResults({
                     locationDefault={locationDefault}
                 />
             )}
+            {broadenSlot}
             {searchAlertSlot}
             {ghostRevealCount != null && (
                 <button
@@ -1129,11 +1113,11 @@ export function JobsContent({
     const hasSeparateRemoteWorkTypeChip = (filterState.facets.work_type ?? []).some(isRemoteWorkTypeValue);
     // Explicit sort override; null = auto (newest with no query, relevance with a query —
     // see buildSort in lib/jobs/meilisearch.ts). Not a "filter", so it's kept out of
-    // activeCount/clearAll. See `resolveUrlSort` for the sort=fit handling.
-    const [sortOverride, setSortOverride] = useState<JobSortMode | null>(resolveUrlSort(initialUrlState.sort));
+    // activeCount/clearAll. See `urlSortToBackendSort` (search-payload.ts) for the sort=fit handling.
+    const [sortOverride, setSortOverride] = useState<JobSortMode | null>(urlSortToBackendSort(initialUrlState.sort));
     // "Ranked by your résumé" — mirrors `sort=fit` in the URL. Kept separate
     // from `sortOverride` (a real backend `JobSortMode`) because "fit" isn't
-    // one; the backend sort stays whatever `resolveUrlSort` resolves it to
+    // one; the backend sort stays whatever `urlSortToBackendSort` resolves it to
     // (relevance, via the résumé-derived query — see `applyFit`).
     const [fitActive, setFitActive] = useState(initialUrlState.sort === "fit");
     const [fitResolving, setFitResolving] = useState(false);
@@ -1728,6 +1712,25 @@ export function JobsContent({
     // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
     const [resumeSourceLabel, setResumeSourceLabel] = useState<string | null>(null);
+    // Saved preferences (signed-in only) + résumé → the ONE `CandidateSignals` every fit surface
+    // reads: the pack filters, the chip scores, the hub probe and "Rank by fit". Explicit
+    // preferences override the résumé; a signed-out visitor resolves from the résumé alone.
+    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
+    const uid = user?.uid ?? null;
+    useEffect(() => {
+        if (!uid) {
+            setAgentPrefs(null);
+            return;
+        }
+        let live = true;
+        void fetchAgentPreferencesAction().then((res) => {
+            if (live) setAgentPrefs(res.data ?? null);
+        });
+        return () => {
+            live = false;
+        };
+    }, [uid]);
+    const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
     const [importOpen, setImportOpen] = useState(false);
     const importOpenRef = useRef(importOpen);
     importOpenRef.current = importOpen;
@@ -2821,11 +2824,11 @@ export function JobsContent({
     // visible order can never disagree about a job's score. `null` (no
     // résumé) short-circuits to no map at all, not a map of nulls.
     const matchScores = useMemo(() => {
-        if (!resume) return null;
+        if (!resume || !signals) return null;
         const map = new Map<string, MatchScore | null>();
-        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h));
+        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h, signals));
         return map;
-    }, [resume, hits]);
+    }, [resume, signals, hits]);
 
     // The receipt/toolbar's "against your résumé of {date}" text — formatted
     // once here (`shortDate`, presentation.ts, UTC-pinned) rather than at
@@ -2845,7 +2848,7 @@ export function JobsContent({
     // drives relevance-mode recall and the "titled it" seam exactly as
     // before. `sort=fit`'s actual backend mechanism is résumé-derived query
     // text (`applyFit` → `buildMatchQuery`) feeding ordinary relevance
-    // ranking (see `resolveUrlSort`'s doc comment above) — this only
+    // ranking (see `urlSortToBackendSort`'s doc comment, search-payload.ts) — this only
     // reorders what relevance already retrieved, so recall is untouched and
     // the visible order now matches the chip. `Array.prototype.sort` is
     // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
@@ -2869,8 +2872,7 @@ export function JobsContent({
             orderForYouJobsByBand(
                 renderedClusters
                     .map((c) => c.primary)
-                    .filter(hasLiveApplyUrl)
-                    .filter((job) => !isCanadaDeckJob(job)),
+                    .filter(hasLiveApplyUrl),
                 matchScores ? (job) => matchScores.get(job.id) ?? null : null,
                 result?.effectiveQ,
             ),
@@ -2959,7 +2961,7 @@ export function JobsContent({
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume) {
+        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals) {
             return;
         }
         let cancelled = false;
@@ -2973,12 +2975,8 @@ export function JobsContent({
         void (async () => {
             try {
                 const previous = readHubCountBaseline();
-                const { q, facets: derived } = buildMatchQuery(resume);
-                const derivedWithLocation = {
-                    ...derived,
-                    ...packApplyLocationFacets(resume),
-                };
-                const merged = mergeFacets({}, derivedWithLocation);
+                // The pack's own filters (seniority, country, remote): the probe counts what the packs retrieve.
+                const { q, facets: merged } = packFilters(resume, signals);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let unavailableRetries = 0;
@@ -3017,7 +3015,7 @@ export function JobsContent({
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
                         try {
-                            scoredHit = scoreJobAgainstResume(resume, h);
+                            scoredHit = scoreJobAgainstResume(resume, h, signals);
                         } catch {
                             scoredHit = null;
                         }
@@ -3075,7 +3073,7 @@ export function JobsContent({
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey]);
+    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
 
     const hubCountLabels = useMemo(
         () =>
@@ -3175,7 +3173,7 @@ export function JobsContent({
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
             setHomeView(parsed.homeView);
-            setSortOverride(resolveUrlSort(parsed.sort));
+            setSortOverride(urlSortToBackendSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
 
@@ -4510,15 +4508,17 @@ export function JobsContent({
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
-    // `resolveUrlSort` above for why the backend sort stays relevance, not a
+    // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
-        const { q, facets: derived } = buildMatchQuery(r);
+        // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
+        // the board and applying the pack by hand return the same rows. A place the user already
+        // picked is theirs, never replaced by the résumé's.
+        const { q, facets: packFacets } = packFilters(r, resolveCandidateSignals(r, agentPrefs));
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
-        const derivedWithLocation = userPickedLocation
-            ? derived
-            : { ...derived, ...packApplyLocationFacets(r) };
-        const merged = mergeFacets(facets, derivedWithLocation);
+        const derived = { ...packFacets };
+        if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
+        const merged = mergeFacets(facets, derived);
         setFacets(merged);
         setQueryDraft(q);
         setQuery(q);
@@ -4854,6 +4854,26 @@ export function JobsContent({
         loading,
         hitCount: hits.length,
     });
+    // The ONE "broaden this search" nudge — the same component the packs' thin state renders, so the
+    // board's zero and thin results offer the same options with the same counts. Each option applies
+    // in place through `applyFilterState`, the chokepoint every filter change goes through.
+    const broadenNudge =
+        result && result.configured && !result.unavailable && !loading && isThinResults(result.total) ? (
+            <BroadenOptions
+                state={buildUrlState({ jobId: null })}
+                total={result.total}
+                ctx={{
+                    autoLocationLabel: shouldShowLocationDefaultChip(result.defaultedLocation, chosenLocations)
+                        ? detectedLocationLabel(result.defaultedLocation!, result.remoteAnywhere)
+                        : undefined,
+                    relocation: signals?.relocation.value,
+                }}
+                // The raw action: a count probe must not become `lastSearchId` (open attribution).
+                search={searchJobsActionRaw}
+                onApply={applyFilterState}
+                className="mb-3 px-[var(--list-inset)]"
+            />
+        ) : null;
     const notConnectedPanel = jobsNotConnectedPanelCopy({
         isDev: process.env.NODE_ENV === "development",
         operatorNote: result?.note ?? null,
@@ -6297,6 +6317,7 @@ export function JobsContent({
                                 onSkip={forYouDeck.handleSkip}
                                 matchScores={matchScores}
                                 resume={resume}
+                                signals={signals}
                                 nowMs={nowMs}
                                 fitResolving={fitResolving}
                                 loading={loading}
@@ -6695,6 +6716,7 @@ export function JobsContent({
                                     onRevealGhosts={() => onHideGhosts(false)}
                                     seeds={searchSeeds}
                                     onSubmitSeed={submitSearch}
+                                    broadenSlot={broadenNudge}
                                     searchAlertSlot={
                                         showZeroResultsSearchAlert ? (
                                             <SearchAlertCapture
@@ -6792,6 +6814,7 @@ export function JobsContent({
                                                     of `data-testid="results-clear-filters"`. What is left
                                                     here only reports: the count, the window, the scope. */}
                                             </div>
+                                            {broadenNudge}
                                             {/* ITEM S (2026-08-15, Vivek: "duplicate information") — this
                                                 used to render a second row of "✕ clear <facet>" chips
                                                 restating exactly what "Clear filters · N" above already

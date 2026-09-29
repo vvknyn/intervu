@@ -5,7 +5,6 @@
  */
 import { matchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
-import { isCanadaDeckJob } from "@/lib/jobs/for-you/canada-deck";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
     HUB_PACK_IDS,
@@ -246,8 +245,8 @@ export function formatHubPackCorpusRoleLabels(
 
 /**
  * Visible count for every hub category.
- * "All" uses the search total. Other packs count non-Canada jobs in the
- * probe sample. Canada roles stay out of the per-pack numbers.
+ * "All" uses the search total. Other packs count jobs in the
+ * probe sample.
  * A partial probe still paints counts — waiting for the last page hid
  * every card on an ellipsis. Before any total or sample exists, the
  * slot stays an ellipsis so it does not disappear.
@@ -260,7 +259,6 @@ export function resolveHubRoleCountLabels(input: {
     nowMs?: number;
 }): Partial<Record<string, string>> {
     const nowMs = input.nowMs ?? Date.now();
-    const kept = input.scored.filter((hit) => !isCanadaDeckJob(hit.job));
     const pool =
         input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
             ? Math.floor(input.poolTotal)
@@ -279,8 +277,8 @@ export function resolveHubRoleCountLabels(input: {
         }
         const n =
             packId === "all"
-                ? kept.length
-                : kept.filter((hit) => jobMatchesHubPack(hit.job, packId, nowMs)).length;
+                ? input.scored.length
+                : input.scored.filter((hit) => jobMatchesHubPack(hit.job, packId, nowMs)).length;
         labels[packId] = formatHubRoleCount(n);
     }
     return labels;
@@ -291,7 +289,7 @@ export function resolveHubRoleCountLabels(input: {
  * résumé, the résumé is junk that cannot build a fit query, or the résumé
  * fetch has not settled. Counts are role totals from the jobs in hand.
  * They are not Strong/Good bands, and they are not an ellipsis once a
- * sample exists. Canada roles stay out of the per-pack numbers.
+ * sample exists.
  */
 export function resolveBrowseHubRoleCountLabels(input: {
     jobs: PublicJob[];
@@ -299,7 +297,6 @@ export function resolveBrowseHubRoleCountLabels(input: {
     nowMs?: number;
 }): Partial<Record<string, string>> {
     const nowMs = input.nowMs ?? Date.now();
-    const kept = input.jobs.filter((job) => !isCanadaDeckJob(job));
     const pool =
         input.poolTotal != null && Number.isFinite(input.poolTotal) && input.poolTotal >= 0
             ? Math.floor(input.poolTotal)
@@ -318,8 +315,8 @@ export function resolveBrowseHubRoleCountLabels(input: {
         }
         const n =
             packId === "all"
-                ? kept.length
-                : kept.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
+                ? input.jobs.length
+                : input.jobs.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
         labels[packId] = formatHubRoleCount(n);
     }
     return labels;
