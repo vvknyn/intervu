@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -248,6 +248,29 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
     await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   } else {
     await expect(page.getByTestId("for-you-empty").or(rows.first())).toBeVisible({ timeout: 60_000 });
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("going back to the packs hub keeps the tile counts it had, without counting again", { tag: ["@J-JOBS-40"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  const tiles = ["remote", "fresh", "salary"] as const;
+  const count = (id: string) => page.getByTestId(`hub-pack-count-${id}`);
+  for (const id of tiles) await expect(count(id)).not.toHaveText(/…/, { timeout: 60_000 });
+  const before = await Promise.all(tiles.map((id) => count(id).textContent()));
+
+  // Each return used to re-run the hub's probe and every tile count: the counts blanked to
+  // "…" for seconds, and a few tiles in, the visitor's search limit refused the next pack.
+  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await expect(page.getByTestId("jobs-back-to-packs")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("jobs-back-to-packs").click();
+  await expect(count("remote")).toBeVisible({ timeout: 30_000 });
+  for (let sample = 0; sample < 15; sample++) {
+    expect(await Promise.all(tiles.map((id) => count(id).textContent()))).toEqual(before);
+    await page.waitForTimeout(100);
   }
   expect(diagnostics.serverErrors).toEqual([]);
 });
