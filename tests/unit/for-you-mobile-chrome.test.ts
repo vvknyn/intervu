@@ -8,6 +8,23 @@ const JOBS = join(__dirname, "../../src/components/jobs");
 const RESUME = join(__dirname, "../../src/components/resume-builder");
 const COMPANY = join(__dirname, "../../src/components/company");
 
+/**
+ * Tap targets: the 44px touch floor is the coarse-pointer hit area every control
+ * gets (globals.css, gated by tests/unit/control-scale.test.ts), so these
+ * assert a control-scale `size` step shared by the row, never a hand-rolled
+ * `min-h-11` visual.
+ */
+function buttonBlock(src: string, testid: string): string {
+    const at = src.search(new RegExp(`\\sdata-testid="${testid}"`)); // the JSX attribute, not a selector string
+    assert.ok(at >= 0, `${testid} must exist`);
+    return src.slice(src.lastIndexOf("<Button", at), src.indexOf("</Button>", at));
+}
+const sizesOf = (src: string, ...testids: string[]) =>
+    testids.map((id) => {
+        assert.doesNotMatch(buttonBlock(src, id), /\bmin-h-|\bh-\d/, `${id} must not hand-roll its height`);
+        return /\bsize="([\w-]+)"/.exec(buttonBlock(src, id))?.[1];
+    });
+
 describe("for-you mobile chrome", () => {
     it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
@@ -16,21 +33,18 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /<JobCard/);
         assert.doesNotMatch(src, /data-testid="for-you-next"/);
         assert.doesNotMatch(src, /data-testid="for-you-previous"/);
-        assert.match(src, /h-11 min-h-11[\s\S]*data-testid="for-you-skip"/);
+        assert.deepEqual(sizesOf(src, "for-you-download-apply", "for-you-skip"), ["lg", "lg"]);
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
         const src = readFileSync(join(JOBS, "LocalCustomizePanel.tsx"), "utf8");
         assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/, "body scrolls on the dialog primitive");
         assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
-        const copyBlock =
-            src.match(/<Button[\s\S]*?data-testid="local-customize-copy"[\s\S]*?<\/Button>/)?.[0] ?? "";
-        const pdfBlock =
-            src.match(/<Button[\s\S]*?data-testid="local-customize-pdf"[\s\S]*?<\/Button>/)?.[0] ?? "";
-        assert.match(copyBlock, /min-h-11/);
-        assert.match(pdfBlock, /min-h-11/);
-        assert.ok(copyBlock.length > 0, "Copy must be a Button");
-        assert.ok(pdfBlock.length > 0, "Download PDF must be a Button");
+        // One footer row, one step.
+        assert.deepEqual(
+            sizesOf(src, "local-customize-close", "local-customize-copy", "local-customize-pdf", "local-customize-accept"),
+            ["sm", "sm", "sm", "sm"],
+        );
     });
 
     it("ResumeImportModal shrinks on short phones", () => {
@@ -86,7 +100,7 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /data-testid="job-packs-hub"/);
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /touch-manipulation/);
-        assert.match(src, /min-h-11 w-full/);
+        assert.deepEqual(sizesOf(src, "hub-browse-all-matches"), ["lg"]);
         assert.match(src, /min-h-\[5\.75rem\]/);
     });
 
@@ -94,8 +108,7 @@ describe("for-you mobile chrome", () => {
         const src = readFileSync(join(JOBS, "ApplyReturnPrompt.tsx"), "utf8");
         assert.match(src, />\s*Yes\s*</);
         assert.match(src, />\s*Not yet\s*</);
-        assert.match(src, /data-testid="apply-return-skip"/);
-        assert.match(src, /min-h-11/);
+        assert.deepEqual(sizesOf(src, "apply-return-mark-applied", "apply-return-not-yet", "apply-return-skip"), ["lg", "lg", "lg"]);
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /aria-live="polite"/);
         assert.doesNotMatch(src, />\s*I applied\s*</);

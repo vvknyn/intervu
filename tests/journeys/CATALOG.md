@@ -591,6 +591,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-31 | See the follow-alerts count chip fully inside the header bar (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-32 | Read header tab labels and count chips at WCAG AA text contrast (4.5:1) against their real backdrop (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-33 | Header controls share the md control step (32px) at 1440 and 390: Sign in, Create account, and on desktop with a query the docked search | anon | /jobs, /trends, /about, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-34 | No flex row mixes control heights: the buttons, fields, selects and tabs of every row share one step (a sm glyph inside a text field excepted), at 1440 and 390 | anon | /jobs, /jobs?q=data+analyst, /trends, /about | signed-out | no | covered | control-scale.spec.ts |
 
 ## ERR
 

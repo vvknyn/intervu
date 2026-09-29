@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
  * Journeys for the control-height scale (globals.css `--control-h-sm|md|lg`):
  * controls that share a row share one step, at every width. The 44px touch
  * target is an invisible hit area, so the visual height is the same on a phone.
- * See tests/journeys/CATALOG.md (J-NAV-07, J-NAV-33, J-JOBS-29, J-JOBS-30). Read-only.
+ * See tests/journeys/CATALOG.md (J-NAV-07, J-NAV-33, J-NAV-34, J-JOBS-29, J-JOBS-30). Read-only.
  */
 
 const MD = 32;
@@ -69,3 +69,38 @@ test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JO
     expect(heights.length).toBeGreaterThanOrEqual(2);
     expect(new Set(heights)).toEqual(new Set([MD]));
 });
+
+/**
+ * Class-wide: every flex row on the page, not just the named ones. Controls are
+ * grouped by their nearest flex-row ancestor; a group with more than one height
+ * is a row that mixes steps. The one structural exception is a sm-step glyph in
+ * a row that holds a text field (the field's own clear/dismiss affordance).
+ */
+for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
+    test(`no row on ${path} mixes control steps`, { tag: ["@J-NAV-34"] }, async ({ page }) => {
+        await returningVisitor(page);
+        await page.goto(path);
+        await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
+        const mixed = await page.evaluate((sel) => {
+            const SM = 24;
+            const groups = new Map<Element, Element[]>();
+            for (const el of document.querySelectorAll(sel)) {
+                const r = el.getBoundingClientRect();
+                if (r.width === 0 || r.height === 0) continue;
+                let row = el.parentElement;
+                while (row && !(getComputedStyle(row).display.includes("flex") && getComputedStyle(row).flexDirection === "row")) row = row.parentElement;
+                if (row) groups.set(row, [...(groups.get(row) ?? []), el]);
+            }
+            return [...groups.values()]
+                .map((els) => {
+                    const hasField = els.some((e) => e.tagName === "INPUT");
+                    return els
+                        .map((e) => ({ e, h: Math.round(e.getBoundingClientRect().height) }))
+                        .filter(({ h }) => !(hasField && h === SM))
+                        .map(({ e, h }) => `${(e as HTMLElement).dataset.testid ?? e.getAttribute("aria-label") ?? e.tagName}=${h}`);
+                })
+                .filter((row) => new Set(row.map((c) => c.split("=").pop())).size > 1);
+        }, CONTROLS);
+        expect(mixed).toEqual([]);
+    });
+}

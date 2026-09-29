@@ -331,7 +331,7 @@ export function LocalCustomizePanel({
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        size="lg"
+                                        size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
                                         className="rounded-ctl text-xs font-semibold"

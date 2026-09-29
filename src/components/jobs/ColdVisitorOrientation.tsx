@@ -107,7 +107,7 @@ export function ColdVisitorOrientation({
                     type="button"
                     onClick={handleDismiss}
                     aria-label="Dismiss welcome guide"
-                    className="ctl-sm shrink-0 inline-flex ctl-square items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                    className="ctl-md shrink-0 inline-flex ctl-square items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 >
                     <X size={16} weight="bold" aria-hidden />
                 </button>
