@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/46, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -275,7 +275,7 @@ test("going back to the packs hub keeps the tile counts it had, without counting
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("signed out, the packs hub keeps a place for the tracker and Recently viewed under the tiles, with one sign-in gate back to the hub", { tag: ["@J-JOBS-41"] }, async ({ page, diagnostics }) => {
+test("signed out, the packs hub keeps a place for the tracker and Recently viewed under the tiles, with one sign-in gate back to the hub", { tag: ["@J-JOBS-46"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
