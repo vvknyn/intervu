@@ -48,7 +48,15 @@ async function seedGuest(page: Page, resume: ResumeData) {
 
 /** The rows a tile shows once its own search has ranked them; [] for an empty tile. */
 async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band: string | null }[]> {
-    await page.getByTestId(`hub-pack-card-${tile}`).click({ timeout: 60_000 });
+    const card = page.getByTestId(`hub-pack-card-${tile}`);
+    const back = page.getByTestId("jobs-back-to-packs");
+    await expect(card).toBeVisible({ timeout: 60_000 });
+    // A click that lands before the hub hydrates does nothing, and the first reveal can put sort=fit
+    // in the URL on its own, so the deck opening is the signal that the tile was opened.
+    await expect(async () => {
+        if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
+        await expect(back).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 60_000 });
     await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 60_000 });
     const settled = page.locator(
         '[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
@@ -86,9 +94,28 @@ async function fetchPosting(page: Page, id: string): Promise<PublicJob | null> {
     return null;
 }
 
-test.describe.configure({ mode: "serial" });
+type ReportSection = { name: string; searched: string[]; verdicts: AuditVerdict[]; empty: HubPackId[] };
 
-const report: { name: string; searched: string[]; verdicts: AuditVerdict[]; empty: HubPackId[] }[] = [];
+/**
+ * Each résumé is its own test, and a résumé with findings must not stop the
+ * others (serial mode skipped them). A failed test also restarts the worker,
+ * so the report is merged on disk: this résumé's section replaces its last one.
+ */
+function writeReport(section: ReportSection) {
+    mkdirSync(OUT_DIR, { recursive: true });
+    const jsonPath = path.join(OUT_DIR, "pack-audit.json");
+    let previous: ReportSection[] = [];
+    try {
+        previous = JSON.parse(readFileSync(jsonPath, "utf8")) as ReportSection[];
+    } catch {
+        previous = [];
+    }
+    const sections = [...previous.filter((s) => s.name !== section.name && RESUMES.includes(s.name)), section].sort(
+        (a, b) => RESUMES.indexOf(a.name) - RESUMES.indexOf(b.name),
+    );
+    writeFileSync(path.join(OUT_DIR, "pack-audit.md"), renderAuditMarkdown(sections));
+    writeFileSync(jsonPath, JSON.stringify(sections, null, 2));
+}
 
 for (const name of RESUMES) {
     test(`pack audit: ${name}`, async ({ page }) => {
@@ -113,10 +140,7 @@ for (const name of RESUMES) {
             await page.waitForTimeout(TILE_PAUSE_MS);
         }
 
-        report.push({ name, searched: buildMatchQuery(resume).phrases, verdicts, empty });
-        mkdirSync(OUT_DIR, { recursive: true });
-        writeFileSync(path.join(OUT_DIR, "pack-audit.md"), renderAuditMarkdown(report));
-        writeFileSync(path.join(OUT_DIR, "pack-audit.json"), JSON.stringify(report, null, 2));
+        writeReport({ name, searched: buildMatchQuery(resume).phrases, verdicts, empty });
 
         const failures = verdicts.filter((v) => failedChecks(v).length > 0).map((v) => `${v.tile} #${v.position} ${v.title} (${failedChecks(v).join(", ")})`);
         expect.soft(failures, `recommendations failing a check for ${name}`).toEqual([]);

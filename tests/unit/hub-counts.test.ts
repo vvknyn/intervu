@@ -9,6 +9,8 @@ import {
     formatHubPackCorpusRoleLabel,
     formatHubPackCorpusRoleLabels,
     formatHubRoleCount,
+    freshHubProbeMemo,
+    HUB_PROBE_MEMO_MS,
     keywordPackLowerBound,
     resolveBrowseHubRoleCountLabels,
     resolveHubRoleCountLabels,
@@ -444,5 +446,20 @@ describe("resumeHubPackCounts", () => {
     it("is a floor when the list total itself is capped", () => {
         const counts = resumeHubPackCounts({ listTotal: { kind: "floor", value: 3 }, listJobs: list });
         assert.deepEqual(counts.salary, { kind: "floor", value: 2 });
+    });
+});
+
+describe("freshHubProbeMemo: going back to the hub repaints a finished probe", () => {
+    const memo = { key: "pm\0canada", at: 1_000, complete: true };
+
+    it("reuses the probe for the same résumé and pack while it is recent", () => {
+        assert.equal(freshHubProbeMemo(memo, "pm\0canada", 1_000 + HUB_PROBE_MEMO_MS - 1), memo);
+    });
+
+    it("searches again for another résumé or pack, once it is old, or when a count was refused", () => {
+        assert.equal(freshHubProbeMemo(memo, "csm\0canada", 2_000), null);
+        assert.equal(freshHubProbeMemo(memo, "pm\0canada", 1_000 + HUB_PROBE_MEMO_MS), null);
+        assert.equal(freshHubProbeMemo({ ...memo, complete: false }, "pm\0canada", 2_000), null);
+        assert.equal(freshHubProbeMemo(null, "pm\0canada", 2_000), null);
     });
 });

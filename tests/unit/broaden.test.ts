@@ -122,7 +122,7 @@ describe('resolveBroadenOptions: counts come from the same search call', () => {
             if (params.postedBucket === undefined) return { hits: [], total: 0, backend: 'meilisearch', configured: true, unavailable: true };
             return search(params);
         };
-        const options = await resolveBroadenOptions({ state: canadaMid, total: 3, search: flaky });
+        const options = await resolveBroadenOptions({ state: canadaMid, total: 3, search: flaky, sleep: async () => {} });
         assert.deepEqual(ids(options), ['any_seniority']);
     });
 });

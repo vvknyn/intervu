@@ -283,7 +283,10 @@ describe('scoreJobAgainstResume', () => {
             const result = scoreJobAgainstResume(resume, job);
             assert.ok(result);
             assert.equal(result!.components[0].detail, '1 of 1 terms this role names');
-            assert.equal(result!.total, 89);
+            // The relevance component, not the total: a title naming no role (this one is
+            // all function words) can't be tied to the résumé's target, so the total is
+            // held under Strong (roleFit "unverified", score.ts).
+            assert.equal(result!.components[0].score, 1);
         });
     });
 
