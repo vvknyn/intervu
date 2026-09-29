@@ -84,6 +84,18 @@ was found (checked `src/app/(onboarding)/**`, settings, and the signup flow
 for a step-indexed wizard); this codebase's signup is a single form, not a
 multi-step onboarding flow. Skipped rather than invented.
 
+## Pricing (willingness-to-pay test)
+
+| Event | Payload | Seam (file:line) | Feeds |
+|---|---|---|---|
+| `pricing_viewed` | `{ signed_in, founding_available }` | `src/app/pricing/pricing-client.tsx` — on mount. `founding_available` is whether `FOUNDING_MEMBER_CHECKOUT_URL` was set (a real Stripe link behind the button) or the button read "opening soon"; it is the denominator that makes `upgrade_clicked` rates comparable across deploys. `$pageview` already fires for the route; this event exists so the founding-state is on the record. | pricing-page reach; visitor → price-click rate. |
+| `upgrade_clicked` | `{ plan: "pro_founding" \| "data_api", signed_in }` | `src/app/pricing/pricing-client.tsx` — the founding-seat button (`pro_founding`; the visitor is leaving for Stripe) and the Data API "tell us your use case" link (`data_api`, goes to `/contact?from=/pricing`). Fires on click, before navigation; no price in the payload — prices are constants in `src/lib/billing/founding-offer.ts`. | the whole test: how many of ~1,100 monthly visitors click a price, per plan, signed-in vs. out. |
+| `founding_member_paid` | `{ checkout_session_id, signed_in }` | `src/app/pricing/pricing-client.tsx` — on the Stripe return, only when `paidCheckoutSessionId` (`src/lib/billing/founding-offer.ts`) accepted BOTH `checkout=success` and a well-formed `cs_live_…`/`cs_test_…` id; once per session id per browser session (`sessionStorage`). Not a ledger: it is unverified against Stripe and exists to join a PostHog person to a Stripe dashboard row. Revenue is read in Stripe. | purchases attributable to a PostHog person; click → pay conversion. |
+
+## MCP tool calls (`$mcp_tool_call`)
+
+Not in `ANALYTICS_EVENTS` — it is PostHog's reserved MCP-analytics event name, sent server-side through `postServerCapture` the way `$ai_generation` is. Seam: `withDeps` in `src/app/api/mcp/route.ts` (one event per tool call past the auth check: budget refusal, tool error, success, thrown exception) and the rate-limit reject in `handleMcpRequest` (`$mcp_error_type: "rate_limited"`). Helper: `src/lib/agent/telemetry.ts`. Properties: `$mcp_tool_name`, `$mcp_server_name` (`velai-agent`), `$mcp_duration_ms`, `$mcp_is_error`, `$mcp_error_type` (bounded slug — `unavailable`, `rate_limited`, `exception`, or the tool's own error string slugged, e.g. `job_not_found`), `$mcp_client_name` (the caller's `User-Agent`, first 80 chars), `$mcp_session_id` (when the client sends `Mcp-Session-Id`). `distinct_id` is the account uid, the same id `PostHogProvider` identifies the browser with, so web and MCP activity land on one person. No tool input or output is ever sent.
+
 ## Reading the funnel
 
 North-star for Velai cold traffic:
