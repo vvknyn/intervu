@@ -168,16 +168,6 @@ import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorField
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
-import {
-    readOnboardingCompletedFromStorage,
-    subscribeOnboardingCompleted,
-    writeOnboardingCompletedInStorage,
-} from "@/lib/jobs/onboarding-first-paint";
-
-const LandingAnimatedBackground = dynamic(
-    () => import("@/components/marketing/LandingAnimatedBackground").then((m) => m.LandingAnimatedBackground),
-    { ssr: false },
-);
 const CategoryHubGrid = dynamic(
     () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
     { loading: () => null },
@@ -199,10 +189,6 @@ const SearchAutocomplete = dynamic(
 const AuthPopover = dynamic(
     () => import("@/components/auth/auth-popover").then((m) => m.AuthPopover),
     { ssr: false },
-);
-const LandingOnboardingView = dynamic(
-    () => import("@/components/onboarding/LandingOnboardingView").then((m) => m.LandingOnboardingView),
-    { loading: () => null },
 );
 const ForYouHome = dynamic(
     () => import("@/components/jobs/for-you/ForYouHome").then((m) => m.ForYouHome),
@@ -1007,11 +993,6 @@ function ListTail({
     );
 }
 
-export type JobsContentProps = {
-    /** Open onboarding at step 2 or 3 (auth/résumé gate after OAuth return). */
-    onboardingInitialStep?: 2 | 3;
-};
-
 
 /** The résumé a guest parsed in this browser, when it is usable for ranking. */
 function readUsableLocalResume() {
@@ -1019,9 +1000,7 @@ function readUsableLocalResume() {
     return stored && resumeIsUsable(stored.data) ? stored : null;
 }
 
-export function JobsContent({
-    onboardingInitialStep,
-}: JobsContentProps) {
+export function JobsContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -1805,12 +1784,6 @@ export function JobsContent({
         }
     };
 
-    // First-time unregistered visitor onboarding & landing state
-    const onboardingDismissed = useSyncExternalStore(
-        subscribeOnboardingCompleted,
-        readOnboardingCompletedFromStorage,
-        () => false,
-    );
     const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
     // Packs home stays CategoryHubGrid until the user opens a pack.
     // Selecting a pack sets forYouPackDeckOpen and mounts ForYouHome postcard
@@ -1861,57 +1834,6 @@ export function JobsContent({
     const dismissPacksIntro = () => {
         writePacksHomeIntroDismissed();
         setPacksIntroDismissed(true);
-    };
-
-    const handleOnboardingComplete = (data: {
-        resume: ResumeData | null;
-        storageMode: "cloud" | "device";
-        accountCreated: boolean;
-    }) => {
-        writeOnboardingCompletedInStorage();
-        if (data.resume) {
-            setResume(data.resume);
-            const updatedAt = new Date().toISOString();
-            setResumeUpdatedAt(updatedAt);
-            setResumeSourceLabel("Onboarding upload");
-            // Post–Step 3: 8-pack CategoryHubGrid (for-you), not postcard deck/SERP.
-            setShowAdvancedSearch(false);
-            setForYouPackDeckOpen(false);
-            setHubSelectedCategoryId(undefined);
-            setFitActive(false);
-            setSortOverride(null);
-            setFacets({});
-            setQueryDraft("");
-            setQuery("");
-            setHomeView("for-you");
-            writeLastJobsHomeView("for-you");
-            applyUrlState(
-                buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
-                "replace",
-            );
-            if (user && data.storageMode === "cloud") {
-                void saveResumeData(data.resume, "pdf", 1)
-                    .then((res) => {
-                        if (res.error) {
-                            toast.error(res.error);
-                            return;
-                        }
-                        captureEvent("resume_uploaded", {});
-                    })
-                    .catch((err) => {
-                        toast.error(err instanceof Error ? err.message : "Could not save résumé");
-                    });
-            } else {
-                // Signed out, or a signed-in user who chose "keep on this device": nothing
-                // reaches the account, and no sign-up wall stands between them and matches.
-                writeLocalAiResume(data.resume, updatedAt, "Onboarding upload");
-            }
-            armFirstPackReveal();
-        }
-    };
-
-    const handleOnboardingSkip = () => {
-        writeOnboardingCompletedInStorage();
     };
 
     // Which auth value-line reason class to show (apply / generic).
@@ -2245,19 +2167,13 @@ export function JobsContent({
     // too). See `isAtRest` (lib/jobs/front-door-state.ts) for the pure rule.
     const atRest = isAtRest({ query, jobParam: searchParams.get("job") });
     // /jobs is board-first: the Search home (search box, filters, job rows) is
-    // what every visitor lands on. The ONE thing that stands in front of it is
-    // the signed-in résumé card, so signed-out visitors are never gated here.
-    const userNeedsOnboarding = Boolean(user) && !hasUsableResume && !onboardingDismissed;
-    const showLandingOnboarding =
-        userNeedsOnboarding &&
-        !showAdvancedSearch &&
-        atRest &&
-        showSearchHome &&
-        !showForYouHome;
-
-    // At rest the Search home still runs the default recency feed below the
-    // search box, so first paint shows real jobs.
-    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome && !showLandingOnboarding;
+    // what every visitor lands on, signed in or out. A signed-in account with
+    // no résumé used to get a full-page onboarding card here instead; it now
+    // gets the same board, with the résumé band after the feed and the
+    // importer opening over it straight after sign-up (`?resume=gate`).
+    // At rest the Search home runs the default recency feed below the search
+    // box, so first paint shows real jobs.
+    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome;
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -5772,7 +5688,7 @@ export function JobsContent({
      * sized for).
      */
     const showMobileSearchCta =
-        !isLgUp && !showLandingOnboarding && !showForYouHome && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
+        !isLgUp && !showForYouHome && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
 
     /**
      * Single source of truth for whether `ColdVisitorOrientation` renders at
@@ -5788,9 +5704,7 @@ export function JobsContent({
      * this component now only ever shows once a search is actually running.
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
-    const frontDoorBandVisible =
-        showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive }) &&
-        !showLandingOnboarding;
+    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5803,11 +5717,7 @@ export function JobsContent({
     return (
         <div
             className={
-                deckPanesLocked
-                    ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-                    : showLandingOnboarding
-                      ? "flex flex-1 flex-col"
-                      : "min-h-screen"
+                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-screen"
             }
         >
             {firstRevealHandoff ? (
@@ -5831,8 +5741,6 @@ export function JobsContent({
                     "shell-row flex flex-col",
                     deckPanesLocked
                         ? "min-h-0 flex-1 overflow-hidden pt-2 sm:pt-3"
-                        : showLandingOnboarding
-                        ? "flex-1 justify-start sm:justify-center items-center py-2 sm:py-6"
                         : cn(
                             "pt-2 sm:pt-3",
                             showSearchHome && showMobileSearchCta
@@ -5853,7 +5761,7 @@ export function JobsContent({
                     rest, requirement 1a). Once a search runs, this unmounts
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
-                {showSearchHome && !showLandingOnboarding ? (
+                {showSearchHome ? (
                         <div className="pb-1.5">
                             <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
                                 <button
@@ -5908,7 +5816,7 @@ export function JobsContent({
                     outlive the search line have their own homes on the header
                     row and the toolbar; see `status` on the dock payload and
                     `fieldDirectoryMenu`. */}
-                {!headerDockActive && showSearchHome && !showLandingOnboarding && (
+                {!headerDockActive && showSearchHome && (
                 <section
                     className={cn(
                         "transition-colors",
@@ -6198,7 +6106,7 @@ export function JobsContent({
                         </div>
                     </div>
                 )}
-                {showJobsToolbarSection && showSearchHome && !showLandingOnboarding && (
+                {showJobsToolbarSection && showSearchHome && (
                 <section
                     data-testid="jobs-toolbar"
                     className={cn(
@@ -6348,28 +6256,8 @@ export function JobsContent({
                     — broader than the old `showLandingMarketing`-only
                     pristine gate — so the rest of the centered hero can't
                     disagree with this piece about whether it's showing. */}
-                {showLandingOnboarding ? (
-                    <div className="relative w-full flex-1 flex flex-col justify-start sm:justify-center items-center py-0">
-                        {/* Concept A Step 1 portals full-bleed over this; grid
-                            remains for steps 2–3 auth + résumé gate. */}
-                        <LandingAnimatedBackground />
-                        <div className={cn("relative z-10 w-full px-2 sm:px-4", cappedContentClass)}>
-                            <LandingOnboardingView
-                                initialStep={onboardingInitialStep}
-                                isAuthenticated={Boolean(user)}
-                                userEmail={user?.email}
-                                userName={user?.displayName}
-                                onComplete={handleOnboardingComplete}
-                                onSkip={handleOnboardingSkip}
-                            />
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        {atRest && showSearchHome && (
-                            <FrontDoorFieldLinks onSelectQuery={submitSearch} />
-                        )}
-                    </>
+                {atRest && showSearchHome && (
+                    <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                 )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
@@ -6574,14 +6462,26 @@ export function JobsContent({
                             the funnel at pageview. */}
                         <div className="flex min-h-0 flex-1 flex-col">
                             <>
-                                <BoardVisitBanner resultCount={hits.length} aboveMobileCta={showMobileSearchCta} />
-
                                 {/* Single container for the contiguous guest-nudge / alert
                                     group below — reads the ONE `--list-inset` token so these
                                     banners sit flush with the panel's rounded corner instead
                                     of restating px-4 (see globals.css's `--list-inset`
                                     comment for the full adopter list). */}
                                 <div className="px-[var(--list-inset)]">
+                                {/* The new-since line leads the group and stays for the
+                                    visit. Signed out, its "Email me new roles" opens the
+                                    same SearchAlertCapture below that the result line's
+                                    button does (`manualAlertOpen`), unless that form is
+                                    already showing on its own. */}
+                                <BoardVisitBanner
+                                    resultCount={hits.length}
+                                    onEmailMe={
+                                        !user && !showResultsSearchAlert
+                                            ? () => setManualAlertOpen((prev) => !prev)
+                                            : undefined
+                                    }
+                                    emailOpen={manualAlertOpen}
+                                />
                                 {localAiGuestEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -7140,6 +7040,7 @@ export function JobsContent({
                     first-viewport contract: jobs, then the résumé invite. */}
                 {frontDoorBandVisible && (
                     <FrontDoorResumeBand
+                        signedIn={Boolean(user)}
                         onUploadClick={handleUploadClick}
                         onSignInClick={() => openAuth("generic", "user")}
                     />
