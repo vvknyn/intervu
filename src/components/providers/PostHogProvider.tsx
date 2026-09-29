@@ -70,7 +70,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         const method = consumeSignupSignalFromDocumentCookie();
         const attempt = readGateAttempt(window.sessionStorage);
         if (method) {
-          captureEvent("signup_completed", { method, ...gateAttemptEventFields(attempt) });
+          captureEvent("signup_completed", { method, ...gateAttemptEventFields(attempt) }); // signup-once: cookie exists only after the callback won claimSignupEvent
         }
         // Login and signup both end the gate attempt. Clear after capture so a
         // later unrelated account entry cannot inherit fit/save/tailor/resume.
