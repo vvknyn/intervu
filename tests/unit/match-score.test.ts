@@ -234,14 +234,17 @@ describe('scoreJobAgainstResume', () => {
             }],
         );
 
-        it('scores higher with product-duty bullets than without when job title is Product Manager', () => {
+        it('scores higher relevance with product-duty bullets than without when job title is Product Manager', () => {
             const without = scoreJobAgainstResume(CS_OPS_BASE, PM_JOB);
             const withDuties = scoreJobAgainstResume(CS_OPS_WITH_DUTIES, PM_JOB);
             assert.ok(without);
             assert.ok(withDuties);
+            // Relevance, not the total: a Product Manager posting is a different kind of role
+            // from a Customer Success Operations headline, so neither total reaches Strong.
+            const relevance = (s: typeof without) => s!.components.find((c) => c.key === 'relevance')!.score;
             assert.ok(
-                withDuties!.total > without!.total,
-                `with duties (${withDuties!.total}) should exceed without (${without!.total})`,
+                relevance(withDuties) > relevance(without),
+                `with duties (${relevance(withDuties)}) should exceed without (${relevance(without)})`,
             );
         });
     });

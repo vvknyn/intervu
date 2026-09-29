@@ -212,8 +212,9 @@ describe('buildMatchQuery', () => {
                 { profession: 'Product Manager', yearsOfExperience: 8 },
                 [],
                 [
-                    { id: '1', role: 'Product Manager', company: 'Co', dates: '2021', description: '' },
-                    { id: '2', role: 'Software Engineer', company: 'Co', dates: '2019', description: '' },
+                    { id: '1', role: 'Product Manager', company: 'Co', dates: '2024 — Present', description: '' },
+                    // Recent enough to still count (`STALE_ROLE_YEARS`).
+                    { id: '2', role: 'Software Engineer', company: 'Co', dates: '2021 — 2024', description: '' },
                 ],
             ),
         );
