@@ -69,6 +69,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-26 | Job cards and the job page show location labels with no repeated adjacent word (e.g. "RemoteRemote Location, All States · Remote") | anon | onboarding-completed flag + search "remote", then the first row's `/jobs/<slug>` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-27 | A For-you pack's Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage) | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-28 | A board search with zero results offers the same broaden options with counts, and applying one loads rows | anon | `/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-29 | The /jobs search row (query, location, Search) shares the lg control step (44px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
+| J-JOBS-30 | Every control in the /jobs toolbar row takes the md control step (32px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 
 ## SRCH
 
@@ -562,7 +564,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-04 | See only logo, Sign in and Create account in the signed-out desktop TopBar | anon | /trends | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-001: Home page loads successfully) |
 | J-NAV-05 | Open the auth popover from Sign in and from Create account | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-06 | Click the logo to return to the front door | anon | /trends | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-006: Wordmark click returns to the front door) |
-| J-NAV-07 | See a single Sign in button on lean surfaces | anon | /jobs | signed-out | no | uncovered | — |
+| J-NAV-07 | See exactly one Sign in and one Create account in the signed-out header on every surface (lean ones included) | anon | /jobs, /trends, /about | signed-out | no | covered | control-scale.spec.ts |
 | J-NAV-08 | Use the signed-in TopBar tab links to reach Jobs, Résumé and Tracker | signed-in | /trends | signed-in | no | uncovered | — (legacy: navigation-comprehensive.spec.ts › NAV-001) |
 | J-NAV-09 | Reach /connect from the signed-in MCP link, hidden on lean surfaces | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-10 | See the Tracker badge when pursuits exist | signed-in | /trends | signed-in | no | uncovered | — |
@@ -588,6 +590,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-30 | See the For you and Search header tabs; clicking one moves aria-current and `view=` in the URL (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-31 | See the follow-alerts count chip fully inside the header bar (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-32 | Read header tab labels and count chips at WCAG AA text contrast (4.5:1) against their real backdrop (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
+| J-NAV-33 | Header controls share the md control step (32px) at 1440 and 390: Sign in, Create account, and on desktop with a query the docked search | anon | /jobs, /trends, /about, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 
 ## ERR
 
