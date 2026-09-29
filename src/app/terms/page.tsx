@@ -86,7 +86,9 @@ export default function TermsPage() {
           bought for to Pro for as long as we offer Pro, from the day Pro opens. It is limited in number, tied to
           one account, and not transferable. Until Pro opens you may request a full refund at any time, for any
           reason, by contacting us from the email address you paid with. Payment processing is handled by our
-          payment provider under its own terms; we do not see or store your card details.
+          payment provider under its own terms; we do not see or store your card details. Reserving a seat before
+          checkout opens is free and creates no obligation on either side: it records your place and the address we
+          send the checkout link to first.
         </p>
 
         <SectionTitle>Employers</SectionTitle>

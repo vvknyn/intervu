@@ -35,7 +35,7 @@ describe("/pricing renders in every prop combination", () => {
       for (const paidSessionId of [null, "cs_test_abc123"]) {
         const label = `signedIn=${signedIn} checkout=${checkoutUrl ? "set" : "unset"} paid=${paidSessionId ? "yes" : "no"}`;
         it(label, () => {
-          const html = render({ signedIn, checkoutUrl, paidSessionId });
+          const html = render({ signedIn, email: null, checkoutUrl, paidSessionId });
           assert.match(html, /data-testid="pricing-page"/);
           assert.match(html, /data-testid="pricing-plan-free"/);
           assert.match(html, /data-testid="pricing-plan-pro"/);
@@ -48,43 +48,51 @@ describe("/pricing renders in every prop combination", () => {
 
 describe("/pricing branches say the right thing", () => {
   it("signed out: the Free column offers an account; signed in: it points at jobs", () => {
-    const out = render({ signedIn: false, checkoutUrl: null, paidSessionId: null });
+    const out = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
     assert.match(out, /Create free account/);
     assert.match(out, /href="\/auth\/start\?mode=signup&(?:amp;)?next=\/jobs"/);
-    const inn = render({ signedIn: true, checkoutUrl: null, paidSessionId: null });
+    const inn = render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: null });
     assert.match(inn, /You are on Free/);
     assert.doesNotMatch(inn, /Create free account/);
   });
 
-  it("founding button: a Stripe link when configured, an inert button when not", () => {
-    const withLink = render({ signedIn: false, checkoutUrl: STRIPE, paidSessionId: null });
+  it("founding button: a Stripe link when configured, an email reservation when not", () => {
+    const withLink = render({ signedIn: false, email: null, checkoutUrl: STRIPE, paidSessionId: null });
     assert.match(withLink, /data-testid="pricing-founding-cta"[^>]*href="https:\/\/buy\.stripe\.com\//);
     assert.match(withLink, /Take a founding seat/);
-    const without = render({ signedIn: false, checkoutUrl: null, paidSessionId: null });
-    assert.match(without, /Founding seats open soon/);
+    assert.doesNotMatch(withLink, /pricing-founding-email/);
+    const without = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
+    assert.match(without, /Reserve a founding seat/);
+    assert.match(without, /data-testid="pricing-founding-email"/);
     assert.doesNotMatch(without, /buy\.stripe\.com/);
+    assert.doesNotMatch(without, /Founding seats open soon/);
+  });
+
+  it("the reservation form prefills a signed-in account's address", () => {
+    const html = render({ signedIn: true, email: "founder@example.com", checkoutUrl: null, paidSessionId: null });
+    assert.match(html, /data-testid="pricing-founding-email"[^>]*value="founder@example.com"|value="founder@example.com"[^>]*data-testid="pricing-founding-email"/);
   });
 
   it("the headline and the Pro badge agree with the button about whether seats are open", () => {
     // Release 7 shipped "seats are open now" over a "Founding seats open soon"
     // button while the Stripe link was unset; the page contradicted itself.
-    const without = render({ signedIn: false, checkoutUrl: null, paidSessionId: null });
+    const without = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
     assert.match(without, /Pro seats open soon at a one-off price/);
-    assert.match(without, /Founding seats soon/);
+    assert.match(without, /Reservations open/);
     assert.doesNotMatch(without, /are open now/);
-    const withLink = render({ signedIn: false, checkoutUrl: STRIPE, paidSessionId: null });
+    const withLink = render({ signedIn: false, email: null, checkoutUrl: STRIPE, paidSessionId: null });
     assert.match(withLink, /Pro seats are open now at a one-off price/);
     assert.match(withLink, /Founding seats open</);
     assert.doesNotMatch(withLink, /open soon/);
   });
 
   it("the thank-you shows only on a paid return", () => {
-    assert.match(render({ signedIn: true, checkoutUrl: null, paidSessionId: "cs_test_abc123" }), /You have a founding seat/);
-    assert.doesNotMatch(render({ signedIn: true, checkoutUrl: null, paidSessionId: null }), /You have a founding seat/);
+    assert.match(render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: "cs_test_abc123" }), /You have a founding seat/);
+    assert.doesNotMatch(render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: null }), /You have a founding seat/);
   });
 
   it("the Data API column links to the contact form from pricing", () => {
-    const html = render({ signedIn: false, checkoutUrl: null, paidSessionId: null });
+    const html = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
     assert.match(html, /data-testid="pricing-data-api-cta"[^>]*href="\/contact\?from=\/pricing"/);
   });
 });

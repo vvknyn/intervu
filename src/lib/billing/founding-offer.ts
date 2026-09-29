@@ -34,6 +34,10 @@ export const DATA_API_FROM_PRICE = "$49";
  *  link) renders the "opening soon" state — the page never guesses a URL. */
 export const FOUNDING_CHECKOUT_URL_ENV = "FOUNDING_MEMBER_CHECKOUT_URL";
 
+/** What the reservation confirmation email says the address signed up for
+ *  ("You're on the list — a founding seat on Velai Pro"). */
+export const FOUNDING_WAITLIST_LABEL = "a founding seat on Velai Pro";
+
 const CLIENT_REFERENCE_ID_RE = /^[A-Za-z0-9_-]{1,200}$/;
 
 /** A Stripe checkout session id, as the after-payment redirect hands it back
@@ -88,7 +92,7 @@ export function paidCheckoutSessionId(params: {
  * badge but left a static description saying "open now" over an inert button.
  */
 export function pricingDescription(foundingAvailable: boolean): string {
-  return `Velai is free to use. Pro and a Data API are coming; founding seats ${
-    foundingAvailable ? "are open now" : "open soon"
-  } at a one-off price.`;
+  return foundingAvailable
+    ? "Velai is free to use. Pro and a Data API are coming; founding seats are open now at a one-off price."
+    : "Velai is free to use. Pro and a Data API are coming; founding seats open soon at a one-off price, and you can reserve one now.";
 }

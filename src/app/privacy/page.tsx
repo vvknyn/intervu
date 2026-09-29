@@ -86,7 +86,7 @@ export const FIRESTORE_STORAGE_CATEGORIES: readonly {
   {
     label:
       "Connect-page and other waitlists plus contact-form messages (often without an account)",
-    collections: ["connect_waitlist", "waitlist", "contact_messages"],
+    collections: ["connect_waitlist", "founding_waitlist", "waitlist", "contact_messages"],
   },
   {
     label:
