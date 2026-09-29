@@ -15,6 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
+import { INTEGRITY_WINDOW_DAYS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 
 export type ExhaustSection<T> = { data: T; source: string; label: string; asOf: string } | null;
@@ -100,13 +101,30 @@ export interface WeeklyCadence {
   /** ISO date (Monday) the bucket starts. */
   weekStartIso: string;
   newListings: number;
+  /** The week Velai first saw this employer. Its count includes every role
+   *  that was already open then, so it is a backlog, not a burst of hiring. */
+  firstTracked: boolean;
+  /** The week containing "now" — still being counted, never a finished zero. */
+  inProgress: boolean;
+}
+
+export interface CadenceFacts {
+  /** Chronological; starts at the first tracked week when tracking began
+   *  inside the window, so weeks Velai never watched are not drawn as zeros. */
+  weeks: WeeklyCadence[];
+  /** First day `company_posting_daily` has for this employer, or null. */
+  trackedSinceIso: string | null;
 }
 
 export interface IntegrityFacts {
   /** How the 90-day-closed roles closed, one row per distinct closed_reason. */
   closedReasonCounts: { reason: string; label: string; count: number }[];
-  /** Roles first seen in the trailing 90 days. */
+  /** Roles first seen in the trailing 90 days, not counting roles first seen
+   *  in the first week Velai tracked the employer (those were already open —
+   *  the first crawl's backlog, not new hiring). */
   openedCount: number;
+  /** Earliest `first_seen_at` Velai has for this employer, or null. */
+  trackedSinceIso: string | null;
 }
 
 export interface TechFacts {
@@ -134,7 +152,7 @@ export type CompanyExhaust = {
   h1bLca: ExhaustSection<H1bLcaFacts>;
   warnNotices: ExhaustSection<WarnNoticeFacts>;
   health: ExhaustSection<HealthFacts>;
-  cadence: ExhaustSection<WeeklyCadence[]>;
+  cadence: ExhaustSection<CadenceFacts>;
   integrity: ExhaustSection<IntegrityFacts>;
   techStack: ExhaustSection<TechFacts>;
   changeHistory: ExhaustSection<ChangeEventRow[]>;
@@ -142,7 +160,6 @@ export type CompanyExhaust = {
 
 const CADENCE_WEEKS = 26;
 const VERDICT_MIN_OBSERVATION_DAYS = 90;
-const INTEGRITY_WINDOW_DAYS = 90;
 /** Exported — `get_company_timeline` (agent/company-tools.ts) clamps its
  *  own `limit` input to this SAME cap, so the MCP wire's ceiling can never
  *  drift from the number of rows this module actually fetches. */
@@ -153,33 +170,42 @@ const WARN_RECENT_LIMIT = 3;
 
 /**
  * Zero-fills `newListings` sums (already SQL-aggregated to ISO weeks) into a
- * fixed trailing `weekCount`-week series ending on the ISO week containing
- * `nowMs`. A week the query never returned a row for (no postings, or no
- * `company_posting_daily` coverage yet) renders as an explicit `0` rather
- * than being silently absent — the design's "3px stub" depends on the
- * series having no gaps.
+ * trailing `weekCount`-week series ending on the ISO week containing `nowMs`,
+ * with no gaps inside the weeks Velai actually watched.
+ *
+ * A missing row is only a real zero AFTER tracking began. Before
+ * `trackedSinceIso` there is no observation at all, and drawing those weeks
+ * as zeros told visitors a company "posted nothing" for months and then
+ * burst — when the "burst" was Velai's first crawl finding roles that were
+ * already open. So when tracking began inside the window the series starts
+ * at that week and flags it `firstTracked`; the last week is always
+ * `inProgress`, never a finished zero on a Tuesday.
  */
 export function buildWeeklyCadence(
   weekSums: { weekStartIso: string; newListings: number }[],
   nowMs: number,
   weekCount = CADENCE_WEEKS,
+  trackedSinceIso: string | null = null,
 ): WeeklyCadence[] {
   const byWeek = new Map(weekSums.map((w) => [w.weekStartIso, w.newListings]));
+  const currentWeekStart = new Date(`${isoWeekStart(nowMs)}T00:00:00Z`);
 
-  // ISO week (Monday-start) containing `nowMs`, at UTC midnight.
-  const now = new Date(nowMs);
-  const dow = now.getUTCDay(); // 0=Sun..6=Sat
-  const daysSinceMonday = (dow + 6) % 7;
-  const currentWeekStart = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - daysSinceMonday),
-  );
+  const trackedMs = trackedSinceIso ? Date.parse(trackedSinceIso) : NaN;
+  const trackedWeek = Number.isNaN(trackedMs) ? null : isoWeekStart(trackedMs);
 
   const series: WeeklyCadence[] = [];
   for (let i = weekCount - 1; i >= 0; i--) {
     const d = new Date(currentWeekStart);
     d.setUTCDate(d.getUTCDate() - i * 7);
     const iso = d.toISOString().slice(0, 10);
-    series.push({ weekStartIso: iso, newListings: byWeek.get(iso) ?? 0 });
+    // ISO dates compare correctly as strings.
+    if (trackedWeek && iso < trackedWeek) continue;
+    series.push({
+      weekStartIso: iso,
+      newListings: byWeek.get(iso) ?? 0,
+      firstTracked: trackedWeek === iso,
+      inProgress: i === 0,
+    });
   }
   return series;
 }
@@ -301,6 +327,11 @@ interface CadenceRow {
   total: number | string;
 }
 
+interface CadenceResult {
+  rows: CadenceRow[];
+  firstDay: string | null;
+}
+
 interface ClosedReasonRow {
   closed_reason: string | null;
   n: number | string;
@@ -347,22 +378,30 @@ async function fetchHealthRow(pg: Queryable, domain: string): Promise<HealthRow 
   return rows[0] ?? null;
 }
 
-async function fetchCadenceRows(pg: Queryable, domain: string): Promise<CadenceRow[]> {
-  const { rows } = await pg.query<CadenceRow>(
-    `SELECT date_trunc('week', day)::date::text AS week_start, SUM(new_listings)::int AS total
-     FROM company_posting_daily
-     WHERE company_domain = $1 AND day >= (CURRENT_DATE - INTERVAL '${CADENCE_WEEKS} weeks')
-     GROUP BY 1
-     ORDER BY 1`,
-    [domain],
-  );
-  return rows;
+async function fetchCadenceRows(pg: Queryable, domain: string): Promise<CadenceResult> {
+  const [weeks, first] = await Promise.all([
+    pg.query<CadenceRow>(
+      `SELECT date_trunc('week', day)::date::text AS week_start, SUM(new_listings)::int AS total
+       FROM company_posting_daily
+       WHERE company_domain = $1 AND day >= (CURRENT_DATE - INTERVAL '${CADENCE_WEEKS} weeks')
+       GROUP BY 1
+       ORDER BY 1`,
+      [domain],
+    ),
+    // All-time, not windowed: when tracking began is what decides whether an
+    // early empty week is a real zero or a week nobody was watching.
+    pg.query<{ first_day: string | null }>(
+      `SELECT MIN(day)::text AS first_day FROM company_posting_daily WHERE company_domain = $1`,
+      [domain],
+    ),
+  ]);
+  return { rows: weeks.rows, firstDay: first.rows[0]?.first_day ?? null };
 }
 
 async function fetchIntegrityRows(
   pg: Queryable,
   domain: string,
-): Promise<{ closedReasons: ClosedReasonRow[]; openedCount: number }> {
+): Promise<{ closedReasons: ClosedReasonRow[]; openedCount: number; trackedSince: string | null }> {
   const [closed, opened] = await Promise.all([
     pg.query<ClosedReasonRow>(
       `SELECT closed_reason, COUNT(*)::int AS n
@@ -371,14 +410,28 @@ async function fetchIntegrityRows(
        GROUP BY closed_reason`,
       [domain],
     ),
-    pg.query<{ n: number }>(
-      `SELECT COUNT(*)::int AS n
-       FROM job_listings
-       WHERE company_domain = $1 AND first_seen_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'`,
+    // Roles first seen during the first tracked week were already open when
+    // Velai found the employer; counting them as "opened" inflated every
+    // newly-tracked employer's record. Same week boundary the cadence strip
+    // flags as `firstTracked`.
+    pg.query<{ n: number; tracked_since: string | null }>(
+      `WITH s AS (SELECT MIN(first_seen_at) AS first_seen FROM job_listings WHERE company_domain = $1)
+       SELECT
+         COUNT(j.*) FILTER (
+           WHERE j.first_seen_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'
+             AND j.first_seen_at >= date_trunc('week', s.first_seen) + interval '7 days'
+         )::int AS n,
+         s.first_seen::date::text AS tracked_since
+       FROM s LEFT JOIN job_listings j ON j.company_domain = $1
+       GROUP BY s.first_seen`,
       [domain],
     ),
   ]);
-  return { closedReasons: closed.rows, openedCount: opened.rows[0]?.n ?? 0 };
+  return {
+    closedReasons: closed.rows,
+    openedCount: opened.rows[0]?.n ?? 0,
+    trackedSince: opened.rows[0]?.tracked_since ?? null,
+  };
 }
 
 async function fetchChangeHistoryRows(pg: Queryable, domain: string): Promise<ChangeEventDbRow[]> {
@@ -585,11 +638,12 @@ function buildHealthSection(row: HealthRow | null): ExhaustSection<HealthFacts> 
   };
 }
 
-function buildCadenceSection(rows: CadenceRow[], nowMs: number): ExhaustSection<WeeklyCadence[]> {
-  if (rows.length === 0) return null;
-  const weekSums = rows.map((r) => ({ weekStartIso: r.week_start, newListings: num(r.total) ?? 0 }));
+function buildCadenceSection(result: CadenceResult | null, nowMs: number): ExhaustSection<CadenceFacts> {
+  if (!result || result.rows.length === 0) return null;
+  const weekSums = result.rows.map((r) => ({ weekStartIso: r.week_start, newListings: num(r.total) ?? 0 }));
+  const trackedSinceIso = isoDate(result.firstDay);
   return {
-    data: buildWeeklyCadence(weekSums, nowMs),
+    data: { weeks: buildWeeklyCadence(weekSums, nowMs, CADENCE_WEEKS, trackedSinceIso), trackedSinceIso },
     source: "company_posting_daily",
     label: "Posting activity",
     asOf: new Date(nowMs).toISOString(),
@@ -597,10 +651,12 @@ function buildCadenceSection(rows: CadenceRow[], nowMs: number): ExhaustSection<
 }
 
 function buildIntegritySection(
-  result: { closedReasons: ClosedReasonRow[]; openedCount: number } | null,
+  result: { closedReasons: ClosedReasonRow[]; openedCount: number; trackedSince: string | null } | null,
   nowMs: number,
 ): ExhaustSection<IntegrityFacts> {
-  if (!result || (result.closedReasons.length === 0 && result.openedCount === 0)) return null;
+  // Kept with zero counts once tracking has started: "tracked since X, 0
+  // opened, 0 closed" is a record, where a null would read as "not tracked".
+  if (!result || (result.closedReasons.length === 0 && result.openedCount === 0 && !result.trackedSince)) return null;
   return {
     data: {
       closedReasonCounts: result.closedReasons
@@ -611,6 +667,7 @@ function buildIntegritySection(
           count: num(r.n) ?? 0,
         })),
       openedCount: result.openedCount,
+      trackedSinceIso: isoDate(result.trackedSince),
     },
     source: "job_listings",
     label: "Job listings",
@@ -651,11 +708,11 @@ function buildChangeHistorySection(rows: ChangeEventDbRow[], nowMs: number): Exh
 export async function getCompanyExhaust(
   domain: string,
   getPg: () => Queryable | null = getExhaustPg,
+  nowMs: number = Date.now(),
 ): Promise<CompanyExhaust | null> {
   const pg = getPg();
   if (!pg) return null;
 
-  const nowMs = Date.now();
   const [enrichment, health, cadence, integrity, changeHistory] = await Promise.allSettled([
     fetchEnrichmentRows(pg, domain),
     fetchHealthRow(pg, domain),
@@ -675,7 +732,7 @@ export async function getCompanyExhaust(
     warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
     techStack: buildTechSection(enrichmentRows.get("tech_profile")),
     health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
-    cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : [], nowMs),
+    cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : null, nowMs),
     integrity: buildIntegritySection(integrity.status === "fulfilled" ? integrity.value : null, nowMs),
     changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
   };

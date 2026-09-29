@@ -210,7 +210,12 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 {hiring.hasOpenRoles && (
                   <span className="h-2 w-2 shrink-0 rounded-pill bg-live" aria-hidden />
                 )}
-                {humanizeProjectorHeadline(hiring.headline)}
+                <span data-testid="company-hiring-headline">
+                  {humanizeProjectorHeadline(hiring.headline)}
+                  {hiring.liveCheck && (
+                    <span className="text-muted-foreground">{` · ${hiring.liveCheck}`}</span>
+                  )}
+                </span>
               </p>
               {/* Facts row — domain (a real link), HQ, hiring geos, remote
                   share, plus any header chips (stage, employer size, founding
@@ -223,6 +228,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                 <DotSeparated
                   items={[
                     <a
+                      key="domain"
                       href={`https://${facts.domain}`}
                       target="_blank"
                       rel="noopener noreferrer nofollow"
@@ -234,7 +240,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                     // country only, never an invented city (contract rule).
                     profile?.hqCountry,
                     facts.hiringGeos,
-                    facts.remoteShare,
+                    facts.remoteShare && facts.remoteJobsUrl ? (
+                      <Link key="remote" href={facts.remoteJobsUrl} data-testid="company-remote-share" className="text-brand hover:underline">
+                        {facts.remoteShare}
+                      </Link>
+                    ) : (
+                      facts.remoteShare
+                    ),
                     data.stage,
                     ...headerChips,
                   ]}
@@ -322,23 +334,21 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
                     rail box instead of a shared block with the intel grid. */}
                 <section data-testid="company-hiring-activity" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6">
                   <h2 className="text-xs font-semibold text-muted-foreground">
-                    The hiring record — last 90 days
+                    Hiring record
                   </h2>
                   <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
                   {hiring.freshness && (
                     <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hiring.freshness}</p>
                   )}
-                  {/* The 90-day provenance note describes this track record
-                      specifically, and that is the one thing this page cannot
-                      show today (`hasTrackRecord` is false for every employer
-                      until the `company_*` aggregate sync lands). Printed
-                      under an assumed 90-day window it asserts an observation
-                      that was never made — so it renders only when there is a
-                      track record for it to describe. */}
-                  {data.hasTrackRecord && (
+                  {/* The provenance note describes this track record, so it
+                      renders only when there is one: the box database's
+                      record (`exhaust.integrity`, what `hiring.trackRecord`
+                      reads first) or the index aggregates. Without either it
+                      would assert an observation that was never made. */}
+                  {(data.exhaust?.integrity || data.hasTrackRecord) && (
                     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Metrics derived from observed job postings over 90 days — not fundraising data,
-                      employee reviews, or third-party valuations.
+                      Counted from job postings Velai observed, not fundraising data, employee reviews,
+                      or third-party valuations.
                     </p>
                   )}
                 </section>
@@ -374,7 +384,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
           <div className="mt-8">
             <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers}>
               <div className="space-y-4">
-                <CompanyIntegrityBand integrity={data.exhaust.integrity} />
+                <CompanyIntegrityBand integrity={data.exhaust.integrity} nowMs={data.nowMs} />
                 <CompanyTechStackBand techStack={data.exhaust.techStack} />
                 <CompanyFilingsBand exhaust={data.exhaust} />
               </div>

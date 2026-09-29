@@ -1,14 +1,25 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
+import { KpiStat } from "@/components/jobs/JobDetail";
 import { eventTypeLabel } from "@/lib/companies/events";
 import { isVerdictWindowSufficient, type ExhaustSection, type HealthFacts } from "@/lib/companies/exhaust";
 
+/** "Active" is true of every employer with live roles, so it says nothing;
+ *  only a status a visitor would want to know (acquired, closed) is shown. */
+function unusualStatus(status: string | null): string | null {
+  return status && !/^active$/i.test(status.trim()) ? eventTypeLabel(status) : null;
+}
+
 /**
- * Band 2 — "Are they actually hiring?" The health-review verdict, stated as
- * a sentence, with the observed score/repost-rate/status underneath as a
- * receipted number row. Renders nothing without a health section; the
- * verdict SENTENCE additionally requires ≥90 days of observation
- * (`isVerdictWindowSufficient`) — below that the numbers still render, but
- * with no verdict claim attached (a guessed verdict is worse than none).
+ * Band 2 — the latest health review, as supporting evidence under the
+ * header's answer rather than a second answer to "Are they hiring?".
+ *
+ * The header answers from today's live count; this review is days or weeks
+ * old, and when the two disagreed the page argued with itself. So the
+ * review's verdict is a dated line, not a headline, and it still needs ≥90
+ * days of observation (`isVerdictWindowSufficient`). The health score is not
+ * shown: nothing in the repo defines its inputs or range, so a reader
+ * cannot tell a good score from a bad one. Stats use the job page's
+ * `KpiStat`, which has no grid cells to leave empty when one is missing.
  */
 export function CompanyVerdictBand({
   health,
@@ -20,47 +31,28 @@ export function CompanyVerdictBand({
   if (!health) return null;
   const { data, label, asOf } = health;
 
-  const hasNumbers = data.score != null || data.repostRate != null || data.operatingStatus;
-  const verdictLabel = data.verdict ? eventTypeLabel(data.verdict) : null;
-  const showVerdict = verdictLabel && isVerdictWindowSufficient(data.observedSinceIso, nowMs);
-  if (!showVerdict && !hasNumbers) return null;
+  const status = unusualStatus(data.operatingStatus);
+  const verdict =
+    data.verdict && isVerdictWindowSufficient(data.observedSinceIso, nowMs) ? eventTypeLabel(data.verdict) : null;
+  if (!verdict && data.repostRate == null && !status) return null;
 
   const asOfLabel = eventDate(asOf);
 
   return (
     <section data-testid="company-verdict-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">
-        Are they actually hiring?
-      </h2>
-      {showVerdict && (
-        <p className="mt-2 font-display text-xl font-semibold leading-tight text-foreground">
-          {verdictLabel}.
+      <h2 className="text-xs font-semibold text-muted-foreground">Latest hiring review</h2>
+      {verdict && (
+        <p data-testid="company-verdict-line" className="mt-2 text-sm leading-relaxed text-foreground">
+          {asOfLabel ? `Velai's review on ${asOfLabel}: ` : "Velai's latest review: "}
+          {verdict.toLowerCase()}.
         </p>
       )}
-      {hasNumbers && (
-        <div className="mt-4 grid grid-cols-2 gap-0 border border-border sm:grid-cols-3">
-          {data.score != null && (
-            <div className="border-b border-r border-border px-4 py-3 last:border-r-0 sm:border-b-0">
-              <div className="font-display text-xl font-semibold tabular-nums text-foreground">{data.score}</div>
-              <div className="mt-0.5 text-xs text-muted-foreground">health score</div>
-            </div>
-          )}
+      {(data.repostRate != null || status) && (
+        <div className="mt-4 flex flex-wrap gap-x-8 gap-y-4">
           {data.repostRate != null && (
-            <div className="border-b border-r border-border px-4 py-3 last:border-r-0 sm:border-b-0">
-              <div className="font-display text-xl font-semibold tabular-nums text-foreground">
-                {Math.round(data.repostRate * 100)}%
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">roles reposted</div>
-            </div>
+            <KpiStat value={`${Math.round(data.repostRate * 100)}%`} label="of roles reposted" />
           )}
-          {data.operatingStatus && (
-            <div className="px-4 py-3">
-              <div className="font-display text-base font-semibold text-foreground">
-                {eventTypeLabel(data.operatingStatus)}
-              </div>
-              <div className="mt-0.5 text-xs text-muted-foreground">operating status</div>
-            </div>
-          )}
+          {status && <KpiStat value={status} label="operating status" />}
         </div>
       )}
       <p className="mono-data mt-3 text-xs text-muted-foreground">

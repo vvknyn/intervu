@@ -34,7 +34,7 @@ function render(intelligence: CompanyIntelligence | null): string {
 }
 
 test("workModes alone no longer opens the section — the card it used to justify is gone", () => {
-  const html = render(intel({ workModes: { remotePct: 40, hybridPct: 30, onsitePct: 30 } }));
+  const html = render(intel({ workModes: { remotePct: 40, hybridPct: 30, onsitePct: 30, remoteCount: 4, total: 10 } }));
   assert.equal(html, "");
 });
 
@@ -42,7 +42,7 @@ test("a company with tech stack AND work-modes data renders only the tech-stack 
   const html = render(
     intel({
       techStack: { languages: ["TypeScript"], frameworks: [], infrastructure: [], aiMlTools: [] },
-      workModes: { remotePct: 40, hybridPct: 30, onsitePct: 30 },
+      workModes: { remotePct: 40, hybridPct: 30, onsitePct: 30, remoteCount: 4, total: 10 },
     }),
   );
   assert.match(html, /Tech stack/);

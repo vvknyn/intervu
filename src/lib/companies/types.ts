@@ -29,6 +29,9 @@ export interface CompanyWorkModesInfo {
   remotePct: number;
   hybridPct: number;
   onsitePct: number;
+  /** Roles counted remote, over `total` fetched roles. */
+  remoteCount: number;
+  total: number;
 }
 
 /** One article as returned by the Subspace `/companies/{domain}/news` endpoint — see fetchCompanyNews. */
