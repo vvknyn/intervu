@@ -137,6 +137,20 @@ const guestWithResume = (page: Page, location: string) =>
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
 
+/**
+ * Open a packs-hub tile. The hub paints before it hydrates, and a tap that lands in that
+ * gap does nothing, so tap again until the pack opens (its Back to Job Packs link shows).
+ */
+async function openHubTile(page: Page, id: string) {
+  const card = page.getByTestId(`hub-pack-card-${id}`);
+  const back = page.getByTestId("jobs-back-to-packs");
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(async () => {
+    if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
+    await expect(back).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
 test("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
   await guestWithResume(page, "Reykjavik, Iceland");
@@ -144,7 +158,7 @@ test("a For-you pack opened from the hub, past the intro, has Edit filters on ex
   // For you opens on the packs hub; its first-visit intro must not block the pack controls once dismissed.
   await page.getByTestId("packs-home-intro-got-it").click({ timeout: 30_000 });
   await expect(page.getByTestId("packs-home-intro-modal")).toHaveCount(0);
-  await page.getByTestId("hub-pack-card-all").click();
+  await openHubTile(page, "all");
   const edit = page.getByTestId("pack-edit-filters");
   await expect(edit).toBeVisible({ timeout: 30_000 });
   const href = new URL((await edit.getAttribute("href"))!, "http://x");
@@ -182,7 +196,7 @@ test("a For-you pack in a country with no roles says so, never listing roles fro
   // on; the pack used to list the whole corpus (or the visitor's own country) as its matches.
   await guestWithResume(page, "Funafuti, Tuvalu");
   await page.goto("/jobs?view=for-you");
-  await page.getByTestId("hub-pack-card-all").click({ timeout: 30_000 });
+  await openHubTile(page, "all");
 
   const none = page.getByTestId("for-you-no-roles-there");
   await expect(none).toBeVisible({ timeout: 30_000 });
@@ -207,7 +221,7 @@ test("a pack tile opens the pack with the tile's own filter, and the next tile d
   };
 
   // Fully remote: the pack (its country) with the remote work type on top.
-  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await openHubTile(page, "remote");
   const remote = await editHref();
   expect(remote.get("country")).toBe("Canada");
   expect((remote.get("work") ?? "").split(",")).toContain("remote");
@@ -229,7 +243,7 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
 
   // Fully remote: the deck used to show the hub's own rows (onsite, anywhere) until the
   // tile's search landed. Every row it shows, from the first, is a remote role.
-  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await openHubTile(page, "remote");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   const firstPaint = await rows.allInnerTexts();
   expect(firstPaint.length).toBeGreaterThan(0);
@@ -264,7 +278,7 @@ test("going back to the packs hub keeps the tile counts it had, without counting
 
   // Each return used to re-run the hub's probe and every tile count: the counts blanked to
   // "…" for seconds, and a few tiles in, the visitor's search limit refused the next pack.
-  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await openHubTile(page, "remote");
   await expect(page.getByTestId("jobs-back-to-packs")).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("jobs-back-to-packs").click();
   await expect(count("remote")).toBeVisible({ timeout: 30_000 });
@@ -298,7 +312,7 @@ test("a failed ranked-list read shows an error with Retry, never the empty state
   await guestWithResume(page, "Toronto, Ontario, Canada");
   const recover = await failEveryAction(page);
   await page.goto("/jobs?view=for-you");
-  await page.getByTestId("hub-pack-card-all").click();
+  await openHubTile(page, "all");
 
   // One automatic retry (2-4 s) runs first, then the failure shows.
   const failed = page.getByTestId("for-you-load-failed");
@@ -318,7 +332,7 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
-  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  await openHubTile(page, "remote");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("jobs-back-to-packs").click();
 
