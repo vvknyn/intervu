@@ -47,6 +47,9 @@ test("signupGateHrefs: create is signup-mode /auth/start, sign in is /login, bot
     assert.equal(create, "/auth/start?mode=signup&next=%2Fjobs%3Fq%3Ddata%20engineer%26page%3D3");
     assert.equal(signIn, "/login?next=%2Fjobs%3Fq%3Ddata%20engineer%26page%3D3");
     assert.equal(signupGateHrefs("/companies/acme").signIn, "/login?next=%2Fcompanies%2Facme");
+    // A bare query string is not a return path (the saved-search gate once passed one): tsc rejects it.
+    // @ts-expect-error — `?q=engineer` has no path
+    signupGateHrefs("?q=engineer");
 });
 
 function withLocalStorage(run: () => void) {

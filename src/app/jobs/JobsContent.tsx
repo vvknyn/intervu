@@ -275,6 +275,7 @@ import {
     POST_AUTH_RESUME_GATE_PARAM,
     POST_AUTH_RESUME_GATE_VALUE,
     shouldOpenResumeGateAfterInlineAuth,
+    type SitePath,
 } from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
@@ -5452,7 +5453,8 @@ export function JobsContent({
     const tourReplayEl = <JobsTourReplayButton />;
 
     // Where a signed-out gate returns to — this exact SERP, filters and all.
-    const serpReturnTo = `${pathname}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`;
+    // usePathname() always starts with "/"; the slice lets the type say so.
+    const serpReturnTo: SitePath = `/${pathname.slice(1)}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`;
 
     // One fit gate element for both ranked surfaces (Search list, For-you deck).
     const fitGateEl = fitGate.gated ? (

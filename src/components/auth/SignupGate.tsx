@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { signupGateCopy, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { OriginSurface } from "@/lib/auth/gate-attempt";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { signupGateHrefs } from "@/lib/auth/post-auth-destination";
+import { signupGateHrefs, type SitePath } from "@/lib/auth/post-auth-destination";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +27,7 @@ export function SignupGate({
 }: {
     reason: AuthGateReason;
     /** The page to come back to — the exact SERP, filters and all. */
-    returnTo: string;
+    returnTo: SitePath;
     originSurface: OriginSurface;
     count?: CorpusCount | null;
     onDismiss?: () => void;

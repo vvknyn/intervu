@@ -193,7 +193,7 @@ export function SavedSearchesPanel({
                         <SignupGate
                             reason="alert"
                             originSurface="jobs_banner"
-                            returnTo={hrefFromJobsUrlState(urlState)}
+                            returnTo={`/jobs${hrefFromJobsUrlState(urlState)}`}
                             className="border-0"
                         />
                     </PopoverContent>
