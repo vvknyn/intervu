@@ -30,6 +30,8 @@ function onboardingProseLines(rel: string): string[] {
     return read(rel)
         .split("\n")
         .filter((line) => !/^\s*import /.test(line))
+        // Continuation of a multi-line import: a module path, not prose.
+        .filter((line) => !/^\s*\} from ["']/.test(line))
         .filter((line) => !CODE_RESUME_MARKERS.test(line));
 }
 
@@ -52,8 +54,10 @@ describe("Phase 2 — voice onboarding batch", () => {
         const label = read("src/components/onboarding/onboarding-step-label.tsx");
         assert.match(label, /Step <span className="font-semibold tabular-nums">\{step\}<\/span> of \{total\}/);
 
+        // a0d7e59b: the landing sign-in step dropped step chrome; the label now counts only
+        // the post-account résumé steps, so it passes its own step + total.
         const landing = read("src/components/onboarding/LandingOnboardingView.tsx");
-        assert.match(landing, /<OnboardingStepLabel step=\{step\} \/>/);
+        assert.match(landing, /<OnboardingStepLabel step=\{resumeOnboardingStep\} total=\{2\} \/>/);
 
         const modal = read("src/components/onboarding/FirstTimeOnboardingModal.tsx");
         assert.match(modal, /<OnboardingStepLabel step=\{step\} \/>/);

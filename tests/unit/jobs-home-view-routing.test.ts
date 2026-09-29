@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const PAGE_SRC = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+const PAGE_SRC = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
 const FOR_YOU_HOME_SRC = readFileSync(
     join(__dirname, "../../src/components/jobs/for-you/ForYouHome.tsx"),
     "utf8",

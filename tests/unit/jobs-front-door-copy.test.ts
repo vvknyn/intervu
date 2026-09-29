@@ -15,7 +15,8 @@ import {
 
 test("RESUME_UPLOAD_PROMISE makes no on-device/privacy/AI claim beyond parse privacy", () => {
     assert.doesNotMatch(RESUME_UPLOAD_PROMISE, /on-device|on device|\bAI\b/i);
-    assert.match(RESUME_UPLOAD_PROMISE, /parse it privately/i);
+    // 4ac07706 (signed-out résumé privacy claims) states where parsing happens.
+    assert.match(RESUME_UPLOAD_PROMISE, /parse it in your browser/i);
 });
 
 test("RESUME_UPLOAD_SIGNIN_LINE makes no on-device/privacy/AI claim", () => {
@@ -32,7 +33,8 @@ test("FrontDoorResumeBand and /resume's signed-out empty state both import RESUM
         "utf8",
     );
     const resumePage = readFileSync(join(__dirname, "../../src/app/resume/page.tsx"), "utf8");
-    const importsFromSharedModule = /from ["']@\/lib\/jobs\/resume-cta-copy["']/;
+    // 4ac07706 moved the strings into resume-privacy-copy.ts; resume-cta-copy re-exports them.
+    const importsFromSharedModule = /from ["']@\/lib\/jobs\/resume-(cta|privacy)-copy["']/;
     assert.match(band, importsFromSharedModule);
     assert.match(band, /FRONT_DOOR_RESUME_CARD_SUBCOPY/);
     assert.match(resumePage, importsFromSharedModule);

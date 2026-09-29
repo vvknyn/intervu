@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { resolveEmptySearchState } from "../../src/lib/jobs/result-state";
 
 // Perf first-paint (2026-09-18) step 2: the search must be the FIRST action
-// jobs/page.tsx dispatches on mount. Before this change, three secondary
+// jobs/JobsContent.tsx dispatches on mount. Before this change, three secondary
 // mount probes (posted-date filter support, the report-listing flag, the
 // masthead live-jobs count) fired their action calls synchronously in their
 // own effect bodies, while the search effect's entire fetch sat behind an
@@ -25,7 +25,7 @@ import { resolveEmptySearchState } from "../../src/lib/jobs/result-state";
 // convention tests/unit/jobs-effect-dep-stability.test.ts established for
 // an otherwise-unmountable runtime property.
 
-const PAGE_SOURCE = readFileSync(join(process.cwd(), "src/app/jobs/page.tsx"), "utf8");
+const PAGE_SOURCE = readFileSync(join(process.cwd(), "src/app/jobs/JobsContent.tsx"), "utf8");
 
 /** Effects that opt into the gate by depending on `firstSearchSettled` —
  *  found by the flag itself, not by naming which probes exist today, so a

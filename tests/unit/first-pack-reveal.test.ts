@@ -59,7 +59,7 @@ describe("first-pack-reveal session latch", () => {
     });
 
     it("jobs page wires arm on onboarding complete and import", () => {
-        const page = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+        const page = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
         assert.match(page, /armFirstPackReveal\(\)/);
         assert.match(page, /consumeFirstPackReveal\(\)/);
         assert.match(page, /first-pack-reveal-handoff/);

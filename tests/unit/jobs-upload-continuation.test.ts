@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 /**
  * "Grep-proof" class-fix regression test for the résumé-upload continuation
- * wiring in src/app/jobs/page.tsx (lived in src/app/page.tsx until the
+ * wiring in src/app/jobs/JobsContent.tsx (lived in src/app/page.tsx until the
  * board became the front page and `/` became a redirect).
  *
  * Bug this guards against (user-reported): the résumé-upsell card called
@@ -32,7 +32,7 @@ import { join } from "node:path";
  * point routes through the chokepoint, and nothing bypasses it to write the
  * continuation ref or open the modal directly.
  */
-const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+const SOURCE = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
 
 function section(startMarker: string, endMarker: string): string {
     const start = SOURCE.indexOf(startMarker);
@@ -42,7 +42,7 @@ function section(startMarker: string, endMarker: string): string {
     return SOURCE.slice(start, end);
 }
 
-test("resumeActionAfterImportRef.current is assigned in exactly 3 places: clearPendingGate (clear), beginResumeUpload (queue), handleImport (clear-on-read)", () => {
+test("resumeActionAfterImportRef.current is assigned in exactly 4 places: clearPendingGate (clear), beginResumeUpload (queue), handleImport (clear-on-read), the useAuthGate upload replay", () => {
     const assignments = SOURCE.match(/resumeActionAfterImportRef\.current\s*=/g) ?? [];
     // A 4th assignment site anywhere in the file means a new entry point
     // bypassed `beginResumeUpload` and wrote the continuation itself —
@@ -50,7 +50,9 @@ test("resumeActionAfterImportRef.current is assigned in exactly 3 places: clearP
     // the search-prefs wizard's "Add résumé" step (2026-08-23) queued the
     // continuation AND opened the modal itself, skipping the signed-out auth
     // gate; the fix folded it back into the chokepoint.
-    assert.equal(assignments.length, 5, `expected 5 assignment sites, found ${assignments.length}`);
+    // 991016b1 (SignupGate primitive) deleted two such bypasses — the
+    // FrontDoorResumeBand and match-teaser signed-out gates — so 5 → 4.
+    assert.equal(assignments.length, 4, `expected 4 assignment sites, found ${assignments.length}`);
 });
 
 test("setImportOpen(true) is called in exactly 2 places: beginResumeUpload, and the post-auth replay", () => {
@@ -75,23 +77,13 @@ test("handleRankByFit routes its no-résumé fallback through handleUploadClick 
     assert.doesNotMatch(body, /resumeActionAfterImportRef\.current\s*=/);
 });
 
-test("handleUploadClick is never handed to a handler prop bare — always wrapped", () => {
-    // Bare `onClick={handleUploadClick}` would let React's click event flow
-    // through as `handleUploadClick`'s first argument (`intent`), silently
-    // miscoercing "fit" into something else at runtime — the exact footgun
-    // every call site must avoid.
-    //
-    // Asserted against ANY handler prop rather than the old
-    // `onUpload={...}` on the résumé-upsell card: the Phase 1 redesign
-    // replaced that card with the Screen 9 résumé line, and pinning the
-    // rule to one prop name meant it stopped being checked the moment the
-    // caller moved.
-    assert.match(SOURCE, /handleUploadClick\(\)/, "expected at least one wrapped call site");
-    assert.doesNotMatch(
-        SOURCE,
-        /on[A-Z]\w*=\{handleUploadClick\}/,
-        "handleUploadClick must never be passed bare — wrap it in `() => handleUploadClick()`",
-    );
+test("handleUploadClick takes no arguments, so passing it bare to a handler prop is safe", () => {
+    // This used to ban bare `onX={handleUploadClick}`: the click event would
+    // have landed in its old `intent` argument. That argument is gone —
+    // `handleUploadClick` is zero-arity — and 991016b1 hands it bare to
+    // FrontDoorResumeBand and the match teaser. What must hold now is the
+    // zero-arity shape that makes that safe.
+    assert.match(SOURCE, /const handleUploadClick = \(\) => \{\s*beginResumeUpload\(\);\s*\};/);
 });
 
 test("handleImport respects the fitIntentRef guard before applying a queued fit continuation", () => {

@@ -135,7 +135,7 @@ test("facetKeyLabel: unmapped keys still get a readable name, so a new facet nee
  * component. A third door added anywhere in the SERP fails this too.
  */
 const JOBS_PAGE_SRC = readFileSync(
-    new URL("../../src/app/jobs/page.tsx", import.meta.url),
+    new URL("../../src/app/jobs/JobsContent.tsx", import.meta.url),
     "utf8",
 );
 const CHIPS_ROW_SRC = readFileSync(

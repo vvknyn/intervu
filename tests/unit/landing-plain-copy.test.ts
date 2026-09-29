@@ -35,7 +35,7 @@ describe("indexCategories: field directory single source of truth", () => {
 });
 
 describe('jobs toolbar chip row: field chips derive from indexCategories, not a parallel list', () => {
-    const PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'page.tsx');
+    const PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'JobsContent.tsx');
 
     function chipRowSource(): string {
         const src = readFileSync(PAGE, 'utf8');
@@ -56,12 +56,14 @@ describe('jobs toolbar chip row: field chips derive from indexCategories, not a 
 });
 
 describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
-    const JOBS_PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'page.tsx');
+    const JOBS_PAGE = join(__dirname, '..', '..', 'src', 'app', 'jobs', 'JobsContent.tsx');
 
     it('renders the tested headline and provenance line when at rest, with no hero count and no live count (D1 + A3: both counts stay off the masthead)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
-        const start = src.indexOf('{atRest && showSearchHome ? (');
-        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>');
+        // #652 (f6a8e9cc): the masthead is the `{atRest ? (` arm inside the
+        // `showSearchHome && !showLandingOnboarding` gate.
+        const start = src.indexOf('{atRest ? (', src.indexOf('{showSearchHome && !showLandingOnboarding ? ('));
+        const end = src.indexOf('<h1 className="sr-only">Jobs</h1>', start);
         assert.notStrictEqual(start, -1, 'masthead ternary anchor moved — update this test');
         assert.notStrictEqual(end, -1, 'sr-only fallback h1 anchor moved — update this test');
         const branch = src.slice(start, end);

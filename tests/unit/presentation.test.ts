@@ -14,7 +14,7 @@ import {
   visibleTags,
 } from "../../src/lib/jobs/presentation";
 import type { PublicJob } from "../../src/lib/jobs/types";
-import { ghostBadgeTone, STATUS_PILL } from "../../src/lib/ui/status-tokens";
+import { ghostBadgeTone, LIVE_PILL, STATUS_PILL } from "../../src/lib/ui/status-tokens";
 
 const ROOT = path.resolve(__dirname, "../..");
 
@@ -126,9 +126,11 @@ test("documented limitation: an all-lowercase source can't distinguish a code fr
 // `STATUS_PILL.intv`. Asserted as a derivation over every badge, not as three
 // expected color strings, so the next tone change can't reopen the gap.
 test("GHOST_META colors are derived from ghostBadgeTone, not a second hand-picked map", () => {
-  for (const badge of ["clear", "caution", "likely_ghost"] as const) {
+  for (const badge of ["caution", "likely_ghost"] as const) {
     assert.equal(GHOST_META[badge]!.cls, STATUS_PILL[ghostBadgeTone(badge)], badge);
   }
+  // #365 (2a45bd79): `clear` is a liveness fact, not tracker progress — it speaks LIVE_PILL.
+  assert.equal(GHOST_META.clear!.cls, LIVE_PILL, "clear");
   assert.equal(GHOST_META.unscored, null, "unscored has no tone and renders no badge");
 });
 

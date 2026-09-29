@@ -25,7 +25,7 @@ test("login-form and jobs page wire AuthKit and inline signup résumé gate help
     assert.match(loginForm, /buildReturnTo/);
     assert.match(loginForm, /resolveAuthKitReturnTo\(\{ mode: "signup", rawNext: landed \}\)/);
 
-    const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/page.tsx"), "utf8");
+    const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(jobsPage, /shouldOpenResumeGateAfterInlineAuth/);
     assert.match(jobsPage, /hasUsableResumeOnFile/);
 });

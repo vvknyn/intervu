@@ -113,10 +113,11 @@ interface AdoptionScanOptions {
   /** Absolute path the alias prefix resolves to. */
   aliasTarget: string;
   /**
-   * Extra absolute directories treated as entrypoints alongside srcRoot.
-   * Non-test files under these roots join the edge map and seed the
-   * reachable set, using the same non-test filter as the srcRoot seeds. A
-   * directory that doesn't exist is skipped rather than erroring.
+   * Extra absolute directories (or single files, e.g. next.config.ts) treated
+   * as entrypoints alongside srcRoot. Non-test files under these roots join
+   * the edge map and seed the reachable set, using the same non-test filter
+   * as the srcRoot seeds. A path that doesn't exist is skipped rather than
+   * erroring.
    */
   entryRoots?: string[];
 }
@@ -140,8 +141,8 @@ function findOrphanedModules(opts: AdoptionScanOptions): string[] {
   const { srcRoot, libRoot, aliasPrefix, aliasTarget, entryRoots = [] } = opts;
   const allFiles = walkCodeFiles(srcRoot);
   const extraEntryFiles = entryRoots
-    .filter((dir) => existsSync(dir) && statSync(dir).isDirectory())
-    .flatMap((dir) => walkCodeFiles(dir));
+    .filter((p) => existsSync(p))
+    .flatMap((p) => (statSync(p).isDirectory() ? walkCodeFiles(p) : [p]));
   const edgeSourceFiles = [...allFiles, ...extraEntryFiles];
   const edges = new Map<string, string[]>();
   for (const file of edgeSourceFiles) {
@@ -366,6 +367,29 @@ describe("findOrphanedModules — fixtures", () => {
     }
   });
 
+  it("does not flag a module imported only from a single entry FILE (next.config.ts shape)", () => {
+    const root = makeFixtureTree({
+      "lib/redirects.ts": `export const redirects = [];\n`,
+      "app/page.ts": `export const page = "home";\n`,
+    });
+    const configRoot = makeFixtureTree({
+      "next.config.ts": `import { redirects } from "@/lib/redirects";\nexport default { redirects };\n`,
+    });
+    try {
+      const orphans = findOrphanedModules({
+        srcRoot: root,
+        libRoot: join(root, "lib"),
+        aliasPrefix: "@/",
+        aliasTarget: root,
+        entryRoots: [join(configRoot, "next.config.ts")],
+      });
+      assert.deepEqual(orphans, [], "a module reachable only from an entry file must count as adoption");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(configRoot, { recursive: true, force: true });
+    }
+  });
+
   it("negative control: entryRoots does not blanket-rescue a module nothing imports", () => {
     const root = makeFixtureTree({
       "lib/orphan.ts": `export const value = 1;\n`,
@@ -455,7 +479,10 @@ describe("src/lib module adoption", () => {
       libRoot: REPO_LIB,
       aliasPrefix: alias.prefix,
       aliasTarget: alias.target,
-      entryRoots: [join(REPO_ROOT, "scripts")],
+      // next.config.ts is a production entrypoint too: it alone imports
+      // lib/seo/canada-career-redirects, signed-out-short-routes,
+      // auth/workos-redirect-uri-env and local-ai/empty-node-builtin.
+      entryRoots: [join(REPO_ROOT, "scripts"), join(REPO_ROOT, "next.config.ts")],
     });
     const baseline: string[] = JSON.parse(readFileSync(BASELINE_PATH, "utf8")).orphans;
     const drift = describeAdoptionDrift(current, baseline);

@@ -1,8 +1,9 @@
 /**
- * Signed-out Concept A landing: axe color-contrast on the visible root plus
- * computed-AA fallback for axe "incomplete" text nodes (gradients / overlap).
+ * Signed-out /jobs (board-first since #652 — the Concept A landing is gone):
+ * axe color-contrast on the page's one <main> landmark plus computed-AA
+ * fallback for axe "incomplete" text nodes (gradients / overlap).
  */
-export const LANDING_ROOT_SEL = '[data-testid="concept-a-landing"]';
+export const LANDING_ROOT_SEL = '#main';
 
 export async function probeLandingRoot(page) {
   return page.evaluate((sel) => {
@@ -11,8 +12,7 @@ export async function probeLandingRoot(page) {
     return {
       exists: !!root,
       textLen: text.length,
-      hasPostcardTitles:
-        (root?.querySelectorAll('[data-testid^="concept-a-postcard-"][data-testid$="-title"]').length ?? 0) >= 1,
+      hasJobTitles: (root?.querySelectorAll('[data-testid="job-row"] [data-testid="job-title"]').length ?? 0) >= 1,
     };
   }, LANDING_ROOT_SEL);
 }

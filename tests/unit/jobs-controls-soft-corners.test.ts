@@ -47,7 +47,8 @@ function findUnjustifiedRoundedNone(src: string): string[] {
 describe("jobs sheet action-bar soft corners", () => {
     it("JobDetailActionBar's Apply button reads rounded-ctl, not rounded-none", () => {
         const src = readFileSync(JOB_DETAIL, "utf8");
-        const applyBlock = src.match(/<Button className="[^"]*" onClick=\{onOpenPosting\}>/)?.[0] ?? "";
+        // 11429940 put `size={jobActionSize}` ahead of className on every job action.
+        const applyBlock = src.match(/<Button size=\{jobActionSize\} className="[^"]*" onClick=\{onOpenPosting\}>/)?.[0] ?? "";
         assert.ok(applyBlock.length > 0, "Apply Button element not found");
         assert.match(applyBlock, /rounded-ctl/, "Apply button must use rounded-ctl");
         assert.doesNotMatch(applyBlock, /rounded-none/, "Apply button must not carry rounded-none");

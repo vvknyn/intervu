@@ -28,9 +28,10 @@ test("rememberRecentlyViewed dedupes by id, moving the match to the front", () =
     ]);
 });
 
-test("rememberRecentlyViewed caps at max (default 8), dropping the oldest", () => {
+// #375 (babfff0d) raised the default cap 8 → 300 for the hide-viewed filter.
+test("rememberRecentlyViewed caps at max, dropping the oldest", () => {
     const list = Array.from({ length: 8 }, (_, i) => sample(`j${i}`));
-    const next = rememberRecentlyViewed(list, sample("j9"));
+    const next = rememberRecentlyViewed(list, sample("j9"), 8);
     assert.equal(next.length, 8);
     assert.equal(next[0]?.id, "j9");
     assert.equal(next[7]?.id, "j6");
@@ -121,8 +122,8 @@ test("loadRecentlyViewed caps legacy over-long history at the store max", () => 
     withFakeStorage(() => {
         localStorage.setItem(
             RECENTLY_VIEWED_KEY,
-            JSON.stringify(Array.from({ length: 10 }, (_, i) => sample(`j${i}`))),
+            JSON.stringify(Array.from({ length: 302 }, (_, i) => sample(`j${i}`))),
         );
-        assert.equal(loadRecentlyViewed().length, 8);
+        assert.equal(loadRecentlyViewed().length, 300); // store max since #375 (babfff0d)
     });
 });

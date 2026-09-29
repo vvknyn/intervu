@@ -47,10 +47,11 @@ test("reported chip is an outline (no filled bg) — must not read as the same w
     assert.doesNotMatch(LISTING_STATE_CHIP.reported, /bg-red-\d|bg-st-closed/, "reported chip must not use a filled/soft background");
 });
 
-test("relisted uses the amber family, fresh uses sky, reported uses red — across all three maps", () => {
+// #421 (d254a782) moved these maps off raw sky/amber/red hues onto semantic tokens.
+test("relisted uses the warn family, fresh uses brand, reported uses danger — across all three maps", () => {
     for (const map of [LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL, LISTING_STATE_TEXT]) {
-        assert.match(map.fresh, /sky/);
-        assert.match(map.relisted, /amber/);
-        assert.match(map.reported, /red/);
+        assert.match(map.fresh, /text-brand/);
+        assert.match(map.relisted, /text-warn/);
+        assert.match(map.reported, /text-danger-text/);
     }
 });

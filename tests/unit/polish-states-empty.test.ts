@@ -86,7 +86,7 @@ describe("polish batch 3 — states and empties", () => {
     });
 
     it("search zero-results uses compact centered ConceptAEmptyState and keeps chip testids", () => {
-        const page = read("src/app/jobs/page.tsx");
+        const page = read("src/app/jobs/JobsContent.tsx");
         assert.match(page, /ConceptAEmptyPageSlot[\s\S]*className="pb-4 pt-6"/);
         assert.match(page, /ConceptAEmptyState[\s\S]*density="compact"/);
         assert.doesNotMatch(page, /ConceptAEmptyState[\s\S]*layout="inline"/);
@@ -123,8 +123,10 @@ describe("polish batch 3 — states and empties", () => {
     });
 
     it("layout mounts OfflineShell once and paints charcoal before CSS", () => {
+        // 59a7aa86 idle-defers OfflineShell: layout mounts IdleDeferredWidgets, which mounts it once.
         const layout = read("src/app/layout.tsx");
-        assert.match(layout, /<OfflineShell\s*\/>/);
+        assert.equal(layout.match(/<IdleDeferredWidgets\s*\/>/g)?.length, 1);
+        assert.equal(read("src/components/providers/IdleDeferredWidgets.tsx").match(/<OfflineShell\s*\/>/g)?.length, 1);
         assert.match(layout, /#0B0D12/);
     });
 

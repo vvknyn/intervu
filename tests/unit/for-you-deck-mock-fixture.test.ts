@@ -46,7 +46,8 @@ describe("for-you deck mock fixture", () => {
         assert.match(mock, /activePursuit=\{activePursuit\}/);
         assert.match(mock, /MOCK_FOR_YOU_SAVE_DELAY_MS/);
         const home = readFileSync(join(ROOT, "src/components/jobs/for-you/ForYouHome.tsx"), "utf8");
-        assert.match(home, /<JobDetail/);
+        // 9aae8f9d swapped the deck's <JobDetail> for the <DeckRoleDetail> decision header.
+        assert.match(home, /<DeckRoleDetail/);
         assert.match(home, /onGoAfter\?\.?\(/);
         assert.match(home, /data-testid="for-you-deck-save"/);
         const bookmark = readFileSync(join(ROOT, "src/components/jobs/RowBookmarkButton.tsx"), "utf8");
@@ -56,7 +57,7 @@ describe("for-you deck mock fixture", () => {
     });
 
     it("fixture module is not imported from product jobs surfaces", () => {
-        const page = readFileSync(join(ROOT, "src/app/jobs/page.tsx"), "utf8");
+        const page = readFileSync(join(ROOT, "src/app/jobs/JobsContent.tsx"), "utf8");
         assert.doesNotMatch(page, /mock-deck-fixtures/);
         const deck = readFileSync(join(ROOT, "src/components/jobs/for-you/ForYouDeck.tsx"), "utf8");
         assert.doesNotMatch(deck, /mock-deck-fixtures/);

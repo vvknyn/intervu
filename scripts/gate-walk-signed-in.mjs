@@ -710,7 +710,7 @@ async function runLandingSignedOut(browser, engine, label, viewport) {
     return {
       signedIn: !!document.querySelector('[data-testid="topbar-avatar"]'),
       signInVisible: !!document.querySelector('[data-testid="topbar-signin"]'),
-      conceptA: !!document.querySelector('[data-testid="concept-a-landing"]'),
+      board: !!document.querySelector('[data-testid="job-row"]'),
       mcpInHeader: !!document.querySelector('[data-testid="topbar-connect"]'),
       numericFit: /\d+\s*%\s*(?:Match|fit)/i.test(body),
       canadaCopy: /\bCanada jobs\b|\bCanada\b.*career pages/i.test(body),
@@ -725,13 +725,13 @@ async function runLandingSignedOut(browser, engine, label, viewport) {
     landingAxe.pass &&
     landingRoot.exists &&
     landingRoot.textLen > 0 &&
-    landingRoot.hasPostcardTitles &&
+    landingRoot.hasJobTitles &&
     landingAxe.scannedNodes > 0 &&
     landingAxe.violationCount === 0;
   const chromePass =
     !probe.signedIn &&
     probe.signInVisible &&
-    probe.conceptA &&
+    probe.board &&
     !probe.mcpInHeader &&
     !probe.numericFit &&
     !probe.canadaCopy;

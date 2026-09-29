@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const HUB = join(__dirname, "../../src/components/jobs/CategoryHubGrid.tsx");
-const PAGE = join(__dirname, "../../src/app/jobs/page.tsx");
+const PAGE = join(__dirname, "../../src/app/jobs/JobsContent.tsx");
 const HOME = join(__dirname, "../../src/components/jobs/for-you/ForYouHome.tsx");
 
 describe("packs home live counts + deeper deck", () => {

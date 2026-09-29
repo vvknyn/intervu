@@ -40,13 +40,14 @@ test("pill renders Stretch below the Good band", () => {
     assert.equal(chipText(html), "Stretch");
 });
 
-test("brand-outline styling switches at the Strong band, driven by the score, not a copy of the constant", () => {
+// 866cf122 mapped match bands to verdict tints: Strong's brand outline became the live tint.
+test("live-tint styling switches at the Strong band, driven by the score, not a copy of the constant", () => {
     const below = renderToStaticMarkup(
         React.createElement(MatchChip, { score: score(MATCH_BAND_STRONG_MIN - 1) }),
     );
     const atThreshold = renderToStaticMarkup(
         React.createElement(MatchChip, { score: score(MATCH_BAND_STRONG_MIN) }),
     );
-    assert.doesNotMatch(below, /border-brand/);
-    assert.match(atThreshold, /border-brand/);
+    assert.doesNotMatch(below, /border-live-tint-border/);
+    assert.match(atThreshold, /border-live-tint-border/);
 });

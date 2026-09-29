@@ -99,19 +99,19 @@ const ALLOWLIST: AllowEntry[] = [
     reason: "user-typed manual pursuit-entry form field, not corpus data",
   },
   {
-    file: "src/app/jobs/page.tsx",
+    file: "src/app/jobs/JobsContent.tsx",
     match: "recordRecentlyViewedJob({ id, title: hit.title, company: hit.company",
     reason: "write-only storage field — recently-viewed.ts/viewed-set.ts only ever read back `.id`, never `.company`",
   },
   {
-    file: "src/app/jobs/page.tsx",
+    file: "src/app/jobs/JobsContent.tsx",
     match: "company: job.company ?? \"\",",
     reason: "Firestore write payload for markJobAppliedAction — already covered by the read-time fixes at yours/[id] and yours/history, so the write itself doesn't need to be clean",
   },
   {
     file: "src/components/jobs/PublicJobDetail.tsx",
     match: "company: target.company ?? \"\",",
-    reason: "Firestore write payload for markJobAppliedAction — same as jobs/page.tsx's mirror call",
+    reason: "Firestore write payload for markJobAppliedAction — same as jobs/JobsContent.tsx's mirror call",
   },
   {
     file: "src/components/jobs/ApplyReturnPrompt.tsx",
@@ -121,27 +121,17 @@ const ALLOWLIST: AllowEntry[] = [
   {
     file: "src/components/jobs/ApplyReturnPrompt.tsx",
     match: "company: pending.company, apply_url: \"\"",
-    reason: "pass-through of the already-stored sessionStorage record back to the caller's doMarkApplied, which itself only uses it as a Firestore write payload (see the jobs/page.tsx and PublicJobDetail.tsx entries above)",
+    reason: "pass-through of the already-stored sessionStorage record back to the caller's doMarkApplied, which itself only uses it as a Firestore write payload (see the jobs/JobsContent.tsx and PublicJobDetail.tsx entries above)",
+  },
+  {
+    file: "src/components/jobs/LocalCustomizePanel.tsx",
+    match: "{b.role} · {b.company}",
+    reason: "TailorBulletDiff.company is the employer on the user's own résumé experience entry (lib/local-ai/tailor-resume.ts), not corpus data",
   },
   {
     file: "src/components/modals/FavoritesModal.tsx",
     match: "favorite.company",
     reason: "free-text field on a saved interview question, unrelated to the job corpus",
-  },
-  {
-    file: "src/app/jobs/page.tsx",
-    match: '<CompanyLogo domain={job.company_domain} name={job.company} size="md" />',
-    reason: "CompanyLogo (components/jobs/CompanyLogo.tsx) cleans its `name` prop internally via cleanCompany before using it in the initial tile or the <img> alt text — the chokepoint is inside the component, not each call site",
-  },
-  {
-    file: "src/components/jobs/JobDetail.tsx",
-    match: '<CompanyLogo domain={job.company_domain} name={job.company} size="md" />',
-    reason: "CompanyLogo cleans its `name` prop internally — see the jobs/page.tsx entry above",
-  },
-  {
-    file: "src/components/jobs/JobDetailDocument.tsx",
-    match: '<CompanyLogo domain={job.company_domain} name={job.company} size="lg" />',
-    reason: "CompanyLogo cleans its `name` prop internally — see the jobs/page.tsx entry above",
   },
   {
     file: "src/components/jobs/JobDetail.tsx",
@@ -187,7 +177,9 @@ function stripComments(source: string): string {
 }
 
 const RAW_COMPANY_RE = /\.company\b(?!\.(?:name|domain))/;
-const CLEANING_CALL_RE = /\b(?:displayCompanyBrand|displayCompanyName|displayCompany|cleanCompany|presentCompany|presentJob)\(/;
+// `<CompanyLogo` is a render chokepoint: it runs `name` through cleanCompany
+// itself (components/jobs/CompanyLogo.tsx) before the tile or the <img> alt.
+const CLEANING_CALL_RE = /\b(?:displayCompanyBrand|displayCompanyName|displayCompany|cleanCompany|presentCompany|presentJob)\(|<CompanyLogo\b/;
 
 export interface RawCompanyRead {
   line: number;
@@ -295,6 +287,11 @@ describe("findRawCompanyReads — fixtures", () => {
       'const c = displayCompanyBrand(job.company, job.company_domain, job.title) || job.company;\n',
     );
     assert.deepEqual(reads, [], "job.company appears twice on this line, both exempt — the call is the same-line signal, not a per-occurrence one");
+  });
+
+  it("does not flag a <CompanyLogo> name prop — the component cleans it internally", () => {
+    const reads = findRawCompanyReads('<CompanyLogo domain={row.company_domain} name={row.company} size="sm" />\n');
+    assert.deepEqual(reads, []);
   });
 
   it("does NOT catch a destructured read — the documented blind spot", () => {

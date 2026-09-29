@@ -103,11 +103,13 @@ test("the SERP hands the window-speaking consumers the applied value, never the 
     // `postedBucket` for URL/state plumbing, so banning the identifier there
     // would be wrong. What must hold is that these three specific reads take
     // the applied window. A rename breaks this loudly, which is the point.
-    const page = readFileSync(new URL("../../src/app/jobs/page.tsx", import.meta.url), "utf8");
+    const page = readFileSync(new URL("../../src/app/jobs/JobsContent.tsx", import.meta.url), "utf8");
     assert.match(page, /const appliedPosted = appliedPostedBucket\(filterState\)/);
     assert.match(page, /searchResultLine\(\{[^}]*postedBucket: appliedPosted/);
     assert.match(page, /resolveBeyondWindow\(appliedPosted,/);
-    assert.match(page, /if \(appliedPosted === "30d"\)/, "the beyond-window probe must not re-run the identical search");
+    // The "probe only on the 30d bucket" guard left the client in #558
+    // (183b2b5c): it is `planProbes` in lib/jobs/run-search.ts, pinned by
+    // tests/unit/jobs-run-search.test.ts.
 });
 
 /** Every jobs surface source, discovered — never an enumerated file list. */
