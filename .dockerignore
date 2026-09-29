@@ -11,7 +11,12 @@ mobile-screenshots
 !.env.example
 docs
 tests
-playwright.config.ts
+# Every playwright config (base + journeys + any future one): they import each
+# other and test-only helpers, and tsconfig's **/*.ts type-checks any that ship,
+# so stripping only the base config broke the 2026-09-28 image build (TS2307
+# on playwright.journeys.config.ts). Pattern, not name; gated by
+# scripts/check-build-context.mjs in `npm run preflight`.
+playwright*.config.ts
 **/*.md
 !DEPLOY.md
 # Tracked data/ files ship with the build context by construction — never

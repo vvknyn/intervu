@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "lint:promises": "eslint --no-inline-config -c eslint.promises.config.mjs src",
-    "preflight": "tsc --noEmit && npm run lint:promises && node scripts/check-journey-coverage.mjs && npm run build",
+    "preflight": "node scripts/check-build-context.mjs && tsc --noEmit && npm run lint:promises && node scripts/check-journey-coverage.mjs && npm run build",
     "prepare": "git config core.hooksPath .githooks || true",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
