@@ -19,6 +19,8 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { countResults, isThinResults } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { hubTile } from "@/lib/jobs/for-you/hub-tiles";
 import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -87,6 +89,8 @@ export interface ForYouHomeProps {
     signupGate?: ReactNode;
     /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
     resultTotal?: number | null;
+    /** The hub tile this list was opened from: a filter tile's own filter is part of the pack (hub-tiles.ts). */
+    tileId?: HubPackId;
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
     firstRevealEnter?: boolean;
     /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
@@ -148,6 +152,7 @@ export function ForYouHome({
     activePursuit,
     onGoAfter,
     saveSuccessPulse = false,
+    tileId,
 }: ForYouHomeProps) {
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
@@ -304,7 +309,10 @@ export function ForYouHome({
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
     // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
-    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    const filters = useMemo(
+        () => (resume && signals ? hubTile(packFilters(resume, signals), tileId ?? "all").state : null),
+        [resume, signals, tileId],
+    );
     // The pack's own count: what applying these filters returns, not the size of the deck on screen.
     const [packTotal, setPackTotal] = useState<number | null>(null);
     const packKey = filters ? serializeJobsUrl(filters) : null;
