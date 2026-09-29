@@ -100,8 +100,7 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(src, /side="bottom"/);
         assert.match(src, /DialogContent/);
         assert.match(src, /z-\[70\]/);
-        assert.match(src, /overflow-y-auto/);
-        assert.match(src, /min-h-0 flex-1/);
+        assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/);
         assert.match(src, /confirmToast/);
         assert.match(src, /Enable on-device AI/);
         assert.match(src, /Use a rules draft/);

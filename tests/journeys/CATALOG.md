@@ -618,6 +618,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |----|---------|---------|-------|------|--------|--------|------|
 | J-ADMIN-01 | Opens /admin signed out and is redirected to /login?next=/admin | Signed-out visitor | /admin | signed-out | no | covered | admin.spec.ts |
 
+## MODAL
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|----|---------|---------|-------|------|--------|--------|------|
+| J-MODAL-01 | Parse a 7-role résumé in the importer at 1280x600, 390x844 and 390x420; wheel-scroll the body to the last experience entry and last field, footer Back and confirm stay in view and Back works, page behind does not scroll | anon | /resume (importer open, basic parse) | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-02 | Sign-in dialog fits 1280x600, 390x844 and 390x420; its last control is reachable by wheel-scrolling and Close dismisses it | anon | /resume then `topbar-signin` | signed-out | no | covered | modal.spec.ts |
+
 ## Legacy specs pending repair
 
 Specs in `tests/e2e/` triaged "fix" that no row above cites. Not run by the journey suite; the journey each guards is not covered.

@@ -5,6 +5,7 @@ import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/r
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -190,8 +191,7 @@ export function LocalCustomizePanel({
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] flex max-h-[85dvh] w-[calc(100%-1rem)] max-w-[720px] flex-col overflow-hidden p-0 sm:max-w-xl">
-                    <div className="flex min-h-0 max-h-[85dvh] flex-col">
+                <DialogContent className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
@@ -220,9 +220,9 @@ export function LocalCustomizePanel({
                             </DialogHeader>
                         </div>
 
-                        <div
+                        <DialogBody
                             data-testid="local-customize-panel"
-                            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4"
+                            className="px-5 py-4"
                         >
                             {consentNeeded && !loading && !draft && (
                                 <div className="space-y-4">
@@ -313,7 +313,7 @@ export function LocalCustomizePanel({
                                     </Accordion>
                                 </div>
                             )}
-                        </div>
+                        </DialogBody>
 
                         <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-border px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                             <Button
@@ -363,7 +363,6 @@ export function LocalCustomizePanel({
                                 </>
                             )}
                         </div>
-                    </div>
                 </DialogContent>
             </Dialog>
 

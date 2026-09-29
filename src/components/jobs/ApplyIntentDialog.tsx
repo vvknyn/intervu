@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogHeader,
@@ -112,7 +113,7 @@ export function ApplyIntentDialog({
                 growing the whole dialog past `max-h` and pushing the footer
                 off screen — that was the bug: the exit lived inside the same
                 scrolling block as content that can run long. */}
-            <DialogContent className="flex max-h-[85dvh] flex-col overflow-hidden rounded-panel p-0 sm:max-w-lg">
+            <DialogContent className="rounded-panel p-0 sm:max-w-lg">
                 <div className="shrink-0 px-6 pt-6 pr-12">
                     <DialogHeader className="text-left">
                         <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
@@ -123,7 +124,7 @@ export function ApplyIntentDialog({
                     </DialogHeader>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-6 py-0.5">
+                <DialogBody className="flex flex-col gap-2 px-6 py-0.5">
                     {saved && !choosing ? (
                         <Button type="button" variant="secondary" size="lg" className="w-full gap-2" onClick={() => handoff(saved)}>
                             Open in {CLIENT_LABEL[saved]}
@@ -154,7 +155,7 @@ export function ApplyIntentDialog({
                             Use a different AI
                         </button>
                     )}
-                </div>
+                </DialogBody>
 
                 {/* Pinned footer — the exit. Renders in every phase, including
                     `blocked`, and never scrolls with the middle zone: someone

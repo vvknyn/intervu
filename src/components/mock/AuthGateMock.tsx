@@ -419,7 +419,7 @@ export function AuthGateMock() {
                             side="bottom"
                             hideCloseButton
                             overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                            className="left-1/2 flex max-h-[min(88dvh,640px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
+                            className="left-1/2 max-h-[min(640px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
                         >
                             <SheetTitle className="sr-only">
                                 {decodeText(selectedJob.title)} at {cleanCompany(selectedJob.company)}

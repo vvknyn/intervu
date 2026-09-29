@@ -4,15 +4,16 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfidenceIndicator, ConfidenceBadge, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeData, ResumeExperience, ResumeCompetencyCategory, ResumeEducation, ParsedResumeResult } from "@/types/resume";
@@ -596,7 +597,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 )}
 
-                <ScrollArea className="min-h-0 flex-1 max-h-[min(50dvh,400px)]">
+                <div>
                     <div className="px-6 space-y-6">
                         {/* Profile Section */}
                         <div className="space-y-3">
@@ -784,7 +785,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             />
                         </div>
                     </div>
-                </ScrollArea>
+                </div>
             </div>
         );
     };
@@ -804,7 +805,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden max-h-[90dvh] sm:max-w-2xl">
+            <DialogContent className="w-full max-w-[calc(100%-1rem)] sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (
@@ -821,13 +822,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-hidden py-4">
+                <DialogBody className="-mx-6 px-6 py-1">
                     {step === 'input' && renderInputStep()}
                     {step === 'parsing' && <ResumeParsingStep />}
                     {step === 'review' && renderReviewStep()}
-                </div>
+                </DialogBody>
 
-                <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                <DialogFooter className="flex-row justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
                     {step === 'review' ? (
                         <>
                             <Button variant="outline" className="h-11 min-h-11" onClick={() => setStep('input')}>
@@ -865,7 +866,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                             </Button>
                         </>
                     )}
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

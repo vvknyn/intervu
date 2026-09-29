@@ -10,7 +10,7 @@
 // file is NOT exempt from the banned-utility gate.
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Upload } from "@phosphor-icons/react";
 import { SignedOutEmptyState } from "@/app/resume/page";
@@ -117,7 +117,7 @@ export function ResumeStatesMock() {
 
                 {state === "parsing" && (
                     <Dialog open onOpenChange={() => {}}>
-                        <DialogContent className="flex w-full max-w-[calc(100%-1rem)] flex-col overflow-hidden rounded-panel bg-white max-h-[90dvh] dark:bg-muted sm:max-w-2xl">
+                        <DialogContent className="w-full max-w-[calc(100%-1rem)] rounded-panel bg-white dark:bg-muted sm:max-w-2xl">
                             <DialogHeader>
                                 <DialogTitle className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-panel bg-muted flex items-center justify-center">
@@ -127,9 +127,9 @@ export function ResumeStatesMock() {
                                 </DialogTitle>
                                 <DialogDescription>AI is extracting structured information</DialogDescription>
                             </DialogHeader>
-                            <div className="flex-1 overflow-hidden py-4">
+                            <DialogBody className="py-4">
                                 <ResumeParsingStep />
-                            </div>
+                            </DialogBody>
                             <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                                 <Button variant="outline" className="h-11 min-h-11" disabled>
                                     Cancel

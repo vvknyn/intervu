@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Star, X, Trash, NotePencil, CircleNotch, ChatCircleDots } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { fetchFavorites, removeFavorite, updateFavoriteNotes, FavoriteQuestion } from "@/actions/favorites";
 import { cn } from "@/lib/utils";
@@ -60,22 +60,9 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
         setSavingNotes(false);
     };
 
-    if (!isOpen) return null;
-
     return (
-        <>
-            {/* Backdrop */}
-            <div
-                className="fixed inset-0 bg-black/50 z-50 animate-in fade-in duration-200"
-                onClick={onClose}
-            />
-
-            {/* Modal */}
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-                <div
-                    className="bg-card rounded-none w-full max-w-3xl max-h-[80dvh] flex flex-col pointer-events-auto animate-in zoom-in-95 fade-in duration-200 border border-border"
-                    onClick={(e) => e.stopPropagation()}
-                >
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent showCloseButton={false} className="gap-0 rounded-none bg-card p-0 sm:max-w-3xl">
                     {/* Header */}
                     <div className="p-6 border-b border-border flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -83,10 +70,10 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                 <Star size={20} weight="fill" className="text-warn" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-semibold">Favorite Questions</h2>
-                                <p className="text-sm text-muted-foreground">
+                                <DialogTitle className="text-xl">Favorite Questions</DialogTitle>
+                                <DialogDescription>
                                     {favorites.length} {favorites.length === 1 ? 'question' : 'questions'} saved
-                                </p>
+                                </DialogDescription>
                             </div>
                         </div>
                         <Button variant="ghost" size="icon" onClick={onClose}>
@@ -95,7 +82,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                     </div>
 
                     {/* Content */}
-                    <ScrollArea className="flex-1 p-6">
+                    <DialogBody className="p-6">
                         {loading ? (
                             <div className="flex items-center justify-center py-12">
                                 <CircleNotch size={24} className="animate-spin text-muted-foreground" />
@@ -219,9 +206,8 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                 ))}
                             </div>
                         )}
-                    </ScrollArea>
-                </div>
-            </div>
-        </>
+                    </DialogBody>
+            </DialogContent>
+        </Dialog>
     );
 }

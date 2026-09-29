@@ -192,7 +192,7 @@ export function AuthPopover({
         return (
             <Dialog open={effectiveOpen} onOpenChange={onOpenChange}>
                 <DialogContent
-                    className="sm:max-w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
+                    className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))] bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
                     onCloseAutoFocus={handleDialogCloseAutoFocus}
                 >
                     <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>

@@ -299,6 +299,11 @@
   --motion-deck-shift: 12%;
   --for-you-deck-min-height: min(72dvh, 720px);
 
+  /* Tallest a dialog/sheet may be: dynamic viewport minus a margin (vh fallback
+     below for browsers without dvh). The one source `ui/dialog.tsx` and
+     `ui/sheet.tsx` read — sites cap tighter with min(<px>, var(--overlay-max-h)). */
+  --overlay-max-h: calc(100vh - 2rem);
+
   /* Elevation — Tailwind named scale stays `none`; sanctioned semantic shadows
      below (Concept A skeuomorphic, 2026-09-26). See DESIGN-LANGUAGE.md. */
   --shadow-overlay: 0 12px 40px -8px rgb(0 0 0 / 0.45), 0 4px 12px rgb(0 0 0 / 0.28);
@@ -320,6 +325,12 @@
   --z-dialog: 210;
   --z-tour: 200;
   --z-toast: 300;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --overlay-max-h: calc(100dvh - 2rem);
+  }
 }
 
 .dark {

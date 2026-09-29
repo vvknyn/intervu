@@ -935,7 +935,7 @@ export function CompletenessMock() {
                     side="bottom"
                     hideCloseButton
                     overlayClassName="bg-[rgba(18,21,26,0.42)]"
-                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
+                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden rounded-t-[18px] border border-border border-b-0 p-0"
                 >
                     <div className="flex shrink-0 justify-center py-2.5 pt-2.5" aria-hidden>
                         <span className="h-1 w-9 rounded-full bg-[#d0d6de]" />

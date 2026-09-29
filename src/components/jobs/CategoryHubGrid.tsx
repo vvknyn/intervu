@@ -39,6 +39,7 @@ import { SolidBadge } from "@/components/ui/badge";
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogTitle,
     DialogDescription,
@@ -1105,7 +1106,7 @@ export function CategoryHubGrid({
             <Dialog open={modalCategory !== null} onOpenChange={(open) => !open && setModalCategory(null)}>
                 <DialogContent
                     showCloseButton={false}
-                    className="w-[95vw] max-w-7xl h-[90dvh] max-h-[90dvh] p-0 gap-0 overflow-hidden flex flex-col bg-background rounded-panel border border-border"
+                    className="w-[95vw] max-w-7xl h-[var(--overlay-max-h)] p-0 gap-0 overflow-hidden bg-background rounded-panel border border-border"
                 >
                     {modalCategory && (
                         <>
@@ -1566,7 +1567,7 @@ export function CategoryHubGrid({
                         </DialogDescription>
                     </div>
 
-                    <div className="space-y-3">
+                    <DialogBody className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div className="space-y-1">
                                 <Label className="text-xs text-foreground">Full Name</Label>
@@ -1627,9 +1628,9 @@ export function CategoryHubGrid({
                                 Open in Settings →
                             </Link>
                         </div>
-                    </div>
+                    </DialogBody>
 
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                    <div className="flex shrink-0 items-center justify-end gap-2 pt-2 border-t border-border">
                         <Button
                             type="button"
                             variant="outline"

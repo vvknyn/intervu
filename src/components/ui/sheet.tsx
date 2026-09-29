@@ -1,11 +1,13 @@
 "use client"
 
 import * as React from "react"
+// dialog-primitive-exempt: this IS the sheet primitive
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
+import { revealFocusedField } from "@/lib/ui/reveal-focused-field"
 
 const GRAB_ZONE_PX = 48
 const DISMISS_THRESHOLD_PX = 80
@@ -238,6 +240,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <SheetPrimitive.Overlay
         className={cn(
+            // dialog-primitive-exempt: this IS the sheet primitive
             "fixed inset-0 z-[150] bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
             className
         )}
@@ -257,13 +260,13 @@ const SheetHandle = ({ className }: { className?: string }) => (
 SheetHandle.displayName = "SheetHandle"
 
 const sheetVariants = cva(
-    "fixed z-[150] gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
+    "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
     {
         variants: {
             side: {
-                top: "inset-x-0 top-0 rounded-b-panel data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+                top: "inset-x-0 top-0 max-h-[var(--overlay-max-h)] rounded-b-panel data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
                 bottom:
-                    "inset-x-0 bottom-0 touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+                    "inset-x-0 bottom-0 max-h-[var(--overlay-max-h)] touch-pan-y rounded-t-panel data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
                 left: "inset-y-0 left-0 h-full w-3/4 rounded-r-panel data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
                 right:
                     "inset-y-0 right-0 h-full w-full rounded-l-panel data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-xl lg:max-w-2xl",
@@ -286,7 +289,7 @@ interface SheetContentProps
 const SheetContent = React.forwardRef<
     React.ElementRef<typeof SheetPrimitive.Content>,
     SheetContentProps
->(({ side = "right", className, children, hideCloseButton = false, overlayClassName, onDismiss, ...props }, ref) => {
+>(({ side = "right", className, children, hideCloseButton = false, overlayClassName, onDismiss, onFocusCapture, ...props }, ref) => {
     const contentRef = React.useRef<React.ElementRef<typeof SheetPrimitive.Content> | null>(null)
     const setContentRef = React.useCallback(
         (node: React.ElementRef<typeof SheetPrimitive.Content> | null) => {
@@ -307,6 +310,10 @@ const SheetContent = React.forwardRef<
             <SheetPrimitive.Content
                 ref={setContentRef}
                 className={cn(sheetVariants({ side }), className)}
+                onFocusCapture={(event) => {
+                    onFocusCapture?.(event)
+                    revealFocusedField(event)
+                }}
                 {...props}
             >
                 {children}
@@ -321,6 +328,14 @@ const SheetContent = React.forwardRef<
     )
 })
 SheetContent.displayName = SheetPrimitive.Content.displayName
+
+/** The one scroll region between a fixed header and footer — same contract as
+ *  `DialogBody` (`min-h-0` so the flex child shrinks and scrolls instead of
+ *  being clipped). */
+const SheetBody = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+    <div className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", className)} {...props} />
+)
+SheetBody.displayName = "SheetBody"
 
 const SheetHeader = ({
     className,
@@ -380,6 +395,7 @@ export {
     SheetOverlay,
     SheetTrigger,
     SheetClose,
+    SheetBody,
     SheetContent,
     SheetHandle,
     SheetHeader,
