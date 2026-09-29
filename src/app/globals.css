@@ -826,12 +826,13 @@ h4 {
 /* Wait-state progress bar (components/ui/wait-state.tsx `WaitProgressBar`).
    Native <progress>: determinate when it has a value, pulsing when it has
    none (`:indeterminate`). Flat track + brand fill, no radius, no depth. */
+/* Track = --border: --muted is the dialog panel's own fill (surface-2 = chip), so it vanished. */
 .wait-progress {
-  @apply h-2 w-full appearance-none overflow-hidden rounded-none border-0 bg-muted;
+  @apply h-2 w-full appearance-none overflow-hidden rounded-none border-0 bg-border;
 }
 
 .wait-progress::-webkit-progress-bar {
-  @apply bg-muted;
+  @apply bg-border;
 }
 
 .wait-progress::-webkit-progress-value {
@@ -842,7 +843,9 @@ h4 {
   @apply bg-brand;
 }
 
-.wait-progress:indeterminate {
+/* Chromium paints the track with ::-webkit-progress-bar, so the indeterminate fill goes there too. */
+.wait-progress:indeterminate,
+.wait-progress:indeterminate::-webkit-progress-bar {
   @apply bg-brand animate-pulse;
 }
 

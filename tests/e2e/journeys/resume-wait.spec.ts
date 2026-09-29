@@ -18,7 +18,8 @@ import { expect, test } from "./fixtures";
 
 const RESUME = readFileSync(path.join(__dirname, "../../fixtures/sample-resume.txt"));
 const HOLD_MS = 5_000;
-const FAKE_FILE = Buffer.alloc(3_000_000, 0x20);
+// Valid JSON (parses), 3 MB on the wire: the engine then waits on the held files, not a parse error.
+const FAKE_FILE = Buffer.from(`{"pad":"${" ".repeat(3_000_000 - 10)}"}`);
 
 async function mockModelHub(page: Page) {
     await page.addInitScript(() => Object.defineProperty(Navigator.prototype, "gpu", { get: () => undefined }));
