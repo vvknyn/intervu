@@ -19,6 +19,8 @@ import { JobCard } from "@/components/jobs/JobCard";
 import { countResults, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { hubTile } from "@/lib/jobs/for-you/hub-tiles";
 import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -90,6 +92,8 @@ export interface ForYouHomeProps {
     /** Location text the list's search could not filter on (`unmatchedPlaceMentions`).
      *  When it covers every place the pack names, the list is not the pack. */
     unmatchedPlaces?: string[];
+    /** The hub tile this list was opened from: a filter tile's own filter is part of the pack (hub-tiles.ts). */
+    tileId?: HubPackId;
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
     firstRevealEnter?: boolean;
     /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
@@ -160,9 +164,13 @@ export function ForYouHome({
     onGoAfter,
     saveSuccessPulse = false,
     unmatchedPlaces,
+    tileId,
 }: ForYouHomeProps) {
     // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
-    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    const filters = useMemo(
+        () => (resume && signals ? hubTile(packFilters(resume, signals), tileId ?? "all").state : null),
+        [resume, signals, tileId],
+    );
     // The list's search dropped every place the pack names, so its rows come from
     // anywhere. The pack's location is where the candidate can work: none of them fit.
     const placesMissing = filters != null && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });

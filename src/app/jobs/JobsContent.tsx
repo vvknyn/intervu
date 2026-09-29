@@ -108,7 +108,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { isThinResults, locationDropped } from "@/lib/jobs/broaden";
+import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
@@ -331,6 +331,7 @@ import {
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
+import { HUB_FILTER_TILE_IDS, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -1829,6 +1830,8 @@ export function JobsContent({
     // For a résumé holder the "All" pill opens the résumé-filtered pack, so it
     // counts that pack (the probe's own search), not the unfiltered corpus.
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
+    // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
+    const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2910,16 +2913,23 @@ export function JobsContent({
     // resize-clamp would zero the index before the user ever came back.
     // Band-first pack order (Strong → Good → Stretch, unscored last) with
     // target-title relevance inside each band — see orderForYouJobsByBand.
+    // An open row tile (AI, Tech for good…) shows only the pack rows it counts (hub-tiles.ts).
+    const openHubTileId =
+        forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
     const forYouPacks = useMemo(
         () =>
-            orderForYouJobsByBand(
-                renderedClusters
-                    .map((c) => c.primary)
-                    .filter(hasLiveApplyUrl),
-                matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                result?.effectiveQ,
+            hubTileRows(
+                orderForYouJobsByBand(
+                    renderedClusters
+                        .map((c) => c.primary)
+                        .filter(hasLiveApplyUrl),
+                    matchScores ? (job) => matchScores.get(job.id) ?? null : null,
+                    result?.effectiveQ,
+                ),
+                openHubTileId,
+                nowMs,
             ),
-        [renderedClusters, result?.effectiveQ, matchScores],
+        [renderedClusters, result?.effectiveQ, matchScores, openHubTileId, nowMs],
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
@@ -3016,6 +3026,7 @@ export function JobsContent({
             probing: true,
             removalsLine: null,
         }));
+        setHubFilterTileCounts({});
 
         void (async () => {
             try {
@@ -3098,6 +3109,15 @@ export function JobsContent({
                     scored,
                     removalsLine,
                 });
+
+                // Each filter tile counts its own search (the one its deck sends), one at a
+                // time after the probe so the hub stays inside the search rate limit.
+                for (const id of HUB_FILTER_TILE_IDS) {
+                    if (id === "all") continue;
+                    const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
+                    if (cancelled) return;
+                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: total == null ? null : resolveCorpusCount({ total }) }));
+                }
             } catch {
                 if (!cancelled) {
                     setHubFitProbe((prev) => ({
@@ -3122,21 +3142,22 @@ export function JobsContent({
     const hubCountLabels = useMemo(
         () =>
             hubResumeKey
-                ? formatHubPackCorpusRoleLabels(
+                ? resumeTileLabels(
                       hubResumeAllCount
                           ? resumeHubPackCounts({
                                 listTotal: hubResumeAllCount,
                                 listJobs: hubFitProbe.scored.map((h) => h.job),
                             })
                           : {},
-                      { loading: !hubResumeAllCount },
+                      hubFilterTileCounts,
+                      !hubResumeAllCount,
                   )
                 : hubPackCorpusCounts?.ok === false
                   ? {}
                   : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
                         loading: hubPackCorpusCounts == null,
                     }),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored],
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored, hubFilterTileCounts],
     );
 
     // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
@@ -4559,21 +4580,31 @@ export function JobsContent({
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData) => {
+    const applyFit = (r: ResumeData, tileId?: HubPackId) => {
         // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
-        // picked is theirs, never replaced by the résumé's.
-        const { q, facets: packFacets } = packFilters(r, resolveCandidateSignals(r, agentPrefs));
+        // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
+        // filter (hub-tiles.ts), and sets the window and salary floor to the tile's.
+        const tile = hubTile(packFilters(r, resolveCandidateSignals(r, agentPrefs)), tileId ?? "all").state;
+        const { q, facets: packFacets } = tile;
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derived = { ...packFacets };
         if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
         const merged = mergeFacets(facets, derived);
+        const tileWindow = tileId
+            ? { postedBucket: tile.postedBucket, postedExplicit: tile.postedExplicit, salaryMin: tile.salaryMin }
+            : {};
         setFacets(merged);
+        if (tileId) {
+            setPostedBucket(tile.postedBucket);
+            setPostedExplicit(tile.postedExplicit ?? false);
+            setSalaryMin(tile.salaryMin);
+        }
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
+        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit", ...tileWindow }), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4591,14 +4622,14 @@ export function JobsContent({
     // @returns true once handled (fit applied, or superseded by a later
     // choice) — false only when no usable résumé was found, the signal a
     // caller uses to decide whether to fall back to the uploader.
-    const resolveAndApplyFit = async (): Promise<boolean> => {
+    const resolveAndApplyFit = async (tileId?: HubPackId): Promise<boolean> => {
         setFitResolving(true);
         try {
             const token = fitIntentRef.current!.begin();
             const r = await resolveUsableResume();
             if (!fitIntentRef.current!.isCurrent(token)) return true;
             if (r) {
-                applyFit(r);
+                applyFit(r, tileId);
                 return true;
             }
             return false;
@@ -4625,12 +4656,25 @@ export function JobsContent({
         setFitActive(false);
         setSortOverride(null);
         setFacets({});
+        // A tile's window and salary floor are part of the tile, not carried to the next one.
+        setPostedBucket(DEFAULT_URL_STATE.postedBucket);
+        setPostedExplicit(false);
+        setSalaryMin(DEFAULT_URL_STATE.salaryMin);
         setQueryDraft("");
         setQuery("");
         setHomeView("for-you");
         writeLastJobsHomeView("for-you");
         applyUrlState(
-            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null, jobId: null }),
+            buildUrlState({
+                homeView: "for-you",
+                q: "",
+                facets: {},
+                postedBucket: DEFAULT_URL_STATE.postedBucket,
+                postedExplicit: undefined,
+                salaryMin: DEFAULT_URL_STATE.salaryMin,
+                sort: null,
+                jobId: null,
+            }),
             "replace",
         );
     };
@@ -6324,12 +6368,18 @@ export function JobsContent({
                                 hubCorpusLine={hubCorpusLine}
                                 hubRemovalsLine={hubFitProbe.removalsLine}
                                 onSelectCategory={(category) => {
+                                    const tileId = isHubPackId(category.id) ? category.id : undefined;
                                     setHubSelectedCategoryId(category.id);
                                     setForYouPackDeckOpen(true);
                                     forYouDeck.setActiveIndex(0);
                                     // The list mounts from browse hits without waiting
-                                    // on fit. A usable résumé still ranks when it arrives.
-                                    void resolveAndApplyFit();
+                                    // on fit. A usable résumé still ranks when it arrives,
+                                    // with the tile's own filter on the pack (hub-tiles.ts).
+                                    // Without one, a filter tile still filters the browse list.
+                                    void resolveAndApplyFit(tileId).then((applied) => {
+                                        if (applied || !tileId || tileId === "all" || !isHubFilterTile(tileId)) return;
+                                        applyFilterState(hubTile(buildUrlState({ jobId: null }), tileId).state);
+                                    });
                                 }}
                                 onUpdateResume={updateResume}
                                 onTailorApply={(job) => {
@@ -6369,6 +6419,7 @@ export function JobsContent({
                                 signupGate={fitGateEl}
                                 resultTotal={result?.total ?? null}
                                 unmatchedPlaces={result?.unmatchedPlaceMentions}
+                                tileId={openHubTileId}
                                 activePursuit={
                                     forYouDeck.activeJob
                                         ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
