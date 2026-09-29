@@ -3,22 +3,16 @@
  * `parse-resume-content.ts` (free-text PDF path) and
  * `structure-resume-text.ts` (local structured parse).
  */
+import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
 
 export const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
-export const PHONE_RE = /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\b/;
+/** North-American shape, or any `+`-prefixed international number (`+91 98765 55012`, `+41 44 555 01 23`). */
+export const PHONE_RE =
+    /(?:\+?\d{1,3}[\s.-]?)?(?:\(?\d{3}\)?[\s.-]?)\d{3}[\s.-]?\d{4}\b|\+\d{1,3}(?:[\s.-]?\(?\d{1,5}\)?){2,5}\b/;
 export const LINKEDIN_RE = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i;
 /** Personal site / portfolio domains (excludes linkedin and common email hosts). */
 export const WEBSITE_RE =
     /\b(?:https?:\/\/)?(?:www\.)?(?!linkedin\.com)(?!gmail\.com)(?!yahoo\.com)(?!hotmail\.com)(?!outlook\.com)([a-z0-9][-a-z0-9.]*\.(?:xyz|dev|io|me|app|co|com|net|org|ca))\b/i;
-
-const KNOWN_PLACE_WORDS = new Set([
-    "ontario", "quebec", "alberta", "manitoba", "saskatchewan", "british columbia",
-    "california", "texas", "new york", "florida", "washington", "colorado", "georgia",
-    "massachusetts", "illinois", "pennsylvania", "virginia", "arizona", "ohio",
-    "canada", "united states", "usa", "uk", "united kingdom", "england", "scotland",
-    "india", "australia", "germany", "france", "ireland", "singapore", "buffalo",
-    "richmond hill", "toronto", "vancouver", "montreal", "chicago", "boston",
-]);
 
 const PREPOSITION_START_RE =
     /^(into|across|while|shipping|with|for|from|through|during|after|before|by|as|and|or|the|a|an)\b/i;
@@ -28,52 +22,83 @@ const SUMMARY_VERB_RE =
 
 const ABBREV_END_RE = /\b(?:Inc|Ltd|Co|Dr|Mr|Mrs|Ms|St|Jr|Sr|Ph\.?D|M\.?B\.?A|M\.?S|B\.?S)\.\s*$/i;
 
-function segmentHasKnownPlace(segment: string): boolean {
-    const lower = segment.toLowerCase();
-    for (const word of KNOWN_PLACE_WORDS) {
-        if (lower.includes(word)) return true;
-    }
-    return false;
+/** A year or a date — a place line never carries one (a postal code is not a year). */
+const YEAR_RE = /\b(?:19|20)\d{2}\b/;
+
+/** "Location:", "Based in" … — says the rest of the segment is a place. */
+const LOCATION_LABEL_RE = /^(?:(?:location|address|city)\s*:|based (?:in|out of)\b|located in\b)\s*/iu;
+const WORK_MODE = String.raw`(?:fully\s+)?(?:remote|hybrid|on-?site)`;
+const WORK_MODE_RE = new RegExp(String.raw`\b${WORK_MODE}\b`, "iu");
+const WORK_MODE_PAREN_RE = new RegExp(String.raw`\(\s*${WORK_MODE}\s*\)`, "giu");
+const WORK_MODE_EDGE_RE = new RegExp(String.raw`^${WORK_MODE}\b|\b${WORK_MODE}$`, "giu");
+const EDGE_PUNCT_RE = /^[\s,:;·|•—–-]+|[\s,:;·|•—–-]+$/gu;
+/** One comma part of a place: letters in any script, spaces, dots, apostrophes, hyphens. */
+const PLACE_PART_RE = /^\p{L}[\p{L}\p{M} .'’-]*$/u;
+/** A token carrying a digit — a street number or postal code ("M5V", "94105"). */
+const DIGIT_TOKENS_TAIL_RE = /(?:^|\s+)(?:[\p{L}\d-]*\d[\p{L}\d-]*\s*)+$/u;
+/** "Greater Toronto Area", "San Francisco Bay Area". */
+const AREA_RE = /^\p{Lu}[\p{L}\p{M} .'’-]*\s(?:Area|Region)$/u;
+
+/** Prose, contact data or dates — never a place, whatever else the segment holds. */
+function isNotPlaceText(s: string): boolean {
+    if (!s || s.length > 80) return true;
+    if (EMAIL_RE.test(s) || PHONE_RE.test(s) || LINKEDIN_RE.test(s) || WEBSITE_RE.test(s)) return true;
+    if (/^https?:\/\//i.test(s) || YEAR_RE.test(s)) return true;
+    if (/[.!?]$/.test(s) && !ABBREV_END_RE.test(s)) return true;
+    return PREPOSITION_START_RE.test(s);
+}
+
+/** Prose that happens to be comma-shaped ("drove roadmaps, shipped features"). */
+function isProse(place: string): boolean {
+    const words = place.split(/\s+/).length;
+    return words >= 8 || (SUMMARY_VERB_RE.test(place) && words >= 5);
 }
 
 /**
- * Stricter than `looksLikeRealPlaceSegment`: a comma pair is a place only
- * when it names a known city/region or ends in a state/province code
- * (`Austin, TX`). `TypeScript, React` is not a place.
+ * Pure: the place a segment names, with its decoration stripped — a leading
+ * pin or bullet, a "Location:" label, a Remote/Hybrid qualifier, a street
+ * number and a postal code. `parts` are its comma parts; empty when the
+ * segment is not place-shaped. `marked` is true when a label or work-mode
+ * qualifier said "this is where I am".
+ */
+export function parsePlaceSegment(segment: string | undefined | null): { parts: string[]; marked: boolean } {
+    const raw = (segment ?? "").trim();
+    const none = { parts: [], marked: false };
+    if (isNotPlaceText(raw)) return none;
+    let s = raw.replace(/^[^\p{L}\p{N}(]+/u, "");
+    const marked = LOCATION_LABEL_RE.test(s) || WORK_MODE_RE.test(s);
+    s = s.replace(LOCATION_LABEL_RE, "").replace(WORK_MODE_PAREN_RE, "").replace(WORK_MODE_EDGE_RE, "");
+    s = s.replace(EDGE_PUNCT_RE, "");
+    s = s.match(/^\((.*)\)$/)?.[1].trim() ?? s;
+    const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
+    while (parts.length > 0 && /\d/.test(parts[0])) parts.shift();
+    if (parts.length > 0) parts[parts.length - 1] = parts[parts.length - 1].replace(DIGIT_TOKENS_TAIL_RE, "");
+    const kept = parts.filter(Boolean);
+    const shaped = kept.length >= 1 && kept.length <= 3 && kept.every((p) => p.length <= 40 && PLACE_PART_RE.test(p));
+    return shaped && !isProse(kept.join(" ")) ? { parts: kept, marked } : none;
+}
+
+/** A comma part after the first names a country, state/province or its code (`Ontario`, `TX`, `UK`). */
+function namesRegion(parts: string[]): boolean {
+    return parts.slice(1).some((p) => /^[A-Z]{2}$/.test(p) || resumeCountriesFromLocation(p).length > 0);
+}
+
+/**
+ * Stricter than `looksLikeRealPlaceSegment`: a segment is the candidate's
+ * place only with evidence — a region/country part (`Austin, TX`,
+ * `Zürich, Switzerland`), an "… Area" name, or a label / work-mode
+ * qualifier. `TypeScript, React` is not a place.
  */
 export function isLikelyPlaceSegment(segment: string): boolean {
-    if (!looksLikeRealPlaceSegment(segment)) return false;
-    if (segmentHasKnownPlace(segment)) return true;
-    const parts = segment.split(",").map((part) => part.trim()).filter(Boolean);
-    if (parts.length < 2 || parts.length > 3) return false;
-    const tail = parts[parts.length - 1] ?? "";
-    return /^[A-Z]{2}$/.test(tail);
+    const { parts, marked } = parsePlaceSegment(segment);
+    if (parts.length === 0) return false;
+    return marked || namesRegion(parts) || (parts.length === 1 && AREA_RE.test(parts[0]));
 }
 
 /** True when `segment` looks like a city/region/country fragment, not prose. */
 export function looksLikeRealPlaceSegment(segment: string): boolean {
-    const s = segment.trim();
-    if (!s || s.length < 3 || s.length > 80) return false;
-    if (EMAIL_RE.test(s) || PHONE_RE.test(s) || LINKEDIN_RE.test(s)) return false;
-    if (/^https?:\/\//i.test(s)) return false;
-    if (/^\+?\d[\d\s().-]{6,}$/.test(s)) return false;
-    if (/[.!?]$/.test(s) && !ABBREV_END_RE.test(s)) return false;
-    if (PREPOSITION_START_RE.test(s)) return false;
-    const words = s.split(/\s+/);
-    if (words.length >= 8 && !segmentHasKnownPlace(s)) return false;
-    if (SUMMARY_VERB_RE.test(s) && words.length >= 5) return false;
-    if (segmentHasKnownPlace(s)) return true;
-    if (/,/.test(s)) {
-        const parts = s.split(",").map((p) => p.trim()).filter(Boolean);
-        if (
-            parts.length >= 2 &&
-            parts.length <= 3 &&
-            parts.every((p) => p.length <= 40 && /^[A-Za-z][A-Za-z .'-]*$/.test(p))
-        ) {
-            return true;
-        }
-    }
-    return false;
+    const { parts } = parsePlaceSegment(segment);
+    return parts.length >= 2 || isLikelyPlaceSegment(segment);
 }
 
 function isContactSegment(segment: string): boolean {
@@ -109,10 +134,7 @@ export function sanitizeContactLine(line: string | undefined | null): string | n
 
 /** Drop summary fragments mistakenly stored as location; keep real places only. */
 export function sanitizeLocation(location: string | undefined | null): string {
-    const trimmed = (location ?? "").trim();
-    if (!trimmed) return "";
-    if (!looksLikeRealPlaceSegment(trimmed)) return "";
-    return trimmed.replace(/^[\s·|•]+|[\s·|•]+$/g, "").trim();
+    return parsePlaceSegment(location).parts.join(", ");
 }
 
 export function extractWebsite(text: string): string {
