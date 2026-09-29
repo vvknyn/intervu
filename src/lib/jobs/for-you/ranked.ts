@@ -23,7 +23,7 @@ import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you
 import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
-import type { MatchScore } from "@/lib/match/score";
+import { levelUnverified, type MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { ResumeData } from "@/types/resume";
 
@@ -90,8 +90,11 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
     });
-    // Stable sort, unscored jobs last (Array.prototype.sort is stable per spec).
-    scored.sort((a, b) => (b.match?.total ?? -1) - (a.match?.total ?? -1));
+    // Stable sort: jobs whose level is verified first (a seniority filter also retrieves the
+    // never-derived-level rows, which rank lower), then by total, unscored jobs last
+    // (Array.prototype.sort is stable per spec). Band order below keeps this order inside a band.
+    const unverified = (job: PublicJob) => (levelUnverified(signals, job) ? 1 : 0);
+    scored.sort((a, b) => unverified(a.job) - unverified(b.job) || (b.match?.total ?? -1) - (a.match?.total ?? -1));
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const orderedJobs = orderForYouJobsByBand(

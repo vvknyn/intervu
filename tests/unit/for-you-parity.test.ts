@@ -27,6 +27,10 @@ const CORPUS = [
     mkJob('in-mid', { location_country: 'India' }),
     mkJob('de-remote', { location_country: 'Germany', work_type: 'remote' }),
     mkJob('multi', { location_country: ['Canada', 'United States'] }),
+    // Level never derived (Vivek ruling 20:10: a seniority filter includes these, ranked lower).
+    mkJob('us-unknown', { location_country: 'United States', experience_level: 'unknown' }),
+    mkJob('ca-unknown', { location_country: 'Canada', experience_level: 'unknown' }),
+    mkJob('in-unset', { location_country: 'India', experience_level: undefined as unknown as string }),
     // Poor fit on purpose: fit must push it down, never drop it.
     mkJob('us-nurse', { location_country: 'United States', title: 'Registered Nurse', tags: ['patient care'] }),
 ];
@@ -38,10 +42,10 @@ const remoteGermany: AgentPreferences = {
 };
 
 const PERSONAS = [
-    { name: 'Canada', resume: mkResume({ location: 'Toronto, Ontario, Canada' }), prefs: undefined, mustHave: ['ca-mid', 'multi'], mustLack: ['us-mid', 'uk-mid'] },
-    { name: 'United States', resume: mkResume({ location: 'Austin, TX' }), prefs: undefined, mustHave: ['us-mid', 'multi'], mustLack: ['ca-mid', 'in-mid'] },
-    { name: 'India', resume: mkResume({ location: 'Bengaluru, India' }), prefs: undefined, mustHave: ['in-mid'], mustLack: ['ca-mid', 'us-mid'] },
-    { name: 'no location', resume: mkResume(), prefs: undefined, mustHave: ['ca-mid', 'us-mid', 'uk-mid', 'in-mid'], mustLack: ['us-senior'] },
+    { name: 'Canada', resume: mkResume({ location: 'Toronto, Ontario, Canada' }), prefs: undefined, mustHave: ['ca-mid', 'multi', 'ca-unknown'], mustLack: ['us-mid', 'uk-mid', 'us-unknown'] },
+    { name: 'United States', resume: mkResume({ location: 'Austin, TX' }), prefs: undefined, mustHave: ['us-mid', 'multi', 'us-unknown'], mustLack: ['ca-mid', 'in-mid', 'ca-unknown'] },
+    { name: 'India', resume: mkResume({ location: 'Bengaluru, India' }), prefs: undefined, mustHave: ['in-mid', 'in-unset'], mustLack: ['ca-mid', 'us-mid'] },
+    { name: 'no location', resume: mkResume(), prefs: undefined, mustHave: ['ca-mid', 'us-mid', 'uk-mid', 'in-mid', 'us-unknown'], mustLack: ['us-senior'] },
     { name: 'explicit remote Germany over a Canadian resume', resume: mkResume({ location: 'Toronto, Canada' }), prefs: remoteGermany, mustHave: ['de-remote'], mustLack: ['ca-remote', 'ca-mid'] },
 ];
 
@@ -110,5 +114,25 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
         const { search } = corpusStub(CORPUS);
         const ranked = await rankForYou({ resume, search, candidateDepth: DEPTH });
         assert.deepEqual(ranked.filters.facets.location_country, ['United Kingdom']);
+    });
+
+    it('seniority filter includes unknown-level rows, and ranks every verified-level job above them', async () => {
+        const resume = mkResume({ location: 'Austin, TX' });
+        const { search } = corpusStub(CORPUS);
+        const ranked = await rankForYou({ resume, search, candidateDepth: DEPTH });
+        const order = ranked.hits.map((h) => h.job.id);
+        assert.ok(order.includes('us-unknown'), 'unknown level is retrieved');
+        assert.ok(!order.includes('us-senior'), 'a known, different level is not');
+        const firstUnknown = order.indexOf('us-unknown');
+        for (const id of ['us-mid', 'multi']) assert.ok(order.indexOf(id) < firstUnknown, `${id} ranks above the unknown-level row`);
+        const unknown = ranked.hits.find((h) => h.job.id === 'us-unknown')!;
+        assert.ok(unknown.match!.total < 80, 'an unverifiable level never reads as Strong');
+        assert.ok(unknown.match!.components.find((c) => c.key === 'seniority')!.unknown, 'and is flagged unknown, not claimed as a level match');
+    });
+
+    it('a manual level selection (not just the pack) includes unknown rows: same call, same ids', async () => {
+        const { search } = corpusStub(CORPUS);
+        const manual = await search({ facets: { experience_level: ['senior'], location_country: ['United States'] } });
+        assert.deepEqual(manual.hits.map((j) => j.id).sort(), ['us-senior', 'us-unknown']);
     });
 });

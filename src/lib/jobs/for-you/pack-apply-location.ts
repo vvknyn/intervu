@@ -6,12 +6,7 @@
  * search-side location filter comes from the one signals resolver
  * (candidate-signals.ts), the same for every country.
  */
-import {
-    candidateLocationFromResume,
-    countriesOfPlace,
-    type LocationResume,
-} from "@/lib/jobs/candidate-signals";
-import type { FacetKey } from "@/lib/jobs/types";
+import { candidateLocationFromResume, type LocationResume } from "@/lib/jobs/candidate-signals";
 import type { ResumeData } from "@/types/resume";
 
 export { candidateLocationFromResume };
@@ -37,16 +32,4 @@ export function resumeForPackApply(resume: ResumeData): ResumeData {
             location,
         },
     };
-}
-
-/**
- * Location facets a résumé-derived search sends: the candidate's country, for
- * every country. A résumé with no place, or a place that names no country,
- * contributes nothing.
- */
-export function packApplyLocationFacets(
-    resume: LocationResume | null | undefined,
-): Partial<Record<FacetKey, string[]>> {
-    const countries = countriesOfPlace(candidateLocationFromResume(resume));
-    return countries.length > 0 ? { location_country: countries } : {};
 }

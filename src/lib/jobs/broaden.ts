@@ -131,17 +131,24 @@ export interface ResolveBroadenInput {
     search: (params: JobSearchParams) => Promise<JobSearchResult>;
 }
 
+type SearchFn = ResolveBroadenInput["search"];
+
+/** How many results `state` returns, from the search call the results use; `null` when that call fails. */
+export async function countResults(state: JobsUrlState, search: SearchFn): Promise<number | null> {
+    try {
+        const result = await search({ ...searchParamsFromUrlState(state), limit: 1, offset: 0 });
+        return result.unavailable === true || !result.configured ? null : result.total;
+    } catch {
+        return null;
+    }
+}
+
 /** Rungs with their real counts; only those that add results, in ladder order. */
 export async function resolveBroadenOptions({ state, total, ctx, search }: ResolveBroadenInput): Promise<BroadenOption[]> {
     const counted = await Promise.all(
         broadenRungs(state, ctx).map(async (rung): Promise<BroadenOption | null> => {
-            try {
-                const result = await search({ ...searchParamsFromUrlState(rung.next), limit: 1, offset: 0 });
-                if (result.unavailable === true || !result.configured) return null;
-                return { ...rung, count: result.total };
-            } catch {
-                return null;
-            }
+            const count = await countResults(rung.next, search);
+            return count === null ? null : { ...rung, count };
         }),
     );
     return counted.filter((option): option is BroadenOption => option !== null && option.count > total);

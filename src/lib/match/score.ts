@@ -52,6 +52,7 @@ import {
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { jobCountries } from "@/lib/jobs/resume-location";
+import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -283,12 +284,23 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
 }
 
 /**
+ * A seniority filter also retrieves jobs whose level was never derived
+ * (`unknown-inclusive-facets.ts`). For a candidate whose level IS known, such a
+ * job cannot be verified as a fit, so like an unverifiable location it never
+ * reads as Strong — the ranker then places the verified-level jobs above it.
+ */
+export function levelUnverified(signals: CandidateSignals, job: PublicJob): boolean {
+    return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level);
+}
+
+/**
  * The one scoring function. `relevance` is REQUIRED — no topical overlap
  * between résumé and job means no honest match to report, so this returns
  * `null` (no chip). Seniority and location always contribute; when either is
  * unknown it contributes the neutral score and is flagged. A job whose
  * location cannot be verified for this candidate never reads as Strong: the
- * total is capped just under the Strong band.
+ * total is capped just under the Strong band (so is a job whose level was
+ * never derived, for a candidate whose level is known — `levelUnverified`).
  *
  * `signals` defaults to the résumé-only resolution; callers that hold the
  * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
@@ -306,5 +318,5 @@ export function scoreJobAgainstResume(
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
 
-    return { total: locationUnknown ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
+    return { total: locationUnknown || levelUnverified(signals, job) ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
 }

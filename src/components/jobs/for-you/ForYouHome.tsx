@@ -16,10 +16,10 @@ import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobsAction } from "@/actions/jobs";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { JobCard } from "@/components/jobs/JobCard";
-import { isThinResults } from "@/lib/jobs/broaden";
-import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
+import { countResults, isThinResults } from "@/lib/jobs/broaden";
+import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
-import { jobsBoardHref } from "@/lib/jobs/url-state";
+import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { DeckRoleDetail } from "@/components/jobs/for-you/DeckRoleDetail";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
@@ -61,6 +61,8 @@ export interface ForYouHomeProps {
     onSkip: () => void;
     matchScores: Map<string, MatchScore | null> | null;
     resume: ResumeData | null;
+    /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
+    signals: CandidateSignals | null;
     nowMs: number;
     fitResolving: boolean;
     loading: boolean;
@@ -115,6 +117,7 @@ export function ForYouHome({
     onSkip,
     matchScores,
     resume,
+    signals,
     nowMs,
     fitResolving,
     loading,
@@ -292,8 +295,23 @@ export function ForYouHome({
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
     // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
-    const filters = useMemo(() => (resume ? packFilters(resume, resolveCandidateSignals(resume)) : null), [resume]);
-    const packTotal = visiblePacks.length === 0 ? 0 : resultTotal;
+    const filters = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    // The pack's own count: what applying these filters returns, not the size of the deck on screen.
+    const [packTotal, setPackTotal] = useState<number | null>(null);
+    const packKey = filters ? serializeJobsUrl(filters) : null;
+    useEffect(() => {
+        if (!filters) return;
+        let live = true;
+        setPackTotal(null);
+        void countResults(filters, searchJobsAction).then((total) => {
+            if (live) setPackTotal(total);
+        });
+        return () => {
+            live = false;
+        };
+        // `packKey` is the identity of `filters`; `searchJobsAction` is a stable action.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [packKey]);
     const selectedIndex =
         activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
@@ -422,7 +440,12 @@ export function ForYouHome({
                                     Only {packTotal} {packTotal === 1 ? "role matches" : "roles match"} your filters.
                                 </p>
                             ) : null}
-                            <BroadenOptions state={filters} total={packTotal} search={searchJobsAction} />
+                            <BroadenOptions
+                                state={filters}
+                                total={packTotal}
+                                ctx={{ relocation: signals?.relocation.value }}
+                                search={searchJobsAction}
+                            />
                         </>
                     ) : null}
                 </div>

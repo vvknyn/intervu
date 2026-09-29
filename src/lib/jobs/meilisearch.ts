@@ -29,6 +29,7 @@ import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
+import { facetFilterClause } from "./unknown-inclusive-facets";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -615,8 +616,8 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     if (!rawVals || rawVals.length === 0) continue;
     const vals = canonicalFacetValues(rawVals);
     if (vals.length === 0) continue;
-    // OR within a facet, AND across facets. JSON.stringify quotes + escapes the value.
-    f.push("(" + vals.map((v) => `${key} = ${JSON.stringify(v)}`).join(" OR ") + ")");
+    // OR within a facet, AND across facets (unknown-inclusive facets add their unknown rows).
+    f.push(facetFilterClause(key, vals));
   }
   if (p.places?.length) {
     // One OR group across every parsed place mention — see

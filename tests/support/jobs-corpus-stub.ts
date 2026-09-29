@@ -3,10 +3,11 @@
  * `JobSearchParams` → `JobSearchResult`) that the /jobs board, the For-you
  * packs and the broaden ladder all share. It applies the same facet
  * semantics the index does for the fields these tests vary: AND across
- * facet keys, OR within a key, `["any"]` = no filter, and the posted window.
+ * facet keys, OR within a key (a seniority selection also matches unknown-level rows), `["any"]` = no filter, and the posted window.
  */
 import type { JobSearchParams, JobSearchResult, PostedBucket, PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
+import { facetValueMatches } from '../../src/lib/jobs/unknown-inclusive-facets';
 
 export const NOW = Date.parse('2026-09-28T12:00:00Z');
 const DAY_MS = 86_400_000;
@@ -72,7 +73,7 @@ function facetMatches(job: PublicJob, params: JobSearchParams): boolean {
     const work = wanted('work_type');
     if (work.length > 0 && !work.includes(job.work_type)) return false;
     const levels = wanted('experience_level');
-    if (levels.length > 0 && !levels.includes(job.experience_level)) return false;
+    if (levels.length > 0 && !facetValueMatches('experience_level', job.experience_level, levels)) return false;
     return true;
 }
 

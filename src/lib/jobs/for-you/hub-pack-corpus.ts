@@ -25,7 +25,7 @@ const HAS_SALARY_FILTER =
 
 /** `isLeadJob` experience_level branch. Title regex is not filterable (CONTAINS is off). */
 const LEAD_EXPERIENCE_FILTER =
-    '(experience_level = "lead" OR experience_level = "principal" OR experience_level = "staff" OR experience_level = "director")';
+    '(experience_level = "lead" OR experience_level = "principal" OR experience_level = "staff" OR experience_level = "director")'; // unknown-inclusive-exempt: the Lead pack is a topic (lead-level roles), not a candidate seniority filter
 
 /** Quoted phrases from `AI_RE`. `occupation` is not a searchableAttribute. */
 const AI_PACK_QUERIES = [
