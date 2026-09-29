@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { LegalDocHeader, LEGAL_H2 } from "@/components/legal/LegalDocHeader";
+import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
 import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
+import { Prose } from "@/components/ui/prose";
+import { SectionTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
@@ -21,24 +24,24 @@ const LAST_UPDATED = "September 26, 2026";
 
 export default function TermsPage() {
   return (
-    <div data-testid="terms-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="terms-page" className="py-10">
       <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
-        <article className="prose prose-sm max-w-none dark:prose-invert">
+        <Prose>
         <p>
           velai is in beta. That means the product is real and working, but still changing — features may shift,
           and we&apos;re actively improving how the service works. By using velai, you agree to the terms below.
         </p>
 
-        <h2 className={LEGAL_H2}>The service</h2>
+        <SectionTitle>The service</SectionTitle>
         <p>
           velai helps you search and track job listings, and prepare for interviews. The listings we show are
           collected from employers&apos; own public career pages — we don&apos;t invent listings, and we don&apos;t
           charge employers to be included.
         </p>
 
-        <h2 className={LEGAL_H2}>Posting-check and risk signals are automated observations, not guarantees</h2>
+        <SectionTitle>Posting-check and risk signals are automated observations, not guarantees</SectionTitle>
         <p>
           Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
           covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; — come from automated checks of facts we
@@ -49,7 +52,7 @@ export default function TermsPage() {
           input, not a verdict, when you decide where to spend your time.
         </p>
 
-        <h2 className={LEGAL_H2}>Acceptable use</h2>
+        <SectionTitle>Acceptable use</SectionTitle>
         <p>You agree not to:</p>
         <ul>
           <li>Scrape, crawl, or systematically extract data from velai</li>
@@ -61,17 +64,17 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        <h2 className={LEGAL_H2}>AI features</h2>
+        <SectionTitle>AI features</SectionTitle>
         <p>AI features are free. Nothing is metered and there is nothing to buy.</p>
 
-        <h2 className={LEGAL_H2}>Employers</h2>
+        <SectionTitle>Employers</SectionTitle>
         <p>
           If a listing sourced from your company&apos;s careers site is incorrect, outdated, or you&apos;d like it
           removed, use the <Link href="/contact">contact page</Link> and include the listing URL. We&apos;ll act on
           legitimate requests.
         </p>
 
-        <h2 className={LEGAL_H2}>Account termination</h2>
+        <SectionTitle>Account termination</SectionTitle>
         <p>
           We may suspend or close an account that violates these terms or that we determine, in good faith, is
           being used to abuse the service. You may close your account at any time from{" "}
@@ -82,10 +85,10 @@ export default function TermsPage() {
           data.
         </p>
 
-        <h2 className={LEGAL_H2}>Changes</h2>
+        <SectionTitle>Changes</SectionTitle>
         <p>We may update these terms as the product changes. We&apos;ll update the date at the top of this page when we do.</p>
 
-        <h2 className={LEGAL_H2}>Contact</h2>
+        <SectionTitle>Contact</SectionTitle>
         <p>
           Questions: email{" "}
           <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
@@ -93,8 +96,8 @@ export default function TermsPage() {
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
         </p>
-      </article>
+      </Prose>
       </div>
-    </div>
+    </PageContainer>
   );
 }

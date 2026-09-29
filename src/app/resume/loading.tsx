@@ -4,7 +4,7 @@ export default function Loading() {
     return (
         <WaitState
             label="Loading resume page"
-            className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10"
+            className="shell-row pb-16 pt-6"
             skeleton={
                 <>
                     <div className="space-y-6">

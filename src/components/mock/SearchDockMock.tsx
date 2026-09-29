@@ -4,6 +4,7 @@ import React from "react";
 import { MagnifyingGlass, MapPin, Moon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Mockup for docking the /jobs search line into the header on scroll.
@@ -237,10 +238,10 @@ const TREATMENTS: { id: Treatment; name: string; how: string; cost: string }[] =
 
 export function SearchDockMock() {
     return (
-        <div className="mx-auto max-w-6xl px-8 py-10">
-            <h1 className="text-2xl font-semibold text-foreground">
+        <div className="shell-row py-10">
+            <PageTitle>
                 Docking the search into the header on scroll
-            </h1>
+            </PageTitle>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
                 Scroll inside any frame below to see it happen. The header stays exactly 56px tall
                 in both states — it never grows to make room, because that would cost a result row

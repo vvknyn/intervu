@@ -12,7 +12,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 export function SettingsLoading() {
     return (
         <PageLayout fullWidth>
-            <div className="mx-auto w-full max-w-3xl px-4 py-16 sm:px-8">
+            <div className="shell-row py-16">
                 <WaitState
                     label="Loading account"
                     className="flex min-h-40 flex-col items-center justify-center rounded-panel border border-border bg-surface p-10 shadow-[var(--shadow-bevel-highlight)]"

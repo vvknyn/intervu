@@ -389,6 +389,7 @@ import {
     subscribeGuestEngageNudge,
 } from "@/lib/auth/guest-engage-nudge";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Every search-action call on this page goes through this one
@@ -629,7 +630,7 @@ function JobsTourReplayButton() {
                         onClick={() => startTour()}
                         className={cn(
                             toolbarControlHeight,
-                            "inline-flex w-11 shrink-0 items-center justify-center whitespace-nowrap rounded-ctl p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:w-7",
+                            "ctl-square inline-flex shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                         )}
                     >
                         <Question size={16} weight="bold" aria-hidden />
@@ -5332,6 +5333,7 @@ export function JobsContent({
             onApply={applySavedSearch}
             onBeforeGuestSave={!user ? handleBeforeGuestSavedSearch : undefined}
             compact
+            className="inline-flex"
         />
     ) : null;
 
@@ -5745,9 +5747,9 @@ export function JobsContent({
                                 <p className="mb-0.5 text-xs font-semibold text-live">
                                     Live from employer career pages
                                 </p>
-                                <h1 className="text-xl font-semibold text-foreground">
+                                <PageTitle>
                                     {JOBS_USP.mastheadTitle}
-                                </h1>
+                                </PageTitle>
                                 <p className="sr-only">{JOBS_USP.searchDescription}</p>
                             </div>
                             ) : (
@@ -5808,6 +5810,7 @@ export function JobsContent({
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
+                        // page-scale-allow: the at-rest front door is a centred 960px search column
                         atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2 sm:p-2.5",
                     )}
                 >
@@ -6081,6 +6084,7 @@ export function JobsContent({
                                 // `bg-muted` band — instead of the full-bleed,
                                 // filled strip a live query still gets.
                                 atRest
+                                    // page-scale-allow: the at-rest front door is a centred 960px search column
                                     ? "mx-auto mt-3 w-full max-w-[960px] border-y border-border py-2"
                                     : "mt-3 w-full min-w-0 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
                             ),
@@ -6134,7 +6138,7 @@ export function JobsContent({
                         )}
                         {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                            <div data-testid="jobs-toolbar-actions" className="wrap-row min-w-0 max-w-full">
                                 {showToolbarFilters && savedSearchMountEl}
                                 {sortEl}
                                 {tourReplayEl}
@@ -6635,7 +6639,7 @@ export function JobsContent({
                                     <p className="mt-1 text-xs text-muted-foreground">
                                         Tap one to search — your filters stay on
                                     </p>
-                                    <div className="mt-3.5 flex flex-wrap gap-x-4 gap-y-2.5" role="list" aria-label="Suggested roles">
+                                    <div className="wrap-row pt-3.5 [--wrap-gap-x:1rem] [--wrap-gap-y:0.625rem]" role="list" aria-label="Suggested roles">
                                         {searchSeeds.map((seed) => (
                                             <button
                                                 key={seed}
@@ -6643,7 +6647,7 @@ export function JobsContent({
                                                 data-testid="serp-ask-seed"
                                                 title={`Search for ${seed}`}
                                                 onClick={() => submitSearch(seed)}
-                                                className="max-w-[min(100%,14rem)] truncate text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
+                                                className="inline-block max-w-[min(100%,14rem)] truncate text-xs text-foreground underline underline-offset-[3px] transition-opacity duration-100 hover:opacity-80"
                                             >
                                                 {seed}
                                             </button>
@@ -6829,7 +6833,7 @@ export function JobsContent({
                                 >
                                     {board === "elite" && (
                                         <div className="mb-3.5 flex items-baseline justify-between gap-3">
-                                            <h2 className="font-display text-lg font-semibold">
+                                            <h2 className="font-display text-xl font-semibold">
                                                 Elite matches
                                                 <span className="ml-2 text-xs font-normal text-[color:var(--elite-muted)]">
                                                     {result?.total != null

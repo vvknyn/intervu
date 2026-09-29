@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { BookmarkSimple } from "@phosphor-icons/react";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { jobActionIconSize } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { isOptimisticPursuitId } from "@/lib/pursuits/optimistic-pursuit";
 
 /**
- * 40px icon-only ghost bookmark control (GROUP-C row anatomy — list rows
+ * Icon-only ghost bookmark on the job-action step (GROUP-C row anatomy — list rows
  * and the detail action row/mobile action bar all read the same
  * pursuit/onGoAfter contract). Klein-filled glyph linking to the saved record
  * when `pursuit` exists; muted outline glyph + `onGoAfter` otherwise.
@@ -38,7 +39,7 @@ export function RowBookmarkButton({
             return (
                 <Button
                     variant="ghost"
-                    size="icon-lg"
+                    size={jobActionIconSize}
                     type="button"
                     disabled
                     aria-label="Saved"
@@ -58,7 +59,7 @@ export function RowBookmarkButton({
                 data-testid="job-save-confirmed"
                 className={buttonVariants({
                     variant: "ghost",
-                    size: "icon-lg",
+                    size: jobActionIconSize,
                     className: cn("text-foreground", successPulse && "success-pulse", className),
                 })}
             >
@@ -69,7 +70,7 @@ export function RowBookmarkButton({
     return (
         <Button
             variant="ghost"
-            size="icon-lg"
+            size={jobActionIconSize}
             onClick={onGoAfter}
             aria-label="Save this job"
             title="Save"

@@ -308,7 +308,7 @@ export function JobCard({
                     </div>
                 )}
             </div>
-            {/* Right meta column: bookmark (rulebook's 40px icon-only row
+            {/* Right meta column: bookmark (rulebook's icon-only row
                 control) sits above match receipt and posted age so this
                 column's height tracks the mid column's text instead of
                 driving the row past the rulebook's 96-112px band. The

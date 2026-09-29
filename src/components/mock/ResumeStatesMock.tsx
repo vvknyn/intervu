@@ -17,6 +17,7 @@ import { SignedOutEmptyState } from "@/app/resume/page";
 import { ResumeParsingStep } from "@/components/resume-builder/ResumeImportModal";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import type { ResumeData } from "@/types/resume";
+import { PageTitle } from "@/components/ui/heading";
 
 const FIXTURE_RESUME: ResumeData = {
     profile: {
@@ -85,8 +86,8 @@ export function ResumeStatesMock() {
     const [state, setState] = useState<MockState>(initialStateFromQuery);
 
     return (
-        <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10">
-            <h1 className="text-2xl font-semibold text-foreground">Resume states (design proof)</h1>
+        <div className="shell-row pb-16 pt-6">
+            <PageTitle>Resume states (design proof)</PageTitle>
             <p className="mt-1 text-sm text-muted-foreground">
                 Dev-only harness — not linked from product navigation.
             </p>

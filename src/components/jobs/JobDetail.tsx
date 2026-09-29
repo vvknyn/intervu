@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, Minus, Warning } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -355,7 +356,7 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
         >
             {job.apply_url && (
-                <Button size="lg" className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button size={jobActionSize} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
                     {APPLY_BUTTON_LABEL}
                 </Button>
@@ -370,7 +371,7 @@ export function JobDetailActionBar({
                     onSignInToSync={onSignInToSync}
                 />
             ) : onUploadResume ? (
-                <Button size="lg"
+                <Button size={jobActionSize}
                     type="button"
                     variant="outline"
                     data-testid="job-detail-upload-to-customize"
@@ -380,7 +381,7 @@ export function JobDetailActionBar({
                     {UPLOAD_TO_CUSTOMIZE_LABEL}
                 </Button>
             ) : null}
-            {/* Same 40px icon-only ghost bookmark as the desktop action row —
+            {/* Same icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton
                 pursuit={pursuit}
@@ -826,7 +827,8 @@ export function JobDetail({
 
                 {/* Title row */}
                 <div className="px-4 pb-3 pt-3 sm:px-6">
-                    <h2 className="font-display text-title-lg font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
+                    {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                    <h2 className="font-display text-2xl font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -876,7 +878,7 @@ export function JobDetail({
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
                         {job.apply_url && (
-                            <Button size="lg" onClick={onOpenPosting} className="gap-2 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
+                            <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -890,7 +892,7 @@ export function JobDetail({
                                 onSignInToSync={onSignInToSync}
                             />
                         ) : onUploadResume ? (
-                            <Button size="lg"
+                            <Button size={jobActionSize}
                                 type="button"
                                 variant="outline"
                                 data-testid="job-detail-upload-to-customize"

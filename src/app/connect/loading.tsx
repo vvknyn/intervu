@@ -4,7 +4,7 @@ export default function Loading() {
     return (
         <WaitState
             label="Loading agents page"
-            className="mx-auto max-w-6xl px-4 py-10 sm:px-8 xl:max-w-7xl"
+            className="shell-row py-10"
             data-testid="connect-page"
             skeleton={
                 <>

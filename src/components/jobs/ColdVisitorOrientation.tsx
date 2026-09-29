@@ -137,7 +137,7 @@ export function ColdVisitorOrientation({
                     <Sparkle size={16} weight="fill" aria-hidden />
                     <span>Welcome to Velai</span>
                 </div>
-                <h2 className="text-base sm:text-lg font-semibold text-foreground">
+                <h2 className="text-base sm:text-xl font-semibold text-foreground">
                     Two ways to find your next role
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">

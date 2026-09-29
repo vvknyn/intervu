@@ -199,7 +199,7 @@ export function LandingOnboardingView({
                     className="space-y-6 rounded-panel border border-border bg-card p-6 shadow-[var(--shadow-bevel-highlight)] sm:p-8"
                 >
                     <div className="space-y-2">
-                        <h2 className="text-xl font-semibold text-foreground sm:text-2xl">
+                        <h2 className="text-xl font-semibold text-foreground">
                             {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                         </h2>
                         <p className="text-sm leading-relaxed text-muted-foreground">
@@ -272,7 +272,7 @@ export function LandingOnboardingView({
                         className="space-y-3.5"
                     >
                         <div className="space-y-1">
-                            <h2 className="text-lg font-semibold text-foreground sm:text-xl">Account connected</h2>
+                            <h2 className="text-xl font-semibold text-foreground">Account connected</h2>
                             <p className="text-xs text-muted-foreground">
                                 Your account is verified. Upload your résumé next for private matching.
                             </p>
@@ -303,7 +303,7 @@ export function LandingOnboardingView({
                 {step === 3 && (
                     <div className="space-y-3">
                         <div className="space-y-0.5">
-                            <h2 className="text-base sm:text-lg font-semibold text-foreground">
+                            <h2 className="text-base sm:text-xl font-semibold text-foreground">
                                 {parsedResume ? "Review your profile details" : "Add your résumé"}
                             </h2>
                             <p className="text-xs text-muted-foreground">

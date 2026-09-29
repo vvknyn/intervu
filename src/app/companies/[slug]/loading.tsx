@@ -4,11 +4,11 @@ export default function Loading() {
     return (
         <WaitState
             label="Loading company page"
-            className="mx-auto max-w-3xl px-4 py-10 sm:px-6"
+            className="shell-row py-10"
             data-testid="company-truth-page"
             skeleton={
                 <>
-                    <div className="space-y-4">
+                    <div className="max-w-3xl space-y-4">
                         <WaitBar className="h-8 w-48" />
                         <WaitBar className="h-5 w-32" />
                         <div className="mt-8 border-t border-border pt-6">

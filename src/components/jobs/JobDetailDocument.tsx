@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
@@ -53,6 +54,7 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
+import { PageTitle } from "@/components/ui/heading";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
  *  postings-sourced about line (`getCompanyRailAction`, one shared query
@@ -344,7 +346,7 @@ export function JobDetailDocument({
             <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{jobTitle}</h1>
+                    <PageTitle>{jobTitle}</PageTitle>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
@@ -463,12 +465,12 @@ export function JobDetailDocument({
         >
             <div className="flex items-center gap-2">
                 {job.apply_url && (
-                    <Button size="lg" onClick={onOpenPosting} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
+                    <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand">
                         <ArrowSquareOut size={16} />
                         {APPLY_BUTTON_LABEL}
                     </Button>
                 )}
-                {/* Rulebook item f: Save outline → the same 40px icon-only
+                {/* Rulebook item f: Save outline → the same icon-only
                     ghost bookmark control every other surface (JobDetail's
                     action row, JobCard's row) already uses — one chokepoint,
                     no independent restyle. */}
@@ -486,7 +488,7 @@ export function JobDetailDocument({
                         onSignInToSync={onSignInToSync}
                     />
                 ) : onUploadResume ? (
-                    <Button size="lg"
+                    <Button size={jobActionSize}
                         type="button"
                         variant="outline"
                         data-testid="job-detail-upload-to-customize"

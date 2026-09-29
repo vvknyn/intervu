@@ -12,6 +12,7 @@ import { routeStatusPanelClassName } from "@/components/layout/route-status-chro
 import { conceptAEmptyMaxClassName } from "@/components/ui/concept-a-empty-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/heading";
 
 export default function GlobalError({
     error,
@@ -34,7 +35,7 @@ export default function GlobalError({
                         className={cn(routeStatusPanelClassName, conceptAEmptyMaxClassName, "enter-reveal p-6 text-center sm:p-8")}
                     >
                         <BrandLockup className="mx-auto w-fit" />
-                        <h1 className="mt-4 text-title-sm font-semibold text-foreground">Something went wrong</h1>
+                        <PageTitle className="mt-4">Something went wrong</PageTitle>
                         <p className="mt-2 text-body-sm text-muted-foreground">
                             The app failed to start this view. Please reload the page.
                         </p>

@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { APPLY_BUTTON_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
@@ -76,31 +77,57 @@ test("/jobs toolbar: every control in the row takes the md step", { tag: ["@J-JO
  * is a row that mixes steps. The one structural exception is a sm-step glyph in
  * a row that holds a text field (the field's own clear/dismiss affordance).
  */
+const mixedRows = (page: Page) =>
+    page.evaluate((sel) => {
+        const SM = 24;
+        const groups = new Map<Element, Element[]>();
+        for (const el of document.querySelectorAll(sel)) {
+            const r = el.getBoundingClientRect();
+            if (r.width === 0 || r.height === 0) continue;
+            let row = el.parentElement;
+            while (row && !(getComputedStyle(row).display.includes("flex") && getComputedStyle(row).flexDirection === "row")) row = row.parentElement;
+            if (row) groups.set(row, [...(groups.get(row) ?? []), el]);
+        }
+        return [...groups.values()]
+            .map((els) => {
+                const hasField = els.some((e) => e.tagName === "INPUT");
+                return els
+                    .map((e) => ({ e, h: Math.round(e.getBoundingClientRect().height) }))
+                    .filter(({ h }) => !(hasField && h === SM))
+                    .map(({ e, h }) => `${(e as HTMLElement).dataset.testid ?? e.getAttribute("aria-label") ?? e.tagName}=${h}`);
+            })
+            .filter((row) => new Set(row.map((c) => c.split("=").pop())).size > 1);
+    }, CONTROLS);
+
 for (const path of ["/jobs", "/jobs?q=data+analyst", "/trends", "/about"]) {
     test(`no row on ${path} mixes control steps`, { tag: ["@J-NAV-34"] }, async ({ page }) => {
         await returningVisitor(page);
         await page.goto(path);
         await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
-        const mixed = await page.evaluate((sel) => {
-            const SM = 24;
-            const groups = new Map<Element, Element[]>();
-            for (const el of document.querySelectorAll(sel)) {
-                const r = el.getBoundingClientRect();
-                if (r.width === 0 || r.height === 0) continue;
-                let row = el.parentElement;
-                while (row && !(getComputedStyle(row).display.includes("flex") && getComputedStyle(row).flexDirection === "row")) row = row.parentElement;
-                if (row) groups.set(row, [...(groups.get(row) ?? []), el]);
-            }
-            return [...groups.values()]
-                .map((els) => {
-                    const hasField = els.some((e) => e.tagName === "INPUT");
-                    return els
-                        .map((e) => ({ e, h: Math.round(e.getBoundingClientRect().height) }))
-                        .filter(({ h }) => !(hasField && h === SM))
-                        .map(({ e, h }) => `${(e as HTMLElement).dataset.testid ?? e.getAttribute("aria-label") ?? e.tagName}=${h}`);
-                })
-                .filter((row) => new Set(row.map((c) => c.split("=").pop())).size > 1);
-        }, CONTROLS);
-        expect(mixed).toEqual([]);
+        expect(await mixedRows(page)).toEqual([]);
     });
 }
+
+test("no row in an open job mixes control steps: the /jobs detail (split pane at 1440, sheet at 390) and /jobs/[slug]", { tag: ["@J-NAV-34"] }, async ({ page }) => {
+    await returningVisitor(page);
+    await page.goto("/jobs?q=data+analyst");
+    const row = page.getByTestId("job-row").first();
+    const listed = await row.waitFor({ timeout: 15_000 }).then(
+        () => true,
+        () => false,
+    );
+    test.skip(!listed, "this server lists no jobs (no search backend), so there is no job to open");
+    const href = await row.getByTestId("job-title").getAttribute("href");
+    const apply = page.getByRole("button", { name: APPLY_BUTTON_LABEL }).filter({ visible: true }).first();
+    // The job actions sit on the md step (the 44px touch target is the hit area, not the visual) and no row mixes steps.
+    const actionsOnOneMdStep = async () => {
+        await expect(apply).toBeVisible({ timeout: 15_000 });
+        expect(Math.round((await apply.boundingBox())!.height)).toBe(MD);
+        expect(await mixedRows(page)).toEqual([]);
+    };
+
+    await row.click();
+    await actionsOnOneMdStep();
+    await page.goto(href!);
+    await actionsOnOneMdStep();
+});

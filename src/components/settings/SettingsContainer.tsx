@@ -157,6 +157,7 @@ export function SettingsContainer() {
     return (
         <PageLayout fullWidth>
             <div
+                // page-scale-allow: the open résumé editor runs edge to edge below lg, and the form tabs keep their centred 3xl column
                 className={cn(
                     "mx-auto transition-all",
                     resumeEditorOpen

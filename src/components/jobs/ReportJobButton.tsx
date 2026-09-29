@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { FlagIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Affordance } from "@/components/jobs/SerpFilters";
@@ -104,7 +105,7 @@ export function ReportJobButton({
             <Button
                 type="button"
                 variant="ghost"
-                size="sm"
+                size={jobActionSize}
                 onClick={() => setOpen(true)}
                 data-testid="report-job-trigger"
                 className={cn("gap-1.5 text-muted-foreground", className)}

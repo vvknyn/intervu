@@ -172,7 +172,7 @@ export function FirstTimeOnboardingModal({
                 {step === 1 && (
                     <div className="p-6 sm:p-7 space-y-6">
                         <div className="space-y-1">
-                            <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                            <h2 className="text-xl font-semibold text-foreground">
                                 Job hunting without the noise
                             </h2>
                             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -243,7 +243,7 @@ export function FirstTimeOnboardingModal({
                 {step === 2 && (
                     <div className="p-6 sm:p-7 space-y-5">
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                            <h2 className="text-xl font-semibold text-foreground">
                                 {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Create your free account
                             </h2>
                             <p className="text-xs text-muted-foreground">
@@ -317,7 +317,7 @@ export function FirstTimeOnboardingModal({
                 {step === 3 && (
                     <div className="p-6 sm:p-7 space-y-5">
                         <div className="space-y-1">
-                            <h2 className="text-lg sm:text-xl font-semibold text-foreground">
+                            <h2 className="text-xl font-semibold text-foreground">
                                 Add your résumé
                             </h2>
                             <p className="text-xs text-muted-foreground">

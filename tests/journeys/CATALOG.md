@@ -602,7 +602,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-31 | See the follow-alerts count chip fully inside the header bar (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-32 | Read header tab labels and count chips at WCAG AA text contrast (4.5:1) against their real backdrop (dev-server only: signed-in mock) | signed-in | /jobs | signed-in | no | covered | header-tabs.spec.ts |
 | J-NAV-33 | Header controls share the md control step (32px) at 1440 and 390: Sign in, Create account, and on desktop with a query the docked search | anon | /jobs, /trends, /about, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
-| J-NAV-34 | No flex row mixes control heights: the buttons, fields, selects and tabs of every row share one step (a sm glyph inside a text field excepted), at 1440 and 390 | anon | /jobs, /jobs?q=data+analyst, /trends, /about | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-34 | No flex row mixes control heights: the buttons, fields, selects and tabs of every row share one step (a sm glyph inside a text field excepted), at 1440 and 390; also an open job: the /jobs detail (split pane at 1440, sheet at 390) and /jobs/[slug], whose job actions sit on the md step | anon | /jobs, /jobs?q=data+analyst, /trends, /about, /jobs/[slug] | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-35 | No wrapping row (a flex-wrap row or a `.wrap-row`) strands its last control on a line of its own — e.g. the /jobs toolbar "?" under "Get alerts" — at 1440 and 390 | anon | onboarding-completed flag + /, /jobs, /jobs?q=engineer | signed-out | no | covered | page-scale.spec.ts |
+| J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
+| J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 
 ## ERR
 

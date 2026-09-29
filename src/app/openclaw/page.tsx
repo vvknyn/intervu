@@ -19,6 +19,8 @@ import {
   setupSteps,
 } from "@/components/marketing/openclaw-content";
 import { AGENT } from "@/lib/agent/config";
+import { PageContainer } from "@/components/layout/PageContainer";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
   title: "OpenClaw — an overnight job-application agent",
@@ -33,28 +35,21 @@ export default function OpenclawPage() {
   return (
     <div data-testid="openclaw-page" className="bg-background">
       {/* Hero */}
-      <section className="mx-auto flex max-w-3xl flex-col items-center px-4 pb-14 pt-16 text-center sm:px-6">
+      <PageContainer measure="reading" className="flex flex-col items-start pb-14 pt-16">
         <OpenclawStatusBadge />
-        <h1 className="mt-4 max-w-2xl font-display text-display font-semibold text-foreground">
-          {OPENCLAW_HEADLINE}
-        </h1>
-        <p className="mt-4 max-w-xl text-xl text-muted-foreground">
+        <PageTitle className="mt-4 max-w-2xl">{OPENCLAW_HEADLINE}</PageTitle>
+        <p className="mt-4 max-w-xl text-base text-muted-foreground">
           A skill for OpenClaw, the open-source assistant you run on your own machine. It works while you
           sleep and messages you on WhatsApp when an application is ready. You read it, you send it.
         </p>
-        <WhatsAppThreadHero className="mt-10" />
+        <WhatsAppThreadHero className="mt-10 mx-0" />
         <OpenclawWaitlistForm className="mt-10 w-full max-w-sm" />
-      </section>
+      </PageContainer>
 
       {/* While you slept */}
       <section aria-labelledby="while-you-slept-heading" className="border-t border-border py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2
-            id="while-you-slept-heading"
-            className="text-xs font-semibold text-muted-foreground"
-          >
-            While you slept
-          </h2>
+        <PageContainer measure="reading">
+          <SectionTitle id="while-you-slept-heading">While you slept</SectionTitle>
           <ol className="mt-8 flex flex-col gap-6">
             {WHILE_YOU_SLEPT_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
@@ -68,18 +63,13 @@ export default function OpenclawPage() {
               </li>
             ))}
           </ol>
-        </div>
+        </PageContainer>
       </section>
 
       {/* What it won't do */}
       <section aria-labelledby="wont-do-heading" className="border-t border-border py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2
-            id="wont-do-heading"
-            className="text-xs font-semibold text-muted-foreground"
-          >
-            What it won&apos;t do
-          </h2>
+        <PageContainer measure="reading">
+          <SectionTitle id="wont-do-heading">What it won&apos;t do</SectionTitle>
           <p className="mt-3 max-w-xl text-sm text-muted-foreground">
             The difference between this and a spray-and-pray auto-applier is everything it refuses to do on its own.
           </p>
@@ -99,31 +89,21 @@ export default function OpenclawPage() {
               </li>
             ))}
           </ul>
-        </div>
+        </PageContainer>
       </section>
 
       {/* Runs on your machine */}
       <section aria-labelledby="runs-local-heading" className="border-t border-border py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2
-            id="runs-local-heading"
-            className="text-xs font-semibold text-muted-foreground"
-          >
-            Runs on your machine
-          </h2>
+        <PageContainer measure="reading">
+          <SectionTitle id="runs-local-heading">Runs on your machine</SectionTitle>
           <p className="mt-4 max-w-xl text-base text-foreground">{RUNS_ON_YOUR_MACHINE.long}</p>
-        </div>
+        </PageContainer>
       </section>
 
       {/* Setup in 3 steps */}
       <section aria-labelledby="setup-heading" className="border-t border-border py-16">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <h2
-            id="setup-heading"
-            className="text-xs font-semibold text-muted-foreground"
-          >
-            Setup in 3 steps
-          </h2>
+        <PageContainer measure="reading">
+          <SectionTitle id="setup-heading">Setup in 3 steps</SectionTitle>
           <ol className="mt-8 flex flex-col gap-6">
             {SETUP_STEPS.map((step, i) => (
               <li key={step.title} className="flex gap-4">
@@ -142,17 +122,15 @@ export default function OpenclawPage() {
               </li>
             ))}
           </ol>
-        </div>
+        </PageContainer>
       </section>
 
       {/* Closing install/waitlist — platform-scoped truth, not a blanket
           "get notified when it's installable" above the live steps this
           same page just walked through (D1). */}
       <section aria-label="Install OpenClaw" className="border-t border-border py-16">
-        <div className="mx-auto flex max-w-2xl flex-col items-center px-4 text-center sm:px-6">
-          <h2 className="text-xl font-semibold text-foreground">
-            Install OpenClaw
-          </h2>
+        <PageContainer measure="reading" className="flex flex-col items-start">
+          <SectionTitle>Install OpenClaw</SectionTitle>
           <p className="mt-2 max-w-md text-sm text-muted-foreground">
             Available on macOS today. Windows and Linux aren&apos;t built yet.
           </p>
@@ -166,7 +144,7 @@ export default function OpenclawPage() {
               Back to jobs
             </Link>
           </p>
-        </div>
+        </PageContainer>
       </section>
     </div>
   );

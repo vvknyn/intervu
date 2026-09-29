@@ -24,6 +24,7 @@ import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
 import { BrandLockup } from '@/components/brand/BrandMark'
+import { PageTitle } from '@/components/ui/heading'
 
 interface LoginFormProps {
     onSuccess?: () => void;
@@ -224,9 +225,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
                     <BrandLockup />
                 </Link>
-                <h1 className="font-semibold text-xl text-foreground">
+                <PageTitle>
                     {headline?.title ?? copy.title}
-                </h1>
+                </PageTitle>
                 {headline ? (
                     <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
                 ) : (

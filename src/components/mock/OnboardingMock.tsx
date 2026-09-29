@@ -75,6 +75,7 @@ export function OnboardingMock() {
                 </div>
             </div>
 
+            {/* page-scale-allow: a bordered stage panel (p-4 is its inset), not a page column */}
             <div className="relative flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full overflow-hidden rounded-panel border border-border p-4 min-h-[500px]">
                 <LandingAnimatedBackground />
                 <div className="relative z-10 w-full max-w-2xl">

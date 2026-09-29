@@ -8,7 +8,7 @@ const FORM = join(__dirname, "..", "..", "src", "components", "auth", "ResetPass
 describe("ResetPasswordForm", () => {
     it("uses h1 for Set new password", () => {
         const src = readFileSync(FORM, "utf8");
-        assert.match(src, /<h1[^>]*>\s*Set new password/);
+        assert.match(src, /<(h1|PageTitle)\b[^>]*>\s*Set new password/); // PageTitle renders the h1
         assert.doesNotMatch(src, /<h2[^>]*>\s*Set new password/);
     });
 
