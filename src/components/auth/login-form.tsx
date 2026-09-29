@@ -366,7 +366,20 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                 )}
                             </Field>
                             {activeTab === "signup" && (
-                                <TurnstileWidget onVerify={setTurnstileToken} />
+                                <TurnstileWidget
+                                    surface="signup"
+                                    onVerify={setTurnstileToken}
+                                    fallback={
+                                        <div className="mt-2 grid gap-2">
+                                            <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
+                                                Continue with Google
+                                            </Button>
+                                            <Button size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit()}>
+                                                Use email code
+                                            </Button>
+                                        </div>
+                                    }
+                                />
                             )}
                             <Button size="lg"
                                 type="submit"

@@ -9,15 +9,17 @@
 import { z } from "zod";
 import type { Queryable } from "../pg/pool";
 import { upsertIdentityForEmail, countRecentVerifyTokens, createVerifyToken } from "./store";
+import { turnstileRejectMessage, type TurnstileVerdict } from "../shield/turnstile";
 
 export interface SubmitFollowDeps {
   q: Queryable | null;
-  verifyTurnstile(token: string | null | undefined, remoteIp?: string): Promise<{ success: boolean }>;
+  verifyTurnstile(token: string | null | undefined, remoteIp?: string): Promise<TurnstileVerdict>;
   sendVerifyEmail(input: { email: string; companyName: string; verifyUrl: string }): Promise<void>;
   baseUrl: string;
 }
 
-export type SubmitFollowResult = { status: "accepted" } | { status: "unavailable" } | { status: "rejected" };
+/** `message` is set only when the human check refused it — what the visitor can do about that. */
+export type SubmitFollowResult = { status: "accepted" } | { status: "unavailable" } | { status: "rejected"; message?: string };
 
 /** Every address gets at most this many verification sends per rolling day —
  *  above the cap the response still says "accepted" (never reveals the cap
@@ -54,7 +56,7 @@ export async function submitFollowEmail(
   if (deps.q === null) return { status: "unavailable" };
 
   const turnstile = await deps.verifyTurnstile(input.turnstileToken, input.requestIp);
-  if (!turnstile.success) return { status: "rejected" };
+  if (!turnstile.success) return { status: "rejected", message: turnstileRejectMessage(turnstile.reason) };
 
   const email = parsedEmail.data;
   const recentSends = await countRecentVerifyTokens(deps.q, email, RECENT_WINDOW_HOURS);

@@ -51,6 +51,39 @@ export function decideTurnstileResult(
 }
 
 /**
+ * Pure: a reject `reason` (see `decideTurnstileResult`) → what the visitor
+ * can do about it. Every server caller shows this instead of a generic
+ * "Verification failed", so a dead challenge reads as a fixable state. It
+ * names no alternative sign-in path — only signup has one; that caller
+ * appends its own.
+ */
+export function turnstileRejectMessage(reason: string): string {
+  const codes = reason.split(",");
+  if (codes.includes("missing-token")) {
+    return "The security check didn't load. Reload the page and try again.";
+  }
+  if (codes.includes("verify-request-failed")) {
+    return "We couldn't reach our security check just now. Try again in a moment.";
+  }
+  if (codes.includes("timeout-or-duplicate")) {
+    return "The security check expired. Complete it again and resubmit.";
+  }
+  return "The security check failed. Reload the page and try again.";
+}
+
+/** The pass/reject shape the deps-injected submit cores (submit-follow, submit-search-alert) take. */
+export type TurnstileVerdict = { success: true } | { success: false; reason: string };
+
+/** `verifyTurnstile` folded to a verdict; "not-configured" passes, like every other caller. */
+export async function verifyTurnstileVerdict(
+  token: string | null | undefined,
+  remoteIp?: string,
+): Promise<TurnstileVerdict> {
+  const outcome = await verifyTurnstile(token, remoteIp);
+  return outcome.status === "reject" ? { success: false, reason: outcome.reason } : { success: true };
+}
+
+/**
  * Thin I/O wrapper: reads `TURNSTILE_SECRET_KEY` itself (so callers don't
  * each have to plumb it), POSTs the token to Cloudflare's siteverify
  * endpoint when configured, and folds the result through the pure decision

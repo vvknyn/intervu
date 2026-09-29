@@ -36,6 +36,9 @@ import {
 
 export { ANALYTICS_EVENTS, type AnalyticsEventKey, type SignupMethod };
 
+/** Which form's Turnstile widget failed — one entry per `<TurnstileWidget surface>` call site. */
+export type TurnstileSurface = "signup" | "contact" | "waitlist" | "follow_email" | "search_alert";
+
 /** Where a job result/apply/view/share originated. */
 export type EventSource = "serp" | "co" | "board" | "email" | "direct";
 
@@ -87,6 +90,8 @@ export interface EventPayloads {
   };
   /** Server-side only (src/app/auth/callback/route.ts). `code` is the CallbackError code, never a credential. */
   auth_callback_failed: { code: string };
+  /** Client-side, from the one Turnstile wrapper (components/ui/turnstile-widget.tsx). `code` is Cloudflare's numeric error code (e.g. "110200") or "script_load_failed" — never user input. */
+  turnstile_error: { code: string; surface: TurnstileSurface };
 
   job_viewed: {
     job_id: string;

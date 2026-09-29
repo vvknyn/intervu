@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Queryable } from "../../src/lib/pg/pool";
 import { submitSearchAlert, type SubmitSearchAlertDeps } from "../../src/lib/identity/submit-search-alert";
+import { turnstileRejectMessage } from "../../src/lib/shield/turnstile";
 
 class FakeQueryable implements Queryable {
   calls: Array<{ text: string; params: unknown[] }> = [];
@@ -72,6 +73,15 @@ describe("submitSearchAlert — validation", () => {
     const deps = baseDeps();
     const result = await submitSearchAlert(deps, baseInput({ name: "   " }));
     assert.deepEqual(result, { status: "rejected" });
+  });
+});
+
+describe("submitSearchAlert — Turnstile", () => {
+  it("rejects a failed human check with the actionable message, without touching the store", async () => {
+    const deps = baseDeps({ verifyTurnstile: async () => ({ success: false, reason: "timeout-or-duplicate" }) });
+    const result = await submitSearchAlert(deps, baseInput());
+    assert.deepEqual(result, { status: "rejected", message: turnstileRejectMessage("timeout-or-duplicate") });
+    assert.equal((deps.q as FakeQueryable).calls.length, 0);
   });
 });
 

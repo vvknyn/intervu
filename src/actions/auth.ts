@@ -9,7 +9,7 @@ import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/li
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowAuthSignupRequest, allowAuthSignInRequest, allowAuthResetRequest } from "@/lib/shield/rate-limit";
-import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
 import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 import { friendlyWorkosAuthMessage } from "@/lib/auth/workos-errors";
@@ -128,7 +128,7 @@ export async function signUp(
 
     const turnstile = await verifyTurnstile(turnstileToken, ip);
     if (turnstile.status === "reject") {
-        return { error: "Verification failed — please try again." };
+        return { error: `${turnstileRejectMessage(turnstile.reason)} Or continue with Google or an email code.` };
     }
 
     // Deliverability (MX/A/AAAA) check runs only here — after rate-limiting

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { Queryable } from "../../src/lib/pg/pool";
 import { submitFollowEmail, type SubmitFollowDeps } from "../../src/lib/identity/submit-follow";
+import { turnstileRejectMessage } from "../../src/lib/shield/turnstile";
 
 class FakeQueryable implements Queryable {
   calls: Array<{ text: string; params: unknown[] }> = [];
@@ -74,9 +75,9 @@ describe("submitFollowEmail — PG unavailable", () => {
 
 describe("submitFollowEmail — Turnstile", () => {
   it("rejects on a failed Turnstile check without touching the store", async () => {
-    const deps = baseDeps({ verifyTurnstile: async () => ({ success: false }) });
+    const deps = baseDeps({ verifyTurnstile: async () => ({ success: false, reason: "missing-token" }) });
     const result = await submitFollowEmail(deps, baseInput());
-    assert.deepEqual(result, { status: "rejected" });
+    assert.deepEqual(result, { status: "rejected", message: turnstileRejectMessage("missing-token") });
     assert.equal(deps.sends.length, 0);
     assert.equal((deps.q as FakeQueryable).calls.length, 0);
   });

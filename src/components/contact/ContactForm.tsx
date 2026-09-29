@@ -161,7 +161,7 @@ export function ContactForm() {
                     />
                 </div>
 
-                <TurnstileWidget onVerify={setTurnstileToken} />
+                <TurnstileWidget surface="contact" onVerify={setTurnstileToken} />
 
                 {status === "error" && error && (
                     <Alert variant="destructive">

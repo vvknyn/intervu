@@ -11,7 +11,7 @@ import { z } from "zod";
 import { validate, nonEmptyString } from "@/lib/validation";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { getSiteUrl } from "@/lib/seo/constants";
-import { verifyTurnstile } from "@/lib/shield/turnstile";
+import { verifyTurnstileVerdict } from "@/lib/shield/turnstile";
 import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 import { sendVerifyFollowEmail } from "@/lib/email/verify-follow";
 import { submitFollowEmail, type SubmitFollowResult } from "@/lib/identity/submit-follow";
@@ -43,14 +43,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   const result = await submitFollowEmail(
     {
       q: getIntervuPg(),
-      verifyTurnstile: async (token, remoteIp) => {
-        const outcome = await verifyTurnstile(token, remoteIp);
-        // "not-configured" (no TURNSTILE_SECRET_KEY, e.g. local dev) passes
-        // by the same fail-open posture every other Turnstile caller uses
-        // (lib/contact/submit.ts, actions/auth.ts) — only an explicit
-        // "reject" refuses.
-        return { success: outcome.status !== "reject" };
-      },
+      verifyTurnstile: verifyTurnstileVerdict,
       sendVerifyEmail: sendVerifyFollowEmail,
       baseUrl: getSiteUrl(),
     },
@@ -64,5 +57,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     },
   );
 
-  return NextResponse.json({ status: result.status }, { status: STATUS_CODE[result.status] });
+  return NextResponse.json(result, { status: STATUS_CODE[result.status] });
 }
