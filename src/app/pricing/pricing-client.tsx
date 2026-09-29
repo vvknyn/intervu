@@ -118,7 +118,7 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
       <PageTitle className="mt-3">Free while you search. Pay only if you want more.</PageTitle>
       <p className="mt-1.5 max-w-prose text-base text-muted-foreground">
         Everything you use today stays free. Pro and the Data API are on the way, and the first{" "}
-        {FOUNDING_SEAT_COUNT} Pro seats are open now at a one-off price.
+        {FOUNDING_SEAT_COUNT} Pro seats {foundingAvailable ? "are open now" : "open soon"} at a one-off price.
       </p>
 
       {paidSessionId ? (
@@ -159,7 +159,7 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
           <div>
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-foreground">Pro</p>
-              <Badge>Founding seats open</Badge>
+              <Badge>{foundingAvailable ? "Founding seats open" : "Founding seats soon"}</Badge>
             </div>
             <p className="mt-1 text-2xl font-semibold text-foreground">
               {PRO_MONTHLY_PRICE}
