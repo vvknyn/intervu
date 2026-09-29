@@ -24,10 +24,11 @@ Reference surface: `/jobs` search (`src/app/jobs/page.tsx`, `src/components/jobs
 `grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 px-[var(--list-inset)] pt-4` · inner `border-b border-border pb-4` (divider inset past the leading tile) · title `text-base font-semibold leading-snug line-clamp-2` (read/secondary → `text-muted-foreground`) · lines 2–3 `mt-1 text-sm text-muted-foreground` (strong fact → `font-semibold text-foreground`) · right rail `mono-data text-xs leading-none text-muted-foreground` · hover/selected `bg-muted`. Horizontal padding on rows, list headers and toolbars is ALWAYS `px-[var(--list-inset)]` — never a literal `px-4`/`px-6`.
 
 ## 5. Controls
-- Primary button: Button primitive default variant, `rounded-ctl px-6 text-xs font-semibold` (see `page.tsx` Search button). Secondary: `border border-border bg-card`. Ghost: no border, `hover:bg-muted`. Heights only `h-6` (segment) `h-8` (chip/compact) `h-11` (input/button) `lg:h-14` (dock).
-- Chip: `chipVariants` (`h-8 rounded-pill border border-border bg-background px-3 text-sm tabular-nums`), active `border-foreground`; count badge as in `chip.tsx`.
-- Segment/tab: `ToolbarSegment` recipe — `min-h-6 rounded-ctl px-3 text-sm font-semibold leading-none`, pressed = `underline underline-offset-2` (no fill).
-- Input/select/textarea: `rounded-ctl border border-border bg-card h-11 px-3 text-base`, focus `border-foreground`; clear buttons `h-6 w-6 rounded-ctl bg-muted`.
+- **Control scale — the only heights.** `ctl-sm` 24px (segment, inline clear), `ctl-md` 32px (default button, chip, toolbar, header CTAs, tabs), `ctl-lg` 44px (input, select, form/search button — the whole search row). Tokens `--control-h-sm|md|lg` in globals.css; primitives pick a step through `size`, a call site never writes `h-*`/`min-h-*`/`py-*` on a control. Controls in one row share one step. The 44px touch target is an invisible coarse-pointer hit area (`--hit-min`), never a taller visual. Gate: `tests/unit/control-scale.test.ts`; exemption = on-line `control-scale-allow: <reason>`.
+- Primary button: Button primitive default variant, `rounded-ctl px-6 text-xs font-semibold` (see `page.tsx` Search button). Secondary: `border border-border bg-card`. Ghost: no border, `hover:bg-muted`. Height from the control scale above.
+- Chip: `chipVariants` (`ctl-md rounded-pill border border-border bg-background px-3 text-sm tabular-nums`), active `border-foreground`; count badge as in `chip.tsx`.
+- Segment/tab: `ToolbarSegment` recipe — `ctl-sm rounded-ctl px-3 text-sm font-semibold leading-none`, pressed = `underline underline-offset-2` (no fill).
+- Input/select/textarea: `rounded-ctl border border-border bg-card ctl-lg px-3 text-base`, focus `border-foreground`; clear buttons `ctl-sm ctl-square rounded-ctl bg-muted`.
 - Links inside copy: `text-foreground underline-offset-2 hover:underline`.
 
 ## 6. Panels, headers, empty, loading

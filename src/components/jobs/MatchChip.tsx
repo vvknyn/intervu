@@ -57,7 +57,7 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
                 onClick();
             }}
             className={cn(
-                "mono-data inline-flex items-center gap-1 rounded-pill border border-border bg-chip px-2 py-0.5 text-xs font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground",
+                "mono-data inline-flex items-center gap-1 rounded-pill border border-border bg-chip px-2 ctl-sm text-xs font-semibold leading-none text-muted-foreground transition-colors hover:text-foreground",
                 className,
             )}
         >

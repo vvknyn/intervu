@@ -333,7 +333,7 @@ function CopyUrlBar() {
             <button
                 type="button"
                 onClick={handleCopy}
-                className="shrink-0 rounded-none border-l-2 border-foreground px-3 py-2.5 text-xs font-semibold text-foreground transition hover:bg-muted"
+                className="shrink-0 rounded-none border-l-2 border-foreground ctl-lg px-3 text-xs font-semibold text-foreground transition hover:bg-muted"
             >
                 {copied ? "Copied" : "Copy"}
             </button>
@@ -479,7 +479,7 @@ function MockJobDetail({
                             type="button"
                             aria-label="Close"
                             onClick={onClose}
-                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                            className="ctl-md ctl-square flex shrink-0 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
                         >
                             ×
                         </button>
@@ -700,15 +700,15 @@ export function CompletenessMock() {
                                     readOnly
                                     defaultValue="product manager"
                                     aria-label="Role search"
-                                    className="h-[46px] min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
+                                    className="ctl-lg min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
                                 <Input
                                     readOnly
                                     defaultValue="Remote"
                                     aria-label="Location search"
-                                    className="h-[46px] max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
+                                    className="ctl-lg max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
-                                <Button className="h-[46px] rounded-none bg-[#ececec] px-[18px] text-xs font-semibold text-[#12151a] hover:opacity-90">
+                                <Button size="lg" className="rounded-none bg-[#ececec] px-[18px] text-xs font-semibold text-[#12151a] hover:opacity-90">
                                     Search
                                 </Button>
                             </div>
@@ -718,7 +718,7 @@ export function CompletenessMock() {
                                     aria-expanded={filtersOpen}
                                     onClick={() => setFiltersOpen((v) => !v)}
                                     className={cn(
-                                        "rounded-none border-0 bg-black px-3 py-1.5 text-xs text-[#ececec]",
+                                        "rounded-none border-0 bg-black px-3 ctl-md text-xs text-[#ececec]",
                                         filtersOpen && "bg-[#ececec] text-[#12151a]",
                                     )}
                                 >
@@ -790,7 +790,7 @@ export function CompletenessMock() {
                     {filteredPursuits.length === 0 ? (
                         <div className="px-2 py-9 text-sm text-muted-foreground">
                             Nothing in this lane.{" "}
-                            <Button variant="outline" size="sm" className="ml-1.5 h-8" onClick={() => setTrackSheetOpen(true)}>
+                            <Button variant="outline" size="sm" className="ml-1.5" onClick={() => setTrackSheetOpen(true)}>
                                 Track a role
                             </Button>
                         </div>
@@ -827,7 +827,7 @@ export function CompletenessMock() {
                                     if (handoff) saveHandoffClient(handoff);
                                 }}
                                 className={cn(
-                                    "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border px-4 py-2 text-sm transition",
+                                    "flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border px-4 ctl-md text-sm transition",
                                     connectTab === client.id
                                         ? "border-foreground bg-foreground text-background"
                                         : "border-border text-foreground hover:border-foreground",
@@ -916,7 +916,7 @@ export function CompletenessMock() {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-7 shrink-0 px-2.5 text-xs text-muted-foreground hover:text-destructive"
+                                            className="shrink-0 px-2.5 text-xs text-muted-foreground hover:text-destructive"
                                             onClick={() => revokeCredential(cred.id)}
                                         >
                                             <Trash size={13} />

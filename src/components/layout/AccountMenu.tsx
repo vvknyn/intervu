@@ -70,7 +70,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                     aria-label="Account menu"
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                        "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none",
+                        "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none",
                         active && "ring-2 ring-live",
                     )}
                 >

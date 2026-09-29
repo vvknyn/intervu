@@ -101,7 +101,7 @@ export function ResumeStatesMock() {
                         key={s.id}
                         type="button"
                         onClick={() => setState(s.id)}
-                        className={`min-h-6 rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
+                        className={`ctl-sm rounded-ctl px-3 text-xs font-semibold leading-none transition-colors ${
                             state === s.id
                                 ? "text-foreground underline underline-offset-2"
                                 : "text-muted-foreground hover:text-foreground"
@@ -131,10 +131,10 @@ export function ResumeStatesMock() {
                                 <ResumeParsingStep />
                             </DialogBody>
                             <div className="flex justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                                <Button variant="outline" className="h-11 min-h-11" disabled>
+                                <Button size="lg" variant="outline" disabled>
                                     Cancel
                                 </Button>
-                                <Button className="h-11 min-h-11" disabled>
+                                <Button size="lg" disabled>
                                     Processing...
                                 </Button>
                             </div>

@@ -113,7 +113,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity"
                                                     onClick={() => handleEditNotes(favorite)}
                                                     title="Edit notes"
                                                 >
@@ -122,7 +122,7 @@ export function FavoritesModal({ isOpen, onClose }: FavoritesModalProps) {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive"
                                                     onClick={() => handleRemove(favorite.id)}
                                                     title="Remove from favorites"
                                                 >

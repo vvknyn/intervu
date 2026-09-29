@@ -452,9 +452,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <Button
                         type="button"
                         variant="link"
+                        size="link"
                         data-testid="resume-import-skip-download"
                         onClick={handleSkipDownload}
-                        className="inline-flex h-auto min-h-11 justify-start px-0 py-2 text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        className="inline-flex justify-start text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
                         Skip the download (basic parsing)
                     </Button>
@@ -613,7 +614,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.name || ""}
                                         onChange={(e) => updateProfile('name', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -621,7 +622,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.profession}
                                         onChange={(e) => updateProfile('profession', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -630,7 +631,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                         type="number"
                                         value={editedData.profile.yearsOfExperience}
                                         onChange={(e) => updateProfile('yearsOfExperience', parseInt(e.target.value) || 0)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -638,7 +639,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.location}
                                         onChange={(e) => updateProfile('location', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -646,7 +647,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.email}
                                         onChange={(e) => updateProfile('email', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -654,7 +655,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.phone}
                                         onChange={(e) => updateProfile('phone', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -662,7 +663,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                     <Input
                                         value={editedData.profile.linkedin || ""}
                                         onChange={(e) => updateProfile('linkedin', e.target.value)}
-                                        className="h-8 text-base md:text-sm"
+                                        className="ctl-md text-base md:text-sm"
                                     />
                                 </div>
                             </div>
@@ -684,20 +685,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                                 value={exp.company}
                                                 onChange={(e) => updateExperience(idx, 'company', e.target.value)}
                                                 placeholder="Company"
-                                                className="h-8 text-base md:text-sm"
+                                                className="ctl-md text-base md:text-sm"
                                             />
                                             <Input
                                                 value={exp.role}
                                                 onChange={(e) => updateExperience(idx, 'role', e.target.value)}
                                                 placeholder="Role"
-                                                className="h-8 text-base md:text-sm"
+                                                className="ctl-md text-base md:text-sm"
                                             />
                                         </div>
                                         <Input
                                             value={exp.dates}
                                             onChange={(e) => updateExperience(idx, 'dates', e.target.value)}
                                             placeholder="Dates"
-                                            className="h-8 text-base md:text-sm"
+                                            className="ctl-md text-base md:text-sm"
                                         />
                                         <Textarea
                                             value={exp.description}
@@ -726,7 +727,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                             value={comp.skills.join(', ')}
                                             onChange={(e) => updateCompetency(idx, e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
                                             placeholder="Skills (comma separated)"
-                                            className="h-8 text-base md:text-sm"
+                                            className="ctl-md text-base md:text-sm"
                                         />
                                     </div>
                                 ))}
@@ -748,20 +749,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                             value={edu.degree}
                                             onChange={(e) => updateEducation(idx, 'degree', e.target.value)}
                                             placeholder="Degree"
-                                            className="h-8 text-base md:text-sm"
+                                            className="ctl-md text-base md:text-sm"
                                         />
                                         <div className="grid grid-cols-3 gap-2">
                                             <Input
                                                 value={edu.institution}
                                                 onChange={(e) => updateEducation(idx, 'institution', e.target.value)}
                                                 placeholder="Institution"
-                                                className="h-8 text-base md:text-sm col-span-2"
+                                                className="ctl-md text-base md:text-sm col-span-2"
                                             />
                                             <Input
                                                 value={edu.year || ""}
                                                 onChange={(e) => updateEducation(idx, 'year', e.target.value)}
                                                 placeholder="Year"
-                                                className="h-8 text-base md:text-sm"
+                                                className="ctl-md text-base md:text-sm"
                                             />
                                         </div>
                                     </div>
@@ -831,22 +832,22 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 <DialogFooter className="flex-row justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
                     {step === 'review' ? (
                         <>
-                            <Button variant="outline" className="h-11 min-h-11" onClick={() => setStep('input')}>
+                            <Button size="lg" variant="outline" onClick={() => setStep('input')}>
                                 <ArrowLeft size={16} className="mr-2" />
                                 Back
                             </Button>
-                            <Button className="h-11 min-h-11" onClick={handleConfirm} disabled={localParseBlocked}>
+                            <Button size="lg" onClick={handleConfirm} disabled={localParseBlocked}>
                                 <Check size={16} className="mr-2" />
                                 {confirmLabel}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button variant="outline" className="h-11 min-h-11" onClick={handleClose} disabled={isProcessing}>
+                            <Button size="lg" variant="outline" onClick={handleClose} disabled={isProcessing}>
                                 Cancel
                             </Button>
-                            <Button
-                                className="h-11 min-h-11"
+                            <Button size="lg"
+                                
                                 data-testid="resume-import-parse-primary"
                                 onClick={handleParse}
                                 disabled={!canProceed() || isProcessing}

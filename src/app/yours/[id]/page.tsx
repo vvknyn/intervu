@@ -393,7 +393,7 @@ export default function PursuitDetailPage() {
                                 type="date"
                                 value={interviewDate}
                                 onChange={(e) => setInterviewDate(e.target.value)}
-                                className="h-11 w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
+                                className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
                                 aria-label="Interview date"
                             />
                             <Button

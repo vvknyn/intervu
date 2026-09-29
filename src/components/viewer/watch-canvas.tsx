@@ -362,7 +362,7 @@ export function WatchCanvas({ sessionId }: { sessionId: string }) {
                     type="button"
                     data-testid="watch-control-toggle"
                     onClick={toggleControl}
-                    className="rounded-none border border-white px-3 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
+                    className="ctl-md rounded-none border border-white px-3 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
                 >
                     {controlOn ? "watching only" : "take control"}
                 </button>

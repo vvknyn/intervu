@@ -554,10 +554,10 @@ export function ForYouHome({
                                     </div>
                                 ) : null}
                                 <div className="flex gap-2">
-                                <Button
+                                <Button size="lg"
                                     type="button"
                                     variant="outline"
-                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    className="flex-1 lg:flex-none"
                                     data-testid="for-you-download-apply"
                                     onClick={handleDownloadApply}
                                     disabled={applying || !resume}
@@ -571,10 +571,10 @@ export function ForYouHome({
                                         FOR_YOU_DOWNLOAD_LABEL
                                     )}
                                 </Button>
-                                <Button
+                                <Button size="lg"
                                     type="button"
                                     variant="outline"
-                                    className="h-11 min-h-11 flex-1 lg:flex-none"
+                                    className="flex-1 lg:flex-none"
                                     data-testid="for-you-skip"
                                     onClick={onSkip}
                                     disabled={applying}

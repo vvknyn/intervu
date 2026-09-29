@@ -84,7 +84,7 @@ export function AccountEmailPrompt({
                             onChange={(e) => setEmail(e.target.value)}
                             placeholder="you@example.com"
                             autoComplete="email"
-                            className="h-9 w-full max-w-[260px] text-base"
+                            className="ctl-md w-full max-w-[260px] text-base"
                             data-testid="account-email-input"
                         />
                     </Field>
@@ -113,7 +113,7 @@ export function AccountEmailPrompt({
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
                         autoComplete="email"
-                        className="h-9 w-full max-w-[260px] text-base"
+                        className="ctl-md w-full max-w-[260px] text-base"
                         data-testid="account-email-input"
                     />
                 </Field>

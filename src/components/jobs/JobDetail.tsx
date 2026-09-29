@@ -354,7 +354,7 @@ export function JobDetailActionBar({
             className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
         >
             {job.apply_url && (
-                <Button className="h-10 flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
+                <Button size="lg" className="flex-1 gap-2 rounded-ctl bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand transition-colors" onClick={onOpenPosting}>
                     <ArrowSquareOut weight="bold" />
                     {APPLY_BUTTON_LABEL}
                 </Button>
@@ -369,12 +369,12 @@ export function JobDetailActionBar({
                     onSignInToSync={onSignInToSync}
                 />
             ) : onUploadResume ? (
-                <Button
+                <Button size="lg"
                     type="button"
                     variant="outline"
                     data-testid="job-detail-upload-to-customize"
                     onClick={onUploadResume}
-                    className="h-10 shrink-0 rounded-ctl text-xs font-semibold sm:h-9"
+                    className="shrink-0 rounded-ctl text-xs font-semibold"
                 >
                     {UPLOAD_TO_CUSTOMIZE_LABEL}
                 </Button>
@@ -421,7 +421,7 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             }}
             // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
             // hairline-separated list treatment — not a discrete control.
-            className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
+            className="ctl-md flex w-full flex-col gap-0.5 rounded-none px-0 text-left transition-colors hover:bg-muted cursor-pointer group"
         >
             <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
@@ -810,7 +810,7 @@ export function JobDetail({
                                     <button
                                         type="button"
                                         aria-label="More actions"
-                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                                        className="ctl-lg flex w-10 shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                                     >
                                         <DotsThree size={20} weight="bold" aria-hidden />
                                     </button>
@@ -827,7 +827,7 @@ export function JobDetail({
                                 type="button"
                                 aria-label="Close"
                                 onClick={onClose}
-                                className="flex h-10 w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
+                                className="ctl-lg flex w-10 items-center justify-center rounded-ctl bg-muted text-base text-muted-foreground hover:text-foreground transition-colors"
                             >
                                 ×
                             </button>
@@ -887,7 +887,7 @@ export function JobDetail({
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
                         {job.apply_url && (
-                            <Button onClick={onOpenPosting} className="gap-2 h-10 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
+                            <Button size="lg" onClick={onOpenPosting} className="gap-2 px-4 rounded-ctl bg-foreground text-background text-sm font-semibold transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
                             </Button>
@@ -901,12 +901,12 @@ export function JobDetail({
                                 onSignInToSync={onSignInToSync}
                             />
                         ) : onUploadResume ? (
-                            <Button
+                            <Button size="lg"
                                 type="button"
                                 variant="outline"
                                 data-testid="job-detail-upload-to-customize"
                                 onClick={onUploadResume}
-                                className="h-10 shrink-0 rounded-ctl text-xs font-semibold"
+                                className="shrink-0 rounded-ctl text-xs font-semibold"
                             >
                                 {UPLOAD_TO_CUSTOMIZE_LABEL}
                             </Button>

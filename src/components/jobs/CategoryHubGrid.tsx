@@ -1024,13 +1024,13 @@ export function CategoryHubGrid({
                             packs → deck → Download & apply. Quiet Search stays. */}
                         <Button
                             type="button"
-                            size="sm"
+                            size="lg"
                             data-testid="hub-browse-all-matches"
                             onClick={() => {
                                 const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
                                 if (allItem) handleCategoryClick(allItem);
                             }}
-                            className="min-h-11 w-full justify-center text-xs font-semibold sm:w-auto"
+                            className="w-full justify-center text-xs font-semibold sm:w-auto"
                         >
                             Browse all matches
                         </Button>
@@ -1064,6 +1064,7 @@ export function CategoryHubGrid({
                             onClick={() => handleCategoryClick(category)}
                             onMouseEnter={prefetchAdjacentHub}
                             onFocus={prefetchAdjacentHub}
+                            // control-scale-allow: pack card — a content tile, its padding/min-height is layout, not a bar control
                             className={cn(
                                 "flex flex-col rounded-panel border bg-surface shadow-[var(--shadow-bevel-highlight)] min-h-[5.75rem] cursor-pointer gap-0 py-3 text-left active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-live sm:py-4 md:min-h-0 md:active:scale-100",
                                 isSelected
@@ -1148,7 +1149,7 @@ export function CategoryHubGrid({
                                         type="button"
                                         onClick={() => setModalCategory(null)}
                                         aria-label="Close dialog"
-                                        className="h-8 w-8 inline-flex items-center justify-center rounded-ctl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                        className="ctl-md ctl-square inline-flex items-center justify-center rounded-ctl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                     >
                                         <X size={16} />
                                     </button>
@@ -1186,7 +1187,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handlePrev}
                                                     title="Previous role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
+                                                    className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground border-r border-border transition-colors"
                                                 >
                                                     <CaretLeft size={16} />
                                                 </button>
@@ -1194,7 +1195,7 @@ export function CategoryHubGrid({
                                                     type="button"
                                                     onClick={handleNext}
                                                     title="Next role"
-                                                    className="h-8 w-8 flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
+                                                    className="ctl-md ctl-square flex items-center justify-center bg-surface hover:bg-muted text-foreground transition-colors"
                                                 >
                                                     <CaretRight size={16} />
                                                 </button>
@@ -1355,7 +1356,7 @@ export function CategoryHubGrid({
                                                             type="button"
                                                             onClick={() => toggleSaveRole(activeRole.id)}
                                                             className={cn(
-                                                                "w-full h-8 px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
+                                                                "w-full ctl-md px-2.5 rounded-ctl border text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors",
                                                                 savedRoleIds.has(activeRole.id)
                                                                     ? "border-live bg-surface text-live"
                                                                     : "border-border bg-surface text-muted-foreground hover:text-foreground",
@@ -1493,7 +1494,7 @@ export function CategoryHubGrid({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleShuffle}
-                                            className="gap-1.5 text-xs flex-1 sm:flex-initial h-9"
+                                            className="gap-1.5 text-xs flex-1 sm:flex-initial"
                                         >
                                             <Shuffle size={16} />
                                             Shuffle next
@@ -1504,7 +1505,7 @@ export function CategoryHubGrid({
                                         <Button
                                             size="sm"
                                             onClick={() => handleTailorApply(activeRole)}
-                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial h-9"
+                                            className="gap-1.5 text-xs font-semibold flex-1 sm:flex-initial"
                                         >
                                             <Sparkle size={16} />
                                             Tailor & Apply
@@ -1515,7 +1516,7 @@ export function CategoryHubGrid({
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setModalCategory(null)}
-                                        className="text-xs flex-none sm:flex-initial h-9"
+                                        className="text-xs flex-none sm:flex-initial"
                                     >
                                         Done
                                     </Button>
@@ -1575,7 +1576,7 @@ export function CategoryHubGrid({
                                     value={profileName}
                                     onChange={(e) => setProfileName(e.target.value)}
                                     placeholder="Your Name"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1584,7 +1585,7 @@ export function CategoryHubGrid({
                                     value={profileRole}
                                     onChange={(e) => setProfileRole(e.target.value)}
                                     placeholder="e.g. Senior Software Engineer"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1595,7 +1596,7 @@ export function CategoryHubGrid({
                                     max={50}
                                     value={profileYears}
                                     onChange={(e) => setProfileYears(parseInt(e.target.value, 10) || 0)}
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -1604,7 +1605,7 @@ export function CategoryHubGrid({
                                     value={profileLocation}
                                     onChange={(e) => setProfileLocation(e.target.value)}
                                     placeholder="e.g. San Francisco, CA or Remote"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                             <div className="space-y-1 sm:col-span-2">
@@ -1613,7 +1614,7 @@ export function CategoryHubGrid({
                                     value={profileSkills}
                                     onChange={(e) => setProfileSkills(e.target.value)}
                                     placeholder="e.g. TypeScript, React, Next.js, Python, SQL"
-                                    className="h-8 text-xs rounded-ctl"
+                                    className="ctl-md text-xs rounded-ctl"
                                 />
                             </div>
                         </div>

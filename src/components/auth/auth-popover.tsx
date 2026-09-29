@@ -206,7 +206,7 @@ export function AuthPopover({
     return (
         <Popover open={effectiveOpen} onOpenChange={onOpenChange}>
             <PopoverTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8">
+                <Button size="sm" variant="outline" >
                     {AUTH_CTA_LABEL}
                 </Button>
             </PopoverTrigger>

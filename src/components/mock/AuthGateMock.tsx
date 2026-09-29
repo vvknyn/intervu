@@ -277,7 +277,7 @@ export function AuthGateMock() {
                                     role="tab" // tab-kit: KEEP — design-mock fixture with its own inline-style palette, not shipped chrome
                                     aria-selected={lane === id}
                                     onClick={() => setLane(id)}
-                                    className="cursor-pointer rounded-none border-0 px-2.5 py-3.5 text-center text-xs"
+                                    className="ctl-md cursor-pointer rounded-none border-0 px-2.5 text-center text-xs"
                                     style={lane === id ? tabActive : tabIdle}
                                 >
                                     {label}
@@ -290,7 +290,7 @@ export function AuthGateMock() {
                         type="button"
                         data-testid="mock-sign-in-cta"
                         onClick={handleLandingCta}
-                        className="cursor-pointer rounded-none border-0 px-6 py-3.5 text-sm text-[#12151a]"
+                        className="ctl-lg cursor-pointer rounded-none border-0 px-6 text-sm text-[#12151a]"
                         style={{ background: "#ececec" }}
                     >
                         {signInCtaLabel(lane)}

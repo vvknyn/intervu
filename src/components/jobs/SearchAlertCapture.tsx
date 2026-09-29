@@ -135,7 +135,7 @@ export function SearchAlertCapture({
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@company.com"
           data-testid="search-alert-email-input"
-          className="h-9 w-full max-w-[260px] text-base"
+          className="ctl-md w-full max-w-[260px] text-base"
         />
         <TurnstileWidget onVerify={setTurnstileToken} />
         {status === "error" && (

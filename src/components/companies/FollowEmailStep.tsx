@@ -87,7 +87,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@company.com"
           data-testid="follow-email-input"
-          className="h-8 text-xs"
+          className="ctl-md text-xs"
         />
         <TurnstileWidget onVerify={setTurnstileToken} />
         {status === "error" && (
@@ -97,7 +97,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           type="submit"
           size="sm"
           disabled={status === "submitting"}
-          className="h-8 w-full text-xs"
+          className="w-full text-xs"
         >
           {status === "submitting" ? "Sending…" : "Send confirmation"}
         </Button>
@@ -106,10 +106,10 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
         <Button
           type="button"
           variant="link"
-          size="sm"
+          size="link"
           data-testid="follow-email-signin"
           onClick={onSignInInstead}
-          className="mt-1 h-auto px-0 py-0 text-xs text-muted-foreground"
+          className="mt-1 text-xs text-muted-foreground"
         >
           Have an account? Sign in
         </Button>

@@ -38,7 +38,7 @@ export function AuthRetryClient() {
                 <BrandLockup className="mx-auto w-fit" />
                 <h1 className="mt-4 text-xl font-semibold text-foreground">{AUTH_RETRY_HEADLINE}</h1>
                 <p className="mt-2 text-sm text-muted-foreground">{AUTH_RETRY_BODY}</p>
-                <Button asChild size="lg" className="mt-8 min-h-11">
+                <Button asChild size="lg" className="mt-8">
                     <Link href={retryHref}>{AUTH_RETRY_BUTTON_LABEL}</Link>
                 </Button>
             </AuthRaisedPanel>

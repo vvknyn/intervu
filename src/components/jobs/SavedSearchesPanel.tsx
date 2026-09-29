@@ -170,7 +170,7 @@ export function SavedSearchesPanel({
                                   toolbarControlHeight,
                                   "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
                               )
-                            : "inline-flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
+                            : "inline-flex ctl-lg items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
                     )}
                 >
                     {!compact && <BookmarkSimple aria-hidden />}
@@ -181,7 +181,7 @@ export function SavedSearchesPanel({
                 <div className={cn(
                     compact
                         ? "flex items-center gap-1"
-                        : "flex h-11 sm:h-[46px] items-center gap-1.5 rounded-ctl bg-surface border border-border px-2",
+                        : "flex ctl-lg items-center gap-1.5 rounded-ctl bg-surface border border-border px-2",
                 )}>
                     <input
                         data-testid="save-search-name"
@@ -193,8 +193,8 @@ export function SavedSearchesPanel({
                         }}
                         className={cn(
                             compact
-                                ? "h-6 min-w-[6rem] rounded-ctl border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
-                                : "h-7 min-w-[8rem] rounded-ctl border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
+                                ? "ctl-sm min-w-[6rem] rounded-ctl border border-border bg-background px-1.5 text-xs text-foreground outline-none focus:border-brand"
+                                : "ctl-md min-w-[8rem] rounded-ctl border border-border bg-background px-2 text-base md:text-xs text-foreground outline-none focus:border-brand",
                         )}
                         aria-label="Saved search name"
                         autoFocus
@@ -207,7 +207,7 @@ export function SavedSearchesPanel({
                         className={cn(
                             compact
                                 ? "inline-flex items-center gap-1 text-xs text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
-                                : "inline-flex h-7 items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
+                                : "inline-flex ctl-md items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
                         )}
                     >
                         {saving && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
@@ -232,7 +232,7 @@ export function SavedSearchesPanel({
                         <li key={s.id} className={cn(
                             compact
                                 ? "inline-flex items-center gap-1"
-                                : "inline-flex h-11 sm:h-[46px] items-center gap-1 rounded-pill bg-muted px-2.5 py-0.5",
+                                : "inline-flex ctl-lg items-center gap-1 rounded-pill bg-muted px-2.5",
                         )}>
                             <button
                                 type="button"

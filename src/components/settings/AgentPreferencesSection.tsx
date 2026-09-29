@@ -286,7 +286,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={experienceLevel ?? ANY}
                                     onValueChange={(v) => setExperienceLevel(v === ANY ? undefined : (v as ExperienceLevel))}
                                 >
-                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EXPERIENCE_LEVELS.map((lvl) => (
@@ -301,7 +301,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={employmentType ?? ANY}
                                     onValueChange={(v) => setEmploymentType(v === ANY ? undefined : (v as EmploymentType))}
                                 >
-                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any</SelectItem>
                                         {EMPLOYMENT_TYPES.map((t) => (
@@ -326,7 +326,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                                     value={postedWithinDays !== undefined ? String(postedWithinDays) : ANY}
                                     onValueChange={(v) => setPostedWithinDays(v === ANY ? undefined : (Number(v) as PostedWithinDays))}
                                 >
-                                    <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger size="lg" ><SelectValue /></SelectTrigger>
                                     <SelectContent className="rounded-panel">
                                         <SelectItem value={ANY}>Any time</SelectItem>
                                         {POSTED_WITHIN_DAYS_OPTIONS.map((d) => (
@@ -452,7 +452,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     </div>
 
                     <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-end">
-                        <Button onClick={handleSave} disabled={saving} className="h-11 w-full rounded-ctl sm:w-auto">
+                        <Button size="lg" onClick={handleSave} disabled={saving} className="w-full rounded-ctl sm:w-auto">
                             {saving ? "Saving…" : "Save"}
                         </Button>
                     </div>

@@ -309,7 +309,7 @@ function YoursContent() {
                         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
                             <Button
                                 size="sm"
-                                className="order-1 min-h-11 w-full rounded-ctl sm:order-2 sm:w-auto"
+                                className="order-1 w-full rounded-ctl sm:order-2 sm:w-auto"
                                 data-testid="tracker-track-role-cta"
                                 onClick={openAdd}
                             >
@@ -320,7 +320,7 @@ function YoursContent() {
                                     type="button"
                                     variant="ghost"
                                     size="sm"
-                                    className="order-2 min-h-11 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
+                                    className="order-2 w-full rounded-ctl font-normal text-muted-foreground sm:order-1 sm:w-auto"
                                     data-testid="tracker-export-csv"
                                     onClick={() => downloadTrackerExport(pursuits, "csv")}
                                 >
@@ -347,7 +347,7 @@ function YoursContent() {
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search tracker…"
                                 data-testid="tracker-search"
-                                className="h-11 rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
+                                className="ctl-lg rounded-ctl border-border bg-surface-2 pl-9 text-base shadow-[var(--shadow-bevel-inset)]"
                             />
                         </div>
                         <AppliedThisWeekBadge count={appliedThisWeek} appliedToday={appliedToday} />
@@ -365,7 +365,7 @@ function YoursContent() {
                     ) : (
                         <div className="py-8 text-left text-sm text-muted-foreground">
                             {TRACKER_FILTER_EMPTY}{" "}
-                            <Button variant="outline" size="sm" className="ml-2 min-h-11 rounded-ctl" onClick={openAdd}>
+                            <Button variant="outline" size="sm" className="ml-2 rounded-ctl" onClick={openAdd}>
                                 {TRACKER_PRIMARY_CTA}
                             </Button>
                         </div>
