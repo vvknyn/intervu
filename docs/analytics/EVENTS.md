@@ -84,6 +84,14 @@ was found (checked `src/app/(onboarding)/**`, settings, and the signup flow
 for a step-indexed wizard); this codebase's signup is a single form, not a
 multi-step onboarding flow. Skipped rather than invented.
 
+## Packs home (Today header)
+
+| Event | Payload | Seam | Feeds |
+|---|---|---|---|
+| `home_viewed` | `{ new_count, applied_today, follow_ups, interviews, has_last_visit }` | `src/components/jobs/for-you/TodayHome.tsx`, once per load after the new-since search settles. | how often the signed-in home has something new or due; return visits (join on person). |
+| `home_action_clicked` | `{ kind, job_id?, match_* }` — `kind` is one of `new_role_open`, `new_role_apply`, `new_role_skip`, `see_more`, `stat_new`, `stat_applied`, `stat_follow_ups`, `stat_interviews` | same file, on each row action and stat link. | which part of the home gets used. |
+| `pack_opened` | `{ pack, source: tile\|browse_all\|today }` | `src/app/jobs/JobsContent.tsx`, `openHubPack` (tiles, "Browse all matches", and the Today header's "See more"). | pack tile use (before this, only autocapture saw it). |
+
 ## Reading the funnel
 
 North-star for Velai cold traffic:

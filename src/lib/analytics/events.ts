@@ -214,7 +214,38 @@ export interface EventPayloads {
   resume_parse_succeeded: ResumeFunnelEventPayload;
   resume_parse_failed: ResumeFunnelEventPayload;
   resume_review_completed: ResumeFunnelEventPayload;
+
+  /** The packs home's Today header settled: what it showed. Once per load. */
+  home_viewed: {
+    new_count: number;
+    applied_today: number;
+    follow_ups: number;
+    interviews: number;
+    /** False on a first visit (the list covers the past week). */
+    has_last_visit: boolean;
+  };
+  /** Something on the Today header was used. */
+  home_action_clicked: {
+    kind: HomeActionKind;
+    job_id?: string;
+  } & Partial<MatchQualityAnalyticsProps>;
+  /** A pack opened from the packs home: a tile, "Browse all matches", or the Today header's "See more". */
+  pack_opened: {
+    pack: string;
+    source: "tile" | "browse_all" | "today";
+  };
 }
+
+/** What was used on the Today header (`home_action_clicked.kind`). */
+export type HomeActionKind =
+  | "new_role_open"
+  | "new_role_apply"
+  | "new_role_skip"
+  | "see_more"
+  | "stat_new"
+  | "stat_applied"
+  | "stat_follow_ups"
+  | "stat_interviews";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

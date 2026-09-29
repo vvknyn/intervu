@@ -732,7 +732,8 @@ export interface CategoryHubGridProps {
     onUpdateResume?: (resume: ResumeData) => void;
     onAdjustParameters?: () => void;
     activeCategoryId?: string;
-    onSelectCategory?: (category: CategoryHubItem) => void;
+    /** `source` says whether a tile or "Browse all matches" opened it. */
+    onSelectCategory?: (category: CategoryHubItem, source: "tile" | "browse_all") => void;
     onTailorApply?: (job: RoleDetailListing) => void;
     onOpenAdvancedSearch?: () => void;
     /** Live count labels keyed by hub id — overrides DEFAULT_CATEGORY_HUBS.countLabel. */
@@ -747,6 +748,12 @@ export interface CategoryHubGridProps {
     hubRemovalsLine?: string | null;
     /** Rendered under the pack tiles — the packs hub puts the visitor's tracker and Recently viewed here. */
     footer?: React.ReactNode;
+    /**
+     * The Today header (`TodayHome`) sits above and owns the greeting and the
+     * daily count: the welcome panel shrinks to a "Your packs" line with the
+     * corpus line and "Browse all matches".
+     */
+    compactHeader?: boolean;
     className?: string;
 }
 
@@ -767,6 +774,7 @@ export function CategoryHubGrid({
     hubCorpusLine = null,
     hubRemovalsLine = null,
     footer,
+    compactHeader = false,
     className,
 }: CategoryHubGridProps) {
     const router = useRouter();
@@ -871,11 +879,11 @@ export function CategoryHubGrid({
         setProfileModalOpen(false);
     };
 
-    const handleCategoryClick = (category: CategoryHubItem) => {
+    const handleCategoryClick = (category: CategoryHubItem, source: "tile" | "browse_all" = "tile") => {
         // Parent (jobs page) mounts ForYouHome postcard when onSelectCategory
         // is provided. Keep the hub-internal modal only as a standalone fallback.
         if (onSelectCategory) {
-            onSelectCategory(category);
+            onSelectCategory(category, source);
             return;
         }
         setModalCategory(category);
@@ -964,6 +972,48 @@ export function CategoryHubGrid({
     };
 
 
+    const hubStatusLines = (
+        <>
+            {hubCorpusLine ? (
+                <p
+                    className="pt-1 text-xs text-muted-foreground tabular-nums"
+                    data-testid="hub-corpus-line"
+                >
+                    {hubCorpusLine}
+                </p>
+            ) : null}
+            {hubRemovalsLine ? (
+                <p
+                    className="pt-0.5 text-xs text-muted-foreground"
+                    data-testid="hub-removals-line"
+                >
+                    Recently cleared · {hubRemovalsLine}
+                </p>
+            ) : null}
+            {proofLoading || (hubMatching && !hubCorpusLine) ? (
+                <WaitState
+                    label="Counting matches across your packs"
+                    className="pt-1 text-xs font-semibold"
+                />
+            ) : null}
+        </>
+    );
+
+    const browseAllButton = (
+        <Button
+            type="button"
+            variant={compactHeader ? "outline" : "default"}
+            data-testid="hub-browse-all-matches"
+            onClick={() => {
+                const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
+                if (allItem) handleCategoryClick(allItem, "browse_all");
+            }}
+            className="w-full justify-center sm:w-auto"
+        >
+            Browse all matches
+        </Button>
+    );
+
     return (
         <section
             aria-label="Job categories"
@@ -973,7 +1023,19 @@ export function CategoryHubGrid({
                 className,
             )}
         >
-            {/* Welcome banner — Concept A calm Velai panel */}
+            {compactHeader ? (
+                <div
+                    data-testid="hub-compact-header"
+                    className="poster-list-inset-x flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                    <div className="min-w-0 space-y-0.5">
+                        <h2 className="text-base font-semibold leading-snug text-foreground">Your packs</h2>
+                        {hubStatusLines}
+                    </div>
+                    {browseAllButton}
+                </div>
+            ) : (
+            /* Welcome banner — Concept A calm Velai panel */
             <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
@@ -997,47 +1059,17 @@ export function CategoryHubGrid({
                                 {dailyApplyTip}
                             </p>
                         ) : null}
-                        {hubCorpusLine ? (
-                            <p
-                                className="pt-1 text-xs text-muted-foreground tabular-nums"
-                                data-testid="hub-corpus-line"
-                            >
-                                {hubCorpusLine}
-                            </p>
-                        ) : null}
-                        {hubRemovalsLine ? (
-                            <p
-                                className="pt-0.5 text-xs text-muted-foreground"
-                                data-testid="hub-removals-line"
-                            >
-                                Recently cleared · {hubRemovalsLine}
-                            </p>
-                        ) : null}
-                        {proofLoading || (hubMatching && !hubCorpusLine) ? (
-                            <WaitState
-                                label="Counting matches across your packs"
-                                className="pt-1 text-xs font-semibold"
-                            />
-                        ) : null}
+                        {hubStatusLines}
                     </div>
 
                     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
                         {/* Adjust parameters tucked for Betalist lean loop —
                             packs → deck → Download & apply. Quiet Search stays. */}
-                        <Button
-                            type="button"
-                            data-testid="hub-browse-all-matches"
-                            onClick={() => {
-                                const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
-                                if (allItem) handleCategoryClick(allItem);
-                            }}
-                            className="w-full justify-center sm:w-auto"
-                        >
-                            Browse all matches
-                        </Button>
+                        {browseAllButton}
                     </div>
                 </div>
             </div>
+            )}
 
             {/* 8-Card Category Grid — interactive cards, Velai navy */}
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 sm:gap-3.5">
