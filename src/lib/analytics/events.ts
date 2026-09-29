@@ -214,7 +214,24 @@ export interface EventPayloads {
   resume_parse_succeeded: ResumeFunnelEventPayload;
   resume_parse_failed: ResumeFunnelEventPayload;
   resume_review_completed: ResumeFunnelEventPayload;
+
+  /** /pricing mounted. `founding_available` is whether the founding-seat
+   *  button pointed at a real Stripe link (env var set) or read "opening
+   *  soon" — the denominator for `upgrade_clicked` is only the former. */
+  pricing_viewed: { signed_in: boolean; founding_available: boolean };
+  /** A priced call to action on /pricing was clicked. `plan` names the
+   *  column: `pro_founding` is the founding-seat button (the visitor is
+   *  leaving for Stripe), `data_api` is the Data API "tell us your use
+   *  case" link. No amounts — the price is a page constant, not a payload. */
+  upgrade_clicked: { plan: UpgradePlan; signed_in: boolean };
+  /** The visitor came back from Stripe with `checkout=success` and a
+   *  well-formed session id (`paidCheckoutSessionId`, lib/billing). The id
+   *  is Stripe's, not PII, and is what joins this event to the Stripe
+   *  dashboard row. Fired once per session id per browser session. */
+  founding_member_paid: { checkout_session_id: string; signed_in: boolean };
 }
+
+export type UpgradePlan = "pro_founding" | "data_api";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

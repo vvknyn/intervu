@@ -127,6 +127,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...careerHubEntries,
     {
+      url: `${siteUrl}/pricing`,
+      changeFrequency: "monthly",
+      priority: 0.6,
+    },
+    {
       url: `${siteUrl}/about`,
       changeFrequency: "monthly",
       priority: 0.5,

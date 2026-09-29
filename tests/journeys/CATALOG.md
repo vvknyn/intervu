@@ -613,6 +613,17 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 
+## PRICING
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|---|---|---|---|---|---|---|---|
+| J-PRICING-01 | Read the pricing page: Free, Pro and Data API columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise reads "open soon" and is inert | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-04 | Return from Stripe with checkout=success and a session id and see the founding thank-you; a bare checkout=success shows nothing | anon | /pricing?checkout=success&session_id=cs_test_… | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-05 | Follow the Data API call to action to the contact form | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
+
 ## ERR
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |

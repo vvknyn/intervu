@@ -9,6 +9,7 @@ const BRAND_LEAK_RE = /\bintervu(?:\.cc|hq)?\b|\bintervuhq\b/i;
 /** Public signed-out/marketing surfaces — not mock labs or internal-only routes. */
 const PUBLIC_PAGE_DIRS = [
     "src/app/about",
+    "src/app/pricing",
     "src/app/contact",
     "src/app/privacy",
     "src/app/terms",
