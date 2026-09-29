@@ -337,6 +337,7 @@ import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
+    freshHubProbeMemo,
     formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
@@ -1839,6 +1840,15 @@ export function JobsContent({
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
     // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
     const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
+    // The last finished probe, so going back to the hub repaints its counts instead of searching again.
+    const hubProbeMemoRef = useRef<{
+        key: string;
+        at: number;
+        complete: boolean;
+        probe: typeof hubFitProbe;
+        allCount: CorpusCount | null;
+        tileCounts: Partial<Record<HubPackId, CorpusCount | null>>;
+    } | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -3047,6 +3057,14 @@ export function JobsContent({
         if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
             return;
         }
+        const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
+        const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
+        if (memo) {
+            setHubFitProbe(memo.probe);
+            setHubResumeAllCount(memo.allCount);
+            setHubFilterTileCounts(memo.tileCounts);
+            return;
+        }
         let cancelled = false;
         setHubFitProbe((prev) => ({
             ...prev,
@@ -3063,6 +3081,7 @@ export function JobsContent({
                 const packParams = packSearchParams(pack);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
+                let allCount: CorpusCount | null = null;
                 let unavailableRetries = 0;
 
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
@@ -3090,7 +3109,8 @@ export function JobsContent({
                     // dropped it (no roles there) matched nothing, not the whole corpus.
                     const placesMissing = locationDropped(pack, r);
                     poolTotal = placesMissing ? 0 : r.total;
-                    setHubResumeAllCount(placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r));
+                    allCount = placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r);
+                    setHubResumeAllCount(allCount);
                     for (const h of placesMissing ? [] : (r.hits ?? [])) {
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
@@ -3130,22 +3150,27 @@ export function JobsContent({
                     updatedAt: new Date().toISOString(),
                     packs: nextTotals,
                 });
-                setHubFitProbe({
-                    loading: false,
-                    probing: false,
-                    total: poolTotal,
-                    scored,
-                    removalsLine,
-                });
+                const probe = { loading: false, probing: false, total: poolTotal, scored, removalsLine };
+                setHubFitProbe(probe);
 
                 // Each filter tile counts its own search (the one its deck sends), one at a
                 // time after the probe so the hub stays inside the search rate limit.
+                const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
                 for (const id of HUB_FILTER_TILE_IDS) {
                     if (id === "all") continue;
                     const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
                     if (cancelled) return;
-                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: total == null ? null : resolveCorpusCount({ total }) }));
+                    tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
+                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
+                hubProbeMemoRef.current = {
+                    key: memoKey,
+                    at: Date.now(),
+                    complete: Object.values(tileCounts).every((count) => count != null),
+                    probe,
+                    allCount,
+                    tileCounts,
+                };
             } catch {
                 if (!cancelled) {
                     setHubFitProbe((prev) => ({

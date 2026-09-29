@@ -26,6 +26,22 @@ export type ScoredHubHit = { job: PublicJob; score: MatchScore };
 /** Progressive probe page sizes — early partial counts, then climb. */
 export const HUB_PROBE_LIMITS = [24, 48, 80, 120] as const;
 
+/**
+ * How long a finished hub probe (and its tile counts) stays good for the same résumé and pack.
+ * Going back to the hub repaints it instead of re-sending every search, which spent the
+ * per-visitor search limit and left the next pack's counts refused.
+ */
+export const HUB_PROBE_MEMO_MS = 5 * 60_000;
+
+/** A finished probe to repaint: same résumé and pack, every count known, and recent. */
+export function freshHubProbeMemo<T extends { key: string; at: number; complete: boolean }>(
+    memo: T | null,
+    key: string,
+    now: number,
+): T | null {
+    return memo && memo.complete && memo.key === key && now - memo.at < HUB_PROBE_MEMO_MS ? memo : null;
+}
+
 /** Format a hub pill — empty string means "render no count". */
 export function formatHubCountLabel(source: HubCountSource): string {
     if (source.kind === "omit") return "";

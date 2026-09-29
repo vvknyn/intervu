@@ -48,7 +48,15 @@ async function seedGuest(page: Page, resume: ResumeData) {
 
 /** The rows a tile shows once its own search has ranked them; [] for an empty tile. */
 async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band: string | null }[]> {
-    await page.getByTestId(`hub-pack-card-${tile}`).click({ timeout: 60_000 });
+    const card = page.getByTestId(`hub-pack-card-${tile}`);
+    const back = page.getByTestId("jobs-back-to-packs");
+    await expect(card).toBeVisible({ timeout: 60_000 });
+    // A click that lands before the hub hydrates does nothing, and the first reveal can put sort=fit
+    // in the URL on its own, so the deck opening is the signal that the tile was opened.
+    await expect(async () => {
+        if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
+        await expect(back).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 60_000 });
     await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 60_000 });
     const settled = page.locator(
         '[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
