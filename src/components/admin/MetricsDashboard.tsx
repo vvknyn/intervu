@@ -1,5 +1,6 @@
 "use client";
 
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowsClockwise, Warning } from "@phosphor-icons/react";
 import { fetchAdminMetrics } from "@/actions/admin-metrics";
@@ -7,7 +8,7 @@ import { groupMetrics, WINDOWS, type Metric, type MetricsReport } from "@/lib/ad
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ContextHelp } from "@/components/ui/context-help";
-import { Skeleton } from "@/components/ui/skeleton";
+import { WaitBar } from "@/components/ui/wait-state";
 
 /**
  * /admin's metrics dashboard — the standard "stat tiles grouped into sections"
@@ -100,7 +101,7 @@ export function MetricsDashboard() {
                     )}
                 </h3>
                 <Button variant="outline" size="sm" className="gap-2" onClick={refresh} disabled={isLoading}>
-                    <ArrowsClockwise className={isLoading ? "animate-spin" : undefined} />
+                    {isLoading ? <InlineSpinner /> : <ArrowsClockwise />}
                     Refresh
                 </Button>
             </div>
@@ -116,8 +117,8 @@ export function MetricsDashboard() {
                 <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-4">
                     {Array.from({ length: 8 }, (_, i) => (
                         <div key={i} className="space-y-2">
-                            <Skeleton className="h-3 w-24" />
-                            <Skeleton className="h-7 w-16" />
+                            <WaitBar className="h-3 w-24" />
+                            <WaitBar className="h-7 w-16" />
                         </div>
                     ))}
                 </div>

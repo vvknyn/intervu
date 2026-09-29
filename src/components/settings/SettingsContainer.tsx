@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CircleNotch, WarningOctagon, Trash } from "@phosphor-icons/react";
+import { WarningOctagon, Trash } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { deleteAccount, requestPasswordResetAction } from "@/actions/auth";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -304,7 +305,7 @@ export function SettingsContainer() {
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
                                 className="gap-2 rounded-ctl"
                             >
-                                {isDeleting ? <CircleNotch size={16} className="animate-spin" /> : <Trash size={16} />}
+                                {isDeleting ? <InlineSpinner size={16} /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}
                             </Button>
                         </DialogFooter>

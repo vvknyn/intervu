@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { CircleNotch, Fingerprint } from '@phosphor-icons/react'
+import { Fingerprint } from '@phosphor-icons/react'
+import { InlineSpinner } from '@/components/ui/wait-state'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
@@ -258,7 +259,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         providers an environment actually has. */}
                     <Button ref={googleButtonRef} size="lg" variant="outline" type="button" className="w-full" disabled={isPending || authKitPending !== null} onClick={() => startAuthKit("GoogleOAuth")}>
                         {authKitPending === "GoogleOAuth" ? (
-                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                            <InlineSpinner size={16} className="mr-2" />
                         ) : (
                             <GoogleGlyph />
                         )}
@@ -277,7 +278,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                         onClick={() => startAuthKit()}
                     >
                         {authKitPending === "passkey" ? (
-                            <CircleNotch size={16} className="mr-2 animate-spin" />
+                            <InlineSpinner size={16} className="mr-2" />
                         ) : (
                             <Fingerprint weight="bold" className="size-4" />
                         )}
@@ -382,7 +383,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                 className="w-full font-semibold"
                             >
                                 {isPending && (
-                                    <CircleNotch size={16} className="mr-2 animate-spin" />
+                                    <InlineSpinner size={16} className="mr-2" />
                                 )}
                                 {copy.submitLabel}
                             </Button>

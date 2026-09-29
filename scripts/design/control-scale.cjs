@@ -83,4 +83,4 @@ function findHandRolledControlHeights(raw) {
     return out;
 }
 
-module.exports = { findHandRolledControlHeights, controlSpans: (raw) => spans(blankComments(raw)) };
+module.exports = { findHandRolledControlHeights, blankComments, controlSpans: (raw) => spans(blankComments(raw)) };

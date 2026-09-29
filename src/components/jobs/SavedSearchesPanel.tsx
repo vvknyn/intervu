@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookmarkSimple, X, CircleNotch } from "@phosphor-icons/react";
+import { BookmarkSimple, X } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
@@ -232,7 +233,7 @@ export function SavedSearchesPanel({
                                 : "inline-flex ctl-md items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
                         )}
                     >
-                        {saving && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+                        {saving && <InlineSpinner className="shrink-0" />}
                         {saving ? "Saving…" : "Save"}
                     </button>
                     <button
@@ -289,7 +290,7 @@ export function SavedSearchesPanel({
                                 aria-label={`Remove saved search ${s.name}`}
                             >
                                 {removingId === s.id ? (
-                                    <CircleNotch className="animate-spin" aria-hidden />
+                                    <InlineSpinner />
                                 ) : (
                                     <X />
                                 )}

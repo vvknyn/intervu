@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { requestPasswordResetAction } from "@/actions/auth";
-import { CircleNotch, EnvelopeSimple, ArrowLeft } from "@phosphor-icons/react";
+import { EnvelopeSimple, ArrowLeft } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -102,7 +103,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
 
                 <Button type="submit" variant="brand" disabled={isPending} className="w-full mt-6">
                     {isPending ? (
-                        <CircleNotch size={16} className="animate-spin" />
+                        <InlineSpinner size={16} />
                     ) : (
                         "Send reset link"
                     )}

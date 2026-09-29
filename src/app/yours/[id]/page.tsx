@@ -33,6 +33,7 @@ import {
 } from "@/lib/pursuits/types";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Resume used row (spec: "label, saved date (mono), Download button") —
  *  degrades by omission to a plain sentence when no resume was ever filed
@@ -283,11 +284,15 @@ export default function PursuitDetailPage() {
     if (loading) {
         return (
             <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
-                <div className="space-y-4" role="status" aria-busy="true">
-                    <span className="sr-only">Loading pursuit…</span>
-                    <div aria-hidden className="skeleton-bar h-32 rounded-panel" />
-                    <div aria-hidden className="skeleton-bar h-24 rounded-panel" />
-                </div>
+                <WaitState
+                    label="Loading pursuit"
+                    skeleton={
+                        <div className="space-y-4">
+                            <WaitBar className="h-32 rounded-panel" />
+                            <WaitBar className="h-24 rounded-panel" />
+                        </div>
+                    }
+                />
             </PageLayout>
         );
     }

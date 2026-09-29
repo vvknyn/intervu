@@ -817,10 +817,36 @@ h4 {
    flat pulse; the site-wide `prefers-reduced-motion` rule below still
    collapses the animation, so no separate opt-out is needed here. */
 .skeleton-bar {
-  /* Same look as the Skeleton primitive (src/components/ui/skeleton.tsx):
+  /* Painted only by `WaitBar` (src/components/ui/wait-state.tsx):
      flat layer block that pulses. Rulebook v2: no shimmer gradient, no
      radius, no depth — a placeholder is a quiet rectangle. */
   @apply bg-muted animate-pulse rounded-none;
+}
+
+/* Wait-state progress bar (components/ui/wait-state.tsx `WaitProgressBar`).
+   Native <progress>: determinate when it has a value, pulsing when it has
+   none (`:indeterminate`). Flat track + brand fill, no radius, no depth. */
+/* Track = --border: --muted is the dialog panel's own fill (surface-2 = chip), so it vanished. */
+.wait-progress {
+  @apply h-2 w-full appearance-none overflow-hidden rounded-none border-0 bg-border;
+}
+
+.wait-progress::-webkit-progress-bar {
+  @apply bg-border;
+}
+
+.wait-progress::-webkit-progress-value {
+  @apply bg-brand;
+}
+
+.wait-progress::-moz-progress-bar {
+  @apply bg-brand;
+}
+
+/* Chromium paints the track with ::-webkit-progress-bar, so the indeterminate fill goes there too. */
+.wait-progress:indeterminate,
+.wait-progress:indeterminate::-webkit-progress-bar {
+  @apply bg-brand animate-pulse;
 }
 
 /* Panel/dialog enter (Job 1e, 2026-08-01) — a small fade + settle applied on

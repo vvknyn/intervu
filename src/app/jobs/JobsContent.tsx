@@ -16,9 +16,9 @@ import {
     X,
     Check,
     Question,
-    CircleNotch,
     Bell,
 } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
@@ -495,7 +495,7 @@ function ToolbarSegment({
                 pressed && "underline underline-offset-2",
             )}
         >
-            {pending && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+            {pending && <InlineSpinner size={16} className="shrink-0" />}
             {label}
         </button>
     );
@@ -709,7 +709,7 @@ function DeadJobUnresolved({
     return (
         <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
             {checking ? (
-                <span className="mb-3 h-5 w-5 animate-spin rounded-pill border-2 border-brand border-t-brand" />
+                <InlineSpinner size={24} className="mb-3 text-brand" />
             ) : (
                 <MagnifyingGlass size={24} className="mb-3 text-muted-foreground" />
             )}
@@ -5541,7 +5541,7 @@ export function JobsContent({
                         "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
                     )}
                 >
-                    {fitResolving && <CircleNotch size={16} className="animate-spin shrink-0" aria-hidden />}
+                    {fitResolving && <InlineSpinner size={16} className="shrink-0" />}
                     Sort: {sortLabel}
                     <CaretDown size={16} aria-hidden />
                 </button>

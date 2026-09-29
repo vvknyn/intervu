@@ -1,5 +1,6 @@
 "use client";
 
+import { WaitState } from "@/components/ui/wait-state";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchStories, saveStories } from "@/actions/save-story";
@@ -21,12 +22,7 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 function StoriesLoading() {
     return (
-        <div className="min-h-screen bg-background flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-                <div className="w-8 h-8 border-2 border-brand border-t-brand rounded-none animate-spin" />
-                <p className="text-muted-foreground text-sm">Loading stories...</p>
-            </div>
-        </div>
+        <WaitState label="Loading stories" fill className="min-h-screen bg-background" />
     );
 }
 
@@ -171,10 +167,7 @@ function StoriesContent() {
         >
             <MotivationalBanner />
             {loading ? (
-                <div className="py-16 flex flex-col items-center justify-center text-muted-foreground gap-3">
-                    <div className="w-5 h-5 border border-border border-t-foreground rounded-none animate-spin" />
-                    <p className="text-sm">Loading...</p>
-                </div>
+                <WaitState label="Loading stories" fill className="py-16" />
             ) : (
                 <Tabs defaultValue={defaultTab}>
                     <TabsList>

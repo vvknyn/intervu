@@ -73,11 +73,16 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [],
   },
-  // Next 16 defaults to Turbopack for `next dev` / `next build`. A webpack-only
-  // config (the onnx fallbacks below) is treated as a misconfiguration unless
-  // Turbopack is acknowledged. Empty object: we don't need custom Turbopack
-  // rules; webpack fallbacks still apply when someone builds with `--webpack`.
-  turbopack: {},
+  // Next 16 defaults to Turbopack for `next dev` / `next build`. The browser
+  // alias is Turbopack's form of the webpack fallbacks below (still used with
+  // `--webpack`): transformers.js must see an empty object for fs/path, not
+  // `undefined` — see src/lib/local-ai/empty-node-builtin.ts.
+  turbopack: {
+    resolveAlias: {
+      fs: { browser: "./src/lib/local-ai/empty-node-builtin.ts" },
+      path: { browser: "./src/lib/local-ai/empty-node-builtin.ts" },
+    },
+  },
   webpack(config, { isServer }) {
     // Transformers.js + onnxruntime-web reference Node builtins in browser builds.
     if (!isServer) {

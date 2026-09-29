@@ -30,7 +30,7 @@ import { useRouter } from "next/navigation";
 import { jobsBrowseSearchHref, jobsForYouHubHref } from "@/lib/jobs/prefetch-jobs-route";
 import { cn } from "@/lib/utils";
 import { matchBandLabel } from "@/lib/match/score";
-import { RotatingLoadingCopy } from "@/components/jobs/for-you/RotatingLoadingCopy";
+import { WaitState } from "@/components/ui/wait-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1011,8 +1011,8 @@ export function CategoryHubGrid({
                             </p>
                         ) : null}
                         {proofLoading || (hubMatching && !hubCorpusLine) ? (
-                            <RotatingLoadingCopy
-                                variant="hub"
+                            <WaitState
+                                label="Counting matches across your packs"
                                 className="pt-1 text-xs font-semibold"
                             />
                         ) : null}

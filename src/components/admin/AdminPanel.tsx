@@ -5,7 +5,8 @@ import { getAppConfig, updateAppConfig } from "@/actions/admin";
 import { fetchAllFeedback, FeedbackItem } from "@/actions/feedback";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { CircleNotch, Check, Bug, ChatCircle, DotsThree, ArrowLeft } from "@phosphor-icons/react";
+import { Check, Bug, ChatCircle, DotsThree, ArrowLeft } from "@phosphor-icons/react";
+import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -96,10 +97,7 @@ export function AdminPanel() {
             <MetricsDashboard />
 
             {isLoading ? (
-                <div className="py-16 flex flex-col items-center justify-center text-muted-foreground gap-3">
-                    <div className="w-5 h-5 border border-border border-t-foreground rounded-none animate-spin" />
-                    <p className="text-sm">Loading config...</p>
-                </div>
+                <WaitState label="Loading config" fill className="py-16 text-sm text-muted-foreground" />
             ) : (
                 <div className="space-y-6">
                     {message && (
@@ -145,7 +143,7 @@ export function AdminPanel() {
 
                     <Button onClick={handleSave} disabled={isSaving} className="gap-2">
                         {isSaving ? (
-                            <CircleNotch size={16} className="animate-spin" />
+                            <InlineSpinner size={16} />
                         ) : (
                             <Check size={16} weight="bold" />
                         )}
@@ -179,10 +177,7 @@ export function AdminPanel() {
                         </div>
 
                         {feedbackLoading ? (
-                            <div className="py-8 flex flex-col items-center justify-center text-muted-foreground gap-2">
-                                <div className="w-4 h-4 border border-border border-t-foreground rounded-none animate-spin" />
-                                <p className="text-xs">Loading feedback...</p>
-                            </div>
+                            <WaitState label="Loading feedback" fill className="min-h-0 py-8 text-xs text-muted-foreground" />
                         ) : filteredFeedback.length === 0 ? (
                             <div className="py-8 text-center text-muted-foreground text-sm">
                                 {feedbackFilter === "all" ? "No feedback yet." : `No ${feedbackFilter} reports.`}

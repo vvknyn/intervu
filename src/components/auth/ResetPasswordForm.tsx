@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { confirmPasswordResetAction } from "@/actions/auth";
-import { CircleNotch, CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -158,7 +159,7 @@ export function ResetPasswordForm() {
 
                     <Button type="submit" variant="brand" disabled={isPending || !token} className="w-full mt-6">
                         {isPending ? (
-                            <CircleNotch size={16} className="animate-spin" />
+                            <InlineSpinner size={16} />
                         ) : (
                             "Update password"
                         )}

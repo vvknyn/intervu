@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CircleNotch } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import type { PursuitStage } from "@/lib/pursuits/types";
 import { TRACKER_LANE_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
@@ -126,7 +126,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
                         <Button className="rounded-ctl" onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
-                            {saving && <CircleNotch className="mr-2 animate-spin" />}
+                            {saving && <InlineSpinner className="mr-2" />}
                             {saving ? "Saving…" : "Save to tracker"}
                         </Button>
                         <Button variant="outline" className="rounded-ctl" onClick={() => onOpenChange(false)} disabled={saving}>

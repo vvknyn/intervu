@@ -27,8 +27,8 @@ const SETTINGS_PROSE_FILES = [
 describe("Phase 2 batch — settings feedback + account deletion", () => {
     it("SettingsLoading exposes a labeled status region", () => {
         const src = readFileSync(LOADING, "utf8");
-        assert.match(src, /aria-labelledby=\{SETTINGS_LOADING_LABEL_ID\}/);
-        assert.match(src, /Loading account…/);
+        // The labeled role="status" region comes from the one wait primitive.
+        assert.match(src, /<WaitState\s+label="Loading account"/);
     });
 
     it("SettingsInlineError is the shared alert surface", () => {

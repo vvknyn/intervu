@@ -60,23 +60,27 @@ function YoursLoading() {
     return (
         <PageLayout fullWidth header={<TrackerHeader />}>
             <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 py-8 sm:px-8 xl:px-10">
-                <div className={cn(posterInlinePanelClassName, "p-6")} role="status" aria-busy="true">
-                    <div aria-hidden className="space-y-4">
-                        <div className="skeleton-bar h-9 w-full max-w-md" />
-                        <div className="flex gap-3 overflow-hidden">
-                            {[0, 1, 2, 3, 4].map((i) => (
-                                <div key={i} className="skeleton-bar h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
-                            ))}
+                <WaitState
+                    label="Loading your tracker"
+                    className={cn(posterInlinePanelClassName, "p-6")}
+                    skeleton={
+                        <div className="space-y-4">
+                            <WaitBar className="h-9 w-full max-w-md" />
+                            <div className="flex gap-3 overflow-hidden">
+                                {[0, 1, 2, 3, 4].map((i) => (
+                                    <WaitBar key={i} className="h-64 w-5/6 max-w-80 shrink-0 md:w-full" />
+                                ))}
+                            </div>
                         </div>
-                    </div>
-                    <span className="sr-only">Loading your tracker…</span>
-                </div>
+                    }
+                />
             </div>
         </PageLayout>
     );
 }
 
 import { BookmarkSimple, MagnifyingGlass } from "@phosphor-icons/react";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Applied-this-week + soft daily plan (Today X/12) — quiet Tracker chrome. */
 function AppliedThisWeekBadge({

@@ -1,5 +1,7 @@
 "use client";
 
+import { InlineSpinner } from "@/components/ui/wait-state";
+import { ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { getMarketingStatsAction } from "@/actions/marketing";
@@ -10,7 +12,6 @@ import {
     ArrowLeft,
     Check,
     UploadSimple,
-    Cpu,
     ShieldCheck,
     CloudCheck,
     HardDrive,
@@ -136,7 +137,7 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    // Silent background pre-warm of the local-ai ladder.
+    // Pre-warm for a visitor who already consented; without consent initLocalAiLadder loads nothing.
     useEffect(() => {
         let mounted = true;
         const prewarm = async () => {
@@ -441,13 +442,14 @@ export function LandingOnboardingView({
 
                                     {uploading ? (
                                         <div className="flex flex-col items-center gap-1.5">
-                                            <Cpu size={20} className="animate-spin text-brand" />
+                                            <InlineSpinner size={20} className="text-brand" />
                                             <p className="text-xs font-semibold text-foreground">
                                                 Private assistant parsing résumé locally…
                                             </p>
                                             <p className="text-xs text-muted-foreground">
                                                 Extracting profile parameters on this device
                                             </p>
+                                            <ModelLoadProgress className="mt-2 w-full text-left" />
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center gap-2">

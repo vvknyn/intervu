@@ -8,7 +8,7 @@ import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { Switch } from "@/components/settings/Switch";
-import { Skeleton } from "@/components/ui/skeleton";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
@@ -77,18 +77,18 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                     </div>
                 )
             ) : (
-                <div
-                    className="flex items-center justify-between gap-4"
-                    role="status"
-                    aria-busy="true"
-                    aria-label="Loading email preferences"
-                >
-                    <div className="min-w-0 flex-1 space-y-2">
-                        <Skeleton className="h-4 w-28 rounded-ctl" />
-                        <Skeleton className="h-3 w-full max-w-sm rounded-ctl" />
-                    </div>
-                    <Skeleton className="h-6 w-11 shrink-0 rounded-pill" />
-                </div>
+                <WaitState
+                    label="Loading email preferences"
+                    skeleton={
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="min-w-0 flex-1 space-y-2">
+                                <WaitBar className="h-4 w-28 rounded-ctl" />
+                                <WaitBar className="h-3 w-full max-w-sm rounded-ctl" />
+                            </div>
+                            <WaitBar className="h-6 w-11 shrink-0 rounded-pill" />
+                        </div>
+                    }
+                />
             )}
         </div>
     );

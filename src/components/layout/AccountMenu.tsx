@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CircleNotch } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import {
@@ -100,7 +100,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                 >
                     {signingOut ? (
                         <span className="flex items-center gap-2">
-                            <CircleNotch className="animate-spin" aria-hidden />
+                            <InlineSpinner />
                             Signing out…
                         </span>
                     ) : (

@@ -12,7 +12,7 @@ import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
 import { getCurrentUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
 import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
-import { CircleNotch } from "@phosphor-icons/react";
+import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
 /** Busy-state label for follow/unfollow actions — one place for tests and UI. */
@@ -223,7 +223,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <InlineSpinner className="shrink-0" />}
         {displayLabel}
       </button>
     ) : (
@@ -245,7 +245,7 @@ export function FollowButton({
           className,
         )}
       >
-        {showSpinner && <CircleNotch className="animate-spin shrink-0" aria-hidden />}
+        {showSpinner && <InlineSpinner className="shrink-0" />}
         {displayLabel}
       </Button>
     );

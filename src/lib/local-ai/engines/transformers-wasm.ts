@@ -5,10 +5,24 @@
  * of the server bundle.
  */
 
+import type { ModelLoadReport } from "../model-load";
 import type { LocalAiEngine, ModelParseOutput } from "./types";
 
 /** Preferred instruct model for Xenova transformers.js v2 (text-generation). */
 export const WASM_INSTRUCT_MODEL_ID = "Xenova/Qwen1.5-0.5B-Chat";
+
+/**
+ * Sum of the files transformers.js fetches for the instruct model, measured
+ * 2026-09-28 (Hugging Face model API + `curl -sIL` content-length):
+ * onnx/decoder_model_merged_quantized.onnx 482,326,147 · tokenizer.json 7,028,015 ·
+ * vocab.json 2,776,833 · merges.txt 1,671,853 · config.json 677 ·
+ * generation_config.json 179 · tokenizer_config.json 1,168.
+ * A fixed expected total keeps the bar from jumping as each file's size arrives.
+ */
+export const WASM_INSTRUCT_DOWNLOAD_BYTES = 493_804_872;
+
+/** transformers.js keeps downloaded files in this Cache Storage bucket, keyed by remote URL. */
+const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 
 /** Last-resort fallback when the instruct model fails to init (OOM). */
 export const WASM_T5_FALLBACK_MODEL_ID = "Xenova/LaMini-Flan-T5-248M";
@@ -35,6 +49,15 @@ type LoadedWasmModel =
     | { kind: "t5-fallback"; pipeline: Text2TextPipeline };
 
 let loaded: LoadedWasmModel | null = null;
+
+/** Adapts transformers.js progress events (per-file bytes loaded) to the shared report. */
+function progressReporter(report?: ModelLoadReport) {
+    return (e: { status: string; file?: string; loaded?: number }) => {
+        if (e.status === "progress" && e.file && typeof e.loaded === "number") {
+            report?.({ kind: "file", file: e.file, loaded: e.loaded });
+        }
+    };
+}
 
 function shortModelName(modelId: string): string {
     return modelId.replace(/^Xenova\//, "");
@@ -80,7 +103,7 @@ function extractGeneratedText(
     return result.generated_text ?? "";
 }
 
-async function initInstructPipeline(): Promise<LoadedWasmModel> {
+async function initInstructPipeline(report?: ModelLoadReport): Promise<LoadedWasmModel> {
     const { pipeline: createPipeline, env } = await import("@xenova/transformers");
 
     env.allowLocalModels = false;
@@ -90,7 +113,7 @@ async function initInstructPipeline(): Promise<LoadedWasmModel> {
     }
 
     const genPipeline = (await createPipeline("text-generation", WASM_INSTRUCT_MODEL_ID, {
-        progress_callback: () => {},
+        progress_callback: progressReporter(report),
     })) as TextGenPipeline & { tokenizer?: ChatTokenizer };
 
     return {
@@ -100,7 +123,7 @@ async function initInstructPipeline(): Promise<LoadedWasmModel> {
     };
 }
 
-async function initT5FallbackPipeline(): Promise<LoadedWasmModel> {
+async function initT5FallbackPipeline(report?: ModelLoadReport): Promise<LoadedWasmModel> {
     const { pipeline: createPipeline, env } = await import("@xenova/transformers");
 
     env.allowLocalModels = false;
@@ -110,7 +133,7 @@ async function initT5FallbackPipeline(): Promise<LoadedWasmModel> {
     }
 
     const t5Pipeline = (await createPipeline("text2text-generation", WASM_T5_FALLBACK_MODEL_ID, {
-        progress_callback: () => {},
+        progress_callback: progressReporter(report),
     })) as Text2TextPipeline;
 
     return { kind: "t5-fallback", pipeline: t5Pipeline };
@@ -124,21 +147,35 @@ const T5_PARSE_PREFIX = (text: string) =>
 
 export const transformersWasmEngine: LocalAiEngine = {
     id: "transformers",
+    downloadBytes: WASM_INSTRUCT_DOWNLOAD_BYTES,
+
+    async isCached() {
+        if (typeof caches === "undefined") return false;
+        try {
+            const cache = await caches.open(TRANSFORMERS_CACHE_NAME);
+            const keys = await cache.keys();
+            return keys.some((r) => r.url.includes(WASM_INSTRUCT_MODEL_ID) && r.url.endsWith(".onnx"));
+        } catch {
+            return false;
+        }
+    },
 
     async isAvailable() {
         return typeof window !== "undefined";
     },
 
-    async init() {
+    async init(report?: ModelLoadReport) {
         if (loaded) return;
         try {
-            loaded = await initInstructPipeline();
+            loaded = await initInstructPipeline(report);
         } catch (e) {
             console.warn(
                 `[local-ai] ${WASM_INSTRUCT_MODEL_ID} init failed — falling back to ${WASM_T5_FALLBACK_MODEL_ID}`,
                 e,
             );
-            loaded = await initT5FallbackPipeline();
+            // Different files, different size — restart the meter with an unknown total.
+            report?.({ kind: "begin", engine: "transformers", cached: false, expectedBytes: null });
+            loaded = await initT5FallbackPipeline(report);
         }
     },
 

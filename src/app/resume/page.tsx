@@ -24,9 +24,10 @@ import {
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
-import { InlinePlaceholderPanel } from "@/components/layout/route-loading";
+import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 function ResumeHeader() {
     return (
@@ -42,13 +43,17 @@ function ResumeHeader() {
 
 function ResumeAuthSkeleton() {
     return (
-        <InlinePlaceholderPanel label="Loading resume" className="space-y-4">
-            <div className="mx-auto max-w-sm space-y-3">
-                <div className="skeleton-bar mx-auto h-12 w-12" />
-                <div className="skeleton-bar mx-auto h-4 w-48" />
-                <div className="skeleton-bar mx-auto h-3 w-full" />
-            </div>
-        </InlinePlaceholderPanel>
+        <WaitState
+            label="Loading resume"
+            className={cn(posterInlinePanelClassName, "p-8")}
+            skeleton={
+                <div className="mx-auto max-w-sm space-y-3">
+                    <WaitBar className="mx-auto h-12 w-12" />
+                    <WaitBar className="mx-auto h-4 w-48" />
+                    <WaitBar className="mx-auto h-3 w-full" />
+                </div>
+            }
+        />
     );
 }
 
