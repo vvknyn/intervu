@@ -19,7 +19,7 @@ const DAY_MS = 86_400_000;
 /** An application with no status change for this long is due a follow-up. */
 export const TODAY_FOLLOW_UP_DAYS = 7;
 
-/** How far ahead "interviews this week" looks. */
+/** "Interviews this week": today and the next six calendar days. */
 export const TODAY_INTERVIEW_WINDOW_DAYS = 7;
 
 /** Rows the header lists before "See more". */
@@ -54,15 +54,31 @@ export function followUpsDue(pursuits: Pursuit[], nowMs: number): Pursuit[] {
         .sort((a, b) => (parseMs(a.updated_at) ?? 0) - (parseMs(b.updated_at) ?? 0));
 }
 
-/** Interviews from the start of today through the next week: soonest first. */
+/**
+ * The local midnight of an interview's calendar day. The tracker stores a
+ * picked date as that date's UTC midnight (`new Date("2026-10-01")`), which
+ * in a zone west of UTC is the evening before: read that shape as the date
+ * it names. A stored time of day is kept as is.
+ */
+export function interviewDayMs(iso: string | null | undefined): number | null {
+    const ms = parseMs(iso);
+    if (ms == null) return null;
+    const at = new Date(ms);
+    if (at.getUTCHours() === 0 && at.getUTCMinutes() === 0 && at.getUTCSeconds() === 0 && at.getUTCMilliseconds() === 0) {
+        return new Date(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()).getTime();
+    }
+    return startOfLocalDay(ms);
+}
+
+/** Interviews today through the next six days, soonest first. */
 export function interviewsThisWeek(pursuits: Pursuit[], nowMs: number): Pursuit[] {
     const from = startOfLocalDay(nowMs);
-    const to = nowMs + TODAY_INTERVIEW_WINDOW_DAYS * DAY_MS;
+    const to = from + TODAY_INTERVIEW_WINDOW_DAYS * DAY_MS;
     return pursuits
         .filter((p) => {
             if (CLOSED_STAGES.has(p.status)) return false;
-            const at = parseMs(p.interview_date);
-            return at != null && at >= from && at <= to;
+            const day = interviewDayMs(p.interview_date);
+            return day != null && day >= from && day < to;
         })
         .sort((a, b) => (parseMs(a.interview_date) ?? 0) - (parseMs(b.interview_date) ?? 0));
 }

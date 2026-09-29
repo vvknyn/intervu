@@ -6,6 +6,7 @@ import {
     TODAY_SESSION_GAP_MS,
     followUpsDue,
     formatLastHere,
+    interviewDayMs,
     interviewsThisWeek,
     pickNewForYou,
     resolveTodaySince,
@@ -160,6 +161,26 @@ describe("followUpsDue", () => {
 });
 
 describe("interviewsThisWeek", () => {
+    it("reads a picked date (stored as its UTC midnight) as that calendar day, in any zone", () => {
+        const today = new Date(NOW);
+        const picked = (offsetDays: number) =>
+            new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate() + offsetDays)).toISOString();
+        assert.equal(interviewDayMs(picked(0)), new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime());
+        const list = interviewsThisWeek(
+            [
+                pursuit("today", "interviewing", DAY, { interview_date: picked(0) }),
+                pursuit("sixth-day", "interviewing", DAY, { interview_date: picked(6) }),
+                pursuit("eighth-day", "interviewing", DAY, { interview_date: picked(7) }),
+                pursuit("yesterday", "interviewing", DAY, { interview_date: picked(-1) }),
+            ],
+            NOW,
+        );
+        assert.deepEqual(
+            list.map((p) => p.id),
+            ["today", "sixth-day"],
+        );
+    });
+
     it("counts interviews from today through the next seven days, soonest first", () => {
         const at = (ms: number) => new Date(NOW + ms).toISOString();
         const list = interviewsThisWeek(
