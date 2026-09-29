@@ -105,7 +105,9 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /touch-manipulation/);
         assert.deepEqual(sizesOf(src, "hub-browse-all-matches"), [undefined]);
-        assert.match(src, /min-h-\[5\.75rem\]/);
+        // The packs are chips (the control scale's ctl-md step, which grows its hit area on touch) in a row that wraps.
+        assert.match(src, /chipVariants\(\{ active: activeCategoryId === category\.id, interactive: true \}\)/);
+        assert.match(src, /data-testid="hub-pack-chips" className="flex flex-wrap/);
     });
 
     it("ApplyReturnPrompt is Yes / Not yet / Skip with thumb-sized targets", () => {

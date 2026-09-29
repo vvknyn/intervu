@@ -349,6 +349,13 @@ import {
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
+    exactHubCounts,
+    readHubTileCounts,
+    resolveHubCountDeltas,
+    writeHubTileCounts,
+    type HubPackCounts,
+} from "@/lib/jobs/for-you/hub-count-deltas";
+import {
     diffHubPackRemovals,
     formatHubRemovalsLine,
     readHubCountBaseline,
@@ -1844,6 +1851,8 @@ export function JobsContent({
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
     // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
     const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
+    // "+N" per pack chip since the last visit (`hub-count-deltas.ts`), set once every count has settled.
+    const [hubCountDeltas, setHubCountDeltas] = useState<HubPackCounts>({});
     // The last finished probe, so going back to the hub repaints its counts instead of searching again.
     const hubProbeMemoRef = useRef<{
         key: string;
@@ -1852,6 +1861,7 @@ export function JobsContent({
         probe: typeof hubFitProbe;
         allCount: CorpusCount | null;
         tileCounts: Partial<Record<HubPackId, CorpusCount | null>>;
+        deltas: HubPackCounts;
     } | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
@@ -3067,6 +3077,7 @@ export function JobsContent({
             setHubFitProbe(memo.probe);
             setHubResumeAllCount(memo.allCount);
             setHubFilterTileCounts(memo.tileCounts);
+            setHubCountDeltas(memo.deltas);
             return;
         }
         let cancelled = false;
@@ -3077,6 +3088,7 @@ export function JobsContent({
             removalsLine: null,
         }));
         setHubFilterTileCounts({});
+        setHubCountDeltas({});
 
         void (async () => {
             try {
@@ -3167,6 +3179,14 @@ export function JobsContent({
                     tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
                     setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
+                // Every chip count is known: compare the exact ones with the last visit's, then remember these.
+                const chipCounts = exactHubCounts({
+                    ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
+                    ...tileCounts,
+                });
+                const { deltas, next } = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
+                writeHubTileCounts(next);
+                setHubCountDeltas(deltas);
                 hubProbeMemoRef.current = {
                     key: memoKey,
                     at: Date.now(),
@@ -3174,6 +3194,7 @@ export function JobsContent({
                     probe,
                     allCount,
                     tileCounts,
+                    deltas,
                 };
             } catch {
                 if (!cancelled) {
@@ -6456,18 +6477,14 @@ export function JobsContent({
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
                                     hasResume={hasUsableResume}
-                                    resume={resume}
                                     activeCategoryId={hubSelectedCategoryId}
                                     hubCountLabels={hubCountLabels}
+                                    hubCountDeltas={hubCountDeltas}
                                     dailyApplyTip={DAILY_APPLY_HUB_TIP}
                                     hubMatching={hubFitProbe.loading || hubFitProbe.probing}
                                     hubCorpusLine={hubCorpusLine}
                                     hubRemovalsLine={hubFitProbe.removalsLine}
                                     onSelectCategory={(category, source) => openHubPack(category.id, source)}
-                                    onUpdateResume={updateResume}
-                                    onTailorApply={(job) => {
-                                        submitSearch(job.title);
-                                    }}
                                     footer={
                                         <HubYourJobs
                                             auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}

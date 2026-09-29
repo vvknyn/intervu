@@ -101,7 +101,8 @@ describe("packs-home chrome — For you and Search switch", () => {
             join(__dirname, "../../src/components/jobs/CategoryHubGrid.tsx"),
             "utf8",
         );
-        assert.match(hub, /if \(onSelectCategory\)/);
+        // Every pack opens through the page (the real deck); there is no in-hub fallback.
+        assert.match(hub, /onSelectCategory: \(category: CategoryHubItem/);
         assert.match(hub, /data-testid="hub-browse-all-matches"/);
     });
 });

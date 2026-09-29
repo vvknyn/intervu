@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/47, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -415,6 +415,40 @@ test("Needs you lists the tracker's interview this week and the application gone
   await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Backend Engineer").first()).toBeVisible();
   expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const chips = page.getByTestId("hub-pack-chips");
+  await expect(chips).toBeVisible({ timeout: 30_000 });
+  await expect(chips.getByRole("button")).toHaveCount(8);
+
+  // A first visit: once every count settles the device remembers them, and no chip claims a gain.
+  const memoryKey = "velai.hub.tileCounts.v1";
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), memoryKey), { timeout: 90_000 }).not.toBeNull();
+  await expect(page.locator('[data-testid^="hub-pack-delta-"]')).toHaveCount(0);
+
+  // Make the last visit two days ago, with 3 fewer roles in each pack it counted exactly.
+  const gained = await page.evaluate((key) => {
+    const memory = JSON.parse(localStorage.getItem(key)!) as { counts: Record<string, number> };
+    const ids = Object.keys(memory.counts).filter((id) => memory.counts[id] >= 3);
+    const counts = Object.fromEntries(Object.entries(memory.counts).map(([id, n]) => [id, n >= 3 ? n - 3 : n]));
+    localStorage.setItem(key, JSON.stringify({ ...memory, lastAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), counts, since: null }));
+    return ids;
+  }, memoryKey);
+  expect(gained.length).toBeGreaterThan(0);
+
+  await page.reload();
+  for (const id of gained) {
+    // At least the 3 taken away; a role posted in between can add to it.
+    await expect(page.getByTestId(`hub-pack-delta-${id}`)).toHaveText(/^\+([3-9]|\d{2,})$/, { timeout: 90_000 });
+    await expect(page.getByTestId(`hub-pack-card-${id}`)).toHaveAttribute("aria-label", /more since your last visit$/);
+  }
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
