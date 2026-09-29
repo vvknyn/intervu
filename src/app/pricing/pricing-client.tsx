@@ -51,7 +51,7 @@ const PRO_FEATURES = [
 ];
 
 const DATA_API_FEATURES = [
-  "Ghost check: send a posting URL, get a verdict with the evidence and dates",
+  "Posting check: send a posting URL, get a verdict with the evidence and dates",
   "Company hiring stats: open roles, posting rhythm, time to close",
   "Applicant response by sector and company, aggregated and anonymised",
   "Keys with quotas, a usage page and documentation",
@@ -146,7 +146,10 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
               </Button>
             ) : (
               <Button asChild variant="outline" className="w-full">
-                <Link href="/auth/start?mode=signup&next=/jobs">Create free account</Link>
+                {/* `asChild` renders through a Radix Slot, which takes exactly ONE
+                    child: keep the Link the only thing on its line (release 6 shipped
+                    a stray space after it and /pricing threw React.Children.only). */}
+                <Link href="/auth/start?mode=signup&next=/jobs">Create free account{/* signup-gate-exempt: the Free plan's own door, not a gate on an action */}</Link>
               </Button>
             )}
           </div>
