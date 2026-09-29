@@ -146,8 +146,10 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
               </Button>
             ) : (
               <Button asChild variant="outline" className="w-full">
-                {/* The Free plan's own door on the pricing page, not a gate on an action. */}
-                <Link href="/auth/start?mode=signup&next=/jobs">Create free account</Link> {/* signup-gate-exempt: pricing plan door, not a conversion gate */}
+                {/* `asChild` renders through a Radix Slot, which takes exactly ONE
+                    child: keep the Link the only thing on its line (release 6 shipped
+                    a stray space after it and /pricing threw React.Children.only). */}
+                <Link href="/auth/start?mode=signup&next=/jobs">Create free account{/* signup-gate-exempt: the Free plan's own door, not a gate on an action */}</Link>
               </Button>
             )}
           </div>
