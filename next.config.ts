@@ -19,15 +19,19 @@ applyWorkOsRedirectUriBridge();
  * use eval-ish codegen. connect-src is intentionally broad (https:) so BYOK keys
  * can hit any provider host the user configures without a redeploy.
  *
+ * script-src third-party origins = every origin src/ loads a script from:
+ * challenges.cloudflare.com (Turnstile api.js, components/ui/turnstile-widget.tsx).
+ * tests/unit/csp-script-src.test.ts scans src/ and fails when one is missing.
+ *
  * Shipped in Report-Only mode first so a missed directive surfaces in the browser
  * console as a violation report instead of breaking runtime.
  * TODO(security): tighten (drop 'unsafe-eval', enumerate connect-src hosts, add a
  * report-uri/Reporting-API endpoint) and promote to the enforcing
  * `Content-Security-Policy` header once violations are confirmed clean in prod.
  */
-const CONTENT_SECURITY_POLICY = [
+export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
