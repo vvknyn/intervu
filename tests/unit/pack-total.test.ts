@@ -36,9 +36,33 @@ describe('pack total comes from the pack search', () => {
     it('a failed or unavailable search is unknown (null), never a made-up number', async () => {
         const filters = packFilters(personas[0].resume, resolveCandidateSignals(personas[0].resume));
         const result = (patch: Partial<JobSearchResult>): JobSearchResult => ({ hits: [], total: 7, configured: true, ...patch }) as JobSearchResult;
-        assert.equal(await countResults(filters, async () => result({ unavailable: true })), null);
-        assert.equal(await countResults(filters, async () => result({ configured: false })), null);
-        assert.equal(await countResults(filters, async () => { throw new Error('down'); }), null);
+        const sleep = async () => {};
+        assert.equal(await countResults(filters, async () => result({ unavailable: true }), { sleep }), null);
+        assert.equal(await countResults(filters, async () => result({ configured: false }), { sleep }), null);
+        assert.equal(await countResults(filters, async () => { throw new Error('down'); }, { sleep }), null);
+    });
+
+    it('a refused count (an outage, or the rate limit, which answers the same way) is asked once more after a wait', async () => {
+        const filters = packFilters(personas[0].resume, resolveCandidateSignals(personas[0].resume));
+        const replies: JobSearchResult[] = [
+            { hits: [], total: 0, backend: 'meilisearch', configured: true, unavailable: true },
+            { hits: [], total: 7, backend: 'meilisearch', configured: true },
+        ];
+        const waits: number[] = [];
+        let calls = 0;
+        const total = await countResults(filters, async () => replies[calls++], { sleep: async (ms) => { waits.push(ms); } });
+        assert.equal(total, 7);
+        assert.equal(calls, 2);
+        assert.equal(waits.length, 1);
+        assert.ok(waits[0] >= 2000 && waits[0] < 4000, `jittered like the list retry, got ${waits[0]}`);
+    });
+
+    it('an unconfigured backend is not retried: nothing will change', async () => {
+        const filters = packFilters(personas[0].resume, resolveCandidateSignals(personas[0].resume));
+        let calls = 0;
+        const total = await countResults(filters, async () => { calls++; return { hits: [], total: 0, backend: 'meilisearch', configured: false } as JobSearchResult; }, { sleep: async () => {} });
+        assert.equal(total, null);
+        assert.equal(calls, 1);
     });
 
     it('the broaden ladder counts through the same function (options only where the count is real)', async () => {

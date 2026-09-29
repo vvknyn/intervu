@@ -41,6 +41,17 @@ describe('pack audit checks', () => {
         assert.equal(audit('ai', { ...onsite, title: 'Product Manager, Machine Learning' }).checks.pack, 'pass');
     });
 
+    it('a title tied to no target role is unknown for role, not a pass', () => {
+        const v = audit('all', mkJob('hs', { title: 'Health And Safety Manager', location_country: 'Canada', experience_level: 'senior', tags: ['health'] }));
+        assert.equal(v.checks.role, 'unknown');
+    });
+
+    it('scores the row as the list does, without the posting description', () => {
+        const job = mkJob('pm', { title: 'Senior Product Manager', location_country: 'Canada', experience_level: 'senior', tags: ['roadmap'] });
+        const withDescription = { ...job, description: 'Own the roadmap. '.repeat(10) + 'Forklift welding HVAC plumbing carpentry masonry.' };
+        assert.equal(audit('all', withDescription).band, audit('all', job).band);
+    });
+
     it('renders a row per recommendation', () => {
         const v = audit('all', mkJob('pm', { title: 'Product Manager | Payments', location_country: 'Canada', experience_level: 'senior' }));
         const md = renderAuditMarkdown([{ name: 'pm', searched: ['Product Manager'], verdicts: [v], empty: ['good'] }]);

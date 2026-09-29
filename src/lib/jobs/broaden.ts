@@ -11,6 +11,7 @@ import type { CandidateRelocation } from "@/lib/jobs/candidate-signals";
 import { searchParamsFromUrlState } from "@/lib/jobs/search-payload";
 import type { FacetKey, JobSearchParams, JobSearchResult, PostedBucket } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
+import { retryDelayMs } from "@/lib/load-result";
 
 /** A result set smaller than this is "thin": the surface says so and offers the ladder. */
 export const THIN_RESULTS_BELOW = 30;
@@ -158,6 +159,8 @@ export interface ResolveBroadenInput {
     ctx?: BroadenContext;
     /** The same search call the results come from. */
     search: (params: JobSearchParams) => Promise<JobSearchResult & LocationReport>;
+    /** Wait before the one retry of a failed count (tests pass an instant one). */
+    sleep?: CountOptions["sleep"];
 }
 
 type SearchFn = ResolveBroadenInput["search"];
@@ -165,24 +168,38 @@ type SearchFn = ResolveBroadenInput["search"];
 export interface CountOptions {
     /** See `BroadenContext.locationRequired`. */
     locationRequired?: boolean;
+    /** Wait before the one retry of a failed count (tests pass an instant one). */
+    sleep?: (ms: number) => Promise<void>;
 }
 
-/** How many results `state` returns, from the search call the results use; `null` when that call fails. */
+const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * How many results `state` returns, from the search call the results use; `null` when that call fails.
+ * An unavailable reply (an outage, or the per-visitor rate limit, which answers the same way) gets the
+ * same one jittered retry the result lists get, so a burst of counts does not silently drop them.
+ */
 export async function countResults(state: JobsUrlState, search: SearchFn, opts: CountOptions = {}): Promise<number | null> {
-    try {
-        const result = await search({ ...searchParamsFromUrlState(state), limit: 1, offset: 0 });
-        if (result.unavailable === true || !result.configured) return null;
-        return opts.locationRequired && locationDropped(state, result) ? 0 : result.total;
-    } catch {
-        return null;
+    const params = { ...searchParamsFromUrlState(state), limit: 1, offset: 0 };
+    for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) await (opts.sleep ?? wait)(retryDelayMs());
+        try {
+            const result = await search(params);
+            if (!result.configured) return null;
+            if (result.unavailable === true) continue;
+            return opts.locationRequired && locationDropped(state, result) ? 0 : result.total;
+        } catch {
+            continue;
+        }
     }
+    return null;
 }
 
 /** Rungs with their real counts; only those that add results, in ladder order. */
-export async function resolveBroadenOptions({ state, total, ctx, search }: ResolveBroadenInput): Promise<BroadenOption[]> {
+export async function resolveBroadenOptions({ state, total, ctx, search, sleep }: ResolveBroadenInput): Promise<BroadenOption[]> {
     const counted = await Promise.all(
         broadenRungs(state, ctx).map(async (rung): Promise<BroadenOption | null> => {
-            const count = await countResults(rung.next, search, { locationRequired: ctx?.locationRequired });
+            const count = await countResults(rung.next, search, { locationRequired: ctx?.locationRequired, sleep });
             return count === null ? null : { ...rung, count };
         }),
     );

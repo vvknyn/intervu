@@ -337,6 +337,7 @@ import {
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
+    freshHubProbeMemo,
     formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
@@ -1428,6 +1429,12 @@ export function JobsContent({
     const [result, setResult] = useState<JobsSearchActionResult | null>(null);
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
+    // Which search `result` answers, and the last search that finished (rows or a
+    // final failure). The Search list keeps its rows through a background refresh;
+    // an opened pack never shows another search's rows (a tile opened from the hub
+    // listed the hub's roles, not remote ones, until its own search landed).
+    const [resultSearchKey, setResultSearchKey] = useState<string | null>(null);
+    const [settledSearchKey, setSettledSearchKey] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
     // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
@@ -1833,6 +1840,15 @@ export function JobsContent({
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
     // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
     const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
+    // The last finished probe, so going back to the hub repaints its counts instead of searching again.
+    const hubProbeMemoRef = useRef<{
+        key: string;
+        at: number;
+        complete: boolean;
+        probe: typeof hubFitProbe;
+        allCount: CorpusCount | null;
+        tileCounts: Partial<Record<HubPackId, CorpusCount | null>>;
+    } | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2374,9 +2390,13 @@ export function JobsContent({
                         return;
                     }
                     setSearchError(r.note ?? SEARCH_UNAVAILABLE_MESSAGE);
+                    setSettledSearchKey(searchKey);
                     // An initial failure needs backend metadata for the error
                     // state. A background failure must not blank existing hits.
-                    if (!(resultRef.current?.hits.length)) setResult(r);
+                    if (!(resultRef.current?.hits.length)) {
+                        setResult(r);
+                        setResultSearchKey(searchKey);
+                    }
                     return;
                 }
                 // Task 11 — snapshot BEFORE `setResult(r)` below overwrites
@@ -2432,6 +2452,8 @@ export function JobsContent({
                 // actually renders first.
                 const interleavedHits = interleaveByCompany(r.hits);
                 setResult({ ...r, hits: interleavedHits });
+                setResultSearchKey(searchKey);
+                setSettledSearchKey(searchKey);
                 // A real search (not the pristine zero-query landing) that
                 // comes back empty — the denominator for "how often does
                 // search fail someone," not every empty render (a fresh
@@ -2881,12 +2903,24 @@ export function JobsContent({
     // the visible order now matches the chip. `Array.prototype.sort` is
     // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
     // original relevance position instead of shuffling.
+    //
+    // An open row tile (AI, Tech for good…) keeps only the pack rows it counts
+    // (hub-tiles.ts) here, BEFORE the fit gate below: gated first, a guest's AI
+    // tile listed the AI roles among the pack's top 3, which was usually none.
+    const openHubTileId =
+        forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
+    const rowTileOpen = openHubTileId !== undefined && !isHubFilterTile(openHubTileId);
     const rankedClusters = useMemo(() => {
-        if (!fitActive || !matchScores) return clusters;
-        return [...clusters].sort(
-            (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
-        );
-    }, [clusters, fitActive, matchScores]);
+        const ranked =
+            !fitActive || !matchScores
+                ? clusters
+                : [...clusters].sort(
+                      (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
+                  );
+        if (!rowTileOpen) return ranked;
+        const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
+        return ranked.filter((c) => keep.has(c.primary.id));
+    }, [clusters, fitActive, matchScores, rowTileOpen, openHubTileId, nowMs]);
 
     // Honest display count for THIS search's result total (result-count
     // toolbar text + the end-of-list line below) — distinct from `total`
@@ -2901,9 +2935,13 @@ export function JobsContent({
     // the rest needs an account. Applied at the SOURCE of every ranked surface —
     // the Search list, the For-you deck and keyboard order all read
     // `renderedClusters`, so no surface can show a row past the gate.
+    // A row tile's gate counts the tile's rows, not the whole pack's.
+    const gateTotal: CorpusCount = rowTileOpen
+        ? { kind: "exact", value: hubTileRows(clusters.map((c) => c.primary), openHubTileId, nowMs).length }
+        : totalCount;
     const fitGate = useMemo(
-        () => splitFitGate({ fitActive, ranked: matchScores !== null, signedOut, rows: rankedClusters, total: totalCount }),
-        [fitActive, matchScores, signedOut, rankedClusters, totalCount.value, totalCount.kind], // eslint-disable-line react-hooks/exhaustive-deps
+        () => splitFitGate({ fitActive, ranked: matchScores !== null, signedOut, rows: rankedClusters, total: gateTotal }),
+        [fitActive, matchScores, signedOut, rankedClusters, gateTotal.value, gateTotal.kind], // eslint-disable-line react-hooks/exhaustive-deps
     );
     const renderedClusters = fitGate.visible;
 
@@ -2914,23 +2952,22 @@ export function JobsContent({
     // resize-clamp would zero the index before the user ever came back.
     // Band-first pack order (Strong → Good → Stretch, unscored last) with
     // target-title relevance inside each band — see orderForYouJobsByBand.
-    // An open row tile (AI, Tech for good…) shows only the pack rows it counts (hub-tiles.ts).
-    const openHubTileId =
-        forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
+    // An opened pack lists only its own search's rows: while that search is in
+    // flight the deck loads rather than showing the previous search's roles.
+    const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
+    const deckLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
     const forYouPacks = useMemo(
         () =>
-            hubTileRows(
-                orderForYouJobsByBand(
-                    renderedClusters
-                        .map((c) => c.primary)
-                        .filter(hasLiveApplyUrl),
-                    matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                    result?.effectiveQ,
-                ),
-                openHubTileId,
-                nowMs,
-            ),
-        [renderedClusters, result?.effectiveQ, matchScores, openHubTileId, nowMs],
+            deckResultStale
+                ? []
+                : orderForYouJobsByBand(
+                      renderedClusters
+                          .map((c) => c.primary)
+                          .filter(hasLiveApplyUrl),
+                      matchScores ? (job) => matchScores.get(job.id) ?? null : null,
+                      result?.effectiveQ,
+                  ),
+        [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
@@ -3020,6 +3057,14 @@ export function JobsContent({
         if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
             return;
         }
+        const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
+        const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
+        if (memo) {
+            setHubFitProbe(memo.probe);
+            setHubResumeAllCount(memo.allCount);
+            setHubFilterTileCounts(memo.tileCounts);
+            return;
+        }
         let cancelled = false;
         setHubFitProbe((prev) => ({
             ...prev,
@@ -3036,6 +3081,7 @@ export function JobsContent({
                 const packParams = packSearchParams(pack);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
+                let allCount: CorpusCount | null = null;
                 let unavailableRetries = 0;
 
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
@@ -3063,7 +3109,8 @@ export function JobsContent({
                     // dropped it (no roles there) matched nothing, not the whole corpus.
                     const placesMissing = locationDropped(pack, r);
                     poolTotal = placesMissing ? 0 : r.total;
-                    setHubResumeAllCount(placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r));
+                    allCount = placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r);
+                    setHubResumeAllCount(allCount);
                     for (const h of placesMissing ? [] : (r.hits ?? [])) {
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
@@ -3103,22 +3150,27 @@ export function JobsContent({
                     updatedAt: new Date().toISOString(),
                     packs: nextTotals,
                 });
-                setHubFitProbe({
-                    loading: false,
-                    probing: false,
-                    total: poolTotal,
-                    scored,
-                    removalsLine,
-                });
+                const probe = { loading: false, probing: false, total: poolTotal, scored, removalsLine };
+                setHubFitProbe(probe);
 
                 // Each filter tile counts its own search (the one its deck sends), one at a
                 // time after the probe so the hub stays inside the search rate limit.
+                const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
                 for (const id of HUB_FILTER_TILE_IDS) {
                     if (id === "all") continue;
                     const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
                     if (cancelled) return;
-                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: total == null ? null : resolveCorpusCount({ total }) }));
+                    tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
+                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
+                hubProbeMemoRef.current = {
+                    key: memoKey,
+                    at: Date.now(),
+                    complete: Object.values(tileCounts).every((count) => count != null),
+                    probe,
+                    allCount,
+                    tileCounts,
+                };
             } catch {
                 if (!cancelled) {
                     setHubFitProbe((prev) => ({
@@ -6403,7 +6455,7 @@ export function JobsContent({
                                 signals={signals}
                                 nowMs={nowMs}
                                 fitResolving={fitResolving}
-                                loading={loading}
+                                loading={deckLoading}
                                 loadError={displaySearchError}
                                 onRetryLoad={retrySearch}
                                 fitActive={fitActive}
@@ -6422,8 +6474,8 @@ export function JobsContent({
                                 loadingMore={loadingMore}
                                 hasMore={hasMore}
                                 signupGate={fitGateEl}
-                                resultTotal={result?.total ?? null}
-                                unmatchedPlaces={result?.unmatchedPlaceMentions}
+                                resultTotal={deckResultStale ? null : (result?.total ?? null)}
+                                unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
                                 tileId={openHubTileId}
                                 activePursuit={
                                     forYouDeck.activeJob

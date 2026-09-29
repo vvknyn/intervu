@@ -11,8 +11,9 @@ import path from 'node:path';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { packFilters } from '../../src/lib/jobs/for-you/pack-filters';
 import { buildMatchQuery, roleEndYear, STALE_ROLE_YEARS, targetRoles } from '../../src/lib/jobs/resume-match';
-import { MATCH_BAND_STRONG_MIN, roleOffTarget, scoreJobAgainstResume } from '../../src/lib/match/score';
+import { MATCH_BAND_GOOD_MIN, MATCH_BAND_STRONG_MIN, roleFit, roleOffTarget, scoreJobAgainstResume } from '../../src/lib/match/score';
 import { structureResumeText } from '../../src/lib/resume/structure-resume-text';
+import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
 import { mkJob } from '../support/jobs-corpus-stub';
 
@@ -118,5 +119,45 @@ describe('a posting for a different kind of role never reads as Strong', () => {
 
     it('a title that names no known family is never called off target', () => {
         assert.equal(roleOffTarget(PM, unknownFamily), false);
+    });
+});
+
+/**
+ * Rows the live audit of release 3 (velai.app, 2026-09-29) flagged. List rows are
+ * scored on title and tags only, so each one read Good on the pack card.
+ */
+describe('the rows the live pack audit flagged', () => {
+    const posting = (title: string, extra: Partial<PublicJob> = {}) =>
+        mkJob(title, { title, experience_level: 'senior', location_country: 'Canada', ...extra });
+    const band = (resume: ResumeData, title: string, extra: Partial<PublicJob> = {}) =>
+        scoreJobAgainstResume(resume, posting(title, extra), resolveCandidateSignals(resume, null));
+
+    it('an SRE posting is a Stretch at most for the PM, Okta and CSM résumés', () => {
+        for (const resume of [PM, OKTA, CSM]) {
+            assert.equal(roleFit(resume, posting('Software Engineer, SRE')), 'off-target');
+            const score = band(resume, 'Software Engineer, SRE', { tags: ['product', 'api', 'incident'] });
+            if (score) assert.ok(score.total < MATCH_BAND_GOOD_MIN, `SRE scored ${score.total}`);
+        }
+    });
+
+    it('an Account Executive posting is a Stretch at most for the CS résumés', () => {
+        for (const resume of [OKTA, CSM]) {
+            assert.equal(roleFit(resume, posting('Account Executive (DACH)')), 'off-target');
+            const score = band(resume, 'Account Executive (DACH)', { tags: ['customer', 'saas'] });
+            if (score) assert.ok(score.total < MATCH_BAND_GOOD_MIN, `Account Executive scored ${score.total}`);
+        }
+    });
+
+    it('a title tied to no target role is never Strong, however many words it shares', () => {
+        assert.equal(roleFit(PM, posting('Health And Safety Manager F H')), 'unverified');
+        const score = band(PM, 'Health And Safety Manager F H', { tags: ['health', 'manager'] });
+        assert.ok(score, 'shares words, so it gets a score');
+        assert.ok(score!.total < MATCH_BAND_STRONG_MIN, `Health and Safety Manager scored ${score!.total}`);
+    });
+
+    it('the roles each pack searches for are on target', () => {
+        assert.equal(roleFit(PM, posting('Senior Product Manager, Payments')), 'target');
+        assert.equal(roleFit(OKTA, posting('Customer Success Operations Manager')), 'target');
+        assert.equal(roleFit(CSM, posting('Technical Account Manager II')), 'target');
     });
 });
