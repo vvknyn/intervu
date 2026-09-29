@@ -30,7 +30,10 @@ test("the pricing page shows three plans and the founding seat", { tag: ["@J-PRI
   await expect(free).toContainText("Create free account");
   await expect(pro).toContainText(`${FOUNDING_SEAT_PRICE} once`);
   await expect(pro).toContainText(`First ${FOUNDING_SEAT_COUNT} seats`);
-  await expect(pro).toContainText("Refundable on request");
+  // "Refundable on request…" with the Stripe link set, "…a seat is refundable
+  // on request…" in reservation mode (release 9 failed this on prod over the
+  // capital R); the promise is the same sentence either way.
+  await expect(pro).toContainText(/refundable on request/i);
   await expect(dataApi).toContainText("Tell us your use case");
 
   // The promise the whole page rests on, in the FAQ.
