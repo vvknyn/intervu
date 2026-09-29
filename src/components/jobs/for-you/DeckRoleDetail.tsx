@@ -80,7 +80,8 @@ export function DeckRoleDetail({
                     </p>
                 </div>
                 <div className="mt-3 flex flex-wrap items-start gap-x-3 gap-y-2">
-                    <h2 className="min-w-0 flex-1 font-display text-title-lg font-semibold leading-tight text-balance text-foreground">
+                    {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                    <h2 className="min-w-0 flex-1 font-display text-2xl font-semibold leading-tight text-balance text-foreground">
                         {presented.title}
                     </h2>
                     {band && (

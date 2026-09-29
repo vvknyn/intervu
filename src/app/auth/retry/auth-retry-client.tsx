@@ -11,6 +11,7 @@ import {
     AUTH_RETRY_BUTTON_LABEL,
     AUTH_RETRY_HEADLINE,
 } from "@/lib/auth/auth-retry-copy";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Landing spot for every way /auth/callback can fail — a stale bookmark
@@ -36,7 +37,7 @@ export function AuthRetryClient() {
         <AuthRouteLayout>
             <AuthRaisedPanel className="text-center">
                 <BrandLockup className="mx-auto w-fit" />
-                <h1 className="mt-4 text-xl font-semibold text-foreground">{AUTH_RETRY_HEADLINE}</h1>
+                <PageTitle className="mt-4">{AUTH_RETRY_HEADLINE}</PageTitle>
                 <p className="mt-2 text-sm text-muted-foreground">{AUTH_RETRY_BODY}</p>
                 <Button asChild size="lg" className="mt-8">
                     <Link href={retryHref}>{AUTH_RETRY_BUTTON_LABEL}</Link>

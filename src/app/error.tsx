@@ -7,6 +7,7 @@ import { RouteStatusLayout, RouteStatusPanel } from "@/components/layout/route-s
 import { conceptAEmptyMaxClassName } from "@/components/ui/concept-a-empty-state";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Route-segment error boundary. Catches render/runtime errors in any page and
@@ -35,7 +36,7 @@ export default function Error({
                 className={cn(conceptAEmptyMaxClassName, "enter-reveal text-center")}
             >
                 <BrandLockup className="mx-auto w-fit" />
-                <h1 className="mt-4 text-title-sm font-semibold text-foreground">Something went wrong</h1>
+                <PageTitle className="mt-4">Something went wrong</PageTitle>
                 <p className="mt-2 text-body-sm text-muted-foreground">
                     This page hit an unexpected error. Nothing you did was lost — try again, and if
                     it keeps happening, reload the app.

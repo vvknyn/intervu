@@ -579,6 +579,7 @@ export function LiveResumePreview({
             >
                 {/* Header Section */}
                 <SectionWrapper id="header" className="text-center px-4 pb-2 mb-2.5 border-b border-surface-postcard-foreground" changeStatus={headerChangeStatus} ctx={ctx}>
+                    {/* page-scale-allow: the résumé's name line, sized for the printed page, not the app scale */}
                     <h1 className="text-xl font-semibold text-surface-postcard-foreground mb-0.5">
                         {data.profile?.name || "Your Name"}
                     </h1>

@@ -39,7 +39,7 @@ export function FrontDoorResumeBand({
         >
             <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
                 <div>
-                    <h2 className="text-lg font-semibold text-brand-foreground sm:text-xl">
+                    <h2 className="text-xl font-semibold text-brand-foreground">
                         See which live jobs fit your experience.
                     </h2>
                     <p className="mt-1 text-sm text-brand-foreground">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>

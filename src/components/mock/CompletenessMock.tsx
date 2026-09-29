@@ -48,6 +48,7 @@ import {
 } from "@/lib/pursuits/tracker-display";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/heading";
 
 // A frozen fixture value, deliberately a literal: this mock exists to render a
 // stable picture, so it must not move when an env var does. Kept on the same
@@ -454,7 +455,7 @@ function MockJobDetail({
                 <div className="flex items-start gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                     <div className="min-w-0 flex-1">
-                        <h2 className="text-lg font-semibold leading-tight">{titleCaseDisplay(decodeText(job.title))}</h2>
+                        <h2 className="text-xl font-semibold leading-tight">{titleCaseDisplay(decodeText(job.title))}</h2>
                         <div className="mt-1 text-sm text-muted-foreground">
                             {cleanCompany(job.company) || "Unknown company"} · {locationText(job)}
                         </div>
@@ -665,7 +666,7 @@ export function CompletenessMock() {
             </div>
 
             <header className={cn("sticky top-0 z-40 border-b", siteChrome.bar, siteChrome.border)}>
-                <div className="mx-auto flex h-16 w-full max-w-[920px] items-center justify-between px-5 sm:px-7">
+                <div className="shell-row flex h-16 items-center justify-between">
                     <div className="flex items-center gap-2.5 text-[#ececec]">
                         <BrandMark className="h-10 w-10" />
                         <span className="text-lg font-semibold">velai</span>
@@ -693,7 +694,7 @@ export function CompletenessMock() {
                         background: "radial-gradient(900px 500px at 50% 20%, #1a1f27 0%, transparent 55%), #12151a",
                     }}
                 >
-                    <main className="mx-auto w-full max-w-[920px] px-4 pb-20 pt-7 sm:px-5">
+                    <main className="shell-row pb-20 pt-7">
                         <section className="rounded-none border-0 bg-muted p-3">
                             <div className="flex flex-wrap gap-2">
                                 <Input
@@ -755,7 +756,7 @@ export function CompletenessMock() {
             )}
 
             {panel === "tracker" && (
-                <main className="mx-auto w-full max-w-[920px] px-5 pb-16 pt-6 sm:px-7">
+                <main className="shell-row pb-16 pt-6">
                     <PageHeader
                         size="display"
                         fullWidth
@@ -805,10 +806,10 @@ export function CompletenessMock() {
             )}
 
             {panel === "connect" && (
-                <main className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
-                    <h1 className="font-display text-display font-semibold text-foreground">
+                <main className="shell-row py-10">
+                    <PageTitle>
                         Your AI already knows how to job hunt. Give it the real market.
-                    </h1>
+                    </PageTitle>
                     <p className="mt-3 max-w-xl text-sm text-muted-foreground">
                         Pair velai with the AI client you already use through MCP, and let it search and track verified job
                         listings for you.
@@ -867,7 +868,7 @@ export function CompletenessMock() {
                         </div>
                     </div>
                     <section className="mt-10 rounded-none border-2 border-foreground p-6 sm:p-8">
-                        <h2 className="text-lg font-semibold text-foreground">Try these first</h2>
+                        <h2 className="text-xl font-semibold text-foreground">Try these first</h2>
                         <ul className="mt-3 space-y-2">
                             {CONNECT_PROMPTS.map((prompt) => (
                                 <li key={prompt} className="text-sm italic text-foreground">
@@ -883,9 +884,9 @@ export function CompletenessMock() {
             )}
 
             {panel === "settings" && (
-                <main className="mx-auto w-full max-w-[920px] px-5 py-10 sm:px-7">
+                <main className="shell-row py-10">
                     <section className="border-t border-border pt-6">
-                        <h2 className="mb-1 text-lg font-semibold">Connected agents</h2>
+                        <h2 className="mb-1 text-xl font-semibold">Connected agents</h2>
                         <p className="mb-4 text-sm text-muted-foreground">
                             Let Claude or another AI agent search jobs and update your tracker on your behalf.
                         </p>

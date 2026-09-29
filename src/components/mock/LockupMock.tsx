@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { BrandMark, BrandLockup } from "@/components/brand/BrandMark";
+import { PageTitle } from "@/components/ui/heading";
 
 function Wordmark() {
     return (
@@ -35,11 +36,11 @@ function Option({
 /** Compare fixture: locked product mark is the only live direction. */
 export function LockupMock() {
     return (
-        <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
+        <main className="shell-row flex flex-col gap-6 py-8">
             <header>
-                <h1 className="text-lg font-semibold">
+                <PageTitle>
                     Header lockup — locked product mark
-                </h1>
+                </PageTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Soft paper card, navy brackets, one bigger green live dot. Not linked from anywhere and not indexed.
                 </p>

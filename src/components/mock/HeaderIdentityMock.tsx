@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import type { User } from "@/lib/firebase/client-auth";
+import { PageTitle } from "@/components/ui/heading";
 
 /**
  * Three signed-in identities, real `BrandLockup`/`AccountMenu` components —
@@ -46,9 +47,9 @@ function HeaderStrip({ user }: { user: User }) {
 
 export function HeaderIdentityMock() {
     return (
-        <main className="mx-auto flex max-w-[820px] flex-col gap-6 p-8">
+        <main className="shell-row flex flex-col gap-6 py-8">
             <header>
-                <h1 className="text-lg font-semibold">Signed-in header identity</h1>
+                <PageTitle>Signed-in header identity</PageTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                     Avatar trigger (photo / initials / email-initials) + 32px brand mark. Compare-only fixture, not
                     linked from anywhere and not indexed.

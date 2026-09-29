@@ -108,7 +108,7 @@ function HistoryMockBody() {
     const empty = searchParams.get("state") === "empty";
     return (
         <PageLayout fullWidth header={<HistoryHeader />}>
-            <div className="mx-auto w-full max-w-6xl xl:max-w-7xl px-4 pb-16 pt-6 sm:px-8 xl:px-10">
+            <div className="shell-row pb-16 pt-6">
                 <TrackerTabs active="history" />
                 <div className="mt-4">
                     <HistoryList loading={false} failed={false} onRetry={() => {}} entries={empty ? [] : FIXTURE_VIEWS} byJobId={FIXTURE_BY_JOB_ID} />

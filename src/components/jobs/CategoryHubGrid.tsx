@@ -980,7 +980,7 @@ export function CategoryHubGrid({
                                 Private matching active on this device
                             </div>
                         )}
-                        <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
+                        <h2 className="text-xl font-semibold text-foreground">
                             {greetingTitle}
                         </h2>
                         <p className="text-xs text-muted-foreground">
@@ -1219,7 +1219,7 @@ export function CategoryHubGrid({
                                                         <span>Posted {activeRole.postedAgo}</span>
                                                     </div>
 
-                                                    <h3 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
+                                                    <h3 className="text-xl font-semibold text-foreground leading-tight">
                                                         {activeRole.title}
                                                     </h3>
 

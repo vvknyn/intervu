@@ -96,6 +96,7 @@ export function WhatsAppThreadHero({ className }: { className?: string }) {
 
   return (
     <div
+      // page-scale-allow: a phone frame (its p-[3px] is the bezel), not a page column
       className={cn(
         "mx-auto w-full max-w-[360px] rounded-[30px] bg-black p-[3px]",
         className,

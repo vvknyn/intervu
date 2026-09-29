@@ -276,7 +276,8 @@ export function ForYouPack({
                         <CompanyLogo domain={displayJob.company_domain} name={displayJob.company} size="sm" />
                         <div className="min-w-0 flex-1">
                             <p className={SECTION_LABEL}>{company}</p>
-                            <h2 className="break-words text-title-sm font-semibold text-surface-postcard-foreground lg:text-title">
+                            {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                            <h2 className="break-words text-xl font-semibold text-surface-postcard-foreground lg:text-2xl">
                                 {displayJob.title}
                             </h2>
                             {place && <p className="mt-0.5 text-sm text-surface-postcard-muted">{place}</p>}

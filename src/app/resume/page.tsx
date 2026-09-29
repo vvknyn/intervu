@@ -156,10 +156,11 @@ function ResumeContent() {
         <PageLayout fullWidth header={!editorOpen ? <ResumeHeader /> : undefined}>
             <div
                 className={cn(
-                    "mx-auto transition-all",
+                    "transition-all",
                     editorOpen
-                        ? "max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
-                        : "max-w-6xl px-4 pb-16 pt-6 sm:px-8 xl:max-w-7xl xl:px-10",
+                        // page-scale-allow: the open editor's canvas runs edge to edge below lg
+                        ? "mx-auto max-w-6xl px-0 pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:px-8 lg:pb-6 xl:max-w-7xl xl:px-10"
+                        : "shell-row pb-16 pt-6",
                 )}
             >
                 {!authReady ? (

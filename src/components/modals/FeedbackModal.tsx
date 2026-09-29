@@ -95,7 +95,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                 {status === "success" ? (
                     <div className="flex flex-col items-center justify-center py-6 space-y-2 text-center">
                         <CheckCircle size={24} className="text-live" weight="fill" />
-                        <h3 className="text-lg">Thank you!</h3>
+                        <h3 className="text-xl">Thank you!</h3>
                         <p className="text-sm text-muted-foreground">
                             Your feedback has been submitted successfully.
                         </p>

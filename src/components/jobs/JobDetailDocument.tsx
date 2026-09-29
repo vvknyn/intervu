@@ -53,6 +53,7 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import type { ResumeData } from "@/types/resume";
+import { PageTitle } from "@/components/ui/heading";
 
 /** The employer rail — live open-role count, opened/closed 90d, and a
  *  postings-sourced about line (`getCompanyRailAction`, one shared query
@@ -344,7 +345,7 @@ export function JobDetailDocument({
             <div className="flex items-start gap-4">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="lg" />
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-xl font-semibold leading-snug text-foreground sm:text-2xl">{jobTitle}</h1>
+                    <PageTitle>{jobTitle}</PageTitle>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />

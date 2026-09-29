@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
+import { PageTitle } from "@/components/ui/heading";
 
 export function ResetPasswordForm() {
     const router = useRouter();
@@ -89,9 +90,9 @@ export function ResetPasswordForm() {
         <AuthRouteLayout>
             <AuthRaisedPanel>
                 <div className="mb-8 text-center">
-                    <h1 className="text-xl font-semibold text-foreground">
+                    <PageTitle>
                         Set new password
-                    </h1>
+                    </PageTitle>
                     <p className="text-xs text-muted-foreground mt-1">
                         Enter your new password below
                     </p>

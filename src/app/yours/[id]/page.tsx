@@ -34,6 +34,7 @@ import {
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { PageTitle } from "@/components/ui/heading";
 
 /** Resume used row (spec: "label, saved date (mono), Download button") —
  *  degrades by omission to a plain sentence when no resume was ever filed
@@ -330,7 +331,7 @@ export default function PursuitDetailPage() {
         <>
             <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
-                <h1 className="text-xl font-semibold">{companyName}</h1>
+                <PageTitle>{companyName}</PageTitle>
                 <p className="text-sm text-muted-foreground">{pursuit.position}</p>
                 {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
             </div>

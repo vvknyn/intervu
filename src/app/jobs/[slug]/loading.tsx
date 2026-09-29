@@ -5,7 +5,7 @@ export default function Loading() {
     return (
         <WaitState
             label="Loading job page"
-            className="mx-auto max-w-[1120px] px-4 py-6 sm:px-6"
+            className="shell-row py-6"
             skeleton={
                 <>
                     <WaitBar className="mb-4 h-5 w-40" />

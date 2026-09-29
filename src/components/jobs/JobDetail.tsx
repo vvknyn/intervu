@@ -826,7 +826,8 @@ export function JobDetail({
 
                 {/* Title row */}
                 <div className="px-4 pb-3 pt-3 sm:px-6">
-                    <h2 className="font-display text-title-lg font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
+                    {/* page-scale-allow: a job's title heads its detail pane at the page-title step; the h1 is the list masthead */}
+                    <h2 className="font-display text-2xl font-semibold leading-tight text-balance text-foreground">{jobTitle}</h2>
                     {matchScore && (
                         <div className="mt-2">
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />

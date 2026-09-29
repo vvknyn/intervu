@@ -766,6 +766,37 @@ body:has([data-shell="bleed"]) {
   }
 }
 
+/* WRAP ROW — a row of controls that wraps without stranding its last control
+   on a line of its own (the /jobs "?" that dropped under "Get alerts" at
+   390px). Flex lines cannot be balanced, so the row lays its items out as
+   inline boxes and `text-wrap: balance` evens the lines. The gap is item
+   margin (`[--wrap-gap-x:…]` / `[--wrap-gap-y:…]` to change it): end margin
+   across, and half the row gap above and below each item (symmetric, so
+   `vertical-align: middle` still centres the item), which the row's own
+   negative block margin cancels at its top and bottom edges — so space the
+   row from its neighbours with padding, not an `m*-` utility (that would
+   replace the margin). @layer components, so an item's own display utility
+   (`hidden`, `lg:inline`) still wins — which is also why an item must not
+   be a block-level `flex`. tests/e2e/journeys/page-scale.spec.ts fails a
+   stranded control on any wrapping row. */
+@layer components {
+  .wrap-row {
+    --wrap-gap-x: 0.5rem;
+    --wrap-gap-y: 0.5rem;
+    text-wrap: balance;
+    margin-block: calc(-0.5 * var(--wrap-gap-y));
+  }
+  .wrap-row > * {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-inline-end: var(--wrap-gap-x);
+    margin-block: calc(0.5 * var(--wrap-gap-y));
+  }
+  .wrap-row > :last-child {
+    margin-inline-end: 0;
+  }
+}
+
 /* Heading typography */
 h1,
 h2,

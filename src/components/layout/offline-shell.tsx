@@ -5,6 +5,7 @@ import { BrandLockup } from "@/components/brand/BrandMark";
 import { AuthRaisedPanel } from "@/components/auth/auth-route-chrome";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/heading";
 
 function OfflineStatusPanel({
     onRetry,
@@ -16,7 +17,7 @@ function OfflineStatusPanel({
     return (
         <AuthRaisedPanel className="enter-reveal w-full max-w-100 text-center">
             <BrandLockup className="mx-auto w-fit" />
-            <h1 className="mt-4 text-title-sm font-semibold text-foreground">You&apos;re offline</h1>
+            <PageTitle className="mt-4">You&apos;re offline</PageTitle>
             <p className="mt-2 text-body-sm text-muted-foreground">
                 Check your connection, then try again. If the network is down, this page may not reload until
                 you&apos;re back online.

@@ -4,6 +4,9 @@ import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTabl
 import { LINKEDIN_JOBS_ALTERNATIVE, LINKEDIN_JOBS_ALTERNATIVE_FAQ } from "@/lib/seo/alternatives";
 import { buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { Prose } from "@/components/ui/prose";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = LINKEDIN_JOBS_ALTERNATIVE;
 
@@ -15,11 +18,10 @@ export const metadata: Metadata = {
 
 const faqJsonLd = buildFaqPageJsonLd(LINKEDIN_JOBS_ALTERNATIVE_FAQ);
 
-const ASEC = "mt-8 mb-3 text-xs font-semibold text-muted-foreground";
 
 export default function LinkedinJobsAlternativePage() {
   return (
-    <main data-testid="linkedin-jobs-alternative-page" className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+    <PageContainer measure="reading" data-testid="linkedin-jobs-alternative-page" className="py-10">
       {faqJsonLd && (
         <script
           type="application/ld+json"
@@ -27,14 +29,14 @@ export default function LinkedinJobsAlternativePage() {
         />
       )}
       <p className="text-xs font-semibold text-brand">LinkedIn Jobs alternative</p>
-      <h1 className="mt-3 font-display text-display font-semibold text-foreground">
+      <PageTitle className="mt-3">
         Easy Apply is a feeling. It isn&apos;t a reply.
-      </h1>
-      <p className="mt-1.5 text-sm italic text-muted-foreground">
+      </PageTitle>
+      <p className="mt-1.5 text-base text-muted-foreground">
         velai has no profile to polish and no badge that says you&apos;re a top applicant.
       </p>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
+      <Prose className="mt-6">
         <p>
           LinkedIn is good at people you already know. The job tab is a sidecar on a network that makes money
           when you linger. You post an update. You refresh the Open to Work photo. None of that tells you
@@ -49,14 +51,14 @@ export default function LinkedinJobsAlternativePage() {
           velai doesn&apos;t have profiles, banners, or a score for how well you match a paragraph that hasn&apos;t
           been touched in a year. We show what&apos;s on the career page and mark the ones that look stale.
         </p>
-      </article>
+      </Prose>
 
       <div className="mt-8">
         <BoardComparisonTable board="linkedin" />
       </div>
 
-      <article className="prose prose-sm mt-6 max-w-none dark:prose-invert">
-        <h2 className={ASEC}>Stay for the network if you want it</h2>
+      <Prose className="mt-6">
+        <SectionTitle>Stay for the network if you want it</SectionTitle>
         <p>
           If LinkedIn is how you hear about people, keep the account. Use velai when you want the jobs without
           the performance. Searching is free.{" "}
@@ -66,7 +68,7 @@ export default function LinkedinJobsAlternativePage() {
           Indeed is a different kind of leftover: paid ads that outlive the role.{" "}
           <Link href="/indeed-alternative">That write-up is separate</Link>.
         </p>
-      </article>
-    </main>
+      </Prose>
+    </PageContainer>
   );
 }

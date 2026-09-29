@@ -20,6 +20,7 @@ import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-ha
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED } from "@/lib/jobs/resume-privacy-copy";
+import { PageTitle } from "@/components/ui/heading";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
 
@@ -127,9 +128,9 @@ export function ConnectClient({
         <p className="mb-3 text-xs font-semibold text-muted-foreground">
           Model context protocol (MCP) and local agents
         </p>
-        <h1 className="font-display text-4xl font-semibold text-foreground">
+        <PageTitle>
           Connect your AI to live, verified job data
-        </h1>
+        </PageTitle>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground leading-relaxed">
           Query live ATS postings directly inside your favorite AI client with zero hallucinations.
           Screen out stale postings, compare true hiring rates, and analyze market trends.

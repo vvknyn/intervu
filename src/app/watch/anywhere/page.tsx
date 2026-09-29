@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PageTitle } from "@/components/ui/heading";
 
 // Overrides the parent watch/layout.tsx title ("Live Application Session"),
 // which is written for /watch/[id] and is wrong for this page.
@@ -26,7 +27,7 @@ export default function WatchAnywherePage() {
     return (
         <div className="min-h-dvh bg-background flex items-center justify-center p-6">
             <div className="max-w-sm space-y-6" data-testid="watch-anywhere-guide">
-                <h1 className="text-lg font-semibold text-foreground">Watch from anywhere</h1>
+                <PageTitle>Watch from anywhere</PageTitle>
                 <p className="text-sm text-muted-foreground">
                     Watch from anywhere runs over your own private network; nothing passes through
                     velai.

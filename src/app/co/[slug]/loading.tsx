@@ -31,8 +31,8 @@ export default function Loading() {
         <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
             {/* Real link, not a placeholder: it is the one control a waiting
                 visitor might actually want, and it costs no data to render. */}
-            <div className="border-b border-border bg-card px-4 py-3 sm:px-8 xl:px-10">
-                <nav className="mx-auto max-w-6xl xl:max-w-7xl text-xs text-muted-foreground">
+            <div className="border-b border-border bg-card py-3">
+                <nav className="shell-row text-xs text-muted-foreground">
                     <Link href="/jobs" className="text-brand hover:underline">
                         Find jobs
                     </Link>
@@ -42,7 +42,7 @@ export default function Loading() {
             <WaitState
                 label="Loading company page"
                 skeleton={
-                    <div className="mx-auto max-w-6xl xl:max-w-7xl px-4 py-8 pb-12 sm:px-8 sm:pb-16 xl:px-10">
+                    <div className="shell-row py-8 pb-12 sm:pb-16">
                         {/* Identity header — logo, name, one-liner, stage chip, and the
                             Follow control's slot on the right. */}
                         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
