@@ -1,9 +1,11 @@
 /**
- * On-device engine ladder — init only after user consent.
+ * On-device engine ladder — init only after user consent, enforced in
+ * `initLocalAiLadder`: every model load in the app goes through it.
  *
  * Order: Nano → WebLLM (WebGPU) → Transformers WASM → heuristic rules.
  */
 
+import { readLocalAiConsent } from "./consent";
 import { IDLE_MODEL_LOAD, reduceModelLoad, type ModelLoadEvent, type ModelLoadState } from "./model-load";
 import { nanoEngine } from "./engines/nano";
 import { transformersWasmEngine } from "./engines/transformers-wasm";
@@ -119,6 +121,8 @@ export async function probeBestDownload(): Promise<{ id: LocalAiEngineId; bytes:
  * background); `Infinity` waits for the model however long the download takes.
  */
 export async function initLocalAiLadder({ waitMs = INIT_TIMEOUT_MS }: { waitMs?: number } = {}): Promise<LocalAiEngineId> {
+    // The one consent gate: without it no engine is probed, inited or downloaded, whoever calls.
+    if (!readLocalAiConsent()) return "heuristic";
     if (activeEngine) return activeEngine.id;
 
     if (!initPromise) {

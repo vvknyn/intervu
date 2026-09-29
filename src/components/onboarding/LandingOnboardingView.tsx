@@ -137,7 +137,7 @@ export function LandingOnboardingView({
         };
     }, [step]);
 
-    // Silent background pre-warm of the local-ai ladder.
+    // Pre-warm for a visitor who already consented; without consent initLocalAiLadder loads nothing.
     useEffect(() => {
         let mounted = true;
         const prewarm = async () => {
