@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,7 +67,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-panel border-b-0 p-0",
+                    "mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -86,7 +86,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         </SheetClose>
                     </div>
                 </div>
-                <div className="space-y-3 px-5 py-4 pb-7">
+                <SheetBody className="space-y-3 px-5 py-4 pb-7">
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
                         <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={TRACKER_FIELD_CLASS} />
@@ -133,7 +133,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                             Cancel
                         </Button>
                     </div>
-                </div>
+                </SheetBody>
             </SheetContent>
         </Sheet>
     );

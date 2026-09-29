@@ -60,6 +60,7 @@ export function OfflineShell() {
 
     return (
         <div
+            /* dialog-primitive-exempt: offline state screen, no interactive content to scroll */
             className="fixed inset-0 z-[var(--z-toast)] flex flex-col items-center justify-center bg-background px-5 pb-12 poster-noise state-opacity-in"
             role="alert"
             data-testid="offline-shell"

@@ -125,6 +125,7 @@ export function TourOverlay() {
 
   return (
     <AnimatePresence>
+      {/* dialog-primitive-exempt: pointer-events-none spotlight layer, not a dialog */}
       <div className="fixed inset-0 z-[200] pointer-events-none">
         <svg
           className="absolute inset-0 w-full h-full pointer-events-auto"

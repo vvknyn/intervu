@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogHeader,
     DialogTitle,
@@ -127,7 +128,7 @@ export function FirstTimeOnboardingModal({
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
             <DialogContent
-                className="max-w-xl p-0 overflow-hidden rounded-panel border border-border bg-card"
+                className="max-w-xl p-0 rounded-panel border border-border bg-card"
                 showCloseButton={false}
             >
                 <div className="sr-only">
@@ -165,6 +166,7 @@ export function FirstTimeOnboardingModal({
                     />
                 </div>
 
+                <DialogBody>
                 {/* Step 1: Tour & Value Proposition */}
                 {step === 1 && (
                     <div className="p-6 sm:p-7 space-y-6">
@@ -444,6 +446,7 @@ export function FirstTimeOnboardingModal({
                         </div>
                     </div>
                 )}
+                </DialogBody>
             </DialogContent>
         </Dialog>
     );

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
     Dialog,
+    DialogBody,
     DialogContent,
     DialogDescription,
     DialogFooter,
@@ -89,7 +90,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[700px] max-h-[90dvh] flex flex-col overflow-hidden">
+            <DialogContent className="sm:max-w-[700px]">
                 <DialogHeader className="pr-8">
                     <div className="flex items-center justify-between mb-2">
                         <DialogTitle>{story ? 'Edit Story' : 'New STAR Story'}</DialogTitle>
@@ -117,7 +118,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4 px-1">
+                <DialogBody className="py-4 px-1">
                     {step === 'refine' && (
                         <div className="space-y-6">
                             <div className="grid gap-6">
@@ -262,7 +263,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                             {/* Future: Tags input could go here */}
                         </div>
                     )}
-                </div>
+                </DialogBody>
 
                 <DialogFooter className="border-t pt-4">
                     {step === 'refine' ? (

@@ -428,7 +428,7 @@ export default function PursuitDetailPage() {
             </div>
 
             <Sheet open={detail.open} onOpenChange={(open) => setDetail((d) => ({ ...d, open }))}>
-                <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto custom-scrollbar rounded-t-panel p-0">
+                <SheetContent side="bottom" className="custom-scrollbar rounded-t-panel p-0">
                     <SheetTitle className="sr-only">
                         {pursuit.position} at {companyName}
                     </SheetTitle>

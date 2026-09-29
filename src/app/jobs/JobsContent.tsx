@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -5678,6 +5678,7 @@ export function JobsContent({
         >
             {firstRevealHandoff ? (
                 <div
+                    /* dialog-primitive-exempt: decorative aria-hidden handoff veil, not a dialog */
                     className="first-pack-reveal-handoff fixed inset-0 z-[var(--z-modal)]"
                     aria-hidden
                     data-testid="first-pack-reveal-handoff"
@@ -6174,13 +6175,13 @@ export function JobsContent({
                         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
                             <SheetContent
                                 side="bottom"
-                                className="mx-auto max-h-[85dvh] w-full max-w-[720px] overflow-hidden border-border p-0"
+                                className="mx-auto w-full max-w-[720px] border-border p-0"
                             >
                                 <SheetTitle className="sr-only">Filters</SheetTitle>
-                                <div
+                                <SheetBody
                                     id="filters-panel"
                                     data-testid="filters-panel"
-                                    className="max-h-[85dvh] overflow-y-auto overscroll-contain bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
+                                    className="bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {renderFiltersPanel()}
                                     {/* Same reachability gap as the desktop inline panel
@@ -6189,7 +6190,7 @@ export function JobsContent({
                                     <div className="mt-3 border-t border-border pt-3">
                                         <FooterLinks />
                                     </div>
-                                </div>
+                                </SheetBody>
                             </SheetContent>
                         </Sheet>
                     ) : null}
@@ -7204,7 +7205,7 @@ export function JobsContent({
                 <SheetContent
                     side="bottom"
                     hideCloseButton
-                    className="left-1/2 flex max-h-[min(88dvh,760px)] w-full max-w-[720px] -translate-x-1/2 flex-col overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
+                    className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
                     <div className="shrink-0 border-b border-border">
                         <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">

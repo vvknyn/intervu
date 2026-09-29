@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBody, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,7 +53,7 @@ export function PursuitDetailSheet({
                 side="bottom"
                 hideCloseButton
                 className={cn(
-                    "mx-auto max-h-[min(88dvh,760px)] max-w-[720px] overflow-y-auto rounded-t-panel border-b-0 p-0",
+                    "mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0",
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
@@ -163,7 +163,7 @@ function PursuitDetailBody({
                     </SheetClose>
                 </div>
             </div>
-            <div className="space-y-4 px-5 py-4 pb-7">
+            <SheetBody className="space-y-4 px-5 py-4 pb-7">
                 <div className="flex flex-wrap" role="group" aria-label="Status">
                     {TRACKER_LANE_STAGES.map(({ stage, label }) => (
                         <TabItem
@@ -277,7 +277,7 @@ function PursuitDetailBody({
                 {!hasResumeLinked(pursuit) && (
                     <p className="text-xs text-muted-foreground">No resume version on file for this application.</p>
                 )}
-            </div>
+            </SheetBody>
         </>
     );
 }
