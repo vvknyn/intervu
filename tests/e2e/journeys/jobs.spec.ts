@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -272,6 +272,34 @@ test("going back to the packs hub keeps the tile counts it had, without counting
     expect(await Promise.all(tiles.map((id) => count(id).textContent()))).toEqual(before);
     await page.waitForTimeout(100);
   }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("signed out, the packs hub keeps a place for the tracker and Recently viewed under the tiles, with one sign-in gate back to the hub", { tag: ["@J-JOBS-41"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-card-all")).toBeVisible({ timeout: 30_000 });
+
+  const band = page.getByTestId("hub-your-jobs");
+  await expect(band).toBeVisible({ timeout: 30_000 });
+  await expect(band).toHaveAttribute("data-signed-in", "false");
+  // Under the tiles, not above them.
+  const tilesBottom = (await page.getByTestId("hub-pack-card-all").boundingBox())!.y;
+  expect((await band.boundingBox())!.y).toBeGreaterThan(tilesBottom);
+  for (const id of ["hub-tracker-placeholder", "hub-recent-placeholder"]) await expect(band.getByTestId(id)).toBeVisible();
+  // Placeholders only: no rows, loaders or empty states of a signed-in account.
+  await expect(band.getByTestId("hub-tracker-row")).toHaveCount(0);
+  await expect(band.getByTestId("hub-recent-row")).toHaveCount(0);
+
+  const gate = band.getByTestId("signup-gate");
+  await expect(gate).toHaveCount(1);
+  await expect(gate).toHaveAttribute("data-gate-reason", "tracker");
+  const signIn = new URL((await gate.getByTestId("signup-gate-signin").getAttribute("href"))!, "https://velai.app");
+  expect(signIn.pathname).toBe("/login");
+  expect(signIn.searchParams.get("next")).toMatch(/^\/jobs\?(.*&)?view=for-you/);
+  expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 

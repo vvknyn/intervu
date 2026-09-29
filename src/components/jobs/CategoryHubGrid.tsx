@@ -745,6 +745,8 @@ export interface CategoryHubGridProps {
     hubCorpusLine?: string | null;
     /** Honest removal cue when prior known pack counts shrink. */
     hubRemovalsLine?: string | null;
+    /** Rendered under the pack tiles — the packs hub puts the visitor's tracker and Recently viewed here. */
+    footer?: React.ReactNode;
     className?: string;
 }
 
@@ -764,6 +766,7 @@ export function CategoryHubGrid({
     hubMatching = false,
     hubCorpusLine = null,
     hubRemovalsLine = null,
+    footer,
     className,
 }: CategoryHubGridProps) {
     const router = useRouter();
@@ -1097,6 +1100,8 @@ export function CategoryHubGrid({
                     );
                 })}
             </div>
+
+            {footer}
 
             {/* Comprehensive Category Job Listings Modal — standalone fallback only.
                 When parent provides onSelectCategory (packs home), pack taps open
