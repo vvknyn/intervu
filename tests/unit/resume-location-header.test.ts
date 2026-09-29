@@ -35,8 +35,9 @@ const POSITIVE: { name: string; header: string[]; expect: string }[] = [
 
 /**
  * A bare city, or a place whose country is not named in English, needs a
- * dictionary (the 4 MB gazetteer is server-only). Until one ships to the
- * browser these stay empty — never a guess.
+ * dictionary (the 4 MB gazetteer is server-only), so the location stays
+ * empty — never a guess. A bare city on a contact line becomes a question
+ * for the user instead (resume-bare-city-confirm.test.ts).
  */
 const UNRECOGNISED: { name: string; header: string[] }[] = [
     { name: "CJK", header: ["東京, 日本"] },

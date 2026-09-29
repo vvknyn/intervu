@@ -107,6 +107,7 @@ import {
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
+import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
 import { isThinResults } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -4802,6 +4803,17 @@ export function JobsContent({
         importOpen,
     ]);
 
+    /** The one save path for an edit to the résumé already on file. */
+    const updateResume = (updatedResume: ResumeData) => {
+        setResume(updatedResume);
+        const updatedAt = new Date().toISOString();
+        setResumeUpdatedAt(updatedAt);
+        if (user) {
+            void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
+        }
+        writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
+    };
+
     const handleImport = (
         data: ResumeData,
         source: "pdf" | "docx" | "text",
@@ -6276,6 +6288,7 @@ export function JobsContent({
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
+                        <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
                         {forYouPackDeckOpen && (
                             <div className="mb-2 flex shrink-0 items-center justify-between">
                                 <button
@@ -6308,15 +6321,7 @@ export function JobsContent({
                                     // on fit. A usable résumé still ranks when it arrives.
                                     void resolveAndApplyFit();
                                 }}
-                                onUpdateResume={(updatedResume) => {
-                                    setResume(updatedResume);
-                                    const updatedAt = new Date().toISOString();
-                                    setResumeUpdatedAt(updatedAt);
-                                    if (user) {
-                                        void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
-                                    }
-                                    writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
-                                }}
+                                onUpdateResume={updateResume}
                                 onTailorApply={(job) => {
                                     submitSearch(job.title);
                                 }}

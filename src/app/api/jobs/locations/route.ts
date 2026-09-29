@@ -19,7 +19,7 @@
  * exist when we simply failed to look.
  */
 import { NextResponse } from "next/server";
-import { loadGazetteer } from "@/lib/geo/gazetteer";
+import { cityPlaceLabels, loadGazetteer } from "@/lib/geo/gazetteer";
 import { fetchFacetSearch, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import {
     applyLabelPrefix,
@@ -41,9 +41,12 @@ import type { FacetHit } from "@/lib/geo/corpus-values";
 
 export interface LocationSuggestResponse {
     groups: LocationSuggestGroup[];
+    /** Places named exactly `q`, as "City, Region, Country" (`cityPlaceLabels`) —
+     *  what a résumé's bare city could be, for the user to confirm. */
+    places: string[];
 }
 
-const EMPTY: LocationSuggestResponse = { groups: [] };
+const EMPTY: LocationSuggestResponse = { groups: [], places: [] };
 
 export function jobsLocationRateLimitedBody(): LocationSuggestResponse & { rate_limited: true } {
     return { ...EMPTY, rate_limited: true };
@@ -133,7 +136,7 @@ export async function GET(request: Request): Promise<NextResponse> {
         : await buildPlaceGroups(plan);
 
     return NextResponse.json(
-        { groups } satisfies LocationSuggestResponse,
+        { groups, places: cityPlaceLabels(q, loadGazetteer()) } satisfies LocationSuggestResponse,
         { headers: { "Cache-Control": "public, max-age=600, stale-while-revalidate=3600" } },
     );
 }

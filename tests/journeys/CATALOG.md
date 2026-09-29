@@ -341,6 +341,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-26 | Render /resume at mobile width with 44px touch targets | anon | /resume (375x667) | signed-out | no | uncovered | — |
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé without skipping the model: quick match opens at once, the model download shows MB of the measured size and its stages advance (or Skip keeps the quick match) | anon | /resume → Upload résumé (model fetch mocked) | signed-out | no | covered | resume-wait.spec.ts |
+| J-RESUME-29 | A résumé whose contact line names a bare city (no region/country) asks on For-you which place it is — Yes / a candidate saves it as the location, No / None of these leaves it blank; no guess, no filter until answered | anon | /jobs → Upload résumé → For-you | signed-out | no | covered | resume-bare-city.spec.ts |
 
 ## SETTINGS
 

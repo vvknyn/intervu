@@ -7,6 +7,12 @@ export interface ResumeProfile {
     phone: string;
     linkedin?: string;
     website?: string;
+    /**
+     * Bare place names from the contact line ("Mississauga") that name no
+     * region or country, so `location` stayed blank. Never a location or a
+     * filter until the user confirms which place it is.
+     */
+    unconfirmedPlaces?: string[];
 }
 
 /** Every section `getSectionOrder` can place — the one place this set is

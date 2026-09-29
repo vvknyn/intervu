@@ -95,6 +95,16 @@ export function isLikelyPlaceSegment(segment: string): boolean {
     return marked || namesRegion(parts) || (parts.length === 1 && AREA_RE.test(parts[0]));
 }
 
+/**
+ * A one-part place with none of that evidence ("Mississauga", "London") —
+ * or "". Not the candidate's location: the name may be several places, or
+ * none ("TypeScript"), until the user confirms which.
+ */
+export function barePlaceOf(segment: string): string {
+    const { parts } = parsePlaceSegment(segment);
+    return parts.length === 1 && !isLikelyPlaceSegment(segment) ? parts[0] : "";
+}
+
 /** True when `segment` looks like a city/region/country fragment, not prose. */
 export function looksLikeRealPlaceSegment(segment: string): boolean {
     const { parts } = parsePlaceSegment(segment);
