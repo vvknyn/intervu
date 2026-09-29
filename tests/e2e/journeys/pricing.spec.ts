@@ -55,12 +55,20 @@ test("the founding-seat button links to Stripe, or is inert while unconfigured",
   const cta = page.getByTestId("pricing-founding-cta");
   await expect(cta).toBeVisible();
   const href = await cta.getAttribute("href");
+  const pro = page.getByTestId("pricing-plan-pro");
   if (href) {
     expect(href).toMatch(/^https:\/\/buy\.stripe\.com\//);
     await expect(cta).toHaveText("Take a founding seat");
+    await expect(pro).toContainText("Founding seats open");
+    await expect(page.getByTestId("pricing-page")).toContainText("seats are open now");
   } else {
     await expect(cta).toBeDisabled();
     await expect(cta).toHaveText("Founding seats open soon");
+    // The headline and badge must not promise what the button withholds
+    // (release 7 said "open now" over an "open soon" button).
+    await expect(pro).toContainText("Founding seats soon");
+    await expect(page.getByTestId("pricing-page")).toContainText("seats open soon");
+    await expect(page.getByTestId("pricing-page")).not.toContainText("are open now");
   }
   expect(diagnostics.serverErrors).toEqual([]);
 });

@@ -65,6 +65,19 @@ describe("/pricing branches say the right thing", () => {
     assert.doesNotMatch(without, /buy\.stripe\.com/);
   });
 
+  it("the headline and the Pro badge agree with the button about whether seats are open", () => {
+    // Release 7 shipped "seats are open now" over a "Founding seats open soon"
+    // button while the Stripe link was unset; the page contradicted itself.
+    const without = render({ signedIn: false, checkoutUrl: null, paidSessionId: null });
+    assert.match(without, /Pro seats open soon at a one-off price/);
+    assert.match(without, /Founding seats soon/);
+    assert.doesNotMatch(without, /are open now/);
+    const withLink = render({ signedIn: false, checkoutUrl: STRIPE, paidSessionId: null });
+    assert.match(withLink, /Pro seats are open now at a one-off price/);
+    assert.match(withLink, /Founding seats open</);
+    assert.doesNotMatch(withLink, /open soon/);
+  });
+
   it("the thank-you shows only on a paid return", () => {
     assert.match(render({ signedIn: true, checkoutUrl: null, paidSessionId: "cs_test_abc123" }), /You have a founding seat/);
     assert.doesNotMatch(render({ signedIn: true, checkoutUrl: null, paidSessionId: null }), /You have a founding seat/);
