@@ -210,8 +210,7 @@ export function LandingOnboardingView({
                     <div className="space-y-3">
                         <Button
                             type="button"
-                            size="lg"
-                            className="w-full gap-2.5 text-sm font-semibold"
+                            className="w-full gap-2.5"
                             onClick={() => redirectToAuthStart("login", "GoogleOAuth")}
                         >
                             <svg className="h-4 w-4" viewBox="0 0 24 24" aria-hidden>
@@ -225,8 +224,7 @@ export function LandingOnboardingView({
                         <Button
                             type="button"
                             variant="outline"
-                            size="lg"
-                            className="w-full text-sm font-semibold"
+                            className="w-full"
                             onClick={() => redirectToAuthStart("login")}
                         >
                             Continue with email
@@ -291,7 +289,7 @@ export function LandingOnboardingView({
                             <Button
                                 size="sm"
                                 onClick={() => setStep(3)}
-                                className="gap-1.5 text-xs font-semibold"
+                                className="gap-1.5"
                             >
                                 Next: Upload résumé <ArrowRight size={16} />
                             </Button>
@@ -350,9 +348,8 @@ export function LandingOnboardingView({
                                 <div className="flex items-center justify-between pt-1.5 border-t border-border">
                                     <Button
                                         variant="outline"
-                                        size="lg"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs"
+                                        className="gap-1.5"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -360,7 +357,7 @@ export function LandingOnboardingView({
                                     <Button
                                         size="sm"
                                         onClick={handleFinalSubmit}
-                                        className="gap-1.5 text-xs font-semibold"
+                                        className="gap-1.5"
                                     >
                                         <Sparkle size={16} />
                                         Save &amp; Start matching roles
@@ -481,9 +478,8 @@ export function LandingOnboardingView({
                                 <div className="flex items-center justify-between pt-2 border-t border-border">
                                     <Button
                                         variant="outline"
-                                        size="lg"
                                         onClick={() => setStep(2)}
-                                        className="gap-1.5 text-xs"
+                                        className="gap-1.5"
                                     >
                                         <ArrowLeft size={16} /> Back
                                     </Button>
@@ -493,7 +489,6 @@ export function LandingOnboardingView({
                                             variant="outline"
                                             size="sm"
                                             onClick={handleFinalSubmit}
-                                            className="text-xs"
                                         >
                                             Browse without résumé
                                         </Button>

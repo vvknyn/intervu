@@ -12,7 +12,9 @@ const COMPANY = join(__dirname, "../../src/components/company");
  * Tap targets: the 44px touch floor is the coarse-pointer hit area every control
  * gets (globals.css, gated by tests/unit/control-scale.test.ts), so these
  * assert a control-scale `size` step shared by the row, never a hand-rolled
- * `min-h-11` visual.
+ * `min-h-11` visual. A button sits on the md step (no `size`, the default): the
+ * 44px step is for fields and the /jobs Search submit only (2026-09-29,
+ * tests/unit/control-type.test.ts).
  */
 function buttonBlock(src: string, testid: string): string {
     const at = src.search(new RegExp(`\\sdata-testid="${testid}"`)); // the JSX attribute, not a selector string
@@ -33,7 +35,7 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /<JobCard/);
         assert.doesNotMatch(src, /data-testid="for-you-next"/);
         assert.doesNotMatch(src, /data-testid="for-you-previous"/);
-        assert.deepEqual(sizesOf(src, "for-you-download-apply", "for-you-skip"), ["lg", "lg"]);
+        assert.deepEqual(sizesOf(src, "for-you-download-apply", "for-you-skip"), [undefined, undefined]);
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
@@ -102,7 +104,7 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /data-testid="job-packs-hub"/);
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /touch-manipulation/);
-        assert.deepEqual(sizesOf(src, "hub-browse-all-matches"), ["lg"]);
+        assert.deepEqual(sizesOf(src, "hub-browse-all-matches"), [undefined]);
         assert.match(src, /min-h-\[5\.75rem\]/);
     });
 
@@ -110,7 +112,7 @@ describe("for-you mobile chrome", () => {
         const src = readFileSync(join(JOBS, "ApplyReturnPrompt.tsx"), "utf8");
         assert.match(src, />\s*Yes\s*</);
         assert.match(src, />\s*Not yet\s*</);
-        assert.deepEqual(sizesOf(src, "apply-return-mark-applied", "apply-return-not-yet", "apply-return-skip"), ["lg", "lg", "lg"]);
+        assert.deepEqual(sizesOf(src, "apply-return-mark-applied", "apply-return-not-yet", "apply-return-skip"), [undefined, undefined, undefined]);
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /aria-live="polite"/);
         assert.doesNotMatch(src, />\s*I applied\s*</);

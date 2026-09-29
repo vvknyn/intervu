@@ -117,7 +117,7 @@ export function LocalAiSettingsSection() {
                                 variant="outline"
                                 onClick={() => void handleDownloadModel()}
                                 disabled={isDownloading}
-                                className="shrink-0 rounded-ctl text-xs font-semibold"
+                                className="shrink-0"
                             >
                                 <DownloadSimple size={16} className="mr-1.5" />
                                 {isDownloading ? "Downloading model…" : "Download on-device model"}

@@ -334,6 +334,7 @@ function CopyUrlBar() {
             <button
                 type="button"
                 onClick={handleCopy}
+                // control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI
                 className="shrink-0 rounded-none border-l-2 border-foreground ctl-lg px-3 text-xs font-semibold text-foreground transition hover:bg-muted"
             >
                 {copied ? "Copied" : "Copy"}
@@ -480,7 +481,7 @@ function MockJobDetail({
                             type="button"
                             aria-label="Close"
                             onClick={onClose}
-                            className="ctl-md ctl-square flex shrink-0 items-center justify-center rounded-lg border border-border bg-card text-base text-muted-foreground hover:text-foreground"
+                            className="ctl-md ctl-button ctl-square flex shrink-0 items-center justify-center border border-border bg-card text-muted-foreground hover:text-foreground"
                         >
                             ×
                         </button>
@@ -709,6 +710,7 @@ export function CompletenessMock() {
                                     aria-label="Location search"
                                     className="ctl-lg max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
+                                {/* control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI */}
                                 <Button size="lg" className="rounded-none bg-[#ececec] px-[18px] text-xs font-semibold text-[#12151a] hover:opacity-90">
                                     Search
                                 </Button>
@@ -719,6 +721,7 @@ export function CompletenessMock() {
                                     aria-expanded={filtersOpen}
                                     onClick={() => setFiltersOpen((v) => !v)}
                                     className={cn(
+                                        // control-type-allow: decorative mock of the retired dark 0-radius skin (design-lint-allow-file), not product UI
                                         "rounded-none border-0 bg-black px-3 ctl-md text-xs text-[#ececec]",
                                         filtersOpen && "bg-[#ececec] text-[#12151a]",
                                     )}
@@ -917,7 +920,7 @@ export function CompletenessMock() {
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="shrink-0 px-2.5 text-xs text-muted-foreground hover:text-destructive"
+                                            className="shrink-0 px-2.5 text-muted-foreground hover:text-destructive"
                                             onClick={() => revokeCredential(cred.id)}
                                         >
                                             <Trash size={13} />

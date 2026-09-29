@@ -27,7 +27,7 @@ export interface BroadenOptionsProps extends Pick<ResolveBroadenInput, "search">
  */
 export function BroadenOptions({ state, total, ctx, search, onApply, className, testId = "broaden-options" }: BroadenOptionsProps) {
     const [options, setOptions] = useState<BroadenOption[]>([]);
-    const key = `${serializeJobsUrl(state)}|${total}|${ctx?.autoLocationLabel ?? ""}|${JSON.stringify(ctx?.relocation ?? null)}`;
+    const key = `${serializeJobsUrl(state)}|${total}|${ctx?.autoLocationLabel ?? ""}|${JSON.stringify(ctx?.relocation ?? null)}|${Boolean(ctx?.locationRequired)}`;
 
     useEffect(() => {
         let live = true;
@@ -55,7 +55,8 @@ export function BroadenOptions({ state, total, ctx, search, onApply, className, 
                             <span className="text-muted-foreground">{option.count.toLocaleString()} roles</span>
                         </>
                     );
-                    const cls = chipVariants({ interactive: true });
+                    // A chip that is a control takes the button face's type (globals.css `.ctl-button`); the chip keeps its pill.
+                    const cls = cn(chipVariants({ interactive: true }), "ctl-button");
                     return onApply ? (
                         <button
                             key={option.id}

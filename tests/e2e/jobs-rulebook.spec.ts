@@ -37,7 +37,8 @@ const SEARCH_URL = '/jobs?q=product+manager';
 // ---- Rulebook constants (ONE block; every check below reads these, no
 // per-element special-casing beyond the [data-rulebook-exempt] attribute). ----
 const ALLOWED_SIZES = new Set([12, 14, 16, 20]);
-const ALLOWED_WEIGHTS = new Set([400, 600]);
+// 500 is the button face (globals.css `--control-weight`, 2026-09-29).
+const ALLOWED_WEIGHTS = new Set([400, 500, 600]);
 const FIXED_PALETTE_HEX = ['#0A0A0A', '#525252', '#002FA7', '#8D8D8D', '#B45309', '#DA1E28', '#FFFFFF'];
 const SPACING_SCALE = new Set([0, 2, 4, 8, 12, 16, 24, 32, 40, 48]);
 const SPACING_PROPS = [

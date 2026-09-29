@@ -219,7 +219,32 @@ export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefin
     return { kind: "floor", value: max };
 }
 
-/** Role pill from a corpus `CorpusCount` — never from browse page hits or fit-probe samples. */
+/**
+ * Pack counts for a résumé visitor. Every tile opens the résumé's pack list
+ * (`packFilters`), so every tile counts inside that list: "all" is the list's
+ * total, each other pack is `jobMatchesHubPack` over the list rows fetched so
+ * far. Exact once those rows are the whole list, a floor before that.
+ */
+export function resumeHubPackCounts(input: {
+    listTotal: CorpusCount;
+    listJobs: PublicJob[];
+    nowMs?: number;
+}): Record<HubPackId, CorpusCount> {
+    const nowMs = input.nowMs ?? Date.now();
+    const whole = input.listTotal.kind === "exact" && input.listJobs.length >= input.listTotal.value;
+    const out = {} as Record<HubPackId, CorpusCount>;
+    for (const packId of HUB_PACK_IDS) {
+        if (packId === "all") {
+            out[packId] = input.listTotal;
+            continue;
+        }
+        const value = input.listJobs.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
+        out[packId] = { kind: whole ? "exact" : "floor", value };
+    }
+    return out;
+}
+
+/** Role pill from a `CorpusCount` — never from browse page hits. */
 export function formatHubPackCorpusRoleLabel(count: CorpusCount | null | undefined): string {
     if (count == null) return HUB_PACK_CORPUS_COUNT_LOADING;
     const n = Math.floor(count.value);

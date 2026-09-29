@@ -120,7 +120,7 @@ function FacetChip({
                 className={cn(
                     chipVariants({ active: activeValue != null, interactive: true }),
                     toolbarControlHeight,
-                    "inline-flex box-border items-center justify-center text-xs leading-none px-3 lg:px-2",
+                    "ctl-button inline-flex box-border items-center justify-center leading-none px-3 lg:px-2",
                 )}
             >
                 {activeValue ? `${label} · ${activeValue}` : label}

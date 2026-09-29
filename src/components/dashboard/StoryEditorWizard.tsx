@@ -206,6 +206,7 @@ export function StoryEditorWizard({ isOpen, onClose, story, onSave }: StoryEdito
                                             ).map((q, i) => (
                                                 <button
                                                     key={i}
+                                                    // control-type-allow: a full-width row of the suggestion list under the field (a menu item), not a button face
                                                     className="ctl-md w-full text-left px-3 text-sm rounded-none hover:bg-muted hover:text-brand transition-colors text-foreground"
                                                     onMouseDown={(e) => {
                                                         e.preventDefault();

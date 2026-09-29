@@ -10,6 +10,7 @@ import {
     EMAIL_RE,
     LINKEDIN_RE,
     PHONE_RE,
+    barePlaceOf,
     extractWebsite,
     isContactOrPlaceLine,
     isLikelyPlaceSegment,
@@ -374,6 +375,16 @@ function extractContact(lines: string[]): Partial<ResumeProfile> {
     return { email, phone, linkedin, website };
 }
 
+const CONTACT_DATA_RES = [EMAIL_RE, PHONE_RE, LINKEDIN_RE];
+
+/** A line's `·` `|` `•` segments with its email, phone and LinkedIn removed. */
+function placeSegments(line: string): string[] {
+    return CONTACT_DATA_RES.reduce((s, re) => s.replace(re, ""), line)
+        .replace(/\s+/g, " ")
+        .trim()
+        .split(/[·|•]/);
+}
+
 function placeCandidatesFromLines(lines: string[]): string[] {
     const candidates: string[] = [];
     for (const line of lines) {
@@ -381,16 +392,9 @@ function placeCandidatesFromLines(lines: string[]): string[] {
         if (BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) continue;
         if (INSTITUTION_RE.test(line)) continue;
 
-        const cleaned = line
-            .replace(EMAIL_RE, "")
-            .replace(PHONE_RE, "")
-            .replace(LINKEDIN_RE, "")
-            .replace(/\s+/g, " ")
-            .trim();
-
         // A dash joins a qualifier to its place ("Remote — Austin, TX") or a
         // name to it ("Jane Doe — Calgary, Alberta"): the whole segment first.
-        for (const seg of cleaned.split(/[·|•]/)) {
+        for (const seg of placeSegments(line)) {
             const place = [seg, ...seg.split(/\s[—–]\s/)].find((part) => isLikelyPlaceSegment(part));
             if (place) candidates.push(sanitizeLocation(place));
         }
@@ -414,12 +418,32 @@ function longestPlace(candidates: string[]): string {
  * not places.
  */
 function extractLocation(lines: string[]): string {
+    const header = headerLinesOf(lines);
+    return (
+        longestPlace(placeCandidatesFromLines(header)) ||
+        longestPlace(placeCandidatesFromLines(lines.slice(header.length)))
+    );
+}
+
+/** Lines above the first section header. */
+function headerLinesOf(lines: string[]): string[] {
     const headerEnd = lines.findIndex((line) => isSectionHeader(line));
-    const headerLines = headerEnd === -1 ? lines : lines.slice(0, headerEnd);
-    const fromHeader = longestPlace(placeCandidatesFromLines(headerLines));
-    if (fromHeader) return fromHeader;
-    if (headerEnd === -1) return "";
-    return longestPlace(placeCandidatesFromLines(lines.slice(headerEnd)));
+    return headerEnd === -1 ? lines : lines.slice(0, headerEnd);
+}
+
+/**
+ * Bare place names ("Mississauga") beside the email / phone / LinkedIn in
+ * the header — the user confirms which place each is before it becomes a
+ * location. Name and headline lines carry no contact data, so "Jane Doe"
+ * is never asked about.
+ */
+function barePlacesFromHeader(lines: string[]): string[] {
+    const places = headerLinesOf(lines)
+        .filter((line) => CONTACT_DATA_RES.some((re) => re.test(line)))
+        .flatMap(placeSegments)
+        .map(barePlaceOf)
+        .filter(Boolean);
+    return [...new Set(places)];
 }
 
 /** City/region from plain résumé text. Empty when the text has no real place. */
@@ -627,6 +651,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     const lines = normalizeLines(text);
     const contact = extractContact(lines);
     const location = sanitizeLocation(extractLocation(lines));
+    const unconfirmedPlaces = location ? [] : barePlacesFromHeader(lines);
 
     let name = "";
     let profession = "";
@@ -706,6 +731,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
             phone: contact.phone ?? "",
             linkedin: contact.linkedin ?? "",
             website: contact.website ?? "",
+            ...(unconfirmedPlaces.length > 0 ? { unconfirmedPlaces } : {}),
         },
         experience,
         projects,

@@ -48,18 +48,18 @@ export function SignupGate({
             <h2 className="text-base font-semibold leading-snug text-foreground">{copy.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
             <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button asChild size="lg">
+                <Button asChild>
                     <a data-testid="signup-gate-create" href={hrefs.create} onClick={onEngage}>
                         {copy.createLabel}
                     </a>
                 </Button>
-                <Button asChild size="lg" variant="outline">
+                <Button asChild variant="outline">
                     <a data-testid="signup-gate-signin" href={hrefs.signIn} onClick={onEngage}>
                         {copy.signInLabel}
                     </a>
                 </Button>
                 {onDismiss && (
-                    <Button type="button" size="lg" variant="ghost" data-testid="signup-gate-dismiss" onClick={onDismiss}>
+                    <Button type="button" variant="ghost" data-testid="signup-gate-dismiss" onClick={onDismiss}>
                         Not now
                     </Button>
                 )}

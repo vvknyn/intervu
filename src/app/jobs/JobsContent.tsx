@@ -107,7 +107,8 @@ import {
     DEFAULT_LOCATION_CHIP_KEY,
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
-import { isThinResults } from "@/lib/jobs/broaden";
+import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
+import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
@@ -329,7 +330,8 @@ import {
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
+import { HUB_FILTER_TILE_IDS, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -338,6 +340,7 @@ import {
     formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
+    resumeHubPackCounts,
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
@@ -492,7 +495,7 @@ function ToolbarSegment({
             onClick={onClick}
             title={title}
             className={cn(
-                "ctl-md inline-flex box-border items-center justify-center gap-2 rounded-ctl px-3 text-sm font-semibold leading-none transition-all duration-150 text-foreground",
+                "ctl-md ctl-button inline-flex box-border items-center justify-center gap-2 px-3 leading-none transition-all duration-150 text-foreground",
                 pressed && "underline underline-offset-2",
             )}
         >
@@ -588,7 +591,8 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     data-testid="serp-ask-seed"
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
-                    className="ctl-md inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-xs text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
+                    // control-type-allow: a seed suggestion chip keeps the chip pill; its type still comes from the step
+                    className="ctl-md ctl-button inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
                 >
                     {seed}
                 </button>
@@ -630,7 +634,7 @@ function JobsTourReplayButton() {
                         onClick={() => startTour()}
                         className={cn(
                             toolbarControlHeight,
-                            "ctl-square inline-flex shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                            "ctl-button ctl-square inline-flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
                         )}
                     >
                         <Question size={16} weight="bold" aria-hidden />
@@ -1745,6 +1749,8 @@ export function JobsContent({
         };
     }, [uid]);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
+    // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
+    const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
     const [importOpen, setImportOpen] = useState(false);
     const importOpenRef = useRef(importOpen);
     importOpenRef.current = importOpen;
@@ -1825,6 +1831,8 @@ export function JobsContent({
     // For a résumé holder the "All" pill opens the résumé-filtered pack, so it
     // counts that pack (the probe's own search), not the unfiltered corpus.
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
+    // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
+    const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -2906,16 +2914,23 @@ export function JobsContent({
     // resize-clamp would zero the index before the user ever came back.
     // Band-first pack order (Strong → Good → Stretch, unscored last) with
     // target-title relevance inside each band — see orderForYouJobsByBand.
+    // An open row tile (AI, Tech for good…) shows only the pack rows it counts (hub-tiles.ts).
+    const openHubTileId =
+        forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
     const forYouPacks = useMemo(
         () =>
-            orderForYouJobsByBand(
-                renderedClusters
-                    .map((c) => c.primary)
-                    .filter(hasLiveApplyUrl),
-                matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                result?.effectiveQ,
+            hubTileRows(
+                orderForYouJobsByBand(
+                    renderedClusters
+                        .map((c) => c.primary)
+                        .filter(hasLiveApplyUrl),
+                    matchScores ? (job) => matchScores.get(job.id) ?? null : null,
+                    result?.effectiveQ,
+                ),
+                openHubTileId,
+                nowMs,
             ),
-        [renderedClusters, result?.effectiveQ, matchScores],
+        [renderedClusters, result?.effectiveQ, matchScores, openHubTileId, nowMs],
     );
     const forYouDeck = useForYouDeck(forYouPacks);
 
@@ -3002,7 +3017,7 @@ export function JobsContent({
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals) {
+        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
             return;
         }
         let cancelled = false;
@@ -3012,12 +3027,13 @@ export function JobsContent({
             probing: true,
             removalsLine: null,
         }));
+        setHubFilterTileCounts({});
 
         void (async () => {
             try {
                 const previous = readHubCountBaseline();
-                // The pack's own filters (seniority, country, remote): the probe counts what the packs retrieve.
-                const { q, facets: merged } = packFilters(resume, signals);
+                // The pack's own search params: the probe counts what the packs retrieve.
+                const packParams = packSearchParams(pack);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let unavailableRetries = 0;
@@ -3025,15 +3041,7 @@ export function JobsContent({
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
                     if (cancelled) return;
                     const limit = HUB_PROBE_LIMITS[step];
-                    const r = await searchJobsAction({
-                        q,
-                        hideGhosts: true,
-                        postedBucket: DEFAULT_URL_STATE.postedBucket,
-                        limit,
-                        offset: 0,
-                        withFacets: step === 0,
-                        ...(Object.keys(merged).length ? { facets: merged } : {}),
-                    });
+                    const r = await searchJobsAction({ ...packParams, limit, offset: 0, withFacets: step === 0 });
                     if (cancelled) return;
                     if (isUnavailableJobsResult(r)) {
                         if (unavailableRetries < 1) {
@@ -3051,9 +3059,12 @@ export function JobsContent({
                         });
                         return;
                     }
-                    poolTotal = r.total;
-                    setHubResumeAllCount(resolveCorpusCount(r));
-                    for (const h of r.hits ?? []) {
+                    // The pack's location is where the candidate can work: a search that
+                    // dropped it (no roles there) matched nothing, not the whole corpus.
+                    const placesMissing = locationDropped(pack, r);
+                    poolTotal = placesMissing ? 0 : r.total;
+                    setHubResumeAllCount(placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r));
+                    for (const h of placesMissing ? [] : (r.hits ?? [])) {
                         if (scoredById.has(h.id)) continue;
                         let scoredHit: ScoredHubHit["score"] | null = null;
                         try {
@@ -3099,6 +3110,15 @@ export function JobsContent({
                     scored,
                     removalsLine,
                 });
+
+                // Each filter tile counts its own search (the one its deck sends), one at a
+                // time after the probe so the hub stays inside the search rate limit.
+                for (const id of HUB_FILTER_TILE_IDS) {
+                    if (id === "all") continue;
+                    const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
+                    if (cancelled) return;
+                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: total == null ? null : resolveCorpusCount({ total }) }));
+                }
             } catch {
                 if (!cancelled) {
                     setHubFitProbe((prev) => ({
@@ -3117,25 +3137,40 @@ export function JobsContent({
         };
     }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
 
+    // A résumé visitor's tiles all open the résumé's pack list, so every tile
+    // counts inside that list (`resumeHubPackCounts`), never the corpus —
+    // loading until that list's total is known.
     const hubCountLabels = useMemo(
         () =>
-            hubPackCorpusCounts?.ok === false
-                ? {}
-                : formatHubPackCorpusRoleLabels(
-                      {
-                          ...hubPackCorpusCounts?.data,
-                          ...(hubResumeKey && hubResumeAllCount ? { all: hubResumeAllCount } : {}),
-                      },
-                      { loading: hubPackCorpusCounts == null },
-                  ),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount],
+            hubResumeKey
+                ? resumeTileLabels(
+                      hubResumeAllCount
+                          ? resumeHubPackCounts({
+                                listTotal: hubResumeAllCount,
+                                listJobs: hubFitProbe.scored.map((h) => h.job),
+                            })
+                          : {},
+                      hubFilterTileCounts,
+                      !hubResumeAllCount,
+                  )
+                : hubPackCorpusCounts?.ok === false
+                  ? {}
+                  : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
+                        loading: hubPackCorpusCounts == null,
+                    }),
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored, hubFilterTileCounts],
     );
 
+    // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
+    const fitPlacesMissing = useMemo(
+        () => fitActive && pack != null && result != null && locationDropped(pack, result),
+        [fitActive, pack, result],
+    );
     const hubCorpusLine = useMemo(() => {
         if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {
             return (
                 formatHubCorpusLine(
-                    fitActive && result?.total != null ? result.total : hubFitProbe.total,
+                    fitActive && result?.total != null ? (fitPlacesMissing ? 0 : result.total) : hubFitProbe.total,
                     hubFitProbe.loading || hubFitProbe.probing,
                 ) || null
             );
@@ -3144,7 +3179,7 @@ export function JobsContent({
             return formatBrowseHubCorpusLine(hubBrowse.total);
         }
         return null;
-    }, [fitActive, result?.total, hubFitProbe, hubBrowse.total]);
+    }, [fitActive, fitPlacesMissing, result?.total, hubFitProbe, hubBrowse.total]);
 
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -4546,21 +4581,31 @@ export function JobsContent({
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData) => {
+    const applyFit = (r: ResumeData, tileId?: HubPackId) => {
         // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
-        // picked is theirs, never replaced by the résumé's.
-        const { q, facets: packFacets } = packFilters(r, resolveCandidateSignals(r, agentPrefs));
+        // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
+        // filter (hub-tiles.ts), and sets the window and salary floor to the tile's.
+        const tile = hubTile(packFilters(r, resolveCandidateSignals(r, agentPrefs)), tileId ?? "all").state;
+        const { q, facets: packFacets } = tile;
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derived = { ...packFacets };
         if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
         const merged = mergeFacets(facets, derived);
+        const tileWindow = tileId
+            ? { postedBucket: tile.postedBucket, postedExplicit: tile.postedExplicit, salaryMin: tile.salaryMin }
+            : {};
         setFacets(merged);
+        if (tileId) {
+            setPostedBucket(tile.postedBucket);
+            setPostedExplicit(tile.postedExplicit ?? false);
+            setSalaryMin(tile.salaryMin);
+        }
         setQueryDraft(q);
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit" }), "replace");
+        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit", ...tileWindow }), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4578,14 +4623,14 @@ export function JobsContent({
     // @returns true once handled (fit applied, or superseded by a later
     // choice) — false only when no usable résumé was found, the signal a
     // caller uses to decide whether to fall back to the uploader.
-    const resolveAndApplyFit = async (): Promise<boolean> => {
+    const resolveAndApplyFit = async (tileId?: HubPackId): Promise<boolean> => {
         setFitResolving(true);
         try {
             const token = fitIntentRef.current!.begin();
             const r = await resolveUsableResume();
             if (!fitIntentRef.current!.isCurrent(token)) return true;
             if (r) {
-                applyFit(r);
+                applyFit(r, tileId);
                 return true;
             }
             return false;
@@ -4612,12 +4657,25 @@ export function JobsContent({
         setFitActive(false);
         setSortOverride(null);
         setFacets({});
+        // A tile's window and salary floor are part of the tile, not carried to the next one.
+        setPostedBucket(DEFAULT_URL_STATE.postedBucket);
+        setPostedExplicit(false);
+        setSalaryMin(DEFAULT_URL_STATE.salaryMin);
         setQueryDraft("");
         setQuery("");
         setHomeView("for-you");
         writeLastJobsHomeView("for-you");
         applyUrlState(
-            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null, jobId: null }),
+            buildUrlState({
+                homeView: "for-you",
+                q: "",
+                facets: {},
+                postedBucket: DEFAULT_URL_STATE.postedBucket,
+                postedExplicit: undefined,
+                salaryMin: DEFAULT_URL_STATE.salaryMin,
+                sort: null,
+                jobId: null,
+            }),
             "replace",
         );
     };
@@ -4799,6 +4857,17 @@ export function JobsContent({
         router,
         importOpen,
     ]);
+
+    /** The one save path for an edit to the résumé already on file. */
+    const updateResume = (updatedResume: ResumeData) => {
+        setResume(updatedResume);
+        const updatedAt = new Date().toISOString();
+        setResumeUpdatedAt(updatedAt);
+        if (user) {
+            void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
+        }
+        writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
+    };
 
     const handleImport = (
         data: ResumeData,
@@ -5264,7 +5333,7 @@ export function JobsContent({
                     className={cn(
                         chipVariants({ active: activeCategory != null, interactive: true }),
                         toolbarControlHeight,
-                        "inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors lg:px-2",
+                        "ctl-button inline-flex box-border shrink-0 items-center justify-center gap-1 whitespace-nowrap px-3 leading-none transition-colors lg:px-2",
                     )}
                 >
                     {activeCategory ? activeCategory.title : "Browse by field"}
@@ -5315,7 +5384,7 @@ export function JobsContent({
                         className={cn(
                             chipVariants({ active: isMatch, interactive: true }),
                             toolbarControlHeight,
-                            "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 text-xs font-semibold leading-none transition-colors",
+                            "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 leading-none transition-colors",
                         )}
                     >
                         {cat.title}
@@ -5362,7 +5431,7 @@ export function JobsContent({
             onClick={() => void handleRankByFit()}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
             )}
         >
             Rank with my résumé
@@ -5381,7 +5450,7 @@ export function JobsContent({
                         onClick={() => setManualAlertOpen((prev) => !prev)}
                         className={cn(
                             toolbarControlHeight,
-                            "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-2",
+                            "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors px-2",
                         )}
                         title="Get email alerts for this search"
                     >
@@ -5434,7 +5503,7 @@ export function JobsContent({
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "inline-flex shrink-0 items-center whitespace-nowrap px-2 text-xs text-danger-text transition-colors hover:opacity-80",
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-danger-text transition-colors hover:opacity-80",
             )}
         >
             Clear ({activeCount})
@@ -5517,7 +5586,7 @@ export function JobsContent({
                         setLocationDraft("");
                         clearLocations();
                     }}
-                    className="ctl-sm mr-1 flex ctl-square shrink-0 self-center items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:text-foreground"
+                    className="ctl-sm ctl-button mr-1 flex ctl-square shrink-0 self-center items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <X size={20} aria-hidden />
                 </button>
@@ -5540,7 +5609,7 @@ export function JobsContent({
                     data-testid="jobs-sort-trigger"
                     className={cn(
                         toolbarControlHeight,
-                        "inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-semibold text-foreground transition-colors",
+                        "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors",
                     )}
                 >
                     {fitResolving && <InlineSpinner size={16} className="shrink-0" />}
@@ -5736,7 +5805,7 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -5905,9 +5974,12 @@ export function JobsContent({
                                 <button
                                     type="button"
                                     data-testid="location-picker-trigger"
+                                    // A button that IS a field: the journeys read its type as the field's, not a button face's.
+                                    data-control="field"
                                     aria-label={mobileLocationLabel}
                                     title={mobileLocationLabel}
                                     onClick={() => setLocationSheetOpen(true)}
+                                    // control-type-allow: the phone's location FIELD (opens the picker sheet), so it takes the field recipe: 44px, 16px/400, pill like the query field beside it
                                     className="ctl-lg flex min-w-0 flex-1 items-center truncate rounded-pill border-0 bg-transparent px-3 text-left text-base text-foreground lg:hidden"
                                 >
                                     <span className={cn("truncate", mobileLocationLabel === "City, state, or remote" && "text-muted-foreground")}>
@@ -5956,7 +6028,7 @@ export function JobsContent({
                                             setLocationDraft("");
                                             clearLocations();
                                         }}
-                                        className="ctl-sm mr-2 hidden ctl-square shrink-0 items-center justify-center rounded-ctl bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
+                                        className="ctl-sm ctl-button mr-2 hidden ctl-square shrink-0 items-center justify-center bg-muted text-muted-foreground transition-colors hover:text-foreground lg:flex"
                                     >
                                         <X size={20} aria-hidden />
                                     </button>
@@ -5973,13 +6045,14 @@ export function JobsContent({
                                 hairline shape) at rest instead of a second,
                                 bespoke hairline style. */}
                             <Button
+                                // control-type-allow: the one 44px button — Search shares the [data-search-line] row with the 44px query and location fields (J-JOBS-29)
                                 size="lg"
                                 type="button"
                                 data-testid="search-submit"
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    "w-auto shrink-0 rounded-pill px-4 text-xs font-semibold sm:px-6 transition-colors",
+                                    "w-auto shrink-0 px-4 sm:px-6 transition-colors",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
@@ -6043,7 +6116,7 @@ export function JobsContent({
                                     <button
                                         type="button"
                                         onClick={handleClearSearch}
-                                        className="ctl-md -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
+                                        className="ctl-md ctl-button -my-1.5 underline underline-offset-2 transition-colors hover:text-foreground"
                                     >
                                         clear ✕
                                     </button>
@@ -6108,7 +6181,7 @@ export function JobsContent({
                             className={cn(
                                 chipVariants({ active: filtersOpen, interactive: true }),
                                 toolbarControlHeight,
-                                "box-border shrink-0 px-3.5 font-semibold inline-flex items-center justify-center gap-2 whitespace-nowrap text-xs leading-none transition-colors lg:px-3",
+                                "ctl-button box-border shrink-0 px-3.5 inline-flex items-center justify-center gap-2 whitespace-nowrap leading-none transition-colors lg:px-3",
                             )}
                         >
                             <span className="lg:hidden">Filters</span>
@@ -6274,12 +6347,13 @@ export function JobsContent({
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
+                        <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
                         {forYouPackDeckOpen && (
                             <div className="mb-2 flex shrink-0 items-center justify-between">
                                 <button
                                     type="button"
                                     onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm inline-flex items-center gap-1 text-xs font-semibold text-brand hover:underline"
+                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
                                     data-testid="jobs-back-to-packs"
                                 >
                                     ← Back to Job Packs
@@ -6299,22 +6373,20 @@ export function JobsContent({
                                 hubCorpusLine={hubCorpusLine}
                                 hubRemovalsLine={hubFitProbe.removalsLine}
                                 onSelectCategory={(category) => {
+                                    const tileId = isHubPackId(category.id) ? category.id : undefined;
                                     setHubSelectedCategoryId(category.id);
                                     setForYouPackDeckOpen(true);
                                     forYouDeck.setActiveIndex(0);
                                     // The list mounts from browse hits without waiting
-                                    // on fit. A usable résumé still ranks when it arrives.
-                                    void resolveAndApplyFit();
+                                    // on fit. A usable résumé still ranks when it arrives,
+                                    // with the tile's own filter on the pack (hub-tiles.ts).
+                                    // Without one, a filter tile still filters the browse list.
+                                    void resolveAndApplyFit(tileId).then((applied) => {
+                                        if (applied || !tileId || tileId === "all" || !isHubFilterTile(tileId)) return;
+                                        applyFilterState(hubTile(buildUrlState({ jobId: null }), tileId).state);
+                                    });
                                 }}
-                                onUpdateResume={(updatedResume) => {
-                                    setResume(updatedResume);
-                                    const updatedAt = new Date().toISOString();
-                                    setResumeUpdatedAt(updatedAt);
-                                    if (user) {
-                                        void saveResumeData(updatedResume, "pdf", 1).catch(() => {});
-                                    }
-                                    writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
-                                }}
+                                onUpdateResume={updateResume}
                                 onTailorApply={(job) => {
                                     submitSearch(job.title);
                                 }}
@@ -6351,6 +6423,8 @@ export function JobsContent({
                                 hasMore={hasMore}
                                 signupGate={fitGateEl}
                                 resultTotal={result?.total ?? null}
+                                unmatchedPlaces={result?.unmatchedPlaceMentions}
+                                tileId={openHubTileId}
                                 activePursuit={
                                     forYouDeck.activeJob
                                         ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
@@ -6968,6 +7042,7 @@ export function JobsContent({
                                                 <button
                                                     type="button"
                                                     onClick={() => void loadMore()}
+                                                    data-testid="jobs-load-more"
                                                     className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
                                                 >
                                                     Show {Math.min(PAGE, Math.max(total - hits.length, 0)) || PAGE} more ↓
@@ -7053,10 +7128,10 @@ export function JobsContent({
                     // real height already had.
                     className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
                 >
-                    <Button size="lg"
+                    <Button
                         type="button"
                         onClick={handleMobilePrimaryCta}
-                        className="w-full rounded-ctl bg-primary text-xs font-semibold text-primary-foreground hover:bg-primary"
+                        className="w-full bg-primary text-primary-foreground hover:bg-primary"
                     >
                         Search
                     </Button>
@@ -7201,9 +7276,9 @@ export function JobsContent({
                                 type="button"
                                 aria-label="Close"
                                 onClick={() => router.back()}
-                                className="ctl-lg flex ctl-square shrink-0 items-center justify-center text-lg leading-none text-faint transition-opacity hover:opacity-80"
+                                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
                             >
-                                ×
+                                <X size={16} aria-hidden />
                             </button>
                         </div>
                     </div>

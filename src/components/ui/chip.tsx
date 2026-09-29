@@ -58,7 +58,7 @@ export function ChipDismiss({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className={cn("ctl-sm ctl-square inline-flex items-center justify-center leading-none opacity-70 hover:opacity-100 cursor-pointer", className)}
+      className={cn("ctl-sm ctl-button ctl-square inline-flex items-center justify-center leading-none opacity-70 hover:opacity-100 cursor-pointer", className)}
     >
       <X />
     </button>

@@ -70,7 +70,7 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                     aria-label="Account menu"
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                        "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none",
+                        "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none", // control-type-allow: an avatar, not a labelled button — round like the picture it frames
                         active && "ring-2 ring-live",
                     )}
                 >

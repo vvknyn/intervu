@@ -232,7 +232,7 @@ export function FirstTimeOnboardingModal({
                         </div>
 
                         <div className="flex justify-end pt-1">
-                            <Button onClick={() => setStep(2)} className="gap-2 text-xs font-semibold">
+                            <Button onClick={() => setStep(2)} className="gap-2">
                                 {/* signup-gate-exempt: onboarding step that is the account-creation flow itself */}Next: Create your account <ArrowRight size={16} />
                             </Button>
                         </div>
@@ -258,7 +258,7 @@ export function FirstTimeOnboardingModal({
                                     onOpenAuth?.();
                                     setStep(3);
                                 }}
-                                className="ctl-lg w-full rounded-ctl border border-border bg-card hover:bg-muted text-xs font-semibold flex items-center justify-center gap-2.5 transition-colors"
+                                className="ctl-md ctl-button w-full border border-border bg-card hover:bg-muted flex items-center justify-center gap-2.5 transition-colors"
                             >
                                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -281,13 +281,13 @@ export function FirstTimeOnboardingModal({
                                     placeholder="you@work.com"
                                     className="ctl-lg w-full px-3 rounded-ctl border border-border bg-card text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-foreground"
                                 />
-                                <Button size="lg"
+                                <Button
                                     type="button"
                                     onClick={() => {
                                         onOpenAuth?.();
                                         setStep(3);
                                     }}
-                                    className="w-full text-xs font-semibold"
+                                    className="w-full"
                                 >
                                     Continue with email
                                 </Button>
@@ -306,7 +306,7 @@ export function FirstTimeOnboardingModal({
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                            <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="gap-1.5 text-xs font-normal">
+                            <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="gap-1.5">
                                 <ArrowLeft size={16} /> Back
                             </Button>
                         </div>
@@ -370,7 +370,7 @@ export function FirstTimeOnboardingModal({
                                             </p>
                                         </div>
                                     </div>
-                                    <Button variant="ghost" size="sm" className="text-xs text-muted-foreground font-normal">Replace</Button>
+                                    <Button variant="ghost" size="sm" className="text-muted-foreground">Replace</Button>
                                 </div>
                             ) : (
                                 <div className="space-y-1 py-2">
@@ -437,10 +437,10 @@ export function FirstTimeOnboardingModal({
                         </div>
 
                         <div className="flex items-center justify-between pt-1">
-                            <Button variant="ghost" size="sm" onClick={() => setStep(2)} className="gap-1.5 text-xs font-normal">
+                            <Button variant="ghost" size="sm" onClick={() => setStep(2)} className="gap-1.5">
                                 <ArrowLeft size={16} /> Back
                             </Button>
-                            <Button onClick={handleFinish} className="gap-2 text-xs font-semibold">
+                            <Button onClick={handleFinish} className="gap-2">
                                 <Sparkle size={16} />
                                 See your matching jobs →
                             </Button>

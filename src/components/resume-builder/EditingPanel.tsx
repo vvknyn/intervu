@@ -495,7 +495,7 @@ export function EditingPanel({
                         size="sm"
                         onClick={addCategory}
                         disabled={!newSkillCategory.trim()}
-                        className="gap-1 text-xs"
+                        className="gap-1"
                     >
                         <Plus /> Add Category
                     </Button>
@@ -572,7 +572,6 @@ export function EditingPanel({
                                         size="sm"
                                         onClick={() => addSkillToCategory(catIdx)}
                                         disabled={!(newSkillInputs[catIdx] || "").trim()}
-                                        className="text-xs"
                                     >
                                         Add
                                     </Button>
@@ -620,7 +619,7 @@ export function EditingPanel({
                     <span className="text-xs text-muted-foreground">
                         {experience.length} position{experience.length === 1 ? "" : "s"} listed
                     </span>
-                    <Button type="button" size="sm" onClick={addExperience} className="gap-1 text-xs">
+                    <Button type="button" size="sm" onClick={addExperience} className="gap-1">
                         <Plus /> Add Position
                     </Button>
                 </div>
@@ -731,7 +730,7 @@ export function EditingPanel({
                     <span className="text-xs text-muted-foreground">
                         {projects.length} project{projects.length === 1 ? "" : "s"} listed
                     </span>
-                    <Button type="button" size="sm" onClick={addProject} className="gap-1 text-xs">
+                    <Button type="button" size="sm" onClick={addProject} className="gap-1">
                         <Plus /> Add Project
                     </Button>
                 </div>
@@ -855,7 +854,7 @@ export function EditingPanel({
                     <span className="text-xs text-muted-foreground">
                         {education.length} credential{education.length === 1 ? "" : "s"} listed
                     </span>
-                    <Button type="button" size="sm" onClick={addEducation} className="gap-1 text-xs">
+                    <Button type="button" size="sm" onClick={addEducation} className="gap-1">
                         <Plus /> Add Education
                     </Button>
                 </div>

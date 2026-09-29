@@ -125,11 +125,11 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         />
                     </div>
                     <div className="flex flex-wrap gap-2 pt-1">
-                        <Button className="rounded-ctl" onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
+                        <Button onClick={() => void handleSave()} disabled={saving || !company.trim() || !position.trim()}>
                             {saving && <InlineSpinner className="mr-2" />}
                             {saving ? "Saving…" : "Save to tracker"}
                         </Button>
-                        <Button variant="outline" className="rounded-ctl" onClick={() => onOpenChange(false)} disabled={saving}>
+                        <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
                             Cancel
                         </Button>
                     </div>

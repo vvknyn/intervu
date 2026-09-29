@@ -181,9 +181,9 @@ export function SavedSearchesPanel({
                                 compact
                                     ? cn(
                                           toolbarControlHeight,
-                                          "inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-xs font-semibold text-foreground transition-colors px-3 lg:px-2",
+                                          "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-foreground transition-colors px-3 lg:px-2",
                                       )
-                                    : "inline-flex ctl-lg items-center gap-1.5 rounded-ctl px-3 text-xs font-semibold text-foreground hover:text-foreground transition-colors",
+                                    : "inline-flex ctl-md ctl-button items-center gap-1.5 px-3 text-foreground hover:text-foreground transition-colors",
                             )}
                         >
                             {!compact && <BookmarkSimple aria-hidden />}
@@ -229,8 +229,9 @@ export function SavedSearchesPanel({
                         onClick={() => void commitSave()}
                         className={cn(
                             compact
+                                // control-type-allow: compact form is an inline underlined text action beside the 24px name field, sized with it
                                 ? "inline-flex items-center gap-1 text-xs text-foreground underline underline-offset-2 hover:no-underline disabled:opacity-50"
-                                : "inline-flex ctl-md items-center gap-1 rounded-ctl bg-muted text-brand px-2.5 text-xs font-semibold whitespace-nowrap disabled:opacity-50",
+                                : "inline-flex ctl-md ctl-button items-center gap-1 bg-muted text-brand px-2.5 whitespace-nowrap disabled:opacity-50",
                         )}
                     >
                         {saving && <InlineSpinner className="shrink-0" />}

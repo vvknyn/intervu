@@ -336,7 +336,7 @@ export function CompanyRoleSearch({
               , plus freshness and verified salary transparency.
             </p>
           </div>
-          <Button asChild variant="brand" size="lg" className="shrink-0">
+          <Button asChild variant="brand" className="shrink-0">
             <Link href={jobsSearchUrl}>
               View all {openCountLabel} jobs
             </Link>
@@ -374,7 +374,7 @@ export function CompanyRoleSearch({
                 type="button"
                 aria-label="Close"
                 onClick={() => setSelectedJob(null)}
-                className="ctl-lg flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
+                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
               >
                 <X size={16} weight="bold" aria-hidden />
               </button>

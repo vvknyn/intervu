@@ -475,6 +475,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                         size="link"
                         data-testid="resume-import-skip-download"
                         onClick={handleSkipDownload}
+                        // control-type-allow: an inline text link (size="link") set with the 12px notes above it
                         className="inline-flex justify-start text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
                         Skip the download (basic parsing)
@@ -676,21 +677,21 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 <DialogFooter className="flex-row justify-between gap-3 border-t px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:justify-between">
                     {step === 'review' ? (
                         <>
-                            <Button size="lg" variant="outline" onClick={() => setStep('input')}>
+                            <Button variant="outline" onClick={() => setStep('input')}>
                                 <ArrowLeft size={16} className="mr-2" />
                                 Back
                             </Button>
-                            <Button size="lg" onClick={handleConfirm} disabled={localParseBlocked}>
+                            <Button onClick={handleConfirm} disabled={localParseBlocked}>
                                 <Check size={16} className="mr-2" />
                                 {confirmLabel}
                             </Button>
                         </>
                     ) : (
                         <>
-                            <Button size="lg" variant="outline" onClick={handleClose} disabled={isProcessing}>
+                            <Button variant="outline" onClick={handleClose} disabled={isProcessing}>
                                 Cancel
                             </Button>
-                            <Button size="lg"
+                            <Button
                                 
                                 data-testid="resume-import-parse-primary"
                                 onClick={handleParse}

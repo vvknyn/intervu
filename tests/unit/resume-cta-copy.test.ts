@@ -39,15 +39,16 @@ test("jobs page imports shared résumé CTA copy and tracks resumeOnFile", () =>
     assert.match(pageSrc, /\bresumeOnFile\b/);
 });
 
-test("inline Search button uses rounded-pill, not rounded-ctl", () => {
+test("inline Search button takes the control corner from the Button face, not its own", () => {
     const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     const searchButtonBlock =
         pageSrc.match(
             /onClick=\{\(\) => submitSearch\(queryDraft\)\}[\s\S]*?<\/Button>/,
         )?.[0] ?? "";
     assert.ok(searchButtonBlock.length > 0, "inline Search button block not found");
-    assert.match(searchButtonBlock, /rounded-pill/);
-    assert.doesNotMatch(searchButtonBlock, /rounded-ctl/);
+    // Was rounded-pill; since 2026-09-29 a button's corner (and type) come from
+    // `.ctl-button` (tests/unit/control-type.test.ts), so it names none.
+    assert.doesNotMatch(searchButtonBlock, /\brounded(?:-[\w-]+)?\b/);
 });
 
 test("rank secondary copy matches contract", () => {

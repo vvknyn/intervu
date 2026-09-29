@@ -16,7 +16,12 @@
  * Type-only imports keep this module runtime-dependency-free so it loads under
  * `tsx` for unit tests without `@/` path resolution.
  */
-import { dutyDerivedRoleTitles } from "@/lib/match/duty-signals";
+import {
+    dutyDerivedRoleTitles,
+    familiesNamedBy,
+    familyRetrievalTitles,
+    type RoleFamilyId,
+} from "@/lib/match/duty-signals";
 import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
@@ -51,13 +56,34 @@ export function experienceLevelFacet(seniority: Seniority | null): string[] | nu
     return seniority ? [seniority] : null;
 }
 
-/** Distinct experience role titles in résumé order (most recent first). */
-function experienceRoleTitles(resume: ResumeData): string[] {
+/** A past role that ended this many years ago no longer says what the candidate does now. */
+export const STALE_ROLE_YEARS = 5;
+
+/** The last year a role's dates name ("Present"/"Current" is `nowYear`); null when they name none. */
+export function roleEndYear(dates: string, nowYear: number): number | null {
+    if (/\b(present|current|now)\b/i.test(dates)) return nowYear;
+    const full = [...dates.matchAll(/\b(?:19|20)\d{2}\b/g)].map((m) => Number(m[0]));
+    const short = [...dates.matchAll(/['‘’](\d{2})\b/g)].map((m) => 2000 + Number(m[1]));
+    const years = [...full, ...short];
+    return years.length > 0 ? Math.max(...years) : null;
+}
+
+/**
+ * Distinct experience role titles in résumé order (most recent first). The
+ * most recent role always counts; an earlier one only while it is recent
+ * (`STALE_ROLE_YEARS`) — or when its dates name no year, since an unknown
+ * end is not evidence of an old role.
+ */
+function experienceRoleTitles(resume: ResumeData, nowYear?: number): string[] {
     const out: string[] = [];
     const seen = new Set<string>();
-    for (const entry of resume?.experience ?? []) {
+    for (const [index, entry] of (resume?.experience ?? []).entries()) {
         const role = (entry?.role ?? "").trim();
         if (!role) continue;
+        if (nowYear !== undefined && index > 0) {
+            const ended = roleEndYear(entry?.dates ?? "", nowYear);
+            if (ended !== null && nowYear - ended >= STALE_ROLE_YEARS) continue;
+        }
         const key = role.toLowerCase();
         if (seen.has(key)) continue;
         seen.add(key);
@@ -73,56 +99,86 @@ function cleanRoleTitle(title: string): string {
     return shortened || trimmed;
 }
 
+/** A headline names a practice ("Technical Account Management"); a posting names the job ("Technical Account Manager"). */
+function headlineRoleTitle(title: string): string {
+    return cleanRoleTitle(title).replace(/\bManagement$/, "Manager");
+}
+
+/** The title a summary opens with: "Senior Customer Success and Technical Account Manager with 12 years…". */
+function summaryLeadTitle(summary: string): string {
+    const first = (summary ?? "").trim().split(/[.;:\n]/)[0] ?? "";
+    return first.split(/\s+(?:with|who|having|driving|focused)\b|,/i)[0]?.trim() ?? "";
+}
+
+export interface TargetRoles {
+    /** Role titles in the candidate's own words: the headline they wrote, then their current role. */
+    phrases: string[];
+    /** Role families the headline, summary, skill groups and current role name, strongest first. */
+    families: RoleFamilyId[];
+}
+
 /**
- * Match / Rank (`sort=fit`): role-title retrieval beyond the headline profession.
- * Builds an ordered candidate list (experience → duty-inferred families →
- * remaining titles / headline splits → thin adjacency fallback → skills),
- * caps to 4 title phrases, and widens seniority so adjacent mid-level roles
- * stay visible.
+ * What the candidate is looking for, from the résumé's own words, strongest
+ * first: the headline they wrote (unless it only repeats their current job
+ * title), their current role, and the role families their summary and skill
+ * groups name. An old role, or a duty that sounds like another job ("API",
+ * "incident" in a product manager's bullets), is not a target.
+ */
+export function targetRoles(resume: ResumeData): TargetRoles {
+    const current = (resume?.experience ?? []).map((e) => (e?.role ?? "").trim()).find(Boolean) ?? "";
+    const profession = (resume?.profile?.profession ?? "").trim();
+    const headlineIsJobTitle = Boolean(current) && profession.toLowerCase() === current.toLowerCase();
+    const headline = profession && !headlineIsJobTitle ? splitRoleTitles(profession).map(headlineRoleTitle) : [];
+    const currentTitle = current ? cleanRoleTitle(current) : "";
+
+    const phrases: string[] = [];
+    for (const phrase of [...headline, currentTitle]) {
+        if (phrase && !phrases.some((p) => p.toLowerCase() === phrase.toLowerCase())) phrases.push(phrase);
+    }
+    const lead = summaryLeadTitle(resume?.generatedSummary ?? "");
+    const categories = (resume?.competencies ?? []).map((group) => (group?.category ?? "").trim()).filter(Boolean);
+    const families = [
+        ...new Set([
+            ...familiesNamedBy(headline),
+            ...familiesNamedBy(lead ? [lead] : []),
+            ...familiesNamedBy(categories),
+            ...familiesNamedBy(currentTitle ? [currentTitle] : []),
+        ]),
+    ];
+    return { phrases, families };
+}
+
+/**
+ * Match / Rank (`sort=fit`): the role titles a pack searches for, strongest
+ * first, capped at 4 (see `capExploreTerms`):
  *
- * Falls back to top skills when there is no profession, no experience titles,
- * and duty/adjacency yield nothing — skills-only résumés still get a non-empty q.
+ *   1. the candidate's own words — their headline, then their current role;
+ *   2. the standard titles of the role families the résumé names
+ *      ("Customer Success Manager", "Technical Account Manager");
+ *   3. earlier roles that are still recent (`STALE_ROLE_YEARS`);
+ *   4. roles adjacent to the targets (`suggestAdjacentRolesLocal`);
+ *   5. families inferred from duties alone (`dutyDerivedRoleTitles`);
+ *   6. top skills, only when nothing else produced a query.
+ *
+ * Seniority widens to mid+senior so adjacent mid-level roles stay visible.
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
-export function buildMatchQuery(resume: ResumeData): DerivedQuery {
-    const profession = (resume?.profile?.profession ?? "").trim();
-    const professionParts = profession ? splitRoleTitles(profession) : [];
-    const expTitles = experienceRoleTitles(resume);
+export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date().getFullYear()): DerivedQuery {
     const skills = topSkills(resume, 6);
+    const target = targetRoles(resume);
+    const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle);
 
-    const candidates: string[] = [];
-
-    // 1. Most recent experience title (cleaned).
-    if (expTitles.length > 0) {
-        candidates.push(cleanRoleTitle(expTitles[0]));
+    let terms = capExploreTerms(
+        [...target.phrases, ...familyRetrievalTitles(target.families), ...recentTitles],
+        4,
+    );
+    if (terms.length < 4 && target.phrases.length > 0) {
+        terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(target.phrases, skills, 8)], 4);
     }
-
-    // 2. Duty-derived role families — primary adjacent-title source.
-    candidates.push(...dutyDerivedRoleTitles(resume));
-
-    // 3. Remaining experience titles, then headline profession parts.
-    for (let i = 1; i < expTitles.length; i++) {
-        candidates.push(cleanRoleTitle(expTitles[i]));
-    }
-    if (professionParts.length > 0) {
-        candidates.push(...professionParts);
-    } else if (profession) {
-        candidates.push(profession);
-    }
-
-    let terms = capExploreTerms(candidates, 4);
-
-    // 4. Thin adjacency fallback only when still under the cap.
     if (terms.length < 4) {
-        const allTitlesForAdjacent = [...professionParts, ...expTitles];
-        if (allTitlesForAdjacent.length > 0) {
-            const combined = [...terms, ...suggestAdjacentRolesLocal(allTitlesForAdjacent, skills, 8)];
-            terms = capExploreTerms(combined, 4);
-        }
+        terms = capExploreTerms([...terms, ...dutyDerivedRoleTitles(resume)], 4);
     }
-
-    // 5. Skills only when nothing else produced a query.
     if (terms.length === 0) {
         terms = capExploreTerms(skills, 4);
     }

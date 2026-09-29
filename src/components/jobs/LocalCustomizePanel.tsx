@@ -188,7 +188,7 @@ export function LocalCustomizePanel({
                 disabled={loading && dialogOpen}
                 onClick={handleOpen}
                 className={cn(
-                    "shrink-0 rounded-ctl text-xs font-semibold",
+                    "shrink-0",
                     compactTrigger && "px-3",
                     loading && dialogOpen && "opacity-60",
                 )}
@@ -245,7 +245,6 @@ export function LocalCustomizePanel({
                                         <Button
                                             type="button"
                                             size="sm"
-                                            className="rounded-ctl text-xs font-semibold"
                                             onClick={() => void handleEnableAi()}
                                         >
                                             <Cpu size={16} className="mr-1.5" />
@@ -255,7 +254,6 @@ export function LocalCustomizePanel({
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            className="rounded-ctl text-xs font-semibold"
                                             onClick={handleRulesDraft}
                                         >
                                             Use a rules draft
@@ -331,7 +329,6 @@ export function LocalCustomizePanel({
                                 variant="outline"
                                 size="sm"
                                 data-testid="local-customize-close"
-                                className="rounded-ctl text-xs font-semibold"
                                 onClick={() => handleDialogOpenChange(false)}
                             >
                                 Close
@@ -344,7 +341,6 @@ export function LocalCustomizePanel({
                                         size="sm"
                                         data-testid="local-customize-copy"
                                         onClick={() => void handleCopy()}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         {copied ? <Check size={16} /> : <Copy size={16} />}
                                         {copied ? "Copied" : "Copy"}
@@ -355,7 +351,6 @@ export function LocalCustomizePanel({
                                         size="sm"
                                         data-testid="local-customize-pdf"
                                         onClick={handlePdf}
-                                        className="rounded-ctl text-xs font-semibold"
                                     >
                                         <DownloadSimple size={16} />
                                         Download PDF
@@ -365,7 +360,7 @@ export function LocalCustomizePanel({
                                         data-testid="local-customize-accept"
                                         variant="outline"
                                         size="sm"
-                                        className="ml-auto rounded-ctl text-xs font-semibold"
+                                        className="ml-auto"
                                         onClick={() => void handleAccept()}
                                     >
                                         Accept

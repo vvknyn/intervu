@@ -53,8 +53,8 @@ import {
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { jobCountries } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
-import { topSkills, type Seniority } from "@/lib/jobs/resume-match";
-import { RANK_WORDS, resumeDutyTokens } from "@/lib/match/duty-signals";
+import { buildMatchQuery, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -293,6 +293,39 @@ export function levelUnverified(signals: CandidateSignals, job: PublicJob): bool
     return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level);
 }
 
+/** Per résumé object: the role families it targets and the titles its packs search for. */
+const TARGETS = new WeakMap<ResumeData, { families: RoleFamilyId[]; searched: string[] }>();
+
+function resumeTargets(resume: ResumeData): { families: RoleFamilyId[]; searched: string[] } {
+    let targets = TARGETS.get(resume);
+    if (!targets) {
+        targets = {
+            families: targetRoles(resume).families,
+            searched: buildMatchQuery(resume).phrases.map((phrase) => phrase.toLowerCase()),
+        };
+        TARGETS.set(resume, targets);
+    }
+    return targets;
+}
+
+/**
+ * A posting whose title names a kind of role the résumé does not target (a
+ * Backend Engineer posting for a product manager) is never Strong, however
+ * many words it shares with the résumé: "API" and "incident" in a PM's
+ * bullets do not make the engineering job theirs. A title that names no known
+ * role family, or that contains a title the pack searched for, is not off
+ * target — unknown is not a misfit.
+ */
+export function roleOffTarget(resume: ResumeData, job: PublicJob): boolean {
+    const jobFamilies = familiesNamedBy([job.title ?? ""]);
+    if (jobFamilies.length === 0) return false;
+    const { families, searched } = resumeTargets(resume);
+    if (families.length === 0) return false;
+    const title = (job.title ?? "").toLowerCase();
+    if (searched.some((phrase) => title.includes(phrase))) return false;
+    return !jobFamilies.some((family) => families.includes(family));
+}
+
 /**
  * The one scoring function. `relevance` is REQUIRED — no topical overlap
  * between résumé and job means no honest match to report, so this returns
@@ -300,7 +333,9 @@ export function levelUnverified(signals: CandidateSignals, job: PublicJob): bool
  * unknown it contributes the neutral score and is flagged. A job whose
  * location cannot be verified for this candidate never reads as Strong: the
  * total is capped just under the Strong band (so is a job whose level was
- * never derived, for a candidate whose level is known — `levelUnverified`).
+ * never derived, for a candidate whose level is known — `levelUnverified` —
+ * and a job for a different kind of role than the résumé targets —
+ * `roleOffTarget`).
  *
  * `signals` defaults to the résumé-only resolution; callers that hold the
  * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
@@ -310,13 +345,16 @@ export function scoreJobAgainstResume(
     job: PublicJob,
     signals: CandidateSignals = resolveCandidateSignals(resume),
 ): MatchScore | null {
-    const relevance = scoreRelevance(resume, job);
-    if (!relevance) return null;
+    const overlap = scoreRelevance(resume, job);
+    if (!overlap) return null;
+    const offTarget = roleOffTarget(resume, job);
+    const relevance = offTarget ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` } : overlap;
 
     const components = [relevance, scoreSeniority(signals, job), scoreLocation(signals, job)];
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
 
-    return { total: locationUnknown || levelUnverified(signals, job) ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
+    const capped = locationUnknown || levelUnverified(signals, job) || offTarget;
+    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
 }

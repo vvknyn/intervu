@@ -81,7 +81,7 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                             onClick={() => setClearConfirmOpen(true)}
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-muted-foreground hover:text-danger-text hover:bg-muted"
+                            className="text-muted-foreground hover:text-danger-text hover:bg-muted"
                         >
                             Clear All
                         </Button>
@@ -90,7 +90,6 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                         onClick={handleExport}
                         variant="outline"
                         size="sm"
-                        className="text-xs"
                         disabled={activeStories.length === 0}
                     >
                         <DownloadSimple className="mr-2" /> Export
@@ -98,7 +97,6 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
                     <Button
                         onClick={handleCreate}
                         size="sm"
-                        className="text-xs"
                     >
                         <Plus className="mr-2" /> New Story
                     </Button>

@@ -356,15 +356,19 @@ export interface JobSearchParams {
    */
   places?: PlaceClause[];
   /**
-   * Typed location text that named nothing this corpus can filter on — the
-   * gazetteer didn't recognize it as a place AND the corpus has no matching
-   * `location_country` value either (see `resolveLocationFacet`,
-   * query-understanding.ts). Populated instead of silently keeping the raw
-   * text as a doomed exact-facet predicate (the "North America" bug — a
+   * Typed location text that named nothing this corpus can filter on —
+   * neither the gazetteer's resolution nor a literal probe found a corpus
+   * value for it (see `resolveLocationFacet`, query-understanding.ts). That
+   * covers text that is no place at all AND a real place the corpus has no
+   * rows for (a résumé in Iceland). Populated instead of silently keeping the
+   * raw text as a doomed exact-facet predicate (the "North America" bug — a
    * real phrase, but the corpus has no row spelled that way, so the search
    * could only ever return zero). Surfaced to the searcher as a plain-
    * language notice (see `unmatchedPlaceNote`, result-state.ts) rather than
-   * silently dropped.
+   * silently dropped, and it still counts as the searcher having said where
+   * (`hasLocationSignal`, ip-default.ts), so the IP default never replaces it.
+   * A For-you pack, whose location is an eligibility filter, reads a dropped
+   * location as zero roles there (`locationDropped`, broaden.ts).
    */
   unmatchedPlaceMentions?: string[];
   limit?: number;

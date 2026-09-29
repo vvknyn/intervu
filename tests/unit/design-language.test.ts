@@ -79,7 +79,8 @@ test("body sans token: Source Sans 3 via next/font static cuts", () => {
     );
     assert.match(LAYOUT, /Source_Sans_3/, "layout.tsx must load Source Sans 3 via next/font");
     assert.match(LAYOUT, /variable:\s*"--font-sans-face"/, "Source Sans 3 must wire --font-sans-face");
-    assert.match(LAYOUT, /weight:\s*\[\s*"400"\s*,\s*"600"\s*\]/, "Source Sans 3 must use static 400/600 cuts, not default variable axis");
+    // 500 is the button face (globals.css `--control-weight`, control-type.test.ts): loaded as its own static cut so it renders at 500, not the 400 fallback.
+    assert.match(LAYOUT, /weight:\s*\[\s*"400"\s*,\s*"500"\s*,\s*"600"\s*\]/, "Source Sans 3 must use static 400/500/600 cuts, not default variable axis");
 });
 
 test("body typography: no global OpenType cv/ss feature overrides", () => {

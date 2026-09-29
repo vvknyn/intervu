@@ -228,7 +228,6 @@ function PursuitDetailBody({
                         />
                         <Button
                             variant="outline"
-                            className="rounded-ctl"
                             disabled={saving || !interviewDate}
                             onClick={() => void onInterviewDateSave(interviewDate)}
                         >
@@ -239,7 +238,7 @@ function PursuitDetailBody({
 
                 <div className="flex flex-wrap gap-2">
                     {pursuit.job_url && (
-                        <Button asChild className="rounded-ctl">
+                        <Button asChild>
                             <a href={pursuit.job_url} target="_blank" rel="noopener noreferrer">
                                 Open posting
                             </a>
@@ -247,7 +246,6 @@ function PursuitDetailBody({
                     )}
                     <Button
                         variant="outline"
-                        className="rounded-ctl"
                         disabled={!latestResume}
                         onClick={() => latestResume && void downloadResumeVersion(latestResume, pursuit)}
                     >
@@ -257,7 +255,7 @@ function PursuitDetailBody({
                         <Button
                             variant="outline"
                             disabled={saving}
-                            className="rounded-ctl text-muted-foreground hover:text-destructive"
+                            className="text-muted-foreground hover:text-destructive"
                             onClick={() => setConfirmingRemove(true)}
                         >
                             Remove

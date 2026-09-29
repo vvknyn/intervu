@@ -46,7 +46,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-03 | Seeded anon visit renders result rows on first paint with no dialog | anon | SEED-A + `/jobs?posted=any` | signed-out | no | uncovered | — |
 | J-JOBS-04 | Result count line states the 30-day window | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-JOBS-05 | Load more rows by scrolling the list sentinel (20 per page) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-JOBS-06 | Hit the anonymous depth wall after 90 results: it states the true hidden count ("See the other N roles that match") and offers Create free account, with no dismiss | anon | SEED-A + `/jobs?q=software+engineer` then scroll to end | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-06 | Hit the anonymous depth wall after 90 results: it states the true hidden count ("See the other N roles that match") and offers Create free account, with no dismiss | anon | SEED-A + `/jobs?q=engineer` then page to the end with "Show N more" | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-07 | Depth-wall "Create free account" and "Sign in" links carry the current URL in `next=` | anon | SEED-A + `/jobs?q=software+engineer` at the wall | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-08 | Signed-in user is not depth-walled past 90 results | signed-in | `/jobs?q=software+engineer` then scroll past 90 | signed-in | no | uncovered | — |
 | J-JOBS-09 | Open a row at xl and see it in the split-view detail pane with `?job=` | anon | SEED-A + viewport 1440x900 + `/jobs?q=software+engineer` | signed-out | yes | uncovered | — (legacy: jobs-split-view.spec.ts › (b) clicking a row shows that job in the pane; list stays visible; URL carries ?job=) |
@@ -67,7 +67,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-24 | Click Sign in or Get started and the board is still visible 2s later; fresh and previous-session visitor | anon | `/jobs` (no seed; second run with the `sb_jobs_visitor` cookie), click the Sign in control | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-25 | List analytics fire: `results_impressed` on first render, `search_submitted` on a search (needs a build with NEXT_PUBLIC_POSTHOG_KEY, skips otherwise) | anon | `/jobs`, then fill the search box and press Enter, `/api/telemetry` fulfilled locally | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-26 | Job cards and the job page show location labels with no repeated adjacent word (e.g. "RemoteRemote Location, All States · Remote") | anon | onboarding-completed flag + search "remote", then the first row's `/jobs/<slug>` | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-27 | A For-you pack's Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage) | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-27 | A For-you pack opened from the packs hub (after dismissing the first-visit intro, which must then not block the pack controls): its Edit filters opens the search board on exactly the pack's filters; a thin pack offers the broaden options with counts | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage), Got it on the intro, click `hub-pack-card-all` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-28 | A board search with zero results offers the same broaden options with counts, and applying one loads rows | anon | `/jobs?view=search&q=engineer&country=Iceland&exp=entry&posted=1d` | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-29 | The /jobs search row (query, location, Search) shares the lg control step (44px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-30 | Every control in the /jobs toolbar row takes the md control step (32px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
@@ -77,6 +77,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-34 | A guest with a résumé (no local-AI flag) sees exactly their top 3 ranked matches on the Search list, then the "See all N matches ranked for you" gate | anon | a synthetic local résumé seeded + `/jobs?view=search&sort=fit` | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-35 | A guest with a résumé who opens "Browse all matches" on For you meets the same top 3 + fit gate (the deck never lists past the gate) | anon | a synthetic local résumé seeded + `/jobs?sort=fit`, click `hub-browse-all-matches` | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-36 | First-run guest upload, two résumés (Toronto analyst, Austin engineer): review shows each one's job title and location, "Rank my jobs" applies its country, then top 3 + fit gate | anon | `/jobs` fresh, "Upload résumé" with an in-memory .txt, skip download, parse, "Rank my jobs", `hub-browse-all-matches` | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-37 | A For-you pack in a country the corpus has no roles in (the search drops the place) shows "No roles in <country> yet." and the broaden options, never a deck of roles from other countries | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé in Funafuti, Tuvalu seeded in localStorage), click `hub-pack-card-all` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-38 | A pack tile opens the résumé's pack with the tile's own filter (Fully remote → remote work type; Added this week → 7-day window), Edit filters carries it, and the next tile opened does not inherit it | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), click `hub-pack-card-remote`, back, `hub-pack-card-fresh` | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
@@ -341,6 +343,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-26 | Render /resume at mobile width with 44px touch targets | anon | /resume (375x667) | signed-out | no | uncovered | — |
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé without skipping the model: quick match opens at once, the model download shows MB of the measured size and its stages advance (or Skip keeps the quick match) | anon | /resume → Upload résumé (model fetch mocked) | signed-out | no | covered | resume-wait.spec.ts |
+| J-RESUME-29 | A résumé whose contact line names a bare city (no region/country) asks on For-you which place it is — Yes / a candidate saves it as the location, No / None of these leaves it blank; no guess, no filter until answered | anon | /jobs → Upload résumé → For-you | signed-out | no | covered | resume-bare-city.spec.ts |
 
 ## SETTINGS
 
@@ -606,6 +609,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-35 | No wrapping row (a flex-wrap row or a `.wrap-row`) strands its last control on a line of its own — e.g. the /jobs toolbar "?" under "Get alerts" — at 1440 and 390 | anon | onboarding-completed flag + /, /jobs, /jobs?q=engineer | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
+| J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 
 ## ERR
 

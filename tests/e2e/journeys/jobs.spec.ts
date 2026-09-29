@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -137,10 +137,14 @@ const guestWithResume = (page: Page, location: string) =>
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
 
-test("a For-you pack's Edit filters opens /jobs on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+test("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
   await guestWithResume(page, "Reykjavik, Iceland");
   await page.goto("/jobs?view=for-you");
+  // For you opens on the packs hub; its first-visit intro must not block the pack controls once dismissed.
+  await page.getByTestId("packs-home-intro-got-it").click({ timeout: 30_000 });
+  await expect(page.getByTestId("packs-home-intro-modal")).toHaveCount(0);
+  await page.getByTestId("hub-pack-card-all").click();
   const edit = page.getByTestId("pack-edit-filters");
   await expect(edit).toBeVisible({ timeout: 30_000 });
   const href = new URL((await edit.getAttribute("href"))!, "http://x");
@@ -168,6 +172,51 @@ test("a board search with zero results offers to broaden, each option with its c
   await expect(broaden.getByRole("button").first()).toContainText(/\d[\d,]* roles/);
   await broaden.getByRole("button").first().click();
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // Tuvalu: a country the corpus has no roles in. The search drops a place it cannot filter
+  // on; the pack used to list the whole corpus (or the visitor's own country) as its matches.
+  await guestWithResume(page, "Funafuti, Tuvalu");
+  await page.goto("/jobs?view=for-you");
+  await page.getByTestId("hub-pack-card-all").click({ timeout: 30_000 });
+
+  const none = page.getByTestId("for-you-no-roles-there");
+  await expect(none).toBeVisible({ timeout: 30_000 });
+  await expect(none).toContainText("No roles in Tuvalu yet.");
+  await expect(page.getByTestId("for-you-deck")).toHaveCount(0);
+  // The pack counts 0 there, so the broaden options offer the way out, each with its count.
+  const broaden = page.getByTestId("broaden-options");
+  await expect(broaden).toBeVisible({ timeout: 30_000 });
+  await expect(broaden.getByRole("link").first()).toContainText(/\d[\d,]* roles/);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a pack tile opens the pack with the tile's own filter, and the next tile does not inherit it", { tag: ["@J-JOBS-38"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  const editHref = async () => {
+    const edit = page.getByTestId("pack-edit-filters");
+    await expect(edit).toBeVisible({ timeout: 30_000 });
+    return new URL((await edit.getAttribute("href"))!, "http://x").searchParams;
+  };
+
+  // Fully remote: the pack (its country) with the remote work type on top.
+  await page.getByTestId("hub-pack-card-remote").click({ timeout: 30_000 });
+  const remote = await editHref();
+  expect(remote.get("country")).toBe("Canada");
+  expect((remote.get("work") ?? "").split(",")).toContain("remote");
+
+  // Back on the hub, Added this week: the 7-day window, and no remote filter carried over.
+  await page.getByTestId("jobs-back-to-packs").click();
+  await page.getByTestId("hub-pack-card-fresh").click({ timeout: 30_000 });
+  await expect.poll(async () => (await editHref()).get("posted"), { timeout: 30_000 }).toBe("7d");
+  expect(((await editHref()).get("work") ?? "").split(",")).not.toContain("remote");
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
