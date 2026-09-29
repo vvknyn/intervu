@@ -35,6 +35,7 @@ export type RoleFamilyId =
     | "design"
     | "marketing"
     | "sales"
+    | "customer_success"
     | "clinical"
     | "teaching"
     | "operations";
@@ -50,6 +51,7 @@ const DUTY_SIGNALS: Readonly<Record<RoleFamilyId, ReadonlySet<string>>> = {
     design: new Set(["figma", "wireframe", "prototype", "usability"]),
     marketing: new Set(["campaign", "seo", "funnel", "brand", "content"]),
     sales: new Set(["quota", "prospect", "pipeline"]),
+    customer_success: new Set(["qbr", "qbrs", "churn", "renewal", "renewals", "nrr"]),
     clinical: new Set(["patient", "bedside", "triage", "medication", "phlebotomy", "charting"]),
     teaching: new Set(["classroom", "curriculum", "lesson", "students", "pedagogy"]),
     operations: new Set(["onboarding", "cadence", "sla", "retention", "lifecycle", "compliance"]),
@@ -63,6 +65,7 @@ const FAMILY_RETRIEVAL_TITLES: Readonly<Record<RoleFamilyId, readonly string[]>>
     design: ["UX Designer", "Product Designer"],
     marketing: ["Marketing Manager", "Digital Marketing Specialist"],
     sales: ["Account Executive", "Sales Manager"],
+    customer_success: ["Customer Success Manager", "Technical Account Manager"],
     clinical: ["Registered Nurse", "Nurse"],
     teaching: ["Teacher", "Instructional Coordinator"],
     operations: ["Operations Manager", "Program Manager"],
@@ -76,6 +79,7 @@ const TITLE_FAMILY_HINTS: Readonly<Record<RoleFamilyId, ReadonlySet<string>>> = 
     design: new Set(["design", "ux", "ui", "creative"]),
     marketing: new Set(["market", "growth", "brand", "content"]),
     sales: new Set(["sales", "account", "revenue", "business development", "bd"]),
+    customer_success: new Set(["customer success", "client success", "account manag", "csm"]),
     clinical: new Set(["nurse", "clinical", "patient", "bedside", "rn", "lpn"]),
     teaching: new Set(["teach", "instructor", "educator", "professor", "faculty"]),
     operations: new Set(["operations", "ops", "program", "coordinator"]),
@@ -89,6 +93,7 @@ const TITLE_FAMILY_PATTERNS: Readonly<Record<RoleFamilyId, readonly RegExp[]>> =
     design: [/ux designer/i, /product designer/i, /ui designer/i],
     marketing: [/marketing manager/i, /growth marketing/i, /content strategist/i],
     sales: [/account executive/i, /sales manager/i, /business development/i],
+    customer_success: [/customer success/i, /client success/i, /technical account manag/i, /\baccount manager\b/i],
     clinical: [/registered nurse/i, /\bnurse\b/i, /clinical coordinator/i],
     teaching: [/\bteacher\b/i, /instructor/i, /professor/i],
     operations: [/operations manager/i, /program manager/i],
@@ -228,4 +233,18 @@ export function dutyDerivedRoleTitles(resume: ResumeData): string[] {
         }
     }
     return out;
+}
+
+/**
+ * The families a title-like phrase IS, by whole-title pattern only ("Customer
+ * Success Operations Manager" → customer success and operations). No duty
+ * inference: this reads what a résumé or a posting calls the role.
+ */
+export function familiesNamedBy(phrases: string[]): RoleFamilyId[] {
+    return (Object.keys(DUTY_SIGNALS) as RoleFamilyId[]).filter((family) => titleNamesFamily(family, phrases));
+}
+
+/** The retrieval titles of `families`, in family order, deduped. */
+export function familyRetrievalTitles(families: RoleFamilyId[]): string[] {
+    return [...new Set(families.flatMap((family) => FAMILY_RETRIEVAL_TITLES[family]))];
 }
