@@ -9,7 +9,8 @@
  *  - place: the posting is in a country the candidate can work in (their own,
  *    one they said they'd move to), or remote with no country;
  *  - level: the posting's level is one the pack asks for;
- *  - role: the posting is the kind of role the résumé targets (`roleOffTarget`);
+ *  - role: the posting is the kind of role the résumé targets (`roleFit`:
+ *    unknown when its title names no known role and no searched title);
  *  - pack: the posting belongs in the tile it was listed under.
  */
 import { candidateCountries, resolveCandidateSignals, type CandidateSignals } from "../../../src/lib/jobs/candidate-signals";
@@ -18,7 +19,7 @@ import { hasListedSalary, isFreshJob, isRemoteJob, jobMatchesHubPack, type HubPa
 import { jobCountries } from "../../../src/lib/jobs/resume-location";
 import type { PublicJob } from "../../../src/lib/jobs/types";
 import { isUnknownFacetValue } from "../../../src/lib/jobs/unknown-inclusive-facets";
-import { matchBand, matchBandLabel, roleOffTarget, scoreJobAgainstResume } from "../../../src/lib/match/score";
+import { matchBand, matchBandLabel, roleFit, scoreJobAgainstResume } from "../../../src/lib/match/score";
 import type { ResumeData } from "../../../src/types/resume";
 
 export type Check = "pass" | "fail" | "unknown";
@@ -33,7 +34,8 @@ export interface AuditVerdict {
     level: string;
     /** The band velai.app showed on the row. */
     shownBand: string | null;
-    /** The band the current scorer gives this résumé and posting. */
+    /** The band the current scorer gives this résumé and posting, scored as the
+     *  list row is (list payloads carry no description), so it compares with `shownBand`. */
     band: string | null;
     why: string;
     checks: { place: Check; level: Check; role: Check; pack: Check };
@@ -71,6 +73,8 @@ function packCheck(tile: HubPackId, job: PublicJob, nowMs: number): Check {
     }
 }
 
+const ROLE_CHECK = { target: "pass", unverified: "unknown", "off-target": "fail" } as const satisfies Record<string, Check>;
+
 export function auditRecommendation(input: {
     resume: ResumeData;
     tile: HubPackId;
@@ -82,7 +86,7 @@ export function auditRecommendation(input: {
     const { resume, tile, position, job, shownBand, nowMs } = input;
     const signals = resolveCandidateSignals(resume, null);
     const pack = packFilters(resume, signals);
-    const score = scoreJobAgainstResume(resume, job, signals);
+    const score = scoreJobAgainstResume(resume, { ...job, description: null }, signals);
     const relevance = score?.components.find((c) => c.key === "relevance");
     return {
         tile,
@@ -98,7 +102,7 @@ export function auditRecommendation(input: {
         checks: {
             place: placeCheck(signals, job),
             level: levelCheck(pack.facets.experience_level, job),
-            role: roleOffTarget(resume, job) ? "fail" : "pass",
+            role: ROLE_CHECK[roleFit(resume, job)],
             pack: packCheck(tile, job, nowMs),
         },
     };
