@@ -21,7 +21,8 @@ describe("for-you mobile chrome", () => {
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
         const src = readFileSync(join(JOBS, "LocalCustomizePanel.tsx"), "utf8");
-        assert.match(src, /max-h-\[85dvh\]/);
+        assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/, "body scrolls on the dialog primitive");
+        assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
         const copyBlock =
             src.match(/<Button[\s\S]*?data-testid="local-customize-copy"[\s\S]*?<\/Button>/)?.[0] ?? "";
         const pdfBlock =
@@ -34,10 +35,10 @@ describe("for-you mobile chrome", () => {
 
     it("ResumeImportModal shrinks on short phones", () => {
         const src = readFileSync(join(RESUME, "ResumeImportModal.tsx"), "utf8");
-        assert.match(src, /max-h-\[90dvh\]/);
+        assert.match(src, /<DialogBody\b/, "one scroll region between header and footer");
+        assert.doesNotMatch(src, /ScrollArea/, "no nested scroller inside the dialog body");
+        assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
         assert.match(src, /grid-cols-1[\s\S]*sm:grid-cols-2/);
-        assert.doesNotMatch(src, /ScrollArea className="h-\[400px\]"/);
-        assert.match(src, /max-h-\[min\(50dvh,400px\)\]/);
     });
 
     it("CompanyRoleSearch title clamps instead of overflowing on narrow viewports", () => {
@@ -46,9 +47,10 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /line-clamp-2/, "title must clamp rather than overflow unbounded");
     });
 
-    it("ApplyIntentDialog uses dvh for mobile viewport height", () => {
+    it("ApplyIntentDialog takes its mobile height cap from the primitive", () => {
         const src = readFileSync(join(JOBS, "ApplyIntentDialog.tsx"), "utf8");
-        assert.match(src, /max-h-\[85dvh\]/);
+        assert.match(src, /<DialogBody\b/);
+        assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
     });
 
     it("ApplyIntentDialog uses p-0 shell with explicit px-6 zone padding", () => {
@@ -61,7 +63,7 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /shrink-0 px-6 pt-6 pr-12/, "header zone must carry px-6");
         assert.match(
             src,
-            /overflow-y-auto px-6/,
+            /<DialogBody className="[^"]*\bpx-6\b/,
             "middle scroller must carry px-6",
         );
         assert.match(
