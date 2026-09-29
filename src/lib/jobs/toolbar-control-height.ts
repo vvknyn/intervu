@@ -17,8 +17,9 @@ export const topbarDockedSearchHeight = "ctl-md";
 
 /** Job actions — Apply, Customize résumé, Upload-to-customize, Save, Report —
  * on every job action row (split-view detail pane, the mobile sheet's sticky
- * bar, /jobs/[slug], the For-you deck): the control scale's `lg` step, one
- * token so no peer drifts to another height. */
-export const jobActionSize = "lg";
+ * bar, /jobs/[slug], the For-you deck): the Button sizes on the control scale's
+ * `md` step, like the toolbar — one token so no peer drifts to another height,
+ * and the 44px touch target is `.ctl-md`'s coarse-pointer hit area. */
+export const jobActionSize = "default";
 /** The icon-only form of the same step (the Save bookmark). */
-export const jobActionIconSize = `icon-${jobActionSize}` as const;
+export const jobActionIconSize = "icon";

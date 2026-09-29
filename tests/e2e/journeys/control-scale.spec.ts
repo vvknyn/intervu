@@ -119,12 +119,15 @@ test("no row in an open job mixes control steps: the /jobs detail (split pane at
     test.skip(!listed, "this server lists no jobs (no search backend), so there is no job to open");
     const href = await row.getByTestId("job-title").getAttribute("href");
     const apply = page.getByRole("button", { name: APPLY_BUTTON_LABEL }).filter({ visible: true }).first();
+    // The job actions sit on the md step (the 44px touch target is the hit area, not the visual) and no row mixes steps.
+    const actionsOnOneMdStep = async () => {
+        await expect(apply).toBeVisible({ timeout: 15_000 });
+        expect(Math.round((await apply.boundingBox())!.height)).toBe(MD);
+        expect(await mixedRows(page)).toEqual([]);
+    };
 
     await row.click();
-    await expect(apply).toBeVisible({ timeout: 15_000 });
-    expect(await mixedRows(page)).toEqual([]);
-
+    await actionsOnOneMdStep();
     await page.goto(href!);
-    await expect(apply).toBeVisible({ timeout: 15_000 });
-    expect(await mixedRows(page)).toEqual([]);
+    await actionsOnOneMdStep();
 });
