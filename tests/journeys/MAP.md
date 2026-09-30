@@ -4,7 +4,7 @@ A readable map of the journeys in [CATALOG.md](CATALOG.md), grouped by where a v
 
 ## Where job lists appear
 
-**The rule the product is moving to:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Bare /jobs becomes a front door with no rows (upload a résumé, sign in, or search). Typed search stays open to guests: the first 90 rows, then a sign-in card. A guest with a résumé sees their top 3 matches, then a sign-in card. Company and job pages stay public. **Live on staging:** guest search with the sign-in card after 90 rows (J-JOBS-06), a guest's top 3 matches and then the sign-in card (J-JOBS-34), and public company and job pages. **In flight:** the For you gate PR #711 (For you needs an account: a signed-out visitor gets one sign-in card instead of job packs, and a guest's résumé ranks the Search board) and the search relevance PR (results put the best match first, then newer roles). **Not live:** the front door; bare /jobs still lists the newest roles in the visitor's country (J-JOBS-01).
+**The rule the product is moving to:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Bare /jobs becomes a front door with no rows (upload a résumé, sign in, or search). Typed search stays open to guests: the first 90 rows, then a sign-in card. A guest with a résumé sees their top 3 matches, then a sign-in card. Company and job pages stay public. **Live on staging:** guest search with the sign-in card after 90 rows (J-JOBS-06), a guest's top 3 matches and then the sign-in card (J-JOBS-34), and public company and job pages. **In flight:** the For you gate PR #711 (For you needs an account: a signed-out visitor gets one sign-in card instead of job packs; bare /jobs becomes the front door with no rows and a live count of the week's roles; a résumé on file opens Search on the résumé-ranked list, a guest's top 3 then the sign-in card) and the search relevance PR (typed search covers 90 days instead of 30, newer roles first among equally good matches, and a country search stops listing remote roles tagged to a city elsewhere). **Not live until #711 ships:** the front door; bare /jobs still lists the newest roles in the visitor's country (J-JOBS-01).
 
 Today (staging): what a visitor sees arriving on /jobs. Red: a job list with no reason behind it; green: a list with a reason; blue: what #711 changes; tan: a sign-in card.
 
@@ -53,7 +53,7 @@ flowchart TD
   K -- Skip --> L["Search, no rows until they search<br/>Add your résumé to see matches"]:::new
   K -- Upload --> M
   J -- yes --> M["For you: job packs<br/>best fit, newest first"]:::same
-  M -- Advanced search --> N["Search opens on<br/>new roles that fit you"]:::new
+  M -- Advanced search --> N["Search opens on<br/>the roles that fit you"]:::new
   L -- searches --> F2["Results, no limit<br/>best match, then newest"]:::new
   N -- searches --> F2
   G1 -- signs up --> F2
