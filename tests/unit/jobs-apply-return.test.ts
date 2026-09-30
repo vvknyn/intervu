@@ -178,4 +178,21 @@ describe('armApplyReturn / evaluateApplyReturn (storage + one-shot record)', () 
         const result = evaluateApplyReturn(storage, 1_000 + APPLY_RETURN_THRESHOLD_MS, neverApplied);
         assert.equal(result?.jobId, JOB_B.jobId);
     });
+
+    it('keeps the employer posting URL so "Yes" can save it on the tracked role', () => {
+        const storage = memoryStorage();
+        armApplyReturn(storage, { ...JOB_A, applyUrl: 'https://jobs.example.com/123' }, 0);
+
+        const result = evaluateApplyReturn(storage, APPLY_RETURN_THRESHOLD_MS, neverApplied);
+        assert.equal(result?.applyUrl, 'https://jobs.example.com/123');
+    });
+
+    it('a record armed before the URL was stored still prompts', () => {
+        const storage = memoryStorage({
+            [APPLY_RETURN_STORAGE_KEY]: JSON.stringify({ jobId: 'job-a', title: 'Backend Engineer', company: 'Acme', leftAt: 0, prompted: false }),
+        });
+        const result = evaluateApplyReturn(storage, APPLY_RETURN_THRESHOLD_MS, neverApplied);
+        assert.equal(result?.jobId, 'job-a');
+        assert.equal(result?.applyUrl, undefined);
+    });
 });

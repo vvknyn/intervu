@@ -1,4 +1,5 @@
 import type { ExhaustSection, IntegrityFacts } from "@/lib/companies/exhaust";
+import { hiringRecordSentence } from "@/lib/companies/hiring-record";
 
 /**
  * Band 6 (gated) — "How their postings behave": counts by `closed_reason`
@@ -6,26 +7,27 @@ import type { ExhaustSection, IntegrityFacts } from "@/lib/companies/exhaust";
  * `label` is already humanized (exhaust.ts reuses `eventTypeLabel`, the
  * same snake_case→words pattern `events.ts` uses for the ledger vocabulary)
  * — this component never re-derives copy from the raw `reason` string.
+ * The summary sentence is `hiringRecordSentence`, the same one the rail's
+ * hiring record prints, so the two can't disagree.
  */
 export function CompanyIntegrityBand({
   integrity,
+  nowMs,
 }: {
   integrity: ExhaustSection<IntegrityFacts>;
+  nowMs: number;
 }) {
   if (!integrity) return null;
   const { closedReasonCounts, openedCount } = integrity.data;
   if (closedReasonCounts.length === 0 && openedCount === 0) return null;
 
-  const closedTotal = closedReasonCounts.reduce((sum, r) => sum + r.count, 0);
-
   return (
-    <section data-testid="company-integrity-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">
+    <section data-testid="company-integrity-band" className="border-t border-border pt-6">
+      <h2 className="text-base font-semibold leading-snug text-foreground">
         How their postings behave
       </h2>
-      <p className="mt-2 text-sm leading-relaxed text-foreground">
-        {closedTotal} role{closedTotal === 1 ? "" : "s"} closed in the last 90 days
-        {openedCount > 0 ? `; ${openedCount} opened in the same window.` : "."}
+      <p data-testid="company-integrity-record" className="mt-2 text-sm leading-relaxed text-foreground">
+        {hiringRecordSentence(integrity.data, nowMs)}
       </p>
       {closedReasonCounts.length > 0 && (
         <div className="mt-4 overflow-x-auto">

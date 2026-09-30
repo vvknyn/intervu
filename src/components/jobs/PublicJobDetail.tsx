@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { markJobAppliedAction } from "@/actions/jobs";
@@ -41,6 +41,7 @@ import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
 import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
@@ -67,6 +68,8 @@ export interface PublicJobDetailProps {
      *  "co"). */
     source?: EventSource;
 }
+
+const subscribeNever = () => () => {};
 
 /**
  * Client-side wiring for `JobDetail`/`JobDetailDocument` on standalone or
@@ -96,13 +99,20 @@ export function PublicJobDetail({
     const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
     const router = useRouter();
     const { byJobId } = usePursuits();
+    // A guest's tracker lives in localStorage, which the server can't read, so
+    // /jobs/[slug] is server-rendered as untracked. Until hydration finishes,
+    // render it that way here too, then fill in the bookmark and the tracker
+    // line; reading the tracker in the first render failed hydration (React
+    // 418) on every guest visit to a role they track.
+    const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
     const pursuitsByJobId = useMemo(() => {
+        if (!hydrated) return new Map<string, Pursuit>();
         const merged = new Map(byJobId);
         for (const [jobId, pursuit] of optimisticPursuits) {
             merged.set(jobId, pursuit);
         }
         return merged;
-    }, [byJobId, optimisticPursuits]);
+    }, [hydrated, byJobId, optimisticPursuits]);
 
     useEffect(() => {
         setOptimisticPursuits((prev) => pruneConfirmedOptimisticPursuits(prev, byJobId));
@@ -148,8 +158,9 @@ export function PublicJobDetail({
         let cancelled = false;
         setResumeSettled(false);
         fetchResumeData()
-            .then(({ data, updatedAt }) => {
+            .then(({ data: stored, text, updatedAt }) => {
                 if (cancelled) return;
+                const data = storedResumeData(stored, text);
                 if (!data || !resumeIsUsable(data)) {
                     setResume(null);
                     setResumeAsOfDate(null);
@@ -215,6 +226,10 @@ export function PublicJobDetail({
             upload: () => {},
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     const openAuth = (reason: AuthGateReason | null = null, trigger: AuthGateTrigger = "user") => {
@@ -464,27 +479,42 @@ export function PublicJobDetail({
                     onSignInToSync={() => openAuth("tailor", "user")}
                 />
             ) : (
-                <JobDetail
-                    job={job}
-                    now={nowMs}
-                    source={effectiveSource}
-                    signedIn={Boolean(user)}
-                    pursuit={pursuitsByJobId.get(job.id)}
-                    saveSuccessPulse={savePulse}
-                    reportJobEnabled={reportJobEnabled}
-                    onClose={onClose}
-                    onOpenRelated={handleOpenRelated}
-                    collapseDescription={collapseDescription}
-                    className={cn(detailClassName)}
-                    onOpenPosting={() => handleOpenPosting(job)}
-                    onGoAfter={() => handleGoAfter(job)}
-                    matchScore={matchScore}
-                    matchAsOfDate={resumeAsOfDate}
-                    matchPending={matchPending}
-                    resume={resume}
-                    onUploadResume={() => router.push("/resume")}
-                    onSignInToSync={() => openAuth("tailor", "user")}
-                />
+                <>
+                    {/* The panel layout lives in the company page's role sheet, where
+                        the floating prompt is hidden (see ApplyReturnPrompt), so the
+                        question sits at the top of the sheet the visitor returns to. */}
+                    {applyReturnPrompt && (
+                        <div className="px-4 pt-3">
+                            <ApplyReturnPrompt
+                                placement="inline"
+                                record={applyReturnPrompt}
+                                onMarkApplied={markApplyReturnApplied}
+                                onDismiss={dismissApplyReturn}
+                            />
+                        </div>
+                    )}
+                    <JobDetail
+                        job={job}
+                        now={nowMs}
+                        source={effectiveSource}
+                        signedIn={Boolean(user)}
+                        pursuit={pursuitsByJobId.get(job.id)}
+                        saveSuccessPulse={savePulse}
+                        reportJobEnabled={reportJobEnabled}
+                        onClose={onClose}
+                        onOpenRelated={handleOpenRelated}
+                        collapseDescription={collapseDescription}
+                        className={cn(detailClassName)}
+                        onOpenPosting={() => handleOpenPosting(job)}
+                        onGoAfter={() => handleGoAfter(job)}
+                        matchScore={matchScore}
+                        matchAsOfDate={resumeAsOfDate}
+                        matchPending={matchPending}
+                        resume={resume}
+                        onUploadResume={() => router.push("/resume")}
+                        onSignInToSync={() => openAuth("tailor", "user")}
+                    />
+                </>
             )}
             {/* Document layout already has its own sticky-rail Apply card at
                 lg+ (JobDetailDocument's `applyCardEl`) AND, below `lg`, its
@@ -509,11 +539,13 @@ export function PublicJobDetail({
                 onSignIn={handleGuestTrackSignIn}
                 onDismiss={() => setGuestTrackPrompt(null)}
             />
-            <ApplyReturnPrompt
-                record={applyReturnPrompt}
-                onMarkApplied={markApplyReturnApplied}
-                onDismiss={dismissApplyReturn}
-            />
+            {layout === "document" && (
+                <ApplyReturnPrompt
+                    record={applyReturnPrompt}
+                    onMarkApplied={markApplyReturnApplied}
+                    onDismiss={dismissApplyReturn}
+                />
+            )}
         </>
     );
 }

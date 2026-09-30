@@ -1,9 +1,8 @@
 /**
  * Post-auth landing paths — route signed-in users without a usable résumé
  * into the existing /jobs résumé gate (`/jobs?resume=gate`) so one-shot
- * upload can open. Signup AuthKit returns always use the gate; résumeless
- * password/login landings do too unless a pending apply/upload/report owns
- * the next step.
+ * upload can open. Signups and résumeless password/login landings use the
+ * gate unless a pending apply/upload/report owns the next step.
  */
 
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
@@ -51,6 +50,17 @@ export function authGateReasonToFunnelReason(reason?: AuthGateReason | null): Re
     return AUTH_TO_FUNNEL[reason] ?? "fit";
 }
 
+/**
+ * Pages a visitor is part-way through when they stop to sign in: connecting an
+ * AI (/connect) and approving it (/oauth/authorize). Sign-in and signup return
+ * there even without a résumé; the résumé gate would lose the approval.
+ */
+export function isMidTaskReturn(next: string | null | undefined): boolean {
+    if (!next) return false;
+    const path = next.trim().split(/[?#]/)[0];
+    return path === "/connect" || path === "/oauth/authorize";
+}
+
 export function resolvePostAuthDestination(input: {
     validatedNext: string | null;
     hasResume: boolean;
@@ -67,23 +77,36 @@ export function resolvePostAuthDestination(input: {
         return validatedNext ?? "/jobs";
     }
 
-    // Résumeless with nothing queued: always open the upload gate — including
-    // returns from /co/…, Search queries, Settings, or Connect. #585 only
-    // covered bare /jobs; company-page signups were skipping the modal.
+    // Connecting or approving an AI finishes first.
+    if (validatedNext && isMidTaskReturn(validatedNext)) {
+        return validatedNext;
+    }
+
+    // Résumeless with nothing queued: open the upload gate — including
+    // returns from /co/…, Search queries or Settings. #585 only covered bare
+    // /jobs; company-page signups were skipping the modal.
     return buildPostAuthResumeGatePath();
 }
 
-/** Rewrite AuthKit `next` for every signup so WorkOS returns to the résumé gate. */
+/**
+ * Rewrite AuthKit `next` for a signup so WorkOS returns to the résumé gate —
+ * unless a gated action is queued (Apply, upload, report), where the action
+ * replays, or `next` is connecting or approving an AI (`isMidTaskReturn`).
+ */
 export function resolveAuthKitReturnTo(input: {
     mode: "login" | "signup";
     rawNext: string | null | undefined;
+    hasPendingAction?: boolean;
 }): string | null {
     const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
     if (input.mode === "signup") {
-        return buildPostAuthResumeGatePath();
+        return next && (input.hasPendingAction || isMidTaskReturn(next)) ? next : buildPostAuthResumeGatePath();
     }
     return next;
 }
+
+/** `/auth/start` flag: the signup carries a queued action, so keep its `next`. */
+export const AUTH_START_PENDING_PARAM = "pending";
 
 /** Whether inline signup on /jobs should open the post-auth résumé gate. */
 export function shouldOpenResumeGateAfterInlineAuth(input: {
