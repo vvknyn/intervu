@@ -11,6 +11,7 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
 import { type EventSource } from "@/lib/analytics/events";
@@ -422,6 +423,8 @@ export function JobDetailDocument({
                     ]}
                 />
             </div>
+
+            <TrackedStageLine pursuit={pursuit} nowMs={now} className="mt-3" />
 
             {visibleTags(evidencedSkills(job, "must_have_skills"), 12).length > 0 && (
                 <div className="mt-4 border-t border-border pt-4">
