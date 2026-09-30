@@ -2,6 +2,8 @@
 
 The single list of user journeys velai must keep working. Each row is one journey; a covered row is guarded by a tagged Playwright spec in `tests/e2e/journeys/`.
 
+[MAP.md](MAP.md) groups these rows by user stage, with counts, the rule for where job lists appear, and the known problems.
+
 ## Run
 
 ```
