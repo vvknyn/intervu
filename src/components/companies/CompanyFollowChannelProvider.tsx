@@ -11,14 +11,12 @@ const CompanyFollowChannelContext = createContext<CompanyEmailVerifiedChannel | 
 
 export function CompanyFollowChannelProvider({
   domain,
-  displayName,
   children,
 }: {
   domain: string;
-  displayName: string;
   children: ReactNode;
 }) {
-  const channel = useCompanyEmailVerifiedChannel(domain, displayName);
+  const channel = useCompanyEmailVerifiedChannel(domain);
   // Every /co/[slug] mount wraps its page in this provider exactly once, so
   // it's the one place a company page view is guaranteed to fire from —
   // no separate effect duplicated across the page's own sections.

@@ -91,7 +91,7 @@ export function CompanyIntelGate(props: CompanyIntelGateProps) {
 }
 
 function CompanyIntelGateWithChannel(props: CompanyIntelGateProps) {
-  const { emailVerified } = useCompanyEmailVerifiedChannel(props.domain, props.displayName);
+  const { emailVerified } = useCompanyEmailVerifiedChannel(props.domain);
   return <CompanyIntelGateInner {...props} emailVerified={emailVerified} />;
 }
 

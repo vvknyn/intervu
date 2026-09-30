@@ -100,7 +100,7 @@ describe("/co/[slug]: the rail — hiring record and list health, gated, no butt
     const source = readFileSync(CO_PAGE, "utf8");
     const secondaryGateIndex = source.indexOf("<CompanyIntelGate", source.indexOf('data-testid="company-secondary"'));
     const railGateIndex = source.indexOf('testId="company-intel-gate-record"');
-    const recordHeadingIndex = source.indexOf("The hiring record");
+    const recordHeadingIndex = source.indexOf('data-testid="company-hiring-activity"');
     const listHealthIndex = source.indexOf("List health");
     assert.ok(railGateIndex !== -1, "rail gate with a distinct testId is missing");
     assert.ok(secondaryGateIndex < railGateIndex, "the rail gate must be a second, later gate instance");

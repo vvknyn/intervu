@@ -14,6 +14,8 @@ import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
+import { hiringRecordSentence } from "./hiring-record";
+import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 import { toValueArray, type PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
@@ -250,6 +252,41 @@ function buildFreshnessFact(
   return `${recent} of ${known.length} open roles were posted in the last ${days} days.`;
 }
 
+/** A role counts as seen live when Velai observed it alive (or ran its ghost
+ *  check without flagging it) inside this window. */
+const LIVE_CHECK_DAYS = 7;
+
+/**
+ * "40 seen live in the past week" — the honest partner to the headline count.
+ *
+ * The headline counts every open role, flagged ones included (get-company.ts
+ * searches with `hideGhosts: false`, so the count matches the "View all"
+ * link). On its own that read as "all 43 are live" while the rail told
+ * followers some may no longer be. Printing how many were recently seen
+ * alive states both in one line.
+ *
+ * Same census gate as `buildFreshnessFact`: a count over a 200-role sample
+ * printed beside a company-wide total would read as a company-wide figure.
+ * Empty string when there is nothing honest to say (sample only, or nothing
+ * seen live recently — a zero here would read as "all dead", which the data
+ * does not show either).
+ */
+function buildLiveCheckFact(
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
+  nowMs: number,
+): string {
+  if (data.jobs.length === 0 || !sampleCoversAllRoles(data)) return "";
+  const cutoff = nowMs - LIVE_CHECK_DAYS * MS_PER_DAY;
+  const seen = data.jobs.filter((j) => {
+    if (j.ghost_badge === "likely_ghost") return false;
+    const at = Date.parse(j.last_observed_alive_at || j.ghost_checked_at || "");
+    return !Number.isNaN(at) && at >= cutoff;
+  }).length;
+  if (seen === 0) return "";
+  if (seen === data.jobs.length) return "all seen live in the past week";
+  return `${formatCount(seen)} seen live in the past week`;
+}
+
 export type CompanyHiringAnswer = {
   /** At least one live role — the page uses it for the live indicator only;
    *  the words are already decided below. */
@@ -258,8 +295,11 @@ export type CompanyHiringAnswer = {
    *  on the page AND handed to the FAQPage structured data, so the machine
    *  answer and the human answer cannot drift apart. */
   headline: string;
-  /** The 90-day opened/closed record when it is known, and a plain statement
-   *  that it isn't when it isn't. Never phrased as a finding either way. */
+  /** See `buildLiveCheckFact`. The page prints it after the headline, so the
+   *  count of every open role sits beside how many were recently seen live. */
+  liveCheck: string;
+  /** The opened/closed record when it is known, and a plain statement that
+   *  it isn't when it isn't. Never phrased as a finding either way. */
   trackRecord: string;
   /** See `buildFreshnessFact`. Empty string when there is no fetched role to
    *  measure or no default window to measure against — the page renders it
@@ -294,22 +334,31 @@ export function buildCompanyHiringAnswer(
   data: Pick<
     CompanyPageData,
     "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord" | "jobs"
-  >,
+  > &
+    Partial<Pick<CompanyPageData, "exhaust">>,
   nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
-  const roles = data.openCount === 1 ? "open role is" : "open roles are";
+  const roles = data.openCount === 1 ? "open role" : "open roles";
+  // The box database's record (job_listings) is the one the gated integrity
+  // band prints; reading it here too keeps the rail from saying "isn't
+  // tracked" a few inches above a band that prints the same record.
+  const integrity = data.exhaust?.integrity?.data ?? null;
   return {
     hasOpenRoles,
-    // No "No" on the empty branch: the page knows what intervu tracks, not
+    // No "No" on the empty branch: the page knows what Velai tracks, not
     // whether the employer is hiring somewhere it can't see. It reports the
-    // former and lets the reader draw the latter.
+    // former and lets the reader draw the latter. No "Yes —" on the other:
+    // the count is the answer (rulebook 2026-09, GROUP-D: dash-free).
     headline: hasOpenRoles
-      ? `Yes — ${openCountText(data)} ${roles} live on velai right now.`
-      : "velai isn't tracking any live open roles right now.",
-    trackRecord: data.hasTrackRecord
-      ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
-      : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
+      ? `${openCountText(data)} ${roles} live on Velai right now`
+      : "Velai isn't tracking any live open roles right now",
+    liveCheck: buildLiveCheckFact(data, nowMs),
+    trackRecord: integrity
+      ? hiringRecordSentence(integrity, nowMs)
+      : data.hasTrackRecord
+        ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
+        : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
     freshness: buildFreshnessFact(data, nowMs),
   };
 }
@@ -321,9 +370,9 @@ export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
     const count = data.openCountIsLowerBound ? `at least ${data.openCount}` : String(data.openCount);
-    return `${data.name} has ${count} live, verified open ${roles} tracked on velai, screened for ${GHOST_JOB_TERM} risk.`;
+    return `${data.name} has ${count} live, verified open ${roles} tracked on Velai, screened for ${GHOST_JOB_TERM} risk.`;
   }
-  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on velai.`;
+  return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on Velai.`;
 }
 
 /**
@@ -424,28 +473,56 @@ function hiringGeosClause(jobs: PublicJob[]): string | null {
 }
 
 /**
- * "NN% of roles remote" — the exact `deriveWorkModeDistribution` figure the
- * retired "How they work" progress-bar card (`CompanyIntelligenceGrid`) used
- * to draw its bar from (lib/companies/enrichment.ts), read here off the
- * already-resolved `intelligence` rather than recomputed, so the hero can
- * never disagree with that computation. `null` when there's no intelligence
- * to read (no fetched jobs — `deriveWorkModeDistribution` itself returns
- * null on an empty roster).
+ * "5 of 43 roles remote" — read off `deriveWorkModeDistribution`
+ * (lib/companies/enrichment.ts), which counts a role as remote by the same
+ * `work_type` rule the /jobs Remote filter uses, so the number here is the
+ * number that filter returns.
+ *
+ * A count only when the fetched roles are every open role
+ * (`sampleCoversAllRoles`); over a sample it stays a rounded share with
+ * "about", and a zero share over a sample is dropped rather than stated as
+ * "none". `null` when there's no intelligence to read (no fetched jobs).
  */
-function remoteShareClause(intelligence: CompanyPageData["intelligence"]): string | null {
-  const pct = intelligence?.workModes?.remotePct;
-  return pct == null ? null : `${pct}% of roles remote`;
+function remoteShareClause(
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound" | "intelligence">,
+): string | null {
+  const modes = data.intelligence?.workModes;
+  if (!modes) return null;
+  if (sampleCoversAllRoles(data)) {
+    return `${formatCount(modes.remoteCount)} of ${formatCount(modes.total)} roles remote`;
+  }
+  return modes.remoteCount === 0 ? null : `about ${modes.remotePct}% of roles remote`;
+}
+
+/**
+ * The remote fact's link: this company's roles on /jobs with the Remote
+ * filter applied. Built from the `work_type` values the fetched roles
+ * actually carry (the corpus's own strings, so the facet cannot miss the
+ * way a derived `location_country` value did — see `buildCompanyJobsUrl`),
+ * on top of that function's scope so the landing count matches the fact.
+ */
+function buildRemoteJobsUrl(data: Pick<CompanyPageData, "domain" | "jobs">): string | null {
+  const values = [...new Set(data.jobs.map((j) => j.work_type).filter((v) => v && isRemoteWorkTypeValue(v)))];
+  if (values.length === 0) return null;
+  return `/jobs${serializeJobsUrl({
+    ...DEFAULT_URL_STATE,
+    companyDomain: data.domain,
+    postedBucket: undefined,
+    hideGhosts: false,
+    facets: { location_country: ["any"], work_type: values },
+  })}`;
 }
 
 /** The hero's "derived facts" row: domain, where this employer is hiring,
- *  what share of roles are remote. `hiringGeos`/`remoteShare` are `null`
+ *  how many roles are remote. `hiringGeos`/`remoteShare` are `null`
  *  (never a placeholder string) when the underlying clause has nothing
- *  usable behind it — the hero renders each fact as its own icon-led item
- *  and simply omits the ones that are `null`. */
+ *  usable behind it — the hero simply omits the ones that are `null`.
+ *  `remoteJobsUrl` links the remote fact to the matching /jobs search. */
 export interface CompanyFacts {
   domain: string;
   hiringGeos: string | null;
   remoteShare: string | null;
+  remoteJobsUrl: string | null;
 }
 
 /**
@@ -455,11 +532,13 @@ export interface CompanyFacts {
  * `getCompanyPageData`, which never returns a page with an empty one).
  */
 export function buildCompanyFacts(
-  data: Pick<CompanyPageData, "domain" | "jobs" | "intelligence">,
+  data: Pick<CompanyPageData, "domain" | "jobs" | "intelligence" | "openCount" | "openCountIsLowerBound">,
 ): CompanyFacts {
+  const remoteShare = remoteShareClause(data);
   return {
     domain: data.domain,
     hiringGeos: hiringGeosClause(data.jobs),
-    remoteShare: remoteShareClause(data.intelligence),
+    remoteShare,
+    remoteJobsUrl: remoteShare ? buildRemoteJobsUrl(data) : null,
   };
 }

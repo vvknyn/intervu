@@ -47,7 +47,6 @@ function renderLockedGate(): string {
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
@@ -95,7 +94,6 @@ function renderRailGate(): string {
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
@@ -144,7 +142,6 @@ function renderLockedGateWithFallback(fallback: React.ReactNode | undefined): st
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
