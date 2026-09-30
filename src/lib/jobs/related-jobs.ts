@@ -12,6 +12,7 @@
  * "like this" (Vivek, 2026-09-30).
  */
 
+import type { Gazetteer } from "@/lib/geo/gazetteer";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -49,12 +50,25 @@ export function significantTitleWords(title: string, max: number = MAX_TITLE_WOR
         .slice(0, max);
 }
 
+/**
+ * The role itself, without the team, product or shift after a comma, a
+ * spaced dash, a bar or a bracket: "UX Designer, Chrome Disco" is a UX
+ * Designer. Taking the first three words of the whole title searched for
+ * "ux designer chrome" and surfaced a Chrome product manager (2026-09-30).
+ * An unspaced hyphen stays ("Front-End Developer").
+ */
+export function titleCore(title: string): string {
+    const core = (title ?? "").split(/,|\(|\[|\||\s[-–—/]\s/)[0]!.trim();
+    return core || (title ?? "").trim();
+}
+
 /** The similar-roles query for `title`, or null when the title has no usable
  *  keywords (e.g. "Senior Staff Lead") — an empty query would search the
  *  whole corpus, which is not "related". */
 export function relatedTitleQuery(title: string): string | null {
-    const words = significantTitleWords(title);
-    return words.length > 0 ? words.join(" ") : null;
+    const words = significantTitleWords(titleCore(title));
+    const all = words.length > 0 ? words : significantTitleWords(title);
+    return all.length > 0 ? all.join(" ") : null;
 }
 
 /** The one country to keep similar roles in, or null (no country, or a
@@ -62,6 +76,81 @@ export function relatedTitleQuery(title: string): string | null {
 export function relatedCountry(country: PublicJob["location_country"]): string | null {
     const one = Array.isArray(country) ? (country.length === 1 ? country[0] : null) : country;
     return one?.trim() || null;
+}
+
+/**
+ * What "More like this" is built from: the viewed job's id, title, company
+ * and place, as plain strings, so it crosses the server-action boundary
+ * without the description and can key the fetch effect.
+ */
+export interface RelatedSeed {
+    id: string;
+    title: string;
+    company: string | null;
+    companyDomain: string | null;
+    location: string | null;
+    state: string | null;
+    /** One country value (`relatedCountry`), or null. */
+    country: string | null;
+}
+
+export function relatedSeed(
+    job: Pick<PublicJob, "id" | "title" | "company" | "company_domain" | "location" | "location_state" | "location_country">,
+): RelatedSeed {
+    const text = (v: string | null | undefined) => v?.trim() || null;
+    return {
+        id: job.id,
+        title: job.title ?? "",
+        company: text(job.company),
+        companyDomain: text(job.company_domain),
+        location: text(job.location),
+        state: text(job.location_state),
+        country: relatedCountry(job.location_country),
+    };
+}
+
+/** The one country an admin1 name ("California", "Ontario") belongs to, or
+ *  null when the name is unknown or shared across countries. */
+function admin1Country(name: string, gazetteer: Gazetteer): string | null {
+    const countries = new Set((gazetteer.admin1ByName.get(name.toLowerCase()) ?? []).map((a) => a.countryCode));
+    return countries.size === 1 ? [...countries][0]! : null;
+}
+
+/**
+ * The ISO2 country to keep similar roles in, or null to search everywhere.
+ *
+ * The job's own country field comes first, read as a country: a two-letter
+ * value is a country code, so "CA" is Canada. Passed through the search box's
+ * place parser it was California, and a Canadian job listed US roles
+ * (2026-09-30). With no country, the state ("CALIFORNIA") or a comma-separated
+ * piece of the location text ("Universal City, California") that names a
+ * country or a state of exactly one country decides it.
+ */
+export function relatedCountryIso2(seed: Pick<RelatedSeed, "country" | "state" | "location">, gazetteer: Gazetteer): string | null {
+    const country = seed.country?.trim();
+    if (country) {
+        const hit =
+            country.length === 2
+                ? gazetteer.countriesByIso2.get(country.toUpperCase())
+                : country.length === 3
+                  ? gazetteer.countriesByIso3.get(country.toUpperCase())
+                  : gazetteer.countriesByName.get(country.toLowerCase());
+        if (hit) return hit.iso2;
+    }
+    const state = seed.state?.trim();
+    if (state && state.length > 2) {
+        const iso2 = admin1Country(state, gazetteer);
+        if (iso2) return iso2;
+    }
+    // Last piece first: "Toronto, Ontario, Canada" is most specific at the end.
+    const pieces = (seed.location ?? "").split(",").map((p) => p.trim()).filter((p) => p.length > 2).reverse();
+    for (const piece of pieces) {
+        const byName = gazetteer.countriesByName.get(piece.toLowerCase());
+        if (byName) return byName.iso2;
+        const iso2 = admin1Country(piece, gazetteer);
+        if (iso2) return iso2;
+    }
+    return null;
 }
 
 /** Which list "More like this" is showing — decides its heading. */
@@ -98,17 +187,25 @@ function relatedDedupeKey(job: Pick<DedupableJob, "title" | "company" | "locatio
 
 /**
  * "More like this" row list, ready to render: excludes the job currently
- * being viewed, then collapses rows that share a normalised
+ * being viewed and its twins (another row with its title, company and
+ * location: the same opening posted twice, which read as the job listing
+ * itself), then collapses rows that share a normalised
  * title+company+location (the same opening cross-posted or re-scraped into
  * more than one row) down to one, keeping the newest `posted_ts`. Rows that
  * only share title+company — a different location — are different openings
  * and are both kept.
  */
-export function dedupeRelatedJobs<T extends DedupableJob>(jobs: T[], currentJobId: string): T[] {
+export function dedupeRelatedJobs<T extends DedupableJob>(
+    jobs: T[],
+    current: string | Pick<RelatedSeed, "id" | "title" | "company" | "location">,
+): T[] {
+    const currentId = typeof current === "string" ? current : current.id;
+    const currentKey = typeof current === "string" ? null : relatedDedupeKey(current);
     const byKey = new Map<string, T>();
     for (const job of jobs) {
-        if (job.id === currentJobId) continue;
+        if (job.id === currentId) continue;
         const key = relatedDedupeKey(job);
+        if (key === currentKey) continue;
         const existing = byKey.get(key);
         if (!existing || (job.posted_ts ?? 0) > (existing.posted_ts ?? 0)) {
             byKey.set(key, job);

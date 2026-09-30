@@ -39,7 +39,7 @@ import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs"
 import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
-import { relatedCountry, relatedJobsHeading, type RelatedBasis } from "@/lib/jobs/related-jobs";
+import { relatedJobsHeading, relatedSeed, type RelatedBasis, type RelatedSeed } from "@/lib/jobs/related-jobs";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { resolveDescriptionSectionState } from "@/lib/jobs/description-section-state";
 import { useDescriptionSettled } from "@/components/jobs/use-description-settled";
@@ -371,6 +371,27 @@ export function JobDetailActionBar({
 /** The related list as `getRelatedJobsAction` returns it. */
 export type RelatedJobs = { jobs: PublicJob[]; basis: RelatedBasis };
 export const NO_RELATED: RelatedJobs = { jobs: [], basis: "title" };
+
+const RELATED_REUSE_MS = 30_000;
+const relatedRequests = new Map<string, { at: number; request: Promise<RelatedJobs> }>();
+
+/**
+ * The related list for a `relatedSeed` key, asked for once per job for a
+ * short while. The deferred auth and analytics providers (app/layout.tsx)
+ * remount the page as each one loads, so a job page ran this fetch three
+ * times per view, up to six searches against the visitor's rate limit
+ * (2026-09-30).
+ */
+export function fetchRelatedJobs(seedKey: string): Promise<RelatedJobs> {
+    const now = Date.now();
+    const hit = relatedRequests.get(seedKey);
+    if (hit && now - hit.at < RELATED_REUSE_MS) return hit.request;
+    const request = getRelatedJobsAction(JSON.parse(seedKey) as RelatedSeed);
+    relatedRequests.set(seedKey, { at: now, request });
+    request.catch(() => relatedRequests.delete(seedKey));
+    if (relatedRequests.size > 50) relatedRequests.delete(relatedRequests.keys().next().value!);
+    return request;
+}
 
 // JobCard's row anatomy: the row is the list's full bleed (the list sits at
 // -mx-4, see RelatedJobsSection) with the text inset by `--list-inset`, so the
@@ -716,9 +737,9 @@ export function JobDetail({
     // against a fast re-open (new `job.id` before the previous fetch lands)
     // painting a stale job's related list onto the new one.
     const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
-    // A string, not `job.location_country` itself: that can be an array,
-    // and a fresh array per render would re-run the fetch.
-    const relatedPlace = relatedCountry(job.location_country);
+    // Keyed by a string, not the job object or `job.location_country` (it
+    // can be an array): a fresh object per render would re-run the fetch.
+    const relatedKey = JSON.stringify(relatedSeed(job));
     useEffect(() => {
         // Below-the-fold: waits for the description to settle (ready or
         // confirmed empty — see use-description-settled.ts) so this fetch
@@ -731,7 +752,7 @@ export function JobDetail({
         // read. The open-count figure below is fetched separately and does
         // NOT share this gate — see that effect's own comment for why.
         if (!signedIn) return;
-        getRelatedJobsAction(job.id, job.company_domain, job.title, relatedPlace)
+        fetchRelatedJobs(relatedKey)
             .then((data) => {
                 if (cancelled) return;
                 setRelated(data);
@@ -744,7 +765,7 @@ export function JobDetail({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title, relatedPlace, signedIn, descriptionSettled]);
+    }, [relatedKey, signedIn, descriptionSettled]);
 
     // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
     // hiring-truth rail's "Live roles" figure used to read

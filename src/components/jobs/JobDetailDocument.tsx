@@ -3,12 +3,12 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
-import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
+import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
+import { fetchRelatedJobs, JobDescription, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -33,7 +33,7 @@ import { jobCompanyHref } from "@/lib/companies/paths";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { relatedCountry } from "@/lib/jobs/related-jobs";
+import { relatedSeed } from "@/lib/jobs/related-jobs";
 import {
     clampLocationSegments,
     decodeText,
@@ -331,8 +331,8 @@ export function JobDetailDocument({
     useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
 
     const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
-    // A string, not the raw field (possibly an array) — see JobDetail.tsx.
-    const relatedPlace = relatedCountry(job.location_country);
+    // A string key, not the job object — see JobDetail.tsx.
+    const relatedKey = JSON.stringify(relatedSeed(job));
     useEffect(() => {
         let cancelled = false;
         setRelated(NO_RELATED);
@@ -342,7 +342,7 @@ export function JobDetailDocument({
         // serves anonymous visitors the same company-scoped data with no
         // gate, so gating this one query type differently on this page would
         // be arbitrary rather than a real access boundary.
-        getRelatedJobsAction(job.id, job.company_domain, job.title, relatedPlace)
+        fetchRelatedJobs(relatedKey)
             .then((data) => {
                 if (!cancelled) setRelated(data);
             })
@@ -352,7 +352,7 @@ export function JobDetailDocument({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title, relatedPlace]);
+    }, [relatedKey]);
 
     const heroEl = (
         <div className="pb-6">

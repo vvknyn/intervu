@@ -1,13 +1,17 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { loadGazetteer } from '../../src/lib/geo/gazetteer';
 import {
     dedupeRelatedJobs,
     MIN_RELATED_HITS,
     pickRelatedJobs,
     relatedCountry,
+    relatedCountryIso2,
     relatedJobsHeading,
+    relatedSeed,
     relatedTitleQuery,
     significantTitleWords,
+    titleCore,
 } from '../../src/lib/jobs/related-jobs';
 
 interface RowIn {
@@ -128,5 +132,83 @@ describe('dedupeRelatedJobs', () => {
         ];
         const out = dedupeRelatedJobs(rows, 'current');
         assert.deepEqual(out.map((r) => r.id).sort(), ['nyc', 'sf']);
+    });
+});
+
+describe('titleCore', () => {
+    it('keeps the role and drops the team, product or shift after a delimiter', () => {
+        assert.equal(titleCore('UX Designer, Chrome Disco'), 'UX Designer');
+        assert.equal(titleCore('Registered Nurse - Night Shift'), 'Registered Nurse');
+        assert.equal(titleCore('Data Analyst (Contract)'), 'Data Analyst');
+        assert.equal(titleCore('Account Executive | EMEA'), 'Account Executive');
+    });
+
+    it('keeps an unspaced hyphen, and the whole title when the role would be empty', () => {
+        assert.equal(titleCore('Front-End Developer'), 'Front-End Developer');
+        assert.equal(titleCore('(Senior) Product Manager'), '(Senior) Product Manager');
+    });
+
+    it('feeds the query, so a team name no longer pulls in other roles', () => {
+        assert.equal(relatedTitleQuery('UX Designer, Chrome Disco'), 'ux designer');
+        assert.equal(relatedTitleQuery('Product Manager, Payments Infrastructure'), 'product manager');
+        assert.equal(relatedTitleQuery('Senior, Staff'), null);
+    });
+});
+
+describe('relatedCountryIso2', () => {
+    const gazetteer = loadGazetteer();
+    const seed = (over: { country?: string | null; state?: string | null; location?: string | null }) => ({ country: null, state: null, location: null, ...over });
+
+    it('reads the country field as a country, so CA is Canada, not California', () => {
+        assert.equal(relatedCountryIso2(seed({ country: 'CA' }), gazetteer), 'CA');
+        assert.equal(relatedCountryIso2(seed({ country: 'Canada' }), gazetteer), 'CA');
+        assert.equal(relatedCountryIso2(seed({ country: 'US' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ country: 'GBR' }), gazetteer), 'GB');
+    });
+
+    it('falls back to the state, then to a piece of the location text', () => {
+        assert.equal(relatedCountryIso2(seed({ state: 'CALIFORNIA' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ location: 'Universal City, CALIFORNIA' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ location: 'Toronto, Ontario, Canada' }), gazetteer), 'CA');
+    });
+
+    it('searches everywhere when nothing names a country', () => {
+        assert.equal(relatedCountryIso2(seed({ location: 'Administration Building' }), gazetteer), null);
+        assert.equal(relatedCountryIso2(seed({}), gazetteer), null);
+    });
+});
+
+describe('relatedSeed', () => {
+    it('carries plain strings and one country', () => {
+        const out = relatedSeed({
+            id: 'j1',
+            title: 'Product Manager',
+            company: ' NBCUniversal ',
+            company_domain: 'nbcuniversal.com',
+            location: 'Universal City, CALIFORNIA',
+            location_state: null,
+            location_country: ['US', 'Canada'],
+        });
+        assert.deepEqual(out, {
+            id: 'j1',
+            title: 'Product Manager',
+            company: 'NBCUniversal',
+            companyDomain: 'nbcuniversal.com',
+            location: 'Universal City, CALIFORNIA',
+            state: null,
+            country: null,
+        });
+    });
+});
+
+describe('dedupeRelatedJobs with the viewed job', () => {
+    it('drops a twin posting of the viewed job (same title, company and location, another id)', () => {
+        const rows: RowIn[] = [
+            { id: 'twin', title: 'Product Manager', company: 'NBCUniversal', location: 'Universal City, CALIFORNIA', posted_ts: 100 },
+            { id: 'other-city', title: 'Product Manager', company: 'NBCUniversal', location: 'New York, NY', posted_ts: 100 },
+            { id: 'other', title: 'Senior Product Manager', company: 'Globex', location: 'Remote', posted_ts: 100 },
+        ];
+        const viewed = { id: 'current', title: 'Product Manager', company: 'NBCUniversal', location: 'Universal City, CALIFORNIA' };
+        assert.deepEqual(dedupeRelatedJobs(rows, viewed).map((r) => r.id).sort(), ['other', 'other-city']);
     });
 });

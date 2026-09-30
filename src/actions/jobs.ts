@@ -16,8 +16,10 @@ import {
   dedupeRelatedJobs,
   MIN_RELATED_HITS,
   pickRelatedJobs,
+  relatedCountryIso2,
   relatedTitleQuery,
   type RelatedBasis,
+  type RelatedSeed,
 } from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
@@ -265,23 +267,28 @@ export async function getCompanyRailAction(
  * "More like this" (JobDetail, Curiosity / Serial Positioning Effect) — the
  * reader's next stop after a posting, without leaving the panel.
  *
- * Similar roles first: the title's significant keywords (`relatedTitleQuery`)
- * as a plain search, kept to this job's country when it names one — the
- * same thing the board returns for that query typed with that place. Below
+ * Similar roles first: the role's significant keywords (`relatedTitleQuery`)
+ * as a plain search, kept to this job's country (`relatedCountryIso2`) with
+ * the same country filter the board's default browse uses. Below
  * `MIN_RELATED_HITS` of those, the company's own other roles instead
  * (`JobSearchParams.companyDomain`, the exact-match filter `/co/[slug]`'s
  * own job list uses). `basis` says which list came back, so the heading can
  * say so — see related-jobs.ts for why the company list is no longer first.
  */
-export async function getRelatedJobsAction(
-  jobId: string,
-  companyDomain: string | null | undefined,
-  title: string,
-  /** The one country to keep similar roles in (`relatedCountry`), if any. */
-  country?: string | null,
-): Promise<{ jobs: PublicJob[]; basis: RelatedBasis }> {
+export async function getRelatedJobsAction(seed: RelatedSeed): Promise<{ jobs: PublicJob[]; basis: RelatedBasis }> {
   const none = { jobs: [], basis: "title" as const };
-  if (!jobId) return none;
+  // Typed defensively: a server action's arguments are whatever the caller sends.
+  const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) || null : null);
+  const viewed: RelatedSeed = {
+    id: text(seed?.id, 200) ?? "",
+    title: text(seed?.title, 300) ?? "",
+    company: text(seed?.company, 200),
+    companyDomain: text(seed?.companyDomain, 200),
+    location: text(seed?.location, 300),
+    state: text(seed?.state, 100),
+    country: text(seed?.country, 80),
+  };
+  if (!viewed.id) return none;
 
   // Same per-IP chokepoint as `searchJobsAction` above — this action runs up
   // to two corpus queries per call and is just as callable outside the UI.
@@ -290,18 +297,15 @@ export async function getRelatedJobsAction(
   const ip = await getClientIp();
   if (!allowSearchRequest(ip)) return none;
 
-  const query = relatedTitleQuery(title);
-  // Typed defensively: a server action's arguments are whatever the caller sends.
-  const place = typeof country === "string" ? country.trim().slice(0, 80) || null : null;
+  const query = relatedTitleQuery(viewed.title);
+  const iso2 = relatedCountryIso2(viewed, loadGazetteer());
+  const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
   const titleHits = query
-    ? dedupeRelatedJobs(
-        await fetchRelatedExcluding(jobId, { q: query, ...(place ? { facets: { location_country: [place] } } : {}) }),
-        jobId,
-      )
+    ? dedupeRelatedJobs(await fetchRelatedExcluding(viewed.id, { q: query, ...(places ? { places } : {}) }), viewed)
     : [];
   const companyHits =
-    titleHits.length < MIN_RELATED_HITS && companyDomain
-      ? dedupeRelatedJobs(await fetchRelatedExcluding(jobId, { companyDomain }), jobId)
+    titleHits.length < MIN_RELATED_HITS && viewed.companyDomain
+      ? dedupeRelatedJobs(await fetchRelatedExcluding(viewed.id, { companyDomain: viewed.companyDomain }), viewed)
       : [];
 
   return pickRelatedJobs({ titleHits, companyHits });
