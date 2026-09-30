@@ -239,16 +239,25 @@ export function JobCard({
                 </span>
                 <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-left text-sm text-muted-foreground">
                     {onCompany ? (
-                        <button
-                            type="button"
-                            className="text-left hover:text-foreground hover:underline"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onCompany(job);
-                            }}
-                        >
-                            {presented.company.name}
-                        </button>
+                        <>
+                            {/* Below lg the name is plain text, so a tap anywhere on
+                                the row opens the job: as a button it filled the
+                                middle of a phone row and a tap there opened the
+                                company page instead (2026-09-30). The job's detail
+                                links the company page from its header. */}
+                            <span className="lg:hidden">{presented.company.name}</span>
+                            <button
+                                type="button"
+                                data-testid="job-row-company"
+                                className="hidden text-left hover:text-foreground hover:underline lg:inline"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCompany(job);
+                                }}
+                            >
+                                {presented.company.name}
+                            </button>
+                        </>
                     ) : (
                         <span>{presented.company.name}</span>
                     )}

@@ -12,7 +12,7 @@ import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/47/51/52/53/54/55/56/57/58, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/47/51/52/54/55/56/57/58/60, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -83,7 +83,7 @@ test("first-time visitor opens /jobs and sees the front door: search box, one h1
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a guest taps the week's count on the front door and gets that week's roles", { tag: ["@J-JOBS-53"] }, async ({ page, diagnostics }) => {
+test("a guest taps the week's count on the front door and gets that week's roles", { tag: ["@J-JOBS-60"] }, async ({ page, diagnostics }) => {
   await page.goto("/jobs");
   const count = page.getByTestId("front-door-week-count");
   await expect(count).toBeVisible({ timeout: 15_000 });

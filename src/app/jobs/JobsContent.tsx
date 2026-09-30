@@ -111,6 +111,7 @@ import { TodayHome } from "@/components/jobs/for-you/TodayHome";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
+import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -1246,7 +1247,9 @@ export function JobsContent() {
         if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
             return;
         }
-        if (history === "push") window.history.pushState(null, "", target);
+        // Marked so a job opened from here knows Back returns to one of our
+        // pages (detail-close.ts), in browsers without the Navigation API.
+        if (history === "push") window.history.pushState({ [PUSHED_IN_APP]: true }, "", target);
         else window.history.replaceState(null, "", target);
     };
 
@@ -3299,13 +3302,13 @@ export function JobsContent() {
         // picks it back up on mount (deep link), on browser back/forward
         // (popstate needs no bespoke handling — Next's router already
         // updates `searchParams`), and opens/closes the detail sheet when
-        // `job` appears/disappears (detail close calls `router.back()`, see
+        // `job` appears/disappears (detail close calls `closeDetail`, see
         // the Sheet below). Deliberately unconditional (not gated behind the
         // subset check above) — a job-only URL change must still update
         // selection even when nothing else in the subset changed.
         //
         // Bottom sheet on all viewports when `job` appears/disappears (close
-        // calls `router.back()`, see the Sheet below).
+        // calls `closeDetail`, see the Sheet below).
         const jobId = parsed.jobId;
         setSelectedId(jobId);
         setDetailSheetOpen(Boolean(jobId));
@@ -5282,11 +5285,19 @@ export function JobsContent() {
         }
     };
 
+    // Closing a job: Back when the entry before is one of ours (opening from
+    // the list pushed `?job=`), else drop `?job=` in place — Back from a
+    // shared link left the site (detail-close.ts).
+    const closeDetail = () => {
+        if (previousEntryIsOurs(window)) router.back();
+        else window.history.replaceState(null, "", urlWithoutJob(window.location));
+    };
+
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
     // can never silently drift from the sheet's own branches (writing-lean-
     // code rule 2, single source of truth). `onClose` is passed explicitly
-    // by each call site (both currently `() => router.back()`) rather than
+    // by each call site (both currently `closeDetail`) rather than
     // hardcoded here, keeping this decoupled from the router.
     //
     // `collapseDescription` defaults true (JobDetail's own default, unchanged
@@ -6625,7 +6636,7 @@ export function JobsContent() {
                             className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:border xl:border-border xl:bg-surface"
                         >
                             {detailMountSite === "pane" ? (
-                                renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                                renderDetailSurface(detailSheetOpen ? closeDetail : undefined)
                             ) : loading ? (
                                 <div className="p-4">
                                     <JobDetailSkeleton />
@@ -7379,7 +7390,7 @@ export function JobsContent() {
                 // the same job. Narrowing back re-opens the sheet.
                 open={detailMountSite === "sheet"}
                 onOpenChange={(open) => {
-                    if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) router.back();
+                    if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) closeDetail();
                 }}
             >
                 <SheetContent
@@ -7409,7 +7420,7 @@ export function JobsContent() {
                             <button
                                 type="button"
                                 aria-label="Close"
-                                onClick={() => router.back()}
+                                onClick={closeDetail}
                                 className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
                             >
                                 <X size={16} aria-hidden />
@@ -7464,9 +7475,9 @@ export function JobsContent() {
                         data-testid="mobile-detail-scroller"
                         className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
                     >
-                        {/* `undefined`, not `() => router.back()` — the sheet chrome
+                        {/* `undefined`, not `closeDetail` — the sheet chrome
                             above already renders its own × wired to the identical
-                            `router.back()` (the button ~30 lines up). Passing a
+                            `closeDetail` (the button ~30 lines up). Passing a
                             handler here makes JobDetail render a SECOND × (its
                             `{onClose && ...}` gate at JobDetail.tsx:597), duplicating
                             the close control ~150px away from the first. Do not
