@@ -39,8 +39,9 @@ describe("for-you postcard layout", () => {
         const page = readFileSync(PAGE, "utf8");
         // 7d3ecc07: only an open pack deck locks the panes (its list scrolls in
         // its own column); the For-you home and pending state keep min-h-screen.
+        // `forYouOpen` is For you shown to a signed-in visitor (a guest gets its gate card).
         assert.match(page, /: "min-h-screen"/);
-        assert.match(page, /const deckPanesLocked = showForYouHome && \(showAdvancedSearch \|\| forYouPackDeckOpen\);/);
+        assert.match(page, /const deckPanesLocked = forYouOpen && \(showAdvancedSearch \|\| forYouPackDeckOpen\);/);
         assert.doesNotMatch(
             page,
             /showSearchHome[\s\S]*100dvh-var\(--topbar-h\)/,
