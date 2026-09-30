@@ -123,8 +123,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-FILT-05 | Toggle Work mode Remote via the facet chip and see `work=` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
 | J-FILT-06 | Select two Experience values and see them comma-joined | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-07 | Pick a $100k+ salary tier and see `salary=100k` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-FILT-08 | Pick "$75k+" salary and observe it does not round-trip in the URL | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-FILT-09 | Enter a custom minimum salary | anon | SEED-A + `/jobs?q=software+engineer`, `salary-custom-min` | signed-out | no | uncovered | — |
+| J-FILT-08 | Pick "$75k+" salary and see `salary=75k`; a reload keeps it (every preset and custom floor used to fall off unless it was 50k/100k/150k/200k) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | filters.spec.ts |
+| J-FILT-09 | Enter a custom minimum salary (65500) and see `salary=65500`; a reload keeps it | anon | SEED-A + `/jobs?q=software+engineer`, `salary-custom-min` | signed-out | no | covered | filters.spec.ts |
 | J-FILT-10 | Toggle "Sponsors visas" and see `visa=1` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-11 | Pick Years of experience "3–5 years" and see `years=3-5` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-12 | Choose "Show all postings" and see `ghosts=show` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
@@ -254,7 +254,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-14 | Email step submit sends a confirmation @writes | signing-up | /co/anthropic--com | signed-out | yes | uncovered | — |
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |
-| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0 | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | uncovered | — |
+| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0, which says "That follow link has expired or was already used." and drops the flag from the URL | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | covered | alerts.spec.ts |
 | J-COMPANY-18 | Verified guest sees "Unfollow" and the watching caption; Unfollow reverts | anon | /co/anthropic--com?followed=1 | signed-out | yes | uncovered | — |
 | J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
 | J-COMPANY-20 | Guest follows merge into the account on sign-in | signing-up | /co/anthropic--com then sign in | signed-in | yes | uncovered | — |
@@ -388,6 +388,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-25 | @writes Delete the account permanently | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-26 | Render /settings at mobile width with tabs and 44px buttons | signed-in | /settings (375x667) | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-012: Page responsive on mobile) |
 | J-SETTINGS-27 | Redirect signed-in /account to the Account tab | signed-in | /account | signed-in | no | uncovered | — |
+| J-SETTINGS-31 | The account-email confirmation link lands on the Account tab saying whether it worked ("Email confirmed and added to your account." or the expired-link error), and the flag leaves the URL (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account&email_confirmed=1, then =0 | signed-in | no | covered | settings-email.spec.ts |
 
 ## TRACKER
 
@@ -453,10 +454,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-06 | Submitting the capture shows the check-your-inbox state (network stubbed) | anon | /jobs?q=zzzzqxwv | signed-out | no | uncovered | — |
 | J-ALERTS-07 | A failed alert request shows the retry error | anon | /jobs?q=zzzzqxwv (POST stubbed 503) | signed-out | no | uncovered | — |
 | J-ALERTS-08 | Real alert signup sends a confirmation email @writes | signing-up | /jobs?q=zzzzqxwv | signed-out | yes | uncovered | — |
-| J-ALERTS-09 | Signed-in user never sees the email-alert capture | signed-in | /jobs?q=zzzzqxwv | signed-in | no | uncovered | — |
+| J-ALERTS-09 | Signed-in user never sees the email-alert capture: no toolbar "Get alerts" or result-line email link, only Save search (which feeds the digest), with results or zero results (dev-server only: signed-in mock) | signed-in | /jobs?view=search&q=engineer, /jobs?view=search&q=zzzzqxwv | signed-in | no | covered | alerts.spec.ts |
 | J-ALERTS-10 | POST /api/search-alerts with an invalid body returns 400 | anon | POST /api/search-alerts {} | signed-out | no | uncovered | — |
-| J-ALERTS-11 | Search-alert verify link with a bogus token redirects to /jobs?search_alert=0 | anon | GET /api/search-alerts/verify?token=bogus | signed-out | no | uncovered | — |
-| J-ALERTS-12 | Search-alert verify link with no token redirects to /jobs?search_alert=0 | anon | GET /api/search-alerts/verify | signed-out | no | uncovered | — |
+| J-ALERTS-11 | Search-alert verify link with a bogus token redirects to /jobs?search_alert=0, which says "That alert link has expired or was already used." and drops the flag from the URL | anon | GET /api/search-alerts/verify?token=bogus | signed-out | no | covered | alerts.spec.ts |
+| J-ALERTS-12 | Search-alert verify link with no token redirects to /jobs?search_alert=0 and says it failed | anon | GET /api/search-alerts/verify | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-13 | Guest saves a search and it appears in the saved list | anon | /jobs?q=engineer&posted=any | signed-out | no | uncovered | — |
 | J-ALERTS-14 | Clicking a saved search re-applies its URL | anon | /jobs (saved search seeded) | signed-out | no | uncovered | — |
 | J-ALERTS-15 | Remove a saved search | anon | /jobs (saved search seeded) | signed-out | no | uncovered | — |
@@ -472,7 +473,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-25 | Follow email step is focusable and its sign-in link opens the auth dialog | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › email step: focusable, sign-in link falls back to the auth dialog) |
 | J-ALERTS-26 | Follow email step shows the confirmation message on success (network stubbed) | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — |
 | J-ALERTS-27 | Follow email step shows the retry error on failure | anon | /co/<allowlisted-slug> (POST stubbed 503) | signed-out | no | uncovered | — |
-| J-ALERTS-28 | Follow verify link with a bogus token redirects to /jobs?followed=0 | anon | GET /api/follow-email/verify?token=bogus | signed-out | no | uncovered | — |
+| J-ALERTS-28 | Follow verify link with a bogus token redirects to /jobs?followed=0 and says it failed | anon | GET /api/follow-email/verify?token=bogus | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-29 | Returning from a follow verify link shows the followed state | anon | /co/<allowlisted-slug>?followed=1 | signed-out | no | uncovered | — |
 | J-ALERTS-30 | Signed-in Follow toggles to Unfollow and back @writes | signed-in | /co/<allowlisted-slug> | signed-in | yes | uncovered | — |
 | J-ALERTS-31 | Follow-alerts bell lists new roles at followed companies | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
@@ -485,6 +486,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-38 | Valid unsubscribe link suppresses mail and offers undo @writes | anon | GET /unsubscribe?token=<real token from an email> | signed-out | yes | uncovered | — |
 | J-ALERTS-39 | NEVER-CALL: weekly digest cron endpoint is secret-gated | agent | POST /api/email/digest | signed-out | yes | uncovered | — |
 | J-ALERTS-40 | Resend webhook rejects an unsigned POST | agent | POST /api/webhooks/resend | signed-out | no | uncovered | — |
+| J-ALERTS-41 | A confirmed search-alert link lands on its search saying "Search alert confirmed."; the flag leaves the URL and a reload doesn't repeat it | anon | /jobs?q=engineer&search_alert=1 | signed-out | no | covered | alerts.spec.ts |
 
 ## CONNECT
 

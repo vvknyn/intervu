@@ -347,6 +347,7 @@ import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
 import { toast } from "@/lib/toast";
+import { LandingNotice } from "@/components/layout/LandingNotice";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -5403,7 +5404,10 @@ export function JobsContent() {
             <>
                 {rankByFitEl}
                 {savedSearchControl}
-                {canSaveSearch && (
+                {/* Guests only: signed in, "Save search" beside it is the
+                    alert (saved searches feed the email digest), and the
+                    capture below is the guest email form. */}
+                {canSaveSearch && !user && (
                     <button
                         type="button"
                         data-testid="jobs-create-alert-trigger"
@@ -6562,7 +6566,7 @@ export function JobsContent() {
                                     />
                                 )}
 
-                                {(showResultsSearchAlert || manualAlertOpen) && (
+                                {!user && (showResultsSearchAlert || manualAlertOpen) && (
                                     <div className="mb-3 border-t border-border pt-4 pb-2">
                                         <SearchAlertCapture
                                             surface="results"
@@ -7316,6 +7320,7 @@ export function JobsContent() {
                 onMarkApplied={markApplyReturnApplied}
                 onDismiss={dismissApplyReturn}
             />
+            <LandingNotice surface="jobs" />
         </div>
     );
 }

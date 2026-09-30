@@ -19,6 +19,7 @@ import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
+import { LandingNotice } from "@/components/layout/LandingNotice";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
 import { SETTINGS_LOCAL_AI_INTRO } from "@/lib/jobs/resume-privacy-copy";
@@ -312,6 +313,7 @@ export function SettingsContainer() {
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
+                <LandingNotice surface="settings" />
             </div>
         </PageLayout>
     );
