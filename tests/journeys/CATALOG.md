@@ -431,6 +431,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-45 | Signed-in cold load shows the tracker loading skeleton on a slow network | signed-in | /yours (applications request delayed) | signed-in | no | uncovered | — |
 | J-TRACKER-46 | A pursuit written by the MCP save_job tool appears in the signed-in tracker @writes | agent | /yours (after MCP tools/call save_job) | signed-in | yes | uncovered | — |
 | J-TRACKER-47 | Signed-out user opening /yours?view=new from the legacy /applications URL lands on the sheet | anon | /applications?view=new | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-000b: /applications?view=new preserves the query param through the redirect) |
+| J-TRACKER-48 | A pursuit in the Offer lane shows the pay-it-forward panel in the detail sheet: "Pay it forward" to a Stripe link when `LANDED_PLEDGE_CHECKOUT_URL` is set, otherwise "Tell us how it went" to the contact page | anon | /yours (1024x768, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-49 | A pursuit below the Offer lane shows no pledge panel in the detail sheet | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-50 | The full pursuit page at xl+ shows the pay-it-forward panel for an offer | anon | /yours/[id] (1440x900, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
 
 ## ALERTS
 
