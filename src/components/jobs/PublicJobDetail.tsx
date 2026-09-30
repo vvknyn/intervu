@@ -39,9 +39,9 @@ import {
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
-import { readLocalAiEnabled } from "@/lib/local-ai/flag";
-import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
@@ -149,8 +149,9 @@ export function PublicJobDetail({
         let cancelled = false;
         setResumeSettled(false);
         fetchResumeData()
-            .then(({ data, updatedAt }) => {
+            .then(({ data: stored, text, updatedAt }) => {
                 if (cancelled) return;
+                const data = storedResumeData(stored, text);
                 if (!data || !resumeIsUsable(data)) {
                     setResume(null);
                     setResumeAsOfDate(null);
@@ -216,6 +217,10 @@ export function PublicJobDetail({
             upload: () => {},
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     const openAuth = (reason: AuthGateReason | null = null, trigger: AuthGateTrigger = "user") => {
@@ -455,46 +460,52 @@ export function PublicJobDetail({
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
-                    onOpenRelated={handleOpenRelated}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
                     matchAsOfDate={resumeAsOfDate}
                     matchPending={matchPending}
                     resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
                     onUploadResume={() => router.push("/resume")}
                     onSignInToSync={() => openAuth("tailor", "user")}
                 />
             ) : (
-                <JobDetail
-                    job={job}
-                    now={nowMs}
-                    source={effectiveSource}
-                    signedIn={Boolean(user)}
-                    pursuit={pursuitsByJobId.get(job.id)}
-                    saveSuccessPulse={savePulse}
-                    reportJobEnabled={reportJobEnabled}
-                    onClose={onClose}
-                    onOpenRelated={handleOpenRelated}
-                    collapseDescription={collapseDescription}
-                    className={cn(detailClassName)}
-                    onOpenPosting={() => handleOpenPosting(job)}
-                    onGoAfter={() => handleGoAfter(job)}
-                    matchScore={matchScore}
-                    matchAsOfDate={resumeAsOfDate}
-                    matchPending={matchPending}
-                    resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
-                    onUploadResume={() => router.push("/resume")}
-                    onSignInToSync={() => openAuth("tailor", "user")}
-                />
+                <>
+                    {/* The panel layout lives in the company page's role sheet, where
+                        the floating prompt is hidden (see ApplyReturnPrompt), so the
+                        question sits at the top of the sheet the visitor returns to. */}
+                    {applyReturnPrompt && (
+                        <div className="px-4 pt-3">
+                            <ApplyReturnPrompt
+                                placement="inline"
+                                record={applyReturnPrompt}
+                                onMarkApplied={markApplyReturnApplied}
+                                onDismiss={dismissApplyReturn}
+                            />
+                        </div>
+                    )}
+                    <JobDetail
+                        job={job}
+                        now={nowMs}
+                        source={effectiveSource}
+                        signedIn={Boolean(user)}
+                        pursuit={pursuitsByJobId.get(job.id)}
+                        saveSuccessPulse={savePulse}
+                        reportJobEnabled={reportJobEnabled}
+                        onClose={onClose}
+                        onOpenRelated={handleOpenRelated}
+                        collapseDescription={collapseDescription}
+                        className={cn(detailClassName)}
+                        onOpenPosting={() => handleOpenPosting(job)}
+                        onGoAfter={() => handleGoAfter(job)}
+                        matchScore={matchScore}
+                        matchAsOfDate={resumeAsOfDate}
+                        matchPending={matchPending}
+                        resume={resume}
+                        onUploadResume={() => router.push("/resume")}
+                        onSignInToSync={() => openAuth("tailor", "user")}
+                    />
+                </>
             )}
             {/* Document layout already has its own sticky-rail Apply card at
                 lg+ (JobDetailDocument's `applyCardEl`) AND, below `lg`, its
@@ -512,13 +523,6 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
-                    resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
-                    onUploadResume={() => router.push("/resume")}
-                    onSignInToSync={() => openAuth("tailor", "user")}
                 />
             )}
             <GuestApplyTrackPrompt
@@ -526,11 +530,13 @@ export function PublicJobDetail({
                 onSignIn={handleGuestTrackSignIn}
                 onDismiss={() => setGuestTrackPrompt(null)}
             />
-            <ApplyReturnPrompt
-                record={applyReturnPrompt}
-                onMarkApplied={markApplyReturnApplied}
-                onDismiss={dismissApplyReturn}
-            />
+            {layout === "document" && (
+                <ApplyReturnPrompt
+                    record={applyReturnPrompt}
+                    onMarkApplied={markApplyReturnApplied}
+                    onDismiss={dismissApplyReturn}
+                />
+            )}
         </>
     );
 }

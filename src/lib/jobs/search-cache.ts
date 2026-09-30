@@ -6,9 +6,15 @@
  * first prod search during that window hit the dead-end
  * `SEARCH_UNAVAILABLE_MESSAGE` path in search.ts even though the corpus
  * itself hadn't changed. This module lets `searchJobs` serve the last
- * successful response for a query — or, failing that, the last successful
- * default-browse response — instead of an empty error screen, once
- * `meiliFetch`'s own retry (meilisearch.ts) has already been exhausted.
+ * successful response for a query — or, for a plain default browse only, the
+ * last successful default-browse response — instead of an empty error screen,
+ * once `meiliFetch`'s own retry (meilisearch.ts) has already been exhausted.
+ *
+ * A request with a query or any filter never gets another request's rows:
+ * the newest-jobs list served as a job pack's result was ranked against the
+ * résumé and counted as the pack's matches (2026-09-30). Without its own
+ * cached response it gets the unavailable result, which the UI shows as an
+ * error with Retry.
  *
  * Module-scope, in-memory, bounded LRU — no cross-instance sharing, no
  * persistence. That's deliberate: this is a shock absorber for an outage
@@ -22,8 +28,8 @@ import type { FacetKey, JobSearchParams, JobSearchResult } from "./types";
 export const SEARCH_CACHE_MAX_ENTRIES = 200;
 
 /** Well-known key for the "default browse" shape (no query, no filters) —
- *  the fallback served for ANY degraded request when its own exact key
- *  hasn't been cached yet. */
+ *  the fallback served for a degraded default browse (first page) when its
+ *  own exact key hasn't been cached yet. See `resolveDegradedServe`. */
 const DEFAULT_BROWSE_CACHE_KEY = "\x00default-browse\x00";
 
 interface CacheEntry {
@@ -151,9 +157,13 @@ export interface DegradedServeDecision {
  * Pure decision: given a Meilisearch failure for request `p`, what — if
  * anything — should be served from cache? `lookup` is injected (not the
  * module-scope `cache` directly) so this is unit-testable without touching
- * Meilisearch or the module singleton. Exact key first, then the
- * default-browse fallback, else `null` (caller keeps its existing error
- * path unchanged).
+ * Meilisearch or the module singleton. Exact key first, then — only for a
+ * first page of the default browse itself — the default-browse fallback,
+ * else `null` (caller returns the unavailable result).
+ *
+ * The fallback is never served for a query, a filter, a place or a later
+ * page: those rows would not be this request's, and callers that rank or
+ * count a result (the job-pack list, fit sort, the fit gate) cannot tell.
  */
 export function resolveDegradedServe(
   p: JobSearchParams,
@@ -161,6 +171,7 @@ export function resolveDegradedServe(
 ): DegradedServeDecision | null {
   const exact = lookup(normalizeSearchCacheKey(p));
   if (exact) return { ...exact, servedKey: "exact" };
+  if (!isDefaultBrowseParams(p) || (p.offset ?? 0) > 0) return null;
   const fallback = lookup(DEFAULT_BROWSE_CACHE_KEY);
   return fallback ? { ...fallback, servedKey: "default-browse" } : null;
 }

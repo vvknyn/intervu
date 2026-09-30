@@ -46,6 +46,9 @@ export interface ApplyReturnRecord {
     /** This record already surfaced the prompt once — see
      *  `shouldPromptApplyReturn`'s `alreadyPrompted`. */
     prompted: boolean;
+    /** The employer posting the visitor left for, so "Yes" can save it on
+     *  the tracked role. Optional: records armed before it existed lack it. */
+    applyUrl?: string;
 }
 
 /** Storage the record lives in — `Pick<Storage, ...>` rather than the full
@@ -66,7 +69,8 @@ function isApplyReturnRecord(value: unknown): value is ApplyReturnRecord {
         typeof r.title === "string" &&
         (typeof r.company === "string" || r.company === null) &&
         typeof r.leftAt === "number" &&
-        typeof r.prompted === "boolean"
+        typeof r.prompted === "boolean" &&
+        (r.applyUrl === undefined || typeof r.applyUrl === "string")
     );
 }
 
@@ -102,10 +106,17 @@ function writeApplyReturnRecord(storage: ApplyReturnStorage, record: ApplyReturn
  *  click handler that opens the posting. */
 export function armApplyReturn(
     storage: ApplyReturnStorage,
-    job: { jobId: string; title: string; company: string | null },
+    job: { jobId: string; title: string; company: string | null; applyUrl?: string | null },
     leftAt: number,
 ): void {
-    writeApplyReturnRecord(storage, { jobId: job.jobId, title: job.title, company: job.company, leftAt, prompted: false });
+    writeApplyReturnRecord(storage, {
+        jobId: job.jobId,
+        title: job.title,
+        company: job.company,
+        leftAt,
+        prompted: false,
+        ...(job.applyUrl ? { applyUrl: job.applyUrl } : {}),
+    });
 }
 
 /** Clears the pending slot — call once the prompt is resolved (applied or

@@ -17,12 +17,10 @@ import {
     AccordionItem,
     AccordionTrigger,
 } from "@/components/ui/accordion";
-import { readLocalAiEnabled } from "@/lib/local-ai/flag";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { WaitState } from "@/components/ui/wait-state";
-import { writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
@@ -33,14 +31,14 @@ import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
-import { toast, confirmToast } from "@/lib/toast";
+import { toast } from "@/lib/toast";
 import { CUSTOMIZE_READY_HEADER, SIGN_IN_TO_SYNC_LABEL } from "@/lib/jobs/resume-cta-copy";
 import { LOCAL_CUSTOMIZE_PRIVACY_BADGE } from "@/lib/jobs/resume-privacy-copy";
 
 export interface LocalCustomizePanelProps {
     job: PublicJob;
+    /** Read only: a draft is for this role, so the panel never replaces the résumé it tailors from. */
     resume: ResumeData | null;
-    onAccept?: (data: ResumeData) => void;
     /** Short label for tight bars (mobile document action bar). */
     compactTrigger?: boolean;
     signedIn?: boolean;
@@ -50,7 +48,6 @@ export interface LocalCustomizePanelProps {
 export function LocalCustomizePanel({
     job,
     resume,
-    onAccept,
     compactTrigger,
     signedIn = true,
     onSignInToSync,
@@ -144,23 +141,6 @@ export function LocalCustomizePanel({
         [resetDialogState],
     );
 
-    const handleAccept = useCallback(async () => {
-        if (!draft) return;
-        const ok = await confirmToast({
-            title: "Update résumé for Rank?",
-            description: "This replaces the on-device résumé used to rank jobs on this device.",
-            confirmLabel: "Accept",
-        });
-        if (!ok) return;
-        onAccept?.(draft.tailored);
-        if (readLocalAiEnabled()) {
-            writeLocalAiResume(draft.tailored);
-        }
-        toast.success("Résumé updated for Rank on this device.");
-        setDialogOpen(false);
-        resetDialogState();
-    }, [draft, onAccept, resetDialogState]);
-
     if (!visible || !resume) {
         return null;
     }
@@ -193,8 +173,9 @@ export function LocalCustomizePanel({
                     loading && dialogOpen && "opacity-60",
                 )}
             >
-                Customize résumé
-                {!compactTrigger && <span className="hidden sm:inline"> for this job</span>}
+                {/* One text box: the Button's flex gap would otherwise open a
+                    second space before "for this job". */}
+                {compactTrigger ? "Customize résumé" : <span>Customize résumé<span className="hidden sm:inline"> for this job</span></span>}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
@@ -354,16 +335,6 @@ export function LocalCustomizePanel({
                                     >
                                         <DownloadSimple size={16} />
                                         Download PDF
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        data-testid="local-customize-accept"
-                                        variant="outline"
-                                        size="sm"
-                                        className="ml-auto"
-                                        onClick={() => void handleAccept()}
-                                    >
-                                        Accept
                                     </Button>
                                 </>
                             )}

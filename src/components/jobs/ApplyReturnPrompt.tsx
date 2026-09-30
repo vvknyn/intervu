@@ -66,15 +66,19 @@ export function useApplyReturnPrompt({
         };
     }, []);
 
-    const arm = useCallback((job: { id: string; title: string; company: string | null }) => {
-        armApplyReturn(window.sessionStorage, { jobId: job.id, title: job.title, company: job.company }, Date.now());
+    const arm = useCallback((job: { id: string; title: string; company: string | null; apply_url?: string | null }) => {
+        armApplyReturn(
+            window.sessionStorage,
+            { jobId: job.id, title: job.title, company: job.company, applyUrl: job.apply_url },
+            Date.now(),
+        );
     }, []);
 
     const markApplied = useCallback(() => {
         if (!pending) return;
         clearApplyReturn(window.sessionStorage);
         setPending(null);
-        onMarkApplied({ id: pending.jobId, title: pending.title, company: pending.company, apply_url: "" });
+        onMarkApplied({ id: pending.jobId, title: pending.title, company: pending.company, apply_url: pending.applyUrl ?? "" });
     }, [pending, onMarkApplied]);
 
     const dismiss = useCallback(() => {
@@ -88,26 +92,39 @@ export function useApplyReturnPrompt({
 /**
  * Quiet close-the-loop chip after return from the employer posting.
  * Yes → mark applied (caller writes tracker + `job_marked_applied`).
- * Not yet / Skip → dismiss once, no nag. Not a modal wall — fixed chip
- * above the mobile tab bar with safe-area inset.
+ * Not yet / Skip → dismiss once, no nag. Not a modal wall.
+ *
+ * `placement="floating"` (default) is a fixed chip above the mobile tab bar
+ * with safe-area inset. globals.css hides it (`body[data-scroll-locked]`)
+ * while any sheet or dialog is open, so a surface that shows the job in a
+ * sheet (the phone job sheet on /jobs, the role sheet on /co) renders
+ * `placement="inline"` inside that sheet instead: the visitor comes back to
+ * the sheet they applied from, and a hidden chip would ask nothing.
  */
 export function ApplyReturnPrompt({
     record,
     onMarkApplied,
     onDismiss,
+    placement = "floating",
 }: {
     record: ApplyReturnRecord | null;
     onMarkApplied: () => void;
     onDismiss: () => void;
+    placement?: "floating" | "inline";
 }) {
     if (!record) return null;
+    const inline = placement === "inline";
     return (
         <div
-            data-testid="apply-return-prompt"
+            data-testid={inline ? "apply-return-prompt-inline" : "apply-return-prompt"}
             role="status"
             aria-live="polite"
-            // page-scale-allow: a fixed toast, not a page column
-            className="fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3 shadow-[var(--shadow-overlay)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
+            className={
+                inline
+                    ? "flex flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3"
+                    : // page-scale-allow: a fixed toast, not a page column
+                      "fixed inset-x-3 z-[var(--z-apply-return)] mx-auto flex w-auto max-w-sm flex-col gap-3 rounded-panel border border-border-strong bg-surface-2 px-4 py-3 shadow-[var(--shadow-overlay)] bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px)+0.75rem)] sm:inset-x-auto sm:right-4 sm:left-auto lg:bottom-24"
+            }
         >
             <div className="min-w-0">
                 <div className="text-xs font-semibold text-foreground">Did you apply?</div>

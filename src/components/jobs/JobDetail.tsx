@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
@@ -39,6 +40,7 @@ import { getRelatedJobsAction, getCompanyOpenCountAction } from "@/actions/jobs"
 import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { openCountText, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { relatedJobsHeading, relatedSeed, type RelatedBasis, type RelatedSeed } from "@/lib/jobs/related-jobs";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { resolveDescriptionSectionState } from "@/lib/jobs/description-section-state";
 import { useDescriptionSettled } from "@/components/jobs/use-description-settled";
@@ -318,12 +320,7 @@ export function JobDetailActionBar({
     onGoAfter,
     pursuit,
     saveSuccessPulse = false,
-    signedIn = true,
     className,
-    resume,
-    onAcceptLocalTailor,
-    onUploadResume,
-    onSignInToSync,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -345,11 +342,6 @@ export function JobDetailActionBar({
      *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
      *  since that Sheet paints over the tab bar and this document doesn't). */
     className?: string;
-    /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
-    resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
-    onUploadResume?: () => void;
-    onSignInToSync?: () => void;
 }) {
     return (
         <div
@@ -362,26 +354,10 @@ export function JobDetailActionBar({
                     {APPLY_BUTTON_LABEL}
                 </Button>
             )}
-            {resume != null ? (
-                <LocalCustomizePanel
-                    job={job}
-                    resume={resume}
-                    onAccept={onAcceptLocalTailor}
-                    compactTrigger
-                    signedIn={signedIn}
-                    onSignInToSync={onSignInToSync}
-                />
-            ) : onUploadResume ? (
-                <Button size={jobActionSize}
-                    type="button"
-                    variant="outline"
-                    data-testid="job-detail-upload-to-customize"
-                    onClick={onUploadResume}
-                    className="shrink-0"
-                >
-                    {UPLOAD_TO_CUSTOMIZE_LABEL}
-                </Button>
-            ) : null}
+            {/* Apply and Save only. "Apply on employer site" leaves no room
+                for a Customize or Upload button beside it on a phone (the
+                row ran 60px past a 390px screen, 2026-09-30); the pane's
+                action row and the job page's apply card carry that one. */}
             {/* Same icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton
@@ -392,6 +368,40 @@ export function JobDetailActionBar({
         </div>
     );
 }
+
+/** The related list as `getRelatedJobsAction` returns it. */
+export type RelatedJobs = { jobs: PublicJob[]; basis: RelatedBasis };
+export const NO_RELATED: RelatedJobs = { jobs: [], basis: "title" };
+
+const RELATED_REUSE_MS = 30_000;
+const relatedRequests = new Map<string, { at: number; request: Promise<RelatedJobs> }>();
+
+/**
+ * The related list for a `relatedSeed` key, asked for once per job for a
+ * short while. The deferred auth and analytics providers (app/layout.tsx)
+ * remount the page as each one loads, so a job page ran this fetch three
+ * times per view, up to six searches against the visitor's rate limit
+ * (2026-09-30).
+ */
+export function fetchRelatedJobs(seedKey: string): Promise<RelatedJobs> {
+    const now = Date.now();
+    const hit = relatedRequests.get(seedKey);
+    if (hit && now - hit.at < RELATED_REUSE_MS) return hit.request;
+    const request = getRelatedJobsAction(JSON.parse(seedKey) as RelatedSeed);
+    relatedRequests.set(seedKey, { at: now, request });
+    request.catch(() => relatedRequests.delete(seedKey));
+    if (relatedRequests.size > 50) relatedRequests.delete(relatedRequests.keys().next().value!);
+    return request;
+}
+
+// JobCard's row anatomy: the row is the list's full bleed (the list sits at
+// -mx-4, see RelatedJobsSection) with the text inset by `--list-inset`, so the
+// hover band and the inset focus ring clear the text; the hairline sits on the
+// inner block, aligned with the text. Two lines of text, so it sizes to them:
+// a `.ctl-*` step pins a single-line height (32px), which squeezed both lines
+// flush against the hairlines and clipped their descenders (2026-09-30).
+// rounded-none: KEEP — a full-bleed list row, like JobCard's, not a discrete control.
+const RELATED_ROW_CLASS = "group block w-full cursor-pointer rounded-none bg-transparent text-left poster-list-inset-x transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live";
 
 /**
  * A2 — "More like this" row (Curiosity / Serial Positioning Effect). Not a
@@ -406,13 +416,33 @@ export function JobDetailActionBar({
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
  */
-export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
+export function RelatedJobRow({ job, now, onClick, href, first = false }: { job: PublicJob; now: number; onClick?: () => void; href?: string; first?: boolean }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // placeWithWorkMode, not locationText alone: this row has no adjacent
     // work-type chip (unlike JobCard's SERP row), so it's the only place a
     // remote/hybrid job's work mode can show up.
     const loc = placeWithWorkMode(locationText(job), job.work_type);
+    const body = (
+        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border")}>
+            <span data-testid="related-job-title" className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
+            <span className="mono-data truncate text-xs text-muted-foreground">
+                {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
+                {loc ? ` · ${loc}` : ""}
+                {age ? ` · ${age}` : ""}
+                {salary ? ` · from ${salary}` : ""}
+            </span>
+        </span>
+    );
+    // On the job page a row is a link to that job's own page; in the board's
+    // pane it's a button that opens the job in the pane.
+    if (href) {
+        return (
+            <Link href={href} data-testid="related-job-row" data-control="row" className={RELATED_ROW_CLASS}>
+                {body}
+            </Link>
+        );
+    }
     return (
         <button
             type="button"
@@ -422,21 +452,64 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onClick();
+                onClick?.();
             }}
-            // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
-            // hairline-separated list treatment — not a discrete control.
             // control-type-allow: a full-width list row (title + meta lines), not a button face
-            className="ctl-md flex w-full flex-col gap-0.5 rounded-none px-0 text-left transition-colors hover:bg-muted cursor-pointer group"
+            // control-scale-allow: full-width list row, padding is layout
+            className={RELATED_ROW_CLASS}
         >
-            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
-            <span className="mono-data truncate text-xs text-muted-foreground">
-                {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
-                {loc ? ` · ${loc}` : ""}
-                {age ? ` · ${age}` : ""}
-                {salary ? ` · from ${salary}` : ""}
-            </span>
+            {body}
         </button>
+    );
+}
+
+/**
+ * The "More like this" block, shared by the board's detail pane (below) and
+ * the job page (JobDetailDocument.tsx) so the two can't drift: the heading
+ * says which list it is (`relatedJobsHeading`), and rows are separated only
+ * by a hairline, not bordered cards (rulebook item h). Zero rows → nothing,
+ * no empty shell: the list is an accelerant, never a source of error.
+ */
+export function RelatedJobsSection({
+    jobs,
+    basis,
+    companyBrand,
+    now,
+    onOpenRelated,
+    linkToPages = false,
+    headingLevel: Heading = "h3",
+}: {
+    jobs: PublicJob[];
+    basis: RelatedBasis;
+    companyBrand: string | null | undefined;
+    now: number;
+    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+    /** The job page's rows link to each job's own page, so a click stays on
+     *  job pages (it used to drop into the board) and each row can open in a
+     *  new tab. The pane's rows open the job in the pane instead. */
+    linkToPages?: boolean;
+    /** h2 on the job page (a section of the document), h3 inside the pane. */
+    headingLevel?: "h2" | "h3";
+}) {
+    if (jobs.length === 0) return null;
+    return (
+        <div data-testid="job-detail-related" className="border-t border-border py-6">
+            <Heading className="mb-2 text-sm font-semibold text-foreground">{relatedJobsHeading(basis, companyBrand)}</Heading>
+            {/* -mx-4 undoes the pane's and the page column's 16px inset so
+                each row's hover band runs edge to edge (RelatedJobRow). */}
+            <div className="-mx-4">
+                {jobs.map((r, i) => (
+                    <RelatedJobRow
+                        key={r.id}
+                        job={r}
+                        now={now}
+                        first={i === 0}
+                        href={linkToPages ? jobPath(r) : undefined}
+                        onClick={() => onOpenRelated?.(r.id, r)}
+                    />
+                ))}
+            </div>
+        </div>
     );
 }
 
@@ -461,7 +534,6 @@ export function JobDetail({
     descriptionPending,
     onRetryDescription,
     resume = null,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
     onSkip,
@@ -524,7 +596,6 @@ export function JobDetail({
     onRetryDescription?: () => void;
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
     /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
@@ -664,23 +735,26 @@ export function JobDetail({
     // yet another prop on an already-3000-line file. `cancelled` guards
     // against a fast re-open (new `job.id` before the previous fetch lands)
     // painting a stale job's related list onto the new one.
-    const [related, setRelated] = useState<PublicJob[]>([]);
+    const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
+    // Keyed by a string, not the job object or `job.location_country` (it
+    // can be an array): a fresh object per render would re-run the fetch.
+    const relatedKey = JSON.stringify(relatedSeed(job));
     useEffect(() => {
         // Below-the-fold: waits for the description to settle (ready or
         // confirmed empty — see use-description-settled.ts) so this fetch
         // never races the description paint.
         if (!descriptionSettled) return;
         let cancelled = false;
-        setRelated([]);
+        setRelated(NO_RELATED);
         // Guests see this list gated behind sign-in — fetching for them would
-        // spend up to three corpus queries per detail-open on rows nobody can
+        // spend up to two corpus queries per detail-open on rows nobody can
         // read. The open-count figure below is fetched separately and does
         // NOT share this gate — see that effect's own comment for why.
         if (!signedIn) return;
-        getRelatedJobsAction(job.id, job.company_domain, job.title)
+        fetchRelatedJobs(relatedKey)
             .then((data) => {
                 if (cancelled) return;
-                setRelated(data.jobs);
+                setRelated(data);
             })
             .catch(() => {
                 // "More like this" is an accelerant, never a source of
@@ -690,7 +764,7 @@ export function JobDetail({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title, signedIn, descriptionSettled]);
+    }, [relatedKey, signedIn, descriptionSettled]);
 
     // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
     // hiring-truth rail's "Live roles" figure used to read
@@ -891,7 +965,6 @@ export function JobDetail({
                             <LocalCustomizePanel
                                 job={job}
                                 resume={resume}
-                                onAccept={onAcceptLocalTailor}
                                 signedIn={signedIn}
                                 onSignInToSync={onSignInToSync}
                             />
@@ -1329,15 +1402,22 @@ export function JobDetail({
                                 >
                                     All jobs at {companyBrand || cleanedCompany}
                                 </Link>
-                                <Link
-                                    href={jobCompanyHref(cleanedCompany, job.company_domain)}
-                                    onClick={() => {
-                                        if (onClose) onClose();
-                                    }}
-                                    className="text-sm text-brand hover:underline"
-                                >
-                                    {companyBrand || cleanedCompany}
-                                </Link>
+                                {/* The company page (/co/[slug]) — only with a
+                                    domain: without one, "All jobs at" above
+                                    already points at this same URL. Named for
+                                    where it goes; a bare company name beside
+                                    "All jobs at {brand}" read as a duplicate. */}
+                                {job.company_domain?.trim() && (
+                                    <Link
+                                        href={jobCompanyHref(cleanedCompany, job.company_domain)}
+                                        onClick={() => {
+                                            if (onClose) onClose();
+                                        }}
+                                        className="text-sm text-brand hover:underline"
+                                    >
+                                        {companyBrand || cleanedCompany} company page
+                                    </Link>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1346,26 +1426,13 @@ export function JobDetail({
                 {/* A2 — "More like this" (Curiosity / Serial Positioning
                     Effect). Zero related → render nothing, no empty shell
                     (see the fetch effect above's error handling too). */}
-                {related.length > 0 && (
-                    <div className="border-t border-border py-6">
-                        <h3 className="mb-2 text-sm font-semibold text-foreground">
-                            More like this
-                        </h3>
-                        {/* Rulebook item h: rows separated only by a hairline,
-                            not bordered cards — same divide-y idiom as the SERP
-                            list, applied here via RelatedJobRow's own anatomy. */}
-                        <div className="divide-y divide-border">
-                            {related.map((r) => (
-                                <RelatedJobRow
-                                    key={r.id}
-                                    job={r}
-                                    now={now}
-                                    onClick={() => onOpenRelated?.(r.id, r)}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
+                <RelatedJobsSection
+                    jobs={related.jobs}
+                    basis={related.basis}
+                    companyBrand={companyBrand}
+                    now={now}
+                    onOpenRelated={onOpenRelated}
+                />
 
                 {/* Footnote position (serp-readout-redesign.html annotation
                     9) — moved from between the description and the company
