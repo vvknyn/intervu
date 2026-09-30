@@ -249,7 +249,7 @@ export function LiveResumePreview({
                     <div className="space-y-0.5 text-xs leading-snug text-surface-postcard-foreground">
                         {data.competencies.map((comp, index) => (
                             <div key={comp.category || index}>
-                                <span className="font-semibold">{comp.category}: </span>
+                                {comp.category.trim() && <span className="font-semibold">{comp.category}: </span>}
                                 <span>{comp.skills.join(", ")}</span>
                             </div>
                         ))}

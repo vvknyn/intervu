@@ -18,6 +18,7 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { useFollows } from "@/lib/follows/use-follows";
 import { CountBadge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { MANAGE_FOLLOWS_HREF } from "@/lib/follows/manage-path";
 
 type AlertRow = {
   job: PublicJob;
@@ -168,13 +169,17 @@ export function FollowAlertsBell() {
         </ul>
 
         <div className="border-t border-border p-4">
+          {/* This used to read "View followed roles" and open the Elite
+              startups board, which has nothing to do with who you follow.
+              The new roles are the list above; what was missing was a way
+              to change who you follow. */}
           <Link
-            href="/jobs?board=elite"
+            href={MANAGE_FOLLOWS_HREF}
             data-testid="follow-alerts-cta"
-            onClick={acknowledge}
-            className="block w-full rounded-none bg-primary px-4 py-3 text-center text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            onClick={() => setOpen(false)}
+            className="block w-full text-center text-sm text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground"
           >
-            View followed roles
+            Manage companies you follow
           </Link>
         </div>
       </PopoverContent>

@@ -25,6 +25,7 @@ import { ModelDownloadSize } from "@/components/local-ai/ModelLoadProgress";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
 import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
+import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import {
     canAcceptLocalParse,
     LOCAL_PARSE_ACCEPT_MIN,
@@ -180,12 +181,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             const extension = file.name.split('.').pop()?.toLowerCase();
             if (extension === 'pdf') {
                 setContentType('pdf');
-            } else if (extension === 'docx' || extension === 'doc') {
+            } else if (extension === 'docx') {
                 setContentType('docx');
             } else if (extension === 'txt') {
                 setContentType('text');
             } else {
-                setError("Unsupported file type. Please use PDF, DOCX, or TXT.");
+                setError(extension === 'doc' ? LEGACY_DOC_MESSAGE : "Unsupported file type. Please use PDF, DOCX, or TXT.");
                 captureEvent(
                     "resume_upload_rejected",
                     buildResumeFunnelPayload({
@@ -219,12 +220,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             const extension = file.name.split('.').pop()?.toLowerCase();
             if (extension === 'pdf') {
                 setContentType('pdf');
-            } else if (extension === 'docx' || extension === 'doc') {
+            } else if (extension === 'docx') {
                 setContentType('docx');
             } else if (extension === 'txt') {
                 setContentType('text');
             } else {
-                setError("Unsupported file type. Please use PDF, DOCX, or TXT.");
+                setError(extension === 'doc' ? LEGACY_DOC_MESSAGE : "Unsupported file type. Please use PDF, DOCX, or TXT.");
                 captureEvent(
                     "resume_upload_rejected",
                     buildResumeFunnelPayload({
@@ -516,7 +517,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     <input
                         ref={fileInputRef}
                         type="file"
-                        accept=".pdf,.docx,.doc,.txt"
+                        accept=".pdf,.docx,.txt"
                         onChange={handleFileChange}
                         className="hidden"
                     />

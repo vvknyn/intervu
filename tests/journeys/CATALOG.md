@@ -208,11 +208,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-02 | Signed-out Apply persists a pending "apply" action bound to the current URL | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
-| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-04 | Signed-out Apply never opens a new window (no employer departure before sign-in) | anon | JOB_PATH | signed-out | no | uncovered | — |
-| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically | anon | JOB_PATH at 390x844 | signed-out | no | uncovered | — |
+| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically ("Sign in to apply") | anon | JOB_PATH at 390x844 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-06 | A persisted "apply" action for the same job resumes into the apply flow after auth | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-07 | A persisted apply action for a different job is ignored | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-08 | A persisted action older than 15 minutes is discarded on load | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
@@ -233,6 +233,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-APPLY-23 | Mark applied with a server error shows "Could not save" and rolls back the optimistic pursuit | signed-in | JOB_PATH with the action mocked to fail | signed-in | no | uncovered | — |
 | J-APPLY-24 | Prompt survives a reload of the armed tab (mount-time check) | signed-in | JOB_PATH reload with seeded velai.applyReturn | signed-in | no | uncovered | — |
 | J-APPLY-25 | Applying from the board pane (/jobs?job=) also arms the prompt on return | signed-in | /jobs?posted=any&job=JOB_ID at 1440x900 | signed-in | no | uncovered | — |
+| J-APPLY-26 | On a phone, coming back to the job sheet asks "Did you apply?" inside the sheet (the floating chip is hidden behind any open sheet, so it isn't mounted); Yes saves the role as applied with its employer posting URL and says "Applied — nice work" (dev-server only: signed-in mock, stub search, save answered in the browser) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-27 | On a phone, "Not yet" in the job sheet closes the question without saving, and it doesn't come back on the next focus or after closing the sheet (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-28 | At 1440 wide the role opens beside the list (no sheet) and "Did you apply?" floats over the page; Yes saves the role with its posting URL (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 1440x900, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-29 | A closed Apply sign-in dialog stays closed when the session is checked again (back/forward cache return), and Apply still opens it | anon | JOB_PATH, Apply, Escape, `pageshow` | signed-out | no | covered | apply-gate.spec.ts |
+| J-APPLY-30 | Create account from the Apply sign-in dialog returns to the job page (`/auth/start?mode=signup&next=<job>&pending=1`), not the résumé upload at /jobs?resume=gate | anon | JOB_PATH, Apply, Create account, Continue with Google | signed-out | no | covered | apply-gate.spec.ts |
 
 ## COMPANY
 
@@ -355,6 +360,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé without skipping the model: quick match opens at once, the model download shows MB of the measured size and its stages advance (or Skip keeps the quick match) | anon | /resume → Upload résumé (model fetch mocked) | signed-out | no | covered | resume-wait.spec.ts |
 | J-RESUME-29 | A résumé whose contact line names a bare city (no region/country) asks on For-you which place it is — Yes / a candidate saves it as the location, No / None of these leaves it blank; no guess, no filter until answered | anon | /jobs → Upload résumé → For-you | signed-out | no | covered | resume-bare-city.spec.ts |
+| J-RESUME-30 | A guest résumé offers "See jobs ranked for this résumé" (to /jobs) and "Remove from this device", which after a confirm clears it for good (empty state survives a reload) | Candidate with a local résumé | local résumé seeded + `/resume` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-31 | An old Word .doc file in the importer is refused with "save it as .docx or PDF", never a failed DOCX read | anon | `/resume`, Upload résumé, choose `resume.doc` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-32 | A résumé stored as text (file upload, MCP set_resume) previews its headline and summary section, not its first 300 characters, and an uncategorized skills list prints without a leading ":"; the signed-in subcopy drops "once you sign in" (dev-server only: signed-in mock) | signed-in | `/resume` | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-33 | Back from the template editor with unsaved edits asks "Leave without saving?"; Keep editing stays, Leave closes (dev-server only: signed-in mock) | signed-in | `/resume`, Edit template, edit Professional Summary, Back | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-34 | A résumé saved to the account as text (file upload on /resume or Settings, MCP set_resume) opens /jobs on the ranked packs hub with "Private matching active", not the "Add your résumé" step; the browser structures the text, the server only sends it (dev-server only: signed-in mock) | signed-in | `/jobs` | signed-in | no | covered | resume.spec.ts |
 
 ## SETTINGS
 
@@ -363,7 +373,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-01 | Open /settings on the Résumé tab with header and subcopy | signed-in | /settings | signed-in | no | uncovered | — |
 | J-SETTINGS-02 | See exactly the Résumé, Preferences and Account tabs | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-002: Settings tabs are visible) |
 | J-SETTINGS-03 | Switch to Preferences and see the privacy and agent cards | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-004: Preferences tab shows job search section) |
-| J-SETTINGS-04 | Switch to Account and see sign-in details | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-005: Account tab shows sign-in section) |
+| J-SETTINGS-04 | Switch to Account and see the "Sign-in details" card (never a "Sign in" heading for a signed-in user) (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
 | J-SETTINGS-05 | Deep-link reload on /settings?tab=account keeps the tab | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 | J-SETTINGS-06 | Fall back to Résumé for an unknown or retired tab | signed-in | /settings?tab=api-key | signed-in | no | uncovered | — |
 | J-SETTINGS-07 | Leave /settings on Back after tab switches (replace, not push) | signed-in | /settings | signed-in | no | uncovered | — |
@@ -387,6 +397,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-25 | @writes Delete the account permanently | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-26 | Render /settings at mobile width with tabs and 44px buttons | signed-in | /settings (375x667) | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-012: Page responsive on mobile) |
 | J-SETTINGS-27 | Redirect signed-in /account to the Account tab | signed-in | /account | signed-in | no | uncovered | — |
+| J-SETTINGS-28 | Account tab lists the companies you follow A to Z, each linking to its company page; Unfollow removes one and says so (dev-server only: signed-in mock, actions answered in the browser) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-29 | Account tab says "You don't follow any companies yet." when you follow none (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-30 | A failed email-preferences read ends in "Couldn't load your email preferences." with Try again (never an endless loading row), and Try again reads it again (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
 
 ## TRACKER
 
@@ -622,6 +635,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 | J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
+| J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 
 ## PRICING
 
