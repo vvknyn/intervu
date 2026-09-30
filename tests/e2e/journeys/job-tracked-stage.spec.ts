@@ -3,7 +3,7 @@ import { expect, test } from "./fixtures";
 
 /**
  * A role you track shows where it stands on its job page — see
- * tests/journeys/CATALOG.md (J-DETAIL-31/32). Guest tracker only (roles saved
+ * tests/journeys/CATALOG.md (J-DETAIL-34/35/36). Guest tracker only (roles saved
  * in this browser), so nothing is written. Locally the search is answered
  * with one stub role; anywhere else the first live result is used.
  */
@@ -78,9 +78,8 @@ async function firstRole(page: Page, local: boolean): Promise<{ id: string; titl
 
 test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
 
-test("A role in your tracker says where it stands on its job page, and Update status opens it in the tracker", { tag: ["@J-DETAIL-31"] }, async ({ page, baseURL }) => {
-  const local = isLocal(baseURL);
-  const role = await firstRole(page, local);
+/** Puts one role in the guest tracker, applied two days ago. */
+async function trackAsGuest(page: Page, role: { id: string; title: string }) {
   const appliedAt = new Date(Date.now() - 2 * 86_400_000).toISOString();
   await page.evaluate(
     ([key, role, appliedAt]) => {
@@ -104,6 +103,12 @@ test("A role in your tracker says where it stands on its job page, and Update st
     },
     [GUEST_PURSUITS_KEY, role, appliedAt] as const,
   );
+}
+
+test("A role in your tracker says where it stands on its job page, and Update status opens it in the tracker", { tag: ["@J-DETAIL-34"] }, async ({ page, baseURL }) => {
+  const local = isLocal(baseURL);
+  const role = await firstRole(page, local);
+  await trackAsGuest(page, role);
   await page.reload();
 
   const line = page.getByTestId("job-tracked-stage").first();
@@ -119,8 +124,31 @@ test("A role in your tracker says where it stands on its job page, and Update st
   await expect(page.getByText(role.title).first()).toBeVisible();
 });
 
-test("A role you don't track shows no tracker line", { tag: ["@J-DETAIL-32"] }, async ({ page, baseURL }) => {
+test("A role you don't track shows no tracker line", { tag: ["@J-DETAIL-35"] }, async ({ page, baseURL }) => {
   await firstRole(page, isLocal(baseURL));
   await expect(page.getByTestId("job-save-trigger").first()).toBeVisible();
   await expect(page.getByTestId("job-tracked-stage")).toHaveCount(0);
+});
+
+const HYDRATION = /hydrat|#418|#423|#425/i;
+
+test("A tracked role's own job page loads with its tracker line and a filled bookmark, and no hydration error", { tag: ["@J-DETAIL-36"] }, async ({ page, diagnostics }) => {
+  // The guest tracker is only in this browser, so the server renders the page
+  // as untracked; the page must fill the line in after it loads, not fail to
+  // hydrate and re-render.
+  await page.addInitScript(() => localStorage.setItem("intervu.onboarding.completed", "1"));
+  await page.goto(SEARCH);
+  const row = page.getByTestId("job-row").first();
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  const role = { id: (await row.getAttribute("data-job-id"))!, title: (await row.getByTestId("job-title").innerText()).trim() };
+  const href = await row.locator('a[href^="/jobs/"]').first().getAttribute("href");
+  await trackAsGuest(page, role);
+
+  const res = await page.goto(href!);
+  expect(res?.status()).toBe(200);
+  const line = page.getByTestId("job-tracked-stage").first();
+  await expect(line).toContainText("In your tracker: Applied");
+  await expect(page.getByTestId("job-save-confirmed").and(page.locator(":visible")).first()).toBeVisible();
+  await page.waitForTimeout(1_000);
+  expect([...diagnostics.pageErrors, ...diagnostics.consoleErrors].filter((e) => HYDRATION.test(e))).toEqual([]);
 });

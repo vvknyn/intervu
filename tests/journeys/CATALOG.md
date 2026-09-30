@@ -193,8 +193,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-21 | Guest saves one job locally from the job page; the toast links the Tracker | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — |
 | J-DETAIL-22 | Guest's second save is blocked by the "Sign in to save this job to Tracker." gate | anon | JOB_PATH (after J-DETAIL-21 state) | signed-out | no | uncovered | — |
 | J-DETAIL-23 | Signed-in save flips the bookmark to a confirmed link into /yours/<id> @writes | signed-in | JOB_PATH at 1440x900 | signed-in | yes | uncovered | — |
-| J-DETAIL-31 | A role in your tracker says where it stands under the job's actions ("In your tracker: Applied · applied 2d ago"), and "Update status" opens that role in the tracker, where its status is changed | anon | guest tracker seeded with an applied role + `/jobs?q=engineer&posted=any`, open that role (desktop pane and phone sheet) | signed-out | no | covered | job-tracked-stage.spec.ts |
-| J-DETAIL-32 | A role you don't track shows no tracker line | anon | `/jobs?q=engineer&posted=any`, open a role | signed-out | no | covered | job-tracked-stage.spec.ts |
 | J-DETAIL-24 | Signed-out Report listing opens the report form with no sign-in gate (only when the report flag is on) | anon | JOB_PATH at 1440x900 | signed-out | no | covered | signup-gates.spec.ts |
 | J-DETAIL-25 | Signed-in Report submits and flips to "Reported ✓" (flag on) @writes | signed-in | JOB_PATH at 1440x900 | signed-in | yes | uncovered | — |
 | J-DETAIL-26 | Share control in the board detail pane is a labelled "Copy link" action | anon | /jobs?posted=any at 1440x900 (pane) | signed-out | no | uncovered | — |
@@ -205,6 +203,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-34 | A role in your tracker says where it stands under the job's actions ("In your tracker: Applied · applied 2d ago"), and "Update status" opens that role in the tracker, where its status is changed | anon | guest tracker seeded with an applied role + `/jobs?q=engineer&posted=any`, open that role (desktop pane and phone sheet) | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-35 | A role you don't track shows no tracker line | anon | `/jobs?q=engineer&posted=any`, open a role | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-36 | A guest's tracked role opened on its own job page shows the tracker line and the filled bookmark, with no hydration error (the server renders it untracked; the page fills it in after load) | anon | `/jobs?q=engineer&posted=any`, track the first role in the guest tracker, open its /jobs/[slug] page | signed-out | no | covered | job-tracked-stage.spec.ts |
 
 ## APPLY
 
