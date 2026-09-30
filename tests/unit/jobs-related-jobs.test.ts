@@ -6,13 +6,13 @@ import {
     MIN_RELATED_HITS,
     pickRelatedJobs,
     relatedCountry,
-    relatedCountryIso2,
     relatedJobsHeading,
     relatedSeed,
     relatedTitleQuery,
     significantTitleWords,
     titleCore,
 } from '../../src/lib/jobs/related-jobs';
+import { relatedCountryIso2 } from '../../src/lib/jobs/related-country';
 
 interface RowIn {
     id: string;
@@ -174,7 +174,24 @@ describe('relatedCountryIso2', () => {
 
     it('searches everywhere when nothing names a country', () => {
         assert.equal(relatedCountryIso2(seed({ location: 'Administration Building' }), gazetteer), null);
+        assert.equal(relatedCountryIso2(seed({ location: 'Merseyside Hire And Service Centre' }), gazetteer), null);
         assert.equal(relatedCountryIso2(seed({}), gazetteer), null);
+    });
+
+    it('reads a country from location text that is not "City, Country" (2026-09-30)', () => {
+        assert.equal(relatedCountryIso2(seed({ location: 'NYC Office' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ location: 'Utah County Administration Building' }), gazetteer), 'US');
+        // Was Jamaica: a parish there is named Manchester.
+        assert.equal(relatedCountryIso2(seed({ location: 'Manchester' }), gazetteer), 'GB');
+    });
+
+    it('a place beside its own country code outranks the country field', () => {
+        assert.equal(relatedCountryIso2(seed({ country: 'US', location: 'CA, Oakville 1, Office' }), gazetteer), 'CA');
+        assert.equal(relatedCountryIso2(seed({ country: 'United States', location: 'CA, Oakville 1, Office' }), gazetteer), 'CA');
+        // Agreeing and ambiguous text leave the field alone.
+        assert.equal(relatedCountryIso2(seed({ country: 'US', location: 'San Jose, CA' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ country: 'US', location: 'Ontario, CA' }), gazetteer), 'US');
+        assert.equal(relatedCountryIso2(seed({ country: 'US', location: 'London' }), gazetteer), 'US');
     });
 });
 

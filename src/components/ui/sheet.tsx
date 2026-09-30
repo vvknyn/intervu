@@ -100,6 +100,10 @@ function useBottomSheetSwipeDismiss(
             const scrollContainer = findScrollContainer(event.target, el)
 
             if (inGrabZone) {
+                // A press on a control in the grab zone (the job sheet's ×) is a
+                // tap: capturing the pointer sent its release to the sheet, so
+                // the control never got its click (2026-09-30).
+                if (event.target instanceof Element && event.target.closest("button, a, [role=button]")) return
                 dragRef.current = {
                     phase: "grab-zone",
                     startY: event.clientY,

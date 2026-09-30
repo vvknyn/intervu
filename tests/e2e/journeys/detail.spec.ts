@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
-/** Journeys for a job's detail — the job page and the board's pane. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33). Read-only. */
+/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37, J-JOBS-11/53). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
 /** The one "Customize résumé" (with a résumé) or "Upload résumé to customize." (without) button. */
@@ -25,6 +25,22 @@ function spilled(scope: Locator) {
 
 function isDesktop(page: Page) {
   return page.viewportSize()!.width >= 1024;
+}
+
+/** Clicks the open job's × (the split pane's own at 1440, the sheet's header at 390) once it holds still: the sheet grows as the job loads, which moves it. */
+async function closeJob(page: Page) {
+  const surface = page.viewportSize()!.width >= 1280 ? page.getByTestId("detail-pane") : page.getByRole("dialog");
+  const close = surface.getByRole("button", { name: "Close", exact: true }).first();
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await close.boundingBox());
+      const still = now === last && now !== "null";
+      last = now;
+      return still;
+    }, { intervals: [400], timeout: 20_000 })
+    .toBe(true);
+  await close.click();
 }
 
 /** Jobs come from a live search — pinned ids and slugs rot when listings expire. */
@@ -124,6 +140,57 @@ test("a related row on the job page opens that job's own page, and Back returns"
   await expect(page).toHaveURL((url) => url.pathname === from, { timeout: 10_000 });
 });
 
+/** The `{ jobs, basis }` a server action's flight response carries. */
+function relatedFromFlight(text: string): { jobs: Array<{ location_country?: string | string[] | null }>; basis: string } {
+  for (const line of text.split("\n")) {
+    const json = line.replace(/^[0-9a-f]+:/, "");
+    if (!json.startsWith("{")) continue;
+    try {
+      const value = JSON.parse(json);
+      if (Array.isArray(value?.jobs)) return value;
+    } catch {
+      // not this line
+    }
+  }
+  throw new Error(`no related list in the action response: ${text.slice(0, 200)}`);
+}
+
+test("More like this keeps a job's own country when its location is not a plain \"City, Country\"", { tag: ["@J-DETAIL-37"] }, async ({ page }) => {
+  // A customer service job at "CA, Oakville 1, Office" listed only US roles:
+  // its country field read the CA as California (2026-09-30). Live listings
+  // with one exact location come and go, so a live job's request for its
+  // related roles goes out carrying that job's place instead.
+  const isRelatedRequest = (body: string | null) => {
+    try {
+      const [seed] = JSON.parse(body ?? "");
+      return typeof seed === "object" && seed !== null && "companyDomain" in seed && "country" in seed;
+    } catch {
+      return false;
+    }
+  };
+  let answered: (text: string) => void;
+  const answer = new Promise<string>((resolve) => (answered = resolve));
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST" || !request.headers()["next-action"] || !isRelatedRequest(request.postData())) return route.fallback();
+    const [seed] = JSON.parse(request.postData()!);
+    const response = await route.fetch({
+      postData: JSON.stringify([{ ...seed, title: "Customer Service Representative", location: "CA, Oakville 1, Office", state: null, country: "US" }]),
+    });
+    answered(await response.text());
+    await route.fulfill({ response });
+  });
+  const [path] = await liveJobPaths(page, "customer service", 1);
+  await page.goto(path!);
+  const related = relatedFromFlight(await answer);
+  // Similar roles in Canada, not the company fallback an empty US search fell to.
+  expect(related.basis).toBe("title");
+  expect(related.jobs.length).toBeGreaterThan(0);
+  const us = related.jobs.filter((job) => [job.location_country ?? []].flat().some((c) => /^(us|usa|united states)$/i.test(c.trim())));
+  expect(us).toEqual([]);
+  await expect(page.getByTestId("job-detail-related").getByRole("heading")).toHaveText("More like this", { timeout: 20_000 });
+});
+
 test("the pane's company links say where they go, never a bare company name", { tag: ["@J-DETAIL-30"] }, async ({ page }) => {
   // Only jobs with a hiring record show the links, so try a few.
   for (const id of await liveJobIds(page, "product manager", 3)) {
@@ -194,5 +261,49 @@ test("the board's role view has one Upload or Customize button, and its phone ba
     await expect(bar.locator(CUSTOMIZE)).toHaveCount(0);
     expect(await spilled(bar)).toEqual([]);
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("closing a job opened from a shared link stays on /jobs with ?job= cleared; one opened from the list steps back", { tag: ["@J-JOBS-11"] }, async ({ page, context, diagnostics }) => {
+  const [id] = await liveJobIds(page, "product manager", 1);
+  // From the list: the open pushed ?job=, so the close is Back to the search it came from.
+  const listUrl = page.url();
+  await page.getByTestId("job-row").first().getByTestId("job-title").click();
+  await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
+  await closeJob(page);
+  await expect(page).toHaveURL(listUrl, { timeout: 10_000 });
+
+  // A shared link in a fresh tab has no page of ours before it: the × went Back off the site, or did nothing (2026-09-30).
+  const shared = await context.newPage();
+  await shared.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
+  const detail = shared.locator(DETAIL).first();
+  await expect(detail).toBeVisible({ timeout: 20_000 });
+  await closeJob(shared);
+  await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
+  if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();
+  await expect(shared.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on a phone a tap anywhere on a job row opens that job, and the job links its company page", { tag: ["@J-JOBS-53"] }, async ({ page, diagnostics }) => {
+  await searchFor(page, "data analyst");
+  // A row whose company has a page: its name is a link from lg up.
+  const row = page.getByTestId("job-row").filter({ has: page.getByTestId("job-row-company") }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  const id = (await row.getAttribute("data-job-id"))!;
+  const company = row.getByTestId("job-row-company");
+  if (isDesktop(page)) {
+    await expect(company).toBeVisible();
+    await company.click();
+    await expect(page).toHaveURL(/\/co\//, { timeout: 20_000 });
+    return;
+  }
+  // The name filled the middle of a phone row, so a tap there opened the company page (2026-09-30).
+  await expect(company).toBeHidden();
+  await row.click();
+  await expect(page).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("job") === id, { timeout: 10_000 });
+  const sheet = page.getByTestId("mobile-detail-scroller");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('a[href^="/co/"]').first()).toBeVisible({ timeout: 20_000 });
   expect(diagnostics.pageErrors).toEqual([]);
 });
