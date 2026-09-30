@@ -44,7 +44,7 @@ function section(startMarker: string, endMarker: string): string {
 }
 
 // 6cd53890 made JobsContent an exported component taking the route-gate props.
-const LIST_TAIL_BODY = section("function ListTail({", "\nexport function JobsContent({");
+const LIST_TAIL_BODY = section("function ListTail({", "\nexport function JobsContent(");
 
 test("ListTail early-returns null on \"more-available\" before any JSX — the guard is structural, not positional", () => {
     // Anchored to line-start (only leading whitespace before `if`) so a

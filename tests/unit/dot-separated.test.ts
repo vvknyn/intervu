@@ -49,6 +49,7 @@ describe("DotSeparated", () => {
 describe("dot separators do not sit as a flex-wrap item's leading child", () => {
     const FIXED_FILES = [
         join(__dirname, "..", "..", "src", "app", "co", "[slug]", "page.tsx"),
+        join(__dirname, "..", "..", "src", "components", "company", "CompanyPageBody.tsx"),
         join(__dirname, "..", "..", "src", "app", "yours", "history", "page.tsx"),
         join(__dirname, "..", "..", "src", "components", "tracker", "PursuitListRow.tsx"),
         join(__dirname, "..", "..", "src", "components", "jobs", "CompanyIntelStrip.tsx"),

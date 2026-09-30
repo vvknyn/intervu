@@ -1,7 +1,7 @@
 "use server";
 
 import { getServerUser } from "@/lib/auth/server-user";
-import { savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
+import { isSavedSearchHref, savedSearchId, mergedSavedSearchRow, type SavedSearch } from "@/lib/jobs/saved-searches";
 import { docToSavedSearch, savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
 
 export async function listSavedSearchesAction(): Promise<{ data?: SavedSearch[]; error?: string }> {
@@ -29,12 +29,14 @@ export async function saveSavedSearchAction(input: {
         const href = input.href.trim();
         if (!name || !href) return { error: "Name and search are required" };
         // The stored href is replayed later as a navigation target and parsed
-        // back into search params — only an in-app /jobs URL is a valid saved
+        // back into search params — only a /jobs query is a valid saved
         // search, and both fields get honest size ceilings (they land in a
-        // per-user Firestore doc verbatim).
+        // per-user Firestore doc verbatim). The panel sends the query string
+        // alone ("?q=pm", `hrefFromJobsUrlState`), the same shape the guest
+        // store and its sign-in sync keep; older rows hold "/jobs?q=pm".
         if (name.length > 120) return { error: "Name is too long (120 characters max)" };
         if (href.length > 2048) return { error: "That search is too long to save" };
-        if (href !== "/jobs" && !href.startsWith("/jobs?")) {
+        if (!isSavedSearchHref(href)) {
             return { error: "Only job searches can be saved" };
         }
 

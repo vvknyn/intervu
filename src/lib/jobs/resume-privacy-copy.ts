@@ -56,6 +56,10 @@ export const AUTH_GATE_RESUME_UNLOCK_BODY =
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
     "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.";
 
+/** The same band for a signed-in account with no résumé: the upload is saved to the account (see `resumeImportStorageNote`). */
+export const FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN =
+    "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account, so it follows you across devices.";
+
 /** Landing onboarding — device-only storage choice helper. */
 export const LANDING_DEVICE_STORAGE_NOTE =
     "Parsed résumé stays in this browser until you sign in. Job search sends derived phrases to our servers, not your full file.";

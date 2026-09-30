@@ -6,7 +6,7 @@ import { FollowButton, type FollowButtonProps } from "@/components/companies/Fol
 import { useCompanyFollowChannel } from "@/components/companies/CompanyFollowChannelProvider";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { followEmailVerifiedLine, followPersistValueLine } from "@/lib/follows/persist-copy";
-import { useCompanyEmailVerifiedChannel } from "@/lib/follows/use-company-email-verified";
+import { useCompanyEmailVerifiedChannel, type CompanyEmailVerifiedChannel } from "@/lib/follows/use-company-email-verified";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { cn } from "@/lib/utils";
 
@@ -15,14 +15,14 @@ export type CompanyFollowControlProps = FollowButtonProps;
 export function CompanyFollowControl(props: CompanyFollowControlProps) {
   const shared = useCompanyFollowChannel();
   if (shared) {
-    return <CompanyFollowControlInner {...props} emailVerified={shared.emailVerified} onGuestUnfollow={shared.onGuestUnfollow} />;
+    return <CompanyFollowControlInner {...props} channel={shared} />;
   }
   return <CompanyFollowControlWithChannel {...props} />;
 }
 
 function CompanyFollowControlWithChannel(props: CompanyFollowControlProps) {
-  const { emailVerified, onGuestUnfollow } = useCompanyEmailVerifiedChannel(props.domain, props.displayName);
-  return <CompanyFollowControlInner {...props} emailVerified={emailVerified} onGuestUnfollow={onGuestUnfollow} />;
+  const channel = useCompanyEmailVerifiedChannel(props.domain);
+  return <CompanyFollowControlInner {...props} channel={channel} />;
 }
 
 function CompanyFollowControlInner({
@@ -32,12 +32,11 @@ function CompanyFollowControlInner({
   className,
   variant,
   idleLabel,
-  emailVerified,
-  onGuestUnfollow,
+  channel,
 }: CompanyFollowControlProps & {
-  emailVerified: boolean;
-  onGuestUnfollow: () => void;
+  channel: CompanyEmailVerifiedChannel;
 }) {
+  const { emailVerified } = channel;
   const [user, setUser] = useState(() => getCurrentUser());
   const [authOpen, setAuthOpen] = useState(false);
   const guestSyncRef = useRef(false);
@@ -77,8 +76,10 @@ function CompanyFollowControlInner({
         displayName={displayName}
         variant={variant}
         emailVerified={emailVerified}
+        contactKnown={channel.contactKnown}
         idleLabel={idleLabel}
-        onGuestUnfollow={onGuestUnfollow}
+        onGuestFollow={channel.onGuestFollow}
+        onGuestUnfollow={channel.onGuestUnfollow}
         onSignInInstead={() => setAuthOpen(true)}
       />
       {!user && emailVerified && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { goAfterJobAction } from "@/actions/application";
 import { markJobAppliedAction } from "@/actions/jobs";
@@ -69,6 +69,8 @@ export interface PublicJobDetailProps {
     source?: EventSource;
 }
 
+const subscribeNever = () => () => {};
+
 /**
  * Client-side wiring for `JobDetail`/`JobDetailDocument` on standalone or
  * modal job views. Apply/save gates and the sticky action bar match `/jobs`
@@ -97,13 +99,20 @@ export function PublicJobDetail({
     const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
     const router = useRouter();
     const { byJobId } = usePursuits();
+    // A guest's tracker lives in localStorage, which the server can't read, so
+    // /jobs/[slug] is server-rendered as untracked. Until hydration finishes,
+    // render it that way here too, then fill in the bookmark and the tracker
+    // line; reading the tracker in the first render failed hydration (React
+    // 418) on every guest visit to a role they track.
+    const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
     const pursuitsByJobId = useMemo(() => {
+        if (!hydrated) return new Map<string, Pursuit>();
         const merged = new Map(byJobId);
         for (const [jobId, pursuit] of optimisticPursuits) {
             merged.set(jobId, pursuit);
         }
         return merged;
-    }, [byJobId, optimisticPursuits]);
+    }, [hydrated, byJobId, optimisticPursuits]);
 
     useEffect(() => {
         setOptimisticPursuits((prev) => pruneConfirmedOptimisticPursuits(prev, byJobId));

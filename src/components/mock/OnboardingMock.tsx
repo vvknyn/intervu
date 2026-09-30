@@ -123,9 +123,7 @@ export function OnboardingMock() {
                             userName={resumeData.profile.name}
                             isAuthenticated={true}
                             hasResume={true}
-                            resume={resumeData}
-                            onUpdateResume={(updated) => setResumeData(updated)}
-                            onOpenAdvancedSearch={() => {}}
+                            onSelectCategory={() => {}}
                         />
                     </div>
                 )}
