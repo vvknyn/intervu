@@ -334,6 +334,8 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
   const today = page.getByTestId("today-home");
   await expect(today).toBeVisible({ timeout: 30_000 });
   await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
+  // Results are ranked in this browser; the welcome panel used to say so, and now the header does.
+  await expect(today.getByTestId("today-private-matching")).toHaveText("Private matching active on this device");
   // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
   const tile = page.getByTestId("hub-pack-card-all");
   await expect(tile).toBeVisible({ timeout: 30_000 });

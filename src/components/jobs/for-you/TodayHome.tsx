@@ -27,6 +27,7 @@ import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
+import { PRIVATE_MATCHING_ACTIVE } from "@/lib/jobs/resume-privacy-copy";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
 import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
@@ -364,6 +365,11 @@ export function TodayHomeView({
                         Last here {lastHere}
                     </p>
                 ) : null}
+                {/* This header mounts only once a résumé has loaded, so the ranking below runs on this device. */}
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-live" data-testid="today-private-matching">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
+                    {PRIVATE_MATCHING_ACTIVE}
+                </p>
             </div>
 
             <ul data-testid="today-stats" className="grid grid-cols-2 gap-x-4 gap-y-4 poster-list-inset-x sm:grid-cols-4">

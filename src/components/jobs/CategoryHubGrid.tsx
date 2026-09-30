@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { hubChipCountText, HUB_PACK_CORPUS_COUNT_LOADING } from "@/lib/jobs/for-you/hub-counts";
 import { hubGreeting } from "@/lib/jobs/front-door-state";
+import { PRIVATE_MATCHING_ACTIVE } from "@/lib/jobs/resume-privacy-copy";
 
 const noSubscription = () => () => {};
 
@@ -165,7 +166,7 @@ export function CategoryHubGrid({
                         {hasResume && (
                             <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
                                 <span className="h-1.5 w-1.5 rounded-pill bg-live" />
-                                Private matching active on this device
+                                {PRIVATE_MATCHING_ACTIVE}
                             </div>
                         )}
                         <h2 className="text-xl font-semibold text-foreground">
