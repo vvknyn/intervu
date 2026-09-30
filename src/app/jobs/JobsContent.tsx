@@ -5895,16 +5895,19 @@ export function JobsContent({
                     exactly one h1. */}
                 {showSearchHome && !showLandingOnboarding ? (
                         <div className="pb-1.5">
-                            <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
+                            {/* Job packs need an account: a guest's link would only open the sign-in card. */}
+                            {signedIn && (
+                                <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
+                                    <button
+                                        type="button"
+                                        onClick={() => returnToJobPacksHub()}
+                                        className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
+                                        data-testid="jobs-back-to-packs"
+                                    >
+                                        ← Back to Job Packs
+                                    </button>
+                                </div>
+                            )}
                             {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-live">

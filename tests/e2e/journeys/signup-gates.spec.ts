@@ -175,6 +175,9 @@ test("a guest who opens For you gets one sign-in card instead of job packs", { t
   await expect(page).toHaveURL(/[?&]view=search/);
   await expect(card).toHaveCount(0);
   await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible();
+  // Search has no way back to packs a guest cannot open.
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
 });
 
 test("a guest with a résumé in this browser, who saw For you before, lands on Search", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
@@ -186,6 +189,7 @@ test("a guest with a résumé in this browser, who saw For you before, lands on 
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
   await expect(gate(page, "packs")).toHaveCount(0);
   await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
+  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
   expect(new URL(page.url()).searchParams.get("view")).not.toBe("for-you");
 });
 
