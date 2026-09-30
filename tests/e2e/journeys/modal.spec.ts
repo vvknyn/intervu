@@ -1,9 +1,11 @@
 import type { Locator, Page } from "@playwright/test";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the shared overlay primitive (ui/dialog + ui/sheet) — see tests/journeys/CATALOG.md (J-MODAL-*).
- * Read-only: the résumé is parsed in the browser and never leaves it.
+ * Read-only: the résumé is parsed (or tailored) in the browser and never leaves it.
  */
 
 const VIEWPORTS = [
@@ -138,3 +140,90 @@ for (const vp of VIEWPORTS) {
     expect(diagnostics.pageErrors).toEqual([]);
   });
 }
+
+/** A guest résumé kept in this browser: enough for /jobs to offer "Customize résumé" on a role. */
+const GUEST_RESUME = {
+  profile: {
+    name: "Sam Rivera",
+    profession: "Senior Software Engineer",
+    yearsOfExperience: 7,
+    location: "San Francisco, CA",
+    email: "sam.rivera.dev@example.com",
+    phone: "",
+  },
+  experience: [
+    {
+      id: "exp1",
+      company: "Nimbus Data",
+      role: "Senior Software Engineer",
+      dates: "2021 - Present",
+      description: "Built and scaled backend services in TypeScript/Node and Go on AWS. Mentored 3 junior engineers.",
+    },
+  ],
+  competencies: [{ category: "Languages", skills: ["TypeScript", "Go", "Python", "SQL"] }],
+  education: [],
+  generatedSummary: "Senior software engineer with 7 years of experience building backend systems.",
+};
+
+/** Wait out the open animation. A cancelled animation (the overlay re-renders as it opens) rejects `finished`; that one is done too. */
+async function settled(el: Locator) {
+  await el.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))));
+}
+
+/** The dialog is the topmost layer where `el` is drawn: its centre hits `el`, not a scrim stacked above. */
+async function isTopmost(el: Locator) {
+  return el.evaluate((node) => {
+    const r = node.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+    return !!hit && node.contains(hit);
+  });
+}
+
+test("Customize résumé dialog sits above its dim layer: its buttons take clicks and Close dismisses it", { tag: ["@J-MODAL-03"] }, async ({ page, diagnostics }) => {
+  await page.addInitScript(
+    ([onboardingKey, resumeKey, resume]) => {
+      localStorage.setItem(onboardingKey as string, "1");
+      localStorage.setItem(resumeKey as string, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
+    },
+    [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_RESUME_KEY, GUEST_RESUME] as const,
+  );
+  await page.goto("/jobs?view=search&q=engineer");
+  // The row centre is the company link; the title is the detail affordance.
+  await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
+  await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Your résumé is ready. Customize for this role." })).toBeVisible();
+  await settled(dialog);
+  // A dialog stacked under its own scrim renders dimmed and swallows every click (2026-09-30).
+  const close = dialog.getByTestId("local-customize-close");
+  expect(await isTopmost(close), "Close is the topmost element, not under the dialog's scrim").toBe(true);
+
+  // A rules draft is tailored on this device (no model download): the dialog's own buttons work.
+  await dialog.getByRole("button", { name: "Use a rules draft" }).click();
+  await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
+  await close.click();
+  await expect(dialog).toBeHidden();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("Track a role: the Status picker opens above the sheet and picking an option sets it", { tag: ["@J-MODAL-04"] }, async ({ page, diagnostics }) => {
+  await page.goto("/yours?view=new");
+  const sheet = page.getByRole("dialog", { name: "Track a role" });
+  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  await settled(sheet);
+
+  const status = sheet.getByRole("combobox");
+  await status.click();
+  // Portaled to <body>: a menu stacked under the sheet opens invisibly behind it (2026-09-30).
+  const option = page.getByRole("option", { name: "Interviewing" });
+  await expect(option).toBeVisible();
+  expect(await isTopmost(option), "the option is the topmost element, not under the sheet").toBe(true);
+  await option.click();
+  await expect(status).toHaveText("Interviewing");
+
+  // Close without saving: nothing is tracked.
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toBeHidden();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
