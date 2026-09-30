@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
@@ -58,6 +58,7 @@ export function LocalCustomizePanel({
     const [draft, setDraft] = useState<TailorDraft | null>(null);
     const [loading, setLoading] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const triggerRef = useRef<HTMLButtonElement>(null);
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
@@ -180,6 +181,7 @@ export function LocalCustomizePanel({
     return (
         <>
             <Button
+                ref={triggerRef}
                 type="button"
                 variant="outline"
                 size={jobActionSize}
@@ -198,7 +200,15 @@ export function LocalCustomizePanel({
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl">
+                <DialogContent
+                    className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl"
+                    // The dialog opens from our own button, not a DialogTrigger, so Radix has
+                    // no trigger to return focus to on close; without this it drops to the page.
+                    onCloseAutoFocus={(event) => {
+                        event.preventDefault();
+                        triggerRef.current?.focus();
+                    }}
+                >
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">

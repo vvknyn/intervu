@@ -126,6 +126,18 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await context.close();
     });
 
+    test("TC-DECK-010: closing Customize résumé returns focus to its button", async ({ page }) => {
+        await waitForMockDeckReady(page);
+
+        const trigger = deckRestingPack(page).getByTestId("local-customize-open");
+        await trigger.focus();
+        await page.keyboard.press("Enter");
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(trigger).toBeFocused();
+    });
+
     test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
         await page.emulateMedia({ reducedMotion: "reduce" });
         await waitForMockDeckReady(page);
