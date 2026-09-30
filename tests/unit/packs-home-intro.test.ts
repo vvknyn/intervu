@@ -86,7 +86,8 @@ describe("packs-home chrome — For you and Search switch", () => {
         const src = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
         assert.match(src, /!showAdvancedSearch && !forYouPackDeckOpen/);
         assert.doesNotMatch(src, /atRest && !showAdvancedSearch \? \(/);
-        assert.match(src, /onSelectCategory=\{\(category\) =>/);
+        // The tile or "Browse all matches" says which it was (`openHubPack` records it in `pack_opened`).
+        assert.match(src, /onSelectCategory=\{\(category, source\) =>/);
         assert.match(src, /activeCategoryId=\{hubSelectedCategoryId\}/);
         assert.match(src, /setForYouPackDeckOpen\(true\)/);
         assert.match(src, /void resolveAndApplyFit\(\)/);

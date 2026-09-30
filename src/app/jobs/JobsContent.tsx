@@ -107,6 +107,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
+import { TodayHome } from "@/components/jobs/for-you/TodayHome";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -4743,6 +4744,23 @@ export function JobsContent({
         );
     };
 
+    /** Open one pack from the packs home: a tile, "Browse all matches", or the Today header. */
+    const openHubPack = (id: string, source: "tile" | "browse_all" | "today") => {
+        captureEvent("pack_opened", { pack: id, source });
+        const tileId = isHubPackId(id) ? id : undefined;
+        setHubSelectedCategoryId(id);
+        setForYouPackDeckOpen(true);
+        forYouDeck.setActiveIndex(0);
+        // The list mounts from browse hits without waiting
+        // on fit. A usable résumé still ranks when it arrives,
+        // with the tile's own filter on the pack (hub-tiles.ts).
+        // Without one, a filter tile still filters the browse list.
+        void resolveAndApplyFit(tileId).then((applied) => {
+            if (applied || !tileId || tileId === "all" || !isHubFilterTile(tileId)) return;
+            applyFilterState(hubTile(buildUrlState({ jobId: null }), tileId).state);
+        });
+    };
+
     const selectJobsHome = (view: JobsHomeView) => {
         if (view === "search") {
             setShowAdvancedSearch(true);
@@ -6411,42 +6429,46 @@ export function JobsContent({
                             </div>
                         )}
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
-                            <CategoryHubGrid
-                                userName={user?.displayName}
-                                isAuthenticated={Boolean(user)}
-                                hasResume={hasUsableResume}
-                                resume={resume}
-                                activeCategoryId={hubSelectedCategoryId}
-                                hubCountLabels={hubCountLabels}
-                                dailyApplyTip={DAILY_APPLY_HUB_TIP}
-                                hubMatching={hubFitProbe.loading || hubFitProbe.probing}
-                                hubCorpusLine={hubCorpusLine}
-                                hubRemovalsLine={hubFitProbe.removalsLine}
-                                onSelectCategory={(category) => {
-                                    const tileId = isHubPackId(category.id) ? category.id : undefined;
-                                    setHubSelectedCategoryId(category.id);
-                                    setForYouPackDeckOpen(true);
-                                    forYouDeck.setActiveIndex(0);
-                                    // The list mounts from browse hits without waiting
-                                    // on fit. A usable résumé still ranks when it arrives,
-                                    // with the tile's own filter on the pack (hub-tiles.ts).
-                                    // Without one, a filter tile still filters the browse list.
-                                    void resolveAndApplyFit(tileId).then((applied) => {
-                                        if (applied || !tileId || tileId === "all" || !isHubFilterTile(tileId)) return;
-                                        applyFilterState(hubTile(buildUrlState({ jobId: null }), tileId).state);
-                                    });
-                                }}
-                                onUpdateResume={updateResume}
-                                onTailorApply={(job) => {
-                                    submitSearch(job.title);
-                                }}
-                                footer={
-                                    <HubYourJobs
+                            <>
+                                {resume && signals && pack && hubResumeKey ? (
+                                    <TodayHome
                                         auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
                                         returnTo={serpReturnTo}
+                                        userName={user?.displayName}
+                                        resume={resume}
+                                        resumeKey={hubResumeKey}
+                                        signals={signals}
+                                        pack={pack}
+                                        pursuits={pursuits}
+                                        onApply={handleOpenPosting}
+                                        onOpenPack={(id) => openHubPack(id, "today")}
                                     />
-                                }
-                            />
+                                ) : null}
+                                <CategoryHubGrid
+                                    compactHeader={Boolean(resume && signals && pack && hubResumeKey)}
+                                    userName={user?.displayName}
+                                    isAuthenticated={Boolean(user)}
+                                    hasResume={hasUsableResume}
+                                    resume={resume}
+                                    activeCategoryId={hubSelectedCategoryId}
+                                    hubCountLabels={hubCountLabels}
+                                    dailyApplyTip={DAILY_APPLY_HUB_TIP}
+                                    hubMatching={hubFitProbe.loading || hubFitProbe.probing}
+                                    hubCorpusLine={hubCorpusLine}
+                                    hubRemovalsLine={hubFitProbe.removalsLine}
+                                    onSelectCategory={(category, source) => openHubPack(category.id, source)}
+                                    onUpdateResume={updateResume}
+                                    onTailorApply={(job) => {
+                                        submitSearch(job.title);
+                                    }}
+                                    footer={
+                                        <HubYourJobs
+                                            auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                            returnTo={serpReturnTo}
+                                        />
+                                    }
+                                />
+                            </>
                         ) : (
                             <ForYouHome
                                 visiblePacks={forYouDeck.visiblePacks}

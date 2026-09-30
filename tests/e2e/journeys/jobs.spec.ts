@@ -9,7 +9,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/46/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/46/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -316,6 +316,61 @@ test("signed out, the packs hub keeps a place for the tracker and Recently viewe
   const signIn = new URL((await gate.getByTestId("signup-gate-signin").getAttribute("href"))!, "https://velai.app");
   expect(signIn.pathname).toBe("/login");
   expect(signIn.searchParams.get("next")).toMatch(/^\/jobs\?(.*&)?view=for-you/);
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("with a résumé, the packs home opens on Today: the day's numbers and new matches above the pack tiles, and a skipped role stays gone after a reload", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // Last here two days ago (seeded once, so the reload below is the same sitting and keeps that baseline).
+  await page.addInitScript((key) => {
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null }));
+  }, "intervu.today.visit");
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  await expect(today).toBeVisible({ timeout: 30_000 });
+  await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
+  // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
+  const tile = page.getByTestId("hub-pack-card-all");
+  await expect(tile).toBeVisible({ timeout: 30_000 });
+  expect((await today.boundingBox())!.y).toBeLessThan((await tile.boundingBox())!.y);
+  await expect(page.getByTestId("hub-compact-header")).toBeVisible();
+  await expect(page.getByTestId("hub-browse-all-matches")).toBeVisible();
+  await expect(page.getByTestId("hub-daily-apply-tip")).toHaveCount(0);
+
+  // The day's numbers, each a link: new since the last visit, applied today of the goal, follow-ups, interviews.
+  const stats = today.getByTestId("today-stats");
+  await expect(stats.getByTestId("today-stat-new")).toContainText(/new match(es)? since \w+/);
+  await expect(stats.getByTestId("today-stat-applied")).toContainText("0 of 12");
+  for (const id of ["today-stat-new", "today-stat-applied", "today-stat-follow-ups", "today-stat-interviews"]) {
+    await expect(stats.getByTestId(id).getByRole("link")).toBeVisible();
+  }
+
+  // The list settles on rows or on one way on, never both. A guest sees the fit preview (3 rows) and the gate past it.
+  const rows = today.getByTestId("today-new-row");
+  const empty = today.getByTestId("today-new-empty");
+  await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
+  if (await empty.isVisible()) {
+    await expect(rows).toHaveCount(0);
+    await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
+  } else {
+    expect(await rows.count()).toBeLessThanOrEqual(3);
+    for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
+    await expect(rows.first().getByTestId("today-apply")).toBeVisible();
+    await expect(today.getByTestId("signup-gate").or(today.getByTestId("today-see-more"))).toHaveCount(1);
+
+    const skippedId = (await rows.first().getAttribute("data-job-id"))!;
+    const skipped = today.locator(`[data-testid="today-new-row"][data-job-id="${skippedId}"]`);
+    await rows.first().getByTestId("today-skip").click();
+    await expect(skipped).toHaveCount(0);
+    await page.reload();
+    await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
+    await expect(skipped).toHaveCount(0);
+  }
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
