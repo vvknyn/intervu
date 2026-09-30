@@ -49,6 +49,7 @@ export const ANALYTICS_EVENTS = {
   pricing_viewed: "pricing_viewed",
   upgrade_clicked: "upgrade_clicked",
   founding_member_paid: "founding_member_paid",
+  founding_seat_reserved: "founding_seat_reserved",
 
   home_viewed: "home_viewed",
   home_action_clicked: "home_action_clicked",

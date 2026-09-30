@@ -118,6 +118,10 @@ export const CONNECT_WAITLIST_MAX_REQUESTS = 5;
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the waitlist's own store. */
 export const allowConnectWaitlistRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
 
+/** The founding-seat reservation on /pricing (`reserveFoundingSeat`): the
+ *  waitlist's budget, in its own store so the two counters stay separate. */
+export const allowFoundingReserveRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
+
 /**
  * Per-IP sliding-window rate limit for the jobs typeahead chokepoint
  * (`GET /api/jobs/suggest`). Its own store, not search's above — same

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { foundingCheckoutUrl, paidCheckoutSessionId } from "../../src/lib/billing/founding-offer";
+import { foundingCheckoutUrl, paidCheckoutSessionId, pricingDescription } from "../../src/lib/billing/founding-offer";
 import { mcpClientName, mcpErrorType, mcpToolFromLabel } from "../../src/lib/agent/telemetry";
 
 const LINK = "https://buy.stripe.com/test_abc123";
@@ -56,6 +56,18 @@ describe("paidCheckoutSessionId", () => {
     assert.equal(paidCheckoutSessionId({ checkout: "success", session_id: ["cs_test_abc"] }), null);
     assert.equal(paidCheckoutSessionId({ checkout: ["success"], session_id: "cs_test_abc" }), null);
     assert.equal(paidCheckoutSessionId({ checkout: "success", session_id: `cs_test_${"a".repeat(121)}` }), null);
+  });
+});
+
+describe("pricingDescription", () => {
+  it("says seats are open only when the checkout link is configured", () => {
+    const open = pricingDescription(true);
+    assert.match(open, /founding seats are open now at a one-off price/);
+    const soon = pricingDescription(false);
+    assert.match(soon, /founding seats open soon at a one-off price/);
+    assert.doesNotMatch(soon, /are open now/);
+    assert.match(open, /^Velai is free to use\./);
+    assert.match(soon, /^Velai is free to use\./);
   });
 });
 

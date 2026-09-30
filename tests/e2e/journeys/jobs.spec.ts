@@ -192,15 +192,17 @@ test("a board search with zero results offers to broaden, each option with its c
 test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  // Tuvalu: a country the corpus has no roles in. The search drops a place it cannot filter
-  // on; the pack used to list the whole corpus (or the visitor's own country) as its matches.
+  // Tuvalu: a country with no roles for this pack. With none there at all the search drops the
+  // place, and the pack used to list the whole corpus (or the visitor's own country) as its
+  // matches. With a few there, none of them the pack's, it showed the generic "No ranked roles
+  // to show right now." instead of naming the place.
   await guestWithResume(page, "Funafuti, Tuvalu");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
   const none = page.getByTestId("for-you-no-roles-there");
   await expect(none).toBeVisible({ timeout: 30_000 });
-  await expect(none).toContainText("No roles in Tuvalu yet.");
+  await expect(none).toContainText(/No (matching )?roles in Tuvalu yet\./);
   await expect(page.getByTestId("for-you-deck")).toHaveCount(0);
   // The pack counts 0 there, so the broaden options offer the way out, each with its count.
   const broaden = page.getByTestId("broaden-options");
