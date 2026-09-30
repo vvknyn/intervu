@@ -235,7 +235,8 @@ export function boardTimestampLabel(p: Pursuit, nowMs: number = Date.now()): str
             return `applied ${formatRelativeAge(p.applied_at ?? p.created_at, nowMs)}`;
         case "interviewing":
             return p.interview_date
-                ? `interview ${new Date(p.interview_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                ? // A calendar day stored as UTC midnight: read in the viewer's zone, "Oct 3" showed as "Oct 2" west of UTC.
+                  `interview ${new Date(p.interview_date).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}`
                 : `since ${formatRelativeAge(p.updated_at, nowMs)}`;
         case "offer":
         case "rejected":
