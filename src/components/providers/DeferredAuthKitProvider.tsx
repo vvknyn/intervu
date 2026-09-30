@@ -15,7 +15,19 @@ const AuthKitProvider = dynamic(
     { ssr: false },
 );
 
-/** Keeps WorkOS client bundle off the Concept A first-paint critical path. */
+/**
+ * Keeps WorkOS client bundle off the Concept A first-paint critical path.
+ *
+ * The provider mounts BESIDE the page, never around it. It used to wrap
+ * `children` once ready, and moving the page inside a provider that was not
+ * there before is a new element type at that spot, so React threw the whole
+ * page away and rebuilt it: every route
+ * went blank for as long as the WorkOS chunk took to load (the dynamic
+ * import renders nothing meanwhile), then repainted, re-running every mount
+ * fetch. Nothing reads its context (no `useAuth` anywhere; auth state comes
+ * from `@/lib/firebase/client-auth`), so its session checks on focus and
+ * visibility work the same from here.
+ */
 export function DeferredAuthKitProvider({ children }: { children: React.ReactNode }) {
     const [ready, setReady] = useState(false);
 
@@ -30,11 +42,6 @@ export function DeferredAuthKitProvider({ children }: { children: React.ReactNod
         };
     }, []);
 
-    // Mounted beside the app, not around it. Wrapping `children` once ready
-    // swapped the element above every page, so React remounted the whole app
-    // a moment after load: page state, focus and anything typed were lost
-    // (2026-09-30, a note typed on /yours/[id] vanished). Nothing reads
-    // AuthKit's context; the provider is here for its session refresh.
     return (
         <>
             {children}

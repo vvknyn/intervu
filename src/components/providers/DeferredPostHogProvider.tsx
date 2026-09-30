@@ -9,16 +9,20 @@ const PostHogProvider = dynamic(
     { ssr: false },
 );
 
-/** PostHog + surveys load only after load/idle so they do not extend TBT on /jobs. */
+/**
+ * PostHog + surveys load only after load/idle so they do not extend TBT on /jobs.
+ *
+ * Mounted beside the page, never around it, for the reason in
+ * `DeferredAuthKitProvider`: wrapping `children` late rebuilds the whole page.
+ * Nothing reads the PostHog React context (events go through
+ * `@/lib/analytics/events`, surveys render themselves), so the provider only
+ * has to run its init and identify effects.
+ */
 export function DeferredPostHogProvider({ children }: { children: React.ReactNode }) {
     const [ready, setReady] = useState(false);
 
     useEffect(() => scheduleAfterLoadOrIdle(() => setReady(true), { timeout: 8000 }), []);
 
-    // Beside the app, not around it, for the same reason as
-    // DeferredAuthKitProvider: wrapping `children` once ready remounted every
-    // page after load. Nothing reads PostHog's React context; capture goes
-    // through the posthog-js singleton (lib/analytics/events.ts).
     return (
         <>
             {children}

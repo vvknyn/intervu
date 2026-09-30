@@ -141,6 +141,40 @@ test("a note typed on the pursuit page saves itself and is there after a reload"
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
+test("a note typed the moment the pursuit page loads keeps its text; the page is not rebuilt under it", { tag: ["@J-TRACKER-58"] }, async ({ page, diagnostics }) => {
+    await seed(page, [guestPursuit("guest-journey-early-note", "applied")]);
+    // Count each time the page's <main> leaves the document. The deferred auth
+    // and analytics providers used to rebuild every page after load (see
+    // J-NAV-39), which wiped a note typed in that window.
+    await page.addInitScript(() => {
+        const w = window as unknown as { __mainRemovals: number };
+        w.__mainRemovals = 0;
+        document.addEventListener("DOMContentLoaded", () => {
+            new MutationObserver((records) => {
+                for (const r of records) {
+                    for (const n of r.removedNodes) {
+                        if (n instanceof Element && (n.id === "main" || n.querySelector("#main"))) w.__mainRemovals++;
+                    }
+                }
+            }).observe(document.documentElement, { childList: true, subtree: true });
+        });
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/yours/guest-journey-early-note");
+
+    const note = page.getByLabel("Note");
+    await expect(note).toBeVisible({ timeout: 15_000 });
+    await note.fill("Typed right after load");
+    // Past load and idle, when the deferred providers mount.
+    await page.waitForLoadState("load");
+    await page.waitForTimeout(3_000);
+
+    await expect(note).toHaveValue("Typed right after load");
+    await expect(page.getByTestId("pursuit-note-status")).toHaveText("saved");
+    expect(await page.evaluate(() => (window as unknown as { __mainRemovals: number }).__mainRemovals)).toBe(0);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("Remove on the pursuit page asks first; Cancel keeps the role, Remove returns to the board without it", { tag: ["@J-TRACKER-55"] }, async ({ page, diagnostics }) => {
     await seed(page, [guestPursuit("guest-journey-remove", "applied")]);
     await page.setViewportSize({ width: 1440, height: 900 });

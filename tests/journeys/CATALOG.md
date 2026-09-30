@@ -443,6 +443,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-55 | Remove on /yours/[id] asks first; Cancel keeps the role, confirming returns to /yours without it | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-56 | West of UTC, /yours/[id] shows an interview set for Nov 3 as Nov 3 (text and date field), not Nov 2 | anon | /yours/[id] (America/Vancouver, seeded interviewing pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-57 | /yours with guest roles: the server renders the loading skeleton, not the empty state; the board loads and reloads with no hydration error | anon | /yours (1440x900, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-58 | A note typed on a tracked role's page right after it loads keeps its text and saves; the page is never rebuilt under it (the deferred auth and analytics providers used to rebuild every page after load, wiping what was typed) | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 
@@ -625,7 +626,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
-| J-NAV-39 | The page under the header is not remounted after load: a note typed on /yours/[id] right after load keeps its text and saves, and the app's `<main>` is never taken out of the document (the deferred AuthKit/PostHog providers used to wrap the app once ready, remounting every page) | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | shell-remount.spec.ts |
+| J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
 
 ## PRICING
 
