@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { captureEvent } from "@/lib/analytics/events";
 import { LANDED_PLEDGE_SUGGESTED } from "@/lib/billing/founding-offer";
 import { usePledgeUrl } from "@/lib/billing/pledge-context";
@@ -14,6 +15,9 @@ type LandedPledgePanelProps = {
   /** The pursuit's listing id, null for a hand-tracked role; keys the event
    *  the same way `application_stage_changed` does. */
   jobId: string | null;
+  /** Lets a surface match its neighbours' density: the sheet's cards sit at
+   *  p-3.5, the full pursuit page's at p-6. */
+  className?: string;
 };
 
 /**
@@ -24,9 +28,9 @@ type LandedPledgePanelProps = {
  * still marks the moment and asks how it went, which is the outcome signal
  * the pledge exists to collect.
  */
-export function LandedPledgePanel({ pledgeUrl, jobId }: LandedPledgePanelProps) {
+export function LandedPledgePanel({ pledgeUrl, jobId, className }: LandedPledgePanelProps) {
   return (
-    <div data-testid="landed-pledge" className="rounded-panel border border-brand bg-muted p-3.5">
+    <div data-testid="landed-pledge" className={cn("rounded-panel border border-brand bg-muted p-3.5", className)}>
       <p className="text-sm font-semibold text-foreground">Offer in hand. Well done.</p>
       {pledgeUrl ? (
         <>
@@ -56,8 +60,8 @@ export function LandedPledgePanel({ pledgeUrl, jobId }: LandedPledgePanelProps) 
 /** The panel for a pursuit, or nothing until it sits in the Offer lane.
  *  Reads the link from the /yours layout's provider, so the tracker page
  *  and the full pursuit page render it the same way. */
-export function LandedPledgeForPursuit({ pursuit }: { pursuit: Pick<Pursuit, "status" | "job_id"> }) {
+export function LandedPledgeForPursuit({ pursuit, className }: { pursuit: Pick<Pursuit, "status" | "job_id">; className?: string }) {
   const pledgeUrl = usePledgeUrl();
   if (boardColumn(pursuit) !== "offer") return null;
-  return <LandedPledgePanel pledgeUrl={pledgeUrl} jobId={pursuit.job_id ?? null} />;
+  return <LandedPledgePanel pledgeUrl={pledgeUrl} jobId={pursuit.job_id ?? null} className={className} />;
 }

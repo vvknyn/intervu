@@ -27,6 +27,7 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { listGuestPursuits, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import {
+    boardColumn,
     nextAction,
     orderResumeVersionsLatestFirst,
     stageLabel,
@@ -317,6 +318,9 @@ export default function PursuitDetailPage() {
     }
 
     const action = nextAction(pursuit);
+    // At the Offer lane the pledge panel below carries the moment; the action
+    // card would only repeat "You have an offer" under it.
+    const pledgeMoment = boardColumn(pursuit) === "offer";
     const snapshot = pursuit.job_snapshot;
     // `pursuit.company_name` is a Firestore-stored snapshot (`buildJobSnapshot`/
     // `upsertPursuitCore`) — the live Meili index carries the ATS-stated raw
@@ -371,67 +375,70 @@ export default function PursuitDetailPage() {
                 </div>
 
                 {/* The pay-when-you-land moment (strategy decision 7): only once
-                    the pursuit sits in the Offer lane. */}
-                <LandedPledgeForPursuit pursuit={pursuit} />
+                    the pursuit sits in the Offer lane. p-6 matches the cards
+                    around it; the sheet keeps the panel's own p-3.5. */}
+                <LandedPledgeForPursuit pursuit={pursuit} className="p-6" />
 
                 <ResumeUsedCard pursuit={pursuit} />
 
-                <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
-                    {/* Tailoring moved to MCP 2026-08-02 — the in-app
-                        /resume-tailor link is gone; the quiet handoff note
-                        replaces it (same pattern as the "prep" note below). */}
-                    {action.kind === "tailor" && <McpHandoffNote />}
+                {!pledgeMoment && (
+                    <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
+                        {/* Tailoring moved to MCP 2026-08-02 — the in-app
+                            /resume-tailor link is gone; the quiet handoff note
+                            replaces it (same pattern as the "prep" note below). */}
+                        {action.kind === "tailor" && <McpHandoffNote />}
 
-                    {action.kind === "apply" && (
-                        <div className="flex flex-wrap gap-2">
-                            {pursuit.job_url && (
+                        {action.kind === "apply" && (
+                            <div className="flex flex-wrap gap-2">
+                                {pursuit.job_url && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => gatedOpenPosting(pursuit.job_url!)}
+                                        className="gap-2"
+                                    >
+                                        <ArrowSquareOut size={16} />
+                                        Open posting
+                                    </Button>
+                                )}
                                 <Button
-                                    variant="outline"
-                                    onClick={() => gatedOpenPosting(pursuit.job_url!)}
+                                    disabled={saving}
+                                    onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}
+                                >
+                                    {saving ? "Saving…" : "I applied"}
+                                </Button>
+                            </div>
+                        )}
+
+                        {action.kind === "set_interview" && (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Input
+                                    type="date"
+                                    value={interviewDate}
+                                    onChange={(e) => setInterviewDate(e.target.value)}
+                                    className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
+                                    aria-label="Interview date"
+                                />
+                                <Button
+                                    disabled={saving || !interviewDate}
+                                    onClick={() =>
+                                        mutate({ status: "interviewing", interview_date: new Date(interviewDate).toISOString() })
+                                    }
                                     className="gap-2"
                                 >
-                                    <ArrowSquareOut size={16} />
-                                    Open posting
+                                    <CalendarBlank size={16} />
+                                    {saving ? "Saving…" : "Set interview date"}
                                 </Button>
-                            )}
-                            <Button
-                                disabled={saving}
-                                onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                            >
-                                {saving ? "Saving…" : "I applied"}
-                            </Button>
-                        </div>
-                    )}
+                            </div>
+                        )}
 
-                    {action.kind === "set_interview" && (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Input
-                                type="date"
-                                value={interviewDate}
-                                onChange={(e) => setInterviewDate(e.target.value)}
-                                className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
-                                aria-label="Interview date"
-                            />
-                            <Button
-                                disabled={saving || !interviewDate}
-                                onClick={() =>
-                                    mutate({ status: "interviewing", interview_date: new Date(interviewDate).toISOString() })
-                                }
-                                className="gap-2"
-                            >
-                                <CalendarBlank size={16} />
-                                {saving ? "Saving…" : "Set interview date"}
-                            </Button>
-                        </div>
-                    )}
+                        {/* Prep surface removed 2026-08-02 — no more link into a
+                            prep tool for the "interviewing" stage's next action;
+                            a quiet note instead (spec: no link, no new feature). */}
+                        {action.kind === "prep" && <McpHandoffNote variant="prep" />}
 
-                    {/* Prep surface removed 2026-08-02 — no more link into a
-                        prep tool for the "interviewing" stage's next action;
-                        a quiet note instead (spec: no link, no new feature). */}
-                    {action.kind === "prep" && <McpHandoffNote variant="prep" />}
-
-                    {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
-                </div>
+                        {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
+                    </div>
+                )}
 
                 {snapshot?.description && (
                     <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
