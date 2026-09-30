@@ -142,3 +142,12 @@ test("formatDescription: whitespace-only blank lines are paragraph breaks (Green
   assert.ok(paras.some((t) => t.includes("HelloFresh")), "HelloFresh brand must stay unsplit");
   assert.ok(!paras.some((t) => t.startsWith("The role Hello")), "heading must not glue onto body");
 });
+
+test("normalizeMarkdown: a mismatched ***bold** run leaves no stray asterisk", () => {
+  // Seen on a tracked 1Password role (2026-09-30): the pursuit page printed "***1Password is growing**".
+  const out = normalizeMarkdown("***1Password is growing** We've surpassed $400M in ARR.");
+  assert.equal(out, "1Password is growing We've surpassed $400M in ARR.");
+  // Bullets and arithmetic keep their stars' meaning.
+  assert.match(normalizeMarkdown("Skills:\n* Python\n* SQL"), /- Python\n- SQL/);
+  assert.match(normalizeMarkdown("A 5*3 grid."), /5\*3/);
+});
