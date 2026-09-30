@@ -6,10 +6,11 @@
  * <Country>" chip vanish even though the request had been correctly
  * understood. The fix's asymmetry is the point under test here: an "exact"
  * degraded-cache hit (cached under THIS request's own location-filtered key)
- * may re-carry it, a "default-browse" fallback (an UNFILTERED cached result)
- * must NOT — claiming a location over unfiltered results would lie about
- * what's being shown — and the zero-hit `unavailable` shape always may,
- * since it never renders any hits for a location chip to misrepresent.
+ * may re-carry it, a location-defaulted request never gets the
+ * "default-browse" fallback (an UNFILTERED cached result) at all — claiming
+ * a location over unfiltered results would lie about what's being shown —
+ * and the zero-hit `unavailable` shape always may, since it never renders
+ * any hits for a location chip to misrepresent.
  * `resolveDegradedServe`'s own `servedKey` contract is covered directly in
  * jobs-search-cache.test.ts; this file drives the real `searchJobs` seam
  * end-to-end (real cache, real gazetteer/corpus-checker, mocked Meili
@@ -84,7 +85,7 @@ test("degraded serve, EXACT cache hit: the failed request's own cached response 
   assert.equal(second.defaultedLocation, "CA", "exact cache hit — safe to re-stamp the current request's default");
 });
 
-test("degraded serve, DEFAULT-BROWSE fallback: does NOT carry defaultedLocation — the lying case", async (t) => {
+test("degraded serve, no exact hit: a filtered, location-defaulted request gets unavailable, never the default-browse rows", async (t) => {
   const state = { searchFails: false };
   t.mock.method(globalThis, "fetch", installFetchMock(state));
   const { searchJobs } = await import("../../src/lib/jobs/search");
@@ -95,20 +96,27 @@ test("degraded serve, DEFAULT-BROWSE fallback: does NOT carry defaultedLocation 
   const seed = await searchJobs({});
   assert.equal(seed.defaultedLocation, undefined, "sanity: nothing to default without clientIp/countryLookup");
 
-  // A DIFFERENT request whose own exact key was never cached, but which DOES
-  // resolve an IP default this time.
+  // A DIFFERENT request whose own exact key was never cached, and which DOES
+  // resolve an IP default. The unfiltered rows are not its rows.
   state.searchFails = true;
   const opts = { clientIp: "1.2.3.4", countryLookup: CA_LOOKUP };
-  const degraded = await searchJobs({ facets: { work_type: ["hybrid"] } }, opts);
+  const filtered = await searchJobs({ facets: { work_type: ["hybrid"] } }, opts);
+  assert.equal(filtered.unavailable, true);
+  assert.equal(filtered.hits.length, 0);
+  assert.equal(filtered.meta, undefined, "not served from any cache");
+  assert.equal(filtered.defaultedLocation, "CA", "the unavailable shape still describes how the request was read");
 
-  assert.equal(degraded.meta?.degraded, true);
-  assert.equal(degraded.meta?.servedFrom, "cache");
-  assert.equal(degraded.total, seed.total, "served the cached default-browse body");
-  assert.equal(
-    degraded.defaultedLocation,
-    undefined,
-    "default-browse fallback is unfiltered — must not claim a location over it",
-  );
+  // An empty browse the IP default scoped to Canada is not the unfiltered browse either.
+  const defaultedBrowse = await searchJobs({}, opts);
+  assert.equal(defaultedBrowse.unavailable, true);
+  assert.equal(defaultedBrowse.defaultedLocation, "CA");
+
+  // The plain default browse itself still gets its fallback.
+  const plain = await searchJobs({});
+  assert.equal(plain.meta?.degraded, true);
+  assert.equal(plain.meta?.servedFrom, "cache");
+  assert.equal(plain.total, seed.total, "served the cached default-browse body");
+  assert.equal(plain.defaultedLocation, undefined);
 });
 
 test("backend throws with NO cache at all: the unavailable shape DOES carry defaultedLocation", async (t) => {
