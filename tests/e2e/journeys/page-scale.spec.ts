@@ -98,3 +98,30 @@ for (const path of ["/", "/about", "/privacy", "/yours", "/login"]) {
             .toEqual([PAGE_TITLE_PX]);
     });
 }
+
+/**
+ * The shell's deferred providers (AuthKit on load or idle within 5s, PostHog
+ * within 8s) used to wrap the page, so mounting them swapped the element above
+ * every page: the page went blank while their code loaded, then remounted,
+ * closing open dialogs and resetting the role stack. They sit beside it now.
+ */
+for (const path of ["/jobs", "/about"]) {
+    test(`${path} is never torn down and rebuilt after it loads`, { tag: ["@J-NAV-41"] }, async ({ page, diagnostics }) => {
+        await returningVisitor(page);
+        await page.addInitScript(() => {
+            const w = window as unknown as { __mainRemovals: number };
+            w.__mainRemovals = 0;
+            new MutationObserver((records) => {
+                for (const record of records)
+                    for (const node of record.removedNodes) if (node instanceof HTMLElement && node.id === "main") w.__mainRemovals++;
+            }).observe(document, { childList: true, subtree: true });
+        });
+        await page.goto(path);
+        await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
+        // Past both providers' idle deadlines, with time for their code to load.
+        await page.waitForTimeout(10_000);
+        expect(await page.evaluate(() => (window as unknown as { __mainRemovals: number }).__mainRemovals), "times the page was removed and rebuilt").toBe(0);
+        await expect(page.locator("#main")).toBeVisible();
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+}

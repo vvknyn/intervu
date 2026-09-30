@@ -36,6 +36,13 @@ test("PostHog and AuthKit defer until load or idle", () => {
     );
     assert.match(posthogDefer, /scheduleAfterLoadOrIdle/);
     assert.match(authDefer, /scheduleAfterLoadOrIdle/);
+    // Mounted beside the page, never around it: swapping the element above
+    // children when the provider loaded remounted every page (J-NAV-41).
+    for (const [src, provider] of [[posthogDefer, "PostHogProvider"], [authDefer, "AuthKitProvider"]] as const) {
+        assert.match(src, new RegExp(`\\{children\\}\\s*\\{ready \\? <${provider}>\\{null\\}</${provider}> : null\\}`));
+        assert.doesNotMatch(src, new RegExp(`<${provider}>\\{children\\}`));
+        assert.doesNotMatch(src, /if \(!ready\)/);
+    }
 });
 
 test("/jobs is board-first: no poster, chrome-hide classes or first-paint script", () => {
