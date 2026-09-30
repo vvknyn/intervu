@@ -349,6 +349,13 @@ import {
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
+    exactHubCounts,
+    readHubTileCounts,
+    resolveHubCountDeltas,
+    writeHubTileCounts,
+    type HubPackCounts,
+} from "@/lib/jobs/for-you/hub-count-deltas";
+import {
     diffHubPackRemovals,
     formatHubRemovalsLine,
     readHubCountBaseline,
@@ -1845,6 +1852,10 @@ export function JobsContent({
     const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
     // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
     const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
+    // The probe's searches were refused (rate limit, index down): the chips drop their counts instead of "…" forever.
+    const [hubProbeFailed, setHubProbeFailed] = useState(false);
+    // "+N" per pack chip since the last visit (`hub-count-deltas.ts`), set once every count has settled.
+    const [hubCountDeltas, setHubCountDeltas] = useState<HubPackCounts>({});
     // The last finished probe, so going back to the hub repaints its counts instead of searching again.
     const hubProbeMemoRef = useRef<{
         key: string;
@@ -1853,6 +1864,7 @@ export function JobsContent({
         probe: typeof hubFitProbe;
         allCount: CorpusCount | null;
         tileCounts: Partial<Record<HubPackId, CorpusCount | null>>;
+        deltas: HubPackCounts;
     } | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
@@ -3071,9 +3083,11 @@ export function JobsContent({
         const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
         const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
         if (memo) {
+            setHubProbeFailed(false);
             setHubFitProbe(memo.probe);
             setHubResumeAllCount(memo.allCount);
             setHubFilterTileCounts(memo.tileCounts);
+            setHubCountDeltas(memo.deltas);
             return;
         }
         let cancelled = false;
@@ -3084,6 +3098,15 @@ export function JobsContent({
             removalsLine: null,
         }));
         setHubFilterTileCounts({});
+        setHubCountDeltas({});
+        setHubProbeFailed(false);
+        // No count for any chip still waiting on one; the chips stay tappable.
+        const failProbe = () => {
+            setHubProbeFailed(true);
+            setHubFilterTileCounts((prev) =>
+                Object.fromEntries(HUB_FILTER_TILE_IDS.filter((id) => id !== "all").map((id) => [id, prev[id] ?? null])),
+            );
+        };
 
         void (async () => {
             try {
@@ -3114,6 +3137,7 @@ export function JobsContent({
                             scored: [...scoredById.values()],
                             removalsLine: null,
                         });
+                        failProbe();
                         return;
                     }
                     // The pack's location is where the candidate can work: a search that
@@ -3174,6 +3198,14 @@ export function JobsContent({
                     tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
                     setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
+                // Every chip count is known: compare the exact ones with the last visit's, then remember these.
+                const chipCounts = exactHubCounts({
+                    ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
+                    ...tileCounts,
+                });
+                const { deltas, next } = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
+                writeHubTileCounts(next);
+                setHubCountDeltas(deltas);
                 hubProbeMemoRef.current = {
                     key: memoKey,
                     at: Date.now(),
@@ -3181,6 +3213,7 @@ export function JobsContent({
                     probe,
                     allCount,
                     tileCounts,
+                    deltas,
                 };
             } catch {
                 if (!cancelled) {
@@ -3191,6 +3224,7 @@ export function JobsContent({
                         scored: prev.scored,
                         removalsLine: prev.removalsLine,
                     }));
+                    failProbe();
                 }
             }
         })();
@@ -3202,26 +3236,30 @@ export function JobsContent({
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
-    // loading until that list's total is known.
+    // loading until that list's total is known. A probe that failed before
+    // that total came back leaves every chip without a count, like the
+    // corpus read's failure below.
     const hubCountLabels = useMemo(
         () =>
             hubResumeKey
-                ? resumeTileLabels(
-                      hubResumeAllCount
-                          ? resumeHubPackCounts({
-                                listTotal: hubResumeAllCount,
-                                listJobs: hubFitProbe.scored.map((h) => h.job),
-                            })
-                          : {},
-                      hubFilterTileCounts,
-                      !hubResumeAllCount,
-                  )
+                ? hubProbeFailed && !hubResumeAllCount
+                    ? {}
+                    : resumeTileLabels(
+                          hubResumeAllCount
+                              ? resumeHubPackCounts({
+                                    listTotal: hubResumeAllCount,
+                                    listJobs: hubFitProbe.scored.map((h) => h.job),
+                                })
+                              : {},
+                          hubFilterTileCounts,
+                          !hubResumeAllCount,
+                      )
                 : hubPackCorpusCounts?.ok === false
                   ? {}
                   : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
                         loading: hubPackCorpusCounts == null,
                     }),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubFitProbe.scored, hubFilterTileCounts],
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts],
     );
 
     // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
@@ -6451,18 +6489,14 @@ export function JobsContent({
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
                                     hasResume={hasUsableResume}
-                                    resume={resume}
                                     activeCategoryId={hubSelectedCategoryId}
                                     hubCountLabels={hubCountLabels}
+                                    hubCountDeltas={hubCountDeltas}
                                     dailyApplyTip={DAILY_APPLY_HUB_TIP}
                                     hubMatching={hubFitProbe.loading || hubFitProbe.probing}
                                     hubCorpusLine={hubCorpusLine}
                                     hubRemovalsLine={hubFitProbe.removalsLine}
                                     onSelectCategory={(category, source) => openHubPack(category.id, source)}
-                                    onUpdateResume={updateResume}
-                                    onTailorApply={(job) => {
-                                        submitSearch(job.title);
-                                    }}
                                     footer={
                                         <HubYourJobs
                                             auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}

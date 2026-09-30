@@ -31,7 +31,7 @@ describe("hub pack category labels", () => {
         assert.match(hub, /label: "Lead & principal"/);
     });
 
-    it("hub pack titles wrap fully without truncate, ellipsis, or line clamp", () => {
+    it("hub pack titles show in full, without truncate, ellipsis, or line clamp", () => {
         const hub = readFileSync(
             join(__dirname, "../../src/components/jobs/CategoryHubGrid.tsx"),
             "utf8",
@@ -42,8 +42,8 @@ describe("hub pack category labels", () => {
         assert.doesNotMatch(titleBlock, /\btruncate\b/);
         assert.doesNotMatch(titleBlock, /line-clamp-\d/);
         assert.doesNotMatch(titleBlock, /text-ellipsis/);
-        assert.match(titleBlock, /whitespace-normal/);
-        assert.match(titleBlock, /break-words/);
+        // Each pack is one chip on one line; the chip row wraps instead, so a long label never cuts.
+        assert.match(hub, /data-testid="hub-pack-chips" className="flex flex-wrap/);
     });
 
     it("long pack labels stay in catalog for layout regression", () => {

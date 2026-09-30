@@ -11,8 +11,10 @@ describe("packs home live counts + deeper deck", () => {
     it("DEFAULT_CATEGORY_HUBS has no hardcoded job counts", () => {
         const src = readFileSync(HUB, "utf8");
         const hubs = src.match(/export const DEFAULT_CATEGORY_HUBS[\s\S]*?\n\];/)?.[0] ?? "";
-        assert.match(hubs, /countLabel:\s*""/);
-        assert.doesNotMatch(hubs, /\b(24|18|42|35|58|14|9|6) jobs\b/);
+        assert.ok(hubs.length > 0);
+        // Counts only ever come in live (`hubCountLabels`); the pack list holds ids and labels.
+        assert.doesNotMatch(hubs, /countLabel/);
+        assert.doesNotMatch(hubs, /\b\d+\+? (jobs|roles)\b/);
     });
 
     it("page keeps PAGE=20 for SERP and FOR_YOU_PAGE=60 for pack deck", () => {

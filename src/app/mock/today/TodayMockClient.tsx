@@ -13,6 +13,8 @@
  * "Needs you" beside it is built by the real `buildNeedsYou` from fixture
  * tracker rows and account counts. `first` shows a new account's starter
  * steps, `loading` and `failed` its read's states, `guest` its empty line.
+ * The pack chips under it carry fixture counts and "+N" deltas (none on
+ * `first`).
  */
 
 import { Suspense } from "react";
@@ -101,6 +103,19 @@ const FIXTURE_REMOTE: NeedsYouRemote = {
 };
 const EMPTY_REMOTE: NeedsYouRemote = { searches: [], follows: [], closedJobIds: [], savedSearchCount: 1, followCount: 1 };
 
+// The chips: live counts as the page formats them, and what each pack gained since Friday (none on a first visit).
+const PACK_COUNTS = {
+    all: "508 roles",
+    ai: "31+ roles",
+    remote: "96 roles",
+    fresh: "140 roles",
+    salary: "88 roles",
+    apply: "40+ roles",
+    lead: "12+ roles",
+    good: "9+ roles",
+};
+const PACK_DELTAS = { all: 14, remote: 3, salary: 5 };
+
 function TodayMockBody() {
     const state = useSearchParams().get("state");
     const first = state === "first";
@@ -160,6 +175,8 @@ function TodayMockBody() {
                     userName="Vivek"
                     hasResume
                     hubCorpusLine="~508 matches ranked Strong first"
+                    hubCountLabels={PACK_COUNTS}
+                    hubCountDeltas={first ? undefined : PACK_DELTAS}
                     onSelectCategory={() => {}}
                 />
             </div>
