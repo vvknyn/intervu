@@ -1,106 +1,162 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ArrowSquareOut, Buildings, CalendarBlank } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowSquareOut, CalendarBlank } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DotSeparated } from "@/components/ui/dot-separated";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { toast } from "@/lib/toast";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { updateApplication } from "@/actions/application";
+import { deleteApplication, updateApplication } from "@/actions/application";
+import { captureEvent } from "@/lib/analytics/events";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { formatAuthGateValueLine, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
-import { JobDetail } from "@/components/jobs/JobDetail";
+import { JobDescription, JobDetail } from "@/components/jobs/JobDetail";
+import { formatDescription } from "@/lib/jobs/format-description";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
+import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
+import { PursuitNoteField } from "@/components/tracker/PursuitNoteField";
+import { PursuitStatusPicker } from "@/components/tracker/PursuitStatusPicker";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
-import { listGuestPursuits, updateGuestPursuit } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, removeGuestPursuit, updateGuestPursuit } from "@/lib/pursuits/guest-store";
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import {
     nextAction,
     orderResumeVersionsLatestFirst,
-    stageLabel,
     type Pursuit,
+    type PursuitStage,
+    type ResumeVersionSnapshot,
 } from "@/lib/pursuits/types";
+import { pursuitDateFacts, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
-import { PageTitle } from "@/components/ui/heading";
 
-/** Resume used row (spec: "label, saved date (mono), Download button") —
- *  degrades by omission to a plain sentence when no resume was ever filed
- *  against this pursuit (e.g. a quick "mark applied" outside the wizard),
- *  rather than fabricating a version. Lists every version, latest first, so
- *  re-filing a resume never hides earlier ones. */
-function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
-    const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+/** Resume used row (spec: "label, saved date (mono), Download button").
+ *  Only the MCP `save_resume_variant` tool files a version against a pursuit,
+ *  so the card renders only when one exists: an empty "No resume version on
+ *  file" card was all a web user ever saw (journey audit 2026-09-30). Lists
+ *  every version, latest first, so re-filing a resume never hides earlier
+ *  ones. */
+function ResumeUsedCard({ versions, pursuit }: { versions: ResumeVersionSnapshot[]; pursuit: Pursuit }) {
     return (
         <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
             <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
-            {versions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
-            ) : (
-                <div className="divide-y divide-border">
-                    {versions.map((version, i) => (
-                        <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                            <div className="min-w-0">
-                                <p className="truncate text-sm text-foreground">{version.label}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {new Date(version.saved_at).toLocaleDateString(undefined, {
-                                        year: "numeric",
-                                        month: "short",
-                                        day: "numeric",
-                                    })}
-                                </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
-                                >
-                                    Download
-                                </Button>
-                                {/* .md stays available as a secondary, portable format
-                                    (R4/R5) — PDF is the default per the user report. */}
-                                <button
-                                    type="button"
-                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                >
-                                    .md
-                                </button>
-                            </div>
+            <div className="divide-y divide-border">
+                {versions.map((version, i) => (
+                    <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm text-foreground">{version.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {new Date(version.saved_at).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                })}
+                            </p>
                         </div>
-                    ))}
-                </div>
-            )}
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                            >
+                                Download
+                            </Button>
+                            {/* .md stays available as a secondary, portable format
+                                (R4/R5) — PDF is the default per the user report. */}
+                            <button
+                                type="button"
+                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            >
+                                .md
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+const subscribeNever = () => () => {};
+
+/** Interview date for an applied or interviewing pursuit. The date input's
+ *  value is a calendar day, stored as UTC midnight, so the saved value is
+ *  read back with `slice(0, 10)` (its UTC day), never through a local Date. */
+function InterviewDateField({
+    saved,
+    disabled,
+    onSave,
+}: {
+    saved: string | undefined;
+    disabled: boolean;
+    onSave: (date: string) => void;
+}) {
+    const id = useId();
+    const initial = saved ? saved.slice(0, 10) : "";
+    const [value, setValue] = useState(initial);
+    return (
+        <div>
+            <Label htmlFor={id} className="mb-1.5 block text-xs text-muted-foreground">
+                Interview date
+            </Label>
+            <div className="flex flex-wrap items-center gap-2">
+                <Input
+                    id={id}
+                    type="date"
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
+                />
+                <Button disabled={disabled || !value || value === initial} onClick={() => onSave(value)} className="gap-2">
+                    <CalendarBlank size={16} />
+                    {initial ? "Change date" : "Set interview date"}
+                </Button>
+            </div>
         </div>
     );
 }
 
 /**
- * The pursuit page: one header, ONE next-action block per `nextAction()`
- * (spec §3 "stage choreography" — never three tool offers at once, never a
- * disabled button). Reuses `updateApplication` for signed-in mutations and
- * `updateGuestPursuit` for a guest's local record — same route either way,
- * since `usePursuits()` already serves both from one list.
+ * The pursuit page, which replaces the tracker's detail sheet at xl+: the
+ * role as the page title, then one card with everything you can change (the
+ * same status row, interview date and note as the sheet, plus Remove), then
+ * at most one handoff note per `nextAction()` (spec §3 "stage choreography"),
+ * the résumé used and the saved posting. Reuses `updateApplication` for
+ * signed-in mutations and `updateGuestPursuit` for a guest's local record —
+ * same route either way, since `usePursuits()` already serves both from one
+ * list.
  */
 export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
     const { pursuits, loading, failed, retry } = usePursuits();
-    const [interviewDate, setInterviewDate] = useState("");
+    // Pursuits live in this browser (a guest's store) or behind client-side
+    // auth, so the server can only ever render "couldn't find that pursuit".
+    // Hold the loading state until the client has read them, instead of
+    // flashing not-found and failing hydration on every load.
+    const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
     const [saving, setSaving] = useState(false);
+    const [confirmingRemove, setConfirmingRemove] = useState(false);
+    const [removing, setRemoving] = useState(false);
+    // Set once a remove succeeds, so the page shows the way back rather than
+    // flashing "couldn't find that pursuit" before the redirect lands.
+    const [removed, setRemoved] = useState(false);
     // One clock read for this page's whole lifetime. JobDetail derives relative
     // ages from it during render, where a fresh Date.now() would be the
     // impure-render call react-hooks/purity flags.
@@ -248,6 +304,9 @@ export default function PursuitDetailPage() {
             upload: () => {},
         },
         user,
+        // Titles the dialog for the click that opened it ("Sign in to apply");
+        // without it a guest's Open posting got a plain "Sign in".
+        onGateOpen: setAuthGateReason,
     });
     const gatedOpenPosting = useGatedApply<string>({
         user,
@@ -255,22 +314,26 @@ export default function PursuitDetailPage() {
         perform: openApplyUrl,
     });
 
-    const mutate = async (patch: Partial<Pursuit>) => {
-        setSaving(true);
+    /** Writes a patch to the account (signed in) or this browser's guest
+     *  store. `busy` greys the status row and date button while it runs; a
+     *  note autosave passes false so typing never flickers the controls. */
+    const mutate = async (patch: Partial<Pursuit>, { busy = true }: { busy?: boolean } = {}) => {
+        if (busy) setSaving(true);
         try {
             if (getCurrentUser()) {
                 const res = await updateApplication(id, patch);
                 if (res.error) {
                     toast.error(`Could not save: ${res.error}`);
-                    return;
+                    return false;
                 }
                 invalidatePursuitsCache();
-            } else {
-                const updated = updateGuestPursuit(id, patch);
-                if (!updated) toast.error("Could not find this pursuit.");
+            } else if (!updateGuestPursuit(id, patch)) {
+                toast.error("Could not find this pursuit.");
+                return false;
             }
+            return true;
         } finally {
-            setSaving(false);
+            if (busy) setSaving(false);
         }
     };
 
@@ -280,12 +343,17 @@ export default function PursuitDetailPage() {
             Tracker
         </Link>
     );
+    // The tracker's own masthead (display size, not sticky) in every state, so
+    // the page doesn't jump from a compact bar to a tall one as it loads.
+    const header = (title: string, description?: React.ReactNode) => (
+        <PageHeader sticky={false} size="display" title={title} description={description} actions={backLink} />
+    );
 
-    if (loading) {
+    if (!hydrated || loading || (removed && !pursuit)) {
         return (
-            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
+            <PageLayout header={header("Tracker")}>
                 <WaitState
-                    label="Loading pursuit"
+                    label={removed ? "Back to your tracker" : "Loading pursuit"}
                     skeleton={
                         <div className="space-y-4">
                             <WaitBar className="h-32 rounded-panel" />
@@ -299,7 +367,7 @@ export default function PursuitDetailPage() {
 
     if (!pursuit && failed) {
         return (
-            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
+            <PageLayout header={header("Tracker")}>
                 <LoadFailedState title="We can't load this pursuit right now." onRetry={retry} testId="pursuit-load-failed" />
             </PageLayout>
         );
@@ -307,7 +375,7 @@ export default function PursuitDetailPage() {
 
     if (!pursuit) {
         return (
-            <PageLayout header={<PageHeader title="Tracker" actions={backLink} />}>
+            <PageLayout header={header("Tracker")}>
                 <div data-testid="pursuit-not-found" className="py-24 text-center text-sm text-muted-foreground">
                     We couldn&apos;t find that pursuit.
                 </div>
@@ -325,116 +393,155 @@ export default function PursuitDetailPage() {
     // from it carries the raw value too, and nothing ever rewrites a pursuit
     // already on file. Cleaned at render instead, same as every live search hit.
     const companyName = displayCompanyName(pursuit.company_name);
+    // Ashby/Lever store literal Markdown; the same formatter the live
+    // posting uses turns it into headings, paragraphs and lists instead of
+    // printing "**" (2026-09-30 founder report).
+    const descriptionBlocks = formatDescription(snapshot?.description);
+    const resumeVersions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+    const showInterviewDate = pursuit.status === "applied" || pursuit.status === "interviewing";
 
-    const identity = (
-        <>
-            <Buildings size={24} className="mt-0.5 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-                <PageTitle>{companyName}</PageTitle>
-                <p className="text-sm text-muted-foreground">{pursuit.position}</p>
-                {snapshot?.location && <p className="mt-1 text-xs text-muted-foreground">{snapshot.location}</p>}
-            </div>
-        </>
-    );
+    // Same writes, toast and event as the tracker's detail sheet
+    // (yours/page.tsx), so a status set here reads the same everywhere.
+    const changeStatus = async (status: PursuitStage) => {
+        const fromStage = pursuit.status;
+        const jobId = pursuit.job_id;
+        if (!(await mutate(trackerStatusPatch(pursuit, status, new Date().toISOString())))) return;
+        toast.success(`Marked ${trackerStatusLabel(status).toLowerCase()}`);
+        if (jobId) captureEvent("application_stage_changed", { job_id: jobId, from_stage: fromStage, to_stage: status });
+    };
+
+    const saveInterviewDate = async (date: string) => {
+        if (await mutate({ status: "interviewing", interview_date: new Date(date).toISOString() })) {
+            toast.success("Interview date saved");
+        }
+    };
+
+    const saveNote = async (note: string) => {
+        if (!(await mutate({ note }, { busy: false }))) throw new Error("note not saved");
+    };
+
+    const remove = async () => {
+        const jobId = pursuit.job_id;
+        setRemoving(true);
+        try {
+            if (getCurrentUser()) {
+                const res = await deleteApplication(id);
+                if (res.error) {
+                    toast.error(res.error);
+                    return;
+                }
+                invalidatePursuitsCache();
+            } else {
+                removeGuestPursuit(id);
+            }
+            setRemoved(true);
+            if (jobId) captureEvent("job_unsaved", { job_id: jobId });
+            toast.success("Removed");
+            router.push("/yours");
+        } finally {
+            setRemoving(false);
+            setConfirmingRemove(false);
+        }
+    };
 
     return (
-        <PageLayout header={<PageHeader title={companyName} description={pursuit.position} actions={backLink} />}>
+        <PageLayout header={header(pursuit.position, <DotSeparated items={[companyName, snapshot?.location]} />)}>
             <div className="space-y-6">
-                <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
-                    {/* Clickable only when a live posting is actually linked. A
-                        manual pursuit has no `job_id`, so it renders as plain
-                        text — offering a click that could only open an apology
-                        is worse than not offering one. */}
-                    {pursuit.job_id ? (
-                        <button
-                            type="button"
-                            onClick={() => void openDetail(pursuit.job_id!)}
-                            className="flex w-full items-start gap-4 text-left transition-opacity hover:opacity-80"
-                            aria-label={`View the posting for ${pursuit.position} at ${companyName}`}
-                        >
-                            {identity}
-                        </button>
-                    ) : (
-                        <div className="flex items-start gap-4">{identity}</div>
-                    )}
-                    <div data-testid="pursuit-stage" className="mt-4 text-sm text-muted-foreground">
-                        {stageLabel(pursuit)}
-                    </div>
-                    {/* Honest about a dead listing (spec §7): the snapshot carries the
-                        JD, so tailor/prep still work even after the live posting expires
-                        out of Meilisearch — but say so plainly rather than pretending
-                        nothing happened. */}
-                    {!snapshot && pursuit.job_id && (
-                        <p className="mt-2 text-xs text-muted-foreground">This listing&apos;s details are no longer available.</p>
-                    )}
-                </div>
-
-                <ResumeUsedCard pursuit={pursuit} />
-
-                <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
-                    {/* Tailoring moved to MCP 2026-08-02 — the in-app
-                        /resume-tailor link is gone; the quiet handoff note
-                        replaces it (same pattern as the "prep" note below). */}
-                    {action.kind === "tailor" && <McpHandoffNote />}
-
-                    {action.kind === "apply" && (
-                        <div className="flex flex-wrap gap-2">
-                            {pursuit.job_url && (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => gatedOpenPosting(pursuit.job_url!)}
-                                    className="gap-2"
-                                >
-                                    <ArrowSquareOut size={16} />
-                                    Open posting
-                                </Button>
-                            )}
-                            <Button
-                                disabled={saving}
-                                onClick={() => mutate({ status: "applied", applied_at: new Date().toISOString() })}
-                            >
-                                {saving ? "Saving…" : "I applied"}
-                            </Button>
-                        </div>
-                    )}
-
-                    {action.kind === "set_interview" && (
-                        <div className="flex flex-wrap items-center gap-2">
-                            <Input
-                                type="date"
-                                value={interviewDate}
-                                onChange={(e) => setInterviewDate(e.target.value)}
-                                className="ctl-lg w-auto rounded-ctl border-border bg-surface-2 text-base shadow-[var(--shadow-bevel-inset)]"
-                                aria-label="Interview date"
-                            />
-                            <Button
-                                disabled={saving || !interviewDate}
-                                onClick={() =>
-                                    mutate({ status: "interviewing", interview_date: new Date(interviewDate).toISOString() })
-                                }
-                                className="gap-2"
-                            >
-                                <CalendarBlank size={16} />
-                                {saving ? "Saving…" : "Set interview date"}
-                            </Button>
-                        </div>
-                    )}
-
-                    {/* Prep surface removed 2026-08-02 — no more link into a
-                        prep tool for the "interviewing" stage's next action;
-                        a quiet note instead (spec: no link, no new feature). */}
-                    {action.kind === "prep" && <McpHandoffNote variant="prep" />}
-
-                    {action.kind === "closed" && <p className="text-sm text-muted-foreground">{action.label}</p>}
-                </div>
-
-                {snapshot?.description && (
-                    <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
-                        <div className="mb-2 text-xs font-semibold">About this role</div>
-                        <p className="whitespace-pre-line text-base leading-relaxed text-muted-foreground">
-                            {snapshot.description}
+                {/* Everything you can change about this application, in one card:
+                    the same status row, interview date and note as the tracker's
+                    detail sheet, which this page replaces at xl+. */}
+                <section
+                    aria-label="Your application"
+                    className="space-y-5 rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
+                >
+                    <div data-testid="pursuit-stage">
+                        <h2 className="mb-1.5 text-xs text-muted-foreground">Status</h2>
+                        <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(status) => void changeStatus(status)} />
+                        <p data-testid="pursuit-dates" className="mt-2 text-sm text-muted-foreground">
+                            <DotSeparated items={pursuitDateFacts(pursuit, nowMs)} />
                         </p>
+                        {/* Honest about a dead listing (spec §7): the snapshot carries the
+                            JD, so tailor/prep still work even after the live posting expires
+                            out of Meilisearch — but say so plainly rather than pretending
+                            nothing happened. */}
+                        {!snapshot && pursuit.job_id && (
+                            <p className="mt-2 text-xs text-muted-foreground">This listing&apos;s details are no longer available.</p>
+                        )}
                     </div>
+
+                    {showInterviewDate && (
+                        <InterviewDateField
+                            key={`${pursuit.id}:${pursuit.interview_date ?? ""}`}
+                            saved={pursuit.interview_date}
+                            disabled={saving}
+                            onSave={(date) => void saveInterviewDate(date)}
+                        />
+                    )}
+
+                    <div className="max-w-2xl">
+                        <PursuitNoteField key={pursuit.id} initialNote={pursuit.note ?? ""} onSave={saveNote} rows={3} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 border-t border-border pt-5">
+                        {/* A linked listing opens in place (the live posting, or an honest
+                            "no longer live"); a hand-tracked role only has its URL. */}
+                        {pursuit.job_id ? (
+                            <Button variant="outline" onClick={() => void openDetail(pursuit.job_id!)}>
+                                View posting
+                            </Button>
+                        ) : pursuit.job_url ? (
+                            <Button variant="outline" onClick={() => gatedOpenPosting(pursuit.job_url!)} className="gap-2">
+                                <ArrowSquareOut size={16} />
+                                Open posting
+                            </Button>
+                        ) : null}
+                        {!confirmingRemove && (
+                            <Button
+                                variant="outline"
+                                disabled={saving}
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={() => setConfirmingRemove(true)}
+                            >
+                                Remove
+                            </Button>
+                        )}
+                    </div>
+                    {confirmingRemove && (
+                        <InlineConfirm
+                            prompt={`Remove ${pursuit.position} at ${companyName}?`}
+                            confirmLabel="Remove"
+                            busyLabel="Removing…"
+                            busy={removing}
+                            onConfirm={() => void remove()}
+                            onCancel={() => setConfirmingRemove(false)}
+                        />
+                    )}
+                </section>
+
+                {/* The pay-when-you-land moment (strategy decision 7): only once
+                    the pursuit sits in the Offer lane. p-6 matches the cards
+                    around it; the sheet keeps the panel's own p-3.5. */}
+                <LandedPledgeForPursuit pursuit={pursuit} className="p-6" />
+
+                {/* Tailoring and prep moved to MCP 2026-08-02: the quiet handoff
+                    note is the one next step for a saved or interviewing role. */}
+                {action.kind === "tailor" && <McpHandoffNote />}
+                {action.kind === "prep" && <McpHandoffNote variant="prep" />}
+
+                {resumeVersions.length > 0 && <ResumeUsedCard versions={resumeVersions} pursuit={pursuit} />}
+
+                {descriptionBlocks.length > 0 && (
+                    <section
+                        aria-labelledby="pursuit-about"
+                        className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]"
+                    >
+                        <h2 id="pursuit-about" className="mb-3 text-xs font-semibold">
+                            About this role
+                        </h2>
+                        <div data-testid="pursuit-description" className="max-w-prose">
+                            <JobDescription blocks={descriptionBlocks} headingLevel={3} />
+                        </div>
+                    </section>
                 )}
             </div>
 

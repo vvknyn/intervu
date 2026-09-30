@@ -61,8 +61,9 @@ describe('jobs landing masthead: absorbed inline, dead exports retired', () => {
     it('renders the tested headline and provenance line when at rest, with no hero count and no live count (D1 + A3: both counts stay off the masthead)', () => {
         const src = readFileSync(JOBS_PAGE, 'utf8');
         // #652 (f6a8e9cc): the masthead is the `{atRest ? (` arm inside the
-        // `showSearchHome && !showLandingOnboarding` gate.
-        const start = src.indexOf('{atRest ? (', src.indexOf('{showSearchHome && !showLandingOnboarding ? ('));
+        // `showSearchHome` gate (the signed-in onboarding card that also
+        // gated it was retired for the board).
+        const start = src.indexOf('{atRest ? (', src.indexOf('{showSearchHome ? ('));
         const end = src.indexOf('<h1 className="sr-only">Jobs</h1>', start);
         assert.notStrictEqual(start, -1, 'masthead ternary anchor moved — update this test');
         assert.notStrictEqual(end, -1, 'sr-only fallback h1 anchor moved — update this test');

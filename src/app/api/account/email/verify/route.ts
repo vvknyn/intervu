@@ -20,8 +20,10 @@ import { getWorkosUserManagement, resolveWorkosUserId } from "@/lib/auth/workos-
 import { verifyAccountEmailToken } from "@/lib/email/account-email-token";
 import { relativeRedirect } from "@/lib/http/relative-redirect";
 
-const FAILURE_PATH = "/settings?email_confirmed=0";
-const SUCCESS_PATH = "/settings?email_confirmed=1";
+// The Account tab, where the address shows; the page reads the flag
+// (lib/landing-notice.ts) and says whether it worked.
+const FAILURE_PATH = "/settings?tab=account&email_confirmed=0";
+const SUCCESS_PATH = "/settings?tab=account&email_confirmed=1";
 
 export async function GET(request: Request): Promise<NextResponse> {
     const token = new URL(request.url).searchParams.get("token");

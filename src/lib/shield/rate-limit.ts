@@ -164,6 +164,17 @@ export const REPORT_LISTING_MAX_REQUESTS = 5;
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the report action's own store. */
 export const allowReportListingRequest = createIpRateLimiter(REPORT_LISTING_WINDOW_MS, REPORT_LISTING_MAX_REQUESTS);
 
+/**
+ * Per-account limit for the packs home's "Needs you" read
+ * (`listNeedsYouAction`, keyed by uid): one read fans out to a search per
+ * followed company and saved search. The home memoises it, so a real visitor
+ * makes a few a minute at most.
+ */
+export const NEEDS_YOU_WINDOW_MS = 60_000;
+export const NEEDS_YOU_MAX_REQUESTS = 6;
+
+export const allowNeedsYouRequest = createIpRateLimiter(NEEDS_YOU_WINDOW_MS, NEEDS_YOU_MAX_REQUESTS);
+
 /** Retry-After value (seconds) for jobs typeahead 429 responses. */
 export function typeaheadRetryAfterHeader(windowMs: number): Record<string, string> {
   return { "Retry-After": String(Math.ceil(windowMs / 1000)) };
