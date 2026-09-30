@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
-/** Journeys for a job's detail — the job page and the board's pane. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33). Read-only. */
+/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33, J-JOBS-11/53). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
 /** The one "Customize résumé" (with a résumé) or "Upload résumé to customize." (without) button. */
@@ -25,6 +25,12 @@ function spilled(scope: Locator) {
 
 function isDesktop(page: Page) {
   return page.viewportSize()!.width >= 1024;
+}
+
+/** The open job's ×: the split pane's own at 1440, the sheet's header at 390. */
+function closeJobButton(page: Page) {
+  const surface = page.viewportSize()!.width >= 1280 ? page.getByTestId("detail-pane") : page.getByRole("dialog");
+  return surface.getByRole("button", { name: "Close", exact: true }).first();
 }
 
 /** Jobs come from a live search — pinned ids and slugs rot when listings expire. */
@@ -194,5 +200,49 @@ test("the board's role view has one Upload or Customize button, and its phone ba
     await expect(bar.locator(CUSTOMIZE)).toHaveCount(0);
     expect(await spilled(bar)).toEqual([]);
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("closing a job opened from a shared link stays on /jobs with ?job= cleared; one opened from the list steps back", { tag: ["@J-JOBS-11"] }, async ({ page, context, diagnostics }) => {
+  const [id] = await liveJobIds(page, "product manager", 1);
+  // From the list: the open pushed ?job=, so the close is Back to the search it came from.
+  const listUrl = page.url();
+  await page.getByTestId("job-row").first().getByTestId("job-title").click();
+  await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
+  await closeJobButton(page).click();
+  await expect(page).toHaveURL(listUrl, { timeout: 10_000 });
+
+  // A shared link in a fresh tab has no page of ours before it: the × went Back off the site, or did nothing (2026-09-30).
+  const shared = await context.newPage();
+  await shared.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
+  const detail = shared.locator(DETAIL).first();
+  await expect(detail).toBeVisible({ timeout: 20_000 });
+  await closeJobButton(shared).click();
+  await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
+  if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();
+  await expect(shared.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on a phone a tap anywhere on a job row opens that job, and the job links its company page", { tag: ["@J-JOBS-53"] }, async ({ page, diagnostics }) => {
+  await searchFor(page, "data analyst");
+  // A row whose company has a page: its name is a link from lg up.
+  const row = page.getByTestId("job-row").filter({ has: page.getByTestId("job-row-company") }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  const id = (await row.getAttribute("data-job-id"))!;
+  const company = row.getByTestId("job-row-company");
+  if (isDesktop(page)) {
+    await expect(company).toBeVisible();
+    await company.click();
+    await expect(page).toHaveURL(/\/co\//, { timeout: 20_000 });
+    return;
+  }
+  // The name filled the middle of a phone row, so a tap there opened the company page (2026-09-30).
+  await expect(company).toBeHidden();
+  await row.click();
+  await expect(page).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("job") === id, { timeout: 10_000 });
+  const sheet = page.getByTestId("mobile-detail-scroller");
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('a[href^="/co/"]').first()).toBeVisible({ timeout: 20_000 });
   expect(diagnostics.pageErrors).toEqual([]);
 });
