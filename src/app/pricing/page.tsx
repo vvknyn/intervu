@@ -6,17 +6,28 @@ import {
   FOUNDING_CHECKOUT_URL_ENV,
   foundingCheckoutUrl,
   paidCheckoutSessionId,
+  pricingDescription,
 } from "@/lib/billing/founding-offer";
 
 const TITLE = "Pricing";
-const DESCRIPTION =
-  "Velai is free to use. Pro and a Data API are coming; founding seats are open now at a one-off price.";
 
-export const metadata: Metadata = {
-  title: TITLE,
-  description: DESCRIPTION,
-  ...canonicalMetadata("/pricing", TITLE, DESCRIPTION),
-};
+/**
+ * Computed per request rather than a static `metadata` export: the
+ * description says whether founding seats are open, and that must follow
+ * the same env var as the button. Release 8 made the headline and badge
+ * follow it; the static description kept telling search results and link
+ * previews "open now" over an inert button.
+ */
+export function generateMetadata(): Metadata {
+  const description = pricingDescription(
+    foundingCheckoutUrl(process.env[FOUNDING_CHECKOUT_URL_ENV], null) !== null,
+  );
+  return {
+    title: TITLE,
+    description,
+    ...canonicalMetadata("/pricing", TITLE, description),
+  };
+}
 
 /**
  * /pricing — the willingness-to-pay test. Three columns (Free, Pro, Data
@@ -43,6 +54,11 @@ export default async function PricingPage({
     user ? { uid: user.uid, email: user.email } : null,
   );
   return (
-    <PricingClient signedIn={Boolean(user)} checkoutUrl={checkoutUrl} paidSessionId={paidCheckoutSessionId(params)} />
+    <PricingClient
+      signedIn={Boolean(user)}
+      email={user?.email ?? null}
+      checkoutUrl={checkoutUrl}
+      paidSessionId={paidCheckoutSessionId(params)}
+    />
   );
 }
