@@ -21,6 +21,7 @@ import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED } from "@/lib/jobs/resume-privacy-copy";
 import { PageTitle } from "@/components/ui/heading";
+import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS } from "@/lib/agent/permissions-copy";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
 
@@ -182,7 +183,7 @@ export function ConnectClient({
             )}
 
             <li className="flex gap-4">
-              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">2.</span>
+              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">{signedIn ? "1." : "2."}</span>
               <div className="min-w-0 flex-1">
                 <h3 className="text-xs font-semibold text-foreground">Copy the endpoint</h3>
                 <div className="mt-2">
@@ -192,7 +193,7 @@ export function ConnectClient({
             </li>
 
             <li className="flex gap-4">
-              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">3.</span>
+              <span className="w-5 shrink-0 text-xs font-semibold text-muted-foreground">{signedIn ? "2." : "3."}</span>
               <div className="min-w-0 flex-1 space-y-3">
                 <h3 className="text-xs font-semibold text-foreground">Paste it into your AI client</h3>
                 <p className="text-xs text-muted-foreground">Pick your client for its exact steps.</p>
@@ -322,7 +323,7 @@ export function ConnectClient({
                   <div>
                     <p className="font-semibold text-foreground">Can an AI apply to jobs for me?</p>
                     <p className="mt-0.5">
-                      No. Velai&apos;s agent tools are strictly for reading verified roles and saving drafts to your tracker. No application is ever submitted without your direct personal action.
+                      No. Your AI can search roles, keep your tracker and résumé up to date, and save your preferences, but it never submits an application. You apply yourself.
                     </p>
                   </div>
                 </div>
@@ -336,11 +337,18 @@ export function ConnectClient({
                 <ul className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
                   <li className="flex items-start gap-1.5">
                     <span className="text-live font-semibold">✓</span>
-                    <span><span className="font-semibold text-foreground">Read-only search:</span> Your AI queries public verified job data only.</span>
+                    <span>
+                      <span className="font-semibold text-foreground">What it can do, as you:</span>
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4" data-testid="connect-permissions">
+                        {AGENT_PERMISSIONS.map((permission) => (
+                          <li key={permission.text}>{permission.text}</li>
+                        ))}
+                      </ul>
+                    </span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-live font-semibold">✓</span>
-                    <span><span className="font-semibold text-foreground">No auto-submit:</span> Never submits applications automatically without manual approval.</span>
+                    <span><span className="font-semibold text-foreground">No auto-submit:</span> {AGENT_PERMISSIONS_LIMITS}</span>
                   </li>
                   <li className="flex items-start gap-1.5">
                     <span className="text-live font-semibold">✓</span>

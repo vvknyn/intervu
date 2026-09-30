@@ -503,7 +503,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-CONNECT-01 | Open /connect signed out and see the hero and the Universal MCP Server column | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-02 | Follow the signed-out "Sign in to velai" step to /login with a return path | anon | /connect | signed-out | no | uncovered | — |
+| J-CONNECT-02 | Follow the signed-out "1. Sign in to velai" step to /login with next=/connect | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-03 | Signed in, the "Sign in to velai" step is absent and the endpoint step remains | signed-in | /connect | signed-in | no | uncovered | — |
 | J-CONNECT-04 | See the MCP endpoint URL on the page | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-003: the connect URL is visible) |
 | J-CONNECT-05 | Copy the MCP endpoint with the Copy button | anon | /connect | signed-out | no | uncovered | — |
@@ -516,7 +516,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-12 | Open "Raw JSON config" and copy the mcpServers snippet | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-14 | Open the FAQ and see only one answer expanded at a time | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-15 | Open "Permissions and privacy" and read the three guarantees | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-004: the never-applies-without-you promise is present) |
+| J-CONNECT-15 | Open "Permissions and privacy" and read what a connected AI can do as you (search; read and replace your résumé; read and update your tracker; read and change your preferences) and what it can't (submit an application, see anyone else's data); no "Read-only search" | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-17 | Copy the one-line Mac install command in the OpenClaw column | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-18 | Join the Windows/Linux waitlist with an email @writes | anon | /connect | signed-out | yes | uncovered | — |
@@ -525,6 +525,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-21 | Open /connect/help and jump to a section anchor | anon | /connect/help#gateway | signed-out | no | uncovered | — |
 | J-CONNECT-22 | See the loading skeleton while /connect streams | anon | /connect (slow network) | signed-out | no | uncovered | — |
 | J-CONNECT-23 | Reach the orphan /openclaw page directly | anon | /openclaw | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /openclaw has a non-empty title that differs from the homepage) |
+| J-CONNECT-24 | Create account from /connect's sign-in (Continue with Google) goes to /auth/start with next=/connect, not the résumé upload at /jobs?resume=gate | anon | /login?next=/connect, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## OAUTH
 
@@ -548,6 +549,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-OAUTH-16 | Revoke a connected agent from Settings @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-17 | Read the agent-facing entity card at /llms.txt | agent | GET /llms.txt | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-005: /llms.txt returns 200 and names the MCP endpoint) |
 | J-OAUTH-18 | Lose the approval when the session expires between render and Allow | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
+| J-OAUTH-19 | Create account in front of an agent approval (/login?next=<authorize request>) goes to /auth/start with that request as next, not the résumé upload, so the approval isn't lost | anon | /login?next=/oauth/authorize?…, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## CONTENT
 
