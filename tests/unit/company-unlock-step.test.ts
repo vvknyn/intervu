@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { companyUnlockStep } from "../../src/lib/company/unlock-step";
 
-const CO_PAGE = join(__dirname, "..", "..", "src", "app", "co", "[slug]", "page.tsx");
+/** The /co page's composed tree; page.tsx fetches and renders this. */
+const CO_PAGE_BODY = join(__dirname, "..", "..", "src", "components", "company", "CompanyPageBody.tsx");
 const EXHAUST_GATE = join(__dirname, "..", "..", "src", "components", "company", "CompanyExhaustGate.tsx");
 
 describe("companyUnlockStep: the single next-step ask across every company-page gate", () => {
@@ -56,11 +57,11 @@ describe("companyUnlockStep: exactly one card renders per visitor state", () => 
 
 describe("/co/[slug]: the main intel gate's card is routed through companyUnlockStep", () => {
   it("imports and calls companyUnlockStep to decide the main gate's fallback, rather than hardcoding it", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     assert.match(
       source,
       /import \{ companyUnlockStep \} from "@\/lib\/company\/unlock-step"/,
-      "page.tsx must import companyUnlockStep",
+      "CompanyPageBody.tsx must import companyUnlockStep",
     );
     assert.match(
       source,

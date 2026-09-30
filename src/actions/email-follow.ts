@@ -2,8 +2,11 @@
 
 /**
  * One-click follow/unfollow via the contact cookie (Task 6's identity
- * primitive) — no email step, no auth session. `followByContactCookie` /
- * `unfollowByContactCookie` are deps-injected (same pattern as
+ * primitive) — no email step, no auth session — plus the read-only
+ * `getContactCookieFollowState` a company page asks on load. Opening a page
+ * only reads; a follow is written only by a click (J-COMPANY-18: every mount
+ * used to call the follow, so a guest's Unfollow came back on the next load
+ * and any company page they opened was followed). All three are deps-injected (same pattern as
  * `submitFollowEmail` in lib/identity/submit-follow.ts) so the decision
  * ladder — PG availability, cookie presence, identity lookup — is
  * unit-testable without a Next request context. The `*Action` exports wrap
@@ -11,7 +14,7 @@
  */
 import { getIntervuPg, type Queryable } from "@/lib/pg/pool";
 import { getContactTokenFromCookies } from "@/lib/identity/contact-cookie";
-import { getIdentityByContactToken, addEmailFollow, removeEmailFollow } from "@/lib/identity/store";
+import { getIdentityByContactToken, addEmailFollow, removeEmailFollow, isEmailFollowing } from "@/lib/identity/store";
 
 export interface ContactCookieFollowDeps {
   q: Queryable | null;
@@ -20,6 +23,24 @@ export interface ContactCookieFollowDeps {
 
 export type FollowByContactCookieResult = { status: "followed" | "no-contact" | "unavailable" };
 export type UnfollowByContactCookieResult = { status: "unfollowed" | "no-contact" | "unavailable" };
+export type ContactCookieFollowState = { status: "following" | "not-following" | "no-contact" | "unavailable" };
+
+/** Read-only: does the verified identity behind this browser's contact cookie follow the company? Never writes. */
+export async function getContactCookieFollowState(
+  deps: ContactCookieFollowDeps,
+  input: { companyDomain: string },
+): Promise<ContactCookieFollowState> {
+  if (deps.q === null) return { status: "unavailable" };
+
+  const token = await deps.getContactToken();
+  if (!token) return { status: "no-contact" };
+
+  const identity = await getIdentityByContactToken(deps.q, token);
+  if (!identity) return { status: "no-contact" };
+
+  const following = await isEmailFollowing(deps.q, identity.id, input.companyDomain);
+  return { status: following ? "following" : "not-following" };
+}
 
 export async function followByContactCookie(
   deps: ContactCookieFollowDeps,
@@ -70,4 +91,10 @@ export async function unfollowByContactCookieAction(input: {
   companyDomain: string;
 }): Promise<UnfollowByContactCookieResult> {
   return unfollowByContactCookie({ q: getIntervuPg(), getContactToken: getContactTokenFromCookies }, input);
+}
+
+export async function getContactCookieFollowStateAction(input: {
+  companyDomain: string;
+}): Promise<ContactCookieFollowState> {
+  return getContactCookieFollowState({ q: getIntervuPg(), getContactToken: getContactTokenFromCookies }, input);
 }

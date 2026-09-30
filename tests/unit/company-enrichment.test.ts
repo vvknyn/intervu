@@ -72,6 +72,22 @@ test("deriveWorkModeDistribution computes remote, hybrid, and onsite percentages
   assert.equal(modes.remotePct, 50);
   assert.equal(modes.hybridPct, 25);
   assert.equal(modes.onsitePct, 25);
+  assert.equal(modes.remoteCount, 2);
+  assert.equal(modes.total, 4);
+});
+
+test("deriveWorkModeDistribution reads work_type only — 'remote' in a title or location is not a remote role", () => {
+  const jobs = [
+    makeTestJob({ work_type: "onsite", title: "Remote Sensing Engineer" }),
+    makeTestJob({ work_type: "onsite", location: "Remote, US" }),
+    makeTestJob({ work_type: "Remote" }),
+    makeTestJob({ work_type: "Hybrid" }),
+  ];
+  const modes = deriveWorkModeDistribution(jobs);
+  assert.ok(modes !== null);
+  assert.equal(modes.remoteCount, 1);
+  assert.equal(modes.hybridPct, 25);
+  assert.equal(modes.onsitePct, 50);
 });
 
 // Regression coverage for the fabrication removal: no domain, however
