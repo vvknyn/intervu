@@ -513,6 +513,50 @@ export async function countNewSinceAction(
 }
 
 /**
+ * The /jobs front door's one live number: roles posted in the last 7 days
+ * in the visitor's IP country, plus remote roles open anywhere (the same
+ * `placesForCountry` clause the country default applies), or everywhere
+ * when no country resolves. Likely ghosts stay out, as on every default
+ * list. Cached per country for 15 minutes, like the board count above.
+ */
+const getCachedFrontDoorWeekCount = unstable_cache(
+  async (iso2: string | null): Promise<CorpusCount> => {
+    const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
+    const result = await runSearch(
+      { postedBucket: "7d", hideGhosts: true, places, limit: 1, withFacets: false },
+      {},
+    );
+    return resolveCorpusCount(result);
+  },
+  ["jobs-front-door-week-count"],
+  { revalidate: 900 },
+);
+
+/**
+ * `null` whenever the number can't be stated honestly: rate limited, the
+ * index can't filter by posted date (the count would be the whole corpus),
+ * search down, or zero. `iso2` is the country the count covers; `null`
+ * means it covers every country.
+ */
+export async function getFrontDoorWeekCountAction(
+  suppressLocationDefault: boolean,
+): Promise<{ count: CorpusCount; iso2: string | null } | null> {
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return null;
+  try {
+    if (!(await isPostedDateFilterSupported())) return null;
+    const looked = suppressLocationDefault || !ip ? null : await countryLookup(ip);
+    // A country the gazetteer can't place would count every country under its name.
+    const iso2 = looked && placesForCountry(looked, loadGazetteer()) ? looked : null;
+    const count = await getCachedFrontDoorWeekCount(iso2);
+    return count.value > 0 ? { count, iso2 } : null;
+  } catch (e) {
+    console.error("[jobs-front-door-week-count] transport error:", e);
+    return null;
+  }
+}
+
+/**
  * Record that a searcher opened a result, and where it sat in the list.
  *
  * `rank` is the point of the whole exercise: what people type tells us what

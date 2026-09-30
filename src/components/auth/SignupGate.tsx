@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
+import { captureEvent } from "@/lib/analytics/events";
 import { signupGateCopy, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { OriginSurface } from "@/lib/auth/gate-attempt";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
@@ -16,6 +19,12 @@ import { cn } from "@/lib/utils";
  * (`resolveHiddenCount` for the depth wall, the real match total for the fit
  * gate) — never a number made up for effect. `onDismiss` adds a "Not now"
  * button; omit it only for a hard wall (the depth cap).
+ *
+ * `autoShown` reports the card as a passive prompt (`auth_nudge_shown`,
+ * trigger "auto") once per mount. Pass it only for cards the product puts in
+ * front of the visitor on its own (the fit gate after the top 3, the depth
+ * wall, For you); a card that answers the visitor's own click (the 2nd Save)
+ * must not count as a nudge.
  */
 export function SignupGate({
     reason,
@@ -23,6 +32,7 @@ export function SignupGate({
     originSurface,
     count,
     onDismiss,
+    autoShown,
     className,
 }: {
     reason: AuthGateReason;
@@ -31,8 +41,24 @@ export function SignupGate({
     originSurface: OriginSurface;
     count?: CorpusCount | null;
     onDismiss?: () => void;
+    autoShown?: { hasResume: boolean };
     className?: string;
 }) {
+    const reportShown = Boolean(autoShown);
+    const hasResume = autoShown?.hasResume ?? false;
+    useEffect(() => {
+        if (!reportShown) return;
+        captureEvent(
+            "auth_nudge_shown",
+            buildAuthOpenPayload(reason, {
+                origin_surface: originSurface,
+                trigger_type: "auto",
+                has_resume: hasResume,
+                signed_in: false,
+            }),
+        );
+        // Once per mount: a re-render (a new count, a new returnTo) is the same showing.
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
     const copy = signupGateCopy(reason, count);
     const hrefs = signupGateHrefs(returnTo);
     // Either door is a user-opened gate: record it so the signup that follows

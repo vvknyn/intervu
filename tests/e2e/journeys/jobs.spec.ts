@@ -10,7 +10,7 @@ import { signedInTest } from "./signed-in";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/52/53/54/55/56/57/58, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -34,40 +34,67 @@ async function expectBoard(page: Page, timeout = FIRST_PAINT_MS) {
     .toBeGreaterThanOrEqual(5);
 }
 
+/** The résumé-upload band a visitor with no résumé gets at rest (FrontDoorResumeBand). */
+const RESUME_BAND = 'section[aria-label="Add your resume"]';
+
+/**
+ * Bare /jobs at rest is a front door, not a list: the search box, one h1, the résumé band,
+ * and no job rows. The rows are checked after the page has had time to fetch any, so a list
+ * that arrives late still fails.
+ */
+async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
+  await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout });
+  await expect(page.locator(RESUME_BAND)).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(3_000);
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+}
+
 /** Fresh = empty storage. Previous-session = the visit cookie is set but velai.onboarding.completed is not. */
 const VISITORS = [
   { name: "fresh visitor", previousSession: false },
   { name: "previous-session visitor (onboarding flag unset)", previousSession: true },
 ];
 
-async function openJobs(page: Page, baseURL: string | undefined, previousSession: boolean) {
+async function openJobs(page: Page, baseURL: string | undefined, previousSession: boolean, path = "/jobs") {
   if (previousSession) await page.context().addCookies([{ name: JOBS_VISITOR_COOKIE, value: "1", url: baseURL! }]);
-  await page.goto("/jobs");
+  await page.goto(path);
 }
 
-test("first-time visitor opens /jobs and sees the search box and job rows on first paint", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
+test("first-time visitor opens /jobs and sees the front door: search box, one h1, the week's count, the résumé band, no job rows", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
   const res = await page.goto("/jobs");
   expect(res?.status()).toBe(200);
-  await expectBoard(page);
+  await expectFrontDoor(page);
+  await expect(page.getByTestId("front-door-week-count")).toContainText(/^[\d,]+\+? roles? posted this week/, { timeout: 15_000 });
   await expect(page.locator(POSTER)).toHaveCount(0);
   await expect(page.locator("h1:visible")).toHaveCount(1);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("a guest taps the week's count on the front door and gets that week's roles", { tag: ["@J-JOBS-53"] }, async ({ page, diagnostics }) => {
+  await page.goto("/jobs");
+  const count = page.getByTestId("front-door-week-count");
+  await expect(count).toBeVisible({ timeout: 15_000 });
+  await count.click();
+  await expect(page).toHaveURL(/[?&]posted=7d/);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 for (const visitor of VISITORS) {
-  test(`${visitor.name} clicks a row title and the job detail opens`, { tag: ["@J-JOBS-23"] }, async ({ page, baseURL }) => {
-    await openJobs(page, baseURL, visitor.previousSession);
-    await expectBoard(page);
+  test(`${visitor.name} searches, clicks a row title and the job detail opens`, { tag: ["@J-JOBS-23"] }, async ({ page, baseURL }) => {
+    await openJobs(page, baseURL, visitor.previousSession, "/jobs?q=engineer");
+    await expectBoard(page, 30_000);
     // The row centre is the company link; the title is the detail affordance.
     await page.getByTestId("job-row").getByTestId("job-title").first().click();
     await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible').first()).toBeVisible();
   });
 
-  test(`${visitor.name} clicks Sign in or Get started and the board is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
+  test(`${visitor.name} clicks Sign in or Get started and the front door is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
     await openJobs(page, baseURL, visitor.previousSession);
-    await expectBoard(page);
+    await expectFrontDoor(page);
     // By accessible name, so any visible entry point counts, not one testid.
     const cta = page
       .getByRole("button", { name: /^(sign in|get started)$/i })
@@ -75,7 +102,7 @@ for (const visitor of VISITORS) {
     await expect(cta.first()).toBeVisible();
     await cta.first().click();
     await page.waitForTimeout(2_000);
-    await expectBoard(page, 1_000);
+    await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout: 1_000 });
     await expect(page.locator(POSTER)).toHaveCount(0);
   });
 }
@@ -90,11 +117,11 @@ test("list analytics fire: results_impressed on first render, search_submitted o
     for (const e of body.events ?? []) events.push(e.event_name);
     await route.fulfill({ status: 204 });
   });
-  await page.goto("/jobs");
-  await expectBoard(page);
+  await page.goto("/jobs?q=engineer");
+  await expectBoard(page, 30_000);
   await expect.poll(() => events, { timeout: 15_000, message: "results_impressed after first render" }).toContain("results_impressed");
 
-  await page.locator(SEARCH_INPUT).first().fill("engineer");
+  await page.locator(SEARCH_INPUT).first().fill("analyst");
   await page.locator(SEARCH_INPUT).first().press("Enter");
   await expect.poll(() => events, { timeout: 15_000, message: "search_submitted after a search" }).toContain("search_submitted");
 });
@@ -142,6 +169,78 @@ const withResume = (page: Page, location: string) =>
     },
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
+
+const fitGate = (page: Page) => page.locator('[data-testid="signup-gate"][data-gate-reason="fit"]');
+
+test("a returning guest with a résumé in this browser opens /jobs on their top 3 matches and the sign-in card, not the front door", { tag: ["@J-JOBS-54"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  // A résumé is on file: no upload band, and not the front door's week count.
+  await expect(page.locator(RESUME_BAND)).toHaveCount(0);
+  await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a guest with no résumé who opens a fit link gets the front door, and the fit sort leaves the URL", { tag: ["@J-JOBS-58"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs?view=search&sort=fit");
+  await expectFrontDoor(page, 30_000);
+  await expect(page).not.toHaveURL(/[?&]sort=fit/);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a signed-in user who skipped the résumé card lands on Search with no job rows and the résumé band, with no sign-in line", { tag: ["@J-JOBS-55"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs");
+  await expectFrontDoor(page, 30_000);
+  const band = page.locator(RESUME_BAND);
+  await expect(band.getByRole("button", { name: "Upload résumé" })).toBeVisible();
+  // Already signed in: no "Sign in to sync" line and no "free account" pitch.
+  await expect(band.getByRole("button", { name: /^sign in$/i })).toHaveCount(0);
+  await expect(band).not.toContainText(/free account/i);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a signed-in user with a résumé opens the Search tab on their résumé-ranked list, with no sign-in card", { tag: ["@J-JOBS-56"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=search");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  // More than a guest's top 3, and no gate between them.
+  await expect.poll(() => page.getByTestId("job-row").count(), { timeout: 45_000 }).toBeGreaterThan(3);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
+  await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("on a phone, a guest with a résumé who goes back to Jobs gets 'See roles that fit your résumé', which reopens their matches", { tag: ["@J-JOBS-57"] }, async ({ page, diagnostics }) => {
+  // Guests have a Jobs link only in the phone tab bar; on a wide screen there is no way back to rest.
+  test.skip((page.viewportSize()?.width ?? 0) >= 1024, "guests have a Jobs link only in the phone tab bar");
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs");
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+
+  // The tab bar's Jobs link: same page, so the résumé list isn't forced open a second time.
+  // A DOM click, since the dev server's overlay badge sits over the tab bar's corner.
+  await page.locator('a[href="/jobs"]:visible').first().evaluate((a: HTMLAnchorElement) => a.click());
+  await expect(page).toHaveURL(/\/jobs$/, { timeout: 15_000 });
+  const matches = page.getByTestId("front-door-matches");
+  await expect(matches).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+
+  await matches.click();
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
 
 /**
  * Open a packs-hub tile. The hub paints before it hydrates, and a tap that lands in that

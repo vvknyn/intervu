@@ -2,7 +2,11 @@
 
 import { UploadSimple } from "@phosphor-icons/react";
 import { AUTH_CTA_LABEL, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-copy";
-import { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_SIGNIN_LINE } from "@/lib/jobs/resume-cta-copy";
+import {
+    FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY,
+    FRONT_DOOR_RESUME_CARD_SUBCOPY,
+    RESUME_UPLOAD_SIGNIN_LINE,
+} from "@/lib/jobs/resume-cta-copy";
 
 /**
  * The /jobs at-rest front door's résumé-upload band (requirement 2). Full-
@@ -23,14 +27,16 @@ import { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_SIGNIN_LINE } from "@/lib
  * 2026-09-17: the band's second, outline "Sign in" button was cut; signing
  * in is now the `AUTH_CTA_LABEL` word inside `RESUME_UPLOAD_SIGNIN_LINE`
  * below, rendered as a link — same split-on-embedded-label convention
- * `FrontDoorDetailPitch` uses for `FOOTER_PROVENANCE_LINE`).
+ * `FrontDoorDetailPitch` uses for `FOOTER_PROVENANCE_LINE`). A signed-in
+ * visitor (who skipped the résumé card) gets no sign-in line and no
+ * "free account" pitch: omit `onSignInClick`.
  */
 export function FrontDoorResumeBand({
     onUploadClick,
     onSignInClick,
 }: {
     onUploadClick: () => void;
-    onSignInClick: () => void;
+    onSignInClick?: () => void;
 }) {
     return (
         <section
@@ -42,7 +48,9 @@ export function FrontDoorResumeBand({
                     <h2 className="text-xl font-semibold text-brand-foreground">
                         See which live jobs fit your experience.
                     </h2>
-                    <p className="mt-1 text-sm text-brand-foreground">{FRONT_DOOR_RESUME_CARD_SUBCOPY}</p>
+                    <p className="mt-1 text-sm text-brand-foreground">
+                        {onSignInClick ? FRONT_DOOR_RESUME_CARD_SUBCOPY : FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY}
+                    </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <button
@@ -54,22 +62,24 @@ export function FrontDoorResumeBand({
                         {RESUME_UPLOAD_CTA}
                     </button>
                 </div>
-                <p className="text-xs text-brand-foreground sm:col-span-2">
-                    {RESUME_UPLOAD_SIGNIN_LINE.split(AUTH_CTA_LABEL).map((part, i, parts) => (
-                        <span key={i}>
-                            {i > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={onSignInClick}
-                                    className="font-semibold underline underline-offset-2"
-                                >
-                                    {AUTH_CTA_LABEL}
-                                </button>
-                            )}
-                            {part}
-                        </span>
-                    ))}
-                </p>
+                {onSignInClick && (
+                    <p className="text-xs text-brand-foreground sm:col-span-2">
+                        {RESUME_UPLOAD_SIGNIN_LINE.split(AUTH_CTA_LABEL).map((part, i) => (
+                            <span key={i}>
+                                {i > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={onSignInClick}
+                                        className="font-semibold underline underline-offset-2"
+                                    >
+                                        {AUTH_CTA_LABEL}
+                                    </button>
+                                )}
+                                {part}
+                            </span>
+                        ))}
+                    </p>
+                )}
             </div>
         </section>
     );

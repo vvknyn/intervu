@@ -119,9 +119,9 @@ import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
-import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
+import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -167,6 +167,8 @@ import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
+import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
+import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 import {
     readOnboardingCompletedFromStorage,
@@ -2112,20 +2114,6 @@ export function JobsContent({
     // last-seen For you cannot start the hub's searches before we know.
     const forYouOpen = showForYouHome && signedIn;
     const forYouGated = showForYouHome && signedOut;
-    // The For you gate is an auto prompt: report its impression, the same
-    // event an auto-opened sign-in popover sends, once each time it appears.
-    useEffect(() => {
-        if (!forYouGated) return;
-        captureEvent(
-            "auth_nudge_shown",
-            buildAuthOpenPayload("packs", {
-                origin_surface: "for_you",
-                trigger_type: "auto",
-                has_resume: hasUsableResume,
-                signed_in: false,
-            }),
-        );
-    }, [forYouGated]); // eslint-disable-line react-hooks/exhaustive-deps
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
     // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
@@ -2280,9 +2268,11 @@ export function JobsContent({
         showSearchHome &&
         !showForYouHome;
 
-    // At rest the Search home still runs the default recency feed below the
-    // search box, so first paint shows real jobs.
-    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome && !showLandingOnboarding;
+    // At rest the Search home shows no job rows: a list needs a reason (a
+    // résumé, the visitor's own search or filters, or the job they came
+    // for). The newest-in-your-country feed that used to fill it was opened
+    // by 6% of guests. A résumé on file ranks the list instead (the at-rest
+    // fit effect below `resolveAndApplyFit`).
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -2294,13 +2284,14 @@ export function JobsContent({
     // ambient default-browse auto-selection is not deliberate intent — see
     // `atRest`'s own comment above for the same distinction).
     const searchIntent = hasSearchIntent({
-        defaultFeedAtRest,
         query,
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
         forYouActive: forYouOpen,
     });
+    // The at-rest front door: Search home, nothing typed, filtered or open.
+    const frontDoorAtRest = atRest && showSearchHome && !showLandingOnboarding && !searchIntent;
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
@@ -2783,6 +2774,9 @@ export function JobsContent({
                 // armed with below. That's the id a click must carry to join
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // How old the opened role was: whether searchers open fresh
+                // roles or older ones is what the posted-date window is tuned on.
+                ...postedAgeAnalyticsProps(hit),
                 ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
             if (!user) recordGuestResultClick();
@@ -4727,6 +4721,45 @@ export function JobsContent({
         }
     };
 
+    // A list needs a reason, and a résumé on file is one: the Search home at
+    // rest opens on the résumé-ranked list (a guest's résumé in this browser:
+    // their top 3, then the fit gate; a signed-in user's: the whole list) instead
+    // of the front door. Once per stay on the Search home, so a visitor who
+    // leaves that list for rest isn't pulled back to it; the front door's
+    // "See roles that fit your résumé" reopens it. An explicit empty submit,
+    // a filter or a sort choice is the visitor's own list and is left alone.
+    // `sort=fit` with no query (a shared or bookmarked fit link) ranks nothing
+    // by itself, so it resolves the résumé here too, or drops the fit sort
+    // when there is no résumé to rank by.
+    const autoFitAtRestRef = useRef(false);
+    // A signed-in résumé can take a network read; a search typed meanwhile wins.
+    const atRestRef = useRef(atRest);
+    atRestRef.current = atRest;
+    useEffect(() => {
+        if (!showSearchHome) {
+            autoFitAtRestRef.current = false;
+            return;
+        }
+        if (autoFitAtRestRef.current || !authReady || showLandingOnboarding) return;
+        if (!atRest || activeEntries.length > 0 || sortOverride !== null || explicitlySubmitted) return;
+        if (resumeOnFile === null) return;
+        if (resumeOnFile === false) {
+            if (fitActive) {
+                setFitActive(false);
+                applyUrlState(buildUrlState({ sort: null }), "replace");
+            }
+            return;
+        }
+        autoFitAtRestRef.current = true;
+        const token = fitIntentRef.current!.begin();
+        setFitResolving(true);
+        void resolveUsableResume()
+            .then((r) => {
+                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r);
+            })
+            .finally(() => setFitResolving(false));
+    }, [showSearchHome, authReady, showLandingOnboarding, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Do NOT auto-apply fit on for-you entry. Packs home is CategoryHubGrid
     // (default whenever for-you + !advanced search + !explicit pack deck).
     // applyFit writes q=/sort=fit; that must not displace the hub. Fit ranking
@@ -5629,6 +5662,7 @@ export function JobsContent({
             returnTo={serpReturnTo}
             count={fitGate.count}
             onDismiss={() => chooseSort("relevance")}
+            autoShown={{ hasResume: true }}
             className="my-4 w-full"
         />
     ) : null;
@@ -6412,6 +6446,27 @@ export function JobsContent({
                         {atRest && showSearchHome && (
                             <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                         )}
+                        {/* The front door (no job rows until there's a reason):
+                            the week's live count, the visitor's last search, and
+                            for a résumé on file, the way back to their matches.
+                            Visitors with no résumé get FrontDoorResumeBand below. */}
+                        {frontDoorAtRest && (
+                            <>
+                                <FrontDoorWeekCount
+                                    suppressLocationDefault={locationDefaultSuppressed}
+                                    onShow={() => panelPostedBucket("7d")}
+                                />
+                                <div className="mx-auto mt-4 w-full max-w-[960px] empty:hidden">
+                                    <FrontDoorReturnCard
+                                        recentQuery={recentSearches[0] ?? ""}
+                                        onRerun={submitSearch}
+                                    />
+                                </div>
+                                {resumeOnFile === true && !fitActive && !fitResolving && (
+                                    <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit()} />
+                                )}
+                            </>
+                        )}
                     </>
                 )}
 
@@ -6444,6 +6499,7 @@ export function JobsContent({
                             originSurface="for_you"
                             returnTo={serpReturnTo}
                             onDismiss={() => selectJobsHome("search")}
+                            autoShown={{ hasResume: hasUsableResume }}
                             className="mx-auto w-full max-w-xl"
                         />
                     </div>
@@ -6932,18 +6988,6 @@ export function JobsContent({
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Anonymous return card — "your last search, N new
-                                                since your last visit" — only on the at-rest default
-                                                feed, never over an engaged search's results. Mounted
-                                                unconditionally within that state (the component
-                                                renders null without a card to show) because it also
-                                                owns advancing the jobs visit cursor. */}
-                                            {defaultFeedAtRest && (
-                                                <FrontDoorReturnCard
-                                                    recentQuery={recentSearches[0] ?? ""}
-                                                    onRerun={submitSearch}
-                                                />
-                                            )}
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
                                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
@@ -7163,6 +7207,7 @@ export function JobsContent({
                                                     originSurface="jobs_banner"
                                                     returnTo={serpReturnTo}
                                                     count={resolveHiddenCount(totalCount, hits.length)}
+                                                    autoShown={{ hasResume: hasUsableResume }}
                                                     className="w-full"
                                                 />
                                             ) : loadingMore ? (
@@ -7216,7 +7261,7 @@ export function JobsContent({
                 {frontDoorBandVisible && (
                     <FrontDoorResumeBand
                         onUploadClick={handleUploadClick}
-                        onSignInClick={() => openAuth("generic", "user")}
+                        onSignInClick={signedIn ? undefined : () => openAuth("generic", "user")}
                     />
                 )}
             </div>

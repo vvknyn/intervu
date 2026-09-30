@@ -180,13 +180,13 @@ test("a guest who opens For you gets one sign-in card instead of job packs", { t
   await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
 });
 
-test("a guest with a résumé in this browser, who saw For you before, lands on Search", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+test("a guest with a résumé in this browser, who saw For you before, lands on Search with their top 3 matches", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
   await returningVisitor(page);
   await seedGuestResume(page);
   await page.addInitScript((key) => localStorage.setItem(key, "for-you"), LAST_JOBS_HOME_VIEW_KEY);
   await page.goto("/jobs");
   await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
+  await expectTopThreeThenFitGate(page);
   await expect(gate(page, "packs")).toHaveCount(0);
   await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
   await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);

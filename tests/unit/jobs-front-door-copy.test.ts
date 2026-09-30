@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+    FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY,
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
     RESUME_UPLOAD_PROMISE,
     RESUME_UPLOAD_SIGNIN_LINE,
@@ -46,7 +47,9 @@ test("FrontDoorResumeBand renders card subcopy and the sign-in value line", () =
         join(__dirname, "../../src/components/jobs/front-door/FrontDoorResumeBand.tsx"),
         "utf8",
     );
-    assert.match(band, /\{FRONT_DOOR_RESUME_CARD_SUBCOPY\}/);
+    // Guest copy with the sign-in line; the account copy (no "free account" pitch) without it.
+    assert.match(band, /onSignInClick \? FRONT_DOOR_RESUME_CARD_SUBCOPY : FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY/);
+    assert.doesNotMatch(FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY, /free account|sign in/i);
     assert.match(band, /RESUME_UPLOAD_SIGNIN_LINE\.split/);
     assert.match(band, /\{RESUME_UPLOAD_CTA\}/);
     assert.equal(

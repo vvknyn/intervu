@@ -52,6 +52,11 @@ export const AUTH_GATE_RESUME_UNLOCK_BODY =
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
     "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.";
 
+/** The same band for a signed-in visitor with no résumé on file (they skipped
+ *  the résumé card): the account is already there, so no "free account" pitch. */
+export const FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY =
+    "Upload your résumé and every live role is ranked by how well it fits you: Strong, Good or Stretch, with the reasons.";
+
 /** Landing onboarding — device-only storage choice helper. */
 export const LANDING_DEVICE_STORAGE_NOTE =
     "Parsed résumé stays in this browser until you sign in. Job search sends derived phrases to our servers, not your full file.";
