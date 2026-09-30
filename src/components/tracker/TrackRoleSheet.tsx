@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { PursuitStage } from "@/lib/pursuits/types";
-import { TRACKER_LANE_STAGES, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
+import { TRACKER_STATUS_OPTIONS, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
 
 export interface TrackRoleDraft {
@@ -106,7 +106,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                {TRACKER_LANE_STAGES.map(({ stage, label }) => (
+                                {TRACKER_STATUS_OPTIONS.map(({ stage, label }) => (
                                     <SelectItem key={stage} value={stage}>
                                         {label}
                                     </SelectItem>

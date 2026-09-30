@@ -36,6 +36,10 @@ test("PostHog and AuthKit defer until load or idle", () => {
     );
     assert.match(posthogDefer, /scheduleAfterLoadOrIdle/);
     assert.match(authDefer, /scheduleAfterLoadOrIdle/);
+    // Mounted beside the app, never around it: wrapping `children` once ready
+    // remounted every page a moment after load (2026-09-30).
+    assert.doesNotMatch(posthogDefer, /<PostHogProvider>\s*\{children\}/);
+    assert.doesNotMatch(authDefer, /<AuthKitProvider>\s*\{children\}/);
 });
 
 test("/jobs is board-first: no poster, chrome-hide classes or first-paint script", () => {

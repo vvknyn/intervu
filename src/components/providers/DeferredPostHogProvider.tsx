@@ -15,9 +15,14 @@ export function DeferredPostHogProvider({ children }: { children: React.ReactNod
 
     useEffect(() => scheduleAfterLoadOrIdle(() => setReady(true), { timeout: 8000 }), []);
 
-    if (!ready) {
-        return <>{children}</>;
-    }
-
-    return <PostHogProvider>{children}</PostHogProvider>;
+    // Beside the app, not around it, for the same reason as
+    // DeferredAuthKitProvider: wrapping `children` once ready remounted every
+    // page after load. Nothing reads PostHog's React context; capture goes
+    // through the posthog-js singleton (lib/analytics/events.ts).
+    return (
+        <>
+            {children}
+            {ready ? <PostHogProvider>{null}</PostHogProvider> : null}
+        </>
+    );
 }

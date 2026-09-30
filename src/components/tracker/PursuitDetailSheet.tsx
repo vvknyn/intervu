@@ -1,29 +1,26 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Sheet, SheetBody, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { TabItem } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
 import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
 import {
-    TRACKER_LANE_STAGES,
     TRACKER_SHEET_BOTTOM,
     daysInTracker,
     daysSinceUpdate,
     hasResumeLinked,
-    isActiveTrackerLaneStage,
     isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
-import { NoteAutosave } from "@/lib/pursuits/note-autosave";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
+import { PursuitStatusPicker } from "@/components/tracker/PursuitStatusPicker";
+import { PursuitNoteField } from "@/components/tracker/PursuitNoteField";
 
 interface PursuitDetailSheetProps {
     pursuit: Pursuit | null;
@@ -59,7 +56,9 @@ export function PursuitDetailSheet({
                 )}
             >
                 <PursuitDetailBody
-                    key={`${pursuit.id}:${pursuit.note ?? ""}:${pursuit.interview_date ?? ""}`}
+                    // Not keyed on the note: each autosave changed the key, remounted
+                    // the body and dropped focus mid-typing, so the rest was lost.
+                    key={`${pursuit.id}:${pursuit.interview_date ?? ""}`}
                     pursuit={pursuit}
                     onStatusChange={onStatusChange}
                     onNoteSave={onNoteSave}
@@ -87,8 +86,6 @@ function PursuitDetailBody({
     onRemove: () => Promise<void>;
     saving?: boolean;
 }) {
-    const [note, setNote] = useState(pursuit.note ?? "");
-    const [noteIndicator, setNoteIndicator] = useState<"saving" | "saved" | null>(null);
     const [interviewDate, setInterviewDate] = useState(() =>
         pursuit.interview_date ? pursuit.interview_date.slice(0, 10) : "",
     );
@@ -97,42 +94,8 @@ function PursuitDetailBody({
     const days = daysInTracker(pursuit);
     const stale = isStalePursuit(pursuit);
 
-    // `onNoteSave` is a fresh closure every render of the parent (yours/page
-    // .tsx builds it inline) — capture it in a ref so the autosave engine
-    // below (constructed once, lazily) always calls the latest version
-    // rather than whatever was current at construction time.
-    const onNoteSaveRef = useRef(onNoteSave);
-    onNoteSaveRef.current = onNoteSave;
-    const noteRef = useRef(note);
-    noteRef.current = note;
-
     const [confirmingRemove, setConfirmingRemove] = useState(false);
     const [removing, setRemoving] = useState(false);
-
-    const noteAutosaveRef = useRef<NoteAutosave | null>(null);
-    if (!noteAutosaveRef.current) {
-        noteAutosaveRef.current = new NoteAutosave((value) => {
-            setNoteIndicator("saving");
-            void onNoteSaveRef.current(value.trim()).then(
-                () => setNoteIndicator("saved"),
-                () => setNoteIndicator(null),
-            );
-        });
-    }
-
-    // Flush pending edits when this sheet instance closes (this component
-    // unmounts — the parent's onOpenChange clears the selected pursuit in
-    // the same update, so there's no intermediate "open flips false while
-    // still mounted" render to hook) or the tab is about to unload. Notes
-    // used to be silently lost on close; this is the fix (spec B1).
-    useEffect(() => {
-        const flush = () => noteAutosaveRef.current?.flush(noteRef.current);
-        window.addEventListener("beforeunload", flush);
-        return () => {
-            window.removeEventListener("beforeunload", flush);
-            flush();
-        };
-    }, []);
 
     // Two-step inline confirm — the same shared shape `YourResumeSection`'s
     // delete-resume flow already uses, rather than a third destructive-action
@@ -165,18 +128,7 @@ function PursuitDetailBody({
                 </div>
             </div>
             <SheetBody className="space-y-4 px-5 py-4 pb-7">
-                <div className="flex flex-wrap" role="group" aria-label="Status">
-                    {TRACKER_LANE_STAGES.map(({ stage, label }) => (
-                        <TabItem
-                            key={stage}
-                            aria-pressed={isActiveTrackerLaneStage(pursuit.status, stage)}
-                            disabled={saving}
-                            onClick={() => void onStatusChange(stage)}
-                        >
-                            {label}
-                        </TabItem>
-                    ))}
-                </div>
+                <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(stage) => void onStatusChange(stage)} />
 
                 {/* The pay-when-you-land moment (strategy decision 7): only once
                     the pursuit sits in the Offer lane. */}
@@ -199,25 +151,8 @@ function PursuitDetailBody({
                     )}
                 </dl>
 
-                <div>
-                    <div className="mb-1.5 flex items-center justify-between">
-                        <Label className="block whitespace-nowrap text-xs text-muted-foreground">Note</Label>
-                        {noteIndicator && (
-                            <span className="text-xs text-muted-foreground" aria-live="polite">
-                                {noteIndicator === "saving" ? "saving…" : "saved"}
-                            </span>
-                        )}
-                    </div>
-                    <Textarea
-                        value={note}
-                        onChange={(e) => {
-                            setNote(e.target.value);
-                            noteAutosaveRef.current?.edit(e.target.value);
-                        }}
-                        rows={2}
-                        className={TRACKER_FIELD_CLASS}
-                    />
-                </div>
+                {/* Notes used to be lost on close; the field flushes on unmount (spec B1). */}
+                <PursuitNoteField initialNote={pursuit.note ?? ""} onSave={onNoteSave} />
 
                 <div>
                     <Label className="mb-1.5 block whitespace-nowrap text-xs text-muted-foreground">

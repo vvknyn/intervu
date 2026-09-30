@@ -30,9 +30,15 @@ export function DeferredAuthKitProvider({ children }: { children: React.ReactNod
         };
     }, []);
 
-    if (!ready) {
-        return <>{children}</>;
-    }
-
-    return <AuthKitProvider>{children}</AuthKitProvider>;
+    // Mounted beside the app, not around it. Wrapping `children` once ready
+    // swapped the element above every page, so React remounted the whole app
+    // a moment after load: page state, focus and anything typed were lost
+    // (2026-09-30, a note typed on /yours/[id] vanished). Nothing reads
+    // AuthKit's context; the provider is here for its session refresh.
+    return (
+        <>
+            {children}
+            {ready ? <AuthKitProvider>{null}</AuthKitProvider> : null}
+        </>
+    );
 }

@@ -46,32 +46,78 @@ export function groupPursuitsByBoardColumn(pursuits: Pursuit[]): Record<BoardCol
 }
 
 /**
- * Detail sheet + add form — the ONE stage list both surfaces render as
- * lane buttons/options. One entry per `BoardColumn`, in board order
- * (`TRACKER_BOARD_COLUMNS`'s own order), each carrying the `PursuitStage`
- * that stage-write actually asserts when a user picks that lane. "Closed"
- * writes `withdrawn` rather than `rejected` — a user picking "Closed" is
- * asserting a fact about their own action ("I stepped away"), not the
- * employer's decision, which the UI has no basis to presume; `rejected`
- * stays a valid, correctly-displayed status when set elsewhere (e.g. MCP).
+ * The ONE status list every surface that sets a pursuit's status renders:
+ * the detail sheet and the full pursuit page (as a button row) and the
+ * "Track a role" sheet (as select options). Board order, with the Closed
+ * lane split into the two facts it holds: "Rejected" (the employer said no)
+ * and "Withdrawn" (you stepped away). Both land in the Closed column. A
+ * single "Closed" button used to write `withdrawn`, which left no way to
+ * record a rejection from the UI at all (2026-09-30 founder report).
+ * `resume_ready` has no button of its own; it reads as "Saved".
  */
-export const TRACKER_LANE_STAGES: { stage: PursuitStage; label: string }[] = [
+export const TRACKER_STATUS_OPTIONS: { stage: PursuitStage; label: string }[] = [
     { stage: "interested", label: "Saved" },
     { stage: "applied", label: "Applied" },
     { stage: "interviewing", label: "Interviewing" },
     { stage: "offer", label: "Offer" },
-    { stage: "withdrawn", label: "Closed" },
+    { stage: "rejected", label: "Rejected" },
+    { stage: "withdrawn", label: "Withdrawn" },
 ];
 
 /**
- * Is `candidate` (one of `TRACKER_LANE_STAGES`) the lane a pursuit
- * currently sitting at `current` is already in? Compares via `boardColumn`
- * rather than exact-stage equality so `resume_ready` still lights up
- * "Saved" and `rejected` still lights up "Closed" — the same collapsing
- * `groupPursuitsByBoardColumn` already applies to the board itself.
+ * Is `option` (one of `TRACKER_STATUS_OPTIONS`) the button a pursuit at
+ * `current` shows as pressed? Exact, except `resume_ready`, which has no
+ * button and lights up "Saved" (`interested`), the lane it sits in.
  */
-export function isActiveTrackerLaneStage(current: PursuitStage, candidate: PursuitStage): boolean {
-    return boardColumn({ status: current }) === boardColumn({ status: candidate });
+export function isCurrentTrackerStatus(current: PursuitStage, option: PursuitStage): boolean {
+    return (current === "resume_ready" ? "interested" : current) === option;
+}
+
+/**
+ * The patch a status pick writes. Moving to Applied stamps `applied_at`
+ * the first time only, so the apply-pace counts keep the real date when a
+ * pursuit is moved back and forth.
+ */
+export function trackerStatusPatch(p: Pick<Pursuit, "applied_at">, status: PursuitStage, nowIso: string): Partial<Pursuit> {
+    const patch: Partial<Pursuit> = { status };
+    if (status === "applied" && !p.applied_at) patch.applied_at = nowIso;
+    return patch;
+}
+
+/**
+ * The dated facts under the status row on the full pursuit page, e.g.
+ * "Applied Sep 28 · Interview Oct 3". Only stored dates, never a guess:
+ * saved or applied (whichever is known), the interview if one is set, and
+ * the last update once the pursuit has an outcome (the closest stored date
+ * to when it closed). An interview date is a calendar day stored as UTC
+ * midnight (the date input's value), so it is read in UTC; the rest are
+ * real instants, read in the viewer's zone.
+ */
+export function pursuitDateFacts(p: Pursuit, nowMs: number = Date.now()): string[] {
+    const thisYear = new Date(nowMs).getFullYear();
+    const day = (iso: string, timeZone?: string) => {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return null;
+        const year = timeZone === "UTC" ? d.getUTCFullYear() : d.getFullYear();
+        return d.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            ...(year !== thisYear ? { year: "numeric" } : {}),
+            ...(timeZone ? { timeZone } : {}),
+        });
+    };
+    const facts: string[] = [];
+    const column = boardColumn(p);
+    // Moved back to Saved, an old applied_at is no longer what the row says.
+    const applied = p.applied_at && column !== "saved" ? day(p.applied_at) : null;
+    const saved = day(p.created_at);
+    if (applied) facts.push(`Applied ${applied}`);
+    else if (saved) facts.push(`Saved ${saved}`);
+    const interview = p.interview_date && column !== "saved" ? day(p.interview_date, "UTC") : null;
+    if (interview) facts.push(`Interview ${interview}`);
+    const updated = day(p.updated_at);
+    if ((column === "offer" || column === "closed") && updated) facts.push(`Updated ${updated}`);
+    return facts;
 }
 
 export function trackerStatusLabel(status: PursuitStage): string {

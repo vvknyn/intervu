@@ -3,7 +3,10 @@ import { test } from "node:test";
 import {
     countByTrackerFilter,
     groupPursuitsByBoardColumn,
-    isActiveTrackerLaneStage,
+    isCurrentTrackerStatus,
+    pursuitDateFacts,
+    TRACKER_STATUS_OPTIONS,
+    trackerStatusPatch,
     matchesTrackerFilter,
     matchesTrackerSearch,
     trackerStatusLabel,
@@ -81,16 +84,68 @@ test("visibleTrackerBoardColumns shows all columns for all filter, one column ot
     assert.deepEqual(visibleTrackerBoardColumns("applied"), ["applied"]);
 });
 
-test("isActiveTrackerLaneStage collapses stages into the same lane as the board does", () => {
-    // resume_ready has no button of its own in TRACKER_LANE_STAGES — it must
-    // still light up "Saved" (stage: "interested"), same as boardColumn.
-    assert.equal(isActiveTrackerLaneStage("resume_ready", "interested"), true);
-    // rejected has no button of its own either — it must light up "Closed"
-    // (stage: "withdrawn"), not stay unmatched.
-    assert.equal(isActiveTrackerLaneStage("rejected", "withdrawn"), true);
-    // A pursuit sitting in one lane must not also read as active in another.
-    assert.equal(isActiveTrackerLaneStage("applied", "interviewing"), false);
-    assert.equal(isActiveTrackerLaneStage("interested", "withdrawn"), false);
+test("the status list offers Rejected and Withdrawn as their own buttons", () => {
+    // A single "Closed" button wrote withdrawn, so a rejection could not be
+    // recorded from the UI at all (2026-09-30).
+    assert.deepEqual(
+        TRACKER_STATUS_OPTIONS.map((o) => [o.stage, o.label]),
+        [
+            ["interested", "Saved"],
+            ["applied", "Applied"],
+            ["interviewing", "Interviewing"],
+            ["offer", "Offer"],
+            ["rejected", "Rejected"],
+            ["withdrawn", "Withdrawn"],
+        ],
+    );
+});
+
+test("isCurrentTrackerStatus presses exactly one button for every stage", () => {
+    for (const stage of ["interested", "resume_ready", "applied", "interviewing", "offer", "rejected", "withdrawn"] as const) {
+        const pressed = TRACKER_STATUS_OPTIONS.filter((o) => isCurrentTrackerStatus(stage, o.stage));
+        assert.equal(pressed.length, 1, stage);
+    }
+    // resume_ready has no button of its own; it reads as Saved.
+    assert.equal(isCurrentTrackerStatus("resume_ready", "interested"), true);
+    assert.equal(isCurrentTrackerStatus("rejected", "rejected"), true);
+    assert.equal(isCurrentTrackerStatus("rejected", "withdrawn"), false);
+    assert.equal(isCurrentTrackerStatus("applied", "interviewing"), false);
+});
+
+test("trackerStatusPatch stamps applied_at only the first time", () => {
+    const now = "2026-09-30T04:00:00.000Z";
+    assert.deepEqual(trackerStatusPatch({}, "applied", now), { status: "applied", applied_at: now });
+    assert.deepEqual(trackerStatusPatch({ applied_at: "2026-09-01T00:00:00.000Z" }, "applied", now), { status: "applied" });
+    assert.deepEqual(trackerStatusPatch({}, "rejected", now), { status: "rejected" });
+});
+
+test("pursuitDateFacts lists stored dates only, the interview day in UTC", () => {
+    const now = Date.parse("2026-09-30T12:00:00.000Z");
+    const created = "2026-09-20T15:00:00.000Z";
+    const day = (iso: string, timeZone?: string) =>
+        new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", ...(timeZone ? { timeZone } : {}) });
+    assert.deepEqual(pursuitDateFacts(pursuit({ status: "interested", created_at: created, updated_at: created }), now), [
+        `Saved ${day(created)}`,
+    ]);
+    const applied = "2026-09-28T15:00:00.000Z";
+    const interview = "2026-10-03T00:00:00.000Z";
+    assert.deepEqual(
+        pursuitDateFacts(pursuit({ status: "interviewing", created_at: created, updated_at: created, applied_at: applied, interview_date: interview }), now),
+        [`Applied ${day(applied)}`, `Interview ${day(interview, "UTC")}`],
+    );
+    // An outcome adds the last update, the closest stored date to when it closed.
+    const updated = "2026-09-29T15:00:00.000Z";
+    assert.deepEqual(pursuitDateFacts(pursuit({ status: "rejected", created_at: created, updated_at: updated, applied_at: applied }), now), [
+        `Applied ${day(applied)}`,
+        `Updated ${day(updated)}`,
+    ]);
+    // Moved back to Saved: an old applied date is not what the row says.
+    assert.deepEqual(pursuitDateFacts(pursuit({ status: "interested", created_at: created, updated_at: updated, applied_at: applied }), now), [
+        `Saved ${day(created)}`,
+    ]);
+    // Another year shows the year.
+    const lastYear = "2025-11-02T15:00:00.000Z";
+    assert.match(pursuitDateFacts(pursuit({ status: "interested", created_at: lastYear, updated_at: lastYear }), now)[0]!, /2025/);
 });
 
 test("groupPursuitsByBoardColumn buckets by boardColumn exhaustively", () => {

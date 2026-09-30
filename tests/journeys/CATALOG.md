@@ -406,20 +406,20 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-18 | Mobile stage rail jumps to a lane and is hidden at md+ | anon | /yours (390x844, then 1024x768) | signed-out | no | uncovered | — |
 | J-TRACKER-19 | Row click below xl opens the detail sheet | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-007: Row click opens the detail sheet below xl) |
 | J-TRACKER-20 | Row click at xl+ navigates to /yours/[id] | anon | /yours (1440x900, seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-013: Row click navigates to the full pursuit page at xl+) |
-| J-TRACKER-21 | Change status in the detail sheet and see the pressed button and toast | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
-| J-TRACKER-22 | "Closed" in the detail sheet writes withdrawn and moves the row to the Closed lane | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
+| J-TRACKER-21 | Pick Rejected in the detail sheet's status row: it is pressed and "Marked rejected" shows | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-22 | Rejected and Withdrawn in the detail sheet each move the row to the Closed lane, labelled with that status (the sheet's one "Closed" button used to write withdrawn, so no surface could record a rejection) | anon | /yours (1024x768, seeded applied + offer pursuits) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-23 | Set an interview date in the detail sheet | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | uncovered | — |
-| J-TRACKER-24 | Note autosaves and persists after closing and reopening the sheet | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
+| J-TRACKER-24 | A note typed in the detail sheet keeps focus through each autosave ("saved"), and all of it is there after closing and reopening the sheet | anon | /yours (1024x768, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-25 | Remove a pursuit through the inline confirm; cancel keeps it | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
 | J-TRACKER-26 | Export CSV downloads velai-tracker-YYYY-MM-DD.csv with the header row | anon | /yours (seeded) | signed-out | no | uncovered | — |
 | J-TRACKER-27 | Switch between the Tracker and History tabs | anon | /yours | signed-out | no | uncovered | — |
 | J-TRACKER-28 | Signed-out History shows the sign-in gate | anon | /yours/history | signed-out | no | uncovered | — |
 | J-TRACKER-29 | Signed-in History with no opened jobs shows the empty state | signed-in | /yours/history | signed-in | no | uncovered | — |
 | J-TRACKER-30 | Signed-in History lists opened jobs newest first as links | signed-in | /yours/history | signed-in | yes | uncovered | — |
-| J-TRACKER-31 | Deep-link reload of /yours/[id] shows the pursuit with its stage | anon | /yours/guest-e2e-1 (seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-013: Row click navigates to the full pursuit page at xl+) |
+| J-TRACKER-31 | Deep link and reload of /yours/[id] show the pursuit with its status pressed; the server renders the loading state, never "couldn't find that pursuit", and there is no hydration error | anon | /yours/guest-journey-deep (seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-32 | A bogus /yours/[id] shows the not-found state | anon | /yours/does-not-exist | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-004: Unknown pursuit id shows not-found) |
-| J-TRACKER-33 | Mark a resume_ready pursuit "I applied" from /yours/[id] | anon | /yours/guest-e2e-2 (seeded resume_ready) | signed-out | no | uncovered | — |
-| J-TRACKER-34 | Set interview date on /yours/[id] moves stage to "Interview scheduled" | anon | /yours/guest-e2e-3 (seeded applied) | signed-out | no | uncovered | — |
+| J-TRACKER-33 | Pick Applied on a saved pursuit's /yours/[id] page: the dates line says Applied and the interview date field appears | anon | /yours/guest-journey-saved (seeded interested) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-34 | Set an interview date on /yours/[id]: status moves to Interviewing, "Interview Nov 3" shows, and "Change date" stays disabled until the date changes | anon | /yours/guest-journey-interview (seeded applied) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-35 | /yours/[id] for a saved pursuit shows the AI-assistant handoff note | anon | /yours/guest-e2e-1 (seeded interested) | signed-out | no | uncovered | — |
 | J-TRACKER-36 | Posting-check sheet says "No longer live" for a delisted job | anon | /yours/guest-e2e-1 (seeded, job lookup stubbed to gone) | signed-out | no | uncovered | — |
 | J-TRACKER-37 | Signed-out ?download=pdf on /yours/[id] redirects to login with next | anon | /yours/guest-e2e-1?download=pdf&variant=v1 | signed-out | no | uncovered | — |
@@ -436,6 +436,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-48 | A pursuit in the Offer lane shows the pay-it-forward panel in the detail sheet: "Pay it forward" to a Stripe link when `LANDED_PLEDGE_CHECKOUT_URL` is set, otherwise "Tell us how it went" to the contact page | anon | /yours (1024x768, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
 | J-TRACKER-49 | A pursuit below the Offer lane shows no pledge panel in the detail sheet | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | covered | tracker.spec.ts |
 | J-TRACKER-50 | The full pursuit page at xl+ shows the pay-it-forward panel for an offer | anon | /yours/[id] (1440x900, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-51 | On /yours/[id] at xl+, move an applied role to Rejected from the status row (Saved, Applied, Interviewing, Offer, Rejected, Withdrawn); it stays Rejected after reload and the board lists it under Closed | anon | /yours/[id] (1440x900, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-52 | /yours/[id] names the role once (one h1, company and location as its subline) and renders the posting's Markdown as headings and a list, with no literal "*" or "##" | anon | /yours/[id] (1440x900, seeded pursuit with a Markdown description) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-53 | At 390x844 the /yours/[id] status row shows all six statuses without horizontal scroll, and Withdrawn sets | anon | /yours/[id] (390x844, seeded interviewing pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-54 | A note typed on /yours/[id] autosaves ("saved") and is there after reload | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-55 | Remove on /yours/[id] asks first; Cancel keeps the role, confirming returns to /yours without it | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-56 | West of UTC, /yours/[id] shows an interview set for Nov 3 as Nov 3 (text and date field), not Nov 2 | anon | /yours/[id] (America/Vancouver, seeded interviewing pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-57 | /yours with guest roles: the server renders the loading skeleton, not the empty state; the board loads and reloads with no hydration error | anon | /yours (1440x900, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 
@@ -618,6 +625,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-39 | The page under the header is not remounted after load: a note typed on /yours/[id] right after load keeps its text and saves, and the app's `<main>` is never taken out of the document (the deferred AuthKit/PostHog providers used to wrap the app once ready, remounting every page) | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | shell-remount.spec.ts |
 
 ## PRICING
 
