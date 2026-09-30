@@ -301,8 +301,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-34 | /watch/anywhere renders the static setup guide | anon | /watch/anywhere | signed-out | no | uncovered | — |
 | J-COMPANY-43 | A verified guest (follow contact cookie) opening a company page is not followed to it until they click Follow (known bug: every company page mount calls `followByContactCookieAction`, which adds the follow, use-company-email-verified.ts:39-46) | anon | /co/<allowlisted-slug> with the follow contact cookie set | signed-out | yes | uncovered | — |
 | J-COMPANY-44 | Searching a company with more roles than were fetched says "Searching the N most recent roles — use full search for all", and its link opens the full company search | anon | /co/<slug of a company with more roles than the page fetches>, type in the role search | signed-out | no | uncovered | — |
-| J-COMPANY-45 | A company with exhaust data shows its public verdict band, posting-cadence strip and "On the record" facts to anyone | anon | /co/anthropic--com | signed-out | no | uncovered | — |
-| J-COMPANY-46 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
+| J-COMPANY-45 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
 
 ## AUTH
 
@@ -475,10 +474,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-47 | Signed-out user opening /yours?view=new from the legacy /applications URL lands on the sheet | anon | /applications?view=new | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-000b: /applications?view=new preserves the query param through the redirect) |
 | J-TRACKER-61 | When the tracker read fails, /yours shows "We can't load your tracker right now." with Retry | signed-in | /yours (tracker read answered with an error) | signed-in | no | uncovered | — |
 | J-TRACKER-62 | When the pursuit read fails, /yours/[id] shows "We can't load this pursuit right now." with Retry (`pursuit-load-failed`) | signed-in | /yours/<id> (pursuit read answered with an error) | signed-in | no | uncovered | — |
-| J-TRACKER-63 | The pursuit page's "Resume used" card lists each saved résumé version with Download and .md (only MCP-made versions exist today; web users get none) | signed-in | /yours/<id of a pursuit with an MCP-made résumé version> | signed-in | no | uncovered | — |
-| J-TRACKER-64 | Clicking the pursuit's identity card on /yours/[id] opens the live posting in a sheet (J-TRACKER-36 is the delisted case) | anon | /yours/guest-e2e-1 (seeded, live job) | signed-out | no | uncovered | — |
-| J-TRACKER-65 | The /yours detail sheet offers "Open posting" in a new tab and a résumé download that is disabled when no version is linked | anon | /yours (1024x768, seeded), open a row | signed-out | no | uncovered | — |
-| J-TRACKER-66 | History marks tracked jobs with their stage badge, and a failed read shows "We can't load your history right now." with Retry | signed-in | /yours/history (a tracked job opened; then the read answered with an error) | signed-in | no | uncovered | — |
+| J-TRACKER-63 | Clicking the pursuit's identity card on /yours/[id] opens the live posting in a sheet (J-TRACKER-36 is the delisted case) | anon | /yours/guest-e2e-1 (seeded, live job) | signed-out | no | uncovered | — |
+| J-TRACKER-64 | The /yours detail sheet offers "Open posting", which opens the posting in a new tab | anon | /yours (1024x768, seeded), open a row | signed-out | no | uncovered | — |
+| J-TRACKER-65 | History marks tracked jobs with their stage badge, and a failed read shows "We can't load your history right now." with Retry | signed-in | /yours/history (a tracked job opened; then the read answered with an error) | signed-in | no | uncovered | — |
 
 ## ALERTS
 
@@ -522,8 +520,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-41 | A guest's "Get new matches by email" on the results line (`result-line-get-alerts`) opens the alert capture above the rows | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | uncovered | — |
 | J-ALERTS-42 | Confirming or failing a search-alert or follow verify link shows a confirmation or an error on the page it lands on (known bug: nothing reads `search_alert=1`, `search_alert=0` or `followed=0`, so the visitor lands on /jobs with no message) | anon | /jobs?search_alert=1, /jobs?search_alert=0, /jobs?followed=0 | signed-out | no | uncovered | — |
 | J-ALERTS-43 | Dismissing the follow-alerts bell, or opening one of its roles, clears the alerts and hides the bell until new roles appear | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
-| J-ALERTS-44 | The bell's "View followed roles" opens roles at the companies you follow (known bug: it opens the elite board /jobs?board=elite, FollowAlertsBell.tsx:172-177) | signed-in | /jobs (with follow alerts), open the bell | signed-in | no | uncovered | — |
-| J-ALERTS-45 | `/unsubscribe?token=…&forget=1` deletes the address's data ("Your data has been deleted"), and Undo on the unsubscribe page says "You're back on the list" @writes | anon | GET /unsubscribe?token=<real token>&forget=1; Undo from a plain unsubscribe | signed-out | yes | uncovered | — |
+| J-ALERTS-44 | `/unsubscribe?token=…&forget=1` deletes the address's data ("Your data has been deleted"), and Undo on the unsubscribe page says "You're back on the list" @writes | anon | GET /unsubscribe?token=<real token>&forget=1; Undo from a plain unsubscribe | signed-out | yes | uncovered | — |
 
 ## CONNECT
 

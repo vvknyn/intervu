@@ -81,9 +81,9 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–42, 46, 52 · NAV 30–32 | 15 | 12 | 3 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 75 · MOB 03, 09–10 · DETAIL 01–33 · ERR 07–08 | 45 | 10 | 35 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–25, 29–33 | 30 | 0 | 30 | 0 | 1 |
-| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–47, 61–66 · NAV 10 · MODAL 04 | 57 | 3 | 54 | 0 | 0 |
-| [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–27, 29, 31–45 | 38 | 0 | 38 | 0 | 2 |
-| [Company pages](#company-pages) | COMPANY 01–02, 04–31, 43–46 | 34 | 1 | 33 | 0 | 1 |
+| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–47, 61–65 · NAV 10 · MODAL 04 | 56 | 3 | 53 | 0 | 0 |
+| [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–27, 29, 31–44 | 37 | 0 | 37 | 0 | 1 |
+| [Company pages](#company-pages) | COMPANY 01–02, 04–31, 43–45 | 33 | 1 | 32 | 0 | 1 |
 | [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–44, 46–50 · NAV 03–05, 17–19 | 51 | 5 | 46 | 0 | 0 |
 | [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27 · MODAL 03, 06 | 28 | 2 | 26 | 0 | 0 |
 | [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–27, 31–33 · NAV 11–13, 20 | 32 | 0 | 32 | 0 | 1 |
@@ -91,7 +91,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–26 · SEO 01–09 | 34 | 1 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–10 | 10 | 5 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19 · NAV 07–09, 14, 22–29, 33–39 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 45 | 11 | 34 | 0 | 0 |
-| **All stages** | | **575** | **67** | **508** | **0** | **9** |
+| **All stages** | | **572** | **67** | **505** | **0** | **8** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search
@@ -175,7 +175,6 @@ Line numbers are the audit's, taken at staging 8baeaee; a few may have moved sin
 - **J-APPLY-29**: after a guest closes the Apply sign-in dialog, a later search or sign-in reopens it or replays the apply, because `gate()` never stops listening for sign-in. `src/components/auth/use-auth-gate.ts:80`.
 - **J-COMPANY-43**: a guest who confirmed a follow email is followed to every company page they open (same cause as J-COMPANY-18). `src/lib/follows/use-company-email-verified.ts:39-46`, `src/actions/email-follow.ts:37-41`.
 - **J-ALERTS-42**: search-alert and follow confirm links land on /jobs with no confirmation or error; nothing reads `search_alert` or `followed=0`. `src/app/api/search-alerts/verify/route.ts:12,21-26`, `src/app/api/follow-email/verify/route.ts:22,31-40`.
-- **J-ALERTS-44**: the bell's "View followed roles" opens the elite board (/jobs?board=elite), not roles at the companies you follow. `src/components/follows/FollowAlertsBell.tsx:172-177`.
 - **J-SETTINGS-31**: confirming an added account email shows nothing on /settings; `?email_confirmed=1` is ignored. `src/app/api/account/email/verify/route.ts:24`.
 - **J-CONNECT-24**: "Sign in to velai" on /connect promises a return to /connect, but a résumé-less password sign-in or any signup lands on /jobs?resume=gate. `src/app/connect/connect-client.tsx:173-178`, `src/lib/auth/post-auth-destination.ts:70-73`.
 - **J-CONNECT-25**: signed in, the /connect steps start at "2." with no step 1. `src/app/connect/connect-client.tsx:185,195`.
