@@ -41,6 +41,7 @@ import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
 import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
@@ -148,8 +149,9 @@ export function PublicJobDetail({
         let cancelled = false;
         setResumeSettled(false);
         fetchResumeData()
-            .then(({ data, updatedAt }) => {
+            .then(({ data: stored, text, updatedAt }) => {
                 if (cancelled) return;
+                const data = storedResumeData(stored, text);
                 if (!data || !resumeIsUsable(data)) {
                     setResume(null);
                     setResumeAsOfDate(null);

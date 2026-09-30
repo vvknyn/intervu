@@ -364,6 +364,7 @@ import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import {
     isConfirmedSignedIn,
@@ -4605,10 +4606,11 @@ export function JobsContent({
                     window.setTimeout(() => resolve(null), RESUME_FETCH_BUDGET_MS);
                 }),
             ]);
-            if (fetched?.data && resumeIsUsable(fetched.data)) {
-                setResume(fetched.data);
-                setResumeUpdatedAt(fetched.updatedAt ?? null);
-                return fetched.data;
+            const cloud = fetched ? storedResumeData(fetched.data, fetched.text) : undefined;
+            if (cloud && resumeIsUsable(cloud)) {
+                setResume(cloud);
+                setResumeUpdatedAt(fetched?.updatedAt ?? null);
+                return cloud;
             }
         } catch {
             // e2e mock / offline — fall through to on-device seed
