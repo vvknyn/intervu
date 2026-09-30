@@ -3,6 +3,7 @@ import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
+import { DEFAULT_URL_STATE } from "../../../src/lib/jobs/url-state";
 import { expect, test } from "./fixtures";
 import { signedInTest } from "./signed-in";
 
@@ -47,6 +48,15 @@ async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
   await expect(page.locator(RESUME_BAND)).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(3_000);
   await expect(page.getByTestId("job-row")).toHaveCount(0);
+}
+
+/**
+ * The résumé-ranked list is a recommendation, so it keeps the packs' 30-day window whatever the
+ * typed-search default is: no `posted` param while 30 days is the default, `posted=30d` once it isn't.
+ */
+async function expectPackWindow(page: Page) {
+  if (DEFAULT_URL_STATE.postedBucket === "30d") await expect(page).not.toHaveURL(/[?&]posted=/);
+  else await expect(page).toHaveURL(/[?&]posted=30d\b/);
 }
 
 /** Fresh = empty storage. Previous-session = the visit cookie is set but velai.onboarding.completed is not. */
@@ -179,6 +189,7 @@ test("a returning guest with a résumé in this browser opens /jobs on their top
   await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
   await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId("job-row")).toHaveCount(3);
+  await expectPackWindow(page);
   // A résumé is on file: no upload band, and not the front door's week count.
   await expect(page.locator(RESUME_BAND)).toHaveCount(0);
   await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
@@ -212,6 +223,7 @@ signedInTest("a signed-in user with a résumé opens the Search tab on their ré
   await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=search");
   await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expectPackWindow(page);
   // More than a guest's top 3, and no gate between them.
   await expect.poll(() => page.getByTestId("job-row").count(), { timeout: 45_000 }).toBeGreaterThan(3);
   await expect(page.getByTestId("signup-gate")).toHaveCount(0);

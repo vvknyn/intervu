@@ -4728,6 +4728,8 @@ export function JobsContent({
     // leaves that list for rest isn't pulled back to it; the front door's
     // "See roles that fit your résumé" reopens it. An explicit empty submit,
     // a filter or a sort choice is the visitor's own list and is left alone.
+    // It is the "all" pack on the board, window included: a recommendation
+    // list keeps the packs' posted window, not the wider typed-search one.
     // `sort=fit` with no query (a shared or bookmarked fit link) ranks nothing
     // by itself, so it resolves the résumé here too, or drops the fit sort
     // when there is no résumé to rank by.
@@ -4755,7 +4757,7 @@ export function JobsContent({
         setFitResolving(true);
         void resolveUsableResume()
             .then((r) => {
-                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r);
+                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r, "all");
             })
             .finally(() => setFitResolving(false));
     }, [showSearchHome, authReady, showLandingOnboarding, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -6463,7 +6465,7 @@ export function JobsContent({
                                     />
                                 </div>
                                 {resumeOnFile === true && !fitActive && !fitResolving && (
-                                    <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit()} />
+                                    <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit("all")} />
                                 )}
                             </>
                         )}
