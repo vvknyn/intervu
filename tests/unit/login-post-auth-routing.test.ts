@@ -16,6 +16,7 @@ test("auth/start defaults OAuth returnTo to the résumé gate path", () => {
     const start = readFileSync(join(__dirname, "../../src/app/auth/start/route.ts"), "utf8");
     assert.match(start, /buildPostAuthResumeGatePath\(\)/);
     assert.match(start, /resolveAuthKitReturnTo/);
+    assert.match(start, /hasPendingAction: params\.get\(AUTH_START_PENDING_PARAM\) === "1"/);
     assert.doesNotMatch(start, /validateNextParam\(params\.get\("next"\)\) \?\? "\/jobs"/);
 });
 
@@ -23,7 +24,10 @@ test("login-form and jobs page wire AuthKit and inline signup résumé gate help
     const loginForm = readFileSync(join(__dirname, "../../src/components/auth/login-form.tsx"), "utf8");
     assert.match(loginForm, /resolveAuthKitReturnTo/);
     assert.match(loginForm, /buildReturnTo/);
-    assert.match(loginForm, /resolveAuthKitReturnTo\(\{ mode: "signup", rawNext: landed \}\)/);
+    assert.match(loginForm, /resolveAuthKitReturnTo\(\{\s*mode: "signup",\s*rawNext: returnTarget,\s*hasPendingAction: peekPendingActionKind\(window\.sessionStorage\) !== null,/);
+    assert.match(loginForm, /AUTH_START_PENDING_PARAM/);
+    // Password signup on /login returns to its validated `next` (e.g. /connect), not /login itself.
+    assert.match(loginForm, /validateNextParam\(new URLSearchParams\(window\.location\.search\)\.get\("next"\)\) \?\? landed/);
 
     const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(jobsPage, /shouldOpenResumeGateAfterInlineAuth/);

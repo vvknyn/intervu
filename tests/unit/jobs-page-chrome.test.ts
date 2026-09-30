@@ -311,7 +311,7 @@ describe("jobs page chrome guards", () => {
         // h1 (or null at rest on the non-advanced branch). At most one h1
         // mounts — guarded by mutually exclusive ternary arms, not two heroes.
         const src = readFileSync(PAGE, "utf8");
-        const advancedGate = src.indexOf("{showSearchHome && !showLandingOnboarding ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch
+        const advancedGate = src.indexOf("{showSearchHome ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch; the onboarding card's gate went with the card
         assert.notStrictEqual(advancedGate, -1, "advanced-search masthead gate moved — update this test");
         const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1, "at-rest masthead ternary moved — update this test");
@@ -401,7 +401,7 @@ describe("jobs page chrome guards", () => {
         // end of the results list, asserted absent from this branch
         // elsewhere).
         const src = readFileSync(PAGE, "utf8");
-        const advancedGate = src.indexOf("{showSearchHome && !showLandingOnboarding ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch
+        const advancedGate = src.indexOf("{showSearchHome ? ("); // #652 (f6a8e9cc) dropped showAdvancedSearch; the onboarding card's gate went with the card
         assert.notStrictEqual(advancedGate, -1);
         const atRestMasthead = src.indexOf("{atRest ? (", advancedGate);
         assert.notStrictEqual(atRestMasthead, -1);

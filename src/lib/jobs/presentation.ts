@@ -1325,7 +1325,7 @@ const ANNUAL_SALARY_PERIODS = new Set(["yearly", "year", "annual", "annually"]);
 /** Typical annual comp band — used only to accept scale corrections, not to invent pay. */
 const ANNUAL_SALARY_BAND = { min: 25_000, max: 750_000 } as const;
 
-function isAnnualSalaryPeriod(period: string | null | undefined): boolean {
+export function isAnnualSalaryPeriod(period: string | null | undefined): boolean {
     if (!period) return true;
     return ANNUAL_SALARY_PERIODS.has(period.toLowerCase());
 }
@@ -1351,7 +1351,7 @@ export function normalizeSalaryAmount(amount: number, period?: string | null): n
     return amount;
 }
 
-function formatSalaryAmount(amount: number): string {
+export function formatSalaryAmount(amount: number): string {
     if (amount >= 1_000_000) {
         const millions = amount / 1_000_000;
         const rounded = Math.round(millions * 10) / 10;

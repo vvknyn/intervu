@@ -14,7 +14,7 @@ import {
   listNewRolesForSavedSearch,
   JOBS_FETCHED_PER_SAVED_SEARCH,
 } from "@/lib/jobs/saved-search-new-roles";
-import { jobsUrlStateFromSavedHref } from "@/lib/jobs/saved-searches";
+import { jobsUrlStateFromSavedHref, savedSearchBoardHref } from "@/lib/jobs/saved-searches";
 import { serializeJobsUrl } from "@/lib/jobs/url-state";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, placeWithWorkMode, titleCaseDisplay } from "@/lib/jobs/presentation";
@@ -130,7 +130,7 @@ export async function collectDigestForUser(uid: string, unsubscribeUrl: string):
         name: search.name,
         items: jobs.map((job) => toSectionItem(job, siteUrl)),
         mayHaveMore: jobs.length >= JOBS_FETCHED_PER_SAVED_SEARCH,
-        seeAllHref: `${siteUrl}${search.href}`,
+        seeAllHref: `${siteUrl}${savedSearchBoardHref(search.href)}`,
       };
     }),
   );

@@ -36,6 +36,30 @@ test("junk params and junk values are dropped", () => {
     assert.deepEqual(s, { ...DEFAULT_URL_STATE, facets: { work_type: ["remote"] } });
 });
 
+test("every salary preset and a custom floor round-trip through the URL", () => {
+    // $30k+ and $75k+ used to fall off (only 50k/100k/150k/200k parsed), and
+    // so did any custom minimum.
+    for (const [salaryMin, param] of [
+        [30_000, "30k"], [50_000, "50k"], [75_000, "75k"], [100_000, "100k"],
+        [150_000, "150k"], [200_000, "200k"], [65_000, "65k"], [65_500, "65500"],
+    ] as const) {
+        const s = { ...DEFAULT_URL_STATE, q: "sre", salaryMin };
+        const url = serializeJobsUrl(s);
+        assert.equal(new URLSearchParams(url.slice(1)).get("salary"), param);
+        assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
+    }
+});
+
+test("out-of-range salary floors stay out of the URL and are dropped when read", () => {
+    for (const salaryMin of [1, 999, 1_000_001]) {
+        assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, q: "sre", salaryMin }), "?q=sre");
+    }
+    for (const raw of ["7", "0k", "999", "1001k", "75kk", "-75k", "75.5k", "abc"]) {
+        assert.equal(parseJobsUrl(new URLSearchParams(`salary=${raw}`)).salaryMin, 0, raw);
+    }
+    assert.equal(parseJobsUrl(new URLSearchParams("salary=75K")).salaryMin, 75_000);
+});
+
 test("view=for-you and view=search round-trip when explicit", () => {
     for (const view of ["for-you", "search"] as const) {
         const s = { ...DEFAULT_URL_STATE, homeView: view };

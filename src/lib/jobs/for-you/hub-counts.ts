@@ -260,6 +260,11 @@ export function resumeHubPackCounts(input: {
     return out;
 }
 
+/** A pack chip's count: the pill without its noun ("96 roles" → "96", "31+ roles" → "31+", "…" stays). */
+export function hubChipCountText(label: string): string {
+    return label.replace(/\s+roles?$/, "");
+}
+
 /** Role pill from a `CorpusCount` — never from browse page hits. */
 export function formatHubPackCorpusRoleLabel(count: CorpusCount | null | undefined): string {
     if (count == null) return HUB_PACK_CORPUS_COUNT_LOADING;

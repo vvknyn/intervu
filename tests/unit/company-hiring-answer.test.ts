@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildCompanyHiringAnswer, buildCompanyJobsUrl, hasCompanyKpiContent } from "@/lib/companies/presentation";
+import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { parseJobsUrl } from "@/lib/jobs/url-state";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -69,7 +70,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
   it("answers from the open-role count when the 90-day aggregates are absent (every employer today)", () => {
     const answer = buildCompanyHiringAnswer(company(), NOW);
     assert.equal(answer.hasOpenRoles, true);
-    assert.equal(answer.headline, "Yes — 213 open roles are live on velai right now.");
+    assert.equal(answer.headline, "213 open roles live on Velai right now");
     // The half it does NOT have is stated as missing, not implied, not
     // rendered as a plausible-looking zero or an em-dash on its own.
     assert.equal(
@@ -85,7 +86,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
       company({ opened90d: 48, closed90d: 31, hasTrackRecord: true }),
       NOW,
     );
-    assert.equal(answer.headline, "Yes — 213 open roles are live on velai right now.");
+    assert.equal(answer.headline, "213 open roles live on Velai right now");
     assert.equal(answer.trackRecord, "Last 90 days: 48 roles opened, 31 closed.");
   });
 
@@ -93,18 +94,18 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 200, openCountIsLowerBound: true }), NOW)
         .headline,
-      "Yes — 200+ open roles are live on velai right now.",
+      "200+ open roles live on Velai right now",
     );
     assert.equal(
       buildCompanyHiringAnswer(company({ openCount: 1 }), NOW).headline,
-      "Yes — 1 open role is live on velai right now.",
+      "1 open role live on Velai right now",
     );
   });
 
-  it("reports what intervu tracks rather than answering 'no' about the world", () => {
+  it("reports what Velai tracks rather than answering 'no' about the world", () => {
     const answer = buildCompanyHiringAnswer(company({ openCount: 0 }), NOW);
     assert.equal(answer.hasOpenRoles, false);
-    assert.equal(answer.headline, "velai isn't tracking any live open roles right now.");
+    assert.equal(answer.headline, "Velai isn't tracking any live open roles right now");
     assert.doesNotMatch(answer.headline, /^(Yes|No)\b/);
     // A zero-role employer still gets the 90-day record when one exists.
     assert.equal(
@@ -124,6 +125,88 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     });
     assert.equal(items[0]!.question, "Is Lumentum hiring?");
     assert.equal(items[0]!.answer, answer.headline);
+  });
+});
+
+/** An exhaust carrying only the box database's opened/closed record. */
+function withIntegrity(openedCount: number, closed: number, trackedSinceIso: string | null): CompanyExhaust {
+  return {
+    integrity: {
+      data: {
+        closedReasonCounts: closed > 0 ? [{ reason: "filled", label: "Filled", count: closed }] : [],
+        openedCount,
+        trackedSinceIso,
+      },
+      source: "job_listings",
+      label: "Job listings",
+      asOf: new Date(NOW).toISOString(),
+    },
+  } as unknown as CompanyExhaust;
+}
+
+describe("companies/presentation — the rail's hiring record reads the box database first", () => {
+  it("prints the box record instead of 'isn't tracked' when the gated band below has one", () => {
+    const answer = buildCompanyHiringAnswer(
+      company({ exhaust: withIntegrity(14, 9, "2025-11-03T10:00:00Z") }),
+      NOW,
+    );
+    assert.equal(answer.trackRecord, "Last 90 days: 14 roles opened, 9 closed.");
+  });
+
+  it("names when tracking began instead of calling a partial window 'last 90 days'", () => {
+    // Tracking began Wednesday Jul 22, 2026 — 24 days before NOW.
+    const answer = buildCompanyHiringAnswer(
+      company({ exhaust: withIntegrity(3, 1, "2026-07-22T08:00:00Z") }),
+      NOW,
+    );
+    assert.equal(
+      answer.trackRecord,
+      "Tracked since the week of Jul 20, 2026: 3 roles opened after that first week, 1 closed.",
+    );
+  });
+
+  it("falls back to the index aggregates, then to naming the gap, when the box has no record", () => {
+    assert.equal(
+      buildCompanyHiringAnswer(company({ opened90d: 5, closed90d: 2, hasTrackRecord: true }), NOW).trackRecord,
+      "Last 90 days: 5 roles opened, 2 closed.",
+    );
+    assert.match(buildCompanyHiringAnswer(company(), NOW).trackRecord, /aren't tracked/);
+  });
+});
+
+describe("companies/presentation — live check beside the headline count", () => {
+  const seen = (id: string, daysAgo: number, overrides: Partial<PublicJob> = {}) =>
+    job({ id, last_observed_alive_at: new Date(NOW - daysAgo * DAY_MS).toISOString(), ...overrides });
+
+  it("counts roles seen alive in the past 7 days, leaving out flagged and older ones", () => {
+    const jobs = [
+      seen("1", 1),
+      seen("2", 6),
+      seen("3", 2, { ghost_badge: "likely_ghost" }),
+      seen("4", 12),
+      job({ id: "5", ghost_checked_at: new Date(NOW - 3 * DAY_MS).toISOString() }),
+      job({ id: "6" }),
+    ];
+    const answer = buildCompanyHiringAnswer(company({ jobs, openCount: jobs.length }), NOW);
+    assert.equal(answer.headline, "6 open roles live on Velai right now");
+    assert.equal(answer.liveCheck, "3 seen live in the past week");
+  });
+
+  it("says 'all' when every open role was seen live", () => {
+    const jobs = [seen("1", 1), seen("2", 2)];
+    assert.equal(
+      buildCompanyHiringAnswer(company({ jobs, openCount: 2 }), NOW).liveCheck,
+      "all seen live in the past week",
+    );
+  });
+
+  it("is silent over a sample, and when nothing was seen live recently", () => {
+    const jobs = [seen("1", 1), seen("2", 2)];
+    assert.equal(
+      buildCompanyHiringAnswer(company({ jobs, openCount: 200, openCountIsLowerBound: true }), NOW).liveCheck,
+      "",
+    );
+    assert.equal(buildCompanyHiringAnswer(company({ jobs: [seen("1", 20)], openCount: 1 }), NOW).liveCheck, "");
   });
 });
 

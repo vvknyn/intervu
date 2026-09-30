@@ -3,11 +3,13 @@ import assert from "node:assert/strict";
 import {
     addSavedSearch,
     hrefFromJobsUrlState,
+    isSavedSearchHref,
     jobsUrlStateFromSavedHref,
     loadSavedSearches,
     mergedSavedSearchRow,
     removeSavedSearch,
     saveSavedSearches,
+    savedSearchBoardHref,
     savedSearchId,
     SAVED_SEARCHES_KEY,
     stateForSavedSearch,
@@ -166,4 +168,29 @@ test("mergedSavedSearchRow is idempotent: re-running the merge with its own prio
     // carries firstLogin's own createdAt.
     const secondLogin = mergedSavedSearchRow(guest, firstLogin.createdAt);
     assert.deepEqual(secondLogin, firstLogin);
+});
+
+test("a saved search reads the same whether it holds the query string or the /jobs path", () => {
+    const fromQuery = jobsUrlStateFromSavedHref("?q=pm&work=remote");
+    const fromPath = jobsUrlStateFromSavedHref("/jobs?q=pm&work=remote");
+    assert.equal(fromQuery.q, "pm");
+    assert.deepEqual(fromPath, fromQuery);
+    assert.deepEqual(jobsUrlStateFromSavedHref("/jobs"), jobsUrlStateFromSavedHref(""));
+});
+
+test("the panel's own href is one the server accepts", () => {
+    // The panel saves `hrefFromJobsUrlState` ("?q=…"); the save action once took only "/jobs?…" and dropped it.
+    assert.equal(isSavedSearchHref(hrefFromJobsUrlState({ ...DEFAULT_URL_STATE, q: "sre" })), true);
+    assert.equal(isSavedSearchHref("/jobs?q=sre"), true);
+    assert.equal(isSavedSearchHref("/jobs"), true);
+    assert.equal(isSavedSearchHref("https://evil.example/jobs?q=sre"), false);
+    assert.equal(isSavedSearchHref("/account?q=sre"), false);
+});
+
+test("savedSearchBoardHref reruns the search on the search board, from either shape", () => {
+    const href = savedSearchBoardHref("?q=pm");
+    assert.ok(href.startsWith("/jobs?"), href);
+    assert.equal(savedSearchBoardHref("/jobs?q=pm"), href);
+    const params = new URLSearchParams(href.slice("/jobs?".length));
+    assert.equal(params.get("q"), "pm");
 });
