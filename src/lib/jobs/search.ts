@@ -205,8 +205,10 @@ export async function searchJobs(
     if (backend === "meilisearch") {
       // Meili's own bounded retry (meiliFetch, meilisearch.ts) already ran
       // and still failed — this is a real outage, not a blip. Serve the
-      // last-good response for this exact request, or the default-browse
-      // fallback, before giving up. Fields are returned exactly as cached
+      // last-good response for this exact request, or (for a plain default
+      // browse only) the default-browse fallback, before giving up. A query
+      // or filter never gets another request's rows: it falls through to
+      // the unavailable result below. Fields are returned exactly as cached
       // (never re-stamped with the CURRENT request's query) so a
       // default-browse fallback never lies about what it's showing.
       const degraded = getDegradedServe(p);
