@@ -95,6 +95,9 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
     founding_member_paid: "founding_member_paid",
     founding_seat_reserved: "founding_seat_reserved",
     landed_pledge_clicked: "landed_pledge_clicked",
+    home_viewed: "home_viewed",
+    home_action_clicked: "home_action_clicked",
+    pack_opened: "pack_opened",
   });
 });
 

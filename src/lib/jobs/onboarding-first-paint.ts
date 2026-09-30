@@ -1,7 +1,10 @@
 /**
- * localStorage flag for the signed-in résumé onboarding card. Signed-out /jobs
- * is board-first: nothing here gates the search box or job rows, and no
- * first-paint script or document class hides the site chrome.
+ * localStorage flag for the signed-in résumé onboarding card. /jobs no longer
+ * mounts that card (2026-09-29: an account without a résumé gets the board
+ * and its résumé band instead), so nothing in the app reads this now; journey
+ * specs still seed it for returning visitors, which stays harmless. Nothing
+ * here gates the search box or job rows, and no first-paint script or
+ * document class hides the site chrome.
  */
 export const ONBOARDING_COMPLETED_STORAGE_KEY = "velai.onboarding.completed";
 

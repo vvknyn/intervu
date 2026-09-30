@@ -4,10 +4,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyIntelGate, isCompanyIntelUnlocked, shouldGateRenderNothing } from "../../src/components/company/CompanyIntelGate";
+import { CompanyIntelGate, isCompanyIntelUnlocked, shouldGateRenderNothing, type CompanyIntelGateProps } from "../../src/components/company/CompanyIntelGate";
 import { CompanyFollowChannelProvider } from "../../src/components/companies/CompanyFollowChannelProvider";
 
-const CO_PAGE = join(__dirname, "..", "..", "src", "app", "co", "[slug]", "page.tsx");
+/** The /co page's composed tree; page.tsx fetches and renders this. */
+const CO_PAGE_BODY = join(__dirname, "..", "..", "src", "components", "company", "CompanyPageBody.tsx");
 
 describe("isCompanyIntelUnlocked: mirrors production Follow semantics", () => {
   it("signed in + account following -> unlocked", () => {
@@ -47,7 +48,6 @@ function renderLockedGate(): string {
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
@@ -75,9 +75,10 @@ describe("CompanyIntelGate: locked overlay for unsigned-out visitors", () => {
   it("names what's locked instead of a bare wash: a described frame with a followers-only row", () => {
     const html = renderLockedGate();
     // The frame says what's behind it by name, not just "hiring intel".
-    assert.match(html, /funding, tech stack, and news for Acme/);
-    // A bordered panel card, distinguished from the surrounding hidden content.
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /tech stack and news for Acme/);
+    // A flat hairline panel like SignupGate's (rulebook D2): no shadow.
+    assert.match(html, /rounded-panel border border-border bg-card/);
+    assert.doesNotMatch(html, /shadow-/);
     assert.match(html, /Followers only/);
   });
 
@@ -95,7 +96,6 @@ function renderRailGate(): string {
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
@@ -124,13 +124,13 @@ describe("CompanyIntelGate: rail overrides (testId, description, showFollowButto
     const html = renderRailGate();
     assert.match(html, /The hiring record and list health for Acme/);
     assert.match(html, /Followers only/);
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /rounded-panel border border-border bg-card/);
     assert.doesNotMatch(html, /data-testid="follow-company"/);
   });
 
   it("a custom description overrides the default copy entirely, not just appends to it", () => {
     const html = renderRailGate();
-    assert.doesNotMatch(html, /funding, tech stack, and news/);
+    assert.doesNotMatch(html, /tech stack and news/);
   });
 });
 
@@ -144,7 +144,6 @@ function renderLockedGateWithFallback(fallback: React.ReactNode | undefined): st
       CompanyFollowChannelProvider,
       {
         domain: "acme.com",
-        displayName: "Acme",
         children: React.createElement(
           CompanyIntelGate,
           {
@@ -160,6 +159,35 @@ function renderLockedGateWithFallback(fallback: React.ReactNode | undefined): st
   );
 }
 
+describe("CompanyIntelGate: lockedPreview", () => {
+  function renderWithPreview(fallback: React.ReactNode | undefined): string {
+    const gateProps = {
+      domain: "acme.com",
+      slug: "acme",
+      displayName: "Acme",
+      fallback,
+      lockedPreview: React.createElement("p", { "data-testid": "preview" }, "Hiring accelerating"),
+    } as CompanyIntelGateProps;
+    const providerProps = { domain: "acme.com" } as React.ComponentProps<typeof CompanyFollowChannelProvider>;
+    return renderToStaticMarkup(
+      React.createElement(
+        CompanyFollowChannelProvider,
+        providerProps,
+        React.createElement(CompanyIntelGate, gateProps, React.createElement("p", null, "Hidden intel")),
+      ),
+    );
+  }
+
+  it("shows the preview above a locked gate, before its lock card", () => {
+    const html = renderWithPreview(undefined);
+    assert.ok(html.indexOf('data-testid="preview"') < html.indexOf('data-testid="company-intel-gate"'));
+  });
+
+  it("still shows the preview when the locked gate itself renders nothing", () => {
+    assert.equal(renderWithPreview(null), '<p data-testid="preview">Hiring accelerating</p>');
+  });
+});
+
 describe("CompanyIntelGate: fallback prop", () => {
   it("locked + fallback={null} renders nothing", () => {
     const html = renderLockedGateWithFallback(null);
@@ -170,7 +198,7 @@ describe("CompanyIntelGate: fallback prop", () => {
     const html = renderLockedGateWithFallback(undefined);
     assert.match(html, /data-testid="company-intel-gate"/);
     assert.match(html, /Follow this company to see its hiring history/);
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /rounded-panel border border-border bg-card/);
   });
 
   // `unlocked` comes from account/session state that only resolves in a
@@ -190,7 +218,7 @@ describe("CompanyIntelGate: fallback prop", () => {
 
 describe("/co/[slug]: a non-follower sees exactly one lock card", () => {
   it("exactly one of the page's CompanyIntelGate instances can render a card", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const gateInstances = source.match(/<CompanyIntelGate\b/g) ?? [];
     const suppressedInstances = source.match(/fallback=\{null\}/g) ?? [];
     assert.equal(gateInstances.length, 2, "expected exactly two CompanyIntelGate instances on the page");
@@ -204,7 +232,7 @@ describe("/co/[slug]: a non-follower sees exactly one lock card", () => {
 
 describe("/co/[slug]: secondary intel is gated behind follow", () => {
   it("CompanyIntelGate wraps the secondary block contents inside company-secondary", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const secondaryIndex = source.indexOf('data-testid="company-secondary"');
     const teaserIndex = source.indexOf("<CompanyChangeEventTeaser");
     const gateOpenIndex = source.indexOf("<CompanyIntelGate");
@@ -214,13 +242,16 @@ describe("/co/[slug]: secondary intel is gated behind follow", () => {
     assert.ok(teaserIndex !== -1, "CompanyChangeEventTeaser missing");
     assert.ok(gateOpenIndex !== -1, "CompanyIntelGate missing");
     assert.ok(gateCloseIndex !== -1, "CompanyIntelGate close tag missing");
-    assert.ok(secondaryIndex < teaserIndex, "teaser must live inside company-secondary");
-    assert.ok(teaserIndex < gateOpenIndex, "teaser must render outside the intel gate");
+    assert.ok(secondaryIndex < gateOpenIndex, "the gate must live inside company-secondary");
+    // The teaser is the gate's locked preview: public while locked, gone for
+    // a follower, whose full list would only repeat it.
+    assert.match(source, /lockedPreview=\{<CompanyChangeEventTeaser/);
+    assert.ok(gateOpenIndex < teaserIndex && teaserIndex < intelIndex, "teaser must be passed to the gate");
     assert.ok(gateOpenIndex < intelIndex && intelIndex < gateCloseIndex, "intel grid must be gated");
   });
 
   it("header idleLabel states the primary CTA", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     assert.match(source, /idleLabel="Follow this company"/);
   });
 });

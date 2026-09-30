@@ -237,6 +237,16 @@ export async function removeEmailFollow(q: Queryable, identityId: string, compan
   );
 }
 
+/** Read-only: does this identity follow the company right now (a row not unsubscribed)? */
+export async function isEmailFollowing(q: Queryable, identityId: string, companyDomain: string): Promise<boolean> {
+  const { rows } = await q.query(
+    `SELECT 1 FROM intervu.email_follows
+     WHERE identity_id = $1 AND company_domain = $2 AND unsubscribed_at IS NULL`,
+    [identityId, companyDomain]
+  );
+  return rows.length > 0;
+}
+
 export async function getIdentityByContactToken(q: Queryable, contactToken: string): Promise<IdentityRow | null> {
   const { rows } = await q.query<IdentityDbRow>(
     `SELECT id, email, email_verified_at, contact_token

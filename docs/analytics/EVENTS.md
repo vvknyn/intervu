@@ -98,6 +98,14 @@ multi-step onboarding flow. Skipped rather than invented.
 
 Not in `ANALYTICS_EVENTS` — it is PostHog's reserved MCP-analytics event name, sent server-side through `postServerCapture` the way `$ai_generation` is. Seam: `withDeps` in `src/app/api/mcp/route.ts` (one event per tool call past the auth check: budget refusal, tool error, success, thrown exception) and the rate-limit reject in `handleMcpRequest` (`$mcp_error_type: "rate_limited"`). Helper: `src/lib/agent/telemetry.ts`. Properties: `$mcp_tool_name`, `$mcp_server_name` (`velai-agent`), `$mcp_duration_ms`, `$mcp_is_error`, `$mcp_error_type` (bounded slug — `unavailable`, `rate_limited`, `exception`, or the tool's own error string slugged, e.g. `job_not_found`), `$mcp_client_name` (the caller's `User-Agent`, first 80 chars), `$mcp_session_id` (when the client sends `Mcp-Session-Id`). `distinct_id` is the account uid, the same id `PostHogProvider` identifies the browser with, so web and MCP activity land on one person. No tool input or output is ever sent.
 
+## Packs home (Today header)
+
+| Event | Payload | Seam | Feeds |
+|---|---|---|---|
+| `home_viewed` | `{ new_count, applied_today, follow_ups, interviews, has_last_visit }` | `src/components/jobs/for-you/TodayHome.tsx`, once per load after the new-since search settles. | how often the signed-in home has something new or due; return visits (join on person). |
+| `home_action_clicked` | `{ kind, job_id?, step?, match_* }` — `kind` is one of `new_role_open`, `new_role_apply`, `new_role_skip`, `see_more`, `stat_new`, `stat_applied`, `stat_follow_ups`, `stat_interviews`; from "Needs you" (`NeedsYou.tsx`) `needs_interview`, `needs_follow_up`, `needs_closed`, `needs_saved_search`, `needs_follow`, `needs_more` (Show N more), `needs_tracker` (Open tracker on the empty list), and `starter_step` with `step` = `apply`\|`save_search`\|`follow` | same file, on each row action, stat link and "Needs you" button. | which part of the home gets used. |
+| `pack_opened` | `{ pack, source: tile\|browse_all\|today }` | `src/app/jobs/JobsContent.tsx`, `openHubPack` (tiles, "Browse all matches", and the Today header's "See more"). | pack tile use (before this, only autocapture saw it). |
+
 ## Reading the funnel
 
 North-star for Velai cold traffic:

@@ -1,9 +1,10 @@
 import {
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
+    FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
     RESUME_UPLOAD_PROMISE,
 } from "@/lib/jobs/resume-privacy-copy";
 
-export { FRONT_DOOR_RESUME_CARD_SUBCOPY, RESUME_UPLOAD_PROMISE };
+export { FRONT_DOOR_RESUME_CARD_SUBCOPY, FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN, RESUME_UPLOAD_PROMISE };
 
 /**
  * Shared résumé-upload CTA copy — the /jobs front door, /resume empty state,

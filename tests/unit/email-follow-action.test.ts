@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { Queryable } from "../../src/lib/pg/pool";
 import {
   followByContactCookie,
+  getContactCookieFollowState,
   unfollowByContactCookie,
   type ContactCookieFollowDeps,
 } from "../../src/actions/email-follow";
@@ -108,5 +109,52 @@ describe("unfollowByContactCookie — happy path", () => {
     assert.deepEqual(result, { status: "unfollowed" });
     assert.match(q.calls[1].text, /unsubscribed_at\s*=\s*now\(\)/i);
     assert.deepEqual(q.calls[1].params, ["id-1", "acme.com"]);
+  });
+});
+
+describe("getContactCookieFollowState — what a company page asks on load (J-COMPANY-18)", () => {
+  const identityRow = { id: "id-1", email: "a@b.co", email_verified_at: "2026-08-19T00:00:00Z", contact_token: "tok-1" };
+
+  it("returns unavailable without reading the cookie when PG is off", async () => {
+    let cookieReads = 0;
+    const deps: ContactCookieFollowDeps = {
+      q: null,
+      getContactToken: async () => {
+        cookieReads += 1;
+        return "tok-1";
+      },
+    };
+    assert.deepEqual(await getContactCookieFollowState(deps, { companyDomain: "acme.com" }), { status: "unavailable" });
+    assert.equal(cookieReads, 0);
+  });
+
+  it("returns no-contact for no cookie, or a cookie that names no identity", async () => {
+    const none = new FakeQueryable();
+    assert.deepEqual(await getContactCookieFollowState(depsWithToken(none, null), { companyDomain: "acme.com" }), {
+      status: "no-contact",
+    });
+    assert.equal(none.calls.length, 0);
+    const stale = new FakeQueryable([{ rows: [] }]);
+    assert.deepEqual(await getContactCookieFollowState(depsWithToken(stale, "stale"), { companyDomain: "acme.com" }), {
+      status: "no-contact",
+    });
+  });
+
+  it("reports following only for a row that isn't unsubscribed, and never writes", async () => {
+    const following = new FakeQueryable([{ rows: [identityRow] }, { rows: [{ "?column?": 1 }] }]);
+    assert.deepEqual(await getContactCookieFollowState(depsWithToken(following, "tok-1"), { companyDomain: "acme.com" }), {
+      status: "following",
+    });
+    assert.match(following.calls[1].text, /^\s*SELECT[\s\S]*email_follows[\s\S]*unsubscribed_at IS NULL/);
+    assert.deepEqual(following.calls[1].params, ["id-1", "acme.com"]);
+
+    const unfollowed = new FakeQueryable([{ rows: [identityRow] }, { rows: [] }]);
+    assert.deepEqual(await getContactCookieFollowState(depsWithToken(unfollowed, "tok-1"), { companyDomain: "acme.com" }), {
+      status: "not-following",
+    });
+
+    for (const call of [...following.calls, ...unfollowed.calls]) {
+      assert.doesNotMatch(call.text, /\b(INSERT|UPDATE|DELETE)\b/i, "opening a page must not write a follow");
+    }
   });
 });

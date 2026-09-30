@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildJobIdFilter, buildJobSearchUrl } from "../../src/lib/jobs/get-job";
+import { buildJobIdFilter, buildJobSearchUrl, unlistedJobIds } from "../../src/lib/jobs/get-job";
 
 test("builds a search URL, not a get-document-by-primary-key URL", () => {
   const url = buildJobSearchUrl("https://meili.example");
@@ -25,4 +25,16 @@ test("id filter escapes a hostile id so it cannot break out of the string litera
   assert.equal(filter, 'id = "abc\\" OR \\"1\\"=\\"1"');
   const unescapedQuotes = filter.replace(/\\"/g, "").match(/"/g) ?? [];
   assert.equal(unescapedQuotes.length, 2, `expected exactly 2 unescaped quotes, got ${filter}`);
+});
+
+test("a saved role counts as closed when its document is closed or gone, never when it is open", () => {
+  const closed = unlistedJobIds(
+    ["open", "closed", "gone", "unknown-status"],
+    [
+      { id: "open", vacancy_status: "open" },
+      { id: "closed", vacancy_status: "closed" },
+      { id: "unknown-status", vacancy_status: null },
+    ],
+  );
+  assert.deepEqual(closed, ["closed", "gone"]);
 });
