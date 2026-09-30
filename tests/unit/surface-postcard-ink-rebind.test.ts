@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const CSS = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
-const JOB_DETAIL = readFileSync(
-  join(process.cwd(), "src/components/jobs/JobDetail.tsx"),
+const JOB_DESCRIPTION = readFileSync(
+  join(process.cwd(), "src/components/jobs/JobDescription.tsx"),
   "utf8",
 );
 
@@ -20,7 +20,7 @@ describe("surface-postcard paper ink rebinding", () => {
   });
 
   it("JobDescription uses text-inherit so postcard shells supply paper ink", () => {
-    const jd = JOB_DETAIL.match(/export function JobDescription[\s\S]*?^}/m)?.[0] ?? "";
+    const jd = JOB_DESCRIPTION.match(/export function JobDescription[\s\S]*?^}/m)?.[0] ?? "";
     assert.ok(jd.length > 0, "JobDescription export not found");
     assert.match(jd, /text-inherit/, "JobDescription must inherit ink from its mount (postcard or canvas)");
     assert.doesNotMatch(

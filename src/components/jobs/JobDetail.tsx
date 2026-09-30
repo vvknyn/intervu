@@ -22,7 +22,8 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
-import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
+import { formatDescription } from "@/lib/jobs/format-description";
+import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
@@ -72,50 +73,9 @@ import { WaitBar } from "@/components/ui/wait-state";
  * react-hooks/purity flags.
  */
 
-/** Render structured description blocks (heading / para / list). Descriptions
- *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
- *  the structure. See lib/jobs/format-description.ts.
- *
- *  `headingLevel` is the caller's own "About this role" section-heading
- *  level + 1 — these headings ("Key Responsibilities" etc.) sit one level
- *  under it in the outline, so each mount passes what keeps that true: the
- *  inline pane/sheet (JobDetail.tsx, "About this role" = h3) passes 4, the
- *  standalone document (JobDetailDocument.tsx, "About this role" = h2)
- *  passes 3. No default — a heading level is never a safe guess. */
-export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
-    const HeadingTag = `h${headingLevel}` as const;
-    return (
-        <div className="text-base leading-relaxed text-inherit">
-            {blocks.map((b, i) => {
-                if (b.type === "heading") {
-                    return (
-                        <HeadingTag
-                            key={i}
-                            className="mb-2 mt-4 text-xs font-semibold text-inherit first:mt-0"
-                        >
-                            {b.text}
-                        </HeadingTag>
-                    );
-                }
-                if (b.type === "list") {
-                    return (
-                        <ul key={i} className="mb-3 list-disc space-y-1 pl-5 last:mb-0">
-                            {(b.items ?? []).map((it, j) => (
-                                <li key={j}>{it}</li>
-                            ))}
-                        </ul>
-                    );
-                }
-                return (
-                    <p key={i} className="mb-3 whitespace-pre-line last:mb-0">
-                        {b.lead && <strong className="text-inherit">{b.lead} </strong>}
-                        {b.text}
-                    </p>
-                );
-            })}
-        </div>
-    );
-}
+/** The description renderer moved to JobDescription.tsx (with the on-device
+ *  layout hook); re-exported for the callers that import it from here. */
+export { JobDescription } from "@/components/jobs/JobDescription";
 
 /**
  * The single "· "-joining seam for every flowing facts/meta line in the jobs
@@ -1280,7 +1240,7 @@ export function JobDetail({
                                             data-testid="job-detail-description"
                                             className={cn("relative max-w-prose", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
-                                            <JobDescription blocks={blocks} headingLevel={4} />
+                                            <FormattedJobDescription description={job.description} headingLevel={4} />
                                             {collapsible && !descExpanded && (
                                                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
                                             )}
