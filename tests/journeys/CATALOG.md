@@ -177,7 +177,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-08 | Job page OG image route serves a PNG | anon | JOB_PATH + /opengraph-image | signed-out | no | uncovered | — |
 | J-DETAIL-09 | Company name link on the job page goes to the company page | anon | JOB_PATH | signed-out | no | uncovered | — |
 | J-DETAIL-10 | Employer card "All jobs at {brand}" link goes to the company-scoped board | anon | JOB_PATH | signed-out | no | uncovered | — |
-| J-DETAIL-11 | Related job row from the document navigates to that job | anon | JOB_PATH | signed-out | no | uncovered | — |
+| J-DETAIL-11 | Related job row from the document navigates to that job | anon | JOB_PATH | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-12 | Description API returns the hydrate shape for a real id and an empty hit list for an unknown id | agent | GET /api/jobs/JOB_ID/description | signed-out | no | uncovered | — |
 | J-DETAIL-13 | Description API rejects an over-long id with 400 | agent | GET /api/jobs/{201 chars}/description | signed-out | no | uncovered | — |
 | J-DETAIL-14 | Desktop (>=xl) row click opens the detail in the pane and puts ?job= in the URL | anon | /jobs?posted=any at 1440x900 | signed-out | no | uncovered | — |
@@ -195,6 +195,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-26 | Share control in the board detail pane is a labelled "Copy link" action | anon | /jobs?posted=any at 1440x900 (pane) | signed-out | no | uncovered | — |
 | J-DETAIL-27 | Slow document load shows the "Loading job page" skeleton before the job | anon | JOB_PATH with the document request delayed | signed-out | no | uncovered | — |
 | J-DETAIL-28 | Anonymous Report submit reaches "Reported ✓" (flag on) @writes | anon | JOB_PATH at 1440x900, open `report-job-trigger`, click `report-job-submit` | signed-out | yes | covered | signup-gates.spec.ts |
+| J-DETAIL-29 | Job page "More like this" rows hold their title and meta lines with space above and below (no spill over the hairline), and the heading reads "More like this" for similar roles or "More at {company}" for the company's own | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-30 | Board pane's hiring-truth links say where they go ("All jobs at {brand}", "{brand} company page"), never a bare company name beside them | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
 
 ## APPLY
 

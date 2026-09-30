@@ -1,6 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { dedupeRelatedJobs, resolveRelatedQuery, significantTitleWords } from '../../src/lib/jobs/related-jobs';
+import {
+    dedupeRelatedJobs,
+    MIN_RELATED_HITS,
+    pickRelatedJobs,
+    relatedCountry,
+    relatedJobsHeading,
+    relatedTitleQuery,
+    significantTitleWords,
+} from '../../src/lib/jobs/related-jobs';
 
 interface RowIn {
     id: string;
@@ -10,47 +18,65 @@ interface RowIn {
     posted_ts?: number | null;
 }
 
-describe('resolveRelatedQuery', () => {
-    it('enough company hits — uses them as-is, never touches the title', () => {
+describe('relatedTitleQuery', () => {
+    it('keeps the significant title words, seniority stripped', () => {
+        assert.equal(relatedTitleQuery('Senior Software Engineer II'), 'software engineer');
+        assert.equal(relatedTitleQuery('Product Manager'), 'product manager');
+    });
+
+    it('an all-noise or empty title has no query — never search-everything', () => {
+        assert.equal(relatedTitleQuery('Senior Staff Lead'), null);
+        assert.equal(relatedTitleQuery(''), null);
+    });
+});
+
+describe('relatedCountry', () => {
+    it('one country, bare or in a one-item array', () => {
+        assert.equal(relatedCountry('Canada'), 'Canada');
+        assert.equal(relatedCountry(['Canada']), 'Canada');
+        assert.equal(relatedCountry(' US '), 'US');
+    });
+
+    it('no country or several — no single place to scope to', () => {
+        assert.equal(relatedCountry(null), null);
+        assert.equal(relatedCountry(''), null);
+        assert.equal(relatedCountry(['Canada', 'US']), null);
+    });
+});
+
+describe('pickRelatedJobs', () => {
+    it('enough similar roles — shows them, even when the company has more', () => {
+        // The Makeship report: a Product Manager got the company's Designer,
+        // GTM Lead and Developer because the company list came first.
         assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 5, title: 'Senior Staff Lead' }),
-            { mode: 'company' },
+            pickRelatedJobs({ titleHits: ['pm-a', 'pm-b'], companyHits: ['designer', 'gtm', 'dev'] }),
+            { jobs: ['pm-a', 'pm-b'], basis: 'title' },
         );
     });
 
-    it('boundary: exactly the minimum company hit count counts as enough', () => {
+    it('too few similar roles — the company\'s own roles, labelled as such', () => {
         assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 2, title: 'Anything' }),
-            { mode: 'company' },
+            pickRelatedJobs({ titleHits: ['pm-a'], companyHits: ['designer'] }),
+            { jobs: ['designer'], basis: 'company' },
         );
     });
 
-    it('too few company hits with a real title — falls back to its significant keywords', () => {
-        assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 1, title: 'Senior Software Engineer II' }),
-            { mode: 'title-fallback', fallbackQuery: 'software engineer' },
-        );
+    it('too few similar roles and no company roles — whatever similar roles came back', () => {
+        assert.deepEqual(pickRelatedJobs({ titleHits: ['pm-a'], companyHits: [] }), { jobs: ['pm-a'], basis: 'title' });
+        assert.deepEqual(pickRelatedJobs({ titleHits: [], companyHits: [] }), { jobs: [], basis: 'title' });
     });
 
-    it('zero company hits (e.g. no company_domain on the job) behaves the same as too few', () => {
-        assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 0, title: 'Product Manager' }),
-            { mode: 'title-fallback', fallbackQuery: 'product manager' },
-        );
+    it('boundary: exactly the minimum counts as enough', () => {
+        assert.equal(MIN_RELATED_HITS, 2);
+        assert.equal(pickRelatedJobs({ titleHits: ['a', 'b'], companyHits: ['c'] }).basis, 'title');
     });
+});
 
-    it('too few company hits AND an all-noise-word title — no fallback, never search-everything', () => {
-        assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 0, title: 'Senior Staff Lead' }),
-            { mode: 'none' },
-        );
-    });
-
-    it('too few company hits AND an empty title — no fallback', () => {
-        assert.deepEqual(
-            resolveRelatedQuery({ companyHitCount: 1, title: '' }),
-            { mode: 'none' },
-        );
+describe('relatedJobsHeading', () => {
+    it('similar roles are "More like this"; a company list names the company', () => {
+        assert.equal(relatedJobsHeading('title', 'Makeship'), 'More like this');
+        assert.equal(relatedJobsHeading('company', 'Makeship'), 'More at Makeship');
+        assert.equal(relatedJobsHeading('company', '  '), 'More at this company');
     });
 });
 

@@ -1,33 +1,36 @@
 /**
  * "More like this" (JobDetail — Curiosity / Serial Positioning Effect): the
- * detail panel had ZERO related/similar surface, so after reading a posting
- * the only forward path was a gated company link. `getRelatedJobsAction`
- * (actions/jobs.ts) does the actual fetching (company-scoped first, a
- * title-keyword fallback second); this is the pure decision in between —
- * given how many company-scoped hits came back, should the caller widen the
- * search, and to what query?
+ * reader's next stop after a posting. `getRelatedJobsAction`
+ * (actions/jobs.ts) does the fetching; this file holds the pure decisions
+ * around it — what to search for, which list to show, and what to call it.
+ *
+ * Similar roles come FIRST: this job's title keywords, in this job's
+ * country. The company's own other roles are the fallback, not the lead —
+ * the panel links "All jobs at {brand}" right above this list, so leading
+ * with the same company repeated that link and showed a Product Manager a
+ * Product Designer and a GTM Lead under a heading that promised roles
+ * "like this" (Vivek, 2026-09-30).
  */
 
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
- * Below this many company-scoped hits (the posting's own job already
- * excluded by the caller), a company alone isn't a real "more like this"
- * list — one other open role at the same company reads as a coincidence,
- * not a set of alternatives worth surfacing.
+ * Below this many hits a pass isn't a real list — one other role reads as a
+ * coincidence, not a set of alternatives — so the caller tries the
+ * company's own roles instead.
  */
-const MIN_COMPANY_HITS = 2;
+export const MIN_RELATED_HITS = 2;
 
-/** How many leading significant words a fallback query keeps. */
-const MAX_FALLBACK_WORDS = 3;
+/** How many leading significant words the title query keeps. */
+const MAX_TITLE_WORDS = 3;
 
 /**
  * Seniority/qualifier and function words stripped before a title becomes a
- * fallback search query — they narrow toward exact-title matches (or match
- * nothing at all) rather than the adjacent roles a fallback is for. Kept
- * short and title-specific rather than a general-purpose stopword list: the
- * only failure mode this guards is a title that's ALL qualifier words
- * (`resolveRelatedQuery`'s "none" branch), not general search quality.
+ * search query — they narrow toward exact-title matches (or match nothing
+ * at all) rather than the adjacent roles this list is for. Kept short and
+ * title-specific rather than a general-purpose stopword list: the only
+ * failure mode this guards is a title that's ALL qualifier words
+ * (`relatedTitleQuery`'s null), not general search quality.
  */
 const TITLE_NOISE_WORDS = new Set([
     "senior", "sr", "jr", "junior", "staff", "principal", "lead", "head",
@@ -37,8 +40,8 @@ const TITLE_NOISE_WORDS = new Set([
 
 /** First `max` significant words in `title` — lowercased, noise-stripped, in
  *  reading order. Exported for its own direct test coverage alongside
- *  `resolveRelatedQuery`. */
-export function significantTitleWords(title: string, max: number = MAX_FALLBACK_WORDS): string[] {
+ *  `relatedTitleQuery`. */
+export function significantTitleWords(title: string, max: number = MAX_TITLE_WORDS): string[] {
     return (title ?? "")
         .toLowerCase()
         .split(/[^a-z0-9+]+/)
@@ -46,22 +49,40 @@ export function significantTitleWords(title: string, max: number = MAX_FALLBACK_
         .slice(0, max);
 }
 
-export type RelatedQueryPlan =
-    /** Enough company-scoped hits on their own — use them as-is. */
-    | { mode: "company" }
-    /** Too few (or zero, no domain) company hits — widen to this query. */
-    | { mode: "title-fallback"; fallbackQuery: string }
-    /** Too few company hits AND the title has no usable keywords to widen
-     *  with (e.g. "Senior Staff Lead") — an empty query would search the
-     *  whole corpus, which is not "related." Show only the company hits on
-     *  hand (even if fewer than `MIN_COMPANY_HITS`), no fabricated fallback. */
-    | { mode: "none" };
+/** The similar-roles query for `title`, or null when the title has no usable
+ *  keywords (e.g. "Senior Staff Lead") — an empty query would search the
+ *  whole corpus, which is not "related". */
+export function relatedTitleQuery(title: string): string | null {
+    const words = significantTitleWords(title);
+    return words.length > 0 ? words.join(" ") : null;
+}
 
-export function resolveRelatedQuery(input: { companyHitCount: number; title: string }): RelatedQueryPlan {
-    if (input.companyHitCount >= MIN_COMPANY_HITS) return { mode: "company" };
-    const words = significantTitleWords(input.title);
-    if (words.length === 0) return { mode: "none" };
-    return { mode: "title-fallback", fallbackQuery: words.join(" ") };
+/** The one country to keep similar roles in, or null (no country, or a
+ *  multi-country posting — no single place to scope to). */
+export function relatedCountry(country: PublicJob["location_country"]): string | null {
+    const one = Array.isArray(country) ? (country.length === 1 ? country[0] : null) : country;
+    return one?.trim() || null;
+}
+
+/** Which list "More like this" is showing — decides its heading. */
+export type RelatedBasis = "title" | "company";
+
+/**
+ * Similar roles when there are enough of them; otherwise the company's own
+ * other roles when it has any; otherwise whatever similar roles came back.
+ */
+export function pickRelatedJobs<T>(input: { titleHits: T[]; companyHits: T[] }): { jobs: T[]; basis: RelatedBasis } {
+    if (input.titleHits.length >= MIN_RELATED_HITS) return { jobs: input.titleHits, basis: "title" };
+    if (input.companyHits.length > 0) return { jobs: input.companyHits, basis: "company" };
+    return { jobs: input.titleHits, basis: "title" };
+}
+
+/** The list's heading. A company-only list says so, rather than claiming a
+ *  designer is "like" a product manager because they share an employer. */
+export function relatedJobsHeading(basis: RelatedBasis, companyBrand: string | null | undefined): string {
+    if (basis === "title") return "More like this";
+    const brand = companyBrand?.trim();
+    return brand ? `More at ${brand}` : "More at this company";
 }
 
 type DedupableJob = Pick<PublicJob, "id" | "title" | "company" | "location" | "posted_ts">;

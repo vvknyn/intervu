@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
+import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -33,7 +33,7 @@ import { jobCompanyHref } from "@/lib/companies/paths";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { dedupeRelatedJobs } from "@/lib/jobs/related-jobs";
+import { relatedCountry } from "@/lib/jobs/related-jobs";
 import {
     clampLocationSegments,
     decodeText,
@@ -319,19 +319,21 @@ export function JobDetailDocument({
 
     useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
 
-    const [related, setRelated] = useState<PublicJob[]>([]);
+    const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
+    // A string, not the raw field (possibly an array) — see JobDetail.tsx.
+    const relatedPlace = relatedCountry(job.location_country);
     useEffect(() => {
         let cancelled = false;
-        setRelated([]);
+        setRelated(NO_RELATED);
         // Ungated by `signedIn` — unlike the SERP panel's related fetch, this
         // is a standalone page with no modal to gate behind sign-in; the
         // page's own live open-count query (EmployerCard above) already
         // serves anonymous visitors the same company-scoped data with no
         // gate, so gating this one query type differently on this page would
         // be arbitrary rather than a real access boundary.
-        getRelatedJobsAction(job.id, job.company_domain, job.title)
+        getRelatedJobsAction(job.id, job.company_domain, job.title, relatedPlace)
             .then((data) => {
-                if (!cancelled) setRelated(data.jobs);
+                if (!cancelled) setRelated(data);
             })
             .catch(() => {
                 /* "More like this" is an accelerant, not a source of error */
@@ -339,7 +341,7 @@ export function JobDetailDocument({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title]);
+    }, [job.id, job.company_domain, job.title, relatedPlace]);
 
     const heroEl = (
         <div className="pb-6">
@@ -574,24 +576,17 @@ export function JobDetailDocument({
         </div>
     );
 
-    // Excludes the job currently being viewed and collapses rows that are
-    // the same opening cross-posted or re-scraped into more than one row
-    // (identical title+company+location) down to the newest — see
-    // `dedupeRelatedJobs` (lib/jobs/related-jobs.ts) for the exact rule.
-    const relatedDeduped = dedupeRelatedJobs(related, job.id);
-
-    const relatedEl = relatedDeduped.length > 0 && (
-        <div data-testid="job-detail-related" className="border-t border-border py-6">
-            <h2 className="mb-2 text-sm font-semibold text-foreground">More like this</h2>
-            {/* Rulebook item h: rows separated only by a hairline, not
-                bordered cards — RelatedJobRow itself carries no border now
-                (see JobDetail.tsx), so this wrapper supplies the dividers. */}
-            <div className="divide-y divide-border">
-                {relatedDeduped.map((r) => (
-                    <RelatedJobRow key={r.id} job={r} now={now} onClick={() => onOpenRelated?.(r.id, r)} />
-                ))}
-            </div>
-        </div>
+    // Already deduped and self-excluded by `getRelatedJobsAction`; the block
+    // itself is shared with the board's pane (JobDetail.tsx).
+    const relatedEl = related.jobs.length > 0 && (
+        <RelatedJobsSection
+            jobs={related.jobs}
+            basis={related.basis}
+            companyBrand={companyBrand}
+            now={now}
+            onOpenRelated={onOpenRelated}
+            headingLevel="h2"
+        />
     );
 
     // Mobile reading order (F1, <lg): title/company/location/posted → apply

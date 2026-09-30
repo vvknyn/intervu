@@ -12,7 +12,13 @@ import {
 import { runJobsSearch, type JobsSearchWithProbes } from "@/lib/jobs/run-search";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { loaded, loadFailed, type LoadResult } from "@/lib/load-result";
-import { resolveRelatedQuery } from "@/lib/jobs/related-jobs";
+import {
+  dedupeRelatedJobs,
+  MIN_RELATED_HITS,
+  pickRelatedJobs,
+  relatedTitleQuery,
+  type RelatedBasis,
+} from "@/lib/jobs/related-jobs";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -169,8 +175,8 @@ const RELATED_JOBS_LIMIT = 5;
  * Fetch, filter (excluding the job itself — `JobSearchParams` has no
  * exclude-id field, so this over-fetches by one and drops it here rather
  * than inventing one), and cap to `RELATED_JOBS_LIMIT`. Shared by both of
- * `getRelatedJobsAction`'s passes below (company-scoped, then the
- * title-keyword fallback) so they can't drift on the shared shape
+ * `getRelatedJobsAction`'s passes below (similar roles, then the company's
+ * own roles) so they can't drift on the shared shape
  * (`postedBucket`/`hideGhosts`, the exclude-self step, the cap).
  */
 async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Promise<PublicJob[]> {
@@ -182,22 +188,6 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
   });
   return result.hits.filter((h) => h.id !== jobId).slice(0, RELATED_JOBS_LIMIT);
 }
-
-/**
- * "More like this" (JobDetail, Curiosity / Serial Positioning Effect) — the
- * one forward path out of a posting used to be a gated company link; this
- * gives the reader somewhere to go next without leaving the panel.
- *
- * Company scope reuses `JobSearchParams.companyDomain` (exact-match filter,
- * already load-bearing for `/co/[slug]`'s own job list — see
- * `buildFilter`/`passBase` in meilisearch.ts and snapshot-preview.ts) rather
- * than a new mechanism. Below `resolveRelatedQuery`'s minimum company-hit
- * count (too few, or no `companyDomain` at all — `companyHitCount` is then
- * 0 by construction, since the company-scoped fetch never even runs), it
- * widens to a title-keyword search instead; if the title itself has no
- * usable keywords, it returns whatever company hits exist rather than a
- * fabricated whole-corpus fallback (`resolveRelatedQuery`'s "none" branch).
- */
 
 /**
  * The detail panel's "N live roles" figure (JobDetail.tsx) used to read a
@@ -215,8 +205,8 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  *
  * Unguarded by `allowSearchRequest` on purpose — both callers below own
  * that check at their own entry point, and this runs one query, so gating
- * it here too would silently double-charge `getRelatedJobsAction`'s shared
- * rate-limit budget for what is still a single logical call.
+ * it here too would charge the caller's rate-limit budget twice for what is
+ * still a single logical call.
  */
 async function fetchCompanyWindow(companyDomain: string): Promise<JobSearchResult> {
   return runSearch({
@@ -271,31 +261,50 @@ export async function getCompanyRailAction(
   };
 }
 
+/**
+ * "More like this" (JobDetail, Curiosity / Serial Positioning Effect) — the
+ * reader's next stop after a posting, without leaving the panel.
+ *
+ * Similar roles first: the title's significant keywords (`relatedTitleQuery`)
+ * as a plain search, kept to this job's country when it names one — the
+ * same thing the board returns for that query typed with that place. Below
+ * `MIN_RELATED_HITS` of those, the company's own other roles instead
+ * (`JobSearchParams.companyDomain`, the exact-match filter `/co/[slug]`'s
+ * own job list uses). `basis` says which list came back, so the heading can
+ * say so — see related-jobs.ts for why the company list is no longer first.
+ */
 export async function getRelatedJobsAction(
   jobId: string,
   companyDomain: string | null | undefined,
   title: string,
-): Promise<{ jobs: PublicJob[]; openCount: OpenCount | null }> {
-  if (!jobId) return { jobs: [], openCount: null };
+  /** The one country to keep similar roles in (`relatedCountry`), if any. */
+  country?: string | null,
+): Promise<{ jobs: PublicJob[]; basis: RelatedBasis }> {
+  const none = { jobs: [], basis: "title" as const };
+  if (!jobId) return none;
 
   // Same per-IP chokepoint as `searchJobsAction` above — this action runs up
-  // to three corpus queries per call and is just as callable outside the UI.
+  // to two corpus queries per call and is just as callable outside the UI.
   // Denial is an empty list, not an error: "More like this" is an accelerant,
   // and the panel already renders nothing for an empty result.
   const ip = await getClientIp();
-  if (!allowSearchRequest(ip)) return { jobs: [], openCount: null };
+  if (!allowSearchRequest(ip)) return none;
 
-  const companyHits = companyDomain ? await fetchRelatedExcluding(jobId, { companyDomain }) : [];
-  const plan = resolveRelatedQuery({ companyHitCount: companyHits.length, title });
+  const query = relatedTitleQuery(title);
+  // Typed defensively: a server action's arguments are whatever the caller sends.
+  const place = typeof country === "string" ? country.trim().slice(0, 80) || null : null;
+  const titleHits = query
+    ? dedupeRelatedJobs(
+        await fetchRelatedExcluding(jobId, { q: query, ...(place ? { facets: { location_country: [place] } } : {}) }),
+        jobId,
+      )
+    : [];
+  const companyHits =
+    titleHits.length < MIN_RELATED_HITS && companyDomain
+      ? dedupeRelatedJobs(await fetchRelatedExcluding(jobId, { companyDomain }), jobId)
+      : [];
 
-  const jobs =
-    plan.mode === "title-fallback"
-      ? await fetchRelatedExcluding(jobId, { q: plan.fallbackQuery })
-      : companyHits;
-
-  const openCount = companyDomain ? await resolveCompanyOpenCount(companyDomain) : null;
-
-  return { jobs, openCount };
+  return pickRelatedJobs({ titleHits, companyHits });
 }
 
 /** Page size for the cached default browse — mirrors `PAGE` in
