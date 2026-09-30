@@ -254,6 +254,8 @@ export interface EventPayloads {
   home_action_clicked: {
     kind: HomeActionKind;
     job_id?: string;
+    /** The starter step used (`kind: "starter_step"`). */
+    step?: "apply" | "save_search" | "follow";
   } & Partial<MatchQualityAnalyticsProps>;
   /** A pack opened from the packs home: a tile, "Browse all matches", or the Today header's "See more". */
   pack_opened: {
@@ -273,7 +275,16 @@ export type HomeActionKind =
   | "stat_new"
   | "stat_applied"
   | "stat_follow_ups"
-  | "stat_interviews";
+  | "stat_interviews"
+  // "Needs you": an item's button, by the item's kind; "Show N more"; "Open tracker" on the empty list; a starter step.
+  | "needs_interview"
+  | "needs_follow_up"
+  | "needs_closed"
+  | "needs_saved_search"
+  | "needs_follow"
+  | "needs_more"
+  | "needs_tracker"
+  | "starter_step";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

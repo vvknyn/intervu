@@ -55,3 +55,38 @@ export async function getJobById(id: string): Promise<PublicJob | null> {
   const hit = body.hits?.[0];
   return hit ? normalizePublicJob(hit) : null;
 }
+
+/**
+ * Of these ids, the ones no longer open: a document marked closed, or none
+ * at all (dropped from the index). Pure, so the rule is tested without Meili.
+ */
+export function unlistedJobIds(ids: string[], hits: { id: string; vacancy_status?: string | null }[]): string[] {
+  const statusById = new Map(hits.map((h) => [h.id, h.vacancy_status ?? null]));
+  return ids.filter((id) => !statusById.has(id) || statusById.get(id) === "closed");
+}
+
+/**
+ * Which saved roles' listings have closed (`unlistedJobIds`), in one read of
+ * the same search endpoint `getJobById` uses (it keeps closed documents).
+ * A failed read throws, so an outage never reads as every role closing.
+ */
+export async function listUnlistedJobIds(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const h = host();
+  if (!h) return [];
+
+  const res = await meiliFetch(buildJobSearchUrl(h), {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    body: JSON.stringify({
+      q: "",
+      filter: `id IN [${ids.map((id) => JSON.stringify(id)).join(", ")}]`,
+      limit: ids.length,
+      attributesToRetrieve: ["id", "vacancy_status"],
+    }),
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`meili job status read failed: ${res.status}`);
+  const body = (await res.json()) as { hits?: { id: string; vacancy_status?: string | null }[] };
+  return unlistedJobIds(ids, body.hits ?? []);
+}
