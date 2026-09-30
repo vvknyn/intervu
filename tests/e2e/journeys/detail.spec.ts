@@ -27,10 +27,20 @@ function isDesktop(page: Page) {
   return page.viewportSize()!.width >= 1024;
 }
 
-/** The open job's ×: the split pane's own at 1440, the sheet's header at 390. */
-function closeJobButton(page: Page) {
+/** Clicks the open job's × (the split pane's own at 1440, the sheet's header at 390) once it holds still: the sheet grows as the job loads, which moves it. */
+async function closeJob(page: Page) {
   const surface = page.viewportSize()!.width >= 1280 ? page.getByTestId("detail-pane") : page.getByRole("dialog");
-  return surface.getByRole("button", { name: "Close", exact: true }).first();
+  const close = surface.getByRole("button", { name: "Close", exact: true }).first();
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await close.boundingBox());
+      const still = now === last && now !== "null";
+      last = now;
+      return still;
+    }, { intervals: [400], timeout: 20_000 })
+    .toBe(true);
+  await close.click();
 }
 
 /** Jobs come from a live search — pinned ids and slugs rot when listings expire. */
@@ -209,7 +219,7 @@ test("closing a job opened from a shared link stays on /jobs with ?job= cleared;
   const listUrl = page.url();
   await page.getByTestId("job-row").first().getByTestId("job-title").click();
   await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
-  await closeJobButton(page).click();
+  await closeJob(page);
   await expect(page).toHaveURL(listUrl, { timeout: 10_000 });
 
   // A shared link in a fresh tab has no page of ours before it: the × went Back off the site, or did nothing (2026-09-30).
@@ -217,7 +227,7 @@ test("closing a job opened from a shared link stays on /jobs with ?job= cleared;
   await shared.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
   const detail = shared.locator(DETAIL).first();
   await expect(detail).toBeVisible({ timeout: 20_000 });
-  await closeJobButton(shared).click();
+  await closeJob(shared);
   await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
   if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();
   await expect(shared.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
