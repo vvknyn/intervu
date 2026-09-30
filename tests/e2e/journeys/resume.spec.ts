@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LEGACY_DOC_MESSAGE } from "../../../src/lib/resume/extract-file-text";
 import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/jobs/resume-privacy-copy";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
 /**
@@ -47,11 +48,19 @@ const isLocal = (baseURL: string | undefined) => /^https?:\/\/(localhost|127\.0\
 /** Next server-action response in flight format: `1:` carries the action's return value. */
 const flight = (value: unknown) => `0:{"a":"$@1","f":"","q":"","i":true,"b":"development"}\n1:D"$2"\n1:${JSON.stringify(value)}\n`;
 
-/** Sign in with the dev hook and answer the résumé summary read with a résumé stored as text. */
-async function signInWithTextResume(page: Page) {
-  await page.addInitScript(() => {
-    (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", email: "jane@example.com", displayName: "Jane Doe" };
-  });
+/**
+ * Sign in with the dev hook and answer the no-argument reads that fail
+ * without a session: `unauthorized` stands in for every one that answers
+ * "Unauthorized" (the résumé reads), and `hasResume` for the presence check.
+ */
+async function signIn(page: Page, answers: { unauthorized: unknown; hasResume?: boolean }) {
+  await page.addInitScript(
+    ([key]) => {
+      (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", email: "jane@example.com", displayName: "Jane Doe" };
+      localStorage.setItem(key, "1");
+    },
+    [ONBOARDING_COMPLETED_STORAGE_KEY],
+  );
   await page.route(
     () => true,
     async (route) => {
@@ -59,15 +68,17 @@ async function signInWithTextResume(page: Page) {
       if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
       const res = await route.fetch();
       const text = await res.text();
-      // fetchResumeSummaryAction takes no arguments and answers "Unauthorized" without a session.
-      const body =
-        req.postData() === "[]" && text.includes("Unauthorized")
-          ? flight({ data: { source: "resume_text", resume_text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" } })
-          : text;
+      let body = text;
+      if (req.postData() === "[]" && text.includes('"Unauthorized"')) body = flight(answers.unauthorized);
+      else if (answers.hasResume !== undefined && req.postData() === "[]" && text.includes('"hasResume":false')) body = flight({ hasResume: answers.hasResume });
       return route.fulfill({ response: res, body });
     },
   );
 }
+
+/** fetchResumeSummaryAction's answer for a résumé stored as text. */
+const signInWithTextResume = (page: Page) =>
+  signIn(page, { unauthorized: { data: { source: "resume_text", resume_text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" } } });
 
 test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
 
@@ -139,5 +150,15 @@ test.describe("signed in (dev-server only)", () => {
     await page.getByTestId("resume-editor-back").click();
     await page.getByRole("dialog").getByRole("button", { name: "Leave without saving" }).click();
     await expect(page.getByRole("button", { name: /Edit template/ })).toBeVisible();
+  });
+
+  test("A résumé saved to the account as text ranks /jobs against it instead of asking for an upload", { tag: ["@J-RESUME-34"] }, async ({ page }) => {
+    // fetchResumeData sends the stored text; the browser structures it.
+    await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
+    await page.goto("/jobs");
+
+    await expect(page.getByTestId("job-packs-hub")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("Private matching active on this device")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("Add your résumé", { exact: true })).toHaveCount(0);
   });
 });
