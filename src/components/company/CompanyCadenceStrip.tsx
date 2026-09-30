@@ -48,10 +48,10 @@ export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<Caden
   const hasInProgress = weeks.some((w) => w.inProgress);
 
   return (
-    <section data-testid="company-cadence-strip" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">
+    <section data-testid="company-cadence-strip" className="border-t border-border pt-6">
+      <h2 className="text-base font-semibold leading-snug text-foreground">
         New postings per week
-        <span className="font-normal">
+        <span className="text-sm font-normal text-muted-foreground">
           {" · "}
           {trackedSince ? `tracking since ${trackedSince}` : `last ${weeks.length} weeks`}
         </span>

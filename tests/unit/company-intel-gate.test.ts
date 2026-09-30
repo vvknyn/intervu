@@ -7,7 +7,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CompanyIntelGate, isCompanyIntelUnlocked, shouldGateRenderNothing } from "../../src/components/company/CompanyIntelGate";
 import { CompanyFollowChannelProvider } from "../../src/components/companies/CompanyFollowChannelProvider";
 
-const CO_PAGE = join(__dirname, "..", "..", "src", "app", "co", "[slug]", "page.tsx");
+/** The /co page's composed tree; page.tsx fetches and renders this. */
+const CO_PAGE_BODY = join(__dirname, "..", "..", "src", "components", "company", "CompanyPageBody.tsx");
 
 describe("isCompanyIntelUnlocked: mirrors production Follow semantics", () => {
   it("signed in + account following -> unlocked", () => {
@@ -74,9 +75,10 @@ describe("CompanyIntelGate: locked overlay for unsigned-out visitors", () => {
   it("names what's locked instead of a bare wash: a described frame with a followers-only row", () => {
     const html = renderLockedGate();
     // The frame says what's behind it by name, not just "hiring intel".
-    assert.match(html, /funding, tech stack, and news for Acme/);
-    // A bordered panel card, distinguished from the surrounding hidden content.
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /tech stack and news for Acme/);
+    // A flat hairline panel like SignupGate's (rulebook D2): no shadow.
+    assert.match(html, /rounded-panel border border-border bg-card/);
+    assert.doesNotMatch(html, /shadow-/);
     assert.match(html, /Followers only/);
   });
 
@@ -122,13 +124,13 @@ describe("CompanyIntelGate: rail overrides (testId, description, showFollowButto
     const html = renderRailGate();
     assert.match(html, /The hiring record and list health for Acme/);
     assert.match(html, /Followers only/);
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /rounded-panel border border-border bg-card/);
     assert.doesNotMatch(html, /data-testid="follow-company"/);
   });
 
   it("a custom description overrides the default copy entirely, not just appends to it", () => {
     const html = renderRailGate();
-    assert.doesNotMatch(html, /funding, tech stack, and news/);
+    assert.doesNotMatch(html, /tech stack and news/);
   });
 });
 
@@ -167,7 +169,7 @@ describe("CompanyIntelGate: fallback prop", () => {
     const html = renderLockedGateWithFallback(undefined);
     assert.match(html, /data-testid="company-intel-gate"/);
     assert.match(html, /Follow this company to see its hiring history/);
-    assert.match(html, /rounded-panel border border-border bg-surface/);
+    assert.match(html, /rounded-panel border border-border bg-card/);
   });
 
   // `unlocked` comes from account/session state that only resolves in a
@@ -187,7 +189,7 @@ describe("CompanyIntelGate: fallback prop", () => {
 
 describe("/co/[slug]: a non-follower sees exactly one lock card", () => {
   it("exactly one of the page's CompanyIntelGate instances can render a card", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const gateInstances = source.match(/<CompanyIntelGate\b/g) ?? [];
     const suppressedInstances = source.match(/fallback=\{null\}/g) ?? [];
     assert.equal(gateInstances.length, 2, "expected exactly two CompanyIntelGate instances on the page");
@@ -201,7 +203,7 @@ describe("/co/[slug]: a non-follower sees exactly one lock card", () => {
 
 describe("/co/[slug]: secondary intel is gated behind follow", () => {
   it("CompanyIntelGate wraps the secondary block contents inside company-secondary", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const secondaryIndex = source.indexOf('data-testid="company-secondary"');
     const teaserIndex = source.indexOf("<CompanyChangeEventTeaser");
     const gateOpenIndex = source.indexOf("<CompanyIntelGate");
@@ -217,7 +219,7 @@ describe("/co/[slug]: secondary intel is gated behind follow", () => {
   });
 
   it("header idleLabel states the primary CTA", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     assert.match(source, /idleLabel="Follow this company"/);
   });
 });

@@ -62,10 +62,12 @@ export function CompanyIntelLockCard({
   showFollowButton = true,
 }: Pick<CompanyIntelGateProps, "domain" | "slug" | "displayName" | "description" | "showFollowButton">) {
   return (
-    <div className="flex w-full max-w-sm flex-col items-center gap-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6">
-      <p className="text-sm font-semibold text-foreground">Follow this company to see its hiring history</p>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        {description ?? `Recent hiring changes, funding, tech stack, and news for ${displayName} — visible once you follow.`}
+    // Flat hairline panel (rulebook D2, right-rail follow gate): no shadow,
+    // left-aligned, "Followers only" as plain words.
+    <div className="flex w-full max-w-sm flex-col items-start gap-2 rounded-panel border border-border bg-card p-6 text-left">
+      <p className="text-base font-semibold leading-snug text-foreground">Follow this company to see its hiring history</p>
+      <p className="text-sm text-muted-foreground">
+        {description ?? `Recent hiring changes, tech stack and news for ${displayName}, visible once you follow.`}
       </p>
       <p className="text-xs font-semibold text-muted-foreground">Followers only</p>
       {showFollowButton && (
@@ -75,7 +77,7 @@ export function CompanyIntelLockCard({
           displayName={displayName}
           variant="primary"
           idleLabel="Follow this company to see its hiring history"
-          className="items-center"
+          className="mt-2 items-start"
         />
       )}
     </div>

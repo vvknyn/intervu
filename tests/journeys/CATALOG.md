@@ -281,6 +281,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-36 | Company remote fact counts roles by work type ("5 of 43 roles remote", never a title match) and links to the company's Remote search on /jobs, which shows roles | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-37 | Company posting chart starts at the first tracked week (flagged as including roles already open), prints every week's count, dashes this week as in progress, and sizes no bar with an inline style | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-38 | Company page gives one answer to "is this company hiring?": no "Are they actually hiring?" verdict, no health score, no "Active" operating status | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-39 | Company page's first screen shows an open role at desktop (1440x900) and phone (390x844) widths, with the posting chart and hiring record rail after the roles on a phone | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-40 | Company role rows say the posting's age in the right rail ("6d ago"), not a bare "View" | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-41 | Company stat row, shown only when every open role is fetched, counts roles with pay as "N of M" and any typical pay as a yearly range in one currency | anon | /co/1password--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-42 | Signed-out company visitor gets the site's SignupGate (Create free account, Sign in) returning to the company page, with no hand-rolled sign-in button and no "Followers only" lock card | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
 ## AUTH
 

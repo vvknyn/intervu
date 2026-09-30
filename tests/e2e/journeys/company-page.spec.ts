@@ -3,13 +3,16 @@ import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the company page's numbers (/co/[slug]): each stat says what
- * it counts, and nothing on the page states a figure it can't back. See
- * tests/journeys/CATALOG.md (J-COMPANY-35 to J-COMPANY-38). Read-only, apart
- * from J-COMPANY-18's @writes test at the end.
+ * it counts, and nothing on the page states a figure it can't back; and its
+ * first screen holds roles. See tests/journeys/CATALOG.md (J-COMPANY-35 to
+ * J-COMPANY-42). Read-only, apart from J-COMPANY-18's @writes test.
  */
 
 const COMPANY = "/co/anthropic--com";
 const OTHER_COMPANY = "/co/openai--com";
+/** A smaller employer, for figures that only show when every open role is
+ *  fetched (the stat row is census-gated). */
+const SMALLER_COMPANIES = ["/co/1password--com", "/co/outerboxdesign--com"];
 
 test("the hiring headline states the open-role count on Velai, with no 'Yes —' and no lowercase velai", { tag: ["@J-COMPANY-35"] }, async ({ page }) => {
     await page.goto(COMPANY);
@@ -79,6 +82,68 @@ test("the page gives one answer to 'is this company hiring?' and no undefined he
     await expect(body).not.toContainText(/health score/i);
     // "Active" is true of every employer with live roles; only an unusual status shows.
     await expect(page.getByTestId("company-verdict-band").getByText("Active", { exact: true })).toHaveCount(0);
+});
+
+// Runs at both project sizes (desktop 1440x900, mobile 390x844).
+test("the first screen shows an open role, and a phone reaches the roles before the hiring record rail", { tag: ["@J-COMPANY-39"] }, async ({ page }) => {
+    const viewport = page.viewportSize();
+    expect(viewport, "the project sets a viewport").not.toBeNull();
+    await page.goto(COMPANY);
+    await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
+    const firstRole = page.getByTestId("company-role-row").first();
+    await expect(firstRole).toBeVisible({ timeout: 30_000 });
+    await expect.poll(async () => (await firstRole.boundingBox())?.y ?? Infinity).toBeLessThan(viewport!.height);
+    if (viewport!.width < 1024) {
+        const role = await firstRole.boundingBox();
+        const rail = await page.getByTestId("company-rail").boundingBox();
+        if (role && rail) expect(rail.y).toBeGreaterThan(role.y);
+    }
+});
+
+test("each role row says how old the posting is in its right rail, not a bare 'View'", { tag: ["@J-COMPANY-40"] }, async ({ page }) => {
+    await page.goto(COMPANY);
+    const rows = page.getByTestId("company-role-row");
+    await expect(rows.first()).toBeVisible({ timeout: 30_000 });
+    const ages = await page.getByTestId("company-role-age").allTextContents();
+    expect(ages.length).toBeGreaterThan(0);
+    for (const age of ages) expect(age.trim()).toMatch(/^(|today|\d+d ago|\d+mo ago|\d+y ago)$/);
+    expect(ages.some((a) => a.trim() !== "")).toBe(true);
+    await expect(page.getByTestId("company-role-search").getByText("View", { exact: true })).toHaveCount(0);
+});
+
+test("the stat row counts the company's own open roles, each figure with its label", { tag: ["@J-COMPANY-41"] }, async ({ page }) => {
+    // Census-gated: an employer with more open roles than the page fetches shows no row.
+    await page.goto(COMPANY);
+    await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
+    let statRow = page.getByTestId("company-role-stats");
+    for (const company of SMALLER_COMPANIES) {
+        if ((await statRow.count()) > 0) break;
+        const response = await page.goto(company);
+        if (!response || response.status() >= 400) continue;
+        await expect(page.getByTestId("company-page")).toBeVisible({ timeout: 30_000 });
+        statRow = page.getByTestId("company-role-stats");
+    }
+    test.skip((await statRow.count()) === 0, "no employer tried has every open role fetched right now");
+    const text = (await statRow.textContent()) ?? "";
+    // Roles with pay are always counted over the company's open roles.
+    expect(text).toMatch(/\d[\d,]* of \d[\d,]*list pay/);
+    expect(text).not.toMatch(/NaN|undefined|null/);
+    // Any typical pay is a yearly range in one currency, never a converted hourly rate.
+    if (text.includes("typical listed pay")) expect(text).toMatch(/[A-Z]{3} [\d.]+[kM]?(–[\d.]+[kM]?)?\/yrtypical listed pay/);
+});
+
+test("a signed-out visitor gets the site's one sign-up gate, back to this company, and no follow lock card", { tag: ["@J-COMPANY-42"] }, async ({ page }) => {
+    await page.goto(COMPANY);
+    await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
+    const gate = page.getByTestId("company-exhaust-gate");
+    test.skip((await gate.count()) === 0, "no box hiring record for this employer right now");
+    const create = gate.getByTestId("signup-gate-create");
+    await expect(create).toBeVisible();
+    expect(decodeURIComponent((await create.getAttribute("href")) ?? "")).toContain("/co/anthropic--com");
+    await expect(gate.getByTestId("signup-gate-signin")).toBeVisible();
+    // One ask per visitor: no hand-rolled sign-in button and no second, follow-only card.
+    await expect(page.getByText("Sign in to open the record")).toHaveCount(0);
+    await expect(page.getByText("Followers only", { exact: true })).toHaveCount(0);
 });
 
 // J-COMPANY-18: a signed-out visitor who verified their email follows a company

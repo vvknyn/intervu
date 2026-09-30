@@ -16,6 +16,7 @@ import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
 import { hiringRecordSentence } from "./hiring-record";
 import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
+import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import { toValueArray, type PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
@@ -361,6 +362,88 @@ export function buildCompanyHiringAnswer(
         : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
     freshness: buildFreshnessFact(data, nowMs),
   };
+}
+
+/** One figure in the company page's stat row, drawn with `KpiStat`. */
+export interface CompanyRoleStat {
+  key: string;
+  value: string;
+  label: string;
+}
+
+/** Fewest yearly salaries in one currency before a "typical pay" range says
+ *  anything about the employer rather than about two postings. */
+const TYPICAL_PAY_MIN_ROLES = 3;
+
+function quantile(sorted: number[], q: number): number {
+  const pos = (sorted.length - 1) * q;
+  const lo = Math.floor(pos);
+  const hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+
+/**
+ * "USD 120k–170k/yr": the middle half of the yearly pay the roles list, in
+ * the currency most of them use, formatted like each row's own pay text
+ * (`salaryText`). Hourly and monthly figures are left out rather than
+ * converted, since a conversion would assume hours nobody stated.
+ */
+function typicalPayText(jobs: PublicJob[]): string | null {
+  const byCurrency = new Map<string, number[]>();
+  for (const j of jobs) {
+    if (!isAnnualSalaryPeriod(j.salary_period) || !j.salary_currency) continue;
+    const lo = j.salary_min ?? j.salary_max;
+    const hi = j.salary_max ?? j.salary_min;
+    if (lo == null || hi == null) continue;
+    const mid = (normalizeSalaryAmount(lo, j.salary_period) + normalizeSalaryAmount(hi, j.salary_period)) / 2;
+    const list = byCurrency.get(j.salary_currency) ?? [];
+    list.push(mid);
+    byCurrency.set(j.salary_currency, list);
+  }
+  const [currency, mids] = [...byCurrency.entries()].sort((a, b) => b[1].length - a[1].length)[0] ?? [];
+  if (!currency || !mids || mids.length < TYPICAL_PAY_MIN_ROLES) return null;
+  mids.sort((a, b) => a - b);
+  const lo = formatSalaryAmount(Math.round(quantile(mids, 0.25)));
+  const hi = formatSalaryAmount(Math.round(quantile(mids, 0.75)));
+  return lo === hi ? `${currency} ${lo}/yr` : `${currency} ${lo}–${hi}/yr`;
+}
+
+/**
+ * The stat row under the company header: what a job seeker decides on before
+ * reading a list. Each figure counts the fetched roles, so the row only
+ * renders when those are every open role (`sampleCoversAllRoles`); a figure
+ * over a 200-role sample beside a company-wide headline would read as
+ * company-wide. A figure with nothing behind it is left out, never zero-filled
+ * except where zero is the answer (none posted recently).
+ *
+ * Visa counts say "say they sponsor": `visa_sponsorship` is null on most
+ * postings, and null means the posting didn't say, not that it won't.
+ */
+export function buildCompanyRoleStats(
+  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
+  nowMs: number,
+): CompanyRoleStat[] {
+  const jobs = data.jobs;
+  if (jobs.length === 0 || !sampleCoversAllRoles(data)) return [];
+  const total = formatCount(jobs.length);
+  const stats: CompanyRoleStat[] = [];
+
+  const windowMs = defaultRecencyWindowMs();
+  if (windowMs != null && jobs.every((j) => j.posted_ts != null)) {
+    const recent = jobs.filter((j) => (j.posted_ts as number) >= nowMs - windowMs).length;
+    stats.push({ key: "recent", value: formatCount(recent), label: `new in the last ${Math.round(windowMs / MS_PER_DAY)} days` });
+  }
+
+  const withPay = jobs.filter((j) => j.salary_min != null || j.salary_max != null).length;
+  stats.push({ key: "pay", value: `${formatCount(withPay)} of ${total}`, label: "list pay" });
+
+  const typical = typicalPayText(jobs);
+  if (typical) stats.push({ key: "typical-pay", value: typical, label: "typical listed pay" });
+
+  const visa = jobs.filter((j) => j.visa_sponsorship === true).length;
+  if (visa > 0) stats.push({ key: "visa", value: `${formatCount(visa)} of ${total}`, label: "say they sponsor visas" });
+
+  return stats;
 }
 
 /** Real page data only — degrades to a generic line when there are zero open
