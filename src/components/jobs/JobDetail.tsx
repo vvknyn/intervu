@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, type ReactNode } from "react";
 import Link from "next/link";
+import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
@@ -318,12 +319,7 @@ export function JobDetailActionBar({
     onGoAfter,
     pursuit,
     saveSuccessPulse = false,
-    signedIn = true,
     className,
-    resume,
-    onAcceptLocalTailor,
-    onUploadResume,
-    onSignInToSync,
 }: {
     job: PublicJob;
     onOpenPosting: () => void;
@@ -345,11 +341,6 @@ export function JobDetailActionBar({
      *  `MobileTabBar` (`bottom-12` instead of the Sheet caller's `bottom-0`,
      *  since that Sheet paints over the tab bar and this document doesn't). */
     className?: string;
-    /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
-    resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
-    onUploadResume?: () => void;
-    onSignInToSync?: () => void;
 }) {
     return (
         <div
@@ -362,26 +353,10 @@ export function JobDetailActionBar({
                     {APPLY_BUTTON_LABEL}
                 </Button>
             )}
-            {resume != null ? (
-                <LocalCustomizePanel
-                    job={job}
-                    resume={resume}
-                    onAccept={onAcceptLocalTailor}
-                    compactTrigger
-                    signedIn={signedIn}
-                    onSignInToSync={onSignInToSync}
-                />
-            ) : onUploadResume ? (
-                <Button size={jobActionSize}
-                    type="button"
-                    variant="outline"
-                    data-testid="job-detail-upload-to-customize"
-                    onClick={onUploadResume}
-                    className="shrink-0"
-                >
-                    {UPLOAD_TO_CUSTOMIZE_LABEL}
-                </Button>
-            ) : null}
+            {/* Apply and Save only. "Apply on employer site" leaves no room
+                for a Customize or Upload button beside it on a phone (the
+                row ran 60px past a 390px screen, 2026-09-30); the pane's
+                action row and the job page's apply card carry that one. */}
             {/* Same icon-only ghost bookmark as the desktop action row —
                 one control, restyled once, not a second hand-copy. */}
             <RowBookmarkButton
@@ -397,6 +372,15 @@ export function JobDetailActionBar({
 export type RelatedJobs = { jobs: PublicJob[]; basis: RelatedBasis };
 export const NO_RELATED: RelatedJobs = { jobs: [], basis: "title" };
 
+// JobCard's row anatomy: the row is the list's full bleed (the list sits at
+// -mx-4, see RelatedJobsSection) with the text inset by `--list-inset`, so the
+// hover band and the inset focus ring clear the text; the hairline sits on the
+// inner block, aligned with the text. Two lines of text, so it sizes to them:
+// a `.ctl-*` step pins a single-line height (32px), which squeezed both lines
+// flush against the hairlines and clipped their descenders (2026-09-30).
+// rounded-none: KEEP — a full-bleed list row, like JobCard's, not a discrete control.
+const RELATED_ROW_CLASS = "group block w-full cursor-pointer rounded-none bg-transparent text-left poster-list-inset-x transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live";
+
 /**
  * A2 — "More like this" row (Curiosity / Serial Positioning Effect). Not a
  * reuse of the SERP's `JobCard` (jobs/page.tsx): that component is
@@ -410,13 +394,33 @@ export const NO_RELATED: RelatedJobs = { jobs: [], basis: "title" };
  * calls, so this row can never format a company name, salary, or age
  * differently than the SERP does.
  */
-export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: number; onClick: () => void }) {
+export function RelatedJobRow({ job, now, onClick, href, first = false }: { job: PublicJob; now: number; onClick?: () => void; href?: string; first?: boolean }) {
     const salary = salaryText(job);
     const age = postedAgeShort(derivePostedTs(job), now);
     // placeWithWorkMode, not locationText alone: this row has no adjacent
     // work-type chip (unlike JobCard's SERP row), so it's the only place a
     // remote/hybrid job's work mode can show up.
     const loc = placeWithWorkMode(locationText(job), job.work_type);
+    const body = (
+        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border")}>
+            <span data-testid="related-job-title" className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
+            <span className="mono-data truncate text-xs text-muted-foreground">
+                {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
+                {loc ? ` · ${loc}` : ""}
+                {age ? ` · ${age}` : ""}
+                {salary ? ` · from ${salary}` : ""}
+            </span>
+        </span>
+    );
+    // On the job page a row is a link to that job's own page; in the board's
+    // pane it's a button that opens the job in the pane.
+    if (href) {
+        return (
+            <Link href={href} data-testid="related-job-row" data-control="row" className={RELATED_ROW_CLASS}>
+                {body}
+            </Link>
+        );
+    }
     return (
         <button
             type="button"
@@ -426,24 +430,13 @@ export function RelatedJobRow({ job, now, onClick }: { job: PublicJob; now: numb
             onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onClick();
+                onClick?.();
             }}
-            // rounded-none: KEEP — flush full-width row (px-0), mirrors JobCard's
-            // hairline-separated list treatment — not a discrete control.
-            // Two lines of text, so it sizes to them: a `.ctl-*` step pins a
-            // single-line height (32px), which squeezed both lines flush
-            // against the hairlines and clipped their descenders (2026-09-30).
             // control-type-allow: a full-width list row (title + meta lines), not a button face
             // control-scale-allow: full-width list row, padding is layout
-            className="flex w-full flex-col gap-0.5 rounded-none px-0 py-3 text-left transition-colors hover:bg-muted cursor-pointer group"
+            className={RELATED_ROW_CLASS}
         >
-            <span className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
-            <span className="mono-data truncate text-xs text-muted-foreground">
-                {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
-                {loc ? ` · ${loc}` : ""}
-                {age ? ` · ${age}` : ""}
-                {salary ? ` · from ${salary}` : ""}
-            </span>
+            {body}
         </button>
     );
 }
@@ -461,6 +454,7 @@ export function RelatedJobsSection({
     companyBrand,
     now,
     onOpenRelated,
+    linkToPages = false,
     headingLevel: Heading = "h3",
 }: {
     jobs: PublicJob[];
@@ -468,6 +462,10 @@ export function RelatedJobsSection({
     companyBrand: string | null | undefined;
     now: number;
     onOpenRelated?: (jobId: string, job?: PublicJob) => void;
+    /** The job page's rows link to each job's own page, so a click stays on
+     *  job pages (it used to drop into the board) and each row can open in a
+     *  new tab. The pane's rows open the job in the pane instead. */
+    linkToPages?: boolean;
     /** h2 on the job page (a section of the document), h3 inside the pane. */
     headingLevel?: "h2" | "h3";
 }) {
@@ -475,9 +473,18 @@ export function RelatedJobsSection({
     return (
         <div data-testid="job-detail-related" className="border-t border-border py-6">
             <Heading className="mb-2 text-sm font-semibold text-foreground">{relatedJobsHeading(basis, companyBrand)}</Heading>
-            <div className="divide-y divide-border">
-                {jobs.map((r) => (
-                    <RelatedJobRow key={r.id} job={r} now={now} onClick={() => onOpenRelated?.(r.id, r)} />
+            {/* -mx-4 undoes the pane's and the page column's 16px inset so
+                each row's hover band runs edge to edge (RelatedJobRow). */}
+            <div className="-mx-4">
+                {jobs.map((r, i) => (
+                    <RelatedJobRow
+                        key={r.id}
+                        job={r}
+                        now={now}
+                        first={i === 0}
+                        href={linkToPages ? jobPath(r) : undefined}
+                        onClick={() => onOpenRelated?.(r.id, r)}
+                    />
                 ))}
             </div>
         </div>
