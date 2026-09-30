@@ -88,7 +88,8 @@ export default function TermsPage() {
           reason, by contacting us from the email address you paid with. Payment processing is handled by our
           payment provider under its own terms; we do not see or store your card details. Reserving a seat before
           checkout opens is free and creates no obligation on either side: it records your place and the address we
-          send the checkout link to first.
+          send the checkout link to first. The pay-it-forward contribution the tracker offers when a role reaches an
+          offer is voluntary, one-off and buys nothing; it is processed by the same payment provider.
         </p>
 
         <SectionTitle>Employers</SectionTitle>

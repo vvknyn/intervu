@@ -10,6 +10,7 @@ import { TabItem } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
+import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
 import {
     TRACKER_LANE_STAGES,
     TRACKER_SHEET_BOTTOM,
@@ -176,6 +177,10 @@ function PursuitDetailBody({
                         </TabItem>
                     ))}
                 </div>
+
+                {/* The pay-when-you-land moment (strategy decision 7): only once
+                    the pursuit sits in the Offer lane. */}
+                <LandedPledgeForPursuit pursuit={pursuit} />
 
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-panel border border-border bg-surface-2 p-3.5 shadow-[var(--shadow-bevel-inset)]">
                     <div>

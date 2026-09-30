@@ -79,6 +79,8 @@ Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `
 
 `FOUNDING_MEMBER_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the founding-seat button on `/pricing`. Create the link in the Stripe dashboard with the after-payment redirect set to `https://velai.app/pricing?checkout=success&session_id={CHECKOUT_SESSION_ID}`, then add the `https://buy.stripe.com/…` URL to `.env.production` and restart the container. Unset, the Pro column takes reservations instead (an email into the Firestore `founding_waitlist` collection, one confirmation email, counted on /admin under Waitlist), the headline, badge and meta description say "open soon", and nothing links out. It is not `NEXT_PUBLIC_*`: `src/app/pricing/page.tsx` reads it at request time.
 
+`LANDED_PLEDGE_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the pay-it-forward panel the tracker shows on a pursuit in the Offer lane (`src/components/tracker/LandedPledgePanel.tsx`). Create it as a pay-what-you-want link with $99 preset, so the panel's "$99 suggested, any amount" is true, then add it to `.env.production` and restart the container; `src/app/yours/layout.tsx` reads it per request. Unset, the panel congratulates and asks how it went, linking to the contact page, and nothing links out.
+
 `NEXT_PUBLIC_*` are required at **docker build** time (inlined into the client bundle). Server secrets are runtime-only via `env_file`.
 
 ## Jobs sync worker

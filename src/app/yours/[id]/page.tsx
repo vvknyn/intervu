@@ -20,6 +20,7 @@ import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import { JobDetail } from "@/components/jobs/JobDetail";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
+import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { STATUS_PILL } from "@/lib/ui/status-tokens";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -368,6 +369,10 @@ export default function PursuitDetailPage() {
                         <p className="mt-2 text-xs text-muted-foreground">This listing&apos;s details are no longer available.</p>
                     )}
                 </div>
+
+                {/* The pay-when-you-land moment (strategy decision 7): only once
+                    the pursuit sits in the Offer lane. */}
+                <LandedPledgeForPursuit pursuit={pursuit} />
 
                 <ResumeUsedCard pursuit={pursuit} />
 
