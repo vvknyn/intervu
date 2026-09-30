@@ -72,7 +72,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-29 | The /jobs search row (query, location, Search) shares the lg control step (44px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-30 | Every control in the /jobs toolbar row takes the md control step (32px) at 1440 and 390 | anon | onboarding-completed flag + `/jobs` | signed-out | no | covered | control-scale.spec.ts |
 | J-JOBS-31 | A failed For-you ranked-list read (every Server Action answers 503) shows an error with Retry, never "No ranked roles to show right now."; Retry re-reads | Candidate with a local résumé | `/jobs?view=for-you` (guest résumé seeded in localStorage), click `hub-pack-card-all`, action POSTs fulfilled 503 in the browser | signed-out | no | covered | jobs.spec.ts |
-| J-JOBS-32 | A guest whose second save is a saved search meets the "Save this search" gate (Create free account + Sign in), not a bare input | anon | `intervu.guestSaveCount=1` seeded + `/jobs?q=engineer`, click `save-search-trigger` | signed-out | no | covered | signup-gates.spec.ts |
+| J-JOBS-32 | A guest whose second save is a saved search meets the "Save this search" gate (Create free account + Sign in), not a bare input (merged: J-ALERTS-17) | anon | `intervu.guestSaveCount=1` seeded + `/jobs?q=engineer`, click `save-search-trigger` | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-33 | A guest's first job save shows the dismissible save gate card; "Not now" removes it | anon | `/jobs?q=engineer`, click `job-save-trigger` on the first row | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-34 | A guest with a résumé (no local-AI flag) sees exactly their top 3 ranked matches on the Search list, then the "See all N matches ranked for you" gate | anon | a synthetic local résumé seeded + `/jobs?view=search&sort=fit` | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-35 | A guest with a résumé who opens "Browse all matches" on For you meets the same top 3 + fit gate (the deck never lists past the gate) | anon | a synthetic local résumé seeded + `/jobs?sort=fit`, click `hub-browse-all-matches` | signed-out | no | covered | signup-gates.spec.ts |
@@ -95,7 +95,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-03 | Type a query and submit it to put `q=` in the URL and get job rows | anon | SEED-A + `/jobs`, fill the `Search` combobox, press Enter | signed-out | no | covered | jobs.spec.ts |
 | J-SRCH-04 | Typing shows suggestions from /api/jobs/suggest | anon | SEED-A + `/jobs`, type "soft" | signed-out | no | uncovered | — |
 | J-SRCH-05 | Choosing a suggestion runs that search | anon | SEED-A + `/jobs`, type "soft", click first `role=option` | signed-out | no | uncovered | — |
-| J-SRCH-06 | Clear button empties the query and sits above the input | anon | SEED-A + `/jobs?posted=any`, fill "engineer", click `search-input-clear` | signed-out | no | uncovered | — (legacy: search-clear.spec.ts › desktop: the clear button sits above the input and actually clears it) |
+| J-SRCH-06 | Clear button empties the query and sits above the input, on desktop and on the mobile input (merged: J-MOB-20) | anon | SEED-A + `/jobs?posted=any` at 1440x900 and 390x844, fill "engineer", click `search-input-clear` | signed-out | no | uncovered | — (legacy: search-clear.spec.ts › desktop: the clear button sits above the input and actually clears it) |
 | J-SRCH-07 | Clearing the query removes `q=` and resets a relevance sort | anon | SEED-A + `/jobs?q=nurse&sort=relevance`, click `search-input-clear` | signed-out | no | uncovered | — (legacy: jobs-search-polish.spec.ts › TC-JOBS-SORT-002: clearing query resets relevance sort to freshest) |
 | J-SRCH-08 | Location box suggests places from /api/jobs/locations | anon | SEED-A + `/jobs`, type "Lond" into the `location-input` combobox | signed-out | no | uncovered | — (legacy: jobs-location-search-click.spec.ts (see note)) |
 | J-SRCH-09 | Picking a location suggestion filters and shows a location chip | anon | SEED-A + `/jobs?q=engineer`, type "Boston", click first `role=option` | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
@@ -107,7 +107,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-15 | Company-named query keeps the employer, not the city | anon | SEED-A + `/jobs?q=cleveland+clinic` | signed-out | no | uncovered | — (legacy: search-quality-s1.spec.ts › 'cleveland clinic' — the employer wins; Cleveland the CITY never eats the query as a bare location filter) |
 | J-SRCH-16 | Role-in-place query still applies the place filter | anon | SEED-A + `/jobs?q=warehouse+jobs+in+dallas` | signed-out | no | uncovered | — (legacy: search-quality-s1.spec.ts › control: 'warehouse jobs in dallas' — Dallas place filter STILL applies (no company named that)) |
 | J-SRCH-17 | Query text and place survive a reload and back/forward | anon | SEED-A + `/jobs`, search "nurse", then search "designer", `goBack()` | signed-out | no | uncovered | — |
-| J-SRCH-18 | `/` redirects to `/jobs` and keeps query params | anon | `GET /?q=nurse` | signed-out | no | uncovered | — |
+| J-SRCH-18 | `/?q=` redirects to `/jobs` and keeps the query params (without `q`, `/` drops them) (merged: J-NAV-02) | anon | `GET /?q=nurse` | signed-out | no | uncovered | — |
 | J-SRCH-19 | Search box is docked into the top bar on lg+ once results show | anon | SEED-A + `/jobs?q=nurse` at 1440x900 | signed-out | no | uncovered | — (legacy: jobs-serp-scroll-stability.spec.ts › TC-SERP-SCROLL-002: the same holds with places filtered — the dock renders a place) |
 | J-SRCH-20 | Search shows only the mobile "Search" CTA when the draft differs from the query | anon | SEED-A + `/jobs` at 390x844, type "nurse" | signed-out | no | uncovered | — |
 | J-SRCH-21 | Returning visitor's search session throws no uncaught page errors (React hydration error #418 seen on prod 2026-09-28) | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | covered | jobs.spec.ts |
@@ -148,8 +148,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-MOB-01 | /jobs landing (search box and default feed) does not scroll sideways at 360 and 390 | anon | `/jobs` (no seed) at 360 and 390 | signed-out | no | uncovered | — (legacy: no-horizontal-overflow.spec.ts › landing /jobs does not scroll sideways at 390px) |
 | J-MOB-02 | SERP list does not scroll sideways at 360 and 390 | anon | SEED-A + `/jobs?q=product+designer` at 360 and 390 | signed-out | no | uncovered | — (legacy: no-horizontal-overflow.spec.ts › results /jobs?q=product+designer does not scroll sideways at 390px) |
 | J-MOB-03 | Opened job sheet does not scroll sideways | anon | SEED-A + `/jobs?q=product+designer`, tap first row at 390 | signed-out | yes | uncovered | — (legacy: no-horizontal-overflow.spec.ts › results with first row opened does not scroll sideways at 390px) |
-| J-MOB-04 | Bottom tab bar shows Jobs, Résumé, Tracker and Account below lg | anon | SEED-A + `/jobs` at 390x844 | signed-out | no | uncovered | — |
-| J-MOB-05 | Bottom tab bar is hidden at lg and above | anon | SEED-A + `/jobs` at 1280x800 | signed-out | no | uncovered | — |
+| J-MOB-04 | Bottom tab bar shows Jobs, Résumé, Tracker and Account below lg (merged: J-NAV-15) | anon | SEED-A + `/jobs` at 390x844 | signed-out | no | uncovered | — |
+| J-MOB-05 | Bottom tab bar is hidden at lg and above (merged: J-NAV-16) | anon | SEED-A + `/jobs` at 1280x800 | signed-out | no | uncovered | — |
 | J-MOB-06 | Tab bar Jobs tab is current on /jobs | anon | SEED-A + `/jobs` at 390x844 | signed-out | no | uncovered | — |
 | J-MOB-07 | Tab bar Tracker tab navigates to /yours | anon | SEED-A + `/jobs` at 390x844, tap `mobile-topbar-tracker` | signed-out | no | uncovered | — |
 | J-MOB-08 | Tab bar targets are at least 44 px high | anon | SEED-A + `/jobs` at 390x844 | signed-out | no | uncovered | — (legacy: mobile.spec.ts › TC-MOBILE-002 (see note)) |
@@ -163,7 +163,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-MOB-17 | Mobile Search CTA bar appears at landing and when the draft is dirty | anon | SEED-A + `/jobs` at 390x844 | signed-out | no | uncovered | — |
 | J-MOB-18 | Cold-visitor orientation renders inside the list after row 3 on mobile | anon | SEED-A + `/jobs?q=software+engineer` at 390x844 | signed-out | no | uncovered | — (legacy: cold-visitor-orientation.spec.ts (see note)) |
 | J-MOB-19 | Account and site chrome are hidden on /login, not on /jobs | anon | `/login` at 390x844 then `/jobs` | signed-out | no | uncovered | — |
-| J-MOB-20 | Search clear button works on the mobile input | anon | SEED-A + `/jobs?posted=any` at 390x844, fill "engineer", click `search-input-clear` | signed-out | no | uncovered | — (legacy: search-clear.spec.ts › mobile: the clear button sits above the input and actually clears it) |
 
 ## DETAIL
 
@@ -238,8 +237,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-COMPANY-01 | Allowlisted company page renders header, hiring headline and Follow control | anon | /co/anthropic--com | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › elite allowlisted company page loads) |
-| J-COMPANY-02 | Unknown company slug shows "Page not found" with no company page | anon | /co/not-a-real-company-slug | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › unknown company slug returns 404) |
-| J-COMPANY-03 | Slug without "--" and not allowlisted also lands on "Page not found" | anon | /co/anthropic | signed-out | no | uncovered | — |
+| J-COMPANY-02 | Unknown company slug shows "Page not found" with no company page, including a slug without "--" that is not allowlisted (merged: J-COMPANY-03, J-ERR-09) | anon | /co/not-a-real-company-slug and /co/anthropic | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › unknown company slug returns 404) |
 | J-COMPANY-04 | Company page metadata and JSON-LD (Organization + FAQPage), canonical /co/<slug> | agent | /co/anthropic--com | signed-out | no | uncovered | — |
 | J-COMPANY-05 | Company page breadcrumb "Find jobs" goes to /jobs | anon | /co/anthropic--com | signed-out | no | uncovered | — |
 | J-COMPANY-06 | Role search filters the open roles by title, location or level | anon | /co/anthropic--com | signed-out | no | uncovered | — |
@@ -248,14 +246,14 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-09 | Role row opens the detail sheet in place; Close returns without navigating | anon | /co/anthropic--com at 1440x900 | signed-out | no | uncovered | — |
 | J-COMPANY-10 | "View all N jobs" CTA opens the company-scoped board | anon | /co/anthropic--com | signed-out | no | uncovered | — |
 | J-COMPANY-11 | Allowlisted company with zero open roles shows the follow-me empty state (any other company with 0 roles is a 404) | anon | /co/<slug of an allowlisted (elite) company with 0 live roles> | signed-out | no | uncovered | — |
-| J-COMPANY-12 | Guest Follow click opens the email step and never renders "Following" | anon | /co/anthropic--com | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › guest click on Follow never renders Following — it opens the email step instead) |
-| J-COMPANY-13 | Guest Follow email step is focusable and its "Have an account? Sign in" opens the auth dialog (follow gate) | anon | /co/anthropic--com | signed-out | no | covered | signup-gates.spec.ts |
+| J-COMPANY-12 | Guest Follow click opens the email step and never renders "Following" (merged: J-ALERTS-24) | anon | /co/anthropic--com | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › guest click on Follow never renders Following — it opens the email step instead) |
+| J-COMPANY-13 | Guest Follow email step is focusable and its "Have an account? Sign in" opens the auth dialog (follow gate) (merged: J-ALERTS-25) | anon | /co/anthropic--com | signed-out | no | covered | signup-gates.spec.ts |
 | J-COMPANY-14 | Email step submit sends a confirmation @writes | signing-up | /co/anthropic--com | signed-out | yes | uncovered | — |
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |
-| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0 | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | uncovered | — |
+| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0 (merged: J-ALERTS-28) | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | uncovered | — |
 | J-COMPANY-18 | Verified guest sees "Unfollow" and the watching caption; Unfollow reverts | anon | /co/anthropic--com?followed=1 | signed-out | yes | uncovered | — |
-| J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
+| J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back (merged: J-ALERTS-30) @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
 | J-COMPANY-20 | Guest follows merge into the account on sign-in | signing-up | /co/anthropic--com then sign in | signed-in | yes | uncovered | — |
 | J-COMPANY-21 | Anon sees the "The full record" gate with sign-in link and real teasers | anon | /co/anthropic--com | signed-out | no | uncovered | — |
 | J-COMPANY-22 | Anon "Sign in to open the record" link carries next=/co/<slug> | anon | /co/anthropic--com | signed-out | no | uncovered | — |
@@ -312,8 +310,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-34 | Refuse GET on /auth/signout | anon | GET /auth/signout | signed-out | no | uncovered | — |
 | J-AUTH-35 | Return {user:null} with no-store from /api/auth/session when signed out | anon | GET /api/auth/session | signed-out | no | uncovered | — |
 | J-AUTH-36 | Drop an expired/cleared session and bounce /settings to login | signed-in | /settings (after clearing wos-session cookie) | signed-in | no | uncovered | — |
-| J-AUTH-37 | Show the logged-out consent card on /oauth/authorize with a valid request | anon | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=… | signed-out | no | uncovered | — |
-| J-AUTH-38 | Show the error card on /oauth/authorize with no params | anon | /oauth/authorize | signed-out | no | uncovered | — |
 | J-AUTH-39 | Bounce a bad email-verify token through /settings to login | anon | /api/account/email/verify?token=bogus | signed-out | no | uncovered | — |
 | J-AUTH-40 | @writes Add an account email from the /jobs banner (shown after 2 searches in this browser) and dismiss it | signed-in | /jobs (signed-in, no reachable email, after 2 searches in this browser) | signed-in | yes | uncovered | — |
 | J-AUTH-41 | Start again on /auth/retry restarts sign-in at /auth/start | anon | /auth/retry?reason=exchange_failed | signed-out | no | covered | auth-retry.spec.ts |
@@ -348,7 +344,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-21 | Download the résumé as PDF through /api/resume/pdf | signed-in | /resume | signed-in | no | uncovered | — |
 | J-RESUME-22 | Open the template editor and hide the page header | signed-in | /resume | signed-in | no | uncovered | — |
 | J-RESUME-23 | @writes Save edits from the template editor | signed-in | /resume (Edit template) | signed-in | yes | uncovered | — |
-| J-RESUME-24 | Redirect /resume-builder and /resume-tailor to /yours | anon | /resume-builder | signed-out | no | uncovered | — |
 | J-RESUME-25 | Return 400 from /api/resume/pdf for an empty body | anon | POST /api/resume/pdf | signed-out | no | uncovered | — |
 | J-RESUME-26 | Render /resume at mobile width; its controls meet the 44px touch hit-area floor (visible height 32px) | anon | /resume (375x667) | signed-out | no | uncovered | — |
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
@@ -378,7 +373,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-18 | Hide the digest switch and offer the email prompt when no email is reachable | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 | J-SETTINGS-19 | @writes Add an account email from Settings | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-20 | Show the Blocked suffix for a globally unsubscribed address | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
-| J-SETTINGS-21 | @writes Generate and revoke a manual agent token | signed-in | /settings?tab=account | signed-in | yes | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-006: Connected agents quiet link is visible) |
 | J-SETTINGS-22 | @writes Send a password reset link from Account | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-23 | Sign out from Account and lose the session | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 | J-SETTINGS-24 | Gate Delete Forever behind typing DELETE and reset on Cancel | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
@@ -458,24 +452,19 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-14 | Clicking a saved search re-applies its URL (the saved list mounts only once a query or filter is set) | anon | /jobs?q=engineer (saved search seeded) | signed-out | no | uncovered | — |
 | J-ALERTS-15 | Remove a saved search | anon | /jobs?q=engineer (saved search seeded) | signed-out | no | uncovered | — |
 | J-ALERTS-16 | Save-search name field commits on Enter and cancels on Escape | anon | /jobs?q=engineer | signed-out | no | uncovered | — |
-| J-ALERTS-17 | Second guest save is blocked by the auth gate | anon | /jobs?q=engineer (guestSaveCount=1) | signed-out | no | uncovered | — |
 | J-ALERTS-18 | Signed-in user saves a search to their account @writes | signed-in | /jobs?q=engineer | signed-in | yes | uncovered | — |
 | J-ALERTS-19 | Saved search shows a "+N" new-roles count | signed-in | /jobs?q=engineer (saved search with older cursor) | signed-in | yes | uncovered | — |
 | J-ALERTS-20 | Guest saved searches sync to the account at first sign-in @writes | signing-up | /yours (after login, guest key seeded) | signed-in | yes | uncovered | — |
 | J-ALERTS-21 | Visit banner is absent on a first-ever /jobs visit | anon | /jobs | signed-out | no | uncovered | — |
 | J-ALERTS-22 | Visit banner reports new roles since the last visit and can be dismissed | anon | /jobs (visitCursor seeded, count stubbed to 3) | signed-out | no | uncovered | — (legacy: jobs-visit-banner-and-saved-search.spec.ts › revisiting shortly after does not break the page) |
 | J-ALERTS-23 | Visit banner auto-dismisses after 6 seconds | anon | /jobs (visitCursor seeded, count stubbed) | signed-out | no | uncovered | — |
-| J-ALERTS-24 | Guest clicking Follow opens the email step, never "Following" | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › guest click on Follow never renders Following — it opens the email step instead) |
-| J-ALERTS-25 | Follow email step is focusable and its sign-in link opens the auth dialog | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › email step: focusable, sign-in link falls back to the auth dialog) |
 | J-ALERTS-26 | Follow email step shows the confirmation message on success (network stubbed) | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — |
 | J-ALERTS-27 | Follow email step shows the retry error on failure | anon | /co/<allowlisted-slug> (POST stubbed 503) | signed-out | no | uncovered | — |
-| J-ALERTS-28 | Follow verify link with a bogus token redirects to /jobs?followed=0 | anon | GET /api/follow-email/verify?token=bogus | signed-out | no | uncovered | — |
 | J-ALERTS-29 | Returning from a follow verify link shows the followed state | anon | /co/<allowlisted-slug>?followed=1 | signed-out | no | uncovered | — |
-| J-ALERTS-30 | Signed-in Follow toggles to Unfollow and back @writes | signed-in | /co/<allowlisted-slug> | signed-in | yes | uncovered | — |
 | J-ALERTS-31 | Follow-alerts bell lists new roles at followed companies | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
 | J-ALERTS-32 | Email preferences digest switch toggles @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-ALERTS-33 | Signed-out /settings redirects to login | anon | /settings?tab=account | signed-out | no | uncovered | — |
-| J-ALERTS-34 | Unsubscribe link with no token shows a 400 page | anon | GET /unsubscribe | signed-out | no | uncovered | — |
+| J-ALERTS-34 | Unsubscribe link with no token shows a 400 page (merged: J-ERR-16) | anon | GET /unsubscribe | signed-out | no | uncovered | — |
 | J-ALERTS-35 | Unsubscribe link with an invalid token shows a 400 page | anon | GET /unsubscribe?token=bogus | signed-out | no | uncovered | — |
 | J-ALERTS-36 | POST /unsubscribe without a token returns 400 JSON | anon | POST /unsubscribe | signed-out | no | uncovered | — |
 | J-ALERTS-37 | Undo-unsubscribe POST without a token returns the missing-token page | anon | POST /unsubscribe/undo | signed-out | no | uncovered | — |
@@ -515,8 +504,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-OAUTH-01 | See "Can't connect this agent" when authorize params are missing or invalid | anon | /oauth/authorize | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /oauth/authorize has a non-empty title that differs from the homepage) |
-| J-OAUTH-02 | See the "Sign in to continue" card on a valid authorize request (no redirect), sign in on the Sign in tab (Google or passkey, or any sign-in with a résumé on file), and return to consent with the request intact (résumé-less and signup returns: J-OAUTH-19) | agent | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
+| J-OAUTH-01 | See "Can't connect this agent" when authorize params are missing or invalid (merged: J-AUTH-38) | anon | /oauth/authorize | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /oauth/authorize has a non-empty title that differs from the homepage) |
+| J-OAUTH-02 | See the "Sign in to continue" card on a valid authorize request (no redirect), sign in on the Sign in tab (Google or passkey, or any sign-in with a résumé on file), and return to consent with the request intact (résumé-less and signup returns: J-OAUTH-19) (merged: J-AUTH-37) | agent | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
 | J-OAUTH-03 | See the consent card with client name and destination host | signed-in | /oauth/authorize?client_id=…&… | signed-in | yes | uncovered | — |
 | J-OAUTH-04 | Allow the agent and be redirected with a code and state @writes | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | yes | uncovered | — |
 | J-OAUTH-05 | Deny the agent and be redirected with access_denied | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
@@ -529,7 +518,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-OAUTH-12 | Call /api/mcp with no bearer and get a 401 challenge | agent | GET /api/mcp | signed-out | no | uncovered | — |
 | J-OAUTH-13 | List the 15 MCP tools with a valid bearer | agent | POST /api/mcp (tools/list) | signed-out | no | uncovered | — |
 | J-OAUTH-14 | Hit the MCP rate limit and get a 429 with Retry-After | agent | POST /api/mcp | signed-out | no | uncovered | — |
-| J-OAUTH-15 | Generate a manual token in Settings and see it once @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
+| J-OAUTH-15 | Generate a manual token in Settings and see it once (J-OAUTH-16 revokes it) (merged: J-SETTINGS-21) @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-16 | Revoke a connected agent from Settings @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-17 | Read the agent-facing entity card at /llms.txt | agent | GET /llms.txt | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-005: /llms.txt returns 200 and names the MCP endpoint) |
 | J-OAUTH-18 | Lose the approval when the session expires between render and Allow | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
@@ -544,8 +533,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONTENT-04 | Read the Indeed alternative page and follow its links | anon | /indeed-alternative | signed-out | no | uncovered | — |
 | J-CONTENT-05 | Read the LinkedIn Jobs alternative page | anon | /linkedin-jobs-alternative | signed-out | no | uncovered | — |
 | J-CONTENT-06 | Read the Eluta alternative page | anon | /eluta-alternative | signed-out | no | uncovered | — |
-| J-CONTENT-07 | View market trends with live stats | anon | /trends | signed-out | no | uncovered | — (legacy: trends.spec.ts › TC-TRENDS-001: hero stats, top countries, freshness, and ghost radar all render real numbers) |
-| J-CONTENT-08 | Open /trends and get the trends page route | anon | /trends | signed-out | no | uncovered | — (legacy: trends.spec.ts › TC-TRENDS-002: /trends route renders the trends page) |
+| J-CONTENT-07 | View market trends with live stats (merged: J-CONTENT-08) | anon | /trends | signed-out | no | uncovered | — (legacy: trends.spec.ts › TC-TRENDS-001: hero stats, top countries, freshness, and ghost radar all render real numbers) |
 | J-CONTENT-09 | See the 14-day market pulse day bars | anon | /trends | signed-out | no | uncovered | — (legacy: trends.spec.ts › TC-TRENDS-003: market pulse section renders the 14-day posted series as day bars) |
 | J-CONTENT-10 | See the trends failure state when market data is down | anon | /trends | signed-out | no | uncovered | — |
 | J-CONTENT-11 | Click the live-count link under the /jobs results list (`search-live-count`) to reach /trends | anon | /jobs (end of the results list) | signed-out | no | uncovered | — (legacy: trends.spec.ts › TC-TRENDS-004: TopBar live-count ticker is visible on /jobs at desktop viewport and links to /trends) |
@@ -582,7 +570,6 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-NAV-01 | Land on / and be redirected to /jobs | anon | / | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-007: Direct URL access to all pages) |
-| J-NAV-02 | Search from the old home with ?q and land on /jobs with the query | anon | /?q=bogus-zzz | signed-out | no | uncovered | — |
 | J-NAV-03 | Hit /?signin=1 and be sent to /login | anon | /?signin=1 | signed-out | no | uncovered | — |
 | J-NAV-04 | See only logo, Sign in and Create account in the signed-out desktop TopBar | anon | /trends | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-001: Home page loads successfully) |
 | J-NAV-05 | Open the auth popover from Sign in and from Create account | anon | /trends | signed-out | no | uncovered | — |
@@ -595,14 +582,12 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-12 | Sign out from the account menu | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-13 | Share Velai from the account menu | signed-in | /trends | signed-in | no | uncovered | — |
 | J-NAV-14 | Send feedback from the account menu @writes | signed-in | /trends | signed-in | yes | uncovered | — |
-| J-NAV-15 | Use the four-tab mobile bar and see the active tab | anon | /jobs (390x844) | signed-out | no | uncovered | — |
-| J-NAV-16 | Hide the mobile bar at desktop width | anon | /jobs (1280x800) | signed-out | no | uncovered | — |
 | J-NAV-17 | Tap the guest mobile Account tab and be sent to login | anon | /jobs (390x844) | signed-out | no | uncovered | — |
 | J-NAV-18 | Hit gated /settings signed out and be sent to login with next | anon | /settings | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-007: Direct URL access to all pages) |
 | J-NAV-19 | Go back after a gated redirect and return to /jobs | anon | / | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-009: Back button navigation works) |
 | J-NAV-20 | Follow the /account shortcut to settings account tab | anon | /account | signed-out | no | uncovered | — |
 | J-NAV-21 | Follow /dashboard to /jobs | anon | /dashboard | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-008: Dashboard redirect works) |
-| J-NAV-22 | Follow legacy resume routes to /yours | anon | /resume-builder | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-010: Resume builder/tailor routes permanently redirect to /yours) |
+| J-NAV-22 | Follow the legacy résumé routes /resume-builder and /resume-tailor to /yours (merged: J-RESUME-24) | anon | /resume-builder | signed-out | no | uncovered | — (legacy: navigation.spec.ts › TC-NAV-010: Resume builder/tailor routes permanently redirect to /yours) |
 | J-NAV-23 | Follow the /applications and /prep legacy redirects (to /yours and /jobs) | anon | /applications | signed-out | no | uncovered | — |
 | J-NAV-24 | See the full footer links on a content page and follow each | anon | /trends | signed-out | no | uncovered | — |
 | J-NAV-25 | See the lean footer on /jobs | anon | /jobs | signed-out | no | uncovered | — |
@@ -645,14 +630,12 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ERR-06 | Get a 404 for /mock routes on prod | anon | /mock/empty-states | signed-out | no | uncovered | — (legacy: states-empty.spec.ts › mock empty surface: ${surface}) |
 | J-ERR-07 | Hit a bogus job slug and see the not-found UI | anon | /jobs/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-08 | Get a real 404 status for a bogus job slug | agent | /jobs/bogus-zzz | signed-out | no | uncovered | — |
-| J-ERR-09 | Hit a bogus company slug on /co | anon | /co/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-10 | Get a real 404 status for a bogus /co slug | agent | /co/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-11 | See the empty company state and search for the name | anon | /companies/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-12 | Hit /watch/<id> signed out and see the login wall | anon | /watch/bogus | signed-out | no | uncovered | — |
 | J-ERR-13 | See the route error boundary and recover | anon | (no prod trigger) | signed-out | no | uncovered | — |
 | J-ERR-14 | See the global error boundary and reload | anon | (no prod trigger) | signed-out | no | uncovered | — |
 | J-ERR-15 | Get a bare 403 from a non-GET API call with no User-Agent | agent | POST /api/contact | signed-out | no | uncovered | — |
-| J-ERR-16 | Open /unsubscribe with no token | anon | /unsubscribe | signed-out | no | uncovered | — |
 | J-ERR-17 | Reload a 404 deep link and stay on the 404 | anon | /careers/bogus-zzz | signed-out | no | uncovered | — |
 | J-ERR-18 | Non-admin signed-in user opening /admin is redirected home | signed-in | /admin | signed-in | no | uncovered | — |
 
