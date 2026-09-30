@@ -87,7 +87,7 @@ export function shouldResetSortOnQueryChange(nextQuery: string, sortOverride: Jo
  * `parseJobsUrl`/`serializeJobsUrl` below), it's just no longer the DEFAULT
  * a bare `/jobs` visit lands on.
  *
- * 90 days, not 30 (2026-09-30, approved): a count on prod found 99.9% of
+ * 90 days, not 30 (2026-09-30): a count on prod found 99.9% of
  * 2.76M live scraped roles in the index, but a typed search under the
  * default filters reached only ~790k of them; the 30-day window alone
  * dropped ~1.15M posted earlier. 90 days brings back ~730k open roles and
@@ -110,6 +110,18 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     companyDomain: null,
     homeView: null,
 };
+
+/**
+ * The window For you packs, their pill counts and the résumé-ranked list use:
+ * 30 days, narrower than the board's 90-day default. A pack is a
+ * recommendation, where a fresh role matters more than reach. On the pack
+ * audit against the golden résumés (2026-09-30), the 90-day window put a
+ * 31-90 day old exact-title twin into the top 3 of 13 of 24 tiles, in place
+ * of a role posted days ago. A pack's "Edit filters" link carries
+ * `posted=30d`, so the board it opens lists the same roles. The "fresh" tile
+ * narrows further, to 7 days (hub-tiles.ts).
+ */
+export const PACK_POSTED_BUCKET: PostedBucket = "30d";
 
 /**
  * A `company` param's canonical form. Lower/trimmed to match how the filter

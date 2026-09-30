@@ -1,7 +1,7 @@
 /**
  * Corpus-scale Meilisearch counts for hub pack pills — same live-vacancy +
  * hide-ghosts + places baseline as `getCachedDefaultBrowse`, in the same
- * posted window as the list a pill opens (`DEFAULT_URL_STATE.postedBucket`),
+ * posted window as the list a pill opens (`PACK_POSTED_BUCKET`, url-state.ts),
  * never browse page hits. A pill counting all-time beside a 30-day list is
  * two filter states under one label.
  *
@@ -21,7 +21,7 @@ import {
 } from "@/lib/jobs/meilisearch";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PlaceClause } from "@/lib/jobs/types";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
-import { DEFAULT_URL_STATE } from "@/lib/jobs/url-state";
+import { PACK_POSTED_BUCKET } from "@/lib/jobs/url-state";
 
 const HAS_SALARY_FILTER =
     "(salary_min > 0 OR salary_max > 0 OR normalized_salary_min > 0 OR normalized_salary_max > 0)";
@@ -75,7 +75,7 @@ const HAYSTACK_ATTRIBUTES = ["title", "tags", "company"] as const;
 function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
     return {
         hideGhosts: true,
-        postedBucket: DEFAULT_URL_STATE.postedBucket,
+        postedBucket: PACK_POSTED_BUCKET,
         places,
         limit: 0,
         offset: 0,
