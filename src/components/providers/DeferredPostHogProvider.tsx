@@ -15,12 +15,9 @@ export function DeferredPostHogProvider({ children }: { children: React.ReactNod
 
     useEffect(() => scheduleAfterLoadOrIdle(() => setReady(true), { timeout: 8000 }), []);
 
-    // Beside the page, never around it (see DeferredAuthKitProvider): nothing
-    // reads its React context, analytics go through the posthog singleton.
-    return (
-        <>
-            {children}
-            {ready ? <PostHogProvider>{null}</PostHogProvider> : null}
-        </>
-    );
+    if (!ready) {
+        return <>{children}</>;
+    }
+
+    return <PostHogProvider>{children}</PostHogProvider>;
 }

@@ -30,14 +30,9 @@ export function DeferredAuthKitProvider({ children }: { children: React.ReactNod
         };
     }, []);
 
-    // Beside the page, never around it: swapping the element above children
-    // when it loaded remounted the whole page (a blank flash, open dialogs and
-    // the role stack reset). Nothing on the client reads its context; it only
-    // keeps the session fresh.
-    return (
-        <>
-            {children}
-            {ready ? <AuthKitProvider>{null}</AuthKitProvider> : null}
-        </>
-    );
+    if (!ready) {
+        return <>{children}</>;
+    }
+
+    return <AuthKitProvider>{children}</AuthKitProvider>;
 }
