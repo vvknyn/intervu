@@ -23,6 +23,7 @@ import {
     parseResumeFileForReview,
     PROFILE_REVIEW_UNREADABLE_ERROR,
 } from "@/lib/resume/profile-review-parse";
+import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import { buildReturnTo } from "@/lib/jobs/pending-actions";
 import {
     LANDING_DEVICE_STORAGE_NOTE,
@@ -157,7 +158,11 @@ export function LandingOnboardingView({
     const handleFileSelected = async (file: File) => {
         setUploadError(null);
         const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-        if (!["pdf", "docx", "doc"].includes(extension)) {
+        if (extension === "doc") {
+            setUploadError(LEGACY_DOC_MESSAGE);
+            return;
+        }
+        if (!["pdf", "docx"].includes(extension)) {
             setUploadError("Please upload a PDF or DOCX résumé, or paste your text below.");
             return;
         }
@@ -429,7 +434,7 @@ export function LandingOnboardingView({
                                     <input
                                         ref={fileInputRef}
                                         type="file"
-                                        accept=".pdf,.docx,.doc"
+                                        accept=".pdf,.docx"
                                         className="hidden"
                                         onChange={(e) => {
                                             const file = e.target.files?.[0];

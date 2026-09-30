@@ -28,12 +28,13 @@ describe("follow alerts bell relocation", () => {
         assert.match(src, /topbar-follow-alerts/);
     });
 
-    it("bell uses Popover, cursor ack, and elite board CTA", () => {
+    it("bell uses Popover, cursor ack, and a manage-follows CTA (not the elite board)", () => {
         const src = readFileSync(BELL, "utf8");
         assert.match(src, /Popover/);
         assert.match(src, /writeFollowAlertCursor/);
         assert.match(src, /acknowledge/);
-        assert.match(src, /board=elite/);
+        assert.doesNotMatch(src, /board=elite/);
+        assert.match(src, /MANAGE_FOLLOWS_HREF/);
         assert.match(src, /follow-alerts-cta/);
         assert.match(src, /useFollows/);
     });

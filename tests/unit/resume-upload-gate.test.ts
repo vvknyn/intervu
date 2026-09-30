@@ -51,8 +51,8 @@ test("Edit, PDF, and sync are explicit resume auth clicks, not auto nudges", () 
 });
 
 test("résumé masthead uses display PageHeader so mobile shows the full hero title", () => {
-    assert.match(SOURCE, /function ResumeHeader\(\)/);
-    const headerStart = SOURCE.indexOf("function ResumeHeader()");
+    assert.match(SOURCE, /function ResumeHeader\(/);
+    const headerStart = SOURCE.indexOf("function ResumeHeader(");
     const headerEnd = SOURCE.indexOf("function ResumeAuthSkeleton", headerStart);
     const headerBlock = SOURCE.slice(headerStart, headerEnd);
     assert.match(headerBlock, /size="display"/);
