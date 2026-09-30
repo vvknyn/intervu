@@ -4,7 +4,7 @@ A readable map of the journeys in [CATALOG.md](CATALOG.md), grouped by where a v
 
 ## Where job lists appear
 
-**The rule the product is moving to:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Bare /jobs becomes a front door with no rows (upload a résumé, sign in, or search). Typed search stays open to guests: the first 90 rows, then a sign-in card. A guest with a résumé sees their top 3 matches, then a sign-in card. Company and job pages stay public. **Live on staging:** guest search with the sign-in card after 90 rows (J-JOBS-06), a guest's top 3 matches and then the sign-in card (J-JOBS-34), and public company and job pages. **In flight:** the For you gate PR #711 (For you needs an account: a signed-out visitor gets one sign-in card instead of job packs; bare /jobs becomes the front door with no rows and a live count of the week's roles; a résumé on file opens Search on the résumé-ranked list, a guest's top 3 then the sign-in card) and the search relevance PR (typed search covers 90 days instead of 30, newer roles first among equally good matches, and a country search stops listing remote roles tagged to a city elsewhere). **Not live until #711 ships:** the front door; bare /jobs still lists the newest roles in the visitor's country (J-JOBS-01).
+**The rule the product is moving to:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Bare /jobs becomes a front door with no rows (upload a résumé, sign in, or search). Typed search stays open to guests: the first 90 rows, then a sign-in card. A guest with a résumé sees their top 3 matches, then a sign-in card. Company and job pages stay public. **Live on staging:** guest search with the sign-in card after 90 rows (J-JOBS-06), a guest's top 3 matches and then the sign-in card (J-JOBS-34), and public company and job pages. **In flight:** the For you gate PR #711 (For you needs an account: a signed-out visitor gets one sign-in card instead of job packs; bare /jobs becomes the front door with no rows and a live count of the week's roles; a résumé on file opens Search on the résumé-ranked list, a guest's top 3 then the sign-in card) and the search relevance PR (typed search covers 90 days instead of 30, newer roles first among equally good matches, and a country search stops listing remote roles tagged to a city elsewhere; packs and the résumé-ranked list keep 30 days, because on the pack audit 90 days put an older copy of the same title into the top 3 of 13 of 24 tiles). **Not live until #711 ships:** the front door; bare /jobs still lists the newest roles in the visitor's country (J-JOBS-01).
 
 Today (staging): what a visitor sees arriving on /jobs. Red: a job list with no reason behind it; green: a list with a reason; blue: what #711 changes; tan: a sign-in card.
 
@@ -44,17 +44,17 @@ flowchart TD
   B -- no --> C{Résumé saved<br/>in this browser?}
   C -- no --> D["Front door, no job rows<br/>Upload résumé · Sign in · Search jobs<br/>live count: roles posted this week"]:::new
   C -- yes --> I
-  D -- uploads résumé --> R["Review résumé<br/>(stays on this device)"]:::same --> I["Their top 3 matches<br/>best fit first, newest first among equals"]:::new
+  D -- uploads résumé --> R["Review résumé<br/>(stays on this device)"]:::same --> I["Their top 3 matches<br/>best fit first, last 30 days"]:::new
   I --> G2["Sign-in card:<br/>See all N matches"]:::gate
-  D -- Search jobs<br/>(advanced search) --> F["Results for their search<br/>best match, then newest · first 90"]:::new
-  F -- scrolls past 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
+  D -- Search jobs<br/>(advanced search) --> F["Results for their search, last 90 days<br/>best match, newest first among equals<br/>a guest sees the first 90 rows"]:::new
+  F -- scrolls past row 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
   B -- yes --> J{Résumé on file?}
   J -- no --> K["Résumé card:<br/>Upload or Skip"]:::same
-  K -- Skip --> L["Search, no rows until they search<br/>Add your résumé to see matches"]:::new
+  K -- Skip --> L["Search, no rows until they search<br/>Add your résumé to see the roles that fit you"]:::new
   K -- Upload --> M
-  J -- yes --> M["For you: job packs<br/>best fit, newest first"]:::same
+  J -- yes --> M["For you: job packs<br/>best fit, last 30 days"]:::same
   M -- Advanced search --> N["Search opens on<br/>the roles that fit you"]:::new
-  L -- searches --> F2["Results, no limit<br/>best match, then newest"]:::new
+  L -- searches --> F2["Results, no limit, last 90 days<br/>best match, newest first among equals"]:::new
   N -- searches --> F2
   G1 -- signs up --> F2
   G2 -- signs up --> M
