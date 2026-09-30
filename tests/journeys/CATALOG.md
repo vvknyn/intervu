@@ -204,6 +204,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-34 | A role in your tracker says where it stands under the job's actions ("In your tracker: Applied · applied 2d ago"), and "Update status" opens that role in the tracker, where its status is changed | anon | guest tracker seeded with an applied role + `/jobs?q=engineer&posted=any`, open that role (desktop pane and phone sheet) | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-35 | A role you don't track shows no tracker line | anon | `/jobs?q=engineer&posted=any`, open a role | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-36 | A guest's tracked role opened on its own job page shows the tracker line and the filled bookmark, with no hydration error (the server renders it untracked; the page fills it in after load) | anon | `/jobs?q=engineer&posted=any`, track the first role in the guest tracker, open its /jobs/[slug] page | signed-out | no | covered | job-tracked-stage.spec.ts |
 
 ## APPLY
 
@@ -518,7 +521,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-CONNECT-01 | Open /connect signed out and see the hero and the Universal MCP Server column | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-02 | Follow the signed-out "Sign in to velai" step to /login with a return path | anon | /connect | signed-out | no | uncovered | — |
+| J-CONNECT-02 | Follow the signed-out "1. Sign in to velai" step to /login with next=/connect | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-03 | Signed in, the "Sign in to velai" step is absent and the endpoint step remains | signed-in | /connect | signed-in | no | uncovered | — |
 | J-CONNECT-04 | See the MCP endpoint URL on the page | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-003: the connect URL is visible) |
 | J-CONNECT-05 | Copy the MCP endpoint with the Copy button | anon | /connect | signed-out | no | uncovered | — |
@@ -531,7 +534,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-12 | Open "Raw JSON config" and copy the mcpServers snippet | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-14 | Open the FAQ and see only one answer expanded at a time | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-15 | Open "Permissions and privacy" and read the three guarantees | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-004: the never-applies-without-you promise is present) |
+| J-CONNECT-15 | Open "Permissions and privacy" and read what a connected AI can do as you (search; read and replace your résumé; read and update your tracker; read and change your preferences) and what it can't (submit an application, see anyone else's data); no "Read-only search" | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-17 | Copy the one-line Mac install command in the OpenClaw column | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-18 | Join the Windows/Linux waitlist with an email @writes | anon | /connect | signed-out | yes | uncovered | — |
@@ -540,6 +543,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-21 | Open /connect/help and jump to a section anchor | anon | /connect/help#gateway | signed-out | no | uncovered | — |
 | J-CONNECT-22 | See the loading skeleton while /connect streams | anon | /connect (slow network) | signed-out | no | uncovered | — |
 | J-CONNECT-23 | Reach the orphan /openclaw page directly | anon | /openclaw | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /openclaw has a non-empty title that differs from the homepage) |
+| J-CONNECT-24 | Create account from /connect's sign-in (Continue with Google) goes to /auth/start with next=/connect, not the résumé upload at /jobs?resume=gate | anon | /login?next=/connect, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## OAUTH
 
@@ -563,6 +567,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-OAUTH-16 | Revoke a connected agent from Settings @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-17 | Read the agent-facing entity card at /llms.txt | agent | GET /llms.txt | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-005: /llms.txt returns 200 and names the MCP endpoint) |
 | J-OAUTH-18 | Lose the approval when the session expires between render and Allow | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
+| J-OAUTH-19 | Create account in front of an agent approval (/login?next=<authorize request>) goes to /auth/start with that request as next, not the résumé upload, so the approval isn't lost | anon | /login?next=/oauth/authorize?…, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## CONTENT
 
