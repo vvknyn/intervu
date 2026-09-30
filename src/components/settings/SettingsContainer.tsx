@@ -20,11 +20,11 @@ import { AgentAccessSection } from "@/components/settings/AgentAccessSection";
 import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesSection";
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { LandingNotice } from "@/components/layout/LandingNotice";
+import { FollowedCompaniesSection } from "@/components/settings/FollowedCompaniesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
 import { SETTINGS_LOCAL_AI_INTRO } from "@/lib/jobs/resume-privacy-copy";
 import { cn } from "@/lib/utils";
-import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 
 type AccountTab = "resume" | "prefs" | "account";
 
@@ -202,7 +202,7 @@ export function SettingsContainer() {
                 {tab === "account" && (
                     <>
                         <SettingsCard>
-                            <h2 className="mb-1 text-base font-semibold leading-snug">{AUTH_CTA_LABEL}</h2>
+                            <h2 className="mb-1 text-base font-semibold leading-snug">Sign-in details</h2>
                             <p className="mb-4 text-sm text-muted-foreground">
                                 Email is how we reach you for resets. Password stays with you.
                             </p>
@@ -233,6 +233,10 @@ export function SettingsContainer() {
 
                         <SettingsCard>
                             <EmailPreferencesSection user={user} />
+                        </SettingsCard>
+
+                        <SettingsCard>
+                            <FollowedCompaniesSection />
                         </SettingsCard>
 
                         <SettingsCard>
