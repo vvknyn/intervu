@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { hubPackCorpusParams } from "../../src/lib/jobs/for-you/hub-pack-corpus";
-import { HUB_PACK_IDS } from "../../src/lib/jobs/for-you/hub-pack-filters";
+import { BROWSE_HUB_PACK_IDS } from "../../src/lib/jobs/for-you/hub-pack-filters";
 import { DEFAULT_URL_STATE } from "../../src/lib/jobs/url-state";
 import { FRESHNESS_BUCKETS } from "../../src/lib/jobs/posting-age-buckets";
 
@@ -11,7 +11,7 @@ import { FRESHNESS_BUCKETS } from "../../src/lib/jobs/posting-age-buckets";
 describe("hub pack pills count inside the board's posted window", () => {
     const rank = (b: string) => (FRESHNESS_BUCKETS as readonly string[]).indexOf(b);
     const boardRank = rank(DEFAULT_URL_STATE.postedBucket!);
-    for (const packId of HUB_PACK_IDS) {
+    for (const packId of BROWSE_HUB_PACK_IDS) {
         it(`${packId} carries a posted window no wider than the board default`, () => {
             const bucket = hubPackCorpusParams(packId, undefined).postedBucket;
             assert.ok(bucket, `${packId} has no posted window (counts all-time)`);
