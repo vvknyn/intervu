@@ -53,6 +53,7 @@ import {
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { jobCountries } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
+import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { buildMatchQuery, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -76,6 +77,10 @@ export interface MatchScore {
     /** 0-100 integer. */
     total: number;
     components: MatchComponent[];
+    /** How the posting's title relates to the roles the résumé names (`roleAffinity`). */
+    role?: RoleAffinity;
+    /** The candidate's own role as the résumé names it: the one the posting matched, else their main one. */
+    yourRole?: string | null;
 }
 
 /**
@@ -293,15 +298,25 @@ export function levelUnverified(signals: CandidateSignals, job: PublicJob): bool
     return signals.seniority.value != null && isUnknownFacetValue("experience_level", job.experience_level);
 }
 
-/** Per résumé object: the role families it targets and the titles its packs search for. */
-const TARGETS = new WeakMap<ResumeData, { families: RoleFamilyId[]; searched: string[] }>();
+interface ResumeTargets {
+    families: RoleFamilyId[];
+    searched: string[];
+    own: string[];
+    ownFamilies: RoleFamilyId[];
+}
 
-function resumeTargets(resume: ResumeData): { families: RoleFamilyId[]; searched: string[] } {
+/** Per résumé object: the role families it targets, the titles its packs search for, and its own role. */
+const TARGETS = new WeakMap<ResumeData, ResumeTargets>();
+
+function resumeTargets(resume: ResumeData): ResumeTargets {
     let targets = TARGETS.get(resume);
     if (!targets) {
+        const roles = targetRoles(resume);
         targets = {
-            families: targetRoles(resume).families,
+            families: roles.families,
             searched: buildMatchQuery(resume).phrases.map((phrase) => phrase.toLowerCase()),
+            own: roles.own,
+            ownFamilies: roles.ownFamilies,
         };
         TARGETS.set(resume, targets);
     }
@@ -329,6 +344,57 @@ export function roleFit(resume: ResumeData, job: PublicJob): RoleFit {
     const jobFamilies = familiesNamedBy([job.title ?? ""]);
     if (jobFamilies.length === 0 || families.length === 0) return "unverified";
     return jobFamilies.some((family) => families.includes(family)) ? "target" : "off-target";
+}
+
+/**
+ * How close a posting's title is to the candidate's own role, closest first:
+ *  - `own`: the title is a role the candidate calls themselves (their headline,
+ *    current role, or the title their summary opens with — `targetRoles().own`),
+ *    whatever the rank words: "Sr. Technical Account Manager, Enterprise" for a TAM;
+ *  - `family`: the title names the same kind of role as theirs (a Backend
+ *    Engineer posting for a software engineer);
+ *  - `adjacent`: a role the pack also searched for but a different kind of job
+ *    (a Product Manager posting for a TAM);
+ *  - `unverified` / `off-target`: as `roleFit`.
+ *
+ * Ranked lists put the candidate's own role first (`roleTier`). Before this,
+ * every searched title counted the same, so a TAM's list was led by senior
+ * Product Manager postings that tied on title words and won on level.
+ */
+export type RoleAffinity = "own" | "family" | "adjacent" | "unverified" | "off-target";
+
+export function roleAffinity(resume: ResumeData, job: PublicJob): RoleAffinity {
+    const fit = roleFit(resume, job);
+    if (fit === "off-target") return fit;
+    const { own, ownFamilies } = resumeTargets(resume);
+    const title = job.title ?? "";
+    if (own.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "own";
+    if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
+    return fit === "target" ? "adjacent" : fit;
+}
+
+/** The candidate's role a posting is explained against: the own title it matched, else their first one. */
+function yourRoleFor(resume: ResumeData, job: PublicJob): string | null {
+    const { own } = resumeTargets(resume);
+    return own.find((phrase) => jobTitleMatchesTarget(job.title ?? "", phrase)) ?? own[0] ?? null;
+}
+
+const ROLE_TIERS: readonly RoleAffinity[] = ["own", "family", "adjacent", "unverified", "off-target"];
+
+/**
+ * Sort key for a ranked list, before the band and the score: the candidate's own
+ * role, then the same kind of role, then neighbours, then the rest. A score
+ * without a role (built before roles were scored) sits with the neighbours; no
+ * score at all sorts last.
+ */
+export function roleTier(score: MatchScore | null | undefined): number {
+    if (!score) return ROLE_TIERS.length;
+    return ROLE_TIERS.indexOf(score.role ?? "adjacent");
+}
+
+/** Ranked-list order: role tier, then the higher total. Stable sorts keep the incoming order on a tie. */
+export function compareFit(a: MatchScore | null | undefined, b: MatchScore | null | undefined): number {
+    return roleTier(a) - roleTier(b) || (b?.total ?? -1) - (a?.total ?? -1);
 }
 
 /**
@@ -363,16 +429,21 @@ export function scoreJobAgainstResume(
 ): MatchScore | null {
     const overlap = scoreRelevance(resume, job);
     if (!overlap) return null;
-    const fit = roleFit(resume, job);
-    const offTarget = fit === "off-target";
-    const relevance = offTarget ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` } : overlap;
+    const role = roleAffinity(resume, job);
+    const yourRole = yourRoleFor(resume, job);
+    const offTarget = role === "off-target";
+    const relevance = offTarget
+        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` }
+        : role === "adjacent"
+          ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job` }
+          : overlap;
 
     const components = [relevance, scoreSeniority(signals, job), scoreLocation(signals, job)];
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
 
-    if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components };
-    const capped = locationUnknown || levelUnverified(signals, job) || fit === "unverified";
-    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components };
+    if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole };
+    const capped = locationUnknown || levelUnverified(signals, job) || role === "unverified" || role === "adjacent";
+    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components, role, yourRole };
 }

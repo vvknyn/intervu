@@ -110,11 +110,42 @@ function summaryLeadTitle(summary: string): string {
     return first.split(/\s+(?:with|who|having|driving|focused)\b|,/i)[0]?.trim() ?? "";
 }
 
+/** Self-description a summary's first title can open with ("Experienced software engineer"). */
+const LEAD_ADJECTIVES = /^(?:(?:highly|seasoned|experienced|accomplished|results-driven|dedicated|passionate|skilled|certified|versatile|strategic|motivated)\s+)+/i;
+
+/** "Technical Account Manager and client-facing product owner" → the two titles it joins. */
+function joinedTitles(phrase: string): string[] {
+    return phrase
+        .split(/\s+(?:and|&)\s+/i)
+        .map((part) => part.trim())
+        .filter(Boolean);
+}
+
+/**
+ * The families `phrases` name, in the order the phrases name them. A summary
+ * that opens "Technical Account Manager and client-facing product owner" is
+ * customer success first, product second; `familiesNamedBy` alone returns its
+ * own fixed family order, which put product first and filled a TAM's pack with
+ * Product Manager roles.
+ */
+function familiesInOrder(phrases: string[]): RoleFamilyId[] {
+    return [...new Set([...phrases.flatMap(joinedTitles).flatMap((part) => familiesNamedBy([part])), ...familiesNamedBy(phrases)])];
+}
+
 export interface TargetRoles {
     /** Role titles in the candidate's own words: the headline they wrote, then their current role. */
     phrases: string[];
     /** Role families the headline, summary, skill groups and current role name, strongest first. */
     families: RoleFamilyId[];
+    /**
+     * The roles the candidate calls themselves: `phrases` plus the title their
+     * summary opens with ("Senior Customer Success and Technical Account
+     * Manager…" → Customer Success). A posting with one of these titles is their
+     * own role; one that only shares a family with them is a neighbour.
+     */
+    own: string[];
+    /** The families `own` names, strongest first. */
+    ownFamilies: RoleFamilyId[];
 }
 
 /**
@@ -139,13 +170,21 @@ export function targetRoles(resume: ResumeData): TargetRoles {
     const categories = (resume?.competencies ?? []).map((group) => (group?.category ?? "").trim()).filter(Boolean);
     const families = [
         ...new Set([
-            ...familiesNamedBy(headline),
-            ...familiesNamedBy(lead ? [lead] : []),
-            ...familiesNamedBy(categories),
-            ...familiesNamedBy(currentTitle ? [currentTitle] : []),
+            ...familiesInOrder(headline),
+            ...familiesInOrder(lead ? [lead] : []),
+            ...familiesInOrder(categories),
+            ...familiesInOrder(currentTitle ? [currentTitle] : []),
         ]),
     ];
-    return { phrases, families };
+
+    // Only the title the summary OPENS with is the candidate's own: in "Technical
+    // Account Manager and client-facing product owner" the second half describes
+    // the job, it is not a second job they are after.
+    const leadTitle = cleanRoleTitle((joinedTitles(lead)[0] ?? "").replace(LEAD_ADJECTIVES, ""));
+    const leadIsTitle = Boolean(leadTitle) && isRoleTitlePhrase(leadTitle) && familiesNamedBy([leadTitle]).length > 0;
+    const own = [...phrases];
+    if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
+    return { phrases, families, own, ownFamilies: familiesInOrder(own) };
 }
 
 /**

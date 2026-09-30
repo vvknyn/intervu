@@ -78,7 +78,7 @@ import {
     tieredSeamIndex,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { compareFit, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -2831,7 +2831,7 @@ export function JobsContent() {
         return Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null;
     }, [resumeUpdatedAt]);
 
-    // `sort=fit`'s visible order: a stable resort of `clusters` by the same
+    // `sort=fit`'s visible order: a stable resort of `clusters` by role tier, then the same
     // per-job score above, applied client-side only while `fitActive`. This
     // is layered ON TOP of `clusters` rather than folded into the
     // `hits`/`displayHits`/`seamIndex` pipeline above — that machinery still
@@ -2854,9 +2854,7 @@ export function JobsContent() {
         const ranked =
             !fitActive || !matchScores
                 ? clusters
-                : [...clusters].sort(
-                      (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
-                  );
+                : [...clusters].sort((a, b) => compareFit(matchScores.get(a.primary.id), matchScores.get(b.primary.id)));
         if (!rowTileOpen) return ranked;
         const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
         return ranked.filter((c) => keep.has(c.primary.id));
