@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 
@@ -265,4 +266,42 @@ test("account menu Feedback: the menu closes, the dialog and its Type picker tak
   await page.getByTestId("topbar-avatar").click();
   await expect(feedback).toBeVisible();
   // No pageErrors check: the fake sign-in lands before hydration, so the header always logs a hydration mismatch.
+});
+
+// A draft is tailored to one role. Accept used to write it over the résumé every other role ranks and
+// tailors from, so one Customize cost a guest their own résumé (2026-09-30).
+test("Customize résumé leaves the guest's résumé as it was: the draft is copied or downloaded, never saved over it", { tag: ["@J-MODAL-06"] }, async ({ page, diagnostics }) => {
+  await page.addInitScript(
+    ([onboardingKey, enabledKey, resumeKey, resume]) => {
+      localStorage.setItem(onboardingKey as string, "1");
+      // On-device mode on: the old Accept also wrote the draft into this browser's stored résumé.
+      localStorage.setItem(enabledKey as string, "1");
+      localStorage.setItem(resumeKey as string, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
+    },
+    [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, GUEST_RESUME] as const,
+  );
+  await page.goto("/jobs?view=search&q=engineer");
+  await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
+  const open = page.locator('[data-testid="local-customize-open"]:visible').first();
+  // By name: on a phone the job sheet is a dialog too.
+  const dialog = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
+
+  for (const pass of ["first", "second"]) {
+    await open.click({ timeout: 15_000 });
+    await settled(dialog);
+    await dialog.getByRole("button", { name: "Use a rules draft" }).click();
+    await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
+    // The draft starts from the guest's own summary every time, not from an earlier role's draft.
+    const before = dialog.getByTestId("local-customize-section-summary").locator("p", { hasText: "Before:" });
+    await expect(before, `${pass} draft`).toHaveText(`Before: ${GUEST_RESUME.generatedSummary}`);
+    const footer = dialog.getByTestId("local-customize-close").locator("..");
+    await expect(footer.getByRole("button")).toHaveText(["Close", "Copy", "Download PDF"]);
+    await dialog.getByTestId("local-customize-close").click();
+    await expect(dialog).toBeHidden();
+  }
+
+  const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), LOCAL_AI_RESUME_KEY);
+  expect(stored?.data?.generatedSummary).toBe(GUEST_RESUME.generatedSummary);
+  expect(stored?.data?.experience?.[0]?.description).toBe(GUEST_RESUME.experience[0].description);
+  expect(diagnostics.pageErrors).toEqual([]);
 });

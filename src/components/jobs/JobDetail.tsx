@@ -320,7 +320,6 @@ export function JobDetailActionBar({
     signedIn = true,
     className,
     resume,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
 }: {
@@ -346,7 +345,6 @@ export function JobDetailActionBar({
     className?: string;
     /** Local-AI résumé for on-device tailor — only passed by JobDetailDocument. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
 }) {
@@ -365,7 +363,6 @@ export function JobDetailActionBar({
                 <LocalCustomizePanel
                     job={job}
                     resume={resume}
-                    onAccept={onAcceptLocalTailor}
                     compactTrigger
                     signedIn={signedIn}
                     onSignInToSync={onSignInToSync}
@@ -460,7 +457,6 @@ export function JobDetail({
     descriptionPending,
     onRetryDescription,
     resume = null,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
     onSkip,
@@ -523,7 +519,6 @@ export function JobDetail({
     onRetryDescription?: () => void;
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
     /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
@@ -890,7 +885,6 @@ export function JobDetail({
                             <LocalCustomizePanel
                                 job={job}
                                 resume={resume}
-                                onAccept={onAcceptLocalTailor}
                                 signedIn={signedIn}
                                 onSignInToSync={onSignInToSync}
                             />
