@@ -2,13 +2,14 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/46/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -291,6 +292,34 @@ test("going back to the packs hub keeps the tile counts it had, without counting
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("signed out, the packs hub keeps a place for the tracker and Recently viewed under the tiles, with one sign-in gate back to the hub", { tag: ["@J-JOBS-46"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-card-all")).toBeVisible({ timeout: 30_000 });
+
+  const band = page.getByTestId("hub-your-jobs");
+  await expect(band).toBeVisible({ timeout: 30_000 });
+  await expect(band).toHaveAttribute("data-signed-in", "false");
+  // Under the tiles, not above them.
+  const tilesBottom = (await page.getByTestId("hub-pack-card-all").boundingBox())!.y;
+  expect((await band.boundingBox())!.y).toBeGreaterThan(tilesBottom);
+  for (const id of ["hub-tracker-placeholder", "hub-recent-placeholder"]) await expect(band.getByTestId(id)).toBeVisible();
+  // Placeholders only: no rows, loaders or empty states of a signed-in account.
+  await expect(band.getByTestId("hub-tracker-row")).toHaveCount(0);
+  await expect(band.getByTestId("hub-recent-row")).toHaveCount(0);
+
+  const gate = band.getByTestId("signup-gate");
+  await expect(gate).toHaveCount(1);
+  await expect(gate).toHaveAttribute("data-gate-reason", "tracker");
+  const signIn = new URL((await gate.getByTestId("signup-gate-signin").getAttribute("href"))!, "https://velai.app");
+  expect(signIn.pathname).toBe("/login");
+  expect(signIn.searchParams.get("next")).toMatch(/^\/jobs\?(.*&)?view=for-you/);
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /**
  * Every Server Action POST answers 503, in the browser only; nothing reaches
  * the origin. Returns a switch that lets actions through again (the fixture's
@@ -346,6 +375,53 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await expect(failed).toBeVisible({ timeout: 30_000 });
   await expect(rows).toHaveCount(0);
 
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+/**
+ * A pack's own search (it carries the pack's country) answers with what the server sends during a
+ * search outage: no rows, `unavailable`, and the place reported as unmatched, because the place
+ * check fails too. In the browser only; the action still runs, its answer is replaced. Returns a
+ * switch that lets the real answers through again.
+ */
+const answerPackSearchAsOutage = async (page: Page, country: string) => {
+  let failing = true;
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!failing || req.method() !== "POST" || !req.headers()["next-action"] || !(req.postData() ?? "").includes('"location_country"')) {
+      return route.fallback();
+    }
+    const res = await route.fetch();
+    // Row 0 is the action envelope (build id, "$@1"); row 1 carries the return value.
+    const envelope = (await res.text()).split("\n")[0];
+    const outage = { hits: [], total: 0, backend: "meilisearch", configured: true, unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE, searchId: "journey-outage", unmatchedPlaceMentions: [country] };
+    return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(outage)}\n` });
+  });
+  return () => {
+    failing = false;
+  };
+};
+
+test("a pack whose search is down shows the error with Retry, never 'No roles in <country>' or another list's roles", { tag: ["@J-JOBS-52"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  const recover = await answerPackSearchAsOutage(page, "Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+
+  // One automatic retry (2-4 s) runs first, then the failure shows. The outage answer names
+  // Canada as unmatched; the pack used to say "No roles in Canada yet." instead of the error.
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("for-you-no-roles-there")).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
+
+  // Search is back: Retry lists the pack's own roles.
   recover();
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });

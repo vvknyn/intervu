@@ -75,6 +75,9 @@ export interface ForYouHomeProps {
     fitActive: boolean;
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
+    /** A row the visitor deliberately opened (click or tap), not the one the
+     *  deck selects on its own — the page records it as a view. */
+    onOpenRow?: (job: PublicJob) => void;
     onRetryDescription?: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
     onHomeViewChange: (view: JobsHomeView) => void;
@@ -146,6 +149,7 @@ export function ForYouHome({
     onRetryLoad,
     hydratedJobs,
     onActivePackChange,
+    onOpenRow,
     onRetryDescription,
     onOpenPosting,
     onHomeViewChange,
@@ -173,7 +177,10 @@ export function ForYouHome({
     );
     // The list's search dropped every place the pack names, so its rows come from
     // anywhere. The pack's location is where the candidate can work: none of them fit.
-    const placesMissing = filters != null && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
+    // A failed read says nothing about where roles are: during a search outage the
+    // place check fails too and reports the place as dropped, so the error wins.
+    const placesMissing =
+        filters != null && !loadError && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
     const visiblePacks = placesMissing ? NO_PACKS : listedPacks;
     // The list's own search kept the place and found nothing there: the corpus has roles in it,
     // none of them this pack's. Name the place, not the generic "right now" empty state.
@@ -422,6 +429,8 @@ export function ForYouHome({
 
     const selectRow = (index: number) => {
         onActiveIndexChange(index);
+        const job = visiblePacks[index];
+        if (job) onOpenRow?.(job);
         if (window.matchMedia("(max-width: 1279px)").matches) {
             freezeListScroll.current = true;
             setPhoneRole(true);

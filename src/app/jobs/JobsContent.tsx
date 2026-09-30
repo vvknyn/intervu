@@ -51,10 +51,9 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
-import { recordJobViewAction } from "@/actions/views";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
-import { useViewed } from "@/lib/views/use-viewed";
+import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
@@ -170,6 +169,10 @@ import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorRetur
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 const CategoryHubGrid = dynamic(
     () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
+    { loading: () => null },
+);
+const HubYourJobs = dynamic(
+    () => import("@/components/jobs/for-you/HubYourJobs").then((m) => m.HubYourJobs),
     { loading: () => null },
 );
 const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail));
@@ -2631,7 +2634,7 @@ export function JobsContent() {
     const openJob = (id: string) => {
         // Re-click chokepoint: a click on the row that's already the
         // deliberately-open job is a no-op — every side effect below
-        // (fetch, recordJobOpenedAction, captureEvent, recordJobViewAction)
+        // (fetch, recordJobOpenedAction, captureEvent, recordJobView)
         // already ran for this id. One guard here, not one per call site —
         // see `isSameOpenJob`'s doc comment (lib/jobs/is-same-open-job.ts)
         // for why `detailSheetOpen`, not just an id match, gates it.
@@ -2696,7 +2699,7 @@ export function JobsContent() {
         // "don't fabricate" rule the rank telemetry above already follows.
         if (!alreadyOpened && hit) {
             markViewed(id);
-            void recordJobViewAction(id, buildJobSnapshot(hit)).catch(() => {});
+            recordJobView(id, buildJobSnapshot(hit));
         }
         applyUrlState(buildUrlState({ jobId: id }), "push");
     };
@@ -5181,10 +5184,6 @@ export function JobsContent() {
                     onRetryDescription={retryDescription}
                     matchScore={matchScores?.get(detailJob.id) ?? undefined}
                     resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (localAiGuestEnabled) writeLocalAiResume(data);
-                    }}
                     onUploadResume={() => handleUploadClick()}
                     onSignInToSync={() => {
                         openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
@@ -5198,15 +5197,6 @@ export function JobsContent() {
                     onGoAfter={() => handleGoAfter(detailJob)}
                     pursuit={detailPursuit}
                     saveSuccessPulse={savePulseJobIds.has(detailJob.id)}
-                    resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (localAiGuestEnabled) writeLocalAiResume(data);
-                    }}
-                    onUploadResume={() => handleUploadClick()}
-                    onSignInToSync={() => {
-                        openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
-                    }}
                 />
                 )}
             </>
@@ -6332,6 +6322,12 @@ export function JobsContent() {
                                 onTailorApply={(job) => {
                                     submitSearch(job.title);
                                 }}
+                                footer={
+                                    <HubYourJobs
+                                        auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                        returnTo={serpReturnTo}
+                                    />
+                                }
                             />
                         ) : (
                             <ForYouHome
@@ -6351,6 +6347,7 @@ export function JobsContent() {
                                 fitActive={fitActive}
                                 hydratedJobs={forYouHydrated}
                                 onActivePackChange={handleForYouActivePackChange}
+                                onOpenRow={(job) => recordJobView(job.id, buildJobSnapshot(job))}
                                 onRetryDescription={retryForYouDescription}
                                 onOpenPosting={handleOpenPosting}
                                 onHomeViewChange={setJobsHomeView}
