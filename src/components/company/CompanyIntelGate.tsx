@@ -30,6 +30,11 @@ export type CompanyIntelGateProps = {
    *  renders nothing while locked (unlocked, its content still renders
    *  normally regardless of this prop). */
   fallback?: ReactNode | null;
+  /** A public preview of what following opens (the latest change-event
+   *  line), shown above the gate only while it is locked. A follower sees
+   *  the full content instead, so the preview never repeats its first item.
+   *  Shown even when `fallback` is `null`. */
+  lockedPreview?: ReactNode;
 };
 
 /** Pure unlock decision — mirrors `FollowButton`'s confirmed-following formula. */
@@ -107,6 +112,7 @@ function CompanyIntelGateInner({
   showFollowButton = true,
   testId = "company-intel-gate",
   fallback,
+  lockedPreview,
 }: CompanyIntelGateProps & { emailVerified: boolean }) {
   const normalizedDomain = domain.trim().toLowerCase();
   const { byDomain, isSignedIn } = useFollows();
@@ -118,7 +124,7 @@ function CompanyIntelGateInner({
   });
 
   if (shouldGateRenderNothing(unlocked, fallback)) {
-    return null;
+    return lockedPreview ? <>{lockedPreview}</> : null;
   }
 
   const lockCard =
@@ -133,29 +139,32 @@ function CompanyIntelGateInner({
     );
 
   return (
-    <div
-      data-testid={testId}
-      data-unlocked={unlocked ? "true" : "false"}
-      // A locked wrapper's height otherwise comes only from its blurred
-      // children — a company with little to show behind THIS gate (e.g. no
-      // change events) shrinks the wrapper below the lock card's own height,
-      // and the card (flex-centered, absolute, unclipped) then overflows
-      // past the wrapper into whatever sits below it on the page. A floor
-      // tall enough for the taller (with-button) card variant keeps the
-      // overlay self-contained regardless of what's behind it.
-      className={cn("relative", !unlocked && "min-h-80")}
-    >
+    <>
+      {!unlocked && lockedPreview}
       <div
-        className={cn(!unlocked && "pointer-events-none select-none")}
-        aria-hidden={!unlocked}
+        data-testid={testId}
+        data-unlocked={unlocked ? "true" : "false"}
+        // A locked wrapper's height otherwise comes only from its blurred
+        // children — a company with little to show behind THIS gate (e.g. no
+        // change events) shrinks the wrapper below the lock card's own height,
+        // and the card (flex-centered, absolute, unclipped) then overflows
+        // past the wrapper into whatever sits below it on the page. A floor
+        // tall enough for the taller (with-button) card variant keeps the
+        // overlay self-contained regardless of what's behind it.
+        className={cn("relative", !unlocked && "min-h-80")}
       >
-        {children}
-      </div>
-      {!unlocked && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background px-6 py-10 text-center">
-          {lockCard}
+        <div
+          className={cn(!unlocked && "pointer-events-none select-none")}
+          aria-hidden={!unlocked}
+        >
+          {children}
         </div>
-      )}
-    </div>
+        {!unlocked && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background px-6 py-10 text-center">
+            {lockCard}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

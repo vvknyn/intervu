@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
-import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
+import { cadenceStripHasContent, CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
+import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { buildWeeklyCadence, type CadenceFacts, type ExhaustSection, type HealthFacts } from "@/lib/companies/exhaust";
 
 /**
@@ -99,5 +99,24 @@ describe("CompanyVerdictBand", () => {
 
   it("renders nothing when the review has no verdict it can stand behind, no repost rate and a usual status", () => {
     assert.equal(band(health({ observedSinceIso: "2026-08-20T00:00:00Z" })), "");
+  });
+});
+
+describe("rail layout predicates", () => {
+  it("agree with what each band renders, so the page never reserves a column for nothing", () => {
+    const cases: [ExhaustSection<HealthFacts>, boolean][] = [
+      [health({ repostRate: 0.08 }), true],
+      [health({ operatingStatus: "acquired" }), true],
+      [health({ observedSinceIso: "2026-08-20T00:00:00Z" }), false],
+      [null, false],
+    ];
+    for (const [h, expected] of cases) {
+      assert.equal(verdictBandHasContent(h, NOW), expected);
+      assert.equal(h ? band(h) !== "" : false, expected);
+    }
+    const withWeeks = cadence(null, [{ weekStartIso: "2026-08-17", newListings: 5 }]);
+    assert.equal(cadenceStripHasContent(withWeeks), true);
+    assert.notEqual(strip(withWeeks), "");
+    assert.equal(cadenceStripHasContent(null), false);
   });
 });

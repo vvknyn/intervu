@@ -18,7 +18,10 @@ const DAY = 86_400_000;
  * made-up employer, so the page's full composition renders on a real server
  * without the search index or the box database (neither is reachable from a
  * cloud session). `?roles=0` shows the no-open-roles state, `?exhaust=0` a
- * company the box knows nothing about. 404 in production (mock/layout.tsx).
+ * company the box knows nothing about, `?sample=1` an employer with more
+ * open roles than the page fetches, `?signedIn=1` the signed-in bands, and
+ * the product's own `?followed=1` the follower view. 404 in production
+ * (mock/layout.tsx).
  */
 function job(i: number, now: number, overrides: Partial<PublicJob>): PublicJob {
   return {
@@ -128,16 +131,19 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
 export default async function CompanyPageMock({
   searchParams,
 }: {
-  searchParams: Promise<{ roles?: string; exhaust?: string }>;
+  searchParams: Promise<{ roles?: string; exhaust?: string; sample?: string; signedIn?: string }>;
 }) {
-  const { roles, exhaust } = await searchParams;
+  const { roles, exhaust, sample, signedIn } = await searchParams;
   // A fixture page, rendered per request: the clock only dates the made-up roles.
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
-  const data = fixture(now, roles !== "0", exhaust !== "0");
+  const fixed = fixture(now, roles !== "0", exhaust !== "0");
+  // The search's 200-role window over a large employer: counts become "at
+  // least", and every census-gated figure has to stay hidden.
+  const data = sample === "1" ? { ...fixed, openCount: 480, openCountIsLowerBound: false } : fixed;
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
-      <CompanyPageBody data={data} signedIn={false} now={now} />
+      <CompanyPageBody data={data} signedIn={signedIn === "1"} now={now} />
     </div>
   );
 }

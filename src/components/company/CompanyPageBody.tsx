@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFollowChannelProvider";
-import { CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
+import { cadenceStripHasContent, CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyChangeEventTeaser } from "@/components/company/CompanyChangeEventTeaser";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
 import { CompanyExhaustGate, type ExhaustGateTeaser } from "@/components/company/CompanyExhaustGate";
@@ -13,13 +13,14 @@ import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
-import { CompanyVerdictBand } from "@/components/company/CompanyVerdictBand";
+import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import { PageTitle } from "@/components/ui/heading";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyPageData } from "@/lib/companies/types";
 import { companyUnlockStep } from "@/lib/company/unlock-step";
+import { cn } from "@/lib/utils";
 import {
   buildCompanyFacts,
   buildCompanyHiringAnswer,
@@ -70,6 +71,17 @@ export function CompanyPageBody({
   // share. See `buildCompanyFacts`'s own doc for why each part can be null.
   const facts = buildCompanyFacts(data);
   const roleStats = buildCompanyRoleStats(data, data.nowMs);
+  // The rail sits beside the roles only when it has something public to
+  // show. Without the posting chart or a review (no box data for this
+  // employer) it would be an empty 320px column for everyone but followers,
+  // so it stacks under the roles instead, like on a phone.
+  // A hiring record exists when the box database has one
+  // (`exhaust.integrity`, what `hiring.trackRecord` reads first) or the index
+  // aggregates do. Without either, the section would only say it isn't
+  // tracked, so it is left out, like any other band with no data.
+  const hasHiringRecord = !!data.exhaust?.integrity || data.hasTrackRecord;
+  const railBeside =
+    cadenceStripHasContent(data.exhaust?.cadence) || verdictBandHasContent(data.exhaust?.health, data.nowMs);
   // "9 of the 68 roles tracked here may no longer be live" — see
   // company-page-copy.ts for why the count is derivable from
   // `data.ghostFlaggedPct`.
@@ -134,7 +146,7 @@ export function CompanyPageBody({
     filingsCount
       ? {
           title: "Filings & records",
-          description: "SEC filings, funding rounds, federal contracts, WARN layoffs, and H-1B approvals — the paper trail.",
+          description: "SEC filings, funding rounds, federal contracts, WARN layoffs and H-1B approvals.",
           count: `${filingsCount} record${filingsCount === 1 ? "" : "s"}`,
         }
       : null,
@@ -216,8 +228,9 @@ export function CompanyPageBody({
 
         {/* Two columns under the header: the stat row and the roles first in
             the main column, the posting rhythm and the hiring record in a
-            320px rail — one stacked column under `lg`. */}
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+            320px rail — one stacked column under `lg`, or when the rail has
+            nothing public (`railBeside`). */}
+        <div className={cn("grid gap-10", railBeside && "lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start")}>
           <div className="min-w-0">
             {/* Open roles are the reason a job seeker landed here, so the
                 roles list is the first thing under the header. */}
@@ -236,13 +249,15 @@ export function CompanyPageBody({
             {/* Quiet secondary content — hiring changes, tech stack, and
                 news — never ahead of the roles a visitor came here for. */}
             <div data-testid="company-secondary" className="mt-10 space-y-8">
-              <CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />
-
+              {/* The latest change-event line is the public teaser: shown
+                  while the list is locked, gone once a follower sees the
+                  list it would only repeat. */}
               <CompanyIntelGate
                 domain={data.domain}
                 slug={data.slug}
                 displayName={data.name}
                 fallback={mainIntelGateFallback}
+                lockedPreview={<CompanyChangeEventTeaser event={data.changeEvents[0] ?? null} />}
               >
                 <CompanyChangeEvents events={changeEvents} companyName={data.name} />
                 <CompanyIntelligenceGrid intelligence={data.intelligence} companyName={data.name} />
@@ -254,51 +269,49 @@ export function CompanyPageBody({
               review), then the follower-only hiring record and list health.
               The rail's gate passes a null fallback: a locked visitor already
               sees the page's one card (see `mainIntelGateFallback`). */}
-          <aside data-testid="company-rail" className="space-y-8">
+          <aside data-testid="company-rail" className="space-y-8 empty:hidden">
             {data.exhaust && <CompanyCadenceStrip cadence={data.exhaust.cadence} />}
             {data.exhaust && <CompanyVerdictBand health={data.exhaust.health} nowMs={data.nowMs} />}
-            <CompanyIntelGate
-              domain={data.domain}
-              slug={data.slug}
-              displayName={data.name}
-              testId="company-intel-gate-record"
-              fallback={null}
-            >
-              <div className="space-y-8">
-                {/* Plain-language hiring record, read from the box database
-                    first (`hiring.trackRecord`). The 30-day share
-                    (`hiring.freshness`) is not repeated here: the stat row
-                    states it publicly under the same census gate. */}
-                <section data-testid="company-hiring-activity" className="border-t border-border pt-6">
-                  <h2 className="text-base font-semibold leading-snug text-foreground">
-                    Hiring record
-                  </h2>
-                  <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
-                  {/* The provenance note describes this track record, so it
-                      renders only when there is one: the box database's
-                      record (`exhaust.integrity`, what `hiring.trackRecord`
-                      reads first) or the index aggregates. Without either it
-                      would assert an observation that was never made. */}
-                  {(data.exhaust?.integrity || data.hasTrackRecord) && (
-                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                      Counted from job postings Velai observed, not fundraising data, employee reviews,
-                      or third-party valuations.
-                    </p>
+            {(hasHiringRecord || !!staleShare) && (
+              <CompanyIntelGate
+                domain={data.domain}
+                slug={data.slug}
+                displayName={data.name}
+                testId="company-intel-gate-record"
+                fallback={null}
+              >
+                <div className="space-y-8">
+                  {/* Plain-language hiring record, read from the box database
+                      first (`hiring.trackRecord`), with the provenance note
+                      that describes it. The 30-day share (`hiring.freshness`)
+                      is not repeated here: the stat row states it publicly
+                      under the same census gate. */}
+                  {hasHiringRecord && (
+                    <section data-testid="company-hiring-activity" className="border-t border-border pt-6">
+                      <h2 className="text-base font-semibold leading-snug text-foreground">
+                        Hiring record
+                      </h2>
+                      <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
+                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                        Counted from job postings Velai observed, not fundraising data, employee reviews,
+                        or third-party valuations.
+                      </p>
+                    </section>
                   )}
-                </section>
 
-                {/* List health — the ghost-flagged share restated as a count
-                    instead of a bare, jargon-labelled percentage tile. */}
-                {staleShare && (
-                  <section className="border-t border-border pt-6">
-                    <h2 className="text-base font-semibold leading-snug text-foreground">
-                      List health
-                    </h2>
-                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{staleShare}</p>
-                  </section>
-                )}
-              </div>
-            </CompanyIntelGate>
+                  {/* List health — the ghost-flagged share restated as a count
+                      instead of a bare, jargon-labelled percentage tile. */}
+                  {staleShare && (
+                    <section className="border-t border-border pt-6">
+                      <h2 className="text-base font-semibold leading-snug text-foreground">
+                        List health
+                      </h2>
+                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{staleShare}</p>
+                    </section>
+                  )}
+                </div>
+              </CompanyIntelGate>
+            )}
           </aside>
         </div>
 
@@ -315,7 +328,7 @@ export function CompanyPageBody({
             real-count teasers in the site's one sign-up card. */}
         {data.exhaust && exhaustGateTeasers.length > 0 && (
           <div className="mt-10">
-            <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers}>
+            <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers} signedIn={signedIn}>
               <div className="space-y-8">
                 <CompanyIntegrityBand integrity={data.exhaust.integrity} nowMs={data.nowMs} />
                 <CompanyTechStackBand techStack={data.exhaust.techStack} />

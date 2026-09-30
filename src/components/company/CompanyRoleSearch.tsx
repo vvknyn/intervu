@@ -36,21 +36,24 @@ const ROLES_PREVIEW = 10;
  * level — the three fields the box searches (spec: "filter ALL loaded roles
  * case-insensitively across title, location, and experience level"). Reads
  * through the same display helpers the row itself renders with
- * (`locationText`/`prettyEnum`), so a match is always on text the visitor can
+ * (`locationText`/`levelText`), so a match is always on text the visitor can
  * actually see next to the input, not a raw field they can't. Deliberately
  * excludes salary — the row's meta line (`companyRowMetaSegments`) folds it
  * in for the caption, but the spec names only these three fields as
  * searchable. Reads the RAW `locationText`, not the meta line's cleaned-up
  * segment — a stripped postal code or clamped breadcrumb must never make an
- * otherwise-matching role searchable-but-invisible.
+ * otherwise-matching role searchable-but-invisible. The level is matched as
+ * the row says it (`levelText`, "Mid-level"). Every word of the query must
+ * appear somewhere, in any order, so "senior engineer" finds "Senior
+ * Controls Engineer".
  */
 export function jobMatchesQuery(job: PublicJob, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const haystack = [decodeText(job.title), locationText(job), prettyEnum(job.experience_level)]
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [decodeText(job.title), locationText(job), levelText(job.experience_level) ?? ""]
     .join(" ")
     .toLowerCase();
-  return haystack.includes(q);
+  return words.every((word) => haystack.includes(word));
 }
 
 /** A role's level as the row's meta line says it. Levels the corpus doesn't
@@ -66,6 +69,30 @@ const LEVEL_TEXT: Record<string, string> = {
 export function levelText(level: string | null | undefined): string | null {
   if (!level) return null;
   return LEVEL_TEXT[level.toLowerCase()] ?? (prettyEnum(level) || null);
+}
+
+/**
+ * The résumé's figure for the stat row: strong fits only, the band a visitor
+ * can act on first and the one the row chip calls "Strong". Counted over the
+ * loaded roles, and said so when those are only the most recent ones.
+ */
+export function roleFitStat(
+  matchScores: ReadonlyMap<string, MatchScore | null> | null,
+  loadedCount: number,
+  partialWindow: boolean,
+): CompanyRoleStat | null {
+  if (!matchScores) return null;
+  const strong = [...matchScores.values()].filter((m) => m && matchBand(m.total) === "strong").length;
+  return partialWindow
+    ? { key: "fit", value: String(strong), label: `strong fits among the ${loadedCount} newest` }
+    : { key: "fit", value: `${strong} of ${loadedCount}`, label: "strong fit for your résumé" };
+}
+
+/** Best fit first once a résumé is scored; unscored roles keep their order
+ *  at the end. Without scores, the search's own order. */
+export function sortByFit(jobs: PublicJob[], matchScores: ReadonlyMap<string, MatchScore | null> | null): PublicJob[] {
+  if (!matchScores) return jobs;
+  return [...jobs].sort((a, b) => (matchScores.get(b.id)?.total ?? -1) - (matchScores.get(a.id)?.total ?? -1));
 }
 
 /** The "N of M ..." caption beside the "Open roles" heading — truthful about
@@ -174,32 +201,20 @@ export function CompanyRoleSearch({
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
 
-  // Strong fits only: the band a visitor can act on first, and the one the
-  // row chip calls "Strong". Counted over the loaded roles, and said so when
-  // those are only the most recent ones.
-  const strongFits = matchScores
-    ? [...matchScores.values()].filter((m) => m && matchBand(m.total) === "strong").length
-    : null;
-  const fitStat: CompanyRoleStat | null =
-    strongFits == null
-      ? null
-      : searchesPartialWindow
-        ? { key: "fit", value: String(strongFits), label: `strong fits among the ${jobs.length} newest` }
-        : { key: "fit", value: `${strongFits} of ${jobs.length}`, label: "strong fit for your résumé" };
+  const fitStat = roleFitStat(matchScores, jobs.length, searchesPartialWindow);
   const allStats = fitStat ? [fitStat, ...stats] : stats;
 
   // `jobs` arrives already deduped — `getCompanyPageData` (get-company.ts)
   // runs `collapseDuplicatePostings` once, server-side, so every downstream
   // count, search, and render reads the SAME set. This component trusts that
   // contract rather than re-deriving its own view of it.
-  const filtered = hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs;
-  // Best fit first once a résumé is loaded; otherwise the search's own order.
-  const matched = matchScores
-    ? [...filtered].sort((a, b) => (matchScores.get(b.id)?.total ?? -1) - (matchScores.get(a.id)?.total ?? -1))
-    : filtered;
+  const matched = sortByFit(hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs, matchScores);
   const displayed = matched.slice(0, ROLES_PREVIEW);
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
+  // The row that opened the sheet, so closing it puts keyboard focus back
+  // where the visitor was instead of at the top of the page.
+  const openerRef = useRef<HTMLButtonElement | null>(null);
 
   const handleOpenRelated = useCallback(
     async (jobId: string, directJob?: PublicJob) => {
@@ -341,7 +356,10 @@ export function CompanyRoleSearch({
                 <button
                   type="button"
                   data-testid="company-role-row"
-                  onClick={() => setSelectedJob(job)}
+                  onClick={(e) => {
+                    openerRef.current = e.currentTarget;
+                    setSelectedJob(job);
+                  }}
                   // control-scale-allow: full-width list row — its padding is content layout, not a bar control
                   className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand cursor-pointer"
                 >
@@ -408,6 +426,11 @@ export function CompanyRoleSearch({
         <SheetContent
           side="bottom"
           hideCloseButton
+          onCloseAutoFocus={(e) => {
+            if (!openerRef.current?.isConnected) return;
+            e.preventDefault();
+            openerRef.current.focus();
+          }}
           className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-180 -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">

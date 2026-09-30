@@ -25,6 +25,13 @@ function barTone(w: WeeklyCadence): string {
   return w.newListings === 0 ? "bg-border" : "bg-brand";
 }
 
+/** Whether `CompanyCadenceStrip` draws anything (see `verdictBandHasContent`). */
+export function cadenceStripHasContent(
+  cadence: ExhaustSection<CadenceFacts> | undefined,
+): cadence is NonNullable<ExhaustSection<CadenceFacts>> {
+  return !!cadence && cadence.data.weeks.length > 0;
+}
+
 /**
  * Band 3 — new postings per week, public (design call DC1).
  *
@@ -37,7 +44,7 @@ function barTone(w: WeeklyCadence): string {
  * show a hover title.
  */
 export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<CadenceFacts> }) {
-  if (!cadence || cadence.data.weeks.length === 0) return null;
+  if (!cadenceStripHasContent(cadence)) return null;
   const { weeks, trackedSinceIso } = cadence.data;
   const scaled = weeks.filter((w) => !w.firstTracked);
   const max = Math.max(...(scaled.length > 0 ? scaled : weeks).map((w) => w.newListings), 1);

@@ -23,8 +23,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
   if (!data) notFound();
-  // Same `getServerUser()` `CompanyExhaustGate` uses for its own sign-in
-  // check, read once here so the body can decide which gate card shows.
+  // The page's one sign-in read: it picks which gate card shows and opens
+  // `CompanyExhaustGate`'s signed-in bands.
   const signedIn = !!(await getServerUser());
   // One clock read for the whole page, taken here rather than inside JSX so
   // every staleness decision below is measured against a single instant.

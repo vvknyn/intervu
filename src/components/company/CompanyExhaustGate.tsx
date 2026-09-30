@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { getServerUser } from "@/lib/auth/server-user";
 import { SignupGate } from "@/components/auth/SignupGate";
 
 /**
@@ -60,23 +59,25 @@ export function ExhaustGateSignInCard({
  * requirement. This is a DIFFERENT gate from the client-side
  * `CompanyIntelGate` (follow + email-verified, blurred children): the
  * contract for these specific bands is a plain sign-in check with a real-
- * count teaser card, never blur. `getServerUser()` (lib/auth/server-user.ts)
- * is the repo's one place that answers "who is signed in" — reused here
- * rather than re-deriving a second session check.
+ * count teaser card, never blur. `signedIn` is the route's one
+ * `getServerUser()` read (lib/auth/server-user.ts), the same answer that
+ * picks the page's other gate card, so the two can never disagree; it also
+ * lets /mock/company-page show the signed-in bands.
  */
-export async function CompanyExhaustGate({
+export function CompanyExhaustGate({
   slug,
   displayName,
   teasers,
+  signedIn,
   children,
 }: {
   slug: string;
   displayName: string;
   teasers: ExhaustGateTeaser[];
+  signedIn: boolean;
   children: ReactNode;
 }) {
-  const user = await getServerUser();
-  if (user) return <>{children}</>;
+  if (signedIn) return <>{children}</>;
 
   // A gate with nothing to tease is a gate with nothing to say — the design
   // rule that governs every other band here (no data, no band) applies to

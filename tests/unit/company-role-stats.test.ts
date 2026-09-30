@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyRoleSearch, levelText } from "@/components/company/CompanyRoleSearch";
+import { CompanyRoleSearch, jobMatchesQuery, levelText, roleFitStat, sortByFit } from "@/components/company/CompanyRoleSearch";
+import { MATCH_BAND_STRONG_MIN, type MatchScore } from "@/lib/match/score";
 import { ExhaustGateSignInCard } from "@/components/company/CompanyExhaustGate";
 import { buildCompanyRoleStats, type CompanyRoleStat } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -112,6 +113,45 @@ describe("levelText", () => {
     assert.equal(levelText("SENIOR"), "Senior");
     assert.equal(levelText(null), null);
     assert.equal(levelText(""), null);
+  });
+});
+
+describe("jobMatchesQuery", () => {
+  const role = job({ id: "1", title: "Machine Learning Engineer, Perception", experience_level: "mid" });
+
+  it("matches every word of the query in any order, across title, location and level", () => {
+    assert.equal(jobMatchesQuery(role, "perception engineer"), true);
+    assert.equal(jobMatchesQuery(role, "  Engineer   COLUMBUS "), true);
+    assert.equal(jobMatchesQuery(role, "mid-level"), true, "the level as the row says it");
+    assert.equal(jobMatchesQuery(role, ""), true);
+  });
+
+  it("rejects a query with any word the role doesn't carry", () => {
+    assert.equal(jobMatchesQuery(role, "perception senior"), false);
+    assert.equal(jobMatchesQuery(role, "zzzz"), false);
+  });
+});
+
+describe("roleFitStat and sortByFit: the résumé-loaded first screen", () => {
+  const score = (total: number): MatchScore => ({ total, components: [] });
+  const scores = new Map<string, MatchScore | null>([
+    ["a", score(40)],
+    ["b", score(MATCH_BAND_STRONG_MIN + 5)],
+    ["c", null],
+    ["d", score(MATCH_BAND_STRONG_MIN)],
+  ]);
+
+  it("counts strong fits over the loaded roles, and says 'newest' when those are a sample", () => {
+    assert.deepEqual(roleFitStat(scores, 4, false), { key: "fit", value: "2 of 4", label: "strong fit for your résumé" });
+    assert.deepEqual(roleFitStat(scores, 4, true), { key: "fit", value: "2", label: "strong fits among the 4 newest" });
+    assert.equal(roleFitStat(null, 4, false), null);
+  });
+
+  it("sorts best fit first, keeps unscored roles last, and leaves the order alone without a résumé", () => {
+    const jobs = ["a", "b", "c", "d"].map((id) => job({ id }));
+    assert.deepEqual(sortByFit(jobs, scores).map((j) => j.id), ["b", "d", "a", "c"]);
+    assert.deepEqual(sortByFit(jobs, null).map((j) => j.id), ["a", "b", "c", "d"]);
+    assert.deepEqual(jobs.map((j) => j.id), ["a", "b", "c", "d"], "sorting must not reorder the caller's array");
   });
 });
 

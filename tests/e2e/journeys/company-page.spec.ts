@@ -14,8 +14,19 @@ const OTHER_COMPANY = "/co/openai--com";
  *  fetched (the stat row is census-gated). */
 const SMALLER_COMPANIES = ["/co/1password--com", "/co/outerboxdesign--com"];
 
+/**
+ * Opens a company page and waits for it to settle. Every page remounts once
+ * after load, when `DeferredAuthKitProvider` swaps in the auth provider, and
+ * a count or a skip read before that can see an empty page.
+ */
+async function openCompany(page: Page, path = COMPANY) {
+    const response = await page.goto(path);
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+    return response;
+}
+
 test("the hiring headline states the open-role count on Velai, with no 'Yes —' and no lowercase velai", { tag: ["@J-COMPANY-35"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     const headline = page.getByTestId("company-hiring-headline");
     await expect(headline).toBeVisible({ timeout: 30_000 });
     const text = (await headline.textContent())?.trim() ?? "";
@@ -27,7 +38,7 @@ test("the hiring headline states the open-role count on Velai, with no 'Yes —'
 });
 
 test("the remote fact is a count by work type and opens the matching Remote search on /jobs", { tag: ["@J-COMPANY-36"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     await expect(page.getByTestId("company-page")).not.toContainText(/\b\d+% of roles remote/);
     const remote = page.getByTestId("company-remote-share");
@@ -43,7 +54,7 @@ test("the remote fact is a count by work type and opens the matching Remote sear
 });
 
 test("the posting chart prints each week's count, marks this week in progress and draws no week before tracking as a zero", { tag: ["@J-COMPANY-37"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     const strip = page.getByTestId("company-cadence-strip");
     test.skip((await strip.count()) === 0, "no posting history for this employer on the box");
@@ -75,7 +86,7 @@ test("the posting chart prints each week's count, marks this week in progress an
 });
 
 test("the page gives one answer to 'is this company hiring?' and no undefined health score", { tag: ["@J-COMPANY-38"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     const body = page.getByTestId("company-page");
     await expect(body).not.toContainText("Are they actually hiring?");
@@ -88,7 +99,7 @@ test("the page gives one answer to 'is this company hiring?' and no undefined he
 test("the first screen shows an open role, and a phone reaches the roles before the hiring record rail", { tag: ["@J-COMPANY-39"] }, async ({ page }) => {
     const viewport = page.viewportSize();
     expect(viewport, "the project sets a viewport").not.toBeNull();
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     const firstRole = page.getByTestId("company-role-row").first();
     await expect(firstRole).toBeVisible({ timeout: 30_000 });
@@ -101,7 +112,7 @@ test("the first screen shows an open role, and a phone reaches the roles before 
 });
 
 test("each role row says how old the posting is in its right rail, not a bare 'View'", { tag: ["@J-COMPANY-40"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     const rows = page.getByTestId("company-role-row");
     await expect(rows.first()).toBeVisible({ timeout: 30_000 });
     const ages = await page.getByTestId("company-role-age").allTextContents();
@@ -113,12 +124,12 @@ test("each role row says how old the posting is in its right rail, not a bare 'V
 
 test("the stat row counts the company's own open roles, each figure with its label", { tag: ["@J-COMPANY-41"] }, async ({ page }) => {
     // Census-gated: an employer with more open roles than the page fetches shows no row.
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     let statRow = page.getByTestId("company-role-stats");
     for (const company of SMALLER_COMPANIES) {
         if ((await statRow.count()) > 0) break;
-        const response = await page.goto(company);
+        const response = await openCompany(page, company);
         if (!response || response.status() >= 400) continue;
         await expect(page.getByTestId("company-page")).toBeVisible({ timeout: 30_000 });
         statRow = page.getByTestId("company-role-stats");
@@ -133,7 +144,7 @@ test("the stat row counts the company's own open roles, each figure with its lab
 });
 
 test("a signed-out visitor gets the site's one sign-up gate, back to this company, and no follow lock card", { tag: ["@J-COMPANY-42"] }, async ({ page }) => {
-    await page.goto(COMPANY);
+    await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
     const gate = page.getByTestId("company-exhaust-gate");
     test.skip((await gate.count()) === 0, "no box hiring record for this employer right now");
@@ -147,16 +158,11 @@ test("a signed-out visitor gets the site's one sign-up gate, back to this compan
 });
 
 // J-COMPANY-18: a signed-out visitor who verified their email follows a company
-// with one click; opening a page only reads whether they follow it.
-
-async function settle(page: Page, path: string) {
-    await page.goto(path);
-    // The follow state is read after the page loads; wait for that read.
-    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
-}
+// with one click; opening a page only reads whether they follow it (a read
+// after load, which openCompany's network-idle wait covers).
 
 test("the verify link's ?followed=1 is used once, so a reload doesn't bring back a follow", { tag: ["@J-COMPANY-18"] }, async ({ page }) => {
-    await settle(page, `${COMPANY}?followed=1`);
+    await openCompany(page, `${COMPANY}?followed=1`);
     await expect(page).not.toHaveURL(/followed=1/);
     await page.reload();
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
@@ -171,7 +177,7 @@ test("a verified guest's follow is one click, opening pages never follows, and U
     const follow = page.getByTestId("follow-company").first();
 
     // Start from not following, in case an earlier run stopped halfway.
-    await settle(page, COMPANY);
+    await openCompany(page, COMPANY);
     await expect(follow).toBeEnabled({ timeout: 30_000 });
     if ((await follow.getAttribute("data-following")) === "true") {
         await follow.click();
@@ -179,7 +185,7 @@ test("a verified guest's follow is one click, opening pages never follows, and U
     }
 
     // Opening the page again doesn't follow it.
-    await settle(page, COMPANY);
+    await openCompany(page, COMPANY);
     await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
 
     // One click follows, with no email step: this browser is already verified.
@@ -187,16 +193,16 @@ test("a verified guest's follow is one click, opening pages never follows, and U
     await expect(follow).toHaveAttribute("data-following", "true");
     await expect(page.getByTestId("follow-email-step")).toHaveCount(0);
     await expect(page.getByTestId("follow-email-verified").first()).toBeVisible();
-    await settle(page, COMPANY);
+    await openCompany(page, COMPANY);
     await expect(follow).toHaveAttribute("data-following", "true", { timeout: 30_000 });
 
     // Unfollow holds after a reload.
     await follow.click();
     await expect(follow).toHaveAttribute("data-following", "false");
-    await settle(page, COMPANY);
+    await openCompany(page, COMPANY);
     await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
 
     // Another company isn't followed by opening its page.
-    await settle(page, OTHER_COMPANY);
+    await openCompany(page, OTHER_COMPANY);
     await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
 });

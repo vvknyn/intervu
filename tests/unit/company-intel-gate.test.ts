@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { CompanyIntelGate, isCompanyIntelUnlocked, shouldGateRenderNothing } from "../../src/components/company/CompanyIntelGate";
+import { CompanyIntelGate, isCompanyIntelUnlocked, shouldGateRenderNothing, type CompanyIntelGateProps } from "../../src/components/company/CompanyIntelGate";
 import { CompanyFollowChannelProvider } from "../../src/components/companies/CompanyFollowChannelProvider";
 
 /** The /co page's composed tree; page.tsx fetches and renders this. */
@@ -159,6 +159,35 @@ function renderLockedGateWithFallback(fallback: React.ReactNode | undefined): st
   );
 }
 
+describe("CompanyIntelGate: lockedPreview", () => {
+  function renderWithPreview(fallback: React.ReactNode | undefined): string {
+    const gateProps = {
+      domain: "acme.com",
+      slug: "acme",
+      displayName: "Acme",
+      fallback,
+      lockedPreview: React.createElement("p", { "data-testid": "preview" }, "Hiring accelerating"),
+    } as CompanyIntelGateProps;
+    const providerProps = { domain: "acme.com" } as React.ComponentProps<typeof CompanyFollowChannelProvider>;
+    return renderToStaticMarkup(
+      React.createElement(
+        CompanyFollowChannelProvider,
+        providerProps,
+        React.createElement(CompanyIntelGate, gateProps, React.createElement("p", null, "Hidden intel")),
+      ),
+    );
+  }
+
+  it("shows the preview above a locked gate, before its lock card", () => {
+    const html = renderWithPreview(undefined);
+    assert.ok(html.indexOf('data-testid="preview"') < html.indexOf('data-testid="company-intel-gate"'));
+  });
+
+  it("still shows the preview when the locked gate itself renders nothing", () => {
+    assert.equal(renderWithPreview(null), '<p data-testid="preview">Hiring accelerating</p>');
+  });
+});
+
 describe("CompanyIntelGate: fallback prop", () => {
   it("locked + fallback={null} renders nothing", () => {
     const html = renderLockedGateWithFallback(null);
@@ -213,8 +242,11 @@ describe("/co/[slug]: secondary intel is gated behind follow", () => {
     assert.ok(teaserIndex !== -1, "CompanyChangeEventTeaser missing");
     assert.ok(gateOpenIndex !== -1, "CompanyIntelGate missing");
     assert.ok(gateCloseIndex !== -1, "CompanyIntelGate close tag missing");
-    assert.ok(secondaryIndex < teaserIndex, "teaser must live inside company-secondary");
-    assert.ok(teaserIndex < gateOpenIndex, "teaser must render outside the intel gate");
+    assert.ok(secondaryIndex < gateOpenIndex, "the gate must live inside company-secondary");
+    // The teaser is the gate's locked preview: public while locked, gone for
+    // a follower, whose full list would only repeat it.
+    assert.match(source, /lockedPreview=\{<CompanyChangeEventTeaser/);
+    assert.ok(gateOpenIndex < teaserIndex && teaserIndex < intelIndex, "teaser must be passed to the gate");
     assert.ok(gateOpenIndex < intelIndex && intelIndex < gateCloseIndex, "intel grid must be gated");
   });
 
