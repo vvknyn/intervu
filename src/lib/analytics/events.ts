@@ -369,14 +369,40 @@ export function buildLedgerProps(
 }
 
 /**
+ * Pure: an event fired in the browser before PostHog has loaded is HELD,
+ * not dropped. PostHog loads after the page (`DeferredPostHogProvider`, on
+ * load or idle), so everything a page fires as it mounts (`company_viewed`,
+ * `pricing_viewed`, a first `job_viewed`) comes before it. Those used to be
+ * lost, and only reached PostHog when the late provider rebuilt the whole
+ * page and fired them again.
+ */
+export function captureRoute(hasWindow: boolean, loaded: boolean): "send" | "hold" | "drop" {
+  if (!hasWindow) return "drop";
+  return loaded ? "send" : "hold";
+}
+
+/** Held events past this many are dropped: a page that never loads PostHog (no key) holds at most this. */
+export const PRE_INIT_EVENT_LIMIT = 50;
+
+interface HeldEvent {
+  name: string;
+  payload: Record<string, unknown>;
+  ledger: Record<string, unknown>;
+  at: Date;
+}
+
+const heldEvents: HeldEvent[] = [];
+
+/**
  * The only I/O in this module. Typed via EventPayloads so a call site that
  * gets an event's payload shape wrong fails to compile.
  *
- * Mirrors PostHogProvider's own guard: SSR-safe (`typeof window ===
- * "undefined"`), and a safe no-op when PostHog was never initialized (no
- * NEXT_PUBLIC_POSTHOG_KEY -> posthog.init() never ran -> posthog.__loaded
- * stays false) — no throw, no console spam beyond whatever posthog-js does
- * internally.
+ * SSR-safe (`typeof window === "undefined"`), and a safe no-op when PostHog
+ * was never initialized (no NEXT_PUBLIC_POSTHOG_KEY -> posthog.init() never
+ * ran -> posthog.__loaded stays false): the event waits in a bounded hold
+ * that nothing flushes — no throw, no console spam beyond whatever
+ * posthog-js does internally. Before PostHog loads, events wait in that hold
+ * until `PostHogProvider` calls `flushHeldEvents()` (see `captureRoute`).
  *
  * The ONE chokepoint every event passes through — `trackToLedger`
  * (lib/telemetry/client.ts) rides the same guarded branch as the PostHog
@@ -387,20 +413,44 @@ export function buildLedgerProps(
  * `ledgerOnly` is the optional third argument for props that must reach
  * the ledger but must NEVER reach PostHog (`LedgerOnlyPayloads` above) —
  * the two sinks differ by construction: `posthog.capture` is called with
- * `payload` alone, on the line directly above, before `ledgerOnly` is ever
- * referenced. There is no code path here that could hand `ledgerOnly` to
- * PostHog.
+ * `payload` alone, and a held event keeps the ledger's props in their own
+ * field that `flushHeldEvents` hands only to `trackToLedger`. There is no
+ * code path here that could hand `ledgerOnly` to PostHog.
  */
 export function captureEvent<K extends AnalyticsEventKey>(
   event: K,
   payload: EventPayloads[K],
   ledgerOnly?: K extends keyof LedgerOnlyPayloads ? LedgerOnlyPayloads[K] : never,
 ): void {
-  const hasWindow = typeof window !== "undefined";
-  if (!shouldCaptureEvent(hasWindow, posthog.__loaded === true)) return;
-  posthog.capture(ANALYTICS_EVENTS[event], payload);
+  const route = captureRoute(typeof window !== "undefined", posthog.__loaded === true);
+  if (route === "drop") return;
+  const name = ANALYTICS_EVENTS[event];
+  if (route === "hold") {
+    if (heldEvents.length >= PRE_INIT_EVENT_LIMIT) return;
+    heldEvents.push({
+      name,
+      payload: payload as Record<string, unknown>,
+      ledger: buildLedgerProps(payload as Record<string, unknown>, ledgerOnly as Record<string, unknown> | undefined),
+      at: new Date(),
+    });
+    return;
+  }
+  posthog.capture(name, payload);
   trackToLedger(
-    ANALYTICS_EVENTS[event],
+    name,
     buildLedgerProps(payload as Record<string, unknown>, ledgerOnly as Record<string, unknown> | undefined),
   );
+}
+
+/**
+ * Sends the events held before PostHog loaded, each at the time it happened.
+ * `PostHogProvider` calls it right after `posthog.init`; a call before then
+ * does nothing, so the hold stays for the next one.
+ */
+export function flushHeldEvents(): void {
+  if (!shouldCaptureEvent(typeof window !== "undefined", posthog.__loaded === true)) return;
+  for (const held of heldEvents.splice(0)) {
+    posthog.capture(held.name, held.payload, { timestamp: held.at });
+    trackToLedger(held.name, held.ledger);
+  }
 }

@@ -5,6 +5,9 @@ import {
   ANALYTICS_EVENTS,
   shouldCaptureEvent,
   captureEvent,
+  captureRoute,
+  flushHeldEvents,
+  PRE_INIT_EVENT_LIMIT,
   buildLedgerProps,
   LEDGER_ONLY_PROPS_BUDGET,
 } from "../../src/lib/analytics/events";
@@ -130,6 +133,60 @@ test("captureEvent is a safe no-op under SSR even when posthog is loaded", (t) =
   } finally {
     posthog.__loaded = originalLoaded;
   }
+});
+
+test("captureRoute holds a browser event until PostHog loads, and drops one on the server", () => {
+  assert.equal(captureRoute(true, true), "send");
+  assert.equal(captureRoute(true, false), "hold", "PostHog loads after the page: a mount-time event waits for it");
+  assert.equal(captureRoute(false, true), "drop", "SSR: no window");
+  assert.equal(captureRoute(false, false), "drop");
+});
+
+/** A browser (a `window`) whose PostHog has not loaded yet; restores both after. */
+function withBrowserBeforePostHog(t: TestContext, fn: (capture: ReturnType<TestContext["mock"]["method"]>) => void) {
+  const capture = t.mock.method(posthog, "capture", () => {});
+  const originalLoaded = posthog.__loaded;
+  posthog.__loaded = false;
+  const hadWindow = "window" in globalThis;
+  if (!hadWindow) (globalThis as { window?: unknown }).window = {};
+  try {
+    fn(capture);
+  } finally {
+    posthog.__loaded = true;
+    flushHeldEvents(); // leave no held events for the next test
+    posthog.__loaded = originalLoaded;
+    if (!hadWindow) delete (globalThis as { window?: unknown }).window;
+  }
+}
+
+test("an event fired before PostHog loads is sent once it does, at the time it happened", (t) => {
+  withBrowserBeforePostHog(t, (capture) => {
+    const before = Date.now();
+    captureEvent("company_viewed", { company_domain: "example.com" });
+    assert.equal(capture.mock.calls.length, 0, "held, not sent, before init");
+    flushHeldEvents();
+    assert.equal(capture.mock.calls.length, 0, "a flush before init keeps the hold");
+
+    posthog.__loaded = true;
+    flushHeldEvents();
+    assert.equal(capture.mock.calls.length, 1);
+    const [name, payload, options] = capture.mock.calls[0].arguments as [string, unknown, { timestamp: Date }];
+    assert.equal(name, "company_viewed");
+    assert.deepEqual(payload, { company_domain: "example.com" });
+    assert.ok(options.timestamp instanceof Date && options.timestamp.getTime() >= before);
+
+    flushHeldEvents();
+    assert.equal(capture.mock.calls.length, 1, "each held event goes out once");
+  });
+});
+
+test("the hold before PostHog loads is bounded", (t) => {
+  withBrowserBeforePostHog(t, (capture) => {
+    for (let i = 0; i < PRE_INIT_EVENT_LIMIT + 10; i++) captureEvent("job_saved", { job_id: `job-${i}` });
+    posthog.__loaded = true;
+    flushHeldEvents();
+    assert.equal(capture.mock.calls.length, PRE_INIT_EVENT_LIMIT);
+  });
 });
 
 test("captureEvent sends search_submitted with the exact name and payload shape", (t) => {

@@ -11,14 +11,14 @@ import { saveResumeData } from "@/actions/resume";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdf, exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
-import { parseResumeContent } from "@/lib/resume/parse-resume-content";
+import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
 import { captureEvent } from "@/lib/analytics/events";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
-import type { ResumeData, ResumeExperience, ResumeEducation } from "@/types/resume";
+import type { ResumeData } from "@/types/resume";
 
 interface YourResumeSectionProps {
     user: User | null;
@@ -78,90 +78,20 @@ function summaryToResumeData(summary: ResumeSummary | null, user?: User | null):
         return summary.resume_data;
     }
     if (summary.source === "resume_text") {
-        const parsed = parseResumeContent(summary.resume_text);
-        let summaryText = "";
-        const competencies: { category: string; skills: string[] }[] = [];
-        const experience: ResumeExperience[] = [];
-        const education: ResumeEducation[] = [];
-
-        for (const sec of parsed.sections) {
-            const h = sec.heading.toLowerCase();
-            if (h.includes("summary") || h.includes("profile") || h.includes("about")) {
-                summaryText = sec.blocks
-                    .map((b) => (b.kind === "paragraph" ? b.text : b.kind === "bullets" ? b.items.join("\n") : ""))
-                    .filter(Boolean)
-                    .join("\n\n");
-            } else if (h.includes("skill") || h.includes("competenc") || h.includes("technolog")) {
-                for (const b of sec.blocks) {
-                    if (b.kind === "competency") {
-                        competencies.push({
-                            category: b.category,
-                            skills: b.items.split(",").map((s) => s.trim()).filter(Boolean),
-                        });
-                    } else if (b.kind === "paragraph" || b.kind === "bullets") {
-                        const items = b.kind === "paragraph" ? [b.text] : b.items;
-                        competencies.push({
-                            category: "Skills",
-                            skills: items,
-                        });
-                    }
-                }
-            } else if (h.includes("experience") || h.includes("employment") || h.includes("work") || h.includes("history")) {
-                for (let i = 0; i < sec.blocks.length; i++) {
-                    const b = sec.blocks[i];
-                    if (b.kind === "entry") {
-                        const parts = b.title.split("|").map((p) => p.trim());
-                        experience.push({
-                            id: `exp-${i + 1}`,
-                            role: parts[0] || b.title,
-                            company: parts[1] || "",
-                            dates: b.dateRight || "",
-                            description: b.bullets.map((l) => `• ${l}`).join("\n"),
-                        });
-                    }
-                }
-            } else if (h.includes("education") || h.includes("degree") || h.includes("academic")) {
-                for (let i = 0; i < sec.blocks.length; i++) {
-                    const b = sec.blocks[i];
-                    if (b.kind === "entry") {
-                        const parts = b.title.split("|").map((p) => p.trim());
-                        education.push({
-                            id: `edu-${i + 1}`,
-                            degree: parts[0] || b.title,
-                            institution: parts[1] || "",
-                            year: b.dateRight || "",
-                        });
-                    } else if (b.kind === "paragraph") {
-                        education.push({
-                            id: `edu-${i + 1}`,
-                            degree: b.text,
-                            institution: "",
-                        });
-                    }
-                }
-            }
-        }
-
-        const contactParts = (parsed.contactLine || "").split("|").map((p) => p.trim());
-        const email = contactParts.find((p) => p.includes("@")) || user?.email || "";
-        const phone = contactParts.find((p) => /[\d\-+()]{7,}/.test(p)) || "";
-        const linkedin = contactParts.find((p) => /linkedin/i.test(p)) || "";
-        const location = contactParts.find((p) => p !== email && p !== phone && p !== linkedin) || "";
-
+        // Same structuring rules matching uses for a text-only résumé
+        // (`fetchResumeData`, actions/resume.ts) and the PDF export uses
+        // (`exportZipResumePdf`), so the preview, the editor, the download
+        // and the matches all read one version of it. The older section
+        // parser here left the summary as the file's first 300 characters
+        // (name, email and phone included) and the profession blank.
+        const data = resumeDataFromPlainText(summary.resume_text);
         return {
+            ...data,
             profile: {
-                name: parsed.name || user?.displayName || "",
-                profession: "",
-                yearsOfExperience: 0,
-                location,
-                email,
-                phone,
-                linkedin,
+                ...data.profile,
+                name: data.profile.name || user?.displayName || "",
+                email: data.profile.email || user?.email || "",
             },
-            generatedSummary: summaryText || summary.resume_text.slice(0, 300),
-            competencies: competencies.length > 0 ? competencies : [{ category: "Core Skills", skills: [] }],
-            experience: experience.length > 0 ? experience : [],
-            education: education.length > 0 ? education : [],
         };
     }
     return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
@@ -312,9 +242,23 @@ function ResumeSummaryBody({
     const [confirmingDelete, setConfirmingDelete] = useState(false);
     const [deleting, startDeleteTransition] = useTransition();
 
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+
     const handleDelete = () => {
+        setDeleteError(null);
         startDeleteTransition(async () => {
-            await deleteBaseResumeAction();
+            // A failed delete used to close the prompt and reload as if it
+            // had worked.
+            try {
+                const res = await deleteBaseResumeAction();
+                if (res.error) {
+                    setDeleteError("Couldn't delete your résumé. Try again.");
+                    return;
+                }
+            } catch {
+                setDeleteError("Couldn't delete your résumé. Try again.");
+                return;
+            }
             setConfirmingDelete(false);
             onDeleted();
         });
@@ -359,7 +303,7 @@ function ResumeSummaryBody({
             </Button>
             {confirmingDelete ? (
                 <InlineConfirm
-                    prompt="Delete this resume?"
+                    prompt="Delete this résumé and its saved versions?"
                     busy={deleting}
                     busyLabel="Deleting…"
                     onConfirm={handleDelete}
@@ -409,6 +353,11 @@ function ResumeSummaryBody({
                 </Button>
             </div>
             {manageRow}
+            {deleteError && (
+                <p role="alert" className="text-xs text-danger-text">
+                    {deleteError}
+                </p>
+            )}
         </div>
     );
 }
@@ -449,7 +398,9 @@ function ResumeUploadForm({
     const handleSave = () => {
         setError(null);
         startTransition(async () => {
-            const res = await uploadBaseResumeAction({ text });
+            // The label names this upload in Versions & diffs; without one it
+            // was filed as "chat upload", the MCP tool's default.
+            const res = await uploadBaseResumeAction({ text, label: fileName ?? "Pasted text" });
             if (res.error) {
                 setError(res.error);
                 return;
@@ -477,7 +428,7 @@ function ResumeUploadForm({
                 <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".txt,.md,.pdf,.docx,.doc"
+                    accept=".txt,.md,.pdf,.docx"
                     className="hidden"
                     onChange={(e) => {
                         const file = e.target.files?.[0];
