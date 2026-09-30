@@ -53,6 +53,14 @@ describe("which pack tiles a résumé visitor sees", () => {
         assert.deepEqual(tiles, ["all", "remote", "lead", "good", "fresh"]);
     });
 
+    it("in a small pack, hides a tile that holds every role in it", () => {
+        // A health science grad's pack of 8 roles, all of them research roles: the tile is the list again.
+        const small = { rowsInHand: 8, allTotal: 8, filterCounts: { fresh: { kind: "exact", value: 2 }, salary: { kind: "exact", value: 4 } } } as const;
+        assert.deepEqual(visibleIndustryTiles("health", settled({ health_research: 8 }, small)), ["all", "salary"]);
+        // Some rows still out of hand: a share of 8 says too little to hide the tile.
+        assert.ok(visibleIndustryTiles("health", settled({ health_research: 8 }, { ...small, allTotal: 40 })).includes("health_research"));
+    });
+
     it("never shows more than six tiles beside All", () => {
         const every: Partial<Record<HubPackId, number>> = {};
         for (const id of INDUSTRY_TILE_IDS.health) every[id] = 10;

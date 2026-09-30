@@ -583,9 +583,12 @@ test("a pack whose own read fails after another pack loaded shows the error with
 
   // The next pack's read fails. It used to wait on that read forever ("Loading your ranked
   // roles") because only a reported outage, not a thrown one, counted as settled.
-  await settledHubTiles(page);
+  // Any other pack the hub shows will do; which ones show depends on the counts.
+  const shown = await settledHubTiles(page);
+  const next = ["salary", "fresh", ...shown].find((id) => id !== "all" && id !== "remote" && shown.includes(id));
+  expect(next, `another pack among ${shown.join(", ")}`).toBeTruthy();
   const recover = await failEveryAction(page);
-  await page.getByTestId("hub-pack-card-fresh").click({ timeout: 30_000 });
+  await page.getByTestId(`hub-pack-card-${next}`).click({ timeout: 30_000 });
   const failed = page.getByTestId("for-you-load-failed");
   await expect(failed).toBeVisible({ timeout: 30_000 });
   await expect(rows).toHaveCount(0);

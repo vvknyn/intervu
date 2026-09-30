@@ -79,7 +79,10 @@ function tileHelps(id: HubPackId, counts: IndustryTileCounts): boolean {
     }
     const kept = counts.rowCounts[id] ?? 0;
     if (kept < MIN_TILE_ROLES) return false;
-    return !(counts.rowsInHand >= MIN_ROWS_FOR_SHARE && kept / counts.rowsInHand >= MAX_TILE_SHARE);
+    // A share of a few rows says little, unless those rows are the whole pack: then it is exact.
+    const wholePack = counts.allTotal != null && counts.rowsInHand >= counts.allTotal;
+    const judged = counts.rowsInHand >= MIN_ROWS_FOR_SHARE || wholePack;
+    return !(judged && kept / counts.rowsInHand >= MAX_TILE_SHARE);
 }
 
 /**
