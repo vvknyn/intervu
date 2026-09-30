@@ -20,6 +20,7 @@ describe("for-you postcard layout", () => {
         assert.match(stage, /min-height: min\(\s*30rem,/, "never squeezed below a usable card (a sign-up card or header scrolls the page instead)");
         assert.doesNotMatch(css, /body:has\(\[data-testid="for-you-home"\]\)\s*\{[^}]*overflow: hidden/, "the pack page is not locked to the viewport");
         assert.match(stage, /var\(--mobile-tabbar-h\) - env\(safe-area-inset-bottom/, "the floor leaves room for the phone tab bar and the home indicator");
+        assert.match(home, /\}, \[hasRoles\]\);/, "the fit restarts when a pack's roles arrive, not on every change in their number");
         assert.match(home, /querySelector\("\[data-mobile-tabbar\]"\)/, "opening a pack fits the stack above the tab bar as measured (its height var is set on body, not :root)");
         assert.match(css, /@media \(max-height: 30rem\)[^{]*\{\s*\.role-card-actions \{\s*flex-flow: row wrap;/, "a phone on its side puts the card's actions on one row");
         assert.doesNotMatch(home, /for-you-list-scroll|for-you-back-to-list|deckWindowRange/, "no ranked list beside the stack");

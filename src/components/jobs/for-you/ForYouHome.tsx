@@ -316,11 +316,13 @@ export function ForYouHome({
     // that the Previous/Next bar goes under the top bar. The header above
     // keeps growing for a moment (filter counts, the résumé band), so refit
     // while the page settles, until the visitor scrolls or touches anything.
+    // Keyed on having roles, not on how many, so stepping or Skip never
+    // refits. A pack opened after another first shows the old list for a
+    // moment, which empties before its own roles arrive: those start a fresh fit.
     const controlsRef = useRef<HTMLDivElement>(null);
-    const fittedStack = useRef(false);
+    const hasRoles = visiblePacks.length > 0;
     useEffect(() => {
-        if (fittedStack.current || visiblePacks.length === 0) return;
-        fittedStack.current = true;
+        if (!hasRoles) return;
         let settled = false;
         const settle = () => {
             settled = true;
@@ -344,6 +346,8 @@ export function ForYouHome({
         const main = document.getElementById("main");
         const observer = new ResizeObserver(fit);
         if (main) observer.observe(main);
+        const home = document.querySelector('[data-testid="for-you-home"]');
+        if (home) observer.observe(home);
         const frame = window.requestAnimationFrame(fit);
         const stop = window.setTimeout(settle, 5000);
         return () => {
@@ -352,7 +356,7 @@ export function ForYouHome({
             window.cancelAnimationFrame(frame);
             window.clearTimeout(stop);
         };
-    }, [visiblePacks.length]);
+    }, [hasRoles]);
 
     // A control focused on the open card loses focus when the card moves back
     // (it goes inert); carry it to the card that comes forward.

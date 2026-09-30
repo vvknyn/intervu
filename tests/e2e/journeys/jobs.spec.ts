@@ -472,10 +472,19 @@ test("on a small phone an opened pack fits its card, actions and Next between th
     return box ? box.y + box.height : Infinity;
   };
   // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
-  await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000 }).toBe(true);
-  expect(await bottom("for-you-download-apply")).toBeLessThanOrEqual(await tabbarTop());
-  const next = (await page.getByTestId("for-you-next").boundingBox())!;
-  expect(next.y).toBeGreaterThanOrEqual(48);
+  // Again after going back to the packs and opening another one (its roles arrive in two batches).
+  for (const round of ["first open", "second open"]) {
+    if (round === "second open") {
+      await page.getByTestId("for-you-next").click();
+      await page.getByTestId("jobs-back-to-packs").click();
+      await openHubTile(page, "remote");
+      await expect(front).toHaveCount(1, { timeout: 60_000 });
+    }
+    await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000, message: round }).toBe(true);
+    expect(await bottom("for-you-download-apply"), round).toBeLessThanOrEqual(await tabbarTop());
+    const next = (await page.getByTestId("for-you-next").boundingBox())!;
+    expect(next.y, round).toBeGreaterThanOrEqual(48);
+  }
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
