@@ -100,7 +100,8 @@ describe("Customize dialog contract", () => {
         assert.match(src, /<Dialog/);
         assert.doesNotMatch(src, /side="bottom"/);
         assert.match(src, /DialogContent/);
-        assert.match(src, /z-\[70\]/);
+        // The primitive's tier keeps the dialog above its scrim; a z-[70] override put it under (2026-09-30).
+        assert.doesNotMatch(src, /<DialogContent[^>]*\bz-/);
         assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/);
         assert.match(src, /confirmToast/);
         assert.match(src, /Enable on-device AI/);
