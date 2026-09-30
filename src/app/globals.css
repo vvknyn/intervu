@@ -288,6 +288,7 @@
      call sites; new surfaces read the named roles below. */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-stack: cubic-bezier(0.22, 0.9, 0.24, 1);
   --transition-instant: 0ms;
   --transition-fast: 100ms;
   --transition-base: 150ms;
@@ -297,6 +298,7 @@
   --transition-enter: 200ms;
   --transition-deck: 220ms;
   --transition-page: 180ms;
+  --transition-stack: 600ms;
   --motion-press-scale: 0.98;
   --motion-lift-y: -1px;
   --motion-deck-shift: 12%;
@@ -988,8 +990,9 @@ h4 {
   min-height: min(72dvh, 720px);
 }
 
-/* The ranked deck is two panes. Body stays viewport-tall so the list cannot
-   grow the page; the list and the open role scroll inside the frame. */
+/* An opened pack is a stack of role cards. Body stays viewport-tall so the
+   stack fills the frame and never grows the page; each card scrolls inside
+   itself. */
 html:has([data-testid="for-you-home"]),
 body:has([data-testid="for-you-home"]) {
   height: 100svh;
@@ -1202,6 +1205,74 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
 
 .deck-enter-previous {
   animation: deck-slide-in-previous var(--transition-deck) var(--ease-standard) both;
+}
+
+/* Stacked role cards — the opened pack (RoleStack.tsx, role-stack.ts).
+   "Tip back under": the next role slides up over the open one, which tips
+   back from its top edge, shrinks and dims into the stack behind. The stage
+   is the perspective root and clips the card waiting below it; the peek at
+   the top is room for the two cards behind to show their top strips. Card
+   order in the DOM is stacking order, so no pose needs a z-index. */
+.role-stack-stage {
+  --role-stack-peek: 2.75rem;
+  position: relative;
+  overflow: hidden;
+  perspective: 1800px;
+  perspective-origin: 50% 0%;
+}
+
+.role-stack-card {
+  position: absolute;
+  inset: var(--role-stack-peek) 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgb(var(--border));
+  background-color: rgb(var(--card));
+  color: rgb(var(--card-foreground));
+  box-shadow: var(--shadow-postcard);
+  transform-origin: 50% 0%;
+  transition:
+    transform var(--transition-stack) var(--ease-stack),
+    filter var(--transition-stack) var(--ease-standard),
+    opacity var(--transition-enter) var(--ease-standard);
+  will-change: transform;
+}
+
+.role-stack-card[data-stack-pose="front"] {
+  transform: translateY(0) scale(1) rotateX(0deg);
+}
+
+.role-stack-card[data-stack-pose="upcoming"] {
+  transform: translateY(calc(100% + var(--role-stack-peek) + 2rem));
+}
+
+.role-stack-card[data-stack-pose="behind-1"],
+.role-stack-card[data-stack-pose="departing"] {
+  transform: translateY(-1.5rem) scale(0.955) rotateX(9deg);
+  filter: brightness(0.8);
+}
+
+.role-stack-card[data-stack-pose="behind-2"] {
+  transform: translateY(-2.625rem) scale(0.91) rotateX(14deg);
+  filter: brightness(0.62);
+}
+
+.role-stack-card[data-stack-pose="gone"] {
+  transform: translateY(-3.5rem) scale(0.87) rotateX(18deg);
+  filter: brightness(0.45);
+  opacity: 0;
+}
+
+/* A skipped role tips back like any covered card, then fades out once it is
+   under the stack, so the card behind it shows through without a jump. */
+.role-stack-card[data-stack-pose="departing"] {
+  opacity: 0;
+  transition:
+    transform var(--transition-stack) var(--ease-stack),
+    filter var(--transition-stack) var(--ease-standard),
+    opacity var(--transition-enter) var(--ease-standard) calc(var(--transition-stack) - var(--transition-enter));
 }
 
 @keyframes success-pulse-keyframes {
@@ -1599,6 +1670,7 @@ select {
     --transition-enter: 0ms;
     --transition-deck: 0ms;
     --transition-page: 0ms;
+    --transition-stack: 0ms;
   }
 
   .designed-press:active:not(:disabled),

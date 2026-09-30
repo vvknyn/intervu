@@ -11,13 +11,15 @@ function source(name: string): string {
 }
 
 describe("for-you postcard layout", () => {
-    it("ForYouHome list scrolls in its column — the role pane does not grow the page", () => {
+    it("ForYouHome stack fills the frame — each role card scrolls inside itself, the page does not grow", () => {
         const home = source("ForYouHome.tsx");
         assert.match(home, /FOR_YOU_HOME_FRAME_CLASS/);
-        assert.match(home, /data-testid="for-you-list-scroll"/);
-        assert.match(home, /data-testid="for-you-back-to-list"/);
-        assert.match(home, /deckWindowRange/);
-        assert.match(home, /visiblePacks\.slice\(windowed\.start, windowed\.end\)/);
+        assert.match(home, /<RoleStack[\s\S]*className="min-h-0 flex-1"/, "the stack takes the space left, never more");
+        assert.doesNotMatch(home, /for-you-list-scroll|for-you-back-to-list|deckWindowRange/, "no ranked list beside the stack");
+        const card = source("StackedRoleCard.tsx");
+        assert.match(card, /overflow-y-auto overscroll-contain/, "a phone card is one scroll");
+        assert.match(card, /lg:grid-cols-\[minmax\(0,26rem\)_minmax\(0,1fr\)\]/, "desktop: inferred left, posting right");
+        assert.match(card, /sticky bottom-0[^"]*lg:static/, "actions stay pinned on a phone, sit under the left column on desktop");
         assert.doesNotMatch(
             home,
             /overflow-hidden overscroll-none/,
@@ -28,8 +30,8 @@ describe("for-you postcard layout", () => {
             /h-\[calc\(100dvh/,
             "100dvh belongs on Search detail panes only, not For-you",
         );
-        assert.match(home, /data-testid="for-you-download-apply"/);
-        assert.match(home, /data-testid="for-you-skip"/);
+        assert.match(home, /"for-you-download-apply"/);
+        assert.match(home, /"for-you-skip"/);
         assert.match(home, /data-testid="jobs-replace-resume"/);
     });
 

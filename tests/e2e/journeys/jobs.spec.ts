@@ -241,17 +241,25 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const cards = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
+  const places = page.locator('[data-testid="for-you-deck"] [data-testid="role-card-place"]');
+  const frontPlace = page.locator('[data-testid="role-stack-card"][data-stack-pose="front"] [data-testid="role-card-place"]');
 
   // Fully remote: the deck used to show the hub's own rows (onsite, anywhere) until the
-  // tile's search landed. Every row it shows, from the first, is a remote role.
+  // tile's search landed. Every role it shows, from the first, is a remote role: the cards
+  // on the stack before and after the search settles, then each role Next brings up.
   await openHubTile(page, "remote");
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  const firstPaint = await rows.allInnerTexts();
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+  const firstPaint = await places.allInnerTexts();
   expect(firstPaint.length).toBeGreaterThan(0);
   for (const text of firstPaint) expect(text).toMatch(/\bRemote\b/);
   await page.waitForTimeout(3_000);
-  for (const text of await rows.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  for (const text of await places.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  const next = page.getByTestId("for-you-next");
+  for (let step = 0; step < 4 && (await next.isEnabled()); step++) {
+    await next.click();
+    await expect(frontPlace).toHaveText(/\bRemote\b/);
+  }
 
   // A row tile (AI roles) counted on the hub opens on those roles, even behind the guest
   // preview: it used to keep only the AI roles among the pack's top 3, usually none.
@@ -261,9 +269,9 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   const counted = Number(((await aiCount.textContent()) ?? "").replace(/[^\d]/g, "") || "0");
   await page.getByTestId("hub-pack-card-ai").click({ timeout: 30_000 });
   if (counted > 0) {
-    await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+    await expect(cards.first()).toBeVisible({ timeout: 60_000 });
   } else {
-    await expect(page.getByTestId("for-you-empty").or(rows.first())).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId("for-you-empty").or(cards.first())).toBeVisible({ timeout: 60_000 });
   }
   expect(diagnostics.serverErrors).toEqual([]);
 });
@@ -333,7 +341,7 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   await openHubTile(page, "remote");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("jobs-back-to-packs").click();
@@ -350,6 +358,50 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const card = (id: string) => stack.locator(`[data-testid="role-stack-card"][data-job-id="${id}"]`);
+  const frontId = async () => (await front.getAttribute("data-job-id")) ?? "";
+  const position = page.getByTestId("for-you-deck-position");
+
+  // One open role, in two parts: what we inferred about it on one side, what the posting states on the other.
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expect(front.getByTestId("role-card-inferred")).toContainText("What we inferred");
+  await expect(front.getByTestId("role-card-description")).toBeVisible();
+  await expect(front.getByTestId("for-you-download-apply")).toBeVisible();
+  await expect(position).toHaveText(/^Role 1 of \d+$/);
+  const total = Number(/of (\d+)/.exec((await position.textContent()) ?? "")?.[1] ?? "0");
+  test.skip(total < 3, "the pack needs three roles to step through");
+  const first = await frontId();
+
+  // Next brings the next role up in front; the one it covers tips back into the stack behind.
+  await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText(`Role 2 of ${total}`);
+  await expect(card(first)).toHaveAttribute("data-stack-pose", "behind-1");
+  const second = await frontId();
+  expect(second).not.toBe(first);
+
+  // Skip drops the open role: the next one takes its place and the count goes down by one.
+  await page.getByTestId("for-you-skip").click();
+  await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+  await expect.poll(frontId).not.toBe(second);
+  await expect(card(second)).toHaveCount(0, { timeout: 5_000 });
+
+  // Previous brings the first role back to the front.
+  await page.getByTestId("for-you-previous").click();
+  await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+  await expect.poll(frontId).toBe(first);
+  await expect(page.getByTestId("for-you-previous")).toBeDisabled();
+  expect(diagnostics.serverErrors).toEqual([]);
 });
 
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */
