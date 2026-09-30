@@ -103,7 +103,7 @@ test("A failed email-preferences read ends in an error with Try again, and Try a
   await expect(page.getByRole("switch", { name: "Weekly digest" })).toBeVisible();
 });
 
-test("The follow-alerts bell links to the companies you follow, not the Elite board", { tag: ["@J-NAV-39"] }, async ({ page }) => {
+test("The follow-alerts bell links to the companies you follow, not the Elite board", { tag: ["@J-NAV-40"] }, async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", displayName: "Ada Lovelace", email: "ada@example.com" };
     localStorage.setItem("intervu.onboarding.completed", "1");
