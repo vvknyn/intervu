@@ -81,8 +81,9 @@ export interface ForYouHomeProps {
     fitActive: boolean;
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
-    /** A row the visitor deliberately opened (click or tap), not the one the
-     *  deck selects on its own — the page records it as a view. */
+    /** A role the visitor deliberately stepped to (Next, Previous, an arrow
+     *  key or a swipe), not the first card or the one Skip brings forward —
+     *  the page records it as a view. */
     onOpenRow?: (job: PublicJob) => void;
     onRetryDescription?: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
@@ -304,6 +305,24 @@ export function ForYouHome({
         return () => window.cancelAnimationFrame(id);
     }, [firstRevealDeckFocus, showLoading, visiblePacks.length, onFirstRevealFocusDone]);
 
+    const selectedIndex =
+        activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
+    const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
+
+    // Next, Previous, the arrow keys and a swipe all land here: a role the
+    // visitor stepped to counts as viewed. The first card and the one Skip
+    // brings forward arrive on their own and are not recorded.
+    const goTo = useCallback(
+        (index: number) => {
+            const next = clampDeckIndex(index, visiblePacks.length);
+            if (next === selectedIndex) return;
+            onActiveIndexChange(next);
+            const job = visiblePacks[next];
+            if (job) onOpenRow?.(job);
+        },
+        [visiblePacks, selectedIndex, onActiveIndexChange, onOpenRow],
+    );
+
     // Skip removes the open role from the list. Keep it on the stack long
     // enough to tip back under the role that replaces it (RoleStack).
     const skipActive = useCallback(() => {
@@ -318,12 +337,12 @@ export function ForYouHome({
         return () => window.clearTimeout(id);
     }, [departing]);
 
-    const shortcutStateRef = useRef({ activeIndex, packsLength: visiblePacks.length, canNavigate, applying, skipActive });
-    shortcutStateRef.current = { activeIndex, packsLength: visiblePacks.length, canNavigate, applying, skipActive };
+    const shortcutStateRef = useRef({ selectedIndex, canNavigate, applying, goTo, skipActive });
+    shortcutStateRef.current = { selectedIndex, canNavigate, applying, goTo, skipActive };
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
-            const { activeIndex, packsLength, canNavigate, applying, skipActive } = shortcutStateRef.current;
+            const { selectedIndex, canNavigate, applying, goTo, skipActive } = shortcutStateRef.current;
             if (!canNavigate) return;
             const action = resolveDeckShortcut({
                 key: event.key,
@@ -335,16 +354,16 @@ export function ForYouHome({
                 target: event.target,
             });
             if (action === "previous") {
-                onActiveIndexChange(Math.max(activeIndex - 1, 0));
+                goTo(selectedIndex - 1);
             } else if (action === "next") {
-                onActiveIndexChange(Math.min(activeIndex + 1, packsLength - 1));
+                goTo(selectedIndex + 1);
             } else if (action === "skip" && !applying) {
                 skipActive();
             }
         };
         document.addEventListener("keydown", onKeyDown);
         return () => document.removeEventListener("keydown", onKeyDown);
-    }, [onActiveIndexChange]);
+    }, []);
 
     const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
     // The pack's own count: what applying these filters returns, not the size of the deck on screen.
@@ -364,10 +383,6 @@ export function ForYouHome({
         // `packKey` is the identity of `filters`; `searchJobsAction` is a stable action.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packKey]);
-    const selectedIndex =
-        activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
-    const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
-
     useEffect(() => {
         if (visiblePacks.length === 0) return;
         if (activeIndex < 0 || activeIndex >= visiblePacks.length) onActiveIndexChange(0);
@@ -376,7 +391,6 @@ export function ForYouHome({
     const lastIndex = visiblePacks.length - 1;
     const atEnd = selectedIndex >= lastIndex;
     const upNext = atEnd ? null : visiblePacks[selectedIndex + 1];
-    const goTo = (index: number) => onActiveIndexChange(clampDeckIndex(index, visiblePacks.length));
 
     const renderCard = (job: PublicJob, active: boolean) => {
         const hydration = resolveDescriptionHydration(job, hydratedJobs.get(job.id));

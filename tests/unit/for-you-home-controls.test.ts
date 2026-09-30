@@ -23,4 +23,23 @@ describe("ForYouHome skip vs replace controls", () => {
         assert.match(replaceBlock, /onClick=\{onReplaceResume\}/);
         assert.doesNotMatch(replaceBlock, /onSkip/);
     });
+
+    it("a role stepped to with Next, Previous, an arrow key or a swipe counts as viewed; Skip's does not", () => {
+        const src = readFileSync(FOR_YOU_HOME, "utf8");
+
+        const goTo = src.match(/const goTo = useCallback\([\s\S]*?\n {4}\);/)?.[0] ?? "";
+        assert.ok(goTo, "goTo is the one step helper");
+        assert.match(goTo, /if \(next === selectedIndex\) return;/, "a step that goes nowhere records nothing");
+        assert.match(goTo, /onOpenRow\?\.\(job\)/);
+
+        assert.match(src, /data-testid="for-you-previous"\s+onClick=\{\(\) => goTo\(selectedIndex - 1\)\}/);
+        assert.match(src, /data-testid="for-you-next"\s+onClick=\{\(\) => goTo\(selectedIndex \+ 1\)\}/);
+        assert.match(src, /onSwipe=\{\(direction\) => goTo\(/);
+        assert.match(src, /action === "previous"\) \{\s+goTo\(selectedIndex - 1\);/);
+        assert.match(src, /action === "next"\) \{\s+goTo\(selectedIndex \+ 1\);/);
+        assert.equal(src.match(/onActiveIndexChange\(/g)?.length, 2, "only goTo and the out-of-range reset move the deck");
+
+        const skip = src.match(/const skipActive = useCallback\([\s\S]*?\n {4}\}, /)?.[0] ?? "";
+        assert.doesNotMatch(skip, /onOpenRow/);
+    });
 });
