@@ -22,6 +22,10 @@ Both print `journeys: N total, C covered, U uncovered, K known-bug`, then pass/f
 - **Fixtures**: import `test`/`expect` from `tests/e2e/journeys/fixtures.ts`. Analytics and `/api/telemetry` requests are aborted; console errors, page errors and same-origin 5xx responses are collected as `diagnostics` for a spec to assert.
 - **Lint**: `bash scripts/run-unit-tests.sh` (file `tests/unit/journey-catalog.test.ts`, node:test) fails on a tag with no row, a duplicate ID, a covered/known-bug row with no tagged spec, an uncovered row that has one, or a Writes=yes row whose test lacks `@writes`.
 
+## Seeds
+
+- **SEED-A** (Entry shorthand): before the first navigation, `page.addInitScript` sets `localStorage["velai.onboarding.completed"] = "1"` (`ONBOARDING_COMPLETED_STORAGE_KEY`; the `returningVisitor` helper in `jobs.spec.ts` and `signup-gates.spec.ts`, called the "onboarding-completed flag" in newer rows). It used to skip the /jobs poster and step flow; signed-out /jobs shows neither now (`src/app/jobs/JobsRouteGate.tsx`), so on a signed-out row it changes nothing and a new spec may leave it out.
+
 ## Add a journey
 
 1. Add a row to the area table (new area = new table). Start it `uncovered` if you are not writing the spec now.
