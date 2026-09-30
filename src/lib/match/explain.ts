@@ -62,7 +62,7 @@ function roleSentence(score: MatchScore): string | null {
         case "family":
             return yours
                 ? `It's the same kind of work as your ${yours} role, under a different title.`
-                : "It's the same kind of work as yours, under a different title.";
+                : "It's the kind of role your résumé points to.";
         case "adjacent":
             return yours
                 ? `It's a role next to yours (${yours}) rather than the same job, so it can't be a Strong match.`

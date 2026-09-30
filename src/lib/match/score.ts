@@ -409,7 +409,9 @@ export function roleAffinity(resume: ResumeData, job: PublicJob): RoleAffinity {
     const title = job.title ?? "";
     if (own.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "own";
     if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
-    return fit === "target" ? "adjacent" : fit;
+    // A résumé that names no role of its own (skills only) has nothing to be "next to".
+    if (fit === "target") return own.length > 0 ? "adjacent" : "family";
+    return fit;
 }
 
 /** The candidate's role a posting is explained against: the own title it matched, else their first one. */
