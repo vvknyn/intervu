@@ -111,6 +111,7 @@ import { TodayHome } from "@/components/jobs/for-you/TodayHome";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
+import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -286,7 +287,9 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
-import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { hubIndustryTiles, industryFilterTileIds, industryTileCandidates } from "@/lib/jobs/for-you/industry-tiles";
+import { resumeIndustry } from "@/lib/jobs/resume-industry";
 import {
     parseJobsUrl,
     serializeJobsUrl,
@@ -321,7 +324,7 @@ import {
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { HUB_FILTER_TILE_IDS, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
+import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -1243,7 +1246,9 @@ export function JobsContent() {
         if (typeof window !== "undefined" && target === `${window.location.pathname}${window.location.search}`) {
             return;
         }
-        if (history === "push") window.history.pushState(null, "", target);
+        // Marked so a job opened from here knows Back returns to one of our
+        // pages (detail-close.ts), in browsers without the Navigation API.
+        if (history === "push") window.history.pushState({ [PUSHED_IN_APP]: true }, "", target);
         else window.history.replaceState(null, "", target);
     };
 
@@ -2959,9 +2964,11 @@ export function JobsContent() {
     // Same résumé content must not restart the probe. A new object identity
     // (parallel fetches of the saved résumé) was cancelling the in-flight
     // search before it could paint category counts.
+    // The industry of the résumé's profession picks which pack tiles the hub shows (industry-tiles.ts).
+    const hubIndustry = resume && hasUsableResume ? resumeIndustry(resume) : null;
     const hubResumeKey =
-        resume && hasUsableResume
-            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}`
+        resume && hasUsableResume && hubIndustry
+            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}\0${hubIndustry}`
             : "";
 
     // No usable résumé (missing, junk, or still loading): paint pack counts
@@ -2994,9 +3001,10 @@ export function JobsContent() {
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
+        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
             return;
         }
+        const industry = hubIndustry;
         const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
         const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
         if (memo) {
@@ -3021,7 +3029,7 @@ export function JobsContent() {
         const failProbe = () => {
             setHubProbeFailed(true);
             setHubFilterTileCounts((prev) =>
-                Object.fromEntries(HUB_FILTER_TILE_IDS.filter((id) => id !== "all").map((id) => [id, prev[id] ?? null])),
+                Object.fromEntries(industryFilterTileIds(industry).map((id) => [id, prev[id] ?? null])),
             );
         };
 
@@ -3095,7 +3103,11 @@ export function JobsContent() {
                     poolTotal,
                     scored,
                 });
-                const nextTotals = packBandTotalsFromSources(sources);
+                // Only this industry's tiles: a removal cue must name a tile the visitor can see.
+                const industryTiles = new Set<HubPackId>(industryTileCandidates(industry));
+                const nextTotals = Object.fromEntries(
+                    Object.entries(packBandTotalsFromSources(sources)).filter(([id]) => industryTiles.has(id as HubPackId)),
+                ) as ReturnType<typeof packBandTotalsFromSources>;
                 const removals = diffHubPackRemovals(previous, nextTotals);
                 const removalsLine = formatHubRemovalsLine(removals) || null;
                 writeHubCountMemory({
@@ -3108,18 +3120,25 @@ export function JobsContent() {
                 // Each filter tile counts its own search (the one its deck sends), one at a
                 // time after the probe so the hub stays inside the search rate limit.
                 const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
-                for (const id of HUB_FILTER_TILE_IDS) {
-                    if (id === "all") continue;
+                for (const id of industryFilterTileIds(industry)) {
                     const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
                     if (cancelled) return;
                     tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
                     setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
-                // Every chip count is known: compare the exact ones with the last visit's, then remember these.
-                const chipCounts = exactHubCounts({
-                    ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
-                    ...tileCounts,
-                });
+                // Every chip count is known: compare the exact ones with the last visit's, then remember these,
+                // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go).
+                const shown = new Set(
+                    hubIndustryTiles(industry, { listTotal: allCount, listJobs: scored.map((h) => h.job), filterCounts: tileCounts, probing: false }),
+                );
+                const chipCounts = Object.fromEntries(
+                    Object.entries(
+                        exactHubCounts({
+                            ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
+                            ...tileCounts,
+                        }),
+                    ).filter(([id]) => shown.has(id as HubPackId)),
+                ) as HubPackCounts;
                 const { deltas, next } = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
                 writeHubTileCounts(next);
                 setHubCountDeltas(deltas);
@@ -3149,7 +3168,7 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
+    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
@@ -3177,6 +3196,21 @@ export function JobsContent() {
                         loading: hubPackCorpusCounts == null,
                     }),
         [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts],
+    );
+
+    // A résumé visitor's chips: their industry's tiles, each shown only once its
+    // count says it holds roles and narrows the list (industry-tiles.ts).
+    const hubCategories = useMemo(
+        () =>
+            hubResumeKey && hubIndustry
+                ? hubIndustryTiles(hubIndustry, {
+                      listTotal: hubResumeAllCount,
+                      listJobs: hubFitProbe.scored.map((h) => h.job),
+                      filterCounts: hubFilterTileCounts,
+                      probing: hubFitProbe.loading || hubFitProbe.probing,
+                  }).map((id) => ({ id, label: HUB_PACK_SHORT_LABELS[id] }))
+                : undefined,
+        [hubResumeKey, hubIndustry, hubResumeAllCount, hubFitProbe.scored, hubFitProbe.loading, hubFitProbe.probing, hubFilterTileCounts],
     );
 
     // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
@@ -3283,13 +3317,13 @@ export function JobsContent() {
         // picks it back up on mount (deep link), on browser back/forward
         // (popstate needs no bespoke handling — Next's router already
         // updates `searchParams`), and opens/closes the detail sheet when
-        // `job` appears/disappears (detail close calls `router.back()`, see
+        // `job` appears/disappears (detail close calls `closeDetail`, see
         // the Sheet below). Deliberately unconditional (not gated behind the
         // subset check above) — a job-only URL change must still update
         // selection even when nothing else in the subset changed.
         //
         // Bottom sheet on all viewports when `job` appears/disappears (close
-        // calls `router.back()`, see the Sheet below).
+        // calls `closeDetail`, see the Sheet below).
         const jobId = parsed.jobId;
         setSelectedId(jobId);
         setDetailSheetOpen(Boolean(jobId));
@@ -5210,11 +5244,19 @@ export function JobsContent() {
         }
     };
 
+    // Closing a job: Back when the entry before is one of ours (opening from
+    // the list pushed `?job=`), else drop `?job=` in place — Back from a
+    // shared link left the site (detail-close.ts).
+    const closeDetail = () => {
+        if (previousEntryIsOurs(window)) router.back();
+        else window.history.replaceState(null, "", urlWithoutJob(window.location));
+    };
+
     // The detail ternary (real job / dead-job tombstone / unresolved /
     // loading skeleton) both mount sites render — extracted so the xl+ pane
     // can never silently drift from the sheet's own branches (writing-lean-
     // code rule 2, single source of truth). `onClose` is passed explicitly
-    // by each call site (both currently `() => router.back()`) rather than
+    // by each call site (both currently `closeDetail`) rather than
     // hardcoded here, keeping this decoupled from the router.
     //
     // `collapseDescription` defaults true (JobDetail's own default, unchanged
@@ -6377,6 +6419,7 @@ export function JobsContent() {
                                     />
                                 ) : null}
                                 <CategoryHubGrid
+                                    categories={hubCategories}
                                     compactHeader={Boolean(resume && signals && pack && hubResumeKey)}
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
@@ -6500,7 +6543,7 @@ export function JobsContent() {
                             className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:border xl:border-border xl:bg-surface"
                         >
                             {detailMountSite === "pane" ? (
-                                renderDetailSurface(detailSheetOpen ? () => router.back() : undefined)
+                                renderDetailSurface(detailSheetOpen ? closeDetail : undefined)
                             ) : loading ? (
                                 <div className="p-4">
                                     <JobDetailSkeleton />
@@ -7265,7 +7308,7 @@ export function JobsContent() {
                 // the same job. Narrowing back re-opens the sheet.
                 open={detailMountSite === "sheet"}
                 onOpenChange={(open) => {
-                    if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) router.back();
+                    if (shouldBackOnDetailSheetClose(open, searchParams.get("job"))) closeDetail();
                 }}
             >
                 <SheetContent
@@ -7295,7 +7338,7 @@ export function JobsContent() {
                             <button
                                 type="button"
                                 aria-label="Close"
-                                onClick={() => router.back()}
+                                onClick={closeDetail}
                                 className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
                             >
                                 <X size={16} aria-hidden />
@@ -7350,9 +7393,9 @@ export function JobsContent() {
                         data-testid="mobile-detail-scroller"
                         className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-[env(safe-area-inset-bottom,0px)] custom-scrollbar"
                     >
-                        {/* `undefined`, not `() => router.back()` — the sheet chrome
+                        {/* `undefined`, not `closeDetail` — the sheet chrome
                             above already renders its own × wired to the identical
-                            `router.back()` (the button ~30 lines up). Passing a
+                            `closeDetail` (the button ~30 lines up). Passing a
                             handler here makes JobDetail render a SECOND × (its
                             `{onClose && ...}` gate at JobDetail.tsx:597), duplicating
                             the close control ~150px away from the first. Do not

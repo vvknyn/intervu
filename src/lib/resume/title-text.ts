@@ -8,8 +8,14 @@
  */
 import { DATE_RANGE_RE, HAS_DATE_RE } from "./resume-dates";
 
+/**
+ * Words that make a line a job title. The first group is software and
+ * go-to-market; the rest are the other professions a résumé comes from. Without
+ * them "Registered Nurse" read as a company, and the parser swapped a nurse's
+ * role and employer (2026-09-30).
+ */
 export const TITLE_WORD_RE =
-    /\b(engineer|developer|manager|designer|analyst|director|lead|architect|consultant|specialist|coordinator|administrator|scientist|product|programmer|devops|sre|customer success|operations|account|support|success|associate|partner|recruiter|people|talent|senior|staff|principal|junior|head of|vp|vice president)\b/i;
+    /\b(engineer|developer|manager|designer|analyst|director|lead|architect|consultant|specialist|coordinator|administrator|scientist|product|programmer|devops|sre|customer success|operations|account|support|success|associate|partner|recruiter|people|talent|senior|staff|principal|junior|head of|vp|vice president|nurse|nursing|rn|lpn|rpn|therapist|physiotherapist|pharmacist|technologist|technician|assistant|aide|resident|physician|surgeon|paramedic|midwife|dietitian|hygienist|epidemiologist|psychologist|counsell?or|social worker|caregiver|teacher|educator|instructor|professor|lecturer|tutor|librarian|accountant|auditor|bookkeeper|controller|clerk|receptionist|secretary|paralegal|driver|dispatcher|electrician|plumber|welder|machinist|mechanic|carpenter|foreman|operator|cook|chef|server|barista|cashier|supervisor|officer|representative|agent|advisor|adviser|researcher|intern|apprentice|trainee)\b/i;
 
 /** Company/place/date separators: spaced dashes, pipe, tab, "at"/"@", comma, bullet dot. */
 const SEGMENT_SPLIT_RE = /\s+[—–-]\s+|\s*[|\t·•]\s*|\s+(?:at|@)\s+|,\s*|\s{3,}/i;
