@@ -365,6 +365,7 @@ import { toast } from "@/lib/toast";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import {
     isConfirmedSignedIn,
@@ -1948,6 +1949,10 @@ export function JobsContent({
             },
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     useEffect(() => {
@@ -4606,10 +4611,11 @@ export function JobsContent({
                     window.setTimeout(() => resolve(null), RESUME_FETCH_BUDGET_MS);
                 }),
             ]);
-            if (fetched?.data && resumeIsUsable(fetched.data)) {
-                setResume(fetched.data);
-                setResumeUpdatedAt(fetched.updatedAt ?? null);
-                return fetched.data;
+            const cloud = fetched ? storedResumeData(fetched.data, fetched.text) : undefined;
+            if (cloud && resumeIsUsable(cloud)) {
+                setResume(cloud);
+                setResumeUpdatedAt(fetched?.updatedAt ?? null);
+                return cloud;
             }
         } catch {
             // e2e mock / offline — fall through to on-device seed
@@ -7358,6 +7364,19 @@ export function JobsContent({
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}` : "Job details"}
                     </SheetTitle>
+                    {/* The visitor applies from this sheet and comes back to it, and
+                        the floating prompt is hidden while a sheet is open, so the
+                        question is asked here. The floating one below stands down. */}
+                    {applyReturnPrompt ? (
+                        <div className="shrink-0 border-b border-border px-4 py-3">
+                            <ApplyReturnPrompt
+                                placement="inline"
+                                record={applyReturnPrompt}
+                                onMarkApplied={markApplyReturnApplied}
+                                onDismiss={dismissApplyReturn}
+                            />
+                        </div>
+                    ) : null}
                     {/* G5a: safe-area bottom padding — the sheet already
                         paints OVER the fixed mobile tab bar when open (see
                         JobDetailActionBar's doc comment), but nothing
@@ -7433,7 +7452,7 @@ export function JobsContent({
                 onDismiss={() => setGuestTrackPrompt(null)}
             />
             <ApplyReturnPrompt
-                record={applyReturnPrompt}
+                record={detailMountSite === "sheet" ? null : applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}
                 onDismiss={dismissApplyReturn}
             />

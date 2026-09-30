@@ -36,7 +36,7 @@ export function resumeDataToZipMarkdown(data: ResumeData): string {
             if (competencies.length > 0) {
                 lines.push("## CORE COMPETENCIES", "");
                 for (const c of competencies) {
-                    lines.push(`**${c.category}:** ${c.skills.join(", ")}`);
+                    lines.push(c.category.trim() ? `**${c.category}:** ${c.skills.join(", ")}` : c.skills.join(", "));
                 }
                 lines.push("");
             }
