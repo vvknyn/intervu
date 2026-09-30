@@ -50,6 +50,7 @@ export const ANALYTICS_EVENTS = {
   upgrade_clicked: "upgrade_clicked",
   founding_member_paid: "founding_member_paid",
   founding_seat_reserved: "founding_seat_reserved",
+  landed_pledge_clicked: "landed_pledge_clicked",
 
   home_viewed: "home_viewed",
   home_action_clicked: "home_action_clicked",
