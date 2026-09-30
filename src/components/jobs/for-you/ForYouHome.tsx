@@ -75,6 +75,9 @@ export interface ForYouHomeProps {
     fitActive: boolean;
     hydratedJobs: Map<string, { job: PublicJob; descriptionPending: boolean }>;
     onActivePackChange: (jobId: string) => void;
+    /** A row the visitor deliberately opened (click or tap), not the one the
+     *  deck selects on its own — the page records it as a view. */
+    onOpenRow?: (job: PublicJob) => void;
     onRetryDescription?: (jobId: string) => void;
     onOpenPosting: (job: PublicJob) => void;
     onHomeViewChange: (view: JobsHomeView) => void;
@@ -146,6 +149,7 @@ export function ForYouHome({
     onRetryLoad,
     hydratedJobs,
     onActivePackChange,
+    onOpenRow,
     onRetryDescription,
     onOpenPosting,
     onHomeViewChange,
@@ -422,6 +426,8 @@ export function ForYouHome({
 
     const selectRow = (index: number) => {
         onActiveIndexChange(index);
+        const job = visiblePacks[index];
+        if (job) onOpenRow?.(job);
         if (window.matchMedia("(max-width: 1279px)").matches) {
             freezeListScroll.current = true;
             setPhoneRole(true);
