@@ -51,7 +51,7 @@ import {
     type CandidateSignals,
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
-import { jobCountries } from "@/lib/jobs/resume-location";
+import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { buildMatchQuery, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
@@ -71,7 +71,29 @@ export interface MatchComponent {
     /** True when a side of the comparison is unknown: `score` is the neutral
      *  `UNKNOWN_COMPONENT_SCORE`, not evidence of a fit or a misfit. */
     unknown?: boolean;
+    /** Which verdict `detail` states, for surfaces that word it themselves (match/explain.ts). */
+    reason?: MatchReason;
+    /** Relevance only: how many of the posting's terms the résumé has, of how many. */
+    terms?: { matched: number; of: number };
 }
+
+/** The verdict behind a seniority or location component's `detail`. */
+export type MatchReason =
+    | "level_fits"
+    | "level_above_ask"
+    | "level_below_ask"
+    | "level_unlisted"
+    | "no_years"
+    | "remote_anywhere"
+    | "remote_preferred"
+    | "no_resume_place"
+    | "resume_place_unmatched"
+    | "country_unlisted"
+    | "same_country"
+    | "remote_same_country"
+    | "relocation_country"
+    | "remote_abroad"
+    | "abroad";
 
 export interface MatchScore {
     /** 0-100 integer. */
@@ -215,6 +237,7 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
         label: "Relevance to this role",
         detail: `${matched.length} of ${jobVocab.size} terms this role names`,
         score,
+        terms: { matched: matched.length, of: jobVocab.size },
     };
 }
 
@@ -222,11 +245,12 @@ function isRemoteWorkType(workType: string | null | undefined): boolean {
     return /remote/i.test(workType ?? "");
 }
 
-const locationComponent = (detail: string, score: number, unknown?: boolean): MatchComponent => ({
+const locationComponent = (reason: MatchReason, detail: string, score: number, unknown?: boolean): MatchComponent => ({
     key: "location",
     label: "Location",
     detail,
     score,
+    reason,
     ...(unknown ? { unknown } : {}),
 });
 
@@ -239,31 +263,44 @@ const locationComponent = (detail: string, score: number, unknown?: boolean): Ma
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
-    const jobList = jobCountries(job);
-    if (remote && jobList.length === 0) return locationComponent("remote — open to any location", 1);
-    if (signals.remotePreference.value && remote) return locationComponent("remote — matches your remote-only preference", 1);
+    let jobList = jobCountries(job);
+    let jobPlace: string | null = null;
+    if (jobList.length === 0) {
+        const named = titlePlace(job.title);
+        if (named) {
+            jobList = named.countries;
+            jobPlace = named.label;
+        }
+    }
+    if (remote && jobList.length === 0) return locationComponent("remote_anywhere", "remote — open to any location", 1);
+    if (signals.remotePreference.value && remote) {
+        return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
+    }
 
     const own = candidateCountries(signals);
     if (own.length === 0) {
         return locationComponent(
+            signals.location.value ? "resume_place_unmatched" : "no_resume_place",
             signals.location.value ? "your résumé's place names no country we can match" : "no location on your résumé",
             UNKNOWN_COMPONENT_SCORE,
             true,
         );
     }
     if (jobList.length === 0) {
-        return locationComponent("this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
+        return locationComponent("country_unlisted", "this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
     }
     if (own.some((country) => jobList.includes(country))) {
-        return locationComponent(remote ? "remote — same country" : "same country", 1);
+        return remote
+            ? locationComponent("remote_same_country", "remote — same country", 1)
+            : locationComponent("same_country", "same country", 1);
     }
     const relocation = signals.relocation.value;
     if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => jobList.includes(c)))) {
-        return locationComponent("in a country you said you'd relocate to", 0.8);
+        return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
     }
     return remote
-        ? locationComponent(`remote — based in ${jobList.join(", ")}`, 0.65)
-        : locationComponent("different country", 0.35);
+        ? locationComponent("remote_abroad", `remote — based in ${jobPlace ?? jobList.join(", ")}`, 0.65)
+        : locationComponent("abroad", "different country", 0.35);
 }
 
 const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
@@ -272,20 +309,22 @@ const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: 
 function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const own = signals.seniority.value;
     const jobIndex = EXPERIENCE_LEVEL_ORDER.indexOf(normalize(job.experience_level ?? "") as Seniority);
-    const unknown = (detail: string): MatchComponent => ({
+    const unknown = (reason: MatchReason, detail: string): MatchComponent => ({
         key: "seniority",
         label: "Seniority",
         detail,
         score: UNKNOWN_COMPONENT_SCORE,
         unknown: true,
+        reason,
     });
-    if (!own) return unknown("no years of experience on your résumé");
-    if (jobIndex === -1) return unknown("this role's level isn't listed");
+    if (!own) return unknown("no_years", "no years of experience on your résumé");
+    if (jobIndex === -1) return unknown("level_unlisted", "this role's level isn't listed");
 
     const diff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
     const verdict = diff === 0 ? "fits" : diff > 0 ? "exceeds ask" : "below ask";
-    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score };
+    const reason: MatchReason = diff === 0 ? "level_fits" : diff > 0 ? "level_above_ask" : "level_below_ask";
+    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score, reason };
 }
 
 /**
@@ -442,8 +481,10 @@ export function scoreJobAgainstResume(
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
+    const abroad = components.some((c) => c.reason === "abroad" || c.reason === "remote_abroad");
 
     if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole };
-    const capped = locationUnknown || levelUnverified(signals, job) || role === "unverified" || role === "adjacent";
+    const capped =
+        locationUnknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent";
     return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components, role, yourRole };
 }

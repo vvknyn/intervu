@@ -5,6 +5,7 @@ import { ArrowSquareOut } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import { JobDescription } from "@/components/jobs/JobDetail";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
@@ -16,19 +17,12 @@ import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
-import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
+import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { presentJob } from "@/lib/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit } from "@/lib/pursuits/types";
 import type { ResumeData } from "@/types/resume";
-import { cn } from "@/lib/utils";
-
-function bandClass(band: ReturnType<typeof matchBand>): string {
-    if (band === "strong") return "border-live-tint-border bg-live-tint-bg text-verdict-live";
-    if (band === "good") return "border-border bg-verdict-good-bg text-verdict-good";
-    return "border-border bg-verdict-caution-bg text-verdict-caution";
-}
 
 /**
  * Signed-in deck detail: a decision header and the posting.
@@ -69,7 +63,6 @@ export function DeckRoleDetail({
     const relisted = deckRelistedWord(job, now);
     const overlap = deckOverlapSentence(job, resume);
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
-    const band = matchScore ? matchBand(matchScore.total) : null;
 
     return (
         <div data-testid="deck-role" className="min-w-0">
@@ -85,17 +78,7 @@ export function DeckRoleDetail({
                     <h2 className="min-w-0 flex-1 font-display text-2xl font-semibold leading-tight text-balance text-foreground">
                         {presented.title}
                     </h2>
-                    {band && (
-                        <span
-                            data-testid="match-chip"
-                            className={cn(
-                                "mono-data inline-block shrink-0 rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
-                                bandClass(band),
-                            )}
-                        >
-                            {matchBandLabel(band)}
-                        </span>
-                    )}
+                    {matchScore ? <MatchChip score={matchScore} jobId={job.id} className="shrink-0" /> : null}
                 </div>
                 {overlap ? (
                     <p className="mt-2 text-sm text-foreground" data-testid="deck-overlap">

@@ -15,6 +15,7 @@
 import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
+import { explainMatch } from "@/lib/match/explain";
 import { matchBand, matchBandLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -110,11 +111,14 @@ function MatchReceipt({
     label: string;
 }) {
     return (
-        <div className="min-w-[220px]">
-            <div className="mb-2 text-xs font-semibold text-muted-foreground">
+        <div className="min-w-[220px] max-w-xs">
+            <div className="mb-1 text-xs font-semibold text-muted-foreground">
                 Why {label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
+            <p data-testid="match-reason" className="mb-2 text-sm leading-snug text-foreground">
+                {explainMatch(score)}
+            </p>
             <div className="space-y-1.5">
                 {score.components.map((component) => (
                     <ReceiptRow key={component.key} label={component.label} value={component.detail} />
