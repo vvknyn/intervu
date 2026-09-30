@@ -215,6 +215,10 @@ export function PublicJobDetail({
             upload: () => {},
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     const openAuth = (reason: AuthGateReason | null = null, trigger: AuthGateTrigger = "user") => {

@@ -208,11 +208,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-02 | Signed-out Apply persists a pending "apply" action bound to the current URL | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
-| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-04 | Signed-out Apply never opens a new window (no employer departure before sign-in) | anon | JOB_PATH | signed-out | no | uncovered | — |
-| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically | anon | JOB_PATH at 390x844 | signed-out | no | uncovered | — |
+| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically ("Sign in to apply") | anon | JOB_PATH at 390x844 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-06 | A persisted "apply" action for the same job resumes into the apply flow after auth | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-07 | A persisted apply action for a different job is ignored | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-08 | A persisted action older than 15 minutes is discarded on load | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
@@ -236,6 +236,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-APPLY-26 | On a phone, coming back to the job sheet asks "Did you apply?" inside the sheet (the floating chip is hidden behind any open sheet, so it isn't mounted); Yes saves the role as applied with its employer posting URL and says "Applied — nice work" (dev-server only: signed-in mock, stub search, save answered in the browser) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
 | J-APPLY-27 | On a phone, "Not yet" in the job sheet closes the question without saving, and it doesn't come back on the next focus or after closing the sheet (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
 | J-APPLY-28 | At 1440 wide the role opens beside the list (no sheet) and "Did you apply?" floats over the page; Yes saves the role with its posting URL (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 1440x900, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-29 | A closed Apply sign-in dialog stays closed when the session is checked again (back/forward cache return), and Apply still opens it | anon | JOB_PATH, Apply, Escape, `pageshow` | signed-out | no | covered | apply-gate.spec.ts |
+| J-APPLY-30 | Create account from the Apply sign-in dialog returns to the job page (`/auth/start?mode=signup&next=<job>&pending=1`), not the résumé upload at /jobs?resume=gate | anon | JOB_PATH, Apply, Create account, Continue with Google | signed-out | no | covered | apply-gate.spec.ts |
 
 ## COMPANY
 

@@ -1947,6 +1947,10 @@ export function JobsContent({
             },
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     useEffect(() => {
