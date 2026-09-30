@@ -1,6 +1,7 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
 import { validate, upsertPursuitSchema } from "@/lib/validation";
+import { appliedAtForTransition } from "@/lib/pursuits/applied-at";
 import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
 
 /**
@@ -93,15 +94,17 @@ export async function upsertPursuitCore(
                 status: parsed.data.stage,
                 job_snapshot: snapshot,
             });
+            const appliedAt = appliedAtForTransition(existing, merged.status, now);
             await db.collection("applications").doc(existing.id).update(
                 stripUndefinedDeep({
                     status: merged.status,
                     job_snapshot: merged.job_snapshot ?? null,
                     updated_at: now,
+                    applied_at: appliedAt,
                 }),
             );
             revalidatePath("/yours");
-            return { data: { ...merged, updated_at: now } };
+            return { data: { ...merged, ...(appliedAt ? { applied_at: appliedAt } : {}), updated_at: now } };
         }
 
         const docData = {
@@ -112,6 +115,7 @@ export async function upsertPursuitCore(
             status: parsed.data.stage,
             job_id: parsed.data.job_id,
             job_snapshot: snapshot,
+            applied_at: appliedAtForTransition(null, parsed.data.stage, now),
             created_at: now,
             updated_at: now,
         };

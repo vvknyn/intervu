@@ -8,6 +8,7 @@ import { ConsentAllowButton, ConsentDenyButton } from "@/components/oauth/Consen
 import type { ConsentParams } from "@/lib/agent/consent";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { cn } from "@/lib/utils";
+import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS } from "@/lib/agent/permissions-copy";
 
 /**
  * Brand lockup for the chrome-free /oauth surface — same title-case Velai lockup
@@ -125,12 +126,13 @@ export function ConsentCard({ clientName, params }: { clientName: string; params
                     The name is self-reported. Check the destination before allowing.
                 </p>
                 <div className="space-y-2">
-                    <p>This will let it:</p>
-                    <ul className="list-disc space-y-1 pl-5">
-                        <li>Search verified-real jobs as you</li>
-                        <li>Save jobs &amp; update your application tracker</li>
+                    <p>This will let it, as you:</p>
+                    <ul className="list-disc space-y-1 pl-5" data-testid="consent-permissions">
+                        {AGENT_PERMISSIONS.map((permission) => (
+                            <li key={permission.text}>{permission.text}</li>
+                        ))}
                     </ul>
-                    <p>It cannot read your chats, files, or resume.</p>
+                    <p>{AGENT_PERMISSIONS_LIMITS} You can disconnect it any time in Settings.</p>
                 </div>
             </CardContent>
             <CardFooter className="flex gap-2">

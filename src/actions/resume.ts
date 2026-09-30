@@ -6,6 +6,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { hasResumeContent } from "@/lib/resume/has-content";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -15,14 +16,27 @@ import { resumeIsUsable } from "@/lib/resume/resume-usable";
  * gets a boolean, never the document.
  */
 export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
-    const { data } = await fetchResumeData();
-    return { hasResume: resumeIsUsable(data) };
+    const { data, text } = await fetchResumeData();
+    // A text-only résumé counts as on file without reading it here: the
+    // browser structures it (`storedResumeData`), never this server.
+    return { hasResume: resumeIsUsable(data) || Boolean(text) };
 }
 
 /**
  * Fetch structured resume data from database
  */
-export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: string; confidence?: number; updatedAt?: string | null; error?: string }> {
+export async function fetchResumeData(): Promise<{
+    data?: ResumeData;
+    /** The résumé as stored text, sent only when there is no structured copy
+     *  with content (file uploads on /resume or Settings, MCP `set_resume`).
+     *  Callers pass both to `storedResumeData` so the browser structures it:
+     *  résumé parsing never runs on our servers. */
+    text?: string;
+    source?: string;
+    confidence?: number;
+    updatedAt?: string | null;
+    error?: string;
+}> {
     try {
         const user = await getServerUser();
 
@@ -39,6 +53,8 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
 
         const docData = doc.data();
         const resumeData = docData?.resume_data as ResumeData | undefined;
+        const resumeText = typeof docData?.resume_text === "string" ? docData.resume_text.trim() : "";
+        const text = resumeText && !(resumeData && hasResumeContent(resumeData)) ? resumeText : undefined;
 
         // Backward-compat: profiles saved before the name/profession split have
         // the candidate's name sitting in `profession` (see profile-migration.ts).
@@ -51,6 +67,7 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
 
         return {
             data: resumeData,
+            text,
             source: docData?.resume_import_source,
             confidence: docData?.resume_import_confidence,
             // Same field `saveResumeData` writes on every save (below) and

@@ -14,6 +14,10 @@ export const RESUME_SIGNED_OUT_EMPTY_TITLE = "You're one upload away.";
 export const RESUME_PAGE_SUBCOPY =
     "Upload a résumé to find matching roles, tailor applications for each job, and export PDFs once you sign in.";
 
+/** /resume subcopy for a signed-in visitor, who can already export. */
+export const RESUME_PAGE_SUBCOPY_SIGNED_IN =
+    "The résumé your matches are ranked by. Edit it, export a PDF, or replace it with a new file.";
+
 /** /resume local-résumé banner — semibold label (matches prior banner markup). */
 export const RESUME_LOCAL_DEVICE_BANNER_LABEL = "Parsed on this device";
 
@@ -51,6 +55,10 @@ export const AUTH_GATE_RESUME_UNLOCK_BODY =
 /** /jobs front-door résumé band (signed-out or no résumé on file). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
     "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.";
+
+/** The same band for a signed-in account with no résumé: the upload is saved to the account (see `resumeImportStorageNote`). */
+export const FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN =
+    "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account, so it follows you across devices.";
 
 /** Landing onboarding — device-only storage choice helper. */
 export const LANDING_DEVICE_STORAGE_NOTE =

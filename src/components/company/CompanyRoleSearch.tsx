@@ -18,6 +18,7 @@ import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
 
@@ -122,7 +123,8 @@ export function CompanyRoleSearch({
     }
     let cancelled = false;
     fetchResumeData()
-      .then(({ data, updatedAt }) => {
+      .then(({ data: stored, text, updatedAt }) => {
+        const data = storedResumeData(stored, text);
         if (cancelled || !data || !resumeIsUsable(data)) return;
         setResume(data);
         const ms = updatedAt ? Date.parse(updatedAt) : NaN;

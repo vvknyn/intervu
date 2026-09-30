@@ -129,8 +129,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-FILT-05 | Toggle Work mode Remote via the facet chip and see `work=` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
 | J-FILT-06 | Select two Experience values and see them comma-joined | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-07 | Pick a $100k+ salary tier and see `salary=100k` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-FILT-08 | Pick "$75k+" salary and observe it does not round-trip in the URL | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
-| J-FILT-09 | Enter a custom minimum salary | anon | SEED-A + `/jobs?q=software+engineer`, `salary-custom-min` | signed-out | no | uncovered | — |
+| J-FILT-08 | Pick "$75k+" salary and see `salary=75k`; a reload keeps it (every preset and custom floor used to fall off unless it was 50k/100k/150k/200k) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | filters.spec.ts |
+| J-FILT-09 | Enter a custom minimum salary (65500) and see `salary=65500`; a reload keeps it | anon | SEED-A + `/jobs?q=software+engineer`, `salary-custom-min` | signed-out | no | covered | filters.spec.ts |
 | J-FILT-10 | Toggle "Sponsors visas" and see `visa=1` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-11 | Pick Years of experience "3–5 years" and see `years=3-5` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-12 | Choose "Show all postings" and see `ghosts=show` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
@@ -209,16 +209,19 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-34 | A role in your tracker says where it stands under the job's actions ("In your tracker: Applied · applied 2d ago"), and "Update status" opens that role in the tracker, where its status is changed | anon | guest tracker seeded with an applied role + `/jobs?q=engineer&posted=any`, open that role (desktop pane and phone sheet) | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-35 | A role you don't track shows no tracker line | anon | `/jobs?q=engineer&posted=any`, open a role | signed-out | no | covered | job-tracked-stage.spec.ts |
+| J-DETAIL-36 | A guest's tracked role opened on its own job page shows the tracker line and the filled bookmark, with no hydration error (the server renders it untracked; the page fills it in after load) | anon | `/jobs?q=engineer&posted=any`, track the first role in the guest tracker, open its /jobs/[slug] page | signed-out | no | covered | job-tracked-stage.spec.ts |
 
 ## APPLY
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-01 | Signed-out Apply on the job page opens the "Sign in to apply" gate instead of the employer site | anon | JOB_PATH at 1440x900 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-02 | Signed-out Apply persists a pending "apply" action bound to the current URL | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
-| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | uncovered | — (legacy: auth-gate-intent.spec.ts › signed-out Apply persists the action and the /auth/start next param matches the current page (stale)) |
+| J-APPLY-03 | Google continue from the apply gate hits /auth/start with next equal to the job page | anon | JOB_PATH | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-04 | Signed-out Apply never opens a new window (no employer departure before sign-in) | anon | JOB_PATH | signed-out | no | uncovered | — |
-| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically | anon | JOB_PATH at 390x844 | signed-out | no | uncovered | — |
+| J-APPLY-05 | Signed-out Apply from the sticky action bar on mobile gates identically ("Sign in to apply") | anon | JOB_PATH at 390x844 | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-06 | A persisted "apply" action for the same job resumes into the apply flow after auth | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-07 | A persisted apply action for a different job is ignored | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-08 | A persisted action older than 15 minutes is discarded on load | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
@@ -239,6 +242,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-APPLY-23 | Mark applied with a server error shows "Could not save" and rolls back the optimistic pursuit | signed-in | JOB_PATH with the action mocked to fail | signed-in | no | uncovered | — |
 | J-APPLY-24 | Prompt survives a reload of the armed tab (mount-time check) | signed-in | JOB_PATH reload with seeded velai.applyReturn | signed-in | no | uncovered | — |
 | J-APPLY-25 | Applying from the board pane (/jobs?job=) also arms the prompt on return | signed-in | /jobs?posted=any&job=JOB_ID at 1440x900 | signed-in | no | uncovered | — |
+| J-APPLY-26 | On a phone, coming back to the job sheet asks "Did you apply?" inside the sheet (the floating chip is hidden behind any open sheet, so it isn't mounted); Yes saves the role as applied with its employer posting URL and says "Applied — nice work" (dev-server only: signed-in mock, stub search, save answered in the browser) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-27 | On a phone, "Not yet" in the job sheet closes the question without saving, and it doesn't come back on the next focus or after closing the sheet (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-28 | At 1440 wide the role opens beside the list (no sheet) and "Did you apply?" floats over the page; Yes saves the role with its posting URL (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 1440x900, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
+| J-APPLY-29 | A closed Apply sign-in dialog stays closed when the session is checked again (back/forward cache return), and Apply still opens it | anon | JOB_PATH, Apply, Escape, `pageshow` | signed-out | no | covered | apply-gate.spec.ts |
+| J-APPLY-30 | Create account from the Apply sign-in dialog returns to the job page (`/auth/start?mode=signup&next=<job>&pending=1`), not the résumé upload at /jobs?resume=gate | anon | JOB_PATH, Apply, Create account, Continue with Google | signed-out | no | covered | apply-gate.spec.ts |
 
 ## COMPANY
 
@@ -260,7 +268,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-14 | Email step submit sends a confirmation @writes | signing-up | /co/anthropic--com | signed-out | yes | uncovered | — |
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |
-| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0 | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | uncovered | — |
+| J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0, which says "That follow link has expired or was already used." and drops the flag from the URL | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | covered | alerts.spec.ts |
 | J-COMPANY-18 | Verified guest sees "Unfollow" and the watching caption; Unfollow reverts | anon | /co/anthropic--com?followed=1 | signed-out | yes | uncovered | — |
 | J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
 | J-COMPANY-20 | Guest follows merge into the account on sign-in | signing-up | /co/anthropic--com then sign in | signed-in | yes | uncovered | — |
@@ -327,6 +335,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-42 | Signed-in visitor on /auth/retry is sent on, never shown the sign-in error (needs E2E_STORAGE_STATE; skipped without) | signed-in | /auth/retry?reason=exchange_failed | signed-in | no | covered | auth-retry.spec.ts |
 | J-AUTH-43 | Failed Turnstile (error 110200 stubbed) on signup says to use Google or an email code above, and moves focus to the existing Continue with Google button (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
 | J-AUTH-44 | Turnstile api.js blocked or offline on signup shows the same message and focus move (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
+| J-AUTH-45 | A signed-in account with no résumé lands on the /jobs board with the résumé band (no sign-in line), not a full-page onboarding card | signed-in | /jobs (dev-only fake sign-in, no résumé) | signed-in | no | covered | auth-no-resume.spec.ts |
 
 ## RESUME
 
@@ -361,6 +370,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé without skipping the model: quick match opens at once, the model download shows MB of the measured size and its stages advance (or Skip keeps the quick match) | anon | /resume → Upload résumé (model fetch mocked) | signed-out | no | covered | resume-wait.spec.ts |
 | J-RESUME-29 | A résumé whose contact line names a bare city (no region/country) asks on For-you which place it is — Yes / a candidate saves it as the location, No / None of these leaves it blank; no guess, no filter until answered | anon | /jobs → Upload résumé → For-you | signed-out | no | covered | resume-bare-city.spec.ts |
+| J-RESUME-30 | A guest résumé offers "See jobs ranked for this résumé" (to /jobs) and "Remove from this device", which after a confirm clears it for good (empty state survives a reload) | Candidate with a local résumé | local résumé seeded + `/resume` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-31 | An old Word .doc file in the importer is refused with "save it as .docx or PDF", never a failed DOCX read | anon | `/resume`, Upload résumé, choose `resume.doc` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-32 | A résumé stored as text (file upload, MCP set_resume) previews its headline and summary section, not its first 300 characters, and an uncategorized skills list prints without a leading ":"; the signed-in subcopy drops "once you sign in" (dev-server only: signed-in mock) | signed-in | `/resume` | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-33 | Back from the template editor with unsaved edits asks "Leave without saving?"; Keep editing stays, Leave closes (dev-server only: signed-in mock) | signed-in | `/resume`, Edit template, edit Professional Summary, Back | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-34 | A résumé saved to the account as text (file upload on /resume or Settings, MCP set_resume) opens /jobs on the ranked packs hub with "Private matching active", not the "Add your résumé" step; the browser structures the text, the server only sends it (dev-server only: signed-in mock) | signed-in | `/jobs` | signed-in | no | covered | resume.spec.ts |
 
 ## SETTINGS
 
@@ -369,7 +383,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-01 | Open /settings on the Résumé tab with header and subcopy | signed-in | /settings | signed-in | no | uncovered | — |
 | J-SETTINGS-02 | See exactly the Résumé, Preferences and Account tabs | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-002: Settings tabs are visible) |
 | J-SETTINGS-03 | Switch to Preferences and see the privacy and agent cards | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-004: Preferences tab shows job search section) |
-| J-SETTINGS-04 | Switch to Account and see sign-in details | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-005: Account tab shows sign-in section) |
+| J-SETTINGS-04 | Switch to Account and see the "Sign-in details" card (never a "Sign in" heading for a signed-in user) (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
 | J-SETTINGS-05 | Deep-link reload on /settings?tab=account keeps the tab | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 | J-SETTINGS-06 | Fall back to Résumé for an unknown or retired tab | signed-in | /settings?tab=api-key | signed-in | no | uncovered | — |
 | J-SETTINGS-07 | Leave /settings on Back after tab switches (replace, not push) | signed-in | /settings | signed-in | no | uncovered | — |
@@ -393,6 +407,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-25 | @writes Delete the account permanently | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-26 | Render /settings at mobile width with tabs and 44px buttons | signed-in | /settings (375x667) | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-012: Page responsive on mobile) |
 | J-SETTINGS-27 | Redirect signed-in /account to the Account tab | signed-in | /account | signed-in | no | uncovered | — |
+| J-SETTINGS-28 | Account tab lists the companies you follow A to Z, each linking to its company page; Unfollow removes one and says so (dev-server only: signed-in mock, actions answered in the browser) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-29 | Account tab says "You don't follow any companies yet." when you follow none (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-30 | A failed email-preferences read ends in "Couldn't load your email preferences." with Try again (never an endless loading row), and Try again reads it again (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-31 | The account-email confirmation link lands on the Account tab saying whether it worked ("Email confirmed and added to your account." or the expired-link error), and the flag leaves the URL (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account&email_confirmed=1, then =0 | signed-in | no | covered | settings-email.spec.ts |
 
 ## TRACKER
 
@@ -418,20 +436,20 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-18 | Mobile stage rail jumps to a lane and is hidden at md+ | anon | /yours (390x844, then 1024x768) | signed-out | no | uncovered | — |
 | J-TRACKER-19 | Row click below xl opens the detail sheet | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-007: Row click opens the detail sheet below xl) |
 | J-TRACKER-20 | Row click at xl+ navigates to /yours/[id] | anon | /yours (1440x900, seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-013: Row click navigates to the full pursuit page at xl+) |
-| J-TRACKER-21 | Change status in the detail sheet and see the pressed button and toast | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
-| J-TRACKER-22 | "Closed" in the detail sheet writes withdrawn and moves the row to the Closed lane | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
+| J-TRACKER-21 | Pick Rejected in the detail sheet's status row: it is pressed and "Marked rejected" shows | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-22 | Rejected and Withdrawn in the detail sheet each move the row to the Closed lane, labelled with that status (the sheet's one "Closed" button used to write withdrawn, so no surface could record a rejection) | anon | /yours (1024x768, seeded applied + offer pursuits) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-23 | Set an interview date in the detail sheet | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | uncovered | — |
-| J-TRACKER-24 | Note autosaves and persists after closing and reopening the sheet | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
+| J-TRACKER-24 | A note typed in the detail sheet keeps focus through each autosave ("saved"), and all of it is there after closing and reopening the sheet | anon | /yours (1024x768, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-25 | Remove a pursuit through the inline confirm; cancel keeps it | anon | /yours (1024x768, seeded) | signed-out | no | uncovered | — |
 | J-TRACKER-26 | Export CSV downloads velai-tracker-YYYY-MM-DD.csv with the header row | anon | /yours (seeded) | signed-out | no | uncovered | — |
 | J-TRACKER-27 | Switch between the Tracker and History tabs | anon | /yours | signed-out | no | uncovered | — |
 | J-TRACKER-28 | Signed-out History shows the sign-in gate | anon | /yours/history | signed-out | no | uncovered | — |
 | J-TRACKER-29 | Signed-in History with no opened jobs shows the empty state | signed-in | /yours/history | signed-in | no | uncovered | — |
 | J-TRACKER-30 | Signed-in History lists opened jobs newest first as links | signed-in | /yours/history | signed-in | yes | uncovered | — |
-| J-TRACKER-31 | Deep-link reload of /yours/[id] shows the pursuit with its stage | anon | /yours/guest-e2e-1 (seeded) | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-013: Row click navigates to the full pursuit page at xl+) |
+| J-TRACKER-31 | Deep link and reload of /yours/[id] show the pursuit with its status pressed; the server renders the loading state, never "couldn't find that pursuit", and there is no hydration error | anon | /yours/guest-journey-deep (seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-32 | A bogus /yours/[id] shows the not-found state | anon | /yours/does-not-exist | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-004: Unknown pursuit id shows not-found) |
-| J-TRACKER-33 | Mark a resume_ready pursuit "I applied" from /yours/[id] | anon | /yours/guest-e2e-2 (seeded resume_ready) | signed-out | no | uncovered | — |
-| J-TRACKER-34 | Set interview date on /yours/[id] moves stage to "Interview scheduled" | anon | /yours/guest-e2e-3 (seeded applied) | signed-out | no | uncovered | — |
+| J-TRACKER-33 | Pick Applied on a saved pursuit's /yours/[id] page: the dates line says Applied and the interview date field appears | anon | /yours/guest-journey-saved (seeded interested) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-34 | Set an interview date on /yours/[id]: status moves to Interviewing, "Interview Nov 3" shows, and "Change date" stays disabled until the date changes | anon | /yours/guest-journey-interview (seeded applied) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-35 | /yours/[id] for a saved pursuit shows the AI-assistant handoff note | anon | /yours/guest-e2e-1 (seeded interested) | signed-out | no | uncovered | — |
 | J-TRACKER-36 | Posting-check sheet says "No longer live" for a delisted job | anon | /yours/guest-e2e-1 (seeded, job lookup stubbed to gone) | signed-out | no | uncovered | — |
 | J-TRACKER-37 | Signed-out ?download=pdf on /yours/[id] redirects to login with next | anon | /yours/guest-e2e-1?download=pdf&variant=v1 | signed-out | no | uncovered | — |
@@ -445,6 +463,20 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-45 | Signed-in cold load shows the tracker loading skeleton on a slow network | signed-in | /yours (applications request delayed) | signed-in | no | uncovered | — |
 | J-TRACKER-46 | A pursuit written by the MCP save_job tool appears in the signed-in tracker @writes | agent | /yours (after MCP tools/call save_job) | signed-in | yes | uncovered | — |
 | J-TRACKER-47 | Signed-out user opening /yours?view=new from the legacy /applications URL lands on the sheet | anon | /applications?view=new | signed-out | no | uncovered | — (legacy: yours.spec.ts › TC-YOURS-000b: /applications?view=new preserves the query param through the redirect) |
+| J-TRACKER-48 | A pursuit in the Offer lane shows the pay-it-forward panel in the detail sheet: "Pay it forward" to a Stripe link when `LANDED_PLEDGE_CHECKOUT_URL` is set, otherwise "Tell us how it went" to the contact page | anon | /yours (1024x768, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-49 | A pursuit below the Offer lane shows no pledge panel in the detail sheet | anon | /yours (1024x768, seeded applied pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-50 | The full pursuit page at xl+ shows the pay-it-forward panel for an offer | anon | /yours/[id] (1440x900, seeded offer pursuit) | signed-out | no | covered | tracker.spec.ts |
+| J-TRACKER-51 | On /yours/[id] at xl+, move an applied role to Rejected from the status row (Saved, Applied, Interviewing, Offer, Rejected, Withdrawn); it stays Rejected after reload and the board lists it under Closed | anon | /yours/[id] (1440x900, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-52 | /yours/[id] names the role once (one h1, company and location as its subline) and renders the posting's Markdown as headings and a list, with no literal "*" or "##" | anon | /yours/[id] (1440x900, seeded pursuit with a Markdown description) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-53 | At 390x844 the /yours/[id] status row shows all six statuses without horizontal scroll, and Withdrawn sets | anon | /yours/[id] (390x844, seeded interviewing pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-54 | A note typed on /yours/[id] autosaves ("saved") and is there after reload | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-55 | Remove on /yours/[id] asks first; Cancel keeps the role, confirming returns to /yours without it | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-56 | West of UTC, /yours/[id] shows an interview set for Nov 3 as Nov 3 (text and date field), not Nov 2 | anon | /yours/[id] (America/Vancouver, seeded interviewing pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-57 | /yours with guest roles: the server renders the loading skeleton, not the empty state; the board loads and reloads with no hydration error | anon | /yours (1440x900, seeded applied pursuit) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-58 | A note typed on a tracked role's page right after it loads keeps its text and saves; the page is never rebuilt under it (the deferred auth and analytics providers used to rebuild every page after load, wiping what was typed) | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-59 | The header's Tracker tab counts open roles only: with 2 open and 3 rejected or withdrawn roles it reads 2 (it used to count every tracked role, so a few closed roles meant a permanent "9+") | signed-in | /pricing at 1440x900, dev-only auth hook + mocked tracker list (local dev server only, skips elsewhere) | signed-in | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-60 | A tracked role with no résumé filed shows no "Resume used" card on its page and no "none linked" or disabled Download resume in the sheet; a role with a filed résumé (from the MCP tools) lists it with Download on both | anon | /yours/[id] (1440x900) + /yours sheet (1024x768), seeded | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-61 | A guest's Open posting on a hand-tracked role's page (a link, no Velai job) opens the "Sign in to apply" dialog and no employer tab; it used to open a plain "Sign in" because the page never passed the gate's reason | anon | /yours/[id] (1440x900, seeded: job_url, no job_id) | signed-out | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 
@@ -458,10 +490,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-06 | Submitting the capture shows the check-your-inbox state (network stubbed) | anon | /jobs?q=zzzzqxwv | signed-out | no | uncovered | — |
 | J-ALERTS-07 | A failed alert request shows the retry error | anon | /jobs?q=zzzzqxwv (POST stubbed 503) | signed-out | no | uncovered | — |
 | J-ALERTS-08 | Real alert signup sends a confirmation email @writes | signing-up | /jobs?q=zzzzqxwv | signed-out | yes | uncovered | — |
-| J-ALERTS-09 | Signed-in user never sees the email-alert capture | signed-in | /jobs?q=zzzzqxwv | signed-in | no | uncovered | — |
+| J-ALERTS-09 | Signed-in user never sees the email-alert capture: no toolbar "Get alerts" or result-line email link, only Save search (which feeds the digest), with results or zero results (dev-server only: signed-in mock) | signed-in | /jobs?view=search&q=engineer, /jobs?view=search&q=zzzzqxwv | signed-in | no | covered | alerts.spec.ts |
 | J-ALERTS-10 | POST /api/search-alerts with an invalid body returns 400 | anon | POST /api/search-alerts {} | signed-out | no | uncovered | — |
-| J-ALERTS-11 | Search-alert verify link with a bogus token redirects to /jobs?search_alert=0 | anon | GET /api/search-alerts/verify?token=bogus | signed-out | no | uncovered | — |
-| J-ALERTS-12 | Search-alert verify link with no token redirects to /jobs?search_alert=0 | anon | GET /api/search-alerts/verify | signed-out | no | uncovered | — |
+| J-ALERTS-11 | Search-alert verify link with a bogus token redirects to /jobs?search_alert=0, which says "That alert link has expired or was already used." and drops the flag from the URL | anon | GET /api/search-alerts/verify?token=bogus | signed-out | no | covered | alerts.spec.ts |
+| J-ALERTS-12 | Search-alert verify link with no token redirects to /jobs?search_alert=0 and says it failed | anon | GET /api/search-alerts/verify | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-13 | Guest saves a search and it appears in the saved list | anon | /jobs?q=engineer&posted=any | signed-out | no | uncovered | — |
 | J-ALERTS-14 | Clicking a saved search re-applies its URL | anon | /jobs (saved search seeded) | signed-out | no | uncovered | — |
 | J-ALERTS-15 | Remove a saved search | anon | /jobs (saved search seeded) | signed-out | no | uncovered | — |
@@ -471,13 +503,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-19 | Saved search shows a "+N" new-roles count | signed-in | /jobs (saved search with older cursor) | signed-in | yes | uncovered | — |
 | J-ALERTS-20 | Guest saved searches sync to the account at first sign-in @writes | signing-up | /yours (after login, guest key seeded) | signed-in | yes | uncovered | — |
 | J-ALERTS-21 | Visit banner is absent on a first-ever /jobs visit | anon | /jobs | signed-out | no | uncovered | — |
-| J-ALERTS-22 | Visit banner reports new roles since the last visit and can be dismissed | anon | /jobs (visitCursor seeded, count stubbed to 3) | signed-out | no | uncovered | — (legacy: jobs-visit-banner-and-saved-search.spec.ts › revisiting shortly after does not break the page) |
-| J-ALERTS-23 | Visit banner auto-dismisses after 6 seconds | anon | /jobs (visitCursor seeded, count stubbed) | signed-out | no | uncovered | — |
+| J-ALERTS-22 | A returning visitor sees "N new roles on Velai since your last visit" at the top of the list, and it stays (no longer a toast that left after 6 seconds) | anon | /jobs (board visit cursor seeded 3 days back) | signed-out | no | covered | alerts.spec.ts |
+| J-ALERTS-23 | "Email me new roles" beside that line opens the email alert form | anon | /jobs (board visit cursor seeded 3 days back) | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-24 | Guest clicking Follow opens the email step, never "Following" | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › guest click on Follow never renders Following — it opens the email step instead) |
 | J-ALERTS-25 | Follow email step is focusable and its sign-in link opens the auth dialog | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — (legacy: company-follow.spec.ts › email step: focusable, sign-in link falls back to the auth dialog) |
 | J-ALERTS-26 | Follow email step shows the confirmation message on success (network stubbed) | anon | /co/<allowlisted-slug> | signed-out | no | uncovered | — |
 | J-ALERTS-27 | Follow email step shows the retry error on failure | anon | /co/<allowlisted-slug> (POST stubbed 503) | signed-out | no | uncovered | — |
-| J-ALERTS-28 | Follow verify link with a bogus token redirects to /jobs?followed=0 | anon | GET /api/follow-email/verify?token=bogus | signed-out | no | uncovered | — |
+| J-ALERTS-28 | Follow verify link with a bogus token redirects to /jobs?followed=0 and says it failed | anon | GET /api/follow-email/verify?token=bogus | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-29 | Returning from a follow verify link shows the followed state | anon | /co/<allowlisted-slug>?followed=1 | signed-out | no | uncovered | — |
 | J-ALERTS-30 | Signed-in Follow toggles to Unfollow and back @writes | signed-in | /co/<allowlisted-slug> | signed-in | yes | uncovered | — |
 | J-ALERTS-31 | Follow-alerts bell lists new roles at followed companies | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
@@ -490,13 +522,14 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-38 | Valid unsubscribe link suppresses mail and offers undo @writes | anon | GET /unsubscribe?token=<real token from an email> | signed-out | yes | uncovered | — |
 | J-ALERTS-39 | NEVER-CALL: weekly digest cron endpoint is secret-gated | agent | POST /api/email/digest | signed-out | yes | uncovered | — |
 | J-ALERTS-40 | Resend webhook rejects an unsigned POST | agent | POST /api/webhooks/resend | signed-out | no | uncovered | — |
+| J-ALERTS-41 | A confirmed search-alert link lands on its search saying "Search alert confirmed."; the flag leaves the URL and a reload doesn't repeat it | anon | /jobs?q=engineer&search_alert=1 | signed-out | no | covered | alerts.spec.ts |
 
 ## CONNECT
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-CONNECT-01 | Open /connect signed out and see the hero and the Universal MCP Server column | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-02 | Follow the signed-out "Sign in to velai" step to /login with a return path | anon | /connect | signed-out | no | uncovered | — |
+| J-CONNECT-02 | Follow the signed-out "1. Sign in to velai" step to /login with next=/connect | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-03 | Signed in, the "Sign in to velai" step is absent and the endpoint step remains | signed-in | /connect | signed-in | no | uncovered | — |
 | J-CONNECT-04 | See the MCP endpoint URL on the page | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-003: the connect URL is visible) |
 | J-CONNECT-05 | Copy the MCP endpoint with the Copy button | anon | /connect | signed-out | no | uncovered | — |
@@ -509,7 +542,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-12 | Open "Raw JSON config" and copy the mcpServers snippet | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-14 | Open the FAQ and see only one answer expanded at a time | anon | /connect | signed-out | no | uncovered | — |
-| J-CONNECT-15 | Open "Permissions and privacy" and read the three guarantees | anon | /connect | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-004: the never-applies-without-you promise is present) |
+| J-CONNECT-15 | Open "Permissions and privacy" and read what a connected AI can do as you (search; read and replace your résumé; read and update your tracker; read and change your preferences) and what it can't (submit an application, see anyone else's data); no "Read-only search" | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-17 | Copy the one-line Mac install command in the OpenClaw column | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-18 | Join the Windows/Linux waitlist with an email @writes | anon | /connect | signed-out | yes | uncovered | — |
@@ -518,6 +551,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-21 | Open /connect/help and jump to a section anchor | anon | /connect/help#gateway | signed-out | no | uncovered | — |
 | J-CONNECT-22 | See the loading skeleton while /connect streams | anon | /connect (slow network) | signed-out | no | uncovered | — |
 | J-CONNECT-23 | Reach the orphan /openclaw page directly | anon | /openclaw | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /openclaw has a non-empty title that differs from the homepage) |
+| J-CONNECT-24 | Create account from /connect's sign-in (Continue with Google) goes to /auth/start with next=/connect, not the résumé upload at /jobs?resume=gate | anon | /login?next=/connect, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## OAUTH
 
@@ -541,6 +575,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-OAUTH-16 | Revoke a connected agent from Settings @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-17 | Read the agent-facing entity card at /llms.txt | agent | GET /llms.txt | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-005: /llms.txt returns 200 and names the MCP endpoint) |
 | J-OAUTH-18 | Lose the approval when the session expires between render and Allow | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
+| J-OAUTH-19 | Create account in front of an agent approval (/login?next=<authorize request>) goes to /auth/start with that request as next, not the résumé upload, so the approval isn't lost | anon | /login?next=/oauth/authorize?…, Create account | signed-out | no | covered | connect.spec.ts |
 
 ## CONTENT
 
@@ -628,6 +663,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 | J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
+| J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 
 ## PRICING
 
