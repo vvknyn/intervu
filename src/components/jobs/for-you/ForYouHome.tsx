@@ -310,6 +310,50 @@ export function ForYouHome({
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
     const selectedJobId = selectedJob?.id;
 
+    // A sign-up card, the pack's header or a short screen can leave the bottom
+    // of the stack (and its actions) under the fold. When the pack's roles
+    // arrive, scroll just far enough to show the whole stack, never so far
+    // that the Previous/Next bar goes under the top bar. The header above
+    // keeps growing for a moment (filter counts, the résumé band), so refit
+    // while the page settles, until the visitor scrolls or touches anything.
+    const controlsRef = useRef<HTMLDivElement>(null);
+    const fittedStack = useRef(false);
+    useEffect(() => {
+        if (fittedStack.current || visiblePacks.length === 0) return;
+        fittedStack.current = true;
+        let settled = false;
+        const settle = () => {
+            settled = true;
+        };
+        const fit = () => {
+            const controls = controlsRef.current;
+            const stage = document.querySelector<HTMLElement>('[data-testid="role-stack"]');
+            if (settled || !controls || !stage) return;
+            const topbar = parseFloat(getComputedStyle(stage).getPropertyValue("--topbar-h")) || 0;
+            // The phone tab bar covers the bottom of the screen (its height
+            // var lives on body and grows by the safe area), so measure it.
+            const tabbar = document.querySelector("[data-mobile-tabbar]");
+            const floor = tabbar?.getClientRects().length ? tabbar.getBoundingClientRect().top : window.innerHeight;
+            const below = stage.getBoundingClientRect().bottom + 8 - floor;
+            const room = controls.getBoundingClientRect().top - topbar - 8;
+            const by = Math.min(below, room);
+            if (by > 1) window.scrollBy({ top: by, behavior: "instant" });
+        };
+        const inputs = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
+        for (const type of inputs) window.addEventListener(type, settle, { passive: true });
+        const main = document.getElementById("main");
+        const observer = new ResizeObserver(fit);
+        if (main) observer.observe(main);
+        const frame = window.requestAnimationFrame(fit);
+        const stop = window.setTimeout(settle, 5000);
+        return () => {
+            for (const type of inputs) window.removeEventListener(type, settle);
+            observer.disconnect();
+            window.cancelAnimationFrame(frame);
+            window.clearTimeout(stop);
+        };
+    }, [visiblePacks.length]);
+
     // A control focused on the open card loses focus when the card moves back
     // (it goes inert); carry it to the card that comes forward.
     const carryFocus = useRef<string | null>(null);
@@ -426,9 +470,9 @@ export function ForYouHome({
     // look-alikes on inert cards (RoleStack). Their Save shows unsaved because
     // the page only knows the open role's pursuit.
     const cardActions = (job: PublicJob, active: boolean) => (
-        <div className="flex flex-col gap-2">
+        <div className="role-card-actions flex flex-col gap-2">
             {!resume && onReplaceResume ? (
-                <div className="space-y-2">
+                <div className="role-card-note space-y-2">
                     <p className="text-xs text-muted-foreground">{FOR_YOU_UPLOAD_PDF_EMPTY}</p>
                     <Button
                         type="button"
@@ -444,7 +488,7 @@ export function ForYouHome({
             ) : null}
             <Button
                 type="button"
-                className="w-full"
+                className="role-card-apply w-full"
                 data-testid={active ? "for-you-download-apply" : undefined}
                 onClick={active ? handleDownloadApply : undefined}
                 disabled={applying || !resume}
@@ -458,7 +502,7 @@ export function ForYouHome({
                     FOR_YOU_DOWNLOAD_LABEL
                 )}
             </Button>
-            <div className="flex gap-2">
+            <div className="role-card-secondary flex gap-2">
                 <Button
                     type="button"
                     variant="outline"
@@ -595,18 +639,8 @@ export function ForYouHome({
                 </ConceptAEmptyPageSlot>
             ) : (
                 <>
-                {selectedJob ? (
-                    <McpHandoffNote
-                        className="mb-3 shrink-0"
-                        job={{
-                            id: selectedJob.id,
-                            title: selectedJob.title ?? "",
-                            company: selectedJob.company ?? "",
-                            location: selectedJob.location,
-                        }}
-                    />
-                ) : null}
                 <div
+                    ref={controlsRef}
                     data-testid="role-stack-controls"
                     className="flex shrink-0 items-center justify-between gap-3"
                 >
@@ -650,7 +684,7 @@ export function ForYouHome({
                     className={cn("flex min-h-0 flex-1 flex-col", firstRevealEnter && "state-opacity-in")}
                 >
                     <RoleStack
-                        className="min-h-0 flex-1"
+                        className="flex-1"
                         roles={visiblePacks}
                         activeIndex={selectedIndex}
                         departing={departing}
@@ -685,6 +719,17 @@ export function ForYouHome({
                         </div>
                     ) : null}
                 </div>
+                {selectedJob ? (
+                    <McpHandoffNote
+                        className="mt-3 shrink-0"
+                        job={{
+                            id: selectedJob.id,
+                            title: selectedJob.title ?? "",
+                            company: selectedJob.company ?? "",
+                            location: selectedJob.location,
+                        }}
+                    />
+                ) : null}
                 </>
             )}
         </div>

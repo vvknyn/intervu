@@ -990,34 +990,20 @@ h4 {
   min-height: min(72dvh, 720px);
 }
 
-/* An opened pack is a stack of role cards. Body stays viewport-tall so the
-   stack fills the frame and never grows the page; each card scrolls inside
-   itself. */
-html:has([data-testid="for-you-home"]),
-body:has([data-testid="for-you-home"]) {
-  height: 100svh;
-  max-height: 100svh;
-  overflow: hidden;
-}
-
-body:has([data-testid="for-you-home"]) main {
-  min-height: 0;
-  overflow: hidden;
-}
-
+/* An opened pack is a stack of role cards that fills the screen without
+   locking it: the page stays at least viewport-tall and the stack takes the
+   height left over, never less than its floor (.role-stack-stage). A sign-up
+   card or a short screen scrolls the page instead of squeezing the cards. */
 body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"] {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
 }
 
 [data-testid="for-you-home"].jobs-session-frame {
   min-height: 0;
   flex: 1 1 auto;
   height: auto;
-  overflow: hidden;
 }
 
 /** Paper slot only — matches live ForYouPack postcard shell geometry. */
@@ -1216,6 +1202,14 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
 .role-stack-stage {
   --role-stack-peek: 2.75rem;
   position: relative;
+  /* A usable card at least: 30rem, or the screen between the top bar, the
+     Previous/Next bar (2.25rem, plus 0.5rem either side) and the phone tab
+     bar when that is shorter. Tall screens stop at 56rem. */
+  min-height: min(
+    30rem,
+    calc(100dvh - var(--topbar-h) - var(--mobile-tabbar-h) - env(safe-area-inset-bottom, 0px) - 3.5rem)
+  );
+  max-height: 56rem;
   overflow: hidden;
   perspective: 1800px;
   perspective-origin: 50% 0%;
@@ -1273,6 +1267,26 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
     transform var(--transition-stack) var(--ease-stack),
     filter var(--transition-stack) var(--ease-standard),
     opacity var(--transition-enter) var(--ease-standard) calc(var(--transition-stack) - var(--transition-enter));
+}
+
+/* A phone on its side leaves the card about 200px. Its actions share one row
+   there instead of two, so the role itself stays readable above them. Wide
+   enough for the row only from 46rem; the desktop card has its own column. */
+@media (max-height: 30rem) and (min-width: 46rem) and (max-width: 63.99rem) {
+  .role-card-actions {
+    flex-flow: row wrap;
+    align-items: center;
+  }
+
+  .role-card-actions > .role-card-note {
+    flex-basis: 100%;
+  }
+
+  .role-card-actions > .role-card-apply,
+  .role-card-actions > .role-card-secondary {
+    width: auto;
+    flex: 1 1 auto;
+  }
 }
 
 @keyframes success-pulse-keyframes {

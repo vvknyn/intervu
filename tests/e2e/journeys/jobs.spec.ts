@@ -455,6 +455,30 @@ test("an opened pack shows one role at a time as a stack, and Next, Previous and
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("on a small phone an opened pack fits its card, actions and Next between the top bar and the tab bar", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "the tab bar only shows on a phone-sized screen");
+  await page.setViewportSize({ width: 360, height: 640 });
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  const tabbarTop = async () => (await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? 640;
+  const bottom = async (testId: string) => {
+    const box = await front.getByTestId(testId).boundingBox();
+    return box ? box.y + box.height : Infinity;
+  };
+  // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
+  await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000 }).toBe(true);
+  expect(await bottom("for-you-download-apply")).toBeLessThanOrEqual(await tabbarTop());
+  const next = (await page.getByTestId("for-you-next").boundingBox())!;
+  expect(next.y).toBeGreaterThanOrEqual(48);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */
 const REDUPLICATED_PLACES = /\b(walla walla|bora bora|pago pago|wagga wagga)\b/gi;
 const repeatedToken = (label: string) => label.replace(REDUPLICATED_PLACES, "").match(/\b(\w{3,})\s*\1\b/i)?.[0] ?? null;

@@ -11,13 +11,21 @@ function source(name: string): string {
 }
 
 describe("for-you postcard layout", () => {
-    it("ForYouHome stack fills the frame — each role card scrolls inside itself, the page does not grow", () => {
+    it("ForYouHome stack fills the screen from a floor — each role card scrolls inside itself, the page scrolls past a short screen", () => {
         const home = source("ForYouHome.tsx");
         assert.match(home, /FOR_YOU_HOME_FRAME_CLASS/);
-        assert.match(home, /<RoleStack[\s\S]*className="min-h-0 flex-1"/, "the stack takes the space left, never more");
+        assert.match(home, /<RoleStack[\s\S]*className="flex-1"/, "the stack takes the space left");
+        const css = readFileSync(join(__dirname, "../../src/app/globals.css"), "utf8");
+        const stage = css.match(/\.role-stack-stage \{[^}]*\}/)?.[0] ?? "";
+        assert.match(stage, /min-height: min\(\s*30rem,/, "never squeezed below a usable card (a sign-up card or header scrolls the page instead)");
+        assert.doesNotMatch(css, /body:has\(\[data-testid="for-you-home"\]\)\s*\{[^}]*overflow: hidden/, "the pack page is not locked to the viewport");
+        assert.match(stage, /var\(--mobile-tabbar-h\) - env\(safe-area-inset-bottom/, "the floor leaves room for the phone tab bar and the home indicator");
+        assert.match(home, /querySelector\("\[data-mobile-tabbar\]"\)/, "opening a pack fits the stack above the tab bar as measured (its height var is set on body, not :root)");
+        assert.match(css, /@media \(max-height: 30rem\)[^{]*\{\s*\.role-card-actions \{\s*flex-flow: row wrap;/, "a phone on its side puts the card's actions on one row");
         assert.doesNotMatch(home, /for-you-list-scroll|for-you-back-to-list|deckWindowRange/, "no ranked list beside the stack");
         const card = source("StackedRoleCard.tsx");
-        assert.match(card, /overflow-y-auto overscroll-contain/, "a phone card is one scroll");
+        assert.match(card, /flex-col overflow-y-auto"/, "a phone card is one scroll");
+        assert.doesNotMatch(card, /overscroll-contain/, "at its end a card's scroll carries on to the page");
         assert.match(card, /lg:grid-cols-\[minmax\(0,26rem\)_minmax\(0,1fr\)\]/, "desktop: inferred left, posting right");
         assert.match(card, /sticky bottom-0[^"]*lg:static/, "actions stay pinned on a phone, sit under the left column on desktop");
         assert.doesNotMatch(

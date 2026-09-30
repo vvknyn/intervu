@@ -129,7 +129,7 @@ export function StackedRoleCard({
         <div
             data-testid={active ? "for-you-pack" : undefined}
             className={cn(
-                "flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto overscroll-contain",
+                "flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto",
                 "lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto] lg:overflow-hidden",
             )}
         >

@@ -94,7 +94,7 @@ function ForYouDeckMockInner() {
     }, [pursuitsByJobIdMerged]);
 
     return (
-        <div className="shell-row flex h-dvh flex-col py-6" data-testid="for-you-deck-mock-root">
+        <div className="shell-row flex min-h-dvh flex-col py-6" data-testid="for-you-deck-mock-root">
             <ForYouHome
                 visiblePacks={packs}
                 activeIndex={activeIndex}
