@@ -664,6 +664,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |----|---------|---------|-------|------|--------|--------|------|
 | J-MODAL-01 | Parse a 7-role résumé in the importer at 1280x600, 390x844 and 390x420; wheel-scroll the body to the last experience entry and last field, footer Back and confirm stay in view and Back works, page behind does not scroll | anon | /resume (importer open, basic parse) | signed-out | no | covered | modal.spec.ts |
 | J-MODAL-02 | Sign-in dialog fits 1280x600, 390x844 and 390x420; its last control is reachable by wheel-scrolling and Close dismisses it | anon | /resume then `topbar-signin` | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-03 | Open "Customize résumé" on a role with a guest résumé; the dialog sits above its dim layer (Close is the topmost element), "Use a rules draft" produces a draft, Close dismisses it | anon with a guest résumé | /jobs?view=search&q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-04 | Open "Track a role" on /yours as a guest; the Status picker opens above the sheet (an option is the topmost element), picking one sets it, Close dismisses without saving | anon | /yours?view=new | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-05 | Open Feedback from the account menu; the menu closes, the Type picker opens above the dialog and picking an option sets it, Cancel closes without sending (dev-server only: signed-in mock) | signed-in | any page, `topbar-avatar` then Feedback | signed-in | no | covered | modal.spec.ts |
 
 ## Legacy specs pending repair
 

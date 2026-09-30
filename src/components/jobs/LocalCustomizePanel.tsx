@@ -201,7 +201,7 @@ export function LocalCustomizePanel({
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
                 <DialogContent
-                    className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl"
+                    className="w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl"
                     // The dialog opens from our own button, not a DialogTrigger, so Radix has
                     // no trigger to return focus to on close; without this it drops to the page.
                     onCloseAutoFocus={(event) => {
