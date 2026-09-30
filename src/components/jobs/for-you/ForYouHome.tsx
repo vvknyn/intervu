@@ -177,8 +177,24 @@ export function ForYouHome({
     );
     // The list's search dropped every place the pack names, so its rows come from
     // anywhere. The pack's location is where the candidate can work: none of them fit.
-    const placesMissing = filters != null && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
+    // A failed read says nothing about where roles are: during a search outage the
+    // place check fails too and reports the place as dropped, so the error wins.
+    const placesMissing =
+        filters != null && !loadError && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
     const visiblePacks = placesMissing ? NO_PACKS : listedPacks;
+    // The list's own search kept the place and found nothing there: the corpus has roles in it,
+    // none of them this pack's. Name the place, not the generic "right now" empty state.
+    const placeEmpty =
+        filters != null && !placesMissing && !loadError && resultTotal === 0 && visiblePacks.length === 0;
+    const places = filters ? namedPlaces(filters) : [];
+    const noRolesThereTitle =
+        places.length === 0
+            ? null
+            : placesMissing
+              ? `No roles in ${formatPlaceList(places)} yet.`
+              : placeEmpty
+                ? `No matching roles in ${formatPlaceList(places)} yet.`
+                : null;
     const draftCache = useRef<Map<string, TailorDraft>>(new Map());
     const [applying, setApplying] = useState(false);
     const [proofLoading, setProofLoading] = useState(false);
@@ -498,11 +514,11 @@ export function ForYouHome({
                     label="Loading your ranked roles"
                     skeleton={<RankedListSkeleton />}
                 />
-            ) : placesMissing && filters ? (
+            ) : noRolesThereTitle ? (
                 <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-no-roles-there-wrap">
                     <ConceptAEmptyState
                         testId="for-you-no-roles-there"
-                        title={`No roles in ${formatPlaceList(namedPlaces(filters))} yet.`}
+                        title={noRolesThereTitle}
                         description="Edit filters or broaden the search to see roles elsewhere."
                     />
                 </ConceptAEmptyPageSlot>

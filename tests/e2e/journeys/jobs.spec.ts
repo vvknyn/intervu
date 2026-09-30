@@ -2,13 +2,14 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -233,15 +234,17 @@ test("a board search with zero results offers to broaden, each option with its c
 test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  // Tuvalu: a country the corpus has no roles in. The search drops a place it cannot filter
-  // on; the pack used to list the whole corpus (or the visitor's own country) as its matches.
+  // Tuvalu: a country with no roles for this pack. With none there at all the search drops the
+  // place, and the pack used to list the whole corpus (or the visitor's own country) as its
+  // matches. With a few there, none of them the pack's, it showed the generic "No ranked roles
+  // to show right now." instead of naming the place.
   await guestWithResume(page, "Funafuti, Tuvalu");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
   const none = page.getByTestId("for-you-no-roles-there");
   await expect(none).toBeVisible({ timeout: 30_000 });
-  await expect(none).toContainText("No roles in Tuvalu yet.");
+  await expect(none).toContainText(/No (matching )?roles in Tuvalu yet\./);
   await expect(page.getByTestId("for-you-deck")).toHaveCount(0);
   // The pack counts 0 there, so the broaden options offer the way out, each with its count.
   const broaden = page.getByTestId("broaden-options");
@@ -593,6 +596,75 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await expect(failed).toBeVisible({ timeout: 30_000 });
   await expect(rows).toHaveCount(0);
 
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await failEveryAction(page);
+  await page.goto("/jobs?view=for-you");
+
+  // One automatic retry (2-4 s) runs first, then the failure shows.
+  const failed = page.getByTestId("today-new-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("today-new-failed-retry")).toBeVisible();
+
+  // The chips' counts come from the same refused searches. They used to read "…" for good.
+  // A software engineer's chips: All, the tech tiles and the two shared ones, shown in full
+  // while no count can say which to hide.
+  const chips = page.getByTestId("hub-pack-chips");
+  await expect(chips.getByRole("button")).toHaveCount(7);
+  await expect(chips.locator('[data-testid^="hub-pack-count-"]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(chips).not.toContainText("…");
+  await expect(page.getByTestId("hub-pack-card-all")).toHaveAttribute("aria-label", "All your matches");
+});
+
+/**
+ * A pack's own search (it carries the pack's country) answers with what the server sends during a
+ * search outage: no rows, `unavailable`, and the place reported as unmatched, because the place
+ * check fails too. In the browser only; the action still runs, its answer is replaced. Returns a
+ * switch that lets the real answers through again.
+ */
+const answerPackSearchAsOutage = async (page: Page, country: string) => {
+  let failing = true;
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!failing || req.method() !== "POST" || !req.headers()["next-action"] || !(req.postData() ?? "").includes('"location_country"')) {
+      return route.fallback();
+    }
+    const res = await route.fetch();
+    // Row 0 is the action envelope (build id, "$@1"); row 1 carries the return value.
+    const envelope = (await res.text()).split("\n")[0];
+    const outage = { hits: [], total: 0, backend: "meilisearch", configured: true, unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE, searchId: "journey-outage", unmatchedPlaceMentions: [country] };
+    return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(outage)}\n` });
+  });
+  return () => {
+    failing = false;
+  };
+};
+
+test("a pack whose search is down shows the error with Retry, never 'No roles in <country>' or another list's roles", { tag: ["@J-JOBS-52"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  const recover = await answerPackSearchAsOutage(page, "Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+
+  // One automatic retry (2-4 s) runs first, then the failure shows. The outage answer names
+  // Canada as unmatched; the pack used to say "No roles in Canada yet." instead of the error.
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("for-you-no-roles-there")).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
+
+  // Search is back: Retry lists the pack's own roles.
   recover();
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });

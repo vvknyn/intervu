@@ -278,6 +278,19 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
       { field: "created_at", type: "text" },
     ],
   },
+  {
+    // Founding-seat reservations from /pricing while the Stripe link is
+    // unset (actions/founding-seat.ts). Doc id is the email; `uid` is set
+    // only when the reserver was signed in, so a uid cannot resolve every
+    // row and the list is keyed by address like connect_waitlist.
+    collection: "founding_waitlist",
+    table: "founding_waitlist",
+    owner: { by: "none", reason: "keyed by email; uid is recorded only for signed-in reservers, so a uid cannot resolve every row" },
+    indexed: [
+      { field: "email", type: "text" },
+      { field: "created_at", type: "text" },
+    ],
+  },
 
   // --- saved intent (empty today, written by live code) -------------------
   {
