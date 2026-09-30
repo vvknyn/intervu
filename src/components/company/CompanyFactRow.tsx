@@ -1,6 +1,7 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { resolveFundingOrListingCell } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
+import { prettyEnum } from "@/lib/jobs/presentation";
 
 interface FactCell {
   key: string;
@@ -51,12 +52,9 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
     const f = exhaust.funding.data;
     const parts: string[] = [];
     if (f.latestFundingAmount != null) parts.push(`${money(f.latestFundingAmount)} total raised`);
-    if (f.latestFundingType) {
-      parts.push(
-        f.latestFundingYear
-          ? `last round ${f.latestFundingType.replace(/_/g, " ")}, ${f.latestFundingYear}`
-          : `last round ${f.latestFundingType.replace(/_/g, " ")}`,
-      );
+    const round = prettyEnum(f.latestFundingType); // "series_c" -> "Series C"
+    if (round) {
+      parts.push(f.latestFundingYear ? `last round ${round}, ${f.latestFundingYear}` : `last round ${round}`);
     }
     if (parts.length > 0) {
       cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.label });
