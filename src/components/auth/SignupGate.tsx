@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
 import { captureEvent } from "@/lib/analytics/events";
@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
  * secondary (sign in). `count` must be a TRUE number from the same response
  * (`resolveHiddenCount` for the depth wall, the real match total for the fit
  * gate) — never a number made up for effect. `onDismiss` adds a "Not now"
- * button; omit it only for a hard wall (the depth cap).
+ * button; omit it only for a hard wall (the depth cap). `children` sit
+ * between the body and the doors, for what the account opens on this page
+ * (the company page's real per-band counts).
  *
  * `autoShown` reports the card as a passive prompt (`auth_nudge_shown`,
  * trigger "auto") once per mount. Pass it only for cards the product puts in
@@ -34,6 +36,7 @@ export function SignupGate({
     onDismiss,
     autoShown,
     className,
+    children,
 }: {
     reason: AuthGateReason;
     /** The page to come back to — the exact SERP, filters and all. */
@@ -43,6 +46,7 @@ export function SignupGate({
     onDismiss?: () => void;
     autoShown?: { hasResume: boolean };
     className?: string;
+    children?: ReactNode;
 }) {
     const reportShown = Boolean(autoShown);
     const hasResume = autoShown?.hasResume ?? false;
@@ -73,6 +77,7 @@ export function SignupGate({
         >
             <h2 className="text-base font-semibold leading-snug text-foreground">{copy.title}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{copy.body}</p>
+            {children}
             <div className="mt-4 flex flex-wrap items-center gap-3">
                 <Button asChild>
                     <a data-testid="signup-gate-create" href={hrefs.create} onClick={onEngage}>

@@ -7221,7 +7221,7 @@ export function JobsContent() {
                     <FrontDoorResumeBand
                         signedIn={Boolean(user)}
                         onUploadClick={handleUploadClick}
-                        onSignInClick={signedIn ? undefined : () => openAuth("generic", "user")}
+                        onSignInClick={() => openAuth("generic", "user")}
                     />
                 )}
             </div>

@@ -80,8 +80,8 @@
     "size-arbitrary": 3,
     "padding-arbitrary": 0,
     "hex-literal": 0,
-    "shadow-utility": 17,
-    "inline-style": 1
+    "shadow-utility": 0,
+    "inline-style": 0
   },
   "auth": {
     "rounded-none": 0,

@@ -274,7 +274,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |
 | J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0, which says "That follow link has expired or was already used." and drops the flag from the URL | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | covered | alerts.spec.ts |
-| J-COMPANY-18 | Verified guest sees "Unfollow" and the watching caption; Unfollow reverts | anon | /co/anthropic--com?followed=1 | signed-out | yes | uncovered | — |
+| J-COMPANY-18 | Verified guest (email confirmed, no account): opening a company page never follows it, Follow is one click with no email step and shows the watching caption, Unfollow holds after a reload, and the verify link's ?followed=1 is dropped so a reload can't bring a follow back | anon | /co/anthropic--com?followed=1 | signed-out | yes | covered | company-page.spec.ts (the @writes test needs JOURNEY_CONTACT_TOKEN, a seeded verified guest) |
 | J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
 | J-COMPANY-20 | Guest follows merge into the account on sign-in | signing-up | /co/anthropic--com then sign in | signed-in | yes | uncovered | — |
 | J-COMPANY-21 | Anon sees the "The full record" gate with sign-in link and real teasers | anon | /co/anthropic--com | signed-out | no | uncovered | — |
@@ -291,6 +291,14 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-32 | /watch/[id] signed out shows the sign-in prompt, not the session | anon | /watch/some-unguessable-id | signed-out | no | uncovered | — (legacy: watch-page.spec.ts › shows a login prompt, not the session, to a visitor who is not signed in) |
 | J-COMPANY-33 | /watch/[id] keeps the visitor on the link | anon | /watch/some-unguessable-id | signed-out | no | uncovered | — (legacy: watch-page.spec.ts › keeps the visitor on the link so logging in does not lose the session) |
 | J-COMPANY-34 | /watch/anywhere renders the static setup guide | anon | /watch/anywhere | signed-out | no | uncovered | — |
+| J-COMPANY-35 | Company hiring headline states the open-role count "N open roles live on Velai right now" (no "Yes —", capital V), plus how many were seen live in the past week when every role is fetched | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-36 | Company remote fact counts roles by work type ("5 of 43 roles remote", never a title match) and links to the company's Remote search on /jobs, which shows roles | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-37 | Company posting chart starts at the first tracked week (flagged as including roles already open), prints every week's count, dashes this week as in progress, and sizes no bar with an inline style | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-38 | Company page gives one answer to "is this company hiring?": no "Are they actually hiring?" verdict, no health score, no "Active" operating status | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-39 | Company page's first screen shows an open role at desktop (1440x900) and phone (390x844) widths, with the posting chart and hiring record rail after the roles on a phone | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-40 | Company role rows say the posting's age in the right rail ("6d ago"), not a bare "View" | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-41 | Company stat row, shown only when every open role is fetched, counts roles with pay as "N of M" and any typical pay as a yearly range in one currency | anon | /co/1password--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-42 | Signed-out company visitor gets the site's SignupGate (Create free account, Sign in) returning to the company page, with no hand-rolled sign-in button and no "Followers only" lock card | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
 ## AUTH
 

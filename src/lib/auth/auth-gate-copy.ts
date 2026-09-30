@@ -17,6 +17,7 @@ export type AuthGateReason =
     | "alert"
     | "depth"
     | "follow"
+    | "company"
     | "topbar"
     | "packs";
 
@@ -102,6 +103,10 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
         body: "A free account keeps this search and emails you when new roles match.",
     },
     follow: { body: "Sign in to keep the companies you follow across devices." },
+    company: {
+        action: "Open the full hiring record",
+        body: "It's free: how an employer's postings close, what their hiring runs on, and their public filings, plus job alerts and a tracker.",
+    },
     depth: {
         action: "See every result",
         actionWithCount: (hidden) => `See the other ${hidden} roles that match`,
