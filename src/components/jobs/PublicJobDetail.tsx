@@ -455,7 +455,6 @@ export function PublicJobDetail({
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
-                    onOpenRelated={handleOpenRelated}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     matchScore={matchScore}
@@ -512,13 +511,6 @@ export function PublicJobDetail({
                     onGoAfter={() => handleGoAfter(job)}
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
-                    resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
-                    onUploadResume={() => router.push("/resume")}
-                    onSignInToSync={() => openAuth("tailor", "user")}
                 />
             )}
             <GuestApplyTrackPrompt

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { JobDetail, JobDetailActionBar } from "../../src/components/jobs/JobDetail";
+import { LocalCustomizePanel } from "../../src/components/jobs/LocalCustomizePanel";
 import type { PublicJob } from "../../src/lib/jobs/types";
 import type { ResumeData } from "../../src/types/resume";
 
@@ -149,7 +150,7 @@ describe("Customize dialog contract", () => {
         assert.match(src, /data-testid="local-customize-pdf"/);
     });
 
-    it("JobDetail action row keeps the trigger; document mobile bar gets compact variant", () => {
+    it("JobDetail action row and the job page's apply card keep the trigger; no phone action bar takes it", () => {
         const detail = readFileSync(DETAIL, "utf8");
         const doc = readFileSync(DOCUMENT, "utf8");
         const page = readFileSync(join(__dirname, "..", "..", "src", "app", "jobs", "JobsContent.tsx"), "utf8");
@@ -158,11 +159,11 @@ describe("Customize dialog contract", () => {
             "utf8",
         );
         assert.match(detail, /<LocalCustomizePanel/);
-        assert.match(detail, /compactTrigger/);
-        assert.match(doc, /resume=\{resume\}/);
-        assert.match(doc, /onAcceptLocalTailor=\{onAcceptLocalTailor\}/);
+        assert.match(doc, /<LocalCustomizePanel[\s\S]*?resume=\{resume\}/);
+        assert.match(doc, /onAccept=\{onAcceptLocalTailor\}/);
         const pageBar = page.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         const publicBar = publicDetail.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
+        const docBar = doc.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         assert.ok(pageBar, "SERP must still mount JobDetailActionBar");
         assert.ok(publicBar, "PublicJobDetail panel must still mount JobDetailActionBar");
         assert.doesNotMatch(
@@ -175,6 +176,9 @@ describe("Customize dialog contract", () => {
             /resume=/,
             "PublicJobDetail panel action bar must not take resume (JobDetail already has the trigger)",
         );
+        // Apply and Save fill a phone's bar; a Customize or Upload button beside them ran off a 390px screen (2026-09-30).
+        assert.ok(docBar, "the job page must still mount JobDetailActionBar");
+        assert.doesNotMatch(docBar, /resume=|onUploadResume=/, "the job page's phone bar carries Apply and Save only");
     });
 
     it("SSR JobDetail shows the trigger and does not emit the draft inline", () => {
@@ -198,15 +202,23 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(html, /Tailoring on-device/);
     });
 
-    it("SSR action bar uses the compact Customize label", () => {
+    it("SSR action bar has Apply and Save, no Customize trigger", () => {
         const html = renderToStaticMarkup(
             React.createElement(JobDetailActionBar, {
                 job: baseJob(),
                 onOpenPosting: noop,
                 onGoAfter: noop,
                 pursuit: undefined,
-                resume,
             }),
+        );
+        assert.match(html, /Apply on employer site/);
+        assert.doesNotMatch(html, /data-testid="local-customize-open"/);
+        assert.doesNotMatch(html, /job-detail-upload-to-customize/);
+    });
+
+    it("SSR compact trigger uses the short Customize label", () => {
+        const html = renderToStaticMarkup(
+            React.createElement(LocalCustomizePanel, { job: baseJob(), resume, compactTrigger: true, signedIn: true }),
         );
         assert.match(html, /data-testid="local-customize-open"/);
         // f714e2d0 renamed the trigger "Customize" → "Customize résumé" (copy states what a résumé unlocks).

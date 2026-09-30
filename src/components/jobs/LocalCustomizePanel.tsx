@@ -193,8 +193,9 @@ export function LocalCustomizePanel({
                     loading && dialogOpen && "opacity-60",
                 )}
             >
-                Customize résumé
-                {!compactTrigger && <span className="hidden sm:inline"> for this job</span>}
+                {/* One text box: the Button's flex gap would otherwise open a
+                    second space before "for this job". */}
+                {compactTrigger ? "Customize résumé" : <span>Customize résumé<span className="hidden sm:inline"> for this job</span></span>}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
