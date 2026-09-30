@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 const DIALOG_PATH = join(ROOT, "src", "components", "ui", "dialog.tsx");
@@ -21,6 +21,31 @@ test("DialogOverlay and DialogContent use modal z-index tier (200, 210)", () => 
     assert.match(src, /data-slot="dialog-content"[\s\S]*?z-\[var\(--z-dialog\)\]/);
     assert.match(css, /--z-dialog-scrim:\s*200;/);
     assert.match(css, /--z-dialog:\s*210;/);
+});
+
+/** Every .tsx under src/, outside the ui primitives that own the tiers. */
+function callSiteFiles(dir = join(ROOT, "src")): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) return path.includes(join("src", "components", "ui")) ? [] : callSiteFiles(path);
+        return entry.name.endsWith(".tsx") ? [path] : [];
+    });
+}
+
+// A z-class on a call site beats the primitive's tier (cn/tailwind-merge keeps the last z-*), and
+// the scrim keeps its own tier: a Customize dialog passed z-[70] sat under its z-200 scrim, dimmed
+// and unclickable. The primitives own stacking; call sites pass none.
+test("no call site overrides the z-index of dialog or sheet content or overlay", () => {
+    const offenders: string[] = [];
+    for (const file of callSiteFiles()) {
+        const src = readFileSync(file, "utf8");
+        for (const m of src.matchAll(/<(DialogContent|DialogOverlay|SheetContent|SheetOverlay)\b[^<]*/g)) {
+            if (/(^|[\s"'`:])z-(\d|\[)/.test(m[0])) {
+                offenders.push(`${relative(ROOT, file)}:${src.slice(0, m.index).split("\n").length} <${m[1]}>`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [], "remove the z-* class; the primitive's tier keeps the content above its scrim");
 });
 
 test("DialogContent enforces max-height and internal scrolling on mobile", () => {
