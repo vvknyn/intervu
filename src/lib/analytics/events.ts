@@ -235,9 +235,56 @@ export interface EventPayloads {
    *  unset) saved an address. No email in the payload; the row is in
    *  Firestore `founding_waitlist` and counted on /admin. */
   founding_seat_reserved: { signed_in: boolean };
+  /** The pay-it-forward button on a tracker pursuit in the Offer lane was
+   *  clicked (the person is leaving for Stripe). `job_id` is null for a
+   *  hand-tracked role, as in `application_stage_changed`. Stripe is the
+   *  ledger; this only joins the click to a PostHog person. */
+  landed_pledge_clicked: { job_id: string | null };
+
+  /** The packs home's Today header settled: what it showed. Once per load. */
+  home_viewed: {
+    new_count: number;
+    applied_today: number;
+    follow_ups: number;
+    interviews: number;
+    /** False on a first visit (the list covers the past week). */
+    has_last_visit: boolean;
+  };
+  /** Something on the Today header was used. */
+  home_action_clicked: {
+    kind: HomeActionKind;
+    job_id?: string;
+    /** The starter step used (`kind: "starter_step"`). */
+    step?: "apply" | "save_search" | "follow";
+  } & Partial<MatchQualityAnalyticsProps>;
+  /** A pack opened from the packs home: a tile, "Browse all matches", or the Today header's "See more". */
+  pack_opened: {
+    pack: string;
+    source: "tile" | "browse_all" | "today";
+  };
 }
 
 export type UpgradePlan = "pro_founding" | "data_api";
+
+/** What was used on the Today header (`home_action_clicked.kind`). */
+export type HomeActionKind =
+  | "new_role_open"
+  | "new_role_apply"
+  | "new_role_skip"
+  | "see_more"
+  | "stat_new"
+  | "stat_applied"
+  | "stat_follow_ups"
+  | "stat_interviews"
+  // "Needs you": an item's button, by the item's kind; "Show N more"; "Open tracker" on the empty list; a starter step.
+  | "needs_interview"
+  | "needs_follow_up"
+  | "needs_closed"
+  | "needs_saved_search"
+  | "needs_follow"
+  | "needs_more"
+  | "needs_tracker"
+  | "starter_step";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

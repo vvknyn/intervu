@@ -5,6 +5,7 @@ import {
     buildPostAuthResumeGatePath,
     hasPostAuthResumeGateParam,
     isBareJobsDefault,
+    isMidTaskReturn,
     resolveAuthKitReturnTo,
     resolvePostAuthDestination,
     shouldOpenResumeGateAfterInlineAuth,
@@ -62,14 +63,14 @@ test("resolvePostAuthDestination honors pending actions without forcing the gate
     );
 });
 
-test("resolvePostAuthDestination routes every résumeless no-pending landing to the gate", () => {
+test("resolvePostAuthDestination routes every other résumeless no-pending landing to the gate", () => {
     const gate = "/jobs?resume=gate";
+    // /connect and /oauth/authorize return to themselves (see below).
     for (const validatedNext of [
         null,
         "/jobs",
         "/jobs?q=engineer",
         "/co/outerboxdesign--com",
-        "/connect?client=claude",
         "/settings",
     ]) {
         assert.equal(
@@ -146,4 +147,22 @@ test("shouldOpenResumeGateAfterInlineAuth opens only when clear and résumeless"
         shouldOpenResumeGateAfterInlineAuth({ ...base, hasResume: true }),
         false,
     );
+});
+
+test("connecting or approving an AI survives sign-in and signup without a résumé", () => {
+    const authorize = "/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&code_challenge=x&code_challenge_method=S256&response_type=code";
+    assert.equal(isMidTaskReturn("/connect"), true);
+    assert.equal(isMidTaskReturn("/connect?client=claude"), true);
+    assert.equal(isMidTaskReturn(authorize), true);
+    assert.equal(isMidTaskReturn("/connect/help"), false);
+    assert.equal(isMidTaskReturn("/jobs"), false);
+    assert.equal(isMidTaskReturn(null), false);
+
+    for (const next of ["/connect", authorize]) {
+        assert.equal(resolvePostAuthDestination({ validatedNext: next, hasResume: false, hasPendingAction: false }), next);
+        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: next }), next);
+    }
+    // Everything else résumeless still opens the résumé gate.
+    assert.equal(resolvePostAuthDestination({ validatedNext: "/co/acme", hasResume: false, hasPendingAction: false }), "/jobs?resume=gate");
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme" }), "/jobs?resume=gate");
 });

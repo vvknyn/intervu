@@ -15,6 +15,7 @@ import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
@@ -1004,6 +1005,7 @@ export function JobDetail({
                             />
                         )}
                     </div>
+                    <TrackedStageLine pursuit={pursuit} nowMs={now} className="mt-3" />
                 </div>
             </div>
 

@@ -50,6 +50,17 @@ export function authGateReasonToFunnelReason(reason?: AuthGateReason | null): Re
     return AUTH_TO_FUNNEL[reason] ?? "fit";
 }
 
+/**
+ * Pages a visitor is part-way through when they stop to sign in: connecting an
+ * AI (/connect) and approving it (/oauth/authorize). Sign-in and signup return
+ * there even without a résumé; the résumé gate would lose the approval.
+ */
+export function isMidTaskReturn(next: string | null | undefined): boolean {
+    if (!next) return false;
+    const path = next.trim().split(/[?#]/)[0];
+    return path === "/connect" || path === "/oauth/authorize";
+}
+
 export function resolvePostAuthDestination(input: {
     validatedNext: string | null;
     hasResume: boolean;
@@ -66,16 +77,21 @@ export function resolvePostAuthDestination(input: {
         return validatedNext ?? "/jobs";
     }
 
-    // Résumeless with nothing queued: always open the upload gate — including
-    // returns from /co/…, Search queries, Settings, or Connect. #585 only
-    // covered bare /jobs; company-page signups were skipping the modal.
+    // Connecting or approving an AI finishes first.
+    if (validatedNext && isMidTaskReturn(validatedNext)) {
+        return validatedNext;
+    }
+
+    // Résumeless with nothing queued: open the upload gate — including
+    // returns from /co/…, Search queries or Settings. #585 only covered bare
+    // /jobs; company-page signups were skipping the modal.
     return buildPostAuthResumeGatePath();
 }
 
 /**
  * Rewrite AuthKit `next` for a signup so WorkOS returns to the résumé gate —
- * unless a gated action is queued (Apply, upload, report): then signup returns
- * to the page it started on, where the action replays, as sign-in does.
+ * unless a gated action is queued (Apply, upload, report), where the action
+ * replays, or `next` is connecting or approving an AI (`isMidTaskReturn`).
  */
 export function resolveAuthKitReturnTo(input: {
     mode: "login" | "signup";
@@ -84,7 +100,7 @@ export function resolveAuthKitReturnTo(input: {
 }): string | null {
     const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
     if (input.mode === "signup") {
-        return input.hasPendingAction && next ? next : buildPostAuthResumeGatePath();
+        return next && (input.hasPendingAction || isMidTaskReturn(next)) ? next : buildPostAuthResumeGatePath();
     }
     return next;
 }

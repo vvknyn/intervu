@@ -24,8 +24,10 @@ test("login-form and jobs page wire AuthKit and inline signup résumé gate help
     const loginForm = readFileSync(join(__dirname, "../../src/components/auth/login-form.tsx"), "utf8");
     assert.match(loginForm, /resolveAuthKitReturnTo/);
     assert.match(loginForm, /buildReturnTo/);
-    assert.match(loginForm, /resolveAuthKitReturnTo\(\{\s*mode: "signup",\s*rawNext: landed,\s*hasPendingAction: peekPendingActionKind\(window\.sessionStorage\) !== null,/);
+    assert.match(loginForm, /resolveAuthKitReturnTo\(\{\s*mode: "signup",\s*rawNext: returnTarget,\s*hasPendingAction: peekPendingActionKind\(window\.sessionStorage\) !== null,/);
     assert.match(loginForm, /AUTH_START_PENDING_PARAM/);
+    // Password signup on /login returns to its validated `next` (e.g. /connect), not /login itself.
+    assert.match(loginForm, /validateNextParam\(new URLSearchParams\(window\.location\.search\)\.get\("next"\)\) \?\? landed/);
 
     const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(jobsPage, /shouldOpenResumeGateAfterInlineAuth/);
