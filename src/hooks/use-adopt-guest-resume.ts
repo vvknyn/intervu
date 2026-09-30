@@ -13,6 +13,10 @@ import { resumeIsUsable } from "@/lib/resume/resume-usable";
  * other than /jobs (a guest who uploads on /resume and then signs up used
  * to land on "No resume on file"). Calls `onAdopted` after the write lands
  * and the browser copy is cleared.
+ *
+ * It lives here, not in src/lib/resume, because nothing in the résumé-parse
+ * folders may import a server action (tests/unit/local-ai-no-cloud-imports);
+ * this hook only saves a résumé the browser already parsed.
  */
 export function useAdoptGuestResume(uid: string | null, surface: string, onAdopted: () => void): void {
     useEffect(() => {

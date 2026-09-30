@@ -10,6 +10,10 @@ import type { ResumeData } from "@/types/resume";
  * Every matching surface reads structured data, so without this those
  * users were matched as if they had no résumé at all. The text is
  * structured with the same rules the browser import and the PDF export use.
+ *
+ * Browser only: `fetchResumeData` sends the stored text and each caller
+ * structures it here, because résumé parsing never runs on our servers
+ * ("Résumé parsing stays on your device", resume-privacy-copy.ts).
  */
 export function storedResumeData(resumeData: ResumeData | undefined, resumeText: unknown): ResumeData | undefined {
     if (resumeData && hasResumeContent(resumeData)) return resumeData;

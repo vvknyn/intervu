@@ -11,7 +11,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { useAdoptGuestResume } from "@/lib/resume/use-adopt-guest-resume";
+import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import Link from "next/link";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
