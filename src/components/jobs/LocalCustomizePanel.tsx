@@ -198,7 +198,7 @@ export function LocalCustomizePanel({
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={handleDialogOpenChange}>
-                <DialogContent className="z-[70] w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl">
+                <DialogContent className="w-[calc(100%-1rem)] max-w-[720px] gap-0 p-0 sm:max-w-xl">
                         <div className="shrink-0 border-b border-border px-5 py-4 pr-12">
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">

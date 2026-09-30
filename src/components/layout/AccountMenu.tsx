@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
@@ -60,54 +61,57 @@ export interface AccountMenuProps {
  * own 32px in the brand lockup.
  */
 export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
+    // Feedback opens after the menu closes: menus sit a layer above dialogs, so a menu left open would cover it.
+    const [feedbackOpen, setFeedbackOpen] = useState(false);
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <button
-                    type="button"
-                    data-testid="topbar-avatar"
-                    title={user.displayName || user.email || "Account"}
-                    aria-label="Account menu"
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                        "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none", // control-type-allow: an avatar, not a labelled button — round like the picture it frames
-                        active && "ring-2 ring-live",
-                    )}
-                >
-                    <UserAvatar name={user.displayName} email={user.email} pictureUrl={user.pictureUrl} size={32} />
-                </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
-                <DropdownMenuItem asChild>
-                    <Link href="/settings">Account</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                    <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <FeedbackModal>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>Feedback</DropdownMenuItem>
-                </FeedbackModal>
-                <ShareVelaiMenuItem />
-                <DropdownMenuItem asChild className="text-muted-foreground">
-                    <Link href="/privacy">Privacy & Terms</Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onSelect={onSignOut}
-                    disabled={signingOut}
-                    className="text-danger-text"
-                >
-                    {signingOut ? (
-                        <span className="flex items-center gap-2">
-                            <InlineSpinner />
-                            Signing out…
-                        </span>
-                    ) : (
-                        "Sign out"
-                    )}
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+        <>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <button
+                        type="button"
+                        data-testid="topbar-avatar"
+                        title={user.displayName || user.email || "Account"}
+                        aria-label="Account menu"
+                        aria-current={active ? "page" : undefined}
+                        className={cn(
+                            "ctl-md ctl-square inline-flex shrink-0 items-center justify-center rounded-pill transition-opacity outline-none hover:opacity-80 designed-focus-ring focus-visible:outline-none", // control-type-allow: an avatar, not a labelled button — round like the picture it frames
+                            active && "ring-2 ring-live",
+                        )}
+                    >
+                        <UserAvatar name={user.displayName} email={user.email} pictureUrl={user.pictureUrl} size={32} />
+                    </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
+                    <DropdownMenuItem asChild>
+                        <Link href="/settings">Account</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                        <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>Feedback</DropdownMenuItem>
+                    <ShareVelaiMenuItem />
+                    <DropdownMenuItem asChild className="text-muted-foreground">
+                        <Link href="/privacy">Privacy & Terms</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        onSelect={onSignOut}
+                        disabled={signingOut}
+                        className="text-danger-text"
+                    >
+                        {signingOut ? (
+                            <span className="flex items-center gap-2">
+                                <InlineSpinner />
+                                Signing out…
+                            </span>
+                        ) : (
+                            "Sign out"
+                        )}
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
+        </>
     );
 }
