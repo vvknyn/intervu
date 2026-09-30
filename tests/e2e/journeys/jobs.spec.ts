@@ -3,8 +3,9 @@ import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
+import { signedInTest } from "./signed-in";
 
-// Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
+// Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
@@ -120,8 +121,12 @@ test("returning visitor's search session throws no uncaught page errors", { tag:
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-/** Fabricated candidate (no real person) whose résumé location is `location`. */
-const guestWithResume = (page: Page, location: string) =>
+/**
+ * Fabricated candidate (no real person) whose résumé location is `location`, kept in this browser.
+ * For you needs an account, so the pack journeys below run signed in (`signedInTest`); an account
+ * with no résumé on file ranks this one.
+ */
+const withResume = (page: Page, location: string) =>
   page.addInitScript(
     ([enabledKey, resumeKey, location]) => {
       const resume = {
@@ -151,9 +156,9 @@ async function openHubTile(page: Page, id: string) {
   }).toPass({ timeout: 60_000 });
 }
 
-test("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+signedInTest("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
-  await guestWithResume(page, "Reykjavik, Iceland");
+  await withResume(page, "Reykjavik, Iceland");
   await page.goto("/jobs?view=for-you");
   // For you opens on the packs hub; its first-visit intro must not block the pack controls once dismissed.
   await page.getByTestId("packs-home-intro-got-it").click({ timeout: 30_000 });
@@ -189,14 +194,14 @@ test("a board search with zero results offers to broaden, each option with its c
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
+signedInTest("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // Tuvalu: a country with no roles for this pack. With none there at all the search drops the
   // place, and the pack used to list the whole corpus (or the visitor's own country) as its
   // matches. With a few there, none of them the pack's, it showed the generic "No ranked roles
   // to show right now." instead of naming the place.
-  await guestWithResume(page, "Funafuti, Tuvalu");
+  await withResume(page, "Funafuti, Tuvalu");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
@@ -211,10 +216,10 @@ test("a For-you pack in a country with no roles says so, never listing roles fro
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a pack tile opens the pack with the tile's own filter, and the next tile does not inherit it", { tag: ["@J-JOBS-38"] }, async ({ page, diagnostics }) => {
+signedInTest("a pack tile opens the pack with the tile's own filter, and the next tile does not inherit it", { tag: ["@J-JOBS-38"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const editHref = async () => {
     const edit = page.getByTestId("pack-edit-filters");
@@ -236,10 +241,10 @@ test("a pack tile opens the pack with the tile's own filter, and the next tile d
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("an opened pack tile lists only its own roles, from the first row it shows", { tag: ["@J-JOBS-39"] }, async ({ page, diagnostics }) => {
+signedInTest("an opened pack tile lists only its own roles, from the first row it shows", { tag: ["@J-JOBS-39"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
 
@@ -253,8 +258,8 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   await page.waitForTimeout(3_000);
   for (const text of await rows.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
 
-  // A row tile (AI roles) counted on the hub opens on those roles, even behind the guest
-  // preview: it used to keep only the AI roles among the pack's top 3, usually none.
+  // A row tile (AI roles) counted on the hub opens on those roles: it used to keep only the
+  // AI roles among the pack's top 3, usually none.
   await page.getByTestId("jobs-back-to-packs").click();
   const aiCount = page.getByTestId("hub-pack-count-ai");
   await expect(aiCount).not.toHaveText(/…/, { timeout: 60_000 });
@@ -268,10 +273,10 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("going back to the packs hub keeps the tile counts it had, without counting again", { tag: ["@J-JOBS-40"] }, async ({ page, diagnostics }) => {
+signedInTest("going back to the packs hub keeps the tile counts it had, without counting again", { tag: ["@J-JOBS-40"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const tiles = ["remote", "fresh", "salary"] as const;
   const count = (id: string) => page.getByTestId(`hub-pack-count-${id}`);
@@ -336,10 +341,10 @@ const failEveryAction = async (page: Page) => {
   };
 };
 
-test("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
+signedInTest("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   const recover = await failEveryAction(page);
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
@@ -356,10 +361,10 @@ test("a failed ranked-list read shows an error with Retry, never the empty state
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
 });
 
-test("a pack whose own read fails after another pack loaded shows the error with Retry, not a spinner or the other pack's roles", { tag: ["@J-JOBS-41"] }, async ({ page }) => {
+signedInTest("a pack whose own read fails after another pack loaded shows the error with Retry, not a spinner or the other pack's roles", { tag: ["@J-JOBS-41"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
   await openHubTile(page, "remote");

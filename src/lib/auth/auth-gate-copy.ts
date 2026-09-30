@@ -17,7 +17,8 @@ export type AuthGateReason =
     | "alert"
     | "depth"
     | "follow"
-    | "topbar";
+    | "topbar"
+    | "packs";
 
 /** Who opened the popover: explicit user click vs passive product prompt. */
 export type AuthGateTrigger = "user" | "auto";
@@ -84,6 +85,11 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     resume: {
         title: RESUME_GATE_TITLE,
+        body: FIT_RESUME_GATE_BODY,
+    },
+    packs: {
+        title: RESUME_GATE_TITLE,
+        action: "See your job packs",
         body: FIT_RESUME_GATE_BODY,
     },
     tracker: {

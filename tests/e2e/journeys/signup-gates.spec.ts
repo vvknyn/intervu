@@ -1,12 +1,12 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
-import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { LAST_JOBS_HOME_VIEW_KEY } from "../../../src/lib/jobs/for-you/last-home-view";
 import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the signed-out gates — see tests/journeys/CATALOG.md
- * (J-JOBS-06/07/32/33/34/35/36, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
+ * (J-JOBS-06/07/32/33/34/35/36/51, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
  * card (`data-testid="signup-gate"`, `data-gate-reason=<reason>`): it names the
  * action, offers "Create free account" (signup-mode /auth/start) and
  * "Sign in" (/login), both carrying the page in `next=`. Read-only: nothing
@@ -122,13 +122,6 @@ const SYNTHETIC_RESUME = {
   generatedSummary: "Senior software engineer with 7 years of experience building backend and full-stack systems.",
 };
 
-/** From the For-you packs hub, open the ranked list ("Browse all matches"), past the first-visit intro. */
-async function browseAllMatches(page: Page) {
-  const gotIt = page.getByTestId("packs-home-intro-got-it");
-  await page.addLocatorHandler(gotIt, () => gotIt.click());
-  await page.getByTestId("hub-browse-all-matches").click({ timeout: 45_000 });
-}
-
 /** The fit gate after exactly the top 3 ranked rows, on whichever ranked surface is showing. */
 async function expectTopThreeThenFitGate(page: Page) {
   const card = gate(page, "fit");
@@ -155,13 +148,43 @@ test("a guest with a résumé sees their top 3 matches, then the fit gate", { ta
   await expectTopThreeThenFitGate(page);
 });
 
-test("a guest's For-you matches list stops at the same top 3 and fit gate", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
+/** Nothing of For you renders behind a guest's gate: no packs hub, no pack, no ranked rows. */
+async function expectNoPacks(page: Page) {
+  await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
+  await expect(page.getByTestId("for-you-home")).toHaveCount(0);
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+}
+
+test("a guest who opens For you gets one sign-in card instead of job packs", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
   await returningVisitor(page);
   await seedGuestResume(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await page.goto("/jobs?sort=fit");
-  await browseAllMatches(page);
-  await expectTopThreeThenFitGate(page);
+  await page.goto("/jobs?view=for-you");
+  const card = gate(page, "packs");
+  await expect(card).toBeVisible({ timeout: 45_000 });
+  await expect(card.getByRole("heading")).toHaveText("See your job packs");
+  await expectDoors(page, "packs", /^\/jobs\?.*view=for-you/);
+  await expectNoPacks(page);
+  // Settle: nothing behind the card paints once the page is idle.
+  await page.waitForTimeout(3_000);
+  await expectNoPacks(page);
+
+  // Not now goes to Search.
+  await card.getByTestId("signup-gate-dismiss").click();
+  await expect(page).toHaveURL(/[?&]view=search/);
+  await expect(card).toHaveCount(0);
+  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible();
+});
+
+test("a guest with a résumé in this browser, who saw For you before, lands on Search", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await seedGuestResume(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "for-you"), LAST_JOBS_HOME_VIEW_KEY);
+  await page.goto("/jobs");
+  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
+  await expect(gate(page, "packs")).toHaveCount(0);
+  await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
+  expect(new URL(page.url()).searchParams.get("view")).not.toBe("for-you");
 });
 
 /** Two first-run résumés: the review shows each one's own title and location, and ranking applies them. */
@@ -221,7 +244,7 @@ const FIRST_RUN_RESUMES = [
 ];
 
 for (const resume of FIRST_RUN_RESUMES) {
-  test(`first-run guest upload (${resume.name}) reviews title + location, ranks there, then top 3 + fit gate`, { tag: ["@J-JOBS-36"] }, async ({ page }) => {
+  test(`first-run guest upload (${resume.name}) reviews title + location, ranks the Search board there, then top 3 + fit gate`, { tag: ["@J-JOBS-36"] }, async ({ page }) => {
     await page.goto("/jobs");
     await page.getByRole("button", { name: "Upload résumé" }).first().click({ timeout: 60_000 });
     const dialog = page.getByRole("dialog");
@@ -233,8 +256,10 @@ for (const resume of FIRST_RUN_RESUMES) {
     await dialog.getByRole("button", { name: "Rank my jobs" }).click();
     await expect(page).toHaveURL(new RegExp(`country=${encodeURIComponent(resume.country).replace(/%20/g, "(\\+|%20)")}.*sort=fit|sort=fit.*country=`));
     expect(new URL(page.url()).searchParams.get("country")).toBe(resume.country);
-    await browseAllMatches(page);
+    // For you needs an account: the guest's résumé ranks the Search board, not a packs hub.
+    expect(new URL(page.url()).searchParams.get("view")).toBe("search");
     await expectTopThreeThenFitGate(page);
+    await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
   });
 }
 

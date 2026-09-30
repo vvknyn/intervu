@@ -119,6 +119,7 @@ import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -2100,10 +2101,31 @@ export function JobsContent({
                 q: query,
                 sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
                 lastHomeView,
+                signedOut,
             }),
-        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView],
+        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView, signedOut],
     );
     const showForYouHome = resolvedHomeView === "for-you";
+    // For you needs an account. A confirmed guest who asks for it gets one
+    // sign-in card, and no packs, counts or pack searches run behind it.
+    // While auth is still resolving it shows the pending shell, so a guest's
+    // last-seen For you cannot start the hub's searches before we know.
+    const forYouOpen = showForYouHome && signedIn;
+    const forYouGated = showForYouHome && signedOut;
+    // The For you gate is an auto prompt: report its impression, the same
+    // event an auto-opened sign-in popover sends, once each time it appears.
+    useEffect(() => {
+        if (!forYouGated) return;
+        captureEvent(
+            "auth_nudge_shown",
+            buildAuthOpenPayload("packs", {
+                origin_surface: "for_you",
+                trigger_type: "auto",
+                has_resume: hasUsableResume,
+                signed_in: false,
+            }),
+        );
+    }, [forYouGated]); // eslint-disable-line react-hooks/exhaustive-deps
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
     // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
@@ -2277,7 +2299,7 @@ export function JobsContent({
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
-        forYouActive: showForYouHome,
+        forYouActive: forYouOpen,
     });
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
@@ -2977,11 +2999,11 @@ export function JobsContent({
     const forYouDeck = useForYouDeck(forYouPacks);
 
     useEffect(() => {
-        if (!showForYouHome || firstPackRevealAttemptedRef.current) return;
+        if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
         if (!consumeFirstPackReveal()) return;
         firstPackRevealAttemptedRef.current = true;
         setPendingFirstPackReveal(true);
-    }, [showForYouHome]);
+    }, [forYouOpen]);
 
     useEffect(() => {
         if (!pendingFirstPackReveal || !hasUsableResume) return;
@@ -3033,17 +3055,17 @@ export function JobsContent({
     // from the browse hits already on the hub. Stop updating once a fit key
     // exists or a pack is open, so a later deck page cannot blank the pills.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
+        if (!forYouOpen || forYouPackDeckOpen || hubResumeKey) return;
         const current = result;
         if (!current || !current.hits?.length) return;
         setHubBrowse({
             jobs: current.hits,
             total: typeof current.total === "number" ? current.total : null,
         });
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, result]);
 
     useEffect(() => {
-        if (!showForYouHome) return;
+        if (!forYouOpen) return;
         let cancelled = false;
         void readWithRetry(() => getHubPackCorpusCountsAction(locationDefaultSuppressed).catch(loadFailed)).then(
             (counts) => {
@@ -3053,13 +3075,13 @@ export function JobsContent({
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, locationDefaultSuppressed]);
+    }, [forYouOpen, locationDefaultSuppressed]);
 
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
+        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
             return;
         }
         const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
@@ -3192,7 +3214,7 @@ export function JobsContent({
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
@@ -4624,21 +4646,21 @@ export function JobsContent({
     // replaces `resume` and cancels the count probe.
     const hubResumeLoadRef = useRef(false);
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen) return;
+        if (!forYouOpen || forYouPackDeckOpen) return;
         if (resume && resumeIsUsable(resume)) return;
         if (hubResumeLoadRef.current) return;
         hubResumeLoadRef.current = true;
         void resolveUsableResume().then((loaded) => {
             if (!loaded) hubResumeLoadRef.current = false;
         });
-    }, [showForYouHome, forYouPackDeckOpen, user, resume]);
+    }, [forYouOpen, forYouPackDeckOpen, user, resume]);
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData, tileId?: HubPackId) => {
+    const applyFit = (r: ResumeData, tileId?: HubPackId, homeViewOverride?: JobsHomeView) => {
         // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
         // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
@@ -4662,7 +4684,16 @@ export function JobsContent({
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit", ...tileWindow }), "replace");
+        applyUrlState(
+            buildUrlState({
+                q,
+                facets: merged,
+                sort: "fit",
+                ...tileWindow,
+                ...(homeViewOverride ? { homeView: homeViewOverride } : {}),
+            }),
+            "replace",
+        );
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4946,10 +4977,13 @@ export function JobsContent({
         setFacets({});
         setQueryDraft("");
         setQuery("");
-        setHomeView("for-you");
-        writeLastJobsHomeView("for-you");
+        // For you needs an account: a guest's résumé ranks the Search board
+        // (top matches, then the fit gate) instead of opening packs.
+        const home: JobsHomeView = user ? "for-you" : "search";
+        setHomeView(home);
+        writeLastJobsHomeView(home);
         applyUrlState(
-            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
+            buildUrlState({ homeView: home, q: "", facets: {}, sort: null }),
             "replace",
         );
         if (user) {
@@ -4967,10 +5001,13 @@ export function JobsContent({
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
+        const guestHome: JobsHomeView | undefined = user ? undefined : "search";
         if (queuedAction?.kind === "fit") {
             // Stale-guard check (see `handleUploadClick`'s doc comment): a
             // sort choice made while the modal was open must win, not this.
-            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data, undefined, guestHome);
+        } else if (guestHome) {
+            applyFit(data, undefined, guestHome);
         } else {
             armFirstPackReveal();
         }
@@ -5802,7 +5839,7 @@ export function JobsContent({
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
-    const deckPanesLocked = showForYouHome && (showAdvancedSearch || forYouPackDeckOpen);
+    const deckPanesLocked = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
     return (
         <div
             className={
@@ -6397,7 +6434,21 @@ export function JobsContent({
                     )}
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
-                {showForYouHome ? (
+                {forYouGated ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <SignupGate
+                            reason="packs"
+                            originSurface="for_you"
+                            returnTo={serpReturnTo}
+                            onDismiss={() => selectJobsHome("search")}
+                            className="mx-auto w-full max-w-xl"
+                        />
+                    </div>
+                ) : showForYouHome && !forYouOpen ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <ForYouHomePending />
+                    </div>
+                ) : showForYouHome ? (
                     <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
@@ -6521,6 +6572,19 @@ export function JobsContent({
                     stays outside this gate: it's navigation chrome, not a
                     result, and has to show in both views before either one's
                     results fetch. */}
+                {/* For you is not a guest's home, so a guest's bare-city question
+                    is asked above the board their résumé ranks. Answering re-ranks. */}
+                {signedOut && fitActive && (
+                    <div className={cn("mt-4 empty:hidden", cappedContentClass)}>
+                        <ResumePlaceConfirm
+                            resume={resume}
+                            onUpdateResume={(settled) => {
+                                updateResume(settled);
+                                applyFit(settled, undefined, "search");
+                            }}
+                        />
+                    </div>
+                )}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -7277,7 +7341,7 @@ export function JobsContent({
                 open={
                     !packsIntroDismissed &&
                     resumeOnFile === true &&
-                    showForYouHome
+                    forYouOpen
                 }
                 onGotIt={dismissPacksIntro}
                 onAddOrReplaceResume={() => {
