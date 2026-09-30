@@ -88,6 +88,7 @@ const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
     },
     tracker: {
         title: "Sign in to track this application",
+        action: "See the roles you've applied to and viewed",
         body: "Your saved jobs and application stages will sync across devices.",
     },
     alert: {
