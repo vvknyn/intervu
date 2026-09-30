@@ -35,17 +35,17 @@ function callSiteFiles(dir = join(ROOT, "src")): string[] {
 // A z-class on a call site beats the primitive's tier (cn/tailwind-merge keeps the last z-*), and
 // the scrim keeps its own tier: a Customize dialog passed z-[70] sat under its z-200 scrim, dimmed
 // and unclickable. The primitives own stacking; call sites pass none.
-test("no call site overrides the z-index of dialog or sheet content or overlay", () => {
+test("no call site overrides the z-index of an overlay or a floating menu", () => {
     const offenders: string[] = [];
     for (const file of callSiteFiles()) {
         const src = readFileSync(file, "utf8");
-        for (const m of src.matchAll(/<(DialogContent|DialogOverlay|SheetContent|SheetOverlay)\b[^<]*/g)) {
+        for (const m of src.matchAll(/<(DialogContent|DialogOverlay|SheetContent|SheetOverlay|SelectContent|PopoverContent|DropdownMenuContent|DropdownMenuSubContent|TooltipContent)\b[^<]*/g)) {
             if (/(^|[\s"'`:])z-(\d|\[)/.test(m[0])) {
                 offenders.push(`${relative(ROOT, file)}:${src.slice(0, m.index).split("\n").length} <${m[1]}>`);
             }
         }
     }
-    assert.deepEqual(offenders, [], "remove the z-* class; the primitive's tier keeps the content above its scrim");
+    assert.deepEqual(offenders, [], "remove the z-* class; the primitive's tier keeps it above what it opens from");
 });
 
 test("DialogContent enforces max-height and internal scrolling on mobile", () => {
@@ -64,6 +64,18 @@ test("AuthPopover DialogContent and PopoverContent have mobile max-height and sc
     // Dialog: capped by the shared overlay token; scrolling comes from the DialogContent primitive.
     assert.match(src, /<DialogContent[\s\S]*?max-h-\[min\(640px,var\(--overlay-max-h\)\)\]/);
     assert.match(src, /<PopoverContent[^>]*max-h-\[min\(92dvh,640px\)\][^>]*overflow-y-auto/);
+});
+
+// Portaled to <body>: a menu opened from a sheet or dialog must clear it, or it opens behind (the
+// Track role status picker and the Feedback type picker sat at 70 under a 150 sheet / 210 dialog).
+test("Select, popover, dropdown and tooltip content use the 220 tier (above dialogs, below toasts)", () => {
+    const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
+    assert.match(css, /--z-popover:\s*220;/);
+    for (const name of ["select", "popover", "dropdown-menu", "tooltip"]) {
+        const src = readFileSync(join(ROOT, "src", "components", "ui", `${name}.tsx`), "utf8");
+        assert.match(src, /z-\[var\(--z-popover\)\]/, `${name}.tsx reads the popover tier`);
+        assert.doesNotMatch(src, /\bz-(\d+|\[\d+\])[\s"]/, `${name}.tsx has no fixed z-index left`);
+    }
 });
 
 test("SheetOverlay and SheetContent use z-[150] tier (below Dialog, above page chrome)", () => {

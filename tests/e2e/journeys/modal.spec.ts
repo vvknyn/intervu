@@ -165,6 +165,11 @@ const GUEST_RESUME = {
   generatedSummary: "Senior software engineer with 7 years of experience building backend systems.",
 };
 
+/** Wait out the open animation. A cancelled animation (the overlay re-renders as it opens) rejects `finished`; that one is done too. */
+async function settled(el: Locator) {
+  await el.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))));
+}
+
 /** The dialog is the topmost layer where `el` is drawn: its centre hits `el`, not a scrim stacked above. */
 async function isTopmost(el: Locator) {
   return el.evaluate((node) => {
@@ -189,15 +194,36 @@ test("Customize résumé dialog sits above its dim layer: its buttons take click
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "Your résumé is ready. Customize for this role." })).toBeVisible();
-  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  await settled(dialog);
   // A dialog stacked under its own scrim renders dimmed and swallows every click (2026-09-30).
   const close = dialog.getByTestId("local-customize-close");
-  expect(await isTopmost(close), "Close is not covered by the dialog's scrim").toBe(true);
+  expect(await isTopmost(close), "Close is the topmost element, not under the dialog's scrim").toBe(true);
 
   // A rules draft is tailored on this device (no model download): the dialog's own buttons work.
   await dialog.getByRole("button", { name: "Use a rules draft" }).click();
   await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
   await close.click();
   await expect(dialog).toBeHidden();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("Track a role: the Status picker opens above the sheet and picking an option sets it", { tag: ["@J-MODAL-04"] }, async ({ page, diagnostics }) => {
+  await page.goto("/yours?view=new");
+  const sheet = page.getByRole("dialog", { name: "Track a role" });
+  await expect(sheet).toBeVisible({ timeout: 30_000 });
+  await settled(sheet);
+
+  const status = sheet.getByRole("combobox");
+  await status.click();
+  // Portaled to <body>: a menu stacked under the sheet opens invisibly behind it (2026-09-30).
+  const option = page.getByRole("option", { name: "Interviewing" });
+  await expect(option).toBeVisible();
+  expect(await isTopmost(option), "the option is the topmost element, not under the sheet").toBe(true);
+  await option.click();
+  await expect(status).toHaveText("Interviewing");
+
+  // Close without saving: nothing is tracked.
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toBeHidden();
   expect(diagnostics.pageErrors).toEqual([]);
 });
