@@ -516,8 +516,9 @@ export default function PursuitDetailPage() {
                 </section>
 
                 {/* The pay-when-you-land moment (strategy decision 7): only once
-                    the pursuit sits in the Offer lane. */}
-                <LandedPledgeForPursuit pursuit={pursuit} />
+                    the pursuit sits in the Offer lane. p-6 matches the cards
+                    around it; the sheet keeps the panel's own p-3.5. */}
+                <LandedPledgeForPursuit pursuit={pursuit} className="p-6" />
 
                 {/* Tailoring and prep moved to MCP 2026-08-02: the quiet handoff
                     note is the one next step for a saved or interviewing role. */}

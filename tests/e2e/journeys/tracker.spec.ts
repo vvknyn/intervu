@@ -95,6 +95,10 @@ test("the full pursuit page shows the pay-it-forward panel for an offer", { tag:
   await page.getByTestId("pursuit-row").first().click();
   await expect(page).toHaveURL("/yours/guest-journey-offer");
   await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 10000 });
-  await expectPledgePanel(page.getByRole("main"));
+  const main = page.getByRole("main");
+  await expectPledgePanel(main);
+  // The panel carries the moment; the next-action card must not repeat it
+  // as a bare "You have an offer" line underneath.
+  await expect(main).not.toContainText("You have an offer");
   expect(diagnostics.serverErrors).toEqual([]);
 });

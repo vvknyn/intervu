@@ -34,4 +34,10 @@ describe("LandedPledgePanel", () => {
     assert.doesNotMatch(html, /buy\.stripe\.com/);
     assert.doesNotMatch(html, /Pay it forward/);
   });
+
+  it("takes the surface's density: a className replaces the panel's own padding", () => {
+    const html = render({ pledgeUrl: null, jobId: null, className: "p-6" });
+    assert.match(html, /data-testid="landed-pledge"[^>]*class="[^"]*\bp-6\b/);
+    assert.doesNotMatch(html, /data-testid="landed-pledge"[^>]*class="[^"]*\bp-3\.5\b/);
+  });
 });
