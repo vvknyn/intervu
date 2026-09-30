@@ -48,6 +48,21 @@ test("no call site overrides the z-index of an overlay or a floating menu", () =
     assert.deepEqual(offenders, [], "remove the z-* class; the primitive's tier keeps it above what it opens from");
 });
 
+// Menus sit a layer above dialogs, so a menu that hosts its own dialog stays open on top of it
+// (the account menu's Feedback item did). Open the dialog from state beside the menu instead.
+test("no dropdown or popover content renders a dialog, sheet or modal inside it", () => {
+    const offenders: string[] = [];
+    for (const file of callSiteFiles()) {
+        const src = readFileSync(file, "utf8");
+        for (const m of src.matchAll(/<(DropdownMenuContent|PopoverContent)\b[\s\S]*?<\/\1>/g)) {
+            if (/<(Dialog|Sheet|AlertDialog)\b|<\w+Modal\b/.test(m[0])) {
+                offenders.push(`${relative(ROOT, file)}:${src.slice(0, m.index).split("\n").length} <${m[1]}>`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, []);
+});
+
 test("DialogContent enforces max-height and internal scrolling on mobile", () => {
     const src = readFileSync(DIALOG_PATH, "utf8");
     assert.match(src, /max-h-\[var\(--overlay-max-h\)\]/);

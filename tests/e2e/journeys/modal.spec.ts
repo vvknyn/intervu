@@ -227,3 +227,42 @@ test("Track a role: the Status picker opens above the sheet and picking an optio
   await expect(sheet).toBeHidden();
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("account menu Feedback: the menu closes, the dialog and its Type picker take clicks, Cancel closes it", { tag: ["@J-MODAL-05"] }, async ({ page, baseURL }) => {
+  const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
+  test.skip(!local, "the account menu needs the dev-only __INTERVU_E2E_AUTH__ sign-in, which production builds ignore");
+  await page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = {
+      uid: "u1", displayName: "Ada Lovelace", email: "ada@example.com", emailVerified: true, isAnonymous: false,
+      providerData: [], metadata: {}, photoURL: null, phoneNumber: null, providerId: "password", tenantId: null, refreshToken: "x",
+    };
+  });
+  await page.goto("/resume");
+  // The fake sign-in re-renders the header after hydration, which can drop a click or close the menu.
+  const feedback = page.getByRole("menuitem", { name: "Feedback" });
+  const dialog = page.getByRole("dialog", { name: "Send Feedback" });
+  await expect(async () => {
+    if (await dialog.isVisible()) return;
+    if (!(await feedback.isVisible())) await page.getByTestId("topbar-avatar").click({ timeout: 2_000 });
+    await feedback.click({ timeout: 2_000 });
+    await expect(dialog).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  // Menus sit a layer above dialogs; one left open would paint over this one.
+  // (Not by role: the open dialog aria-hides everything else, a menu left open included.)
+  await expect(page.locator('[data-slot="dropdown-menu-content"]')).toHaveCount(0);
+  await settled(dialog);
+
+  await dialog.getByRole("combobox").click();
+  const bug = page.getByRole("option", { name: "Report a Bug" });
+  await expect(bug).toBeVisible();
+  expect(await isTopmost(bug), "the option is the topmost element, not under the dialog").toBe(true);
+  await bug.click();
+  await expect(dialog.getByRole("combobox")).toHaveText("Report a Bug");
+
+  // Nothing is sent: Cancel closes, and the page takes clicks again.
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByTestId("topbar-avatar").click();
+  await expect(feedback).toBeVisible();
+  // No pageErrors check: the fake sign-in lands before hydration, so the header always logs a hydration mismatch.
+});
