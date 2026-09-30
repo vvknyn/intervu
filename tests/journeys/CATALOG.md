@@ -44,7 +44,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |----|---------|---------|-------|------|--------|--------|------|
 | J-JOBS-01 | Land on /jobs first visit and see the search box and at least 5 job rows within 5s, one visible h1, no poster | anon | `/jobs` (no seed) | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-03 | Seeded anon visit renders result rows on first paint with no dialog | anon | SEED-A + `/jobs?posted=any` | signed-out | no | uncovered | — |
-| J-JOBS-04 | Result count line states the 30-day window | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
+| J-JOBS-04 | Result count line states the 90-day window (the typed-search default since 2026-09-30; 30 days before) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | search-window.spec.ts |
 | J-JOBS-05 | Load more rows by scrolling the list sentinel (20 per page) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-JOBS-06 | Hit the anonymous depth wall after 90 results: it states the true hidden count ("See the other N roles that match") and offers Create free account, with no dismiss | anon | SEED-A + `/jobs?q=engineer` then page to the end with "Show N more" | signed-out | no | covered | signup-gates.spec.ts |
 | J-JOBS-07 | Depth-wall "Create free account" and "Sign in" links carry the current URL in `next=` | anon | SEED-A + `/jobs?q=software+engineer` at the wall | signed-out | no | covered | signup-gates.spec.ts |
@@ -111,13 +111,15 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-19 | Search box is docked into the top bar on lg+ once results show | anon | SEED-A + `/jobs?q=nurse` at 1440x900 | signed-out | no | uncovered | — (legacy: jobs-serp-scroll-stability.spec.ts › TC-SERP-SCROLL-002: the same holds with places filtered — the dock renders a place) |
 | J-SRCH-20 | Search shows only the mobile "Search" CTA when the draft differs from the query | anon | SEED-A + `/jobs` at 390x844, type "nurse" | signed-out | no | uncovered | — |
 | J-SRCH-21 | Returning visitor's search session throws no uncaught page errors (React hydration error #418 seen on prod 2026-09-28) | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | covered | jobs.spec.ts |
+| J-SRCH-22 | The IP-country default leaves out a remote role that names a city or state but no country (prod: a Burton-on-Trent, England role in a Canada search) and still lists remote roles with no place at all | anon | `/jobs`, type "data analyst remote", then "digital data analyst remote", from a client the IP default resolves | signed-out | no | covered | search-window.spec.ts |
+| J-SRCH-23 | Among equally matching roles on a page, the newer posting comes first (same-titled rows run newest first; relevance order only) | anon | `/jobs`, type "data analyst" | signed-out | no | covered | search-window.spec.ts |
 
 ## FILT
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
-| J-FILT-01 | Open the All filters panel and see every group | anon | SEED-A + `/jobs?q=software+engineer` at 1440x900, click `filters-toggle` | signed-out | no | uncovered | — (legacy: jobs-first-screen.spec.ts › All filters sheet reflects the 30d posted-date default when supported) |
-| J-FILT-02 | Posted date defaults to Last 30 days with no `posted` param | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — (legacy: jobs-first-screen.spec.ts › All filters sheet reflects the 30d posted-date default when supported) |
+| J-FILT-01 | Open the All filters panel and see every group | anon | SEED-A + `/jobs?q=software+engineer` at 1440x900, click `filters-toggle` | signed-out | no | uncovered | — (legacy: jobs-first-screen.spec.ts › All filters sheet reflects the 30d posted-date default when supported; the default is 90d since 2026-09-30) |
+| J-FILT-02 | Posted date defaults to Last 90 days with no `posted` param: the Posted chip reads "Past 3 months" and the URL carries no `posted` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | covered | search-window.spec.ts |
 | J-FILT-03 | Pick "Last 24h" and see `posted=1d` in the URL | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-04 | Pick "Any date" and see `posted=any` (not omitted) | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — |
 | J-FILT-05 | Toggle Work mode Remote via the facet chip and see `work=` | anon | SEED-A + `/jobs?q=software+engineer` | signed-out | no | uncovered | — (legacy: jobs-location-work-mode.spec.ts (see note)) |
@@ -140,6 +142,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-FILT-22 | Company-scope chip appears for `?company=` and clears | anon | SEED-A + `/jobs?company=harrods.com` | signed-out | no | uncovered | — |
 | J-FILT-23 | Unknown filter values in the URL are ignored, not crashed | anon | SEED-A + `/jobs?posted=bogus&sort=wat&years=99&salary=1m&view=x` | signed-out | no | uncovered | — |
 | J-FILT-24 | Filters toggle reports its open state to assistive tech | anon | SEED-A + `/jobs?q=nurse`, click `filters-toggle` | signed-out | no | uncovered | — |
+| J-FILT-25 | A typed search reaches a role posted 31-90 days ago with no `posted` param, and picking Past month in the Posted chip hides it | anon | `/jobs?q=data+analyst&sort=salary` (then product manager, manager), click `facet-chip-posted` › Past month | signed-out | no | covered | search-window.spec.ts |
+| J-FILT-26 | A `?posted=30d` link (the old default) still narrows to 30 days, says so, and keeps `posted=30d` in the URL | anon | `/jobs?q=data+analyst&posted=30d` | signed-out | no | covered | search-window.spec.ts |
 
 ## MOB
 
@@ -203,6 +207,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-40 | Job page's posting check prints the later of the ghost check and the last alive check ("checked 2h ago", not the older alive date) | anon | JOB_PATH from a live "product manager" search whose ghost check is newer than its alive stamp | signed-out | no | covered | search-window.spec.ts |
 
 ## APPLY
 

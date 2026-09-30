@@ -11,7 +11,7 @@ import { facetValueMatches } from '../../src/lib/jobs/unknown-inclusive-facets';
 
 export const NOW = Date.parse('2026-09-28T12:00:00Z');
 const DAY_MS = 86_400_000;
-const WINDOW_DAYS: Record<PostedBucket, number> = { '1d': 1, '3d': 3, '7d': 7, '30d': 30, older: Infinity };
+const WINDOW_DAYS: Record<PostedBucket, number> = { '1d': 1, '3d': 3, '7d': 7, '30d': 30, '90d': 90, older: Infinity };
 
 export function mkJob(id: string, fields: Partial<PublicJob> = {}): PublicJob {
     return {

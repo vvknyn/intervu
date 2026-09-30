@@ -40,7 +40,7 @@ import { urlSortToMode, type JobsUrlState, type UrlSort } from "@/lib/jobs/url-s
  * 0-result every hit. Same signal, same chokepoint, so the picker and the
  * request can never disagree about whether the bucket is real.
  *
- * The fresh-visit `30d` default IS a real request filter (product default —
+ * The fresh-visit `90d` default IS a real request filter (product default —
  * see `DEFAULT_URL_STATE.postedBucket`, url-state.ts); only an explicit
  * "Any date" lifts it. WHICH window is in force is `appliedPostedBucket`'s
  * call (FilterPanel), shared with every control that draws one; this adds

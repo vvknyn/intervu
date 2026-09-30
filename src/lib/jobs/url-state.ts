@@ -82,17 +82,25 @@ export function shouldResetSortOnQueryChange(nextQuery: string, sortOverride: Jo
 }
 
 /**
- * Fresh-visit default (product decision): `postedBucket` is "30d" rather
+ * Fresh-visit default (product decision): `postedBucket` is "90d" rather
  * than unset. `undefined` still means "no filter" (an explicit "Any" — see
  * `parseJobsUrl`/`serializeJobsUrl` below), it's just no longer the DEFAULT
  * a bare `/jobs` visit lands on.
+ *
+ * 90 days, not 30 (2026-09-30, approved): a count on prod found 99.9% of
+ * 2.76M live scraped roles in the index, but a typed search under the
+ * default filters reached only ~790k of them; the 30-day window alone
+ * dropped ~1.15M posted earlier. 90 days brings back ~730k open roles and
+ * lines up with the 90+ day ghost rule, which already flags older ones.
+ * `?posted=30d` still narrows to 30 days (and now serializes explicitly,
+ * since it is no longer the default).
  */
 export const DEFAULT_URL_STATE: JobsUrlState = {
     q: "",
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: "30d",
+    postedBucket: "90d",
     yearsExperience: undefined,
     hideGhosts: true,
     hideViewed: false,
@@ -142,7 +150,7 @@ const TIER_FOR_SALARY = Object.fromEntries(
     Object.entries(SALARY_TIERS).map(([label, n]) => [n, label]),
 ) as Record<number, string>;
 
-const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "older"];
+const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "90d", "older"];
 const YEARS_EXPERIENCE_VALUES: readonly YearsExperienceBucket[] = ["0-2", "3-5", "6-10", "11+"];
 const SORT_VALUES: readonly UrlSort[] = ["newest", "relevance", "salary", "fit"];
 const HOME_VIEW_VALUES: readonly NonNullable<JobsUrlState["homeView"]>[] = ["for-you", "search"];
@@ -204,14 +212,15 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
         if (values.length) s.facets[key] = values;
     }
     // Absent `posted` param → leave `s.postedBucket` at whatever it was
-    // seeded from (`DEFAULT_URL_STATE.postedBucket`, "30d"): the default IS
+    // seeded from (`DEFAULT_URL_STATE.postedBucket`, "90d"): the default IS
     // the no-param case now. An explicit "Any" needs its own encoding since
     // it can no longer piggyback on absence — `posted=any` is a real,
     // distinguishable choice that maps to internal `undefined` ("no
     // filter" — the pre-existing meaning of undefined everywhere else this
     // field is read, e.g. `buildJobSearchPayload`). Any other recognized
     // bucket parses exactly as before (back-compat for existing `posted=7d`
-    // links etc.); an unrecognized value is dropped, same as always.
+    // and `posted=30d` links etc.); an unrecognized value is dropped, same
+    // as always.
     const posted = sp.get("posted");
     if (posted === "any") {
         s.postedBucket = undefined;
@@ -252,8 +261,10 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     }
     // Mirrors `parseJobsUrl`'s encoding: `undefined` (explicit "Any") must
     // round-trip as a real param now that it's no longer the default —
-    // omitting it would silently read back as "30d" on reload. The default
-    // itself ("30d") stays omitted, same as any other default field here.
+    // omitting it would silently read back as "90d" on reload. The default
+    // itself ("90d") stays omitted, same as any other default field here;
+    // any other bucket — "30d" included, now that it isn't the default — is
+    // written out.
     if (s.postedBucket === undefined) sp.set("posted", "any");
     else if (s.postedBucket === DEFAULT_URL_STATE.postedBucket && s.postedExplicit) sp.set("posted", s.postedBucket);
     else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);

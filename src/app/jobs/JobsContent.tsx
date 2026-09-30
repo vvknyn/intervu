@@ -538,7 +538,7 @@ function ToolbarSegment({
  * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
  * `locationDefaultScope` (location-default-preference.ts) instead of a bare
  * country name — the applied place filter also OR's in every remote role
- * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
+ * with no place at all (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
  * used to read as a promise the query didn't keep (results included e.g.
  * Sydney/Dubai remote listings under a "near Canada" chip).
  */
@@ -766,7 +766,7 @@ const RESUME_MOMENT_OPENS = 3;
  * (FilterPanel.tsx) — the SAME chokepoint the toolbar chips and mobile sheet
  * read from (they omit the opt), so this can never list a different "what's
  * active" than what's actually applied, it just additionally names the
- * pristine "30d" posted-bucket default the toolbar keeps quiet (no parallel
+ * pristine "90d" posted-bucket default the toolbar keeps quiet (no parallel
  * list). `onClearEntry` routes through the caller's `applyFilterState` — the
  * identical apply path the toolbar chips' `onRemove` already uses — so
  * there's exactly one place a FilterState clear becomes local state + a URL
@@ -1108,11 +1108,11 @@ export function JobsContent({
     filterStateRef.current = filterState;
     /**
      * The date window actually filtering these results — never the raw
-     * `postedBucket`, which still holds the fresh-visit "30d" nobody chose
+     * `postedBucket`, which still holds the fresh-visit "90d" nobody chose
      * and `buildJobSearchPayload` deliberately never sends. Everything that
      * SPEAKS about the window (the count sentence, the beyond-window reveal
      * and its probe) reads this, so the page can't caption an unfiltered
-     * result set "from the last 30 days" or offer to reveal roles it is
+     * result set "from the last 90 days" or offer to reveal roles it is
      * already showing.
      */
     const appliedPosted = appliedPostedBucket(filterState);
@@ -1487,11 +1487,11 @@ export function JobsContent({
     const ghostHiddenCount = result?.ghostHiddenCount ?? null;
 
     // Beyond-window probe (2026-08-12): the honest corpus count with the
-    // 30d posted-bucket filter lifted, for the results line's "N more
-    // beyond 30 days — show all" affordance. The 30d default hides real
+    // default posted-bucket filter lifted, for the results line's "N more
+    // beyond 90 days — show all" affordance. The default window hides real
     // inventory (measured: 2,294 shown vs 7,199 matching roles, ~68%
     // hidden) — this surfaces the gap rather than fabricating one; `null`
-    // means "not applicable right now" (bucket isn't 30d, or the probe
+    // means "not applicable right now" (bucket isn't the default, or the probe
     // failed) and `resolveBeyondWindow` (lib/jobs/beyond-window.ts) is the
     // single place that turns this + the visible `totalCount` into the
     // show/hide + number decision.
@@ -1518,7 +1518,7 @@ export function JobsContent({
 
     // Can the corpus answer an age-bucket question? Optimistic default: the
     // sync writes `posted_ts` at full population (verified Jul 2026), and the
-    // fresh-visit default filter is `posted=30d` — starting `false` made every
+    // fresh-visit default filter is `posted=90d` — starting `false` made every
     // first load (and every load while the probe was in flight or failing)
     // ship the match-all browse instead, the corpus's heaviest query shape.
     // The probe now demotes ONLY on a successful measurement of insufficient
@@ -2151,7 +2151,7 @@ export function JobsContent({
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
     // `includeQuietDefaults: true` — a silently-applied default (today, only
-    // the pristine "30d" posted-bucket) narrowed the result set just as much
+    // the pristine "90d" posted-bucket) narrowed the result set just as much
     // as an explicit filter, so a zero-result explanation has to name it even
     // though the toolbar pill keeps it quiet. Same function, same clear
     // semantics, one extra opt-in — not a second parallel "what's active"
@@ -2572,7 +2572,7 @@ export function JobsContent({
                         "replace",
                     );
                 }
-                // Ghost-hidden-count and beyond-30d-window probes used to
+                // Ghost-hidden-count and beyond-window probes used to
                 // fire here as two extra client round trips (Task 7 /
                 // 2026-08-12). Perf first-paint (2026-09-18): both are now
                 // computed server-side, in parallel with the main query, by
@@ -5117,7 +5117,7 @@ export function JobsContent({
               })
             : null;
 
-    // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
+    // "N more beyond 90 days — show all" affordance (2026-08-12) — gated on
     // `resultCountLine` being present so the affordance can never appear
     // before the FIRST real result for the active filters has landed —
     // `totalCount` defaults to an exact zero before that,

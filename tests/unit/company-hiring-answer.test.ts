@@ -127,14 +127,16 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
   });
 });
 
-describe("companies/presentation — freshness fact (reconciles the CTA's own 30d default)", () => {
-  it("states a true zero when every open role is older than /jobs' 30-day default (the Leogy case)", () => {
-    // All 5 roles posted 45 days ago — still open, just outside the window.
+describe("companies/presentation — freshness fact (reconciles the CTA's own default window)", () => {
+  // The window is /jobs' DEFAULT_URL_STATE.postedBucket — 90 days since
+  // 2026-09-30 (30 before), so "old" fixtures sit at 120 days.
+  it("states a true zero when every open role is older than /jobs' 90-day default (the Leogy case)", () => {
+    // All 5 roles posted 120 days ago — still open, just outside the window.
     const jobs = Array.from({ length: 5 }, (_, i) =>
-      job({ id: String(i), posted_ts: NOW - 45 * DAY_MS }),
+      job({ id: String(i), posted_ts: NOW - 120 * DAY_MS }),
     );
     const answer = buildCompanyHiringAnswer(company({ openCount: 5, jobs }), NOW);
-    assert.equal(answer.freshness, "None of the 5 open roles were posted in the last 30 days.");
+    assert.equal(answer.freshness, "None of the 5 open roles were posted in the last 90 days.");
     // Never worded as an apology/warning — a plain, natural-language fact.
     assert.doesNotMatch(answer.freshness, /sorry|unfortunately|warning/i);
   });
@@ -144,17 +146,17 @@ describe("companies/presentation — freshness fact (reconciles the CTA's own 30
       job({ id: String(i), posted_ts: NOW - 2 * DAY_MS }),
     );
     const answer = buildCompanyHiringAnswer(company({ openCount: 4, jobs }), NOW);
-    assert.equal(answer.freshness, "4 of 4 open roles were posted in the last 30 days.");
+    assert.equal(answer.freshness, "4 of 4 open roles were posted in the last 90 days.");
   });
 
   it("reports a genuine split accurately — not rounded to all-or-nothing", () => {
     const jobs = [
       job({ id: "1", posted_ts: NOW - 2 * DAY_MS }),
       job({ id: "2", posted_ts: NOW - 5 * DAY_MS }),
-      job({ id: "3", posted_ts: NOW - 45 * DAY_MS }),
+      job({ id: "3", posted_ts: NOW - 120 * DAY_MS }),
     ];
     const answer = buildCompanyHiringAnswer(company({ openCount: 3, jobs }), NOW);
-    assert.equal(answer.freshness, "2 of 3 open roles were posted in the last 30 days.");
+    assert.equal(answer.freshness, "2 of 3 open roles were posted in the last 90 days.");
   });
 
   it("says nothing when there are no fetched roles to measure, rather than a fabricated '0 of 0'", () => {
@@ -177,7 +179,7 @@ describe("companies/presentation — freshness fact (reconciles the CTA's own 30
   it("omits the fact rather than shrink the denominator — a partial known-date set must never disagree with the 'N open roles' headline above it", () => {
     const jobs = [
       job({ id: "1", posted_ts: NOW - 2 * DAY_MS }), // known, recent
-      job({ id: "2", posted_ts: NOW - 45 * DAY_MS }), // known, old
+      job({ id: "2", posted_ts: NOW - 120 * DAY_MS }), // known, old
       job({ id: "3", posted_ts: null }), // unknown
       job({ id: "4", posted_ts: null }), // unknown
       job({ id: "5", posted_ts: NOW - 3 * DAY_MS }), // known, recent
@@ -200,14 +202,14 @@ describe("companies/presentation — freshness fact (reconciles the CTA's own 30
 });
 
 describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit scope)", () => {
-  it("round-trips through parseJobsUrl carrying posted=any — never inherits /jobs' 30d default", () => {
+  it("round-trips through parseJobsUrl carrying posted=any — never inherits /jobs' default posted window", () => {
     const url = buildCompanyJobsUrl(company({ domain: "leogy.com" }));
     assert.match(url, /^\/jobs\?/);
 
     const parsed = parseJobsUrl(new URLSearchParams(url.slice(url.indexOf("?"))));
     assert.equal(parsed.companyDomain, "leogy.com");
     // undefined = "any" internally (see url-state.ts) — the whole point: the
-    // page's own age-agnostic count must not silently regain /jobs' 30d cut.
+    // page's own age-agnostic count must not silently regain /jobs' 90d cut.
     assert.equal(parsed.postedBucket, undefined);
   });
 

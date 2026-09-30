@@ -57,6 +57,7 @@ const BUCKET_MS: Record<Exclude<PostedBucket, "older">, number> = {
   "3d": 3 * 86_400_000,
   "7d": 7 * 86_400_000,
   "30d": 30 * 86_400_000,
+  "90d": 90 * 86_400_000,
 };
 
 /** True if `j`'s sanitized posted_ts falls in `bucket`. Jobs with no derivable ts never match. */
@@ -65,7 +66,7 @@ function passPostedBucket(j: PublicJob, bucket: PostedBucket | undefined): boole
   const ts = derivePostedTs(j);
   if (ts == null) return false;
   const now = Date.now();
-  return bucket === "older" ? ts < now - BUCKET_MS["30d"] : ts >= now - BUCKET_MS[bucket];
+  return bucket === "older" ? ts < now - BUCKET_MS["90d"] : ts >= now - BUCKET_MS[bucket];
 }
 
 /** Query + salary + visa + posted-bucket predicates (the non-facet filters), always applied. */

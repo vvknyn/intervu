@@ -41,7 +41,8 @@ export interface SearchLogEntry {
     backend: JobsBackendKind;
     /** A failed search, as distinct from a genuinely empty one. */
     unavailable: boolean;
-    /** Records whether the fresh-visit "30d" default was in play. */
+    /** Records whether the fresh-visit default ("90d" since 2026-09-30,
+     *  "30d" before) was in play. */
     postedBucket: string;
     /** Any EXPLICIT filter — facet, salary floor, or visa. Defaults don't count;
      *  the question this answers is "did a human reach for a filter". */

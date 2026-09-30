@@ -11,19 +11,19 @@ import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 /**
  * Mobile "Posted" chip cycle — a tighter subset of the rail's full
  * `POSTED_BUCKET_PRESETS` (FilterPanel.tsx), which also offers "Older than
- * 30 days". A single-tap chip cycling through 6 states (including a
+ * 90 days". A single-tap chip cycling through every state (including a
  * rarely-used "older" bucket) is worse mobile UX than the rail's full menu,
- * so this intentionally stops at 30d (Task 10 brief). Labels still come
+ * so this intentionally stops at the 90d default (Task 10 brief). Labels still come
  * from the shared `postedBucketLabel`, so the two surfaces can never
  * disagree on what a bucket is CALLED — only on which subset a quick chip
  * cycles through.
  */
-const POSTED_CHIP_CYCLE: (PostedBucket | undefined)[] = [undefined, "1d", "3d", "7d", "30d"];
+const POSTED_CHIP_CYCLE: (PostedBucket | undefined)[] = [undefined, "1d", "3d", "7d", "30d", "90d"];
 
 /**
  * Steps from what is APPLIED, not from what sits in state. Cycling the raw
  * bucket made the first tap on a fresh visit go 30d → "Any" — a step that
- * widened nothing (30d was never sent) on a chip that already claimed to be
+ * widened nothing (30d, the default then, was never sent) on a chip that already claimed to be
  * active. From the applied value the same cycle starts at the tightest real
  * window, so the first tap always changes the result set.
  */

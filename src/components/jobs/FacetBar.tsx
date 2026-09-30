@@ -72,10 +72,10 @@ export type StandingFacetChipKey = "postedBucket" | "salaryMin" | FacetKey;
 
 /**
  * Whether a standing FacetBar chip should render. Posted follows
- * `appliedPostedBucket` so the quiet fresh-visit 30d default still shows
- * as Posted · Past month. Other standing chips stay hidden until the
+ * `appliedPostedBucket` so the quiet fresh-visit 90d default still shows
+ * as Posted · Past 3 months. Other standing chips stay hidden until the
  * searcher applies them. Leftover/Clear still use `activeFilterEntries`,
- * which omits quiet 30d.
+ * which omits quiet 90d.
  */
 export function facetBarShouldRenderChip(
     key: StandingFacetChipKey,

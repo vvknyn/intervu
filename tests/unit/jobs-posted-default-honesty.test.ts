@@ -12,8 +12,8 @@ import { resolveBeyondWindow } from "../../src/lib/jobs/beyond-window";
 import { searchResultLine } from "../../src/lib/jobs/presentation";
 
 /**
- * The fresh-visit `postedBucket: "30d"` is the product default — a real
- * request filter, not a display-only value. Every surface that draws the
+ * The fresh-visit `postedBucket: "90d"` is the product default ("30d" until
+ * 2026-09-30) — a real request filter, not a display-only value. Every surface that draws the
  * Posted control must agree it IS applied; only an explicit "Any date"
  * (`postedBucket: undefined`, `postedExplicit: true`) lifts it. Measured on
  * prod (velai.app, 2026-09-01), `?q=product+manager`: 14,682 roles labelled
@@ -30,27 +30,29 @@ const withPosted = (
     postedExplicit?: boolean,
 ): FilterState => ({ ...PRISTINE_FILTER_STATE, postedBucket, postedExplicit });
 
-test("the unchosen 30d default IS the applied window — the fresh-visit product default", () => {
-    assert.equal(appliedPostedBucket(PRISTINE_FILTER_STATE), "30d");
-    assert.equal(appliedPostedBucket(withPosted("30d")), "30d");
+test("the unchosen 90d default IS the applied window — the fresh-visit product default", () => {
+    assert.equal(appliedPostedBucket(PRISTINE_FILTER_STATE), "90d");
+    assert.equal(appliedPostedBucket(withPosted("90d")), "90d");
 });
 
-test("the rail/facet-bar label reads 'Past month' for the applied fresh-visit default", () => {
+test("the rail/facet-bar label reads 'Past 3 months' for the applied fresh-visit default", () => {
     const applied = appliedPostedBucket(PRISTINE_FILTER_STATE);
-    assert.equal(applied, "30d");
-    assert.equal(DATE_POSTED_SHORT_LABELS[applied!], "Past month");
+    assert.equal(applied, "90d");
+    assert.equal(DATE_POSTED_SHORT_LABELS[applied!], "Past 3 months");
+    // Sibling: the old default still has its own short label as a pick.
+    assert.equal(DATE_POSTED_SHORT_LABELS["30d"], "Past month");
 });
 
-test("the SAME 30d value IS applied once the searcher picks it — explicitness is the only difference", () => {
-    assert.equal(appliedPostedBucket(withPosted("30d", true)), "30d");
+test("the SAME 90d value IS applied once the searcher picks it — explicitness is the only difference", () => {
+    assert.equal(appliedPostedBucket(withPosted("90d", true)), "90d");
 });
 
 test("every non-default bucket is applied regardless of the explicit flag — proves the rule is 'unchosen default', not 'flag is set'", () => {
     // A bucket other than the pristine one cannot arrive without a choice,
     // so a missing flag (older bookmark, a caller that forgot it) must not
-    // silently un-apply a real narrowing. Cases OTHER than the 30d one that
-    // surfaced the bug.
-    for (const b of ["1d", "3d", "7d", "older"] as const) {
+    // silently un-apply a real narrowing. Cases OTHER than the default one
+    // (30d then) that surfaced the bug — 30d included, now that it is a pick.
+    for (const b of ["1d", "3d", "7d", "30d", "older"] as const) {
         assert.equal(appliedPostedBucket(withPosted(b)), b, `implicit ${b}`);
         assert.equal(appliedPostedBucket(withPosted(b, true)), b, `explicit ${b}`);
     }
@@ -61,19 +63,21 @@ test("explicit 'Any' stays unapplied — clearing the window must not read back 
 });
 
 test("the mobile chip cycles from what is APPLIED, so a fresh visit's first tap widens to Any", () => {
-    // Fresh visit: the pristine 30d IS applied (the product default), so the
+    // Fresh visit: the pristine 90d IS applied (the product default), so the
     // next step in the cycle is the same widen-to-everything step a picked
-    // 30d already takes (sibling below) — cycling is identical either way.
+    // 90d already takes (sibling below) — cycling is identical either way.
     assert.equal(nextPostedBucket(PRISTINE_FILTER_STATE), undefined);
     // Sibling: the cycle still advances normally from a chosen window, and
     // still wraps at the top.
     assert.equal(nextPostedBucket(withPosted("1d", true)), "3d");
-    assert.equal(nextPostedBucket(withPosted("30d", true)), undefined);
+    assert.equal(nextPostedBucket(withPosted("30d", true)), "90d");
+    assert.equal(nextPostedBucket(withPosted("90d", true)), undefined);
 });
 
 test("the quick chip's face names the applied window, including the fresh-visit default", () => {
-    assert.equal(postedChipLabel(PRISTINE_FILTER_STATE), "Last 30 days", "fresh visit now claims the applied default");
-    assert.equal(postedChipLabel(withPosted("30d", true)), "Last 30 days", "the chosen 30d reads identically");
+    assert.equal(postedChipLabel(PRISTINE_FILTER_STATE), "Last 90 days", "fresh visit now claims the applied default");
+    assert.equal(postedChipLabel(withPosted("90d", true)), "Last 90 days", "the chosen 90d reads identically");
+    assert.equal(postedChipLabel(withPosted("30d", true)), "Last 30 days", "the old default is a named pick");
     assert.equal(postedChipLabel(withPosted("7d")), "Last week", "a non-default window is named");
     assert.equal(postedChipLabel(withPosted(undefined, true)), null, "explicit Any claims nothing");
 });
@@ -86,8 +90,9 @@ const line = (postedBucket: FilterState["postedBucket"]) =>
     searchResultLine({ count: { kind: "exact", value: 344_549 }, postedBucket, lastUpdated: null, nowMs: Date.now() });
 
 test("the count sentence names a window only when one is applied", () => {
-    assert.doesNotMatch(line(undefined), /last 30 days/, "captioned an unfiltered corpus as a 30-day slice");
-    assert.match(line("30d"), /last 30 days/, "sibling: a real window is still named");
+    assert.doesNotMatch(line(undefined), /last (30|90) days/, "captioned an unfiltered corpus as a windowed slice");
+    assert.match(line("90d"), /last 90 days/, "sibling: the default window is named");
+    assert.match(line("30d"), /last 30 days/, "sibling: a narrower picked window is named");
 });
 
 test("the beyond-window reveal hides when no window is applied — even at the count cap", () => {
@@ -95,7 +100,7 @@ test("the beyond-window reveal hides when no window is applied — even at the c
     // Handed the unapplied 30d it offered "more roles beyond 30 days" for
     // roles already on screen, since both counts came from the same search.
     assert.deepEqual(resolveBeyondWindow(undefined, FLOOR, FLOOR), { show: false, extra: null });
-    assert.equal(resolveBeyondWindow("30d", FLOOR, FLOOR).show, true, "sibling: still reveals under a real 30d window");
+    assert.equal(resolveBeyondWindow("90d", FLOOR, FLOOR).show, true, "sibling: still reveals under the real default 90d window");
 });
 
 test("the SERP hands the window-speaking consumers the applied value, never the raw state", () => {
@@ -107,7 +112,7 @@ test("the SERP hands the window-speaking consumers the applied value, never the 
     assert.match(page, /const appliedPosted = appliedPostedBucket\(filterState\)/);
     assert.match(page, /searchResultLine\(\{[^}]*postedBucket: appliedPosted/);
     assert.match(page, /resolveBeyondWindow\(appliedPosted,/);
-    // The "probe only on the 30d bucket" guard left the client in #558
+    // The "probe only on the default bucket" guard left the client in #558
     // (183b2b5c): it is `planProbes` in lib/jobs/run-search.ts, pinned by
     // tests/unit/jobs-run-search.test.ts.
 });

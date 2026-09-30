@@ -68,6 +68,20 @@ test("ghostCheckedText: a parseable ghost_checked_at reads as a relative check t
     assert.equal(ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: checkedAt }, NOW), "Checked 3h ago");
 });
 
+test("ghostCheckedText: the later of the two check timestamps wins, whichever field holds it", () => {
+    const threeHours = new Date(NOW - 3 * 3_600_000).toISOString();
+    const nineDays = new Date(NOW - 9 * 86_400_000).toISOString();
+    assert.equal(
+        ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: threeHours, last_observed_alive_at: nineDays }, NOW),
+        "Checked 3h ago",
+        "an older alive stamp must not hide a newer ghost check",
+    );
+    assert.equal(
+        ghostCheckedText({ ghost_badge: "clear", ghost_checked_at: nineDays, last_observed_alive_at: threeHours }, NOW),
+        "Checked 3h ago",
+    );
+});
+
 test("ghostCheckedText: null ghost_checked_at never fabricates a time", () => {
     assert.equal(ghostCheckedText({ ghost_badge: "unscored", ghost_checked_at: null }, NOW), "Check time unavailable");
 });

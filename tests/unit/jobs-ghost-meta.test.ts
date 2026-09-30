@@ -129,3 +129,10 @@ test("a fresh 'caution' verdict is a real exception and still renders", () => {
 test("unscored still renders no line, same as ghostMetaFor", () => {
     assert.equal(rowExceptionMeta(job("unscored", FRESH), NOW), null);
 });
+
+test("the stale disclosure dates the LATER check — an older alive stamp never replaces a newer ghost check", () => {
+    const stale = STALE_CHECK_DAYS + 5;
+    const staler = STALE_CHECK_DAYS + 20;
+    const meta = ghostMetaFor({ ghost_badge: "caution", ghost_checked_at: daysAgo(stale), last_observed_alive_at: daysAgo(staler) }, NOW);
+    assert.match(meta!.explain, new RegExp(`Last checked ${stale}d ago\\.$`), meta!.explain);
+});
