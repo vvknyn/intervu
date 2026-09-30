@@ -127,7 +127,7 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
   });
 });
 
-describe("companies/presentation — freshness fact (reconciles the CTA's own default window)", () => {
+describe("companies/presentation — freshness fact (reconciles the CTA's own 30d default)", () => {
   // The window is /jobs' DEFAULT_URL_STATE.postedBucket — 90 days since
   // 2026-09-30 (30 before), so "old" fixtures sit at 120 days.
   it("states a true zero when every open role is older than /jobs' 90-day default (the Leogy case)", () => {
