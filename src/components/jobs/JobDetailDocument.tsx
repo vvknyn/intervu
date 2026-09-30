@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
-import { getCompanyRailAction, getRelatedJobsAction } from "@/actions/jobs";
+import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { JobDescription, JobDetailActionBar, KpiStat, MetaLine, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobRow } from "@/components/jobs/JobDetail";
+import { fetchRelatedJobs, JobDescription, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -33,7 +33,7 @@ import { jobCompanyHref } from "@/lib/companies/paths";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
-import { dedupeRelatedJobs } from "@/lib/jobs/related-jobs";
+import { relatedSeed } from "@/lib/jobs/related-jobs";
 import {
     clampLocationSegments,
     decodeText,
@@ -128,6 +128,27 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
 }
 
 /**
+ * Detail that folds behind "Show details" below `lg` and is always shown at
+ * `lg`+. Not a native <details>: a closed one hides its content whatever the
+ * children's CSS says, so the old `lg:!block` never showed the keywords or the
+ * check rows on desktop (2026-09-30).
+ */
+function MobileDisclosure({ className, children }: { className?: string; children: ReactNode }) {
+    const [open, setOpen] = useState(false);
+    const id = useId();
+    return (
+        <div className={className}>
+            <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((v) => !v)} className="text-xs text-brand hover:underline lg:hidden">
+                {open ? "Hide details" : "Show details"}
+            </button>
+            <div id={id} className={cn(open ? "block" : "hidden", "lg:block")}>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+/**
  * The posting-check ledger, restyled as a receipt (spec Section 2, `.receipt`
  * grammar) — same derivation as JobDetail.tsx's glass-panel ghost module
  * (`deriveGhostSignals`/`assessedGhostSignals`/`ghostCheckedText`, all pure,
@@ -174,51 +195,43 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
             {signals.length > 0 && (
                 // Progressive disclosure below `lg`: the verdict line above is
                 // always visible, but the per-signal rows are detail, not the
-                // headline — collapsed under a native <details> (no JS state
-                // to fight an uncontrolled `open` prop on re-render) closed by
-                // default on mobile. `lg:!block` on the content wrapper forces
-                // it visible at desktop regardless of the `open` attribute;
-                // `group-open:block` is what shows it once a mobile visitor
-                // does open it.
-                <details className="group mt-1">
-                    <summary className="cursor-pointer text-xs text-brand hover:underline lg:hidden">Show details</summary>
-                    <div className="hidden group-open:block lg:!block">
-                        <PostingCheckSignalsGrid>
-                            {signals.map((s) => {
-                                const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
-                                return (
-                                    <div key={s.text} className="flex items-start gap-2">
-                                        {/* "not tracked" (unknown) renders no glyph at all
-                                            (rulebook item e) — the ratio above already
-                                            states it as "N not tracked". */}
-                                        <span
-                                            className={cn(
-                                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
-                                                relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
-                                            )}
-                                            aria-hidden={s.status !== "unknown"}
-                                        >
-                                            {relistCaution ? (
-                                                <Warning size={14} weight="bold" />
-                                            ) : s.status === "favorable" ? (
-                                                <Check size={14} weight="bold" />
-                                            ) : s.status === "unfavorable" ? (
-                                                <Minus size={14} weight="bold" />
-                                            ) : null}
-                                        </span>
-                                        <div className="min-w-0 flex-1 leading-snug">
-                                            {/* `s.kind` (job-detail-facts.ts) is always
-                                                lowercase — sentence case applied here at
-                                                the render call site, same as JobDetail.tsx. */}
-                                            <b className="mr-2 text-sm font-semibold capitalize text-foreground">{s.kind}</b>
-                                            <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>{s.text}</span>
-                                        </div>
+                // headline, so they fold on a phone and show on desktop.
+                <MobileDisclosure className="mt-1">
+                    <PostingCheckSignalsGrid>
+                        {signals.map((s) => {
+                            const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
+                            return (
+                                <div key={s.text} className="flex items-start gap-2">
+                                    {/* "not tracked" (unknown) renders no glyph at all
+                                        (rulebook item e) — the ratio above already
+                                        states it as "N not tracked". */}
+                                    <span
+                                        className={cn(
+                                            "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
+                                            relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
+                                        )}
+                                        aria-hidden={s.status !== "unknown"}
+                                    >
+                                        {relistCaution ? (
+                                            <Warning size={14} weight="bold" />
+                                        ) : s.status === "favorable" ? (
+                                            <Check size={14} weight="bold" />
+                                        ) : s.status === "unfavorable" ? (
+                                            <Minus size={14} weight="bold" />
+                                        ) : null}
+                                    </span>
+                                    <div className="min-w-0 flex-1 leading-snug">
+                                        {/* `s.kind` (job-detail-facts.ts) is always
+                                            lowercase — sentence case applied here at
+                                            the render call site, same as JobDetail.tsx. */}
+                                        <b className="mr-2 text-sm font-semibold capitalize text-foreground">{s.kind}</b>
+                                        <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>{s.text}</span>
                                     </div>
-                                );
-                            })}
-                        </PostingCheckSignalsGrid>
-                    </div>
-                </details>
+                                </div>
+                            );
+                        })}
+                    </PostingCheckSignalsGrid>
+                </MobileDisclosure>
             )}
             {exposureBadges.length > 0 && (
                 <div className="mono-data mt-3 text-xs text-muted-foreground">
@@ -239,7 +252,6 @@ export interface JobDetailDocumentProps {
     pursuit: Pursuit | undefined;
     saveSuccessPulse?: boolean;
     signedIn?: boolean;
-    onOpenRelated?: (jobId: string, job?: PublicJob) => void;
     reportJobEnabled?: boolean;
     /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
      *  no signed-in résumé or no comparable field — renders no chip, never a
@@ -252,7 +264,6 @@ export interface JobDetailDocumentProps {
     matchPending?: boolean;
     /** Local-AI résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
 }
@@ -284,13 +295,11 @@ export function JobDetailDocument({
     pursuit,
     saveSuccessPulse = false,
     signedIn = true,
-    onOpenRelated,
     reportJobEnabled = false,
     matchScore = null,
     matchAsOfDate = null,
     matchPending = false,
     resume = null,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
 }: JobDetailDocumentProps) {
@@ -319,19 +328,21 @@ export function JobDetailDocument({
 
     useJobViewedCapture({ job, source, signedIn, matchPending, matchScore, resume });
 
-    const [related, setRelated] = useState<PublicJob[]>([]);
+    const [related, setRelated] = useState<RelatedJobs>(NO_RELATED);
+    // A string key, not the job object — see JobDetail.tsx.
+    const relatedKey = JSON.stringify(relatedSeed(job));
     useEffect(() => {
         let cancelled = false;
-        setRelated([]);
+        setRelated(NO_RELATED);
         // Ungated by `signedIn` — unlike the SERP panel's related fetch, this
         // is a standalone page with no modal to gate behind sign-in; the
         // page's own live open-count query (EmployerCard above) already
         // serves anonymous visitors the same company-scoped data with no
         // gate, so gating this one query type differently on this page would
         // be arbitrary rather than a real access boundary.
-        getRelatedJobsAction(job.id, job.company_domain, job.title)
+        fetchRelatedJobs(relatedKey)
             .then((data) => {
-                if (!cancelled) setRelated(data.jobs);
+                if (!cancelled) setRelated(data);
             })
             .catch(() => {
                 /* "More like this" is an accelerant, not a source of error */
@@ -339,7 +350,7 @@ export function JobDetailDocument({
         return () => {
             cancelled = true;
         };
-    }, [job.id, job.company_domain, job.title]);
+    }, [relatedKey]);
 
     const heroEl = (
         <div className="pb-6">
@@ -437,6 +448,28 @@ export function JobDetailDocument({
         </div>
     );
 
+    // Customize (with a résumé) or Upload (without): full width on its own
+    // row, since it doesn't fit beside Apply and Save in the 320px rail or in
+    // a phone's sticky bar (both ran past their edge, 2026-09-30).
+    const customizeEl = closed ? null : resume != null ? (
+        <LocalCustomizePanel
+            job={job}
+            resume={resume}
+            signedIn={signedIn}
+            onSignInToSync={onSignInToSync}
+        />
+    ) : onUploadResume ? (
+        <Button size={jobActionSize}
+            type="button"
+            variant="outline"
+            data-testid="job-detail-upload-to-customize"
+            onClick={onUploadResume}
+            className="shrink-0"
+        >
+            {UPLOAD_TO_CUSTOMIZE_LABEL}
+        </Button>
+    ) : null;
+
     const applyCardEl = closed ? (
         <div data-testid="job-detail-apply-card" className="border-t border-border py-4">
             <p className="mb-3 text-sm text-muted-foreground">This role is closed — it&apos;s no longer accepting applications.</p>
@@ -447,23 +480,14 @@ export function JobDetailDocument({
             )}
         </div>
     ) : (
-        <div
-            data-testid="job-detail-apply-card"
-            className={cn(
-                "border-t border-border py-4",
-                // Below `lg` this whole card is hidden — the sticky
-                // `JobDetailActionBar` mounted at the foot of the mobile
-                // stack is the one filled button + bookmark for that
-                // viewport, so the viewport never shows two filled buttons
-                // at once. The report-listing control used to live nested
-                // in here too (so it had to poke through this "hidden"
-                // gate); it's now its own block (`reportControlEl` below)
-                // with its own mobile position, so this card can be
-                // unconditionally desktop-only.
-                "hidden lg:block",
-            )}
-        >
-            <div className="flex items-center gap-2">
+        // Below `lg` only the Customize row shows here: the sticky
+        // `JobDetailActionBar` at the foot of the mobile stack is the one
+        // filled Apply button + bookmark for that viewport, so the viewport
+        // never shows two filled buttons at once. With nothing to customize
+        // the card is desktop-only. The report-listing control is its own
+        // block (`reportControlEl` below) with its own mobile position.
+        <div data-testid="job-detail-apply-card" className={cn("border-t border-border py-4", !customizeEl && "hidden lg:block")}>
+            <div className="hidden items-center gap-2 lg:flex">
                 {job.apply_url && (
                     <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand">
                         <ArrowSquareOut size={16} />
@@ -479,26 +503,9 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     successPulse={saveSuccessPulse}
                 />
-                {resume != null ? (
-                    <LocalCustomizePanel
-                        job={job}
-                        resume={resume}
-                        onAccept={onAcceptLocalTailor}
-                        signedIn={signedIn}
-                        onSignInToSync={onSignInToSync}
-                    />
-                ) : onUploadResume ? (
-                    <Button size={jobActionSize}
-                        type="button"
-                        variant="outline"
-                        data-testid="job-detail-upload-to-customize"
-                        onClick={onUploadResume}
-                        className="shrink-0"
-                    >
-                        {UPLOAD_TO_CUSTOMIZE_LABEL}
-                    </Button>
-                ) : null}
             </div>
+            {/* A column so the trigger stretches to the card's width. */}
+            {customizeEl && <div className="flex flex-col lg:mt-2">{customizeEl}</div>}
         </div>
     );
 
@@ -540,14 +547,11 @@ export function JobDetailDocument({
                         itself collapses below `lg` — same disclosure idiom as
                         the posting-check signal rows above (Receipt). */}
                     <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
-                    <details className="group">
-                        <summary className="cursor-pointer text-xs text-brand hover:underline lg:hidden">Show details</summary>
-                        <div className="hidden group-open:block lg:!block">
-                            <div className="mono-data text-sm text-muted-foreground">
-                                {visibleTags(job.tags, 16).join(" · ")}
-                            </div>
+                    <MobileDisclosure>
+                        <div data-testid="job-detail-keywords" className="mono-data text-sm text-muted-foreground">
+                            {visibleTags(job.tags, 16).join(" · ")}
                         </div>
-                    </details>
+                    </MobileDisclosure>
                 </div>
             )}
         </div>
@@ -574,24 +578,17 @@ export function JobDetailDocument({
         </div>
     );
 
-    // Excludes the job currently being viewed and collapses rows that are
-    // the same opening cross-posted or re-scraped into more than one row
-    // (identical title+company+location) down to the newest — see
-    // `dedupeRelatedJobs` (lib/jobs/related-jobs.ts) for the exact rule.
-    const relatedDeduped = dedupeRelatedJobs(related, job.id);
-
-    const relatedEl = relatedDeduped.length > 0 && (
-        <div data-testid="job-detail-related" className="border-t border-border py-6">
-            <h2 className="mb-2 text-sm font-semibold text-foreground">More like this</h2>
-            {/* Rulebook item h: rows separated only by a hairline, not
-                bordered cards — RelatedJobRow itself carries no border now
-                (see JobDetail.tsx), so this wrapper supplies the dividers. */}
-            <div className="divide-y divide-border">
-                {relatedDeduped.map((r) => (
-                    <RelatedJobRow key={r.id} job={r} now={now} onClick={() => onOpenRelated?.(r.id, r)} />
-                ))}
-            </div>
-        </div>
+    // Already deduped and self-excluded by `getRelatedJobsAction`; the block
+    // itself is shared with the board's pane (JobDetail.tsx).
+    const relatedEl = related.jobs.length > 0 && (
+        <RelatedJobsSection
+            jobs={related.jobs}
+            basis={related.basis}
+            companyBrand={companyBrand}
+            now={now}
+            linkToPages
+            headingLevel="h2"
+        />
     );
 
     // Mobile reading order (F1, <lg): title/company/location/posted → apply
@@ -661,10 +658,6 @@ export function JobDetailDocument({
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}
                     saveSuccessPulse={saveSuccessPulse}
-                    resume={resume}
-                    onAcceptLocalTailor={onAcceptLocalTailor}
-                    onUploadResume={onUploadResume}
-                    onSignInToSync={onSignInToSync}
                     className="bottom-12 lg:hidden"
                 />
             )}

@@ -36,6 +36,16 @@ test("PostHog and AuthKit defer until load or idle", () => {
     );
     assert.match(posthogDefer, /scheduleAfterLoadOrIdle/);
     assert.match(authDefer, /scheduleAfterLoadOrIdle/);
+    // Beside the page, never around it: wrapping `children` once ready is a new
+    // element type at that spot, so React rebuilt every page (blank until the
+    // chunk loaded, then every mount fetch again). J-NAV-39 proves it in a browser.
+    for (const [source, name] of [
+        [posthogDefer, "PostHogProvider"],
+        [authDefer, "AuthKitProvider"],
+    ] as const) {
+        assert.doesNotMatch(source, new RegExp(`<${name}>\\s*\\{children\\}`));
+        assert.match(source, new RegExp(`<${name}>\\{null\\}</${name}>`));
+    }
 });
 
 test("/jobs is board-first: no poster, chrome-hide classes or first-paint script", () => {
