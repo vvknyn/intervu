@@ -11,7 +11,7 @@ import {
   postHogOptionsForViewport,
 } from "@/lib/posthog-options";
 import { identityAction } from "@/lib/posthog-identity";
-import { captureEvent } from "@/lib/analytics/events";
+import { captureEvent, flushHeldEvents } from "@/lib/analytics/events";
 import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from "@/lib/auth/gate-attempt";
 
@@ -49,6 +49,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       });
       posthog.register({ product: POSTHOG_PRODUCT });
       started.current = true;
+      // What the page fired as it mounted, before this loaded (events.ts `captureRoute`).
+      flushHeldEvents();
     }
 
     // Tie events to the account once someone is signed in.

@@ -84,6 +84,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-JOBS-41 | A pack opened after another pack loaded, whose own read fails, shows the load error with Retry (not its loading state, not the other pack's roles), and Retry lists its roles once reads answer again | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), open `hub-pack-card-remote`, back, fail every server action, open `hub-pack-card-salary`, Retry | signed-out | no | covered | jobs.spec.ts |
 | J-JOBS-42 | Signed in, the packs hub lists the tracker (applied roles first, with stage counts) and the last 20 roles opened under the pack tiles; a row opened in a pack leads Recently viewed on the way back | signed-in | `/jobs?view=for-you` with tracked roles, open a pack, click a row, `jobs-back-to-packs`, read `hub-tracker-row` and `hub-recent-row` | signed-in | no | uncovered | — |
 | J-JOBS-46 | Signed out, the packs hub shows placeholders for the tracker and Recently viewed under the pack tiles and one sign-in gate that returns to the hub | Candidate with a local résumé | `/jobs?view=for-you` (Toronto guest résumé seeded in localStorage), read `hub-your-jobs`, `hub-tracker-placeholder`, `hub-recent-placeholder` and its `signup-gate` | signed-out | no | covered | jobs.spec.ts |
+| J-JOBS-52 | During a search outage a pack shows the load error with Retry, never "No roles in <country> yet." nor the cached newest-jobs list as its roles (it used to list the newest roles site-wide, all Stretch, and the fit gate counted the whole corpus); Retry lists the pack's own roles once search is back. The server half (a query or filter never gets the default-browse fallback) is unit-tested in jobs-search-cache.test.ts, since a browser spec cannot fail the server's Meilisearch | Candidate with a local résumé | `/jobs?view=for-you` (Toronto résumé seeded in localStorage), the pack's own search answered in the browser with the outage result (`unavailable`, place reported unmatched), click `hub-pack-card-all`, Retry | signed-out | no | covered | jobs.spec.ts |
 
 ## SRCH
 
@@ -179,7 +180,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-08 | Job page OG image route serves a PNG | anon | JOB_PATH + /opengraph-image | signed-out | no | uncovered | — |
 | J-DETAIL-09 | Company name link on the job page goes to the company page | anon | JOB_PATH | signed-out | no | uncovered | — |
 | J-DETAIL-10 | Employer card "All jobs at {brand}" link goes to the company-scoped board | anon | JOB_PATH | signed-out | no | uncovered | — |
-| J-DETAIL-11 | Related job row from the document navigates to that job | anon | JOB_PATH | signed-out | no | uncovered | — |
+| J-DETAIL-11 | Related job row from the document is a link to that job's own page (not the board); it opens there with the row's title as the heading, and Back returns to the first job page | anon | JOB_PATH | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-12 | Description API returns the hydrate shape for a real id and an empty hit list for an unknown id | agent | GET /api/jobs/JOB_ID/description | signed-out | no | uncovered | — |
 | J-DETAIL-13 | Description API rejects an over-long id with 400 | agent | GET /api/jobs/{201 chars}/description | signed-out | no | uncovered | — |
 | J-DETAIL-14 | Desktop (>=xl) row click opens the detail in the pane and puts ?job= in the URL | anon | /jobs?posted=any at 1440x900 | signed-out | no | uncovered | — |
@@ -197,6 +198,11 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-26 | Share control in the board detail pane is a labelled "Copy link" action | anon | /jobs?posted=any at 1440x900 (pane) | signed-out | no | uncovered | — |
 | J-DETAIL-27 | Slow document load shows the "Loading job page" skeleton before the job | anon | JOB_PATH with the document request delayed | signed-out | no | uncovered | — |
 | J-DETAIL-28 | Anonymous Report submit reaches "Reported ✓" (flag on) @writes | anon | JOB_PATH at 1440x900, open `report-job-trigger`, click `report-job-submit` | signed-out | yes | covered | signup-gates.spec.ts |
+| J-DETAIL-29 | Job page "More like this" rows hold their title and meta lines with space above and below (no spill over the hairline), the text sits inside the row's hover band, keyboard focus draws an inset ring (no outline over the text), no sideways scroll, and the heading reads "More like this" for similar roles or "More at {company}" for the company's own | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-30 | Board pane's hiring-truth links say where they go ("All jobs at {brand}", "{brand} company page"), never a bare company name beside them | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
 
 ## APPLY
 
@@ -618,6 +624,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
 | J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 
 ## PRICING
@@ -667,6 +674,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |----|---------|---------|-------|------|--------|--------|------|
 | J-MODAL-01 | Parse a 7-role résumé in the importer at 1280x600, 390x844 and 390x420; wheel-scroll the body to the last experience entry and last field, footer Back and confirm stay in view and Back works, page behind does not scroll | anon | /resume (importer open, basic parse) | signed-out | no | covered | modal.spec.ts |
 | J-MODAL-02 | Sign-in dialog fits 1280x600, 390x844 and 390x420; its last control is reachable by wheel-scrolling and Close dismisses it | anon | /resume then `topbar-signin` | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-03 | Open "Customize résumé" on a role with a guest résumé; the dialog sits above its dim layer (Close is the topmost element), "Use a rules draft" produces a draft, Close dismisses it | anon with a guest résumé | /jobs?view=search&q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-04 | Open "Track a role" on /yours as a guest; the Status picker opens above the sheet (an option is the topmost element), picking one sets it, Close dismisses without saving | anon | /yours?view=new | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-05 | Open Feedback from the account menu; the menu closes, the Type picker opens above the dialog and picking an option sets it, Cancel closes without sending (dev-server only: signed-in mock) | signed-in | any page, `topbar-avatar` then Feedback | signed-in | no | covered | modal.spec.ts |
+| J-MODAL-06 | Customize a role twice with a guest résumé (on-device mode on); each draft starts from the guest's own summary, offers only Close, Copy and Download PDF, and the résumé stored in the browser is unchanged | anon with a guest résumé | /jobs?view=search&q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
 
 ## Legacy specs pending repair
 
