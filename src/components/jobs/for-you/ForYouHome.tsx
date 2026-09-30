@@ -177,7 +177,10 @@ export function ForYouHome({
     );
     // The list's search dropped every place the pack names, so its rows come from
     // anywhere. The pack's location is where the candidate can work: none of them fit.
-    const placesMissing = filters != null && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
+    // A failed read says nothing about where roles are: during a search outage the
+    // place check fails too and reports the place as dropped, so the error wins.
+    const placesMissing =
+        filters != null && !loadError && locationDropped(filters, { unmatchedPlaceMentions: unmatchedPlaces });
     const visiblePacks = placesMissing ? NO_PACKS : listedPacks;
     // The list's own search kept the place and found nothing there: the corpus has roles in it,
     // none of them this pack's. Name the place, not the generic "right now" empty state.

@@ -327,6 +327,9 @@
   --z-dialog-scrim: 200;
   --z-dialog: 210;
   --z-tour: 200;
+  /* Select, popover, dropdown and tooltip content: portaled to <body>, so they must clear the
+     sheet and dialog they open from. */
+  --z-popover: 220;
   --z-toast: 300;
 }
 
