@@ -91,7 +91,7 @@ test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () =
     assert.equal(authGateReasonToFunnelReason(undefined), "fit");
 });
 
-test("resolveAuthKitReturnTo sends every signup returnTo to the gate path", () => {
+test("resolveAuthKitReturnTo sends every signup with nothing queued to the gate path", () => {
     const gate = "/jobs?resume=gate";
     for (const rawNext of [
         null,
@@ -104,7 +104,16 @@ test("resolveAuthKitReturnTo sends every signup returnTo to the gate path", () =
         "/co/outerboxdesign--com",
     ]) {
         assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext }), gate);
+        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext, hasPendingAction: false }), gate);
     }
+});
+
+test("resolveAuthKitReturnTo keeps a signup's page when an action is queued there", () => {
+    // Create account from the Apply dialog: the Apply replays on the job page.
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs/backend-engineer-acme-1", hasPendingAction: true }), "/jobs/backend-engineer-acme-1");
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs?job=abc", hasPendingAction: true }), "/jobs?job=abc");
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme", hasPendingAction: true }), "/co/acme");
+    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: null, hasPendingAction: true }), "/jobs?resume=gate");
 });
 
 test("resolveAuthKitReturnTo does not rewrite sign-in return targets", () => {

@@ -68,7 +68,7 @@ test("isDefaultBrowseParams: true only for the empty-query, no-filter shape", ()
   assert.equal(isDefaultBrowseParams({ postedSinceMs: 1_800_000_000_000 }), false);
 });
 
-test("resolveDegradedServe: pure decision — exact hit, then default fallback, then null", () => {
+test("resolveDegradedServe: pure decision — exact hit, then default fallback for a default browse only, then null", () => {
   const p: JobSearchParams = { q: "engineer" };
   const exactEntry = { result: makeResult(3), cachedAtMs: 111 };
   const defaultEntry = { result: makeResult(9), cachedAtMs: 222 };
@@ -80,12 +80,39 @@ test("resolveDegradedServe: pure decision — exact hit, then default fallback, 
   // Exact key present → served, not the default.
   assert.deepEqual(resolveDegradedServe(p, (k) => store.get(k)), { ...exactEntry, servedKey: "exact" });
 
-  // Exact key missing for a DIFFERENT query → falls back to default browse.
+  // A default browse whose own key was never cached (another page size) → the default browse.
+  const browse: JobSearchParams = { hideGhosts: true, sort: "newest", limit: 20 };
+  assert.deepEqual(resolveDegradedServe(browse, (k) => store.get(k)), { ...defaultEntry, servedKey: "default-browse" });
+
+  // Exact key missing for a DIFFERENT query → null: the newest-jobs list is not its result.
   const other: JobSearchParams = { q: "designer" };
-  assert.deepEqual(resolveDegradedServe(other, (k) => store.get(k)), { ...defaultEntry, servedKey: "default-browse" });
+  assert.equal(resolveDegradedServe(other, (k) => store.get(k)), null);
 
   // Nothing cached at all → null, caller's existing error path is untouched.
-  assert.equal(resolveDegradedServe(other, () => undefined), null);
+  assert.equal(resolveDegradedServe(browse, () => undefined), null);
+});
+
+// 2026-09-30: a job pack's search (query + country + level facets) that failed
+// during a Meili outage was answered with the cached newest-jobs list; the pack
+// list ranked it against the résumé and the fit gate counted it as the pack's
+// matches. Any query, filter, place or later page must miss instead.
+test("resolveDegradedServe: never serves the default browse to a query, filter, place, lookup or later page", () => {
+  const defaultEntry = { result: makeResult(9), cachedAtMs: 222 };
+  const store = new Map([["\x00default-browse\x00", defaultEntry]]);
+  const lookup = (k: string) => store.get(k);
+  const misses: JobSearchParams[] = [
+    { q: '"Data Analyst" OR "Data Engineer"', facets: { location_country: ["Canada"], experience_level: ["mid", "senior"] }, sort: "relevance" },
+    { facets: { work_type: ["remote"] } },
+    { places: [{ any: [{ field: "location_country", value: "Canada" }] }] },
+    { postedBucket: "7d" },
+    { salaryMin: 100_000 },
+    { visaOnly: true },
+    { companyDomain: "stripe.com" },
+    { board: "elite" },
+    { id: "job_123" },
+    { offset: 40 },
+  ];
+  for (const p of misses) assert.equal(resolveDegradedServe(p, lookup), null, JSON.stringify(p));
 });
 
 // The `servedKey` contract itself — search.ts (`searchJobs`) branches on
@@ -104,7 +131,7 @@ test("resolveDegradedServe: servedKey distinguishes an exact hit from a default-
   ]);
 
   assert.equal(resolveDegradedServe(p, (k) => store.get(k))?.servedKey, "exact");
-  assert.equal(resolveDegradedServe({ q: "designer" }, (k) => store.get(k))?.servedKey, "default-browse");
+  assert.equal(resolveDegradedServe({ limit: 20 }, (k) => store.get(k))?.servedKey, "default-browse");
 });
 
 test("cacheSearchResult + getDegradedServe: write path feeds the real module cache", () => {
@@ -119,11 +146,11 @@ test("cacheSearchResult + getDegradedServe: write path feeds the real module cac
   assert.equal(served?.cachedAtMs, 1_000);
 });
 
-test("cacheSearchResult: a default-browse request also seeds the fallback for a DIFFERENT unseen query", () => {
+test("cacheSearchResult: a default-browse request seeds the fallback for another default browse, never for an unseen query", () => {
   clearSearchCacheForTests();
   cacheSearchResult({}, makeResult(42), 5_000);
-  const served = getDegradedServe({ q: "never searched before" });
-  assert.equal(served?.result.total, 42, "unseen query falls back to the cached default browse");
+  assert.equal(getDegradedServe({ limit: 20 })?.result.total, 42, "another default browse falls back to it");
+  assert.equal(getDegradedServe({ q: "never searched before" }), null, "an unseen query gets no one else's rows");
 });
 
 test("cacheSearchResult: LRU is bounded — oldest entry evicted once over the cap", () => {

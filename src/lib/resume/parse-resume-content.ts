@@ -312,7 +312,13 @@ export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocume
   if (competencies.length > 0) {
     sections.push({
       heading: "CORE COMPETENCIES",
-      blocks: competencies.map((c) => ({ kind: "competency" as const, category: c.category, items: c.skills.join(", ") })),
+      // An uncategorized list (a plain "Skills" section parsed from text has
+      // category "") prints as a plain line, not ": Go, TypeScript".
+      blocks: competencies.map((c): ParsedResumeBlock =>
+        c.category.trim()
+          ? { kind: "competency", category: c.category, items: c.skills.join(", ") }
+          : { kind: "paragraph", text: c.skills.join(", ") },
+      ),
     });
   }
   if (data.experience.length > 0) {

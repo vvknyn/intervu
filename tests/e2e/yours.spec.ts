@@ -143,9 +143,9 @@ test.describe('YOURS - Guest, one seeded pursuit', () => {
     await page.getByTestId('pursuit-row').first().click();
     await expect(page).toHaveURL('/yours/guest-e2e-1');
     await expect(page.getByTestId('pursuit-stage')).toBeVisible({ timeout: 10000 });
-    const main = page.getByRole('main');
-    await expect(main.getByRole('heading', { name: /^Acme\b/ }).first()).toBeVisible();
-    await expect(main.getByText('Staff Engineer').first()).toBeVisible();
+    // The role is the page title and the company its subline, like the board row.
+    await expect(page.getByRole('heading', { level: 1, name: 'Staff Engineer' })).toBeVisible();
+    await expect(page.getByText('Acme Corp').first()).toBeVisible();
   });
 
   test('TC-YOURS-008: Track a role opens the add sheet', async ({ page }) => {

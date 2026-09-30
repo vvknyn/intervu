@@ -1,9 +1,8 @@
 /**
  * Post-auth landing paths — route signed-in users without a usable résumé
  * into the existing /jobs résumé gate (`/jobs?resume=gate`) so one-shot
- * upload can open. Signup AuthKit returns always use the gate; résumeless
- * password/login landings do too unless a pending apply/upload/report owns
- * the next step.
+ * upload can open. Signups and résumeless password/login landings use the
+ * gate unless a pending apply/upload/report owns the next step.
  */
 
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
@@ -73,17 +72,25 @@ export function resolvePostAuthDestination(input: {
     return buildPostAuthResumeGatePath();
 }
 
-/** Rewrite AuthKit `next` for every signup so WorkOS returns to the résumé gate. */
+/**
+ * Rewrite AuthKit `next` for a signup so WorkOS returns to the résumé gate —
+ * unless a gated action is queued (Apply, upload, report): then signup returns
+ * to the page it started on, where the action replays, as sign-in does.
+ */
 export function resolveAuthKitReturnTo(input: {
     mode: "login" | "signup";
     rawNext: string | null | undefined;
+    hasPendingAction?: boolean;
 }): string | null {
     const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
     if (input.mode === "signup") {
-        return buildPostAuthResumeGatePath();
+        return input.hasPendingAction && next ? next : buildPostAuthResumeGatePath();
     }
     return next;
 }
+
+/** `/auth/start` flag: the signup carries a queued action, so keep its `next`. */
+export const AUTH_START_PENDING_PARAM = "pending";
 
 /** Whether inline signup on /jobs should open the post-auth résumé gate. */
 export function shouldOpenResumeGateAfterInlineAuth(input: {

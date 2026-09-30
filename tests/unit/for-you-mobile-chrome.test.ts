@@ -51,8 +51,8 @@ describe("for-you mobile chrome", () => {
         assert.doesNotMatch(src, /max-h-\[\d+dvh\]/, "height cap lives on the primitive, not per site");
         // One footer row, one step.
         assert.deepEqual(
-            sizesOf(src, "local-customize-close", "local-customize-copy", "local-customize-pdf", "local-customize-accept"),
-            ["sm", "sm", "sm", "sm"],
+            sizesOf(src, "local-customize-close", "local-customize-copy", "local-customize-pdf"),
+            ["sm", "sm", "sm"],
         );
     });
 
