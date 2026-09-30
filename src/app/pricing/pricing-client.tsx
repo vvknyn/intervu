@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { Prose } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { FoundingReserveForm } from "./founding-reserve-form";
 import { captureEvent, type UpgradePlan } from "@/lib/analytics/events";
 import {
   DATA_API_FROM_PRICE,
@@ -19,9 +20,11 @@ import {
 
 type PricingClientProps = {
   signedIn: boolean;
+  /** The signed-in account's address, to prefill the reservation form. */
+  email: string | null;
   /** Stripe Payment Link with the buyer's reference attached, or `null`
-   *  when the offer is not configured — the button then reads "opening
-   *  soon" and is inert, never a guessed URL. */
+   *  when the offer is not configured — the Pro column then takes an
+   *  email-only reservation (FoundingReserveForm), never a guessed URL. */
   checkoutUrl: string | null;
   /** Set only on a validated Stripe return; drives the thank-you and the
    *  one `founding_member_paid` capture. */
@@ -68,6 +71,10 @@ const FAQ: { question: string; answer: string }[] = [
     answer: `Pro for the life of the account, for a one-off ${FOUNDING_SEAT_PRICE}. There are ${FOUNDING_SEAT_COUNT} seats. Founding members get Pro the day it opens and set its roadmap with us until then.`,
   },
   {
+    question: "What does reserving a seat do?",
+    answer: `It holds your place in the first ${FOUNDING_SEAT_COUNT} and costs nothing. When seats open, reservations get the checkout link before anyone else; if you have changed your mind by then, ignore the email.`,
+  },
+  {
     question: "What if Pro never opens?",
     answer:
       "You get your money back. A founding seat is refundable on request at any time before Pro opens, no reason needed. Use the contact page and include the email you paid with.",
@@ -92,7 +99,7 @@ function FeatureList({ items }: { items: string[] }) {
   );
 }
 
-export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingClientProps) {
+export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: PricingClientProps) {
   const foundingAvailable = checkoutUrl !== null;
 
   useEffect(() => {
@@ -110,7 +117,8 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
     captureEvent("founding_member_paid", { checkout_session_id: paidSessionId, signed_in: signedIn });
   }, [paidSessionId, signedIn]);
 
-  const clicked = (plan: UpgradePlan) => captureEvent("upgrade_clicked", { plan, signed_in: signedIn });
+  const clicked = (plan: UpgradePlan, mode?: "checkout" | "reserve") =>
+    captureEvent("upgrade_clicked", { plan, signed_in: signedIn, mode });
 
   return (
     <PageContainer data-testid="pricing-page" className="py-10">
@@ -118,7 +126,10 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
       <PageTitle className="mt-3">Free while you search. Pay only if you want more.</PageTitle>
       <p className="mt-1.5 max-w-prose text-base text-muted-foreground">
         Everything you use today stays free. Pro and the Data API are on the way, and the first{" "}
-        {FOUNDING_SEAT_COUNT} Pro seats {foundingAvailable ? "are open now" : "open soon"} at a one-off price.
+        {FOUNDING_SEAT_COUNT} Pro seats{" "}
+        {foundingAvailable
+          ? "are open now at a one-off price."
+          : "open soon at a one-off price. Reserve yours now; nothing is charged until they open."}
       </p>
 
       {paidSessionId ? (
@@ -159,7 +170,7 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
           <div>
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-semibold text-foreground">Pro</p>
-              <Badge>{foundingAvailable ? "Founding seats open" : "Founding seats soon"}</Badge>
+              <Badge>{foundingAvailable ? "Founding seats open" : "Reservations open"}</Badge>
             </div>
             <p className="mt-1 text-2xl font-semibold text-foreground">
               {PRO_MONTHLY_PRICE}
@@ -174,22 +185,22 @@ export function PricingClient({ signedIn, checkoutUrl, paidSessionId }: PricingC
                 Founding seat: {FOUNDING_SEAT_PRICE} once, Pro for life
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                First {FOUNDING_SEAT_COUNT} seats. Refundable on request any time before Pro opens.
+                {checkoutUrl
+                  ? `First ${FOUNDING_SEAT_COUNT} seats. Refundable on request any time before Pro opens.`
+                  : `First ${FOUNDING_SEAT_COUNT} seats. Reserve with an email; nothing is charged until they open, and a seat is refundable on request any time before Pro opens.`}
               </p>
               {checkoutUrl ? (
                 <Button asChild className="mt-3 w-full">
                   <a
                     data-testid="pricing-founding-cta"
                     href={checkoutUrl}
-                    onClick={() => clicked("pro_founding")}
+                    onClick={() => clicked("pro_founding", "checkout")}
                   >
                     Take a founding seat
                   </a>
                 </Button>
               ) : (
-                <Button data-testid="pricing-founding-cta" className="mt-3 w-full" disabled aria-disabled>
-                  Founding seats open soon
-                </Button>
+                <FoundingReserveForm email={email} signedIn={signedIn} />
               )}
             </div>
           </div>

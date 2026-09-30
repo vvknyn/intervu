@@ -157,5 +157,5 @@ test("the People metrics read WorkOS, which is the only place an email-only sign
 
 test("the waitlists are counted, since those addresses have no account at all", () => {
     const waitlist = METRICS.filter((m) => m.group === "Waitlist").map((m) => m.id);
-    assert.deepEqual([...waitlist].sort(), ["connect_waitlist", "waitlist"]);
+    assert.deepEqual([...waitlist].sort(), ["connect_waitlist", "founding_waitlist", "waitlist"]);
 });
