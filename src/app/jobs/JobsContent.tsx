@@ -1948,6 +1948,10 @@ export function JobsContent({
             },
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     useEffect(() => {
@@ -7338,6 +7342,19 @@ export function JobsContent({
                     <SheetTitle className="sr-only">
                         {detailJob ? `${decodeText(detailJob.title)} at ${displayCompanyBrand(detailJob.company, detailJob.company_domain, detailJob.title)}` : "Job details"}
                     </SheetTitle>
+                    {/* The visitor applies from this sheet and comes back to it, and
+                        the floating prompt is hidden while a sheet is open, so the
+                        question is asked here. The floating one below stands down. */}
+                    {applyReturnPrompt ? (
+                        <div className="shrink-0 border-b border-border px-4 py-3">
+                            <ApplyReturnPrompt
+                                placement="inline"
+                                record={applyReturnPrompt}
+                                onMarkApplied={markApplyReturnApplied}
+                                onDismiss={dismissApplyReturn}
+                            />
+                        </div>
+                    ) : null}
                     {/* G5a: safe-area bottom padding — the sheet already
                         paints OVER the fixed mobile tab bar when open (see
                         JobDetailActionBar's doc comment), but nothing
@@ -7413,7 +7430,7 @@ export function JobsContent({
                 onDismiss={() => setGuestTrackPrompt(null)}
             />
             <ApplyReturnPrompt
-                record={applyReturnPrompt}
+                record={detailMountSite === "sheet" ? null : applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}
                 onDismiss={dismissApplyReturn}
             />

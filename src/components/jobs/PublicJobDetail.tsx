@@ -217,6 +217,10 @@ export function PublicJobDetail({
             upload: () => {},
         },
         user,
+        onGateOpen: (reason) => {
+            setAuthGateReason(reason);
+            setAuthTrigger("user");
+        },
     });
 
     const openAuth = (reason: AuthGateReason | null = null, trigger: AuthGateTrigger = "user") => {
@@ -466,27 +470,42 @@ export function PublicJobDetail({
                     onSignInToSync={() => openAuth("tailor", "user")}
                 />
             ) : (
-                <JobDetail
-                    job={job}
-                    now={nowMs}
-                    source={effectiveSource}
-                    signedIn={Boolean(user)}
-                    pursuit={pursuitsByJobId.get(job.id)}
-                    saveSuccessPulse={savePulse}
-                    reportJobEnabled={reportJobEnabled}
-                    onClose={onClose}
-                    onOpenRelated={handleOpenRelated}
-                    collapseDescription={collapseDescription}
-                    className={cn(detailClassName)}
-                    onOpenPosting={() => handleOpenPosting(job)}
-                    onGoAfter={() => handleGoAfter(job)}
-                    matchScore={matchScore}
-                    matchAsOfDate={resumeAsOfDate}
-                    matchPending={matchPending}
-                    resume={resume}
-                    onUploadResume={() => router.push("/resume")}
-                    onSignInToSync={() => openAuth("tailor", "user")}
-                />
+                <>
+                    {/* The panel layout lives in the company page's role sheet, where
+                        the floating prompt is hidden (see ApplyReturnPrompt), so the
+                        question sits at the top of the sheet the visitor returns to. */}
+                    {applyReturnPrompt && (
+                        <div className="px-4 pt-3">
+                            <ApplyReturnPrompt
+                                placement="inline"
+                                record={applyReturnPrompt}
+                                onMarkApplied={markApplyReturnApplied}
+                                onDismiss={dismissApplyReturn}
+                            />
+                        </div>
+                    )}
+                    <JobDetail
+                        job={job}
+                        now={nowMs}
+                        source={effectiveSource}
+                        signedIn={Boolean(user)}
+                        pursuit={pursuitsByJobId.get(job.id)}
+                        saveSuccessPulse={savePulse}
+                        reportJobEnabled={reportJobEnabled}
+                        onClose={onClose}
+                        onOpenRelated={handleOpenRelated}
+                        collapseDescription={collapseDescription}
+                        className={cn(detailClassName)}
+                        onOpenPosting={() => handleOpenPosting(job)}
+                        onGoAfter={() => handleGoAfter(job)}
+                        matchScore={matchScore}
+                        matchAsOfDate={resumeAsOfDate}
+                        matchPending={matchPending}
+                        resume={resume}
+                        onUploadResume={() => router.push("/resume")}
+                        onSignInToSync={() => openAuth("tailor", "user")}
+                    />
+                </>
             )}
             {/* Document layout already has its own sticky-rail Apply card at
                 lg+ (JobDetailDocument's `applyCardEl`) AND, below `lg`, its
@@ -511,11 +530,13 @@ export function PublicJobDetail({
                 onSignIn={handleGuestTrackSignIn}
                 onDismiss={() => setGuestTrackPrompt(null)}
             />
-            <ApplyReturnPrompt
-                record={applyReturnPrompt}
-                onMarkApplied={markApplyReturnApplied}
-                onDismiss={dismissApplyReturn}
-            />
+            {layout === "document" && (
+                <ApplyReturnPrompt
+                    record={applyReturnPrompt}
+                    onMarkApplied={markApplyReturnApplied}
+                    onDismiss={dismissApplyReturn}
+                />
+            )}
         </>
     );
 }
