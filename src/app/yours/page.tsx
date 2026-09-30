@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -19,7 +19,7 @@ import { addManualGuestPursuit, listGuestPursuits, removeGuestPursuit, updateGue
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
-import { countAppliedSince, matchesTrackerSearch } from "@/lib/pursuits/tracker-display";
+import { countAppliedSince, matchesTrackerSearch, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import {
     TRACKER_EMPTY_DESCRIPTION,
     TRACKER_EMPTY_TITLE,
@@ -142,6 +142,8 @@ function TrackerEmptyState({
     );
 }
 
+const subscribeNever = () => () => {};
+
 function YoursContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -153,6 +155,11 @@ function YoursContent() {
     const [detailOpen, setDetailOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const { pursuits, loading, failed, retry } = usePursuits();
+    // A guest's roles live in this browser and an account's load after
+    // client auth, so the server always renders an empty tracker. Paint the
+    // loading skeleton until the client has read them, rather than the empty
+    // state and a hydration mismatch (React 418) on every load with roles.
+    const hydrated = useSyncExternalStore(subscribeNever, () => true, () => false);
     const guestSyncRef = useRef(false);
     const guestSyncInFlightRef = useRef(false);
     // G5e (Grok UX wave) — same xl (1280px) mount-site split the job board's
@@ -303,7 +310,7 @@ function YoursContent() {
         setDetailOpen(true);
     };
 
-    if (loading) return <YoursLoading />;
+    if (!hydrated || loading) return <YoursLoading />;
 
     return (
         <PageLayout
@@ -404,15 +411,11 @@ function YoursContent() {
                 saving={saving}
                 onStatusChange={async (status: PursuitStage) => {
                     if (!selected) return;
-                    const patch: Partial<Pursuit> = { status };
-                    if (status === "applied" && !selected.applied_at) {
-                        patch.applied_at = new Date().toISOString();
-                    }
                     const fromStage = selected.status;
                     const jobId = selected.job_id;
-                    const ok = await mutate(selected.id, patch);
+                    const ok = await mutate(selected.id, trackerStatusPatch(selected, status, new Date().toISOString()));
                     if (ok) {
-                        toast.success(`Marked ${status === "interested" ? "saved" : status}`);
+                        toast.success(`Marked ${trackerStatusLabel(status).toLowerCase()}`);
                         // job_id is null for a manually-tracked "outside interviews"
                         // pursuit with no corpus listing — nothing to key the event on.
                         if (jobId) {
@@ -426,8 +429,8 @@ function YoursContent() {
                 }}
                 onNoteSave={async (note) => {
                     if (!selected) return;
-                    const ok = await mutate(selected.id, { note });
-                    if (ok) toast.success("Note saved");
+                    // The field shows its own "saved"; a toast on every autosave pause was noise.
+                    if (!(await mutate(selected.id, { note }))) throw new Error("note not saved");
                 }}
                 onInterviewDateSave={async (date) => {
                     if (!selected) return;

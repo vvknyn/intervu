@@ -235,6 +235,11 @@ export interface EventPayloads {
    *  unset) saved an address. No email in the payload; the row is in
    *  Firestore `founding_waitlist` and counted on /admin. */
   founding_seat_reserved: { signed_in: boolean };
+  /** The pay-it-forward button on a tracker pursuit in the Offer lane was
+   *  clicked (the person is leaving for Stripe). `job_id` is null for a
+   *  hand-tracked role, as in `application_stage_changed`. Stripe is the
+   *  ledger; this only joins the click to a PostHog person. */
+  landed_pledge_clicked: { job_id: string | null };
 
   /** The packs home's Today header settled: what it showed. Once per load. */
   home_viewed: {
