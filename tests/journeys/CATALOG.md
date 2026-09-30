@@ -260,7 +260,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-15 | Follow email API rejects an invalid body with 400 | agent | POST /api/follow-email | signed-out | no | uncovered | — |
 | J-COMPANY-16 | Verify link success redirects to the company page with ?followed=1 and shows the verified state | anon | /api/follow-email/verify?token=...&domain=...&name=... | signed-out | yes | uncovered | — |
 | J-COMPANY-17 | Verify link failure redirects to /jobs?followed=0 | anon | /api/follow-email/verify?token=bad&domain=anthropic.com&name=Anthropic | signed-out | no | uncovered | — |
-| J-COMPANY-18 | Verified guest sees "Unfollow" and the watching caption; Unfollow reverts | anon | /co/anthropic--com?followed=1 | signed-out | yes | uncovered | — |
+| J-COMPANY-18 | Verified guest (email confirmed, no account): opening a company page never follows it, Follow is one click with no email step and shows the watching caption, Unfollow holds after a reload, and the verify link's ?followed=1 is dropped so a reload can't bring a follow back | anon | /co/anthropic--com?followed=1 | signed-out | yes | covered | company-page.spec.ts (the @writes test needs JOURNEY_CONTACT_TOKEN, a seeded verified guest) |
 | J-COMPANY-19 | Signed-in Follow flips to "Unfollow" and back @writes | signed-in | /co/anthropic--com | signed-in | yes | uncovered | — |
 | J-COMPANY-20 | Guest follows merge into the account on sign-in | signing-up | /co/anthropic--com then sign in | signed-in | yes | uncovered | — |
 | J-COMPANY-21 | Anon sees the "The full record" gate with sign-in link and real teasers | anon | /co/anthropic--com | signed-out | no | uncovered | — |

@@ -1,12 +1,15 @@
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the company page's numbers (/co/[slug]): each stat says what
  * it counts, and nothing on the page states a figure it can't back. See
- * tests/journeys/CATALOG.md (J-COMPANY-35 to J-COMPANY-38). Read-only.
+ * tests/journeys/CATALOG.md (J-COMPANY-35 to J-COMPANY-38). Read-only, apart
+ * from J-COMPANY-18's @writes test at the end.
  */
 
 const COMPANY = "/co/anthropic--com";
+const OTHER_COMPANY = "/co/openai--com";
 
 test("the hiring headline states the open-role count on Velai, with no 'Yes —' and no lowercase velai", { tag: ["@J-COMPANY-35"] }, async ({ page }) => {
     await page.goto(COMPANY);
@@ -76,4 +79,59 @@ test("the page gives one answer to 'is this company hiring?' and no undefined he
     await expect(body).not.toContainText(/health score/i);
     // "Active" is true of every employer with live roles; only an unusual status shows.
     await expect(page.getByTestId("company-verdict-band").getByText("Active", { exact: true })).toHaveCount(0);
+});
+
+// J-COMPANY-18: a signed-out visitor who verified their email follows a company
+// with one click; opening a page only reads whether they follow it.
+
+async function settle(page: Page, path: string) {
+    await page.goto(path);
+    // The follow state is read after the page loads; wait for that read.
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+}
+
+test("the verify link's ?followed=1 is used once, so a reload doesn't bring back a follow", { tag: ["@J-COMPANY-18"] }, async ({ page }) => {
+    await settle(page, `${COMPANY}?followed=1`);
+    await expect(page).not.toHaveURL(/followed=1/);
+    await page.reload();
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+    await expect(page.getByTestId("follow-company").first()).toHaveAttribute("data-following", "false", { timeout: 30_000 });
+    await expect(page.getByTestId("follow-email-verified")).toHaveCount(0);
+});
+
+test("a verified guest's follow is one click, opening pages never follows, and Unfollow survives a reload", { tag: ["@J-COMPANY-18", "@writes"] }, async ({ page, context, baseURL }) => {
+    const token = process.env.JOURNEY_CONTACT_TOKEN;
+    test.skip(!token || !baseURL, "needs JOURNEY_CONTACT_TOKEN, the contact token of a verified guest identity seeded for journeys");
+    await context.addCookies([{ name: "intervu_contact", value: token!, url: baseURL! }]);
+    const follow = page.getByTestId("follow-company").first();
+
+    // Start from not following, in case an earlier run stopped halfway.
+    await settle(page, COMPANY);
+    await expect(follow).toBeEnabled({ timeout: 30_000 });
+    if ((await follow.getAttribute("data-following")) === "true") {
+        await follow.click();
+        await expect(follow).toHaveAttribute("data-following", "false");
+    }
+
+    // Opening the page again doesn't follow it.
+    await settle(page, COMPANY);
+    await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
+
+    // One click follows, with no email step: this browser is already verified.
+    await follow.click();
+    await expect(follow).toHaveAttribute("data-following", "true");
+    await expect(page.getByTestId("follow-email-step")).toHaveCount(0);
+    await expect(page.getByTestId("follow-email-verified").first()).toBeVisible();
+    await settle(page, COMPANY);
+    await expect(follow).toHaveAttribute("data-following", "true", { timeout: 30_000 });
+
+    // Unfollow holds after a reload.
+    await follow.click();
+    await expect(follow).toHaveAttribute("data-following", "false");
+    await settle(page, COMPANY);
+    await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
+
+    // Another company isn't followed by opening its page.
+    await settle(page, OTHER_COMPANY);
+    await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
 });

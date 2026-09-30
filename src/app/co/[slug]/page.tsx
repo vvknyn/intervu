@@ -188,7 +188,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
         </nav>
       </div>
 
-      <CompanyFollowChannelProvider domain={data.domain} displayName={data.name}>
+      <CompanyFollowChannelProvider domain={data.domain}>
       <div data-testid="company-page" className="shell-row py-8 pb-12 sm:pb-16">
         {/* Identity header: name, the "is X hiring?" answer folded straight
             into the subtitle line (no separate boxed KPI card), and Follow
