@@ -15,9 +15,13 @@ function barHeight(n: number, max: number): string {
   return BAR_HEIGHTS[step - 1];
 }
 
+/** The backlog week's grey. `border-strong` is near-white in dark mode, which
+ *  made the week that should recede the loudest bar on the chart. */
+const BACKLOG_TONE = "bg-muted-foreground/40";
+
 function barTone(w: WeeklyCadence): string {
   if (w.inProgress) return "min-h-2 border border-dashed border-brand";
-  if (w.firstTracked) return "bg-border-strong";
+  if (w.firstTracked) return BACKLOG_TONE;
   return w.newListings === 0 ? "bg-border" : "bg-brand";
 }
 
@@ -83,7 +87,7 @@ export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<Caden
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           {trackedWithinWindow && (
             <li className="flex items-center gap-1.5">
-              <span className="h-2 w-2 shrink-0 bg-border-strong" aria-hidden />
+              <span className={cn("h-2 w-2 shrink-0", BACKLOG_TONE)} aria-hidden />
               First week tracked: includes roles already open
             </li>
           )}
