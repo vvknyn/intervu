@@ -113,11 +113,17 @@ test("isCurrentTrackerStatus presses exactly one button for every stage", () => 
     assert.equal(isCurrentTrackerStatus("applied", "interviewing"), false);
 });
 
-test("trackerStatusPatch stamps applied_at only the first time", () => {
+test("trackerStatusPatch stamps applied_at once, moving up into Applied", () => {
     const now = "2026-09-30T04:00:00.000Z";
-    assert.deepEqual(trackerStatusPatch({}, "applied", now), { status: "applied", applied_at: now });
-    assert.deepEqual(trackerStatusPatch({ applied_at: "2026-09-01T00:00:00.000Z" }, "applied", now), { status: "applied" });
-    assert.deepEqual(trackerStatusPatch({}, "rejected", now), { status: "rejected" });
+    assert.deepEqual(trackerStatusPatch({ status: "interested" }, "applied", now), { status: "applied", applied_at: now });
+    assert.deepEqual(trackerStatusPatch({ status: "resume_ready" }, "applied", now), { status: "applied", applied_at: now });
+    assert.deepEqual(
+        trackerStatusPatch({ status: "rejected", applied_at: "2026-09-01T00:00:00.000Z" }, "applied", now),
+        { status: "applied" },
+    );
+    // Stepping back from Interviewing is not a new application (same rule as #714's job-page writes).
+    assert.deepEqual(trackerStatusPatch({ status: "interviewing" }, "applied", now), { status: "applied" });
+    assert.deepEqual(trackerStatusPatch({ status: "applied" }, "rejected", now), { status: "rejected" });
 });
 
 test("pursuitDateFacts lists stored dates only, the interview day in UTC", () => {

@@ -3,6 +3,7 @@
  * for chip filters, search, and row meta so the page and sheets stay aligned.
  */
 
+import { appliedAtForTransition } from "./applied-at";
 import { boardColumn, type BoardColumn, type Pursuit, type PursuitStage } from "./types";
 
 export type TrackerFilter = "all" | "saved" | "applied" | "interviewing" | "offer";
@@ -74,14 +75,15 @@ export function isCurrentTrackerStatus(current: PursuitStage, option: PursuitSta
 }
 
 /**
- * The patch a status pick writes. Moving to Applied stamps `applied_at`
- * the first time only, so the apply-pace counts keep the real date when a
- * pursuit is moved back and forth.
+ * The patch a status pick writes. `applied_at` follows the same rule as every
+ * other write (`appliedAtForTransition`): stamped once, when a role moves up
+ * into Applied, so the apply-pace counts keep the real date when a pursuit
+ * is moved back and forth, and a role stepped back from Interviewing does
+ * not count as applied today.
  */
-export function trackerStatusPatch(p: Pick<Pursuit, "applied_at">, status: PursuitStage, nowIso: string): Partial<Pursuit> {
-    const patch: Partial<Pursuit> = { status };
-    if (status === "applied" && !p.applied_at) patch.applied_at = nowIso;
-    return patch;
+export function trackerStatusPatch(p: Pick<Pursuit, "status" | "applied_at">, status: PursuitStage, nowIso: string): Partial<Pursuit> {
+    const appliedAt = appliedAtForTransition(p, status, nowIso);
+    return appliedAt ? { status, applied_at: appliedAt } : { status };
 }
 
 /**

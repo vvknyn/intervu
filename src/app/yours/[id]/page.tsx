@@ -304,6 +304,9 @@ export default function PursuitDetailPage() {
             upload: () => {},
         },
         user,
+        // Titles the dialog for the click that opened it ("Sign in to apply");
+        // without it a guest's Open posting got a plain "Sign in".
+        onGateOpen: setAuthGateReason,
     });
     const gatedOpenPosting = useGatedApply<string>({
         user,

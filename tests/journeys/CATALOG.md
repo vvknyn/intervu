@@ -465,6 +465,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-58 | A note typed on a tracked role's page right after it loads keeps its text and saves; the page is never rebuilt under it (the deferred auth and analytics providers used to rebuild every page after load, wiping what was typed) | anon | /yours/[id] (1440x900, seeded) | signed-out | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-59 | The header's Tracker tab counts open roles only: with 2 open and 3 rejected or withdrawn roles it reads 2 (it used to count every tracked role, so a few closed roles meant a permanent "9+") | signed-in | /pricing at 1440x900, dev-only auth hook + mocked tracker list (local dev server only, skips elsewhere) | signed-in | no | covered | pursuit-status.spec.ts |
 | J-TRACKER-60 | A tracked role with no résumé filed shows no "Resume used" card on its page and no "none linked" or disabled Download resume in the sheet; a role with a filed résumé (from the MCP tools) lists it with Download on both | anon | /yours/[id] (1440x900) + /yours sheet (1024x768), seeded | signed-out | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-61 | A guest's Open posting on a hand-tracked role's page (a link, no Velai job) opens the "Sign in to apply" dialog and no employer tab; it used to open a plain "Sign in" because the page never passed the gate's reason | anon | /yours/[id] (1440x900, seeded: job_url, no job_id) | signed-out | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 

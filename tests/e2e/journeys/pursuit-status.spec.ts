@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
 import { expect, test } from "./fixtures";
 
 /**
@@ -435,5 +436,22 @@ test("a role with no résumé filed shows no empty résumé card or dead Downloa
     dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("button", { name: "Download resume" })).toBeEnabled({ timeout: 10_000 });
     await expect(dialog.getByText("Tailored for 1Password")).toBeVisible();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a guest's Open posting on a tracked role's page asks to sign in to apply, and opens no employer tab", { tag: ["@J-TRACKER-61"] }, async ({ page, diagnostics }) => {
+    // A role tracked by hand: a posting link but no Velai job, so the page offers Open posting.
+    await seed(page, [guestPursuit("guest-journey-open-posting", "applied", { job_id: null, job_snapshot: null })]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/yours/guest-journey-open-posting");
+    await expectPressed(page, "Applied");
+
+    let popups = 0;
+    page.on("popup", () => popups++);
+    await page.getByRole("button", { name: "Open posting" }).click();
+    // It used to open a plain "Sign in": the page never passed the gate's reason to its dialog.
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText(authGateTitle("apply")!, { exact: true }).and(page.locator(":visible")).first()).toBeVisible({ timeout: 10_000 });
+    expect(popups, "no employer tab opens before sign-in").toBe(0);
     expect(diagnostics.pageErrors).toEqual([]);
 });
