@@ -36,3 +36,15 @@ export const signedInTest = base.extend<{ signedIn: void }>({
     { auto: true },
   ],
 });
+
+/**
+ * The dev-only hook signs the browser in before React hydrates, while the
+ * server rendered the header signed out, so the header's auth slot logs one
+ * hydration mismatch on the first load (on staging too; see modal.spec.ts).
+ * Drop exactly that error when the hook is in use, and keep every other page
+ * error; a real session (E2E_STORAGE_STATE) keeps them all.
+ */
+export const withoutMockSignInHydration = (pageErrors: string[]) =>
+  process.env.E2E_STORAGE_STATE
+    ? pageErrors
+    : pageErrors.filter((e) => !(e.startsWith("Hydration failed") && e.includes("topbar-auth-pending")));

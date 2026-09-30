@@ -2,10 +2,11 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { TODAY_NEW_ROWS } from "../../../src/lib/jobs/for-you/today";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { DEFAULT_URL_STATE } from "../../../src/lib/jobs/url-state";
 import { expect, test } from "./fixtures";
-import { signedInTest } from "./signed-in";
+import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 // Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
@@ -438,7 +439,7 @@ signedInTest("with a résumé, the packs home opens on Today: the day's numbers 
     await expect(stats.getByTestId(id).getByRole("link")).toBeVisible();
   }
 
-  // The list settles on rows or on one way on, never both. A guest sees the fit preview (3 rows) and the gate past it.
+  // The list settles on rows or on one way on, never both. Signed in: up to TODAY_NEW_ROWS rows and "More in Added this week", no sign-in card.
   const rows = today.getByTestId("today-new-row");
   const empty = today.getByTestId("today-new-empty");
   await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
@@ -446,10 +447,11 @@ signedInTest("with a résumé, the packs home opens on Today: the day's numbers 
     await expect(rows).toHaveCount(0);
     await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
   } else {
-    expect(await rows.count()).toBeLessThanOrEqual(3);
+    expect(await rows.count()).toBeLessThanOrEqual(TODAY_NEW_ROWS);
     for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
     await expect(rows.first().getByTestId("today-apply")).toBeVisible();
-    await expect(today.getByTestId("signup-gate").or(today.getByTestId("today-see-more"))).toHaveCount(1);
+    await expect(today.getByTestId("today-see-more")).toHaveCount(1);
+    await expect(today.getByTestId("signup-gate")).toHaveCount(0);
 
     const skippedId = (await rows.first().getAttribute("data-job-id"))!;
     const skipped = today.locator(`[data-testid="today-new-row"][data-job-id="${skippedId}"]`);
@@ -459,7 +461,7 @@ signedInTest("with a résumé, the packs home opens on Today: the day's numbers 
     await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
     await expect(skipped).toHaveCount(0);
   }
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
@@ -519,7 +521,7 @@ signedInTest("Needs you lists the tracker's interview this week and the applicat
   await expect(page).toHaveURL(/\/yours\/journey-quiet$/, { timeout: 30_000 });
   await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Backend Engineer").first()).toBeVisible();
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 

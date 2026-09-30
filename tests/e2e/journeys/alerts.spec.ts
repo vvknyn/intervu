@@ -9,8 +9,12 @@ import { expect, test } from "./fixtures";
  *
  * The "since your last visit" line only shows for a visitor with a stored board cursor, so each
  * test plants one from a few days back; the page counts real postings since then and writes a
- * fresh cursor after reading it.
+ * fresh cursor after reading it. The line leads a list of results, and bare /jobs shows none
+ * (the front door), so each test searches.
  */
+
+// Broad enough for a full page of rows on prod and on the local corpus.
+const VISIT_SEARCH = "/jobs?q=engineer";
 
 // visit-cursor.ts's storage key for the "board" scope.
 const BOARD_CURSOR_KEY = "intervu.visitCursor.board";
@@ -21,9 +25,9 @@ const lastVisitDaysAgo = (page: Page, days: number) =>
     [BOARD_CURSOR_KEY, new Date(Date.now() - days * 86_400_000).toISOString()],
   );
 
-test("a returning visitor sees how many roles are new since their last visit, and the line stays", { tag: ["@J-ALERTS-22"] }, async ({ page, diagnostics }) => {
+test("a returning visitor who searches sees how many roles are new since their last visit, and the line stays", { tag: ["@J-ALERTS-22"] }, async ({ page, diagnostics }) => {
   await lastVisitDaysAgo(page, 3);
-  await page.goto("/jobs");
+  await page.goto(VISIT_SEARCH);
   const line = page.getByTestId("board-visit-banner");
   await expect(line).toBeVisible({ timeout: 30_000 });
   await expect(line).toContainText(/[\d,]+\+? new roles? on Velai since your last visit/);
@@ -35,7 +39,7 @@ test("a returning visitor sees how many roles are new since their last visit, an
 
 test("Email me new roles beside that line opens the email alert form", { tag: ["@J-ALERTS-23"] }, async ({ page, diagnostics }) => {
   await lastVisitDaysAgo(page, 3);
-  await page.goto("/jobs");
+  await page.goto(VISIT_SEARCH);
   const emailMe = page.getByTestId("board-visit-email");
   await expect(emailMe).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
