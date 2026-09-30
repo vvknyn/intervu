@@ -6499,10 +6499,8 @@ export function JobsContent({
                                     submitSearch(job.title);
                                 }}
                                 footer={
-                                    <HubYourJobs
-                                        auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                        returnTo={serpReturnTo}
-                                    />
+                                    // The hub renders only signed in: a guest gets the For you sign-in card instead.
+                                    <HubYourJobs auth="signed-in" returnTo={serpReturnTo} />
                                 }
                             />
                         ) : (

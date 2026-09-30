@@ -153,6 +153,8 @@ async function expectNoPacks(page: Page) {
   await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
   await expect(page.getByTestId("for-you-home")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(0);
+  // No tracker or Recently viewed band either: it lives on the hub, which needs an account.
+  await expect(page.getByTestId("hub-your-jobs")).toHaveCount(0);
 }
 
 test("a guest who opens For you gets one sign-in card instead of job packs", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
