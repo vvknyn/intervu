@@ -9,6 +9,18 @@ function unusualStatus(status: string | null): string | null {
   return status && !/^active$/i.test(status.trim()) ? eventTypeLabel(status) : null;
 }
 
+function reviewVerdict(health: NonNullable<ExhaustSection<HealthFacts>>, nowMs: number): string | null {
+  const { data } = health;
+  return data.verdict && isVerdictWindowSufficient(data.observedSinceIso, nowMs) ? eventTypeLabel(data.verdict) : null;
+}
+
+/** Whether `CompanyVerdictBand` draws anything, so the page can lay out its
+ *  rail without rendering it twice. */
+export function verdictBandHasContent(health: ExhaustSection<HealthFacts> | undefined, nowMs: number): boolean {
+  if (!health) return false;
+  return !!reviewVerdict(health, nowMs) || health.data.repostRate != null || !!unusualStatus(health.data.operatingStatus);
+}
+
 /**
  * Band 2 — the latest health review, as supporting evidence under the
  * header's answer rather than a second answer to "Are they hiring?".
@@ -28,19 +40,17 @@ export function CompanyVerdictBand({
   health: ExhaustSection<HealthFacts>;
   nowMs: number;
 }) {
-  if (!health) return null;
+  if (!health || !verdictBandHasContent(health, nowMs)) return null;
   const { data, label, asOf } = health;
 
   const status = unusualStatus(data.operatingStatus);
-  const verdict =
-    data.verdict && isVerdictWindowSufficient(data.observedSinceIso, nowMs) ? eventTypeLabel(data.verdict) : null;
-  if (!verdict && data.repostRate == null && !status) return null;
+  const verdict = reviewVerdict(health, nowMs);
 
   const asOfLabel = eventDate(asOf);
 
   return (
-    <section data-testid="company-verdict-band" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">Latest hiring review</h2>
+    <section data-testid="company-verdict-band" className="border-t border-border pt-6">
+      <h2 className="text-base font-semibold leading-snug text-foreground">Latest hiring review</h2>
       {verdict && (
         <p data-testid="company-verdict-line" className="mt-2 text-sm leading-relaxed text-foreground">
           {asOfLabel ? `Velai's review on ${asOfLabel}: ` : "Velai's latest review: "}

@@ -158,7 +158,9 @@ export type CompanyExhaust = {
   changeHistory: ExhaustSection<ChangeEventRow[]>;
 };
 
-const CADENCE_WEEKS = 26;
+/** 13 weeks: the strip sits in the page's 320px rail, and a quarter lines up
+ *  with the 90-day hiring record printed under it. */
+const CADENCE_WEEKS = 13;
 const VERDICT_MIN_OBSERVATION_DAYS = 90;
 /** Exported — `get_company_timeline` (agent/company-tools.ts) clamps its
  *  own `limit` input to this SAME cap, so the MCP wire's ceiling can never

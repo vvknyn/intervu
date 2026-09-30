@@ -25,6 +25,13 @@ function barTone(w: WeeklyCadence): string {
   return w.newListings === 0 ? "bg-border" : "bg-brand";
 }
 
+/** Whether `CompanyCadenceStrip` draws anything (see `verdictBandHasContent`). */
+export function cadenceStripHasContent(
+  cadence: ExhaustSection<CadenceFacts> | undefined,
+): cadence is NonNullable<ExhaustSection<CadenceFacts>> {
+  return !!cadence && cadence.data.weeks.length > 0;
+}
+
 /**
  * Band 3 — new postings per week, public (design call DC1).
  *
@@ -37,7 +44,7 @@ function barTone(w: WeeklyCadence): string {
  * show a hover title.
  */
 export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<CadenceFacts> }) {
-  if (!cadence || cadence.data.weeks.length === 0) return null;
+  if (!cadenceStripHasContent(cadence)) return null;
   const { weeks, trackedSinceIso } = cadence.data;
   const scaled = weeks.filter((w) => !w.firstTracked);
   const max = Math.max(...(scaled.length > 0 ? scaled : weeks).map((w) => w.newListings), 1);
@@ -48,10 +55,10 @@ export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<Caden
   const hasInProgress = weeks.some((w) => w.inProgress);
 
   return (
-    <section data-testid="company-cadence-strip" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">
+    <section data-testid="company-cadence-strip" className="border-t border-border pt-6">
+      <h2 className="text-base font-semibold leading-snug text-foreground">
         New postings per week
-        <span className="font-normal">
+        <span className="text-sm font-normal text-muted-foreground">
           {" · "}
           {trackedSince ? `tracking since ${trackedSince}` : `last ${weeks.length} weeks`}
         </span>

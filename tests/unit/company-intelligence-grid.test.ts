@@ -45,13 +45,46 @@ test("a company with tech stack AND work-modes data renders only the tech-stack 
       workModes: { remotePct: 40, hybridPct: 30, onsitePct: 30, remoteCount: 4, total: 10 },
     }),
   );
-  assert.match(html, /Tech stack/);
+  assert.match(html, /Languages and tools in their job posts/);
+  assert.match(html, /TypeScript/);
   assert.doesNotMatch(html, /How they work/);
   assert.doesNotMatch(html, /remote,.*hybrid,.*on-site/);
 });
 
-test("funding-only intelligence still opens the section (a case other than tech stack)", () => {
-  const html = render(intel({ funding: { totalRaisedText: null, stage: "Series B", valuationText: null, investors: [] } }));
-  assert.match(html, /Capital &amp; Stage/);
-  assert.doesNotMatch(html, /How they work/);
+// Funding only ever carried `company_stage` (enrichment.ts fills no amount,
+// valuation or investors), which the header's facts row already shows, and
+// visa sponsorship is counted in the public stat row. Neither opens the
+// section on its own any more.
+test("funding-only or visa-only intelligence renders nothing, since both are shown elsewhere", () => {
+  assert.equal(render(intel({ funding: { totalRaisedText: null, stage: "Series B", valuationText: null, investors: [] } })), "");
+  assert.equal(
+    render(
+      intel({
+        visa: { h1bFilingsCount: null, approvalRatePct: null, sponsoredRolesRatioPct: 40, permSponsored: false, topSponsoredRoles: [] },
+      }),
+    ),
+    "",
+  );
+});
+
+test("news renders as flat link rows with a dated source line", () => {
+  const html = render(
+    intel({
+      news: [
+        {
+          title: "Acme raises a Series C",
+          url: "https://news.example/acme",
+          summary: null,
+          publisher: "News Example",
+          published_at: "2026-08-15T12:00:00Z",
+          is_funding_event: true,
+          confidence: "high",
+        },
+      ],
+    }),
+  );
+  assert.match(html, /Acme in the news/);
+  assert.match(html, /href="https:\/\/news.example\/acme"/);
+  assert.match(html, /News Example · Aug 15, 2026/);
+  assert.doesNotMatch(html, /shadow-|<svg/);
 });
