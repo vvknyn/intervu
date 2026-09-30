@@ -7,7 +7,7 @@ import { EditingPanel } from "./EditingPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TabItem, TabNav } from "@/components/ui/tabs";
-import { toast } from "@/lib/toast";
+import { confirmToast, toast } from "@/lib/toast";
 import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
@@ -136,6 +136,31 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
             void loadVersions();
         }
     }, [versionsOpen, loadVersions]);
+
+    // Leaving with unsaved edits used to drop them silently: Back closed the
+    // editor and a reload or tab close gave no warning.
+    useEffect(() => {
+        if (!hasUnsavedChanges) return;
+        const warn = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+        };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [hasUnsavedChanges]);
+
+    const handleBack = async () => {
+        if (hasUnsavedChanges) {
+            const leave = await confirmToast({
+                title: "Leave without saving?",
+                description: "Your changes to this résumé will be lost.",
+                confirmLabel: "Leave without saving",
+                cancelLabel: "Keep editing",
+                destructive: true,
+            });
+            if (!leave) return;
+        }
+        onClose();
+    };
 
     const handleUpdate = (updates: Partial<ResumeData>) => {
         setData((prev) => ({
@@ -273,7 +298,8 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={onClose}
+                        onClick={() => void handleBack()}
+                        data-testid="resume-editor-back"
                         className="shrink-0 gap-1.5 text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft /> Back
@@ -331,9 +357,11 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
                         variant="outline"
                         size="sm"
                         onClick={handleDownloadPdf}
-                        className="hidden sm:inline-flex gap-1"
+                        aria-label="Download PDF"
+                        title="Download PDF"
+                        className="gap-1"
                     >
-                        <DownloadSimple /> .pdf
+                        <DownloadSimple /> <span className="hidden sm:inline">.pdf</span>
                     </Button>
 
                     <Button

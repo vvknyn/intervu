@@ -10,7 +10,10 @@ import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-a
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
-import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { useAdoptGuestResume } from "@/lib/resume/use-adopt-guest-resume";
+import { InlineConfirm } from "@/components/ui/inline-confirm";
+import Link from "next/link";
 import { formatAuthGateValueLine, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import {
@@ -19,6 +22,7 @@ import {
     RESUME_LOCAL_DEVICE_BANNER_LABEL,
     RESUME_PAGE_HEADLINE,
     RESUME_PAGE_SUBCOPY,
+    RESUME_PAGE_SUBCOPY_SIGNED_IN,
     RESUME_SIGNED_OUT_EMPTY_TITLE,
     RESUME_UPLOAD_PROMISE,
 } from "@/lib/jobs/resume-privacy-copy";
@@ -29,14 +33,16 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
-function ResumeHeader() {
+function ResumeHeader({ signedIn }: { signedIn: boolean }) {
     return (
         <PageHeader
             fullWidth
             sticky={false}
             size="display"
             title={RESUME_PAGE_HEADLINE}
-            description={RESUME_PAGE_SUBCOPY}
+            // The signed-out line ends "…once you sign in", which read oddly
+            // to someone already signed in.
+            description={signedIn ? RESUME_PAGE_SUBCOPY_SIGNED_IN : RESUME_PAGE_SUBCOPY}
         />
     );
 }
@@ -89,6 +95,10 @@ function ResumeContent() {
     const [importModalOpen, setImportModalOpen] = useState(false);
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
+    const [confirmingRemove, setConfirmingRemove] = useState(false);
+    // Bumped when a guest résumé lands in the account, so the account view
+    // mounts again and reads it.
+    const [adoptedToken, setAdoptedToken] = useState(0);
 
     useEffect(() => {
         const unsubscribe = onAuthChange((nextUser) => {
@@ -123,6 +133,17 @@ function ResumeContent() {
         }
     }, [user, authReady]);
 
+    // A guest who uploads here and then creates an account (Edit, PDF and
+    // Sign up to sync all open sign-up) used to land on "No resume on file":
+    // only /jobs moved the browser copy into the account.
+    useAdoptGuestResume(user?.uid ?? null, "resume_page", () => setAdoptedToken((t) => t + 1));
+
+    const removeLocalResume = () => {
+        clearLocalAiResume();
+        setLocalResume(null);
+        setConfirmingRemove(false);
+    };
+
     const openResumeAuth = () => {
         setAuthTrigger("user");
         recordAuthGateOpen({
@@ -138,8 +159,9 @@ function ResumeContent() {
         }
     };
 
-    const handleImportResume = (data: ResumeData) => {
-        writeLocalAiResume(data);
+    const handleImportResume = (data: ResumeData, _source: string, _confidence: number, sourceLabel: string) => {
+        // Pass the new file's name, or /jobs keeps "Scoring with" the old one.
+        writeLocalAiResume(data, undefined, sourceLabel);
         setLocalResume(data);
         setImportModalOpen(false);
     };
@@ -151,7 +173,7 @@ function ResumeContent() {
     };
 
     return (
-        <PageLayout fullWidth header={!editorOpen ? <ResumeHeader /> : undefined}>
+        <PageLayout fullWidth header={!editorOpen ? <ResumeHeader signedIn={!!user} /> : undefined}>
             <div
                 className={cn(
                     "transition-all",
@@ -166,10 +188,13 @@ function ResumeContent() {
                 ) : !user ? (
                     localResume ? (
                         <div className="space-y-4">
-                            <div className="flex items-center gap-2 rounded-panel border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
-                                <ShieldCheck size={16} className="text-live shrink-0" />
-                                <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>
-                                <span>— {RESUME_LOCAL_DEVICE_BANNER_BODY}</span>
+                            <div className="flex items-start gap-2 rounded-panel border border-border bg-surface-2 px-4 py-3 text-xs text-muted-foreground shadow-[var(--shadow-bevel-inset)]">
+                                <ShieldCheck size={16} className="mt-px text-live shrink-0" />
+                                {/* One run of text, so the label doesn't squeeze into a narrow column beside the body on a phone. */}
+                                <p>
+                                    <span className="font-semibold text-foreground">{RESUME_LOCAL_DEVICE_BANNER_LABEL}</span>{" "}
+                                    — {RESUME_LOCAL_DEVICE_BANNER_BODY}
+                                </p>
                             </div>
                             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-panel border border-border bg-surface p-4 shadow-[var(--shadow-bevel-highlight)]">
                                 <div className="flex items-center gap-2">
@@ -211,6 +236,32 @@ function ResumeContent() {
                                     </Button>
                                 </div>
                             </div>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                                <Link
+                                    href="/jobs"
+                                    data-testid="resume-see-matches"
+                                    className="text-foreground underline underline-offset-2 hover:text-brand"
+                                >
+                                    See jobs ranked for this résumé
+                                </Link>
+                                {confirmingRemove ? (
+                                    <InlineConfirm
+                                        prompt="Remove this résumé from this device?"
+                                        confirmLabel="Remove"
+                                        onConfirm={removeLocalResume}
+                                        onCancel={() => setConfirmingRemove(false)}
+                                    />
+                                ) : (
+                                    <button
+                                        type="button"
+                                        data-testid="resume-remove-local"
+                                        onClick={() => setConfirmingRemove(true)}
+                                        className="text-muted-foreground underline underline-offset-2 hover:text-danger-text"
+                                    >
+                                        Remove from this device
+                                    </button>
+                                )}
+                            </div>
                             <LiveResumePreview data={localResume} />
                         </div>
                     ) : (
@@ -218,6 +269,7 @@ function ResumeContent() {
                     )
                 ) : (
                     <YourResumeSection
+                        key={adoptedToken}
                         user={user}
                         onLoginClick={() => openResumeAuth()}
                         embedded

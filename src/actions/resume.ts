@@ -6,6 +6,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { storedResumeData } from "@/lib/resume/stored-resume-data";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -38,7 +39,9 @@ export async function fetchResumeData(): Promise<{ data?: ResumeData; source?: s
         }
 
         const docData = doc.data();
-        const resumeData = docData?.resume_data as ResumeData | undefined;
+        // Text-only résumés (file uploads, MCP set_resume) are structured
+        // here so matching can read them; see storedResumeData.
+        const resumeData = storedResumeData(docData?.resume_data as ResumeData | undefined, docData?.resume_text);
 
         // Backward-compat: profiles saved before the name/profession split have
         // the candidate's name sitting in `profession` (see profile-migration.ts).

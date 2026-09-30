@@ -14,6 +14,10 @@ export const RESUME_SIGNED_OUT_EMPTY_TITLE = "You're one upload away.";
 export const RESUME_PAGE_SUBCOPY =
     "Upload a résumé to find matching roles, tailor applications for each job, and export PDFs once you sign in.";
 
+/** /resume subcopy for a signed-in visitor, who can already export. */
+export const RESUME_PAGE_SUBCOPY_SIGNED_IN =
+    "The résumé your matches are ranked by. Edit it, export a PDF, or replace it with a new file.";
+
 /** /resume local-résumé banner — semibold label (matches prior banner markup). */
 export const RESUME_LOCAL_DEVICE_BANNER_LABEL = "Parsed on this device";
 

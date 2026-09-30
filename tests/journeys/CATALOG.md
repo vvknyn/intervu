@@ -349,6 +349,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé without skipping the model: quick match opens at once, the model download shows MB of the measured size and its stages advance (or Skip keeps the quick match) | anon | /resume → Upload résumé (model fetch mocked) | signed-out | no | covered | resume-wait.spec.ts |
 | J-RESUME-29 | A résumé whose contact line names a bare city (no region/country) asks on For-you which place it is — Yes / a candidate saves it as the location, No / None of these leaves it blank; no guess, no filter until answered | anon | /jobs → Upload résumé → For-you | signed-out | no | covered | resume-bare-city.spec.ts |
+| J-RESUME-30 | A guest résumé offers "See jobs ranked for this résumé" (to /jobs) and "Remove from this device", which after a confirm clears it for good (empty state survives a reload) | Candidate with a local résumé | local résumé seeded + `/resume` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-31 | An old Word .doc file in the importer is refused with "save it as .docx or PDF", never a failed DOCX read | anon | `/resume`, Upload résumé, choose `resume.doc` | signed-out | no | covered | resume.spec.ts |
+| J-RESUME-32 | A résumé stored as text (file upload, MCP set_resume) previews its headline and summary section, not its first 300 characters, and an uncategorized skills list prints without a leading ":"; the signed-in subcopy drops "once you sign in" (dev-server only: signed-in mock) | signed-in | `/resume` | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-33 | Back from the template editor with unsaved edits asks "Leave without saving?"; Keep editing stays, Leave closes (dev-server only: signed-in mock) | signed-in | `/resume`, Edit template, edit Professional Summary, Back | signed-in | no | covered | resume.spec.ts |
 
 ## SETTINGS
 
