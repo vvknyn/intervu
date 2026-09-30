@@ -120,11 +120,13 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
   await expect(first.getByTestId("job-title")).toHaveText(/Technical Account Manager/, { timeout: 30_000 });
   const chip = first.getByTestId("match-chip");
   await expect(chip).toHaveText("Strong");
-  // Hover on desktop; keyboard focus on the chip's button opens the same tooltip where there is no hover.
-  if (test.info().project.name === "mobile") await first.locator("button", { has: chip }).focus();
+  // Hover on desktop. A phone has no hover: a tap opens the reason and stays on it, not the row under it.
+  const phone = test.info().project.name === "mobile";
+  if (phone) await chip.tap();
   else await chip.hover();
   const reason = page.getByTestId("match-reason").first();
   await expect(reason).toBeVisible({ timeout: 10_000 });
+  if (phone) expect(new URL(page.url()).searchParams.get("job")).toBeNull();
   await expect(reason).toContainText("It's your own role: the title matches Technical Account Manager on your résumé.");
   await expect(reason).toContainText(/its level fits your experience/i);
 });
