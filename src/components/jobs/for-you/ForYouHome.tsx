@@ -23,7 +23,7 @@ import { hubTile } from "@/lib/jobs/for-you/hub-tiles";
 import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
-import { RoleStack } from "@/components/jobs/for-you/RoleStack";
+import { RoleStack, focusedStackControl, restoreStackFocus } from "@/components/jobs/for-you/RoleStack";
 import { StackedRoleCard } from "@/components/jobs/for-you/StackedRoleCard";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
@@ -308,6 +308,16 @@ export function ForYouHome({
     const selectedIndex =
         activeIndex >= 0 && activeIndex < visiblePacks.length ? activeIndex : 0;
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
+    const selectedJobId = selectedJob?.id;
+
+    // A control focused on the open card loses focus when the card moves back
+    // (it goes inert); carry it to the card that comes forward.
+    const carryFocus = useRef<string | null>(null);
+    useEffect(() => {
+        const testId = carryFocus.current;
+        carryFocus.current = null;
+        if (testId) restoreStackFocus(testId);
+    }, [selectedJobId]);
 
     // Next, Previous, the arrow keys and a swipe all land here: a role the
     // visitor stepped to counts as viewed. The first card and the one Skip
@@ -316,6 +326,7 @@ export function ForYouHome({
         (index: number) => {
             const next = clampDeckIndex(index, visiblePacks.length);
             if (next === selectedIndex) return;
+            carryFocus.current = focusedStackControl();
             onActiveIndexChange(next);
             const job = visiblePacks[next];
             if (job) onOpenRow?.(job);
@@ -328,6 +339,7 @@ export function ForYouHome({
     const skipActive = useCallback(() => {
         const job = visiblePacks[clampDeckIndex(activeIndex, visiblePacks.length)];
         if (job) setDeparting(job);
+        carryFocus.current = focusedStackControl();
         onSkip();
     }, [visiblePacks, activeIndex, onSkip]);
 

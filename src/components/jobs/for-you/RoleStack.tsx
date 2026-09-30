@@ -6,6 +6,32 @@ import { resolveDeckSwipe } from "@/lib/jobs/for-you/deck-swipe";
 import type { PublicJob } from "@/lib/jobs/types";
 import { cn } from "@/lib/utils";
 
+/** The test id of the control focused inside a stack card, or null when focus is elsewhere. */
+export function focusedStackControl(): string | null {
+    const el = document.activeElement;
+    if (!(el instanceof HTMLElement) || !el.closest('[data-testid="role-stack-card"]')) return null;
+    return el.closest("[data-testid]")?.getAttribute("data-testid") ?? null;
+}
+
+const FOCUSABLE = "button, a[href], input, select, textarea, [tabindex]";
+
+/**
+ * A move makes the card that held focus inert, which drops focus to the page.
+ * Put it back on the same control of the card now open (Skip to Skip), else
+ * on Next or Previous.
+ */
+export function restoreStackFocus(testId: string): void {
+    const front = document.querySelector('[data-testid="role-stack-card"][data-stack-pose="front"]');
+    const candidates = [
+        front?.querySelector<HTMLElement>(`[data-testid="${CSS.escape(testId)}"]`),
+        document.querySelector<HTMLElement>('[data-testid="for-you-next"]'),
+        document.querySelector<HTMLElement>('[data-testid="for-you-previous"]'),
+    ];
+    candidates
+        .find((el) => el && el.matches(FOCUSABLE) && !el.hasAttribute("disabled") && el.getClientRects().length > 0)
+        ?.focus({ preventScroll: true });
+}
+
 /**
  * The opened pack as a stack of role cards (Vivek, 2026-09-30). The open role
  * is the front card; Next slides the following role up over it and the
@@ -67,7 +93,7 @@ export function RoleStack({
         <div
             ref={stageRef}
             data-testid="role-stack"
-            className={cn("role-stack-stage touch-pan-y", className)}
+            className={cn("role-stack-stage touch-pan-y touch-pinch-zoom", className)}
             onTouchStart={onTouchStart}
             onTouchEnd={onTouchEnd}
             onTouchCancel={() => {

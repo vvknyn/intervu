@@ -90,6 +90,42 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
     });
 
+    test("TC-DECK-008: Skip hands focus to the Skip of the role that comes forward", async ({ page }) => {
+        await waitForMockDeckReady(page);
+
+        const firstJob = await restingPackTitle(page);
+        await page.getByTestId("for-you-skip").click();
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
+        await expect(deckRestingPack(page).getByTestId("for-you-skip")).toBeFocused();
+    });
+
+    test("TC-DECK-009: a sideways swipe inside the card changes role and never navigates", async ({ browser }) => {
+        const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+        const page = await context.newPage();
+        await seedDeckMockHintDismissed(page);
+        await waitForMockDeckReady(page);
+        const url = page.url();
+        const cdp = await context.newCDPSession(page);
+        // The stage, not the card: the open card slides up into place when the page loads.
+        const box = (await page.getByTestId("role-stack").boundingBox())!;
+        const y = box.y + box.height * 0.4;
+        const swipe = async (from: number, to: number) => {
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width * from, y }] });
+            for (let i = 1; i <= 6; i++) {
+                await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: box.x + box.width * (from + ((to - from) * i) / 6), y }] });
+            }
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        };
+
+        await swipe(0.8, 0.15);
+        await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 2 of 3");
+        await swipe(0.15, 0.85);
+        await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3");
+        expect(page.url()).toBe(url);
+        await context.close();
+    });
+
     test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
         await page.emulateMedia({ reducedMotion: "reduce" });
         await waitForMockDeckReady(page);

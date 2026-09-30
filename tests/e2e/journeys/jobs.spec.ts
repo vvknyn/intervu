@@ -388,7 +388,7 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 });
 
-test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }) => {
+test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
@@ -419,9 +419,11 @@ test("an opened pack shows one role at a time as a stack, and Next, Previous and
   expect(second).not.toBe(first);
 
   // Skip drops the open role: the next one takes its place and the count goes down by one.
+  // Focus moves to the Skip of the role that came forward, so a keyboard user can keep going.
   await page.getByTestId("for-you-skip").click();
   await expect(position).toHaveText(`Role 2 of ${total - 1}`);
   await expect.poll(frontId).not.toBe(second);
+  await expect(front.getByTestId("for-you-skip")).toBeFocused();
   await expect(card(second)).toHaveCount(0, { timeout: 5_000 });
 
   // Previous brings the first role back to the front.
@@ -429,6 +431,27 @@ test("an opened pack shows one role at a time as a stack, and Next, Previous and
   await expect(position).toHaveText(`Role 1 of ${total - 1}`);
   await expect.poll(frontId).toBe(first);
   await expect(page.getByTestId("for-you-previous")).toBeDisabled();
+
+  // On a touch screen a sideways swipe inside the card changes role and never reaches the browser as Back.
+  if (testInfo.project.use.hasTouch) {
+    const url = page.url();
+    const cdp = await page.context().newCDPSession(page);
+    // The stage, not the card: the card may still be moving into place.
+    const box = (await stack.boundingBox())!;
+    const y = box.y + box.height * 0.4;
+    const swipe = async (from: number, to: number) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width * from, y }] });
+      for (let i = 1; i <= 6; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: box.x + box.width * (from + ((to - from) * i) / 6), y }] });
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    await swipe(0.8, 0.15);
+    await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+    await swipe(0.15, 0.85);
+    await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+    expect(page.url()).toBe(url);
+  }
   expect(diagnostics.serverErrors).toEqual([]);
 });
 

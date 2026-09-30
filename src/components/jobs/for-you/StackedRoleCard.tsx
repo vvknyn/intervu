@@ -122,17 +122,20 @@ export function StackedRoleCard({
     const skills = inferReasons(job, matchScore, resume).chips;
     const details = stackCardDetails(job, postedRelative);
 
+    // Each scroller here starts its own touch-action scope, so it repeats the
+    // stage's pan-y. Without it a sideways swipe inside the card goes to the
+    // browser (Chrome on Android takes it as Back) instead of changing role.
     return (
         <div
             data-testid={active ? "for-you-pack" : undefined}
             className={cn(
-                "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain",
+                "flex min-h-0 flex-1 touch-pan-y touch-pinch-zoom flex-col overflow-y-auto overscroll-contain",
                 "lg:grid lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto] lg:overflow-hidden",
             )}
         >
             {active ? <ViewedCapture job={job} matchScore={matchScore} resume={resume} /> : null}
 
-            <section className="flex flex-col gap-5 p-5 lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:p-6">
+            <section className="flex touch-pan-y touch-pinch-zoom flex-col gap-5 p-5 lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:p-6">
                 <div className="flex items-center gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
                     <p className="min-w-0 flex-1 truncate font-semibold text-foreground">{company || "Unknown company"}</p>
@@ -198,7 +201,7 @@ export function StackedRoleCard({
                 </div>
             </section>
 
-            <section className="flex flex-col gap-5 border-t border-border bg-background p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-7">
+            <section className="flex touch-pan-y touch-pinch-zoom flex-col gap-5 border-t border-border bg-background p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-7">
                 <div className="flex items-start justify-between gap-3">
                     <p className={SECTION_LABEL}>Details</p>
                     {job.apply_url ? (
