@@ -8,18 +8,17 @@ const PACK = join(__dirname, "../../src/components/jobs/for-you/ForYouPack.tsx")
 const NUMERIC_FIT_RE = /\d+\s*%\s*(match|fit|score)/i;
 
 describe("lean packs surfaces — band only, no Canada claims in hub mock", () => {
-    it("CategoryHubGrid mock + fallback modal never show numeric % Match", () => {
+    it("CategoryHubGrid never shows numeric % Match", () => {
         const src = readFileSync(HUB, "utf8");
         assert.doesNotMatch(src, /% Match/);
         assert.doesNotMatch(src, NUMERIC_FIT_RE);
         assert.doesNotMatch(src, /fitScorePercent/);
-        assert.match(src, /matchBandLabel/);
     });
 
-    it("CategoryHubGrid mock catalog has no Canada location claims", () => {
+    it("CategoryHubGrid carries no mock job catalog or fallback modal (a pack opens the real deck)", () => {
         const src = readFileSync(HUB, "utf8");
-        const catalog = src.split("export const CATEGORY_JOBS_CATALOG")[1]?.split("export ")[0] ?? "";
-        assert.doesNotMatch(catalog, /Canada|Toronto/i);
+        assert.doesNotMatch(src, /CATEGORY_JOBS_CATALOG|RoleDetailListing/);
+        assert.doesNotMatch(src, /<Dialog\b/);
     });
 
     it("ForYouPack deck header uses band label readout, not MatchChip component", () => {

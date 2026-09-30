@@ -1,33 +1,37 @@
 /**
  * "More like this" (JobDetail — Curiosity / Serial Positioning Effect): the
- * detail panel had ZERO related/similar surface, so after reading a posting
- * the only forward path was a gated company link. `getRelatedJobsAction`
- * (actions/jobs.ts) does the actual fetching (company-scoped first, a
- * title-keyword fallback second); this is the pure decision in between —
- * given how many company-scoped hits came back, should the caller widen the
- * search, and to what query?
+ * reader's next stop after a posting. `getRelatedJobsAction`
+ * (actions/jobs.ts) does the fetching; this file holds the pure decisions
+ * around it — what to search for, which list to show, and what to call it.
+ *
+ * Similar roles come FIRST: this job's title keywords, in this job's
+ * country. The company's own other roles are the fallback, not the lead —
+ * the panel links "All jobs at {brand}" right above this list, so leading
+ * with the same company repeated that link and showed a Product Manager a
+ * Product Designer and a GTM Lead under a heading that promised roles
+ * "like this" (Vivek, 2026-09-30).
  */
 
+import type { Gazetteer } from "@/lib/geo/gazetteer";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
- * Below this many company-scoped hits (the posting's own job already
- * excluded by the caller), a company alone isn't a real "more like this"
- * list — one other open role at the same company reads as a coincidence,
- * not a set of alternatives worth surfacing.
+ * Below this many hits a pass isn't a real list — one other role reads as a
+ * coincidence, not a set of alternatives — so the caller tries the
+ * company's own roles instead.
  */
-const MIN_COMPANY_HITS = 2;
+export const MIN_RELATED_HITS = 2;
 
-/** How many leading significant words a fallback query keeps. */
-const MAX_FALLBACK_WORDS = 3;
+/** How many leading significant words the title query keeps. */
+const MAX_TITLE_WORDS = 3;
 
 /**
  * Seniority/qualifier and function words stripped before a title becomes a
- * fallback search query — they narrow toward exact-title matches (or match
- * nothing at all) rather than the adjacent roles a fallback is for. Kept
- * short and title-specific rather than a general-purpose stopword list: the
- * only failure mode this guards is a title that's ALL qualifier words
- * (`resolveRelatedQuery`'s "none" branch), not general search quality.
+ * search query — they narrow toward exact-title matches (or match nothing
+ * at all) rather than the adjacent roles this list is for. Kept short and
+ * title-specific rather than a general-purpose stopword list: the only
+ * failure mode this guards is a title that's ALL qualifier words
+ * (`relatedTitleQuery`'s null), not general search quality.
  */
 const TITLE_NOISE_WORDS = new Set([
     "senior", "sr", "jr", "junior", "staff", "principal", "lead", "head",
@@ -37,8 +41,8 @@ const TITLE_NOISE_WORDS = new Set([
 
 /** First `max` significant words in `title` — lowercased, noise-stripped, in
  *  reading order. Exported for its own direct test coverage alongside
- *  `resolveRelatedQuery`. */
-export function significantTitleWords(title: string, max: number = MAX_FALLBACK_WORDS): string[] {
+ *  `relatedTitleQuery`. */
+export function significantTitleWords(title: string, max: number = MAX_TITLE_WORDS): string[] {
     return (title ?? "")
         .toLowerCase()
         .split(/[^a-z0-9+]+/)
@@ -46,22 +50,128 @@ export function significantTitleWords(title: string, max: number = MAX_FALLBACK_
         .slice(0, max);
 }
 
-export type RelatedQueryPlan =
-    /** Enough company-scoped hits on their own — use them as-is. */
-    | { mode: "company" }
-    /** Too few (or zero, no domain) company hits — widen to this query. */
-    | { mode: "title-fallback"; fallbackQuery: string }
-    /** Too few company hits AND the title has no usable keywords to widen
-     *  with (e.g. "Senior Staff Lead") — an empty query would search the
-     *  whole corpus, which is not "related." Show only the company hits on
-     *  hand (even if fewer than `MIN_COMPANY_HITS`), no fabricated fallback. */
-    | { mode: "none" };
+/**
+ * The role itself, without the team, product or shift after a comma, a
+ * spaced dash, a bar or a bracket: "UX Designer, Chrome Disco" is a UX
+ * Designer. Taking the first three words of the whole title searched for
+ * "ux designer chrome" and surfaced a Chrome product manager (2026-09-30).
+ * An unspaced hyphen stays ("Front-End Developer").
+ */
+export function titleCore(title: string): string {
+    const core = (title ?? "").split(/,|\(|\[|\||\s[-–—/]\s/)[0]!.trim();
+    return core || (title ?? "").trim();
+}
 
-export function resolveRelatedQuery(input: { companyHitCount: number; title: string }): RelatedQueryPlan {
-    if (input.companyHitCount >= MIN_COMPANY_HITS) return { mode: "company" };
-    const words = significantTitleWords(input.title);
-    if (words.length === 0) return { mode: "none" };
-    return { mode: "title-fallback", fallbackQuery: words.join(" ") };
+/** The similar-roles query for `title`, or null when the title has no usable
+ *  keywords (e.g. "Senior Staff Lead") — an empty query would search the
+ *  whole corpus, which is not "related". */
+export function relatedTitleQuery(title: string): string | null {
+    const words = significantTitleWords(titleCore(title));
+    const all = words.length > 0 ? words : significantTitleWords(title);
+    return all.length > 0 ? all.join(" ") : null;
+}
+
+/** The one country to keep similar roles in, or null (no country, or a
+ *  multi-country posting — no single place to scope to). */
+export function relatedCountry(country: PublicJob["location_country"]): string | null {
+    const one = Array.isArray(country) ? (country.length === 1 ? country[0] : null) : country;
+    return one?.trim() || null;
+}
+
+/**
+ * What "More like this" is built from: the viewed job's id, title, company
+ * and place, as plain strings, so it crosses the server-action boundary
+ * without the description and can key the fetch effect.
+ */
+export interface RelatedSeed {
+    id: string;
+    title: string;
+    company: string | null;
+    companyDomain: string | null;
+    location: string | null;
+    state: string | null;
+    /** One country value (`relatedCountry`), or null. */
+    country: string | null;
+}
+
+export function relatedSeed(
+    job: Pick<PublicJob, "id" | "title" | "company" | "company_domain" | "location" | "location_state" | "location_country">,
+): RelatedSeed {
+    const text = (v: string | null | undefined) => v?.trim() || null;
+    return {
+        id: job.id,
+        title: job.title ?? "",
+        company: text(job.company),
+        companyDomain: text(job.company_domain),
+        location: text(job.location),
+        state: text(job.location_state),
+        country: relatedCountry(job.location_country),
+    };
+}
+
+/** The one country an admin1 name ("California", "Ontario") belongs to, or
+ *  null when the name is unknown or shared across countries. */
+function admin1Country(name: string, gazetteer: Gazetteer): string | null {
+    const countries = new Set((gazetteer.admin1ByName.get(name.toLowerCase()) ?? []).map((a) => a.countryCode));
+    return countries.size === 1 ? [...countries][0]! : null;
+}
+
+/**
+ * The ISO2 country to keep similar roles in, or null to search everywhere.
+ *
+ * The job's own country field comes first, read as a country: a two-letter
+ * value is a country code, so "CA" is Canada. Passed through the search box's
+ * place parser it was California, and a Canadian job listed US roles
+ * (2026-09-30). With no country, the state ("CALIFORNIA") or a comma-separated
+ * piece of the location text ("Universal City, California") that names a
+ * country or a state of exactly one country decides it.
+ */
+export function relatedCountryIso2(seed: Pick<RelatedSeed, "country" | "state" | "location">, gazetteer: Gazetteer): string | null {
+    const country = seed.country?.trim();
+    if (country) {
+        const hit =
+            country.length === 2
+                ? gazetteer.countriesByIso2.get(country.toUpperCase())
+                : country.length === 3
+                  ? gazetteer.countriesByIso3.get(country.toUpperCase())
+                  : gazetteer.countriesByName.get(country.toLowerCase());
+        if (hit) return hit.iso2;
+    }
+    const state = seed.state?.trim();
+    if (state && state.length > 2) {
+        const iso2 = admin1Country(state, gazetteer);
+        if (iso2) return iso2;
+    }
+    // Last piece first: "Toronto, Ontario, Canada" is most specific at the end.
+    const pieces = (seed.location ?? "").split(",").map((p) => p.trim()).filter((p) => p.length > 2).reverse();
+    for (const piece of pieces) {
+        const byName = gazetteer.countriesByName.get(piece.toLowerCase());
+        if (byName) return byName.iso2;
+        const iso2 = admin1Country(piece, gazetteer);
+        if (iso2) return iso2;
+    }
+    return null;
+}
+
+/** Which list "More like this" is showing — decides its heading. */
+export type RelatedBasis = "title" | "company";
+
+/**
+ * Similar roles when there are enough of them; otherwise the company's own
+ * other roles when it has any; otherwise whatever similar roles came back.
+ */
+export function pickRelatedJobs<T>(input: { titleHits: T[]; companyHits: T[] }): { jobs: T[]; basis: RelatedBasis } {
+    if (input.titleHits.length >= MIN_RELATED_HITS) return { jobs: input.titleHits, basis: "title" };
+    if (input.companyHits.length > 0) return { jobs: input.companyHits, basis: "company" };
+    return { jobs: input.titleHits, basis: "title" };
+}
+
+/** The list's heading. A company-only list says so, rather than claiming a
+ *  designer is "like" a product manager because they share an employer. */
+export function relatedJobsHeading(basis: RelatedBasis, companyBrand: string | null | undefined): string {
+    if (basis === "title") return "More like this";
+    const brand = companyBrand?.trim();
+    return brand ? `More at ${brand}` : "More at this company";
 }
 
 type DedupableJob = Pick<PublicJob, "id" | "title" | "company" | "location" | "posted_ts">;
@@ -77,17 +187,25 @@ function relatedDedupeKey(job: Pick<DedupableJob, "title" | "company" | "locatio
 
 /**
  * "More like this" row list, ready to render: excludes the job currently
- * being viewed, then collapses rows that share a normalised
+ * being viewed and its twins (another row with its title, company and
+ * location: the same opening posted twice, which read as the job listing
+ * itself), then collapses rows that share a normalised
  * title+company+location (the same opening cross-posted or re-scraped into
  * more than one row) down to one, keeping the newest `posted_ts`. Rows that
  * only share title+company — a different location — are different openings
  * and are both kept.
  */
-export function dedupeRelatedJobs<T extends DedupableJob>(jobs: T[], currentJobId: string): T[] {
+export function dedupeRelatedJobs<T extends DedupableJob>(
+    jobs: T[],
+    current: string | Pick<RelatedSeed, "id" | "title" | "company" | "location">,
+): T[] {
+    const currentId = typeof current === "string" ? current : current.id;
+    const currentKey = typeof current === "string" ? null : relatedDedupeKey(current);
     const byKey = new Map<string, T>();
     for (const job of jobs) {
-        if (job.id === currentJobId) continue;
+        if (job.id === currentId) continue;
         const key = relatedDedupeKey(job);
+        if (key === currentKey) continue;
         const existing = byKey.get(key);
         if (!existing || (job.posted_ts ?? 0) > (existing.posted_ts ?? 0)) {
             byKey.set(key, job);

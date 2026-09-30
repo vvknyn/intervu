@@ -331,9 +331,11 @@ test("boardTimestampLabel reads applied_at when set, falls back to created_at ot
     assert.equal(boardTimestampLabel(noAppliedAt, now), "applied 2d ago");
 });
 
-test("boardTimestampLabel formats an absolute date from interview_date when set", () => {
+test("boardTimestampLabel formats the interview day from interview_date, read in UTC", () => {
+    // The date input stores a calendar day as UTC midnight; read in a zone west
+    // of UTC it showed the day before ("Jul 31" for Aug 1).
     const p = makePursuit({ status: "interviewing", interview_date: "2026-08-01T00:00:00.000Z" });
-    assert.equal(boardTimestampLabel(p), `interview ${new Date("2026-08-01T00:00:00.000Z").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`);
+    assert.match(boardTimestampLabel(p), /^interview (Aug 1|1 Aug)$/);
 });
 
 test("boardTimestampLabel falls back to updated_at when interviewing has no interview_date yet", () => {

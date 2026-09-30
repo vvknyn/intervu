@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 
 /**
  * Journeys for the signed-out gates — see tests/journeys/CATALOG.md
- * (J-JOBS-06/07/32/33/34/35/36/51, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
+ * (J-JOBS-06/07/32/33/34/35/36/59, J-DETAIL-24/28, J-COMPANY-13). Every gate is the one `SignupGate`
  * card (`data-testid="signup-gate"`, `data-gate-reason=<reason>`): it names the
  * action, offers "Create free account" (signup-mode /auth/start) and
  * "Sign in" (/login), both carrying the page in `next=`. Read-only: nothing
@@ -180,7 +180,7 @@ test("a guest who opens For you gets one sign-in card instead of job packs", { t
   await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
 });
 
-test("a guest with a résumé in this browser, who saw For you before, lands on Search with their top 3 matches", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+test("a guest with a résumé in this browser, who saw For you before, lands on Search with their top 3 matches", { tag: ["@J-JOBS-59"] }, async ({ page }) => {
   await returningVisitor(page);
   await seedGuestResume(page);
   await page.addInitScript((key) => localStorage.setItem(key, "for-you"), LAST_JOBS_HOME_VIEW_KEY);

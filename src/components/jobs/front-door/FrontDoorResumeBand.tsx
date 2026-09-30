@@ -3,8 +3,8 @@
 import { UploadSimple } from "@phosphor-icons/react";
 import { AUTH_CTA_LABEL, RESUME_UPLOAD_CTA } from "@/lib/auth/auth-gate-copy";
 import {
-    FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY,
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
+    FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
     RESUME_UPLOAD_SIGNIN_LINE,
 } from "@/lib/jobs/resume-cta-copy";
 
@@ -28,15 +28,18 @@ import {
  * in is now the `AUTH_CTA_LABEL` word inside `RESUME_UPLOAD_SIGNIN_LINE`
  * below, rendered as a link — same split-on-embedded-label convention
  * `FrontDoorDetailPitch` uses for `FOOTER_PROVENANCE_LINE`). A signed-in
- * visitor (who skipped the résumé card) gets no sign-in line and no
- * "free account" pitch: omit `onSignInClick`.
+ * account (the one /jobs used to put a full-page onboarding card in front of)
+ * gets its own subcopy, since its upload is saved to the account rather than
+ * kept in the browser, and no line asking it to sign in.
  */
 export function FrontDoorResumeBand({
+    signedIn,
     onUploadClick,
     onSignInClick,
 }: {
+    signedIn: boolean;
     onUploadClick: () => void;
-    onSignInClick?: () => void;
+    onSignInClick: () => void;
 }) {
     return (
         <section
@@ -49,7 +52,7 @@ export function FrontDoorResumeBand({
                         See which live jobs fit your experience.
                     </h2>
                     <p className="mt-1 text-sm text-brand-foreground">
-                        {onSignInClick ? FRONT_DOOR_RESUME_CARD_SUBCOPY : FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY}
+                        {signedIn ? FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN : FRONT_DOOR_RESUME_CARD_SUBCOPY}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -62,8 +65,8 @@ export function FrontDoorResumeBand({
                         {RESUME_UPLOAD_CTA}
                     </button>
                 </div>
-                {onSignInClick && (
-                    <p className="text-xs text-brand-foreground sm:col-span-2">
+                {!signedIn && (
+                    <p data-testid="front-door-band-signin" className="text-xs text-brand-foreground sm:col-span-2">
                         {RESUME_UPLOAD_SIGNIN_LINE.split(AUTH_CTA_LABEL).map((part, i) => (
                             <span key={i}>
                                 {i > 0 && (

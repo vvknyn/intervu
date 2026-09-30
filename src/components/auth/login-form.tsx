@@ -18,8 +18,9 @@ import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { AUTH_MESSAGES } from '@/lib/copy'
 import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { revalidateClientSession } from '@/lib/firebase/client-auth'
-import { buildReturnTo } from '@/lib/jobs/pending-actions'
-import { resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
+import { buildReturnTo, peekPendingActionKind } from '@/lib/jobs/pending-actions'
+import { AUTH_START_PENDING_PARAM, resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
+import { validateNextParam } from '@/lib/auth/product-routes'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
@@ -153,12 +154,17 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         // actually is, so a hard-nav OAuth/passkey round trip returns to the
         // same page instead of AuthKit's own default.
         const rawNext = new URLSearchParams(window.location.search).get("next") || buildReturnTo(window.location)
+        // A queued Apply (or upload) replays on the page it started on, so a
+        // signup keeps that page instead of the résumé gate.
+        const hasPendingAction = peekPendingActionKind(window.sessionStorage) !== null
         const next = resolveAuthKitReturnTo({
             mode: activeTab === "signup" ? "signup" : "login",
             rawNext,
+            hasPendingAction,
         })
         if (next) params.set("next", next)
         if (activeTab === "signup") params.set("mode", "signup")
+        if (activeTab === "signup" && hasPendingAction) params.set(AUTH_START_PENDING_PARAM, "1")
         if (provider) params.set("provider", provider)
         const query = params.toString()
         window.location.href = `/auth/start${query ? `?${query}` : ""}` // signup-gate-exempt: the login form itself, part of the auth flow
@@ -201,7 +207,13 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 revalidateClientSession()
                 await syncGuestFollowsToServer()
                 const landed = buildReturnTo(window.location)
-                const destination = resolveAuthKitReturnTo({ mode: "signup", rawNext: landed })
+                // On /login the page to return to is its `next`, as for AuthKit above.
+                const returnTarget = validateNextParam(new URLSearchParams(window.location.search).get("next")) ?? landed
+                const destination = resolveAuthKitReturnTo({
+                    mode: "signup",
+                    rawNext: returnTarget,
+                    hasPendingAction: peekPendingActionKind(window.sessionStorage) !== null,
+                })
                 if (destination && destination !== landed) {
                     router.replace(destination)
                 }

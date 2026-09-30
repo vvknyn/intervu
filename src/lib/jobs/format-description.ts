@@ -235,6 +235,12 @@ export function normalizeMarkdown(input: string): string {
   text = text.replace(/(^|[\s(])_([^\n_]+?)_(?=[\s).,;:!?]|$)/g, "$1$2");
   // Any leftover stray emphasis runs.
   text = text.replace(/\*{2,}/g, "").replace(/_{3,}/g, "");
+  // A lone "*" left glued to the front of a word: the unmatched half of a
+  // mismatched run. `***1Password is growing**` pairs its last two stars
+  // with the first "**" above and leaves "*1Password" (2026-09-30, on a
+  // tracked 1Password role). A "* item" bullet has a space after its star
+  // and is untouched; "5*3" has no space before it.
+  text = text.replace(/(^|[\s(])\*(?=[A-Za-z0-9$])/gm, "$1");
   // ATX headings (#, ##, …) anywhere → hard paragraph break, drop the #s.
   // Keeps the heading text on its own logical line so a clean newline-
   // terminated heading still reaches considerHeading(); a run-together

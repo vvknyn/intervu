@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-    FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY,
     FRONT_DOOR_RESUME_CARD_SUBCOPY,
+    FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
     RESUME_UPLOAD_PROMISE,
     RESUME_UPLOAD_SIGNIN_LINE,
 } from "../../src/lib/jobs/resume-cta-copy";
@@ -42,18 +42,21 @@ test("FrontDoorResumeBand and /resume's signed-out empty state both import RESUM
     assert.match(resumePage, /RESUME_UPLOAD_PROMISE/);
 });
 
-test("FrontDoorResumeBand renders card subcopy and the sign-in value line", () => {
+test("FrontDoorResumeBand renders card subcopy, and the sign-in value line only when signed out", () => {
     const band = readFileSync(
         join(__dirname, "../../src/components/jobs/front-door/FrontDoorResumeBand.tsx"),
         "utf8",
     );
-    // Guest copy with the sign-in line; the account copy (no "free account" pitch) without it.
-    assert.match(band, /onSignInClick \? FRONT_DOOR_RESUME_CARD_SUBCOPY : FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY/);
-    assert.doesNotMatch(FRONT_DOOR_RESUME_CARD_ACCOUNT_SUBCOPY, /free account|sign in/i);
-    assert.match(band, /RESUME_UPLOAD_SIGNIN_LINE\.split/);
+    // Signed-in accounts get their own subcopy and no sign-in line (the band replaced their onboarding card).
+    assert.match(band, /\{signedIn \? FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN : FRONT_DOOR_RESUME_CARD_SUBCOPY\}/);
+    assert.match(band, /\{!signedIn && \(\s*<p[^>]*>\s*\{RESUME_UPLOAD_SIGNIN_LINE\.split/);
     assert.match(band, /\{RESUME_UPLOAD_CTA\}/);
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
         "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.",
+    );
+    assert.equal(
+        FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
+        "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account, so it follows you across devices.",
     );
 });

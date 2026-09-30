@@ -35,7 +35,7 @@ export function resumeDataToMarkdown(data: ResumeData): string {
             case "skills":
                 if (competencies?.length) {
                     lines.push("## Skills", "");
-                    for (const c of competencies) lines.push(`**${c.category}:** ${c.skills.join(", ")}`);
+                    for (const c of competencies) lines.push(c.category.trim() ? `**${c.category}:** ${c.skills.join(", ")}` : c.skills.join(", "));
                     lines.push("");
                 }
                 break;

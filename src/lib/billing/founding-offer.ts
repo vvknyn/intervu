@@ -34,6 +34,15 @@ export const DATA_API_FROM_PRICE = "$49";
  *  link) renders the "opening soon" state — the page never guesses a URL. */
 export const FOUNDING_CHECKOUT_URL_ENV = "FOUNDING_MEMBER_CHECKOUT_URL";
 
+/** Server-only env var holding the Stripe Payment Link for the pay-it-forward
+ *  pledge shown on a tracker pursuit in the Offer lane (strategy decision 7,
+ *  2026-09-29). A pay-what-you-want link with the suggested amount preset,
+ *  so the panel's copy and the link agree. Unset, the panel asks how it went
+ *  and links to the contact page instead; it never guesses a URL. */
+export const LANDED_PLEDGE_URL_ENV = "LANDED_PLEDGE_CHECKOUT_URL";
+/** What the pledge panel suggests; the link lets the person change it. */
+export const LANDED_PLEDGE_SUGGESTED = "$99";
+
 /** What the reservation confirmation email says the address signed up for
  *  ("You're on the list — a founding seat on Velai Pro"). */
 export const FOUNDING_WAITLIST_LABEL = "a founding seat on Velai Pro";
@@ -53,7 +62,7 @@ export type FoundingBuyer = { uid: string; email?: string } | null;
  * not an absolute `https:` URL is treated as unset, so a typo in the env
  * file degrades to "opening soon" rather than a button that 404s on Stripe.
  */
-export function foundingCheckoutUrl(base: string | undefined, buyer: FoundingBuyer): string | null {
+export function checkoutUrlWithBuyer(base: string | undefined, buyer: FoundingBuyer): string | null {
   if (!base) return null;
   let url: URL;
   try {
@@ -75,6 +84,10 @@ export function foundingCheckoutUrl(base: string | undefined, buyer: FoundingBuy
  * `/pricing?checkout=success` alone (shared, bookmarked, guessed) never shows
  * the thank-you or fires `founding_member_paid`.
  */
+/** The founding seat's link, and the name the pricing page and its tests
+ *  use; the pledge panel's link is built the same way (`checkoutUrlWithBuyer`). */
+export const foundingCheckoutUrl = checkoutUrlWithBuyer;
+
 export function paidCheckoutSessionId(params: {
   checkout?: string | string[];
   session_id?: string | string[];
