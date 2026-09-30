@@ -20,6 +20,7 @@ import { syncGuestFollowsToServer } from '@/lib/follows/use-follows'
 import { revalidateClientSession } from '@/lib/firebase/client-auth'
 import { buildReturnTo, peekPendingActionKind } from '@/lib/jobs/pending-actions'
 import { AUTH_START_PENDING_PARAM, resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
+import { validateNextParam } from '@/lib/auth/product-routes'
 import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
@@ -206,9 +207,11 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 revalidateClientSession()
                 await syncGuestFollowsToServer()
                 const landed = buildReturnTo(window.location)
+                // On /login the page to return to is its `next`, as for AuthKit above.
+                const returnTarget = validateNextParam(new URLSearchParams(window.location.search).get("next")) ?? landed
                 const destination = resolveAuthKitReturnTo({
                     mode: "signup",
-                    rawNext: landed,
+                    rawNext: returnTarget,
                     hasPendingAction: peekPendingActionKind(window.sessionStorage) !== null,
                 })
                 if (destination && destination !== landed) {
