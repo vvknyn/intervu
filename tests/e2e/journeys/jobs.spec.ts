@@ -8,7 +8,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/51, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -527,6 +527,26 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await failEveryAction(page);
+  await page.goto("/jobs?view=for-you");
+
+  // One automatic retry (2-4 s) runs first, then the failure shows.
+  const failed = page.getByTestId("today-new-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("today-new-failed-retry")).toBeVisible();
+
+  // The chips' counts come from the same refused searches. They used to read "…" for good.
+  const chips = page.getByTestId("hub-pack-chips");
+  await expect(chips.getByRole("button")).toHaveCount(8);
+  await expect(chips.locator('[data-testid^="hub-pack-count-"]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(chips).not.toContainText("…");
+  await expect(page.getByTestId("hub-pack-card-all")).toHaveAttribute("aria-label", "All your matches");
 });
 
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */
