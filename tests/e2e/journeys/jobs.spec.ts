@@ -3,6 +3,7 @@ import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
+import { PACK_POSTED_BUCKET } from "../../../src/lib/jobs/url-state";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
@@ -166,6 +167,8 @@ test("a For-you pack opened from the hub, past the intro, has Edit filters on ex
   expect(href.pathname).toBe("/jobs");
   expect(href.searchParams.get("country")).toBe("Iceland");
   expect(href.searchParams.get("view")).toBe("search");
+  // Packs keep their own 30-day window, not the board's 90-day default (PACK_POSTED_BUCKET).
+  expect(href.searchParams.get("posted")).toBe(PACK_POSTED_BUCKET);
 
   // Thin pack: the shared broaden nudge, with a count on every option it draws.
   const broaden = page.getByTestId("broaden-options");
