@@ -264,7 +264,6 @@ export interface JobDetailDocumentProps {
     matchPending?: boolean;
     /** Local-AI résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
 }
@@ -301,7 +300,6 @@ export function JobDetailDocument({
     matchAsOfDate = null,
     matchPending = false,
     resume = null,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
 }: JobDetailDocumentProps) {
@@ -457,7 +455,6 @@ export function JobDetailDocument({
         <LocalCustomizePanel
             job={job}
             resume={resume}
-            onAccept={onAcceptLocalTailor}
             signedIn={signedIn}
             onSignInToSync={onSignInToSync}
         />

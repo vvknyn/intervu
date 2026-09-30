@@ -103,16 +103,27 @@ describe("Customize dialog contract", () => {
         // The primitive's tier keeps the dialog above its scrim; a z-[70] override put it under (2026-09-30).
         assert.doesNotMatch(src, /<DialogContent[^>]*\bz-/);
         assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/);
-        assert.match(src, /confirmToast/);
         assert.match(src, /Enable on-device AI/);
         assert.match(src, /Use a rules draft/);
-        assert.match(src, /Résumé updated for Rank on this device/);
         assert.doesNotMatch(src, /basis-full/);
         assert.doesNotMatch(
             src,
             /open && \(\s*<div[^>]*local-customize-panel/,
             "draft must not expand inline under the trigger",
         );
+    });
+
+    // A draft is tailored to one role. Accept used to write it over the résumé every other role
+    // ranks and tailors from, so a guest lost their own résumé after one Customize (2026-09-30).
+    it("never replaces the résumé it tailors from: Copy and Download PDF are the draft's outputs", () => {
+        const src = readFileSync(PANEL, "utf8");
+        assert.doesNotMatch(src, /writeLocalAiResume|saveResumeData|onAccept/);
+        assert.doesNotMatch(src, /local-customize-accept/);
+        assert.match(src, /data-testid="local-customize-copy"/);
+        assert.match(src, /data-testid="local-customize-pdf"/);
+        for (const file of [DETAIL, DOCUMENT]) {
+            assert.doesNotMatch(readFileSync(file, "utf8"), /onAcceptLocalTailor/);
+        }
     });
 
     it("trigger is an outline Button, not a ghost text link", () => {
@@ -160,7 +171,6 @@ describe("Customize dialog contract", () => {
         );
         assert.match(detail, /<LocalCustomizePanel/);
         assert.match(doc, /<LocalCustomizePanel[\s\S]*?resume=\{resume\}/);
-        assert.match(doc, /onAccept=\{onAcceptLocalTailor\}/);
         const pageBar = page.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         const publicBar = publicDetail.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";
         const docBar = doc.match(/<JobDetailActionBar[\s\S]*?\/>/)?.[0] ?? "";

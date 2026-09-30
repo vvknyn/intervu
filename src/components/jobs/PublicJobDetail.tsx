@@ -39,8 +39,7 @@ import {
 import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuits";
 import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
-import { readLocalAiEnabled } from "@/lib/local-ai/flag";
-import { readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
@@ -461,10 +460,6 @@ export function PublicJobDetail({
                     matchAsOfDate={resumeAsOfDate}
                     matchPending={matchPending}
                     resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
                     onUploadResume={() => router.push("/resume")}
                     onSignInToSync={() => openAuth("tailor", "user")}
                 />
@@ -487,10 +482,6 @@ export function PublicJobDetail({
                     matchAsOfDate={resumeAsOfDate}
                     matchPending={matchPending}
                     resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (readLocalAiEnabled()) writeLocalAiResume(data);
-                    }}
                     onUploadResume={() => router.push("/resume")}
                     onSignInToSync={() => openAuth("tailor", "user")}
                 />

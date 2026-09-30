@@ -533,7 +533,6 @@ export function JobDetail({
     descriptionPending,
     onRetryDescription,
     resume = null,
-    onAcceptLocalTailor,
     onUploadResume,
     onSignInToSync,
     onSkip,
@@ -596,7 +595,6 @@ export function JobDetail({
     onRetryDescription?: () => void;
     /** Local-AI guest/signed-in résumé for on-device tailor — optional. */
     resume?: ResumeData | null;
-    onAcceptLocalTailor?: (data: ResumeData) => void;
     onUploadResume?: () => void;
     onSignInToSync?: () => void;
     /** Wired to the existing skip/hide mechanism (`useForYouDeck`'s
@@ -966,7 +964,6 @@ export function JobDetail({
                             <LocalCustomizePanel
                                 job={job}
                                 resume={resume}
-                                onAccept={onAcceptLocalTailor}
                                 signedIn={signedIn}
                                 onSignInToSync={onSignInToSync}
                             />
