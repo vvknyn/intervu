@@ -563,7 +563,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 |----|---------|---------|-------|------|--------|--------|------|
 | J-OAUTH-01 | See "Can't connect this agent" when authorize params are missing or invalid (merged: J-AUTH-38) | anon | /oauth/authorize | signed-out | no | uncovered | — (legacy: route-titles.spec.ts › /oauth/authorize has a non-empty title that differs from the homepage) |
 | J-OAUTH-02 | See the "Sign in to continue" card on a valid authorize request (no redirect), sign in on the Sign in tab (Google or passkey, or any sign-in with a résumé on file), and return to consent with the request intact (résumé-less and signup returns: J-OAUTH-19) (merged: J-AUTH-37) | agent | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
-| J-OAUTH-03 | See the consent card with client name and destination host | signed-in | /oauth/authorize?client_id=…&… | signed-in | yes | uncovered | — |
+| J-OAUTH-03 | See the consent card with client name and destination host | signed-in | /oauth/authorize?client_id=…&… | signed-in | no | uncovered | — |
 | J-OAUTH-04 | Allow the agent and be redirected with a code and state @writes | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | yes | uncovered | — |
 | J-OAUTH-05 | Deny the agent and be redirected with access_denied | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
 | J-OAUTH-06 | Register a client via DCR and get a client_id @writes | agent | POST /api/oauth/register | signed-out | yes | uncovered | — |
