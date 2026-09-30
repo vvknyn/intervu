@@ -13,7 +13,6 @@ import {
     TRACKER_SHEET_BOTTOM,
     daysInTracker,
     daysSinceUpdate,
-    hasResumeLinked,
     isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
@@ -139,10 +138,15 @@ function PursuitDetailBody({
                         <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">In tracker</dt>
                         <dd className="text-xl font-semibold tabular-nums">{days}d</dd>
                     </div>
-                    <div>
-                        <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Resume</dt>
-                        <dd className="text-meta">{resumeLabel ?? "— none linked"}</dd>
-                    </div>
+                    {/* Only the MCP tools file a résumé against a pursuit; a web
+                        user saw "none linked" and a dead Download button on every
+                        role (journey audit 2026-09-30), so both show only with one. */}
+                    {resumeLabel && (
+                        <div>
+                            <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Resume</dt>
+                            <dd className="text-meta">{resumeLabel}</dd>
+                        </div>
+                    )}
                     {stale && (
                         <div className="col-span-2">
                             <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Update</dt>
@@ -184,13 +188,11 @@ function PursuitDetailBody({
                             </a>
                         </Button>
                     )}
-                    <Button
-                        variant="outline"
-                        disabled={!latestResume}
-                        onClick={() => latestResume && void downloadResumeVersion(latestResume, pursuit)}
-                    >
-                        Download resume
-                    </Button>
+                    {latestResume && (
+                        <Button variant="outline" onClick={() => void downloadResumeVersion(latestResume, pursuit)}>
+                            Download resume
+                        </Button>
+                    )}
                     {!confirmingRemove && (
                         <Button
                             variant="outline"
@@ -211,9 +213,6 @@ function PursuitDetailBody({
                         onConfirm={() => void handleRemove()}
                         onCancel={() => setConfirmingRemove(false)}
                     />
-                )}
-                {!hasResumeLinked(pursuit) && (
-                    <p className="text-xs text-muted-foreground">No resume version on file for this application.</p>
                 )}
             </SheetBody>
         </>

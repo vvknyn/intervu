@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
     countByTrackerFilter,
+    countOpenPursuits,
     groupPursuitsByBoardColumn,
     isCurrentTrackerStatus,
     pursuitDateFacts,
@@ -146,6 +147,13 @@ test("pursuitDateFacts lists stored dates only, the interview day in UTC", () =>
     // Another year shows the year.
     const lastYear = "2025-11-02T15:00:00.000Z";
     assert.match(pursuitDateFacts(pursuit({ status: "interested", created_at: lastYear, updated_at: lastYear }), now)[0]!, /2025/);
+});
+
+test("countOpenPursuits leaves rejected and withdrawn roles out of the Tracker count", () => {
+    const stages = ["interested", "resume_ready", "applied", "interviewing", "offer", "rejected", "withdrawn"] as const;
+    assert.equal(countOpenPursuits(stages.map((status) => pursuit({ status }))), 5);
+    assert.equal(countOpenPursuits([pursuit({ status: "rejected" }), pursuit({ status: "withdrawn" })]), 0);
+    assert.equal(countOpenPursuits([]), 0);
 });
 
 test("groupPursuitsByBoardColumn buckets by boardColumn exhaustively", () => {

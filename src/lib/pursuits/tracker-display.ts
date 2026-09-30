@@ -165,6 +165,13 @@ export function daysInTracker(p: Pursuit, nowMs: number = Date.now()): number {
     return Math.max(0, Math.floor((nowMs - created) / 86_400_000));
 }
 
+/** The Tracker tab's count: open roles only. A rejected or withdrawn role
+ *  is done, and counting it gave anyone with a few closed roles a permanent
+ *  "9+" (journey audit 2026-09-30). */
+export function countOpenPursuits(pursuits: Pick<Pursuit, "status">[]): number {
+    return pursuits.filter((p) => boardColumn(p) !== "closed").length;
+}
+
 export function hasResumeLinked(p: Pursuit): boolean {
     return (
         (p.resume_versions?.length ?? 0) > 0 ||

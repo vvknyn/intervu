@@ -338,3 +338,102 @@ test("a note typed in the sheet keeps focus through each autosave and is all the
     await expect(page.getByRole("dialog").getByLabel("Note")).toHaveValue("Recruiter Dana");
     expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test.describe("signed-in header", () => {
+    // The header's tabs, and the Tracker count on them, only render for a
+    // signed-in user, and the only sign-in a spec can fake is the dev-only
+    // `window.__INTERVU_E2E_AUTH__` hook a production build ignores (same as
+    // header-tabs.spec.ts). So this runs against a local dev server only.
+    test.beforeEach(({ baseURL }) => {
+        const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
+        test.skip(!local, "signed-in header needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
+    });
+    test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
+
+    test("the Tracker tab counts open roles only, not rejected or withdrawn ones", { tag: ["@J-TRACKER-59"] }, async ({ page }) => {
+        const now = new Date().toISOString();
+        const statuses: Status[] = ["applied", "interviewing", "rejected", "withdrawn", "rejected"];
+        // Every argument-less action here answers "User not authenticated"
+        // (the tracker list and the header's follows alike), and a spec can't
+        // tell them apart, so each row also carries a follow's fields.
+        const rows = statuses.map((status, i) => ({
+            id: `app-${i}`,
+            user_id: "u1",
+            company_name: `Company ${i}`,
+            position: `Role ${i}`,
+            status,
+            created_at: now,
+            updated_at: now,
+            domain: `company${i}.example`,
+            slug: `company-${i}`,
+            displayName: `Company ${i}`,
+            createdAt: now,
+        }));
+        await page.addInitScript(() => {
+            (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = {
+                uid: "u1", displayName: "Ada Lovelace", email: "ada@example.com", emailVerified: true, isAnonymous: false,
+                providerData: [], metadata: {}, photoURL: null, phoneNumber: null, providerId: "password", tenantId: null, refreshToken: "x",
+            };
+        });
+        await page.route(
+            () => true,
+            async (route) => {
+                const req = route.request();
+                if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
+                const res = await route.fetch();
+                const text = await res.text();
+                if ((req.postData() ?? "") !== "[]" || !text.includes("User not authenticated")) return route.fulfill({ response: res, body: text });
+                // Next server-action response in flight format: `1:` carries the return value.
+                const body = `0:{"a":"$@1","f":"","q":"","i":true,"b":"development"}\n1:D"$2"\n1:${JSON.stringify({ data: rows })}\n`;
+                return route.fulfill({ response: res, body });
+            },
+        );
+        // The count rides on the header's Tracker tab, which shows from 1024px.
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto("/pricing");
+
+        // It used to count every tracked role (5 here), closed ones too. No
+        // page-error check: the faked sign-in exists only on the client, so the
+        // header always mismatches the server's signed-out HTML here.
+        await expect(page.getByTestId("topbar-tracker-badge")).toHaveText("2", { timeout: 30_000 });
+    });
+});
+
+test("a role with no résumé filed shows no empty résumé card or dead Download; one with a filed résumé lists it", { tag: ["@J-TRACKER-60"] }, async ({ page, diagnostics }) => {
+    const filed = { content: "# Ada Lovelace\n\n## Experience", label: "Tailored for 1Password", saved_at: "2026-09-28T12:00:00.000Z" };
+    await seed(page, [
+        guestPursuit("guest-journey-resume-none", "applied"),
+        guestPursuit("guest-journey-resume-filed", "applied", { position: "Staff Engineer", resume_versions: [filed] }),
+    ]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    // Only the MCP tools file a résumé against a role, so a web user's page
+    // used to end in "No resume version on file" on every role.
+    await page.goto("/yours/guest-journey-resume-none");
+    await expectPressed(page, "Applied");
+    await expect(page.getByText("Resume used")).toHaveCount(0);
+    await expect(page.getByText(/No resume version on file/)).toHaveCount(0);
+
+    await page.goto("/yours/guest-journey-resume-filed");
+    await expectPressed(page, "Applied");
+    await expect(page.getByText("Resume used")).toBeVisible();
+    await expect(page.getByText("Tailored for 1Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Download", exact: true })).toBeVisible();
+
+    // The sheet below xl: no "none linked" and no disabled Download resume.
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await page.goto("/yours");
+    await page.getByTestId("pursuit-row").filter({ hasText: "Manager, Solutions Engineering, MM" }).click();
+    let dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByRole("button", { name: "Download resume" })).toHaveCount(0);
+    await expect(dialog.getByText(/none linked|No resume version on file/)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    await page.getByTestId("pursuit-row").filter({ hasText: "Staff Engineer" }).click();
+    dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("button", { name: "Download resume" })).toBeEnabled({ timeout: 10_000 });
+    await expect(dialog.getByText("Tailored for 1Password")).toBeVisible();
+    expect(diagnostics.pageErrors).toEqual([]);
+});

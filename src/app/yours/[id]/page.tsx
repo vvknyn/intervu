@@ -38,60 +38,57 @@ import {
     orderResumeVersionsLatestFirst,
     type Pursuit,
     type PursuitStage,
+    type ResumeVersionSnapshot,
 } from "@/lib/pursuits/types";
 import { pursuitDateFacts, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
-/** Resume used row (spec: "label, saved date (mono), Download button") —
- *  degrades by omission to a plain sentence when no resume was ever filed
- *  against this pursuit (e.g. a quick "mark applied" outside the wizard),
- *  rather than fabricating a version. Lists every version, latest first, so
- *  re-filing a resume never hides earlier ones. */
-function ResumeUsedCard({ pursuit }: { pursuit: Pursuit }) {
-    const versions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+/** Resume used row (spec: "label, saved date (mono), Download button").
+ *  Only the MCP `save_resume_variant` tool files a version against a pursuit,
+ *  so the card renders only when one exists: an empty "No resume version on
+ *  file" card was all a web user ever saw (journey audit 2026-09-30). Lists
+ *  every version, latest first, so re-filing a resume never hides earlier
+ *  ones. */
+function ResumeUsedCard({ versions, pursuit }: { versions: ResumeVersionSnapshot[]; pursuit: Pursuit }) {
     return (
         <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
             <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
-            {versions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No resume version on file for this application.</p>
-            ) : (
-                <div className="divide-y divide-border">
-                    {versions.map((version, i) => (
-                        <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                            <div className="min-w-0">
-                                <p className="truncate text-sm text-foreground">{version.label}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    {new Date(version.saved_at).toLocaleDateString(undefined, {
-                                        year: "numeric",
-                                        month: "short",
-                                        day: "numeric",
-                                    })}
-                                </p>
-                            </div>
-                            <div className="flex shrink-0 items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
-                                >
-                                    Download
-                                </Button>
-                                {/* .md stays available as a secondary, portable format
-                                    (R4/R5) — PDF is the default per the user report. */}
-                                <button
-                                    type="button"
-                                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                                >
-                                    .md
-                                </button>
-                            </div>
+            <div className="divide-y divide-border">
+                {versions.map((version, i) => (
+                    <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm text-foreground">{version.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                                {new Date(version.saved_at).toLocaleDateString(undefined, {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                })}
+                            </p>
                         </div>
-                    ))}
-                </div>
-            )}
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                            >
+                                Download
+                            </Button>
+                            {/* .md stays available as a secondary, portable format
+                                (R4/R5) — PDF is the default per the user report. */}
+                            <button
+                                type="button"
+                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                            >
+                                .md
+                            </button>
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -397,6 +394,7 @@ export default function PursuitDetailPage() {
     // posting uses turns it into headings, paragraphs and lists instead of
     // printing "**" (2026-09-30 founder report).
     const descriptionBlocks = formatDescription(snapshot?.description);
+    const resumeVersions = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
     const showInterviewDate = pursuit.status === "applied" || pursuit.status === "interviewing";
 
     // Same writes, toast and event as the tracker's detail sheet
@@ -526,7 +524,7 @@ export default function PursuitDetailPage() {
                 {action.kind === "tailor" && <McpHandoffNote />}
                 {action.kind === "prep" && <McpHandoffNote variant="prep" />}
 
-                <ResumeUsedCard pursuit={pursuit} />
+                {resumeVersions.length > 0 && <ResumeUsedCard versions={resumeVersions} pursuit={pursuit} />}
 
                 {descriptionBlocks.length > 0 && (
                     <section
