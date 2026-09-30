@@ -5286,10 +5286,6 @@ export function JobsContent({
                     onRetryDescription={retryDescription}
                     matchScore={matchScores?.get(detailJob.id) ?? undefined}
                     resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (localAiGuestEnabled) writeLocalAiResume(data);
-                    }}
                     onUploadResume={() => handleUploadClick()}
                     onSignInToSync={() => {
                         openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
@@ -5303,15 +5299,6 @@ export function JobsContent({
                     onGoAfter={() => handleGoAfter(detailJob)}
                     pursuit={detailPursuit}
                     saveSuccessPulse={savePulseJobIds.has(detailJob.id)}
-                    resume={resume}
-                    onAcceptLocalTailor={(data) => {
-                        setResume(data);
-                        if (localAiGuestEnabled) writeLocalAiResume(data);
-                    }}
-                    onUploadResume={() => handleUploadClick()}
-                    onSignInToSync={() => {
-                        openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
-                    }}
                 />
                 )}
             </>
