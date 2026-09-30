@@ -9,6 +9,8 @@ import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { Switch } from "@/components/settings/Switch";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { Button } from "@/components/ui/button";
+import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
@@ -16,18 +18,40 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [emailState, setEmailState] = useState<EmailNudgeState | null>(null);
     const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
+    // A failed read used to leave "Loading email preferences" spinning for
+    // good; it now ends in an error with a retry, like the other settings
+    // cards.
+    const [loadFailed, setLoadFailed] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+
     useEffect(() => {
         if (!user) return;
-        void getEmailPreferencesAction().then((res) => {
-            if (res.data) setPrefs(res.data);
-        });
-        void getAccountEmailStateAction().then((res) => {
-            if (res.data) {
+        let cancelled = false;
+        void getEmailPreferencesAction()
+            .then((res) => {
+                if (cancelled) return;
+                if (res.data) setPrefs(res.data);
+                else setLoadFailed(true);
+            })
+            .catch(() => {
+                if (!cancelled) setLoadFailed(true);
+            });
+        void getAccountEmailStateAction()
+            .then((res) => {
+                if (cancelled || !res.data) return;
                 setEmailState(res.data.state);
                 setPendingEmail(res.data.pendingEmail);
-            }
-        });
-    }, [user]);
+            })
+            .catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [user, attempt]);
+
+    const retryLoad = () => {
+        setLoadFailed(false);
+        setAttempt((n) => n + 1);
+    };
 
     if (!user) return null;
 
@@ -76,6 +100,13 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                         <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} aria-label="Weekly digest" />
                     </div>
                 )
+            ) : loadFailed ? (
+                <div className="space-y-3">
+                    <SettingsInlineError>Couldn&apos;t load your email preferences.</SettingsInlineError>
+                    <Button variant="outline" size="sm" onClick={retryLoad} data-testid="email-preferences-retry">
+                        Try again
+                    </Button>
+                </div>
             ) : (
                 <WaitState
                     label="Loading email preferences"

@@ -357,7 +357,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-01 | Open /settings on the Résumé tab with header and subcopy | signed-in | /settings | signed-in | no | uncovered | — |
 | J-SETTINGS-02 | See exactly the Résumé, Preferences and Account tabs | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-002: Settings tabs are visible) |
 | J-SETTINGS-03 | Switch to Preferences and see the privacy and agent cards | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-004: Preferences tab shows job search section) |
-| J-SETTINGS-04 | Switch to Account and see sign-in details | signed-in | /settings | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-005: Account tab shows sign-in section) |
+| J-SETTINGS-04 | Switch to Account and see the "Sign-in details" card (never a "Sign in" heading for a signed-in user) (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
 | J-SETTINGS-05 | Deep-link reload on /settings?tab=account keeps the tab | signed-in | /settings?tab=account | signed-in | no | uncovered | — |
 | J-SETTINGS-06 | Fall back to Résumé for an unknown or retired tab | signed-in | /settings?tab=api-key | signed-in | no | uncovered | — |
 | J-SETTINGS-07 | Leave /settings on Back after tab switches (replace, not push) | signed-in | /settings | signed-in | no | uncovered | — |
@@ -381,6 +381,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SETTINGS-25 | @writes Delete the account permanently | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-SETTINGS-26 | Render /settings at mobile width with tabs and 44px buttons | signed-in | /settings (375x667) | signed-in | no | uncovered | — (legacy: settings.spec.ts › TC-SETTINGS-012: Page responsive on mobile) |
 | J-SETTINGS-27 | Redirect signed-in /account to the Account tab | signed-in | /account | signed-in | no | uncovered | — |
+| J-SETTINGS-28 | Account tab lists the companies you follow A to Z, each linking to its company page; Unfollow removes one and says so (dev-server only: signed-in mock, actions answered in the browser) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-29 | Account tab says "You don't follow any companies yet." when you follow none (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-30 | A failed email-preferences read ends in "Couldn't load your email preferences." with Try again (never an endless loading row), and Try again reads it again (dev-server only: signed-in mock) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
 
 ## TRACKER
 
@@ -615,6 +618,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-36 | The page column starts on the header logo's left edge (one page container, no centred column) at 1440 and 390 | anon | /about, /privacy, /terms, /contact | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-37 | Every visible h1 is on the page-title step (28px) at 1440 and 390 | anon | onboarding-completed flag + /, /about, /privacy, /yours, /login | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
+| J-NAV-39 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 
 ## PRICING
 
