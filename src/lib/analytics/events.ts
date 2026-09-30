@@ -220,15 +220,21 @@ export interface EventPayloads {
    *  soon" — the denominator for `upgrade_clicked` is only the former. */
   pricing_viewed: { signed_in: boolean; founding_available: boolean };
   /** A priced call to action on /pricing was clicked. `plan` names the
-   *  column: `pro_founding` is the founding-seat button (the visitor is
-   *  leaving for Stripe), `data_api` is the Data API "tell us your use
-   *  case" link. No amounts — the price is a page constant, not a payload. */
-  upgrade_clicked: { plan: UpgradePlan; signed_in: boolean };
+   *  column: `pro_founding` is the founding-seat button, `data_api` is the
+   *  Data API "tell us your use case" link. `mode` says what the founding
+   *  button did: `checkout` (leaving for Stripe) or `reserve` (the
+   *  email-only reservation shown while the Stripe link is unset). No
+   *  amounts — the price is a page constant, not a payload. */
+  upgrade_clicked: { plan: UpgradePlan; signed_in: boolean; mode?: "checkout" | "reserve" };
   /** The visitor came back from Stripe with `checkout=success` and a
    *  well-formed session id (`paidCheckoutSessionId`, lib/billing). The id
    *  is Stripe's, not PII, and is what joins this event to the Stripe
    *  dashboard row. Fired once per session id per browser session. */
   founding_member_paid: { checkout_session_id: string; signed_in: boolean };
+  /** The reservation form on /pricing (shown while the Stripe link is
+   *  unset) saved an address. No email in the payload; the row is in
+   *  Firestore `founding_waitlist` and counted on /admin. */
+  founding_seat_reserved: { signed_in: boolean };
 
   /** The packs home's Today header settled: what it showed. Once per load. */
   home_viewed: {

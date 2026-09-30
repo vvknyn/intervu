@@ -231,6 +231,11 @@ export const METRICS: readonly MetricSpec[] = [
         { collection: "connect_waitlist" },
         "created_at",
     ),
+    timedCount(
+        { id: "founding_waitlist", label: "Founding-seat reservations", group: "Waitlist", note: "One row per address (the email IS the document id), taken on /pricing while the Stripe link is unset. Order is by created_at, which is kept on resubmission. Signed-in reservers also carry a uid." },
+        { collection: "founding_waitlist" },
+        "created_at",
+    ),
 
     // --- Search -----------------------------------------------------------
     // The demand signal. Anonymous by construction: `searchId` is random per
