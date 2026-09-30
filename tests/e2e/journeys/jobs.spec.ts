@@ -2,13 +2,14 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/51, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -547,6 +548,53 @@ test("when every search fails, the packs home settles on saying so: Today shows 
   await expect(chips.locator('[data-testid^="hub-pack-count-"]')).toHaveCount(0, { timeout: 30_000 });
   await expect(chips).not.toContainText("…");
   await expect(page.getByTestId("hub-pack-card-all")).toHaveAttribute("aria-label", "All your matches");
+});
+
+/**
+ * A pack's own search (it carries the pack's country) answers with what the server sends during a
+ * search outage: no rows, `unavailable`, and the place reported as unmatched, because the place
+ * check fails too. In the browser only; the action still runs, its answer is replaced. Returns a
+ * switch that lets the real answers through again.
+ */
+const answerPackSearchAsOutage = async (page: Page, country: string) => {
+  let failing = true;
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!failing || req.method() !== "POST" || !req.headers()["next-action"] || !(req.postData() ?? "").includes('"location_country"')) {
+      return route.fallback();
+    }
+    const res = await route.fetch();
+    // Row 0 is the action envelope (build id, "$@1"); row 1 carries the return value.
+    const envelope = (await res.text()).split("\n")[0];
+    const outage = { hits: [], total: 0, backend: "meilisearch", configured: true, unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE, searchId: "journey-outage", unmatchedPlaceMentions: [country] };
+    return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(outage)}\n` });
+  });
+  return () => {
+    failing = false;
+  };
+};
+
+test("a pack whose search is down shows the error with Retry, never 'No roles in <country>' or another list's roles", { tag: ["@J-JOBS-52"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  const recover = await answerPackSearchAsOutage(page, "Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+
+  // One automatic retry (2-4 s) runs first, then the failure shows. The outage answer names
+  // Canada as unmatched; the pack used to say "No roles in Canada yet." instead of the error.
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("for-you-no-roles-there")).toHaveCount(0);
+  await expect(rows).toHaveCount(0);
+
+  // Search is back: Retry lists the pack's own roles.
+  recover();
+  await page.getByTestId("for-you-load-failed-retry").click();
+  await expect(failed).toHaveCount(0, { timeout: 30_000 });
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 });
 
 /** Real reduplicated place names: the only strings the repeated-token check must not flag. */
