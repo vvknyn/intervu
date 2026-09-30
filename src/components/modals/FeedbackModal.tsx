@@ -8,7 +8,6 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -24,12 +23,13 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle, WarningCircle } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 
+/** Controlled: the opener owns `open`, so a menu can close itself before the dialog shows. */
 interface FeedbackModalProps {
-    children: React.ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
 }
 
-export function FeedbackModal({ children }: FeedbackModalProps) {
-    const [open, setOpen] = useState(false);
+export function FeedbackModal({ open, onOpenChange }: FeedbackModalProps) {
     const [type, setType] = useState<"bug" | "feedback" | "other">("feedback");
     const [message, setMessage] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -55,7 +55,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                 setMessage("");
                 // Close after delay
                 setTimeout(() => {
-                    setOpen(false);
+                    onOpenChange(false);
                     setStatus("idle");
                 }, 2000);
             } else {
@@ -70,7 +70,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
     };
 
     const handleOpenChange = (newOpen: boolean) => {
-        setOpen(newOpen);
+        onOpenChange(newOpen);
         if (!newOpen) {
             // Reset state after closing animation
             setTimeout(() => {
@@ -83,7 +83,6 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                     <DialogTitle>Send Feedback</DialogTitle>
@@ -146,7 +145,7 @@ export function FeedbackModal({ children }: FeedbackModalProps) {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setOpen(false)}
+                                onClick={() => onOpenChange(false)}
                                 disabled={isSubmitting}
                             >
                                 Cancel
