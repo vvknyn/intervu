@@ -204,6 +204,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-DETAIL-31 | Job page's posting-check rows and "Keywords from the posting" show without a tap at 1440; on a phone they fold behind "Show details", which opens them and turns into "Hide details" | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-32 | Job page's actions fit the screen: one "Upload résumé to customize." button on its own row (in the rail card at 1440, in the page on a phone), the phone's sticky bar holds only Apply and Save with nothing past its edge, no sideways scroll | anon | JOB_PATH from a live "product manager" search | signed-out | no | covered | detail.spec.ts |
 | J-DETAIL-33 | Board role view shows one Upload/Customize button; on a phone the sheet's sticky bar holds only Apply and Save and fits the screen | anon | /jobs?posted=any&job=<id from a live "product manager" search> | signed-out | no | covered | detail.spec.ts |
+| J-DETAIL-37 | Job page "More like this" keeps the job's own country when its location is not a plain "City, Country": a customer service job at "CA, Oakville 1, Office" whose country field says the US lists similar roles in Canada, none tagged US, under "More like this" (not the company fallback) | anon | JOB_PATH from a live "customer service" search, its related-roles request carrying that place | signed-out | no | covered | detail.spec.ts |
 
 ## APPLY
 

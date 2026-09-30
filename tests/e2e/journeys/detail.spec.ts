@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
-/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33, J-JOBS-11/53). Read-only. */
+/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37, J-JOBS-11/53). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
 /** The one "Customize résumé" (with a résumé) or "Upload résumé to customize." (without) button. */
@@ -138,6 +138,57 @@ test("a related row on the job page opens that job's own page, and Back returns"
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(title, { timeout: 20_000 });
   await page.goBack();
   await expect(page).toHaveURL((url) => url.pathname === from, { timeout: 10_000 });
+});
+
+/** The `{ jobs, basis }` a server action's flight response carries. */
+function relatedFromFlight(text: string): { jobs: Array<{ location_country?: string | string[] | null }>; basis: string } {
+  for (const line of text.split("\n")) {
+    const json = line.replace(/^[0-9a-f]+:/, "");
+    if (!json.startsWith("{")) continue;
+    try {
+      const value = JSON.parse(json);
+      if (Array.isArray(value?.jobs)) return value;
+    } catch {
+      // not this line
+    }
+  }
+  throw new Error(`no related list in the action response: ${text.slice(0, 200)}`);
+}
+
+test("More like this keeps a job's own country when its location is not a plain \"City, Country\"", { tag: ["@J-DETAIL-37"] }, async ({ page }) => {
+  // A customer service job at "CA, Oakville 1, Office" listed only US roles:
+  // its country field read the CA as California (2026-09-30). Live listings
+  // with one exact location come and go, so a live job's request for its
+  // related roles goes out carrying that job's place instead.
+  const isRelatedRequest = (body: string | null) => {
+    try {
+      const [seed] = JSON.parse(body ?? "");
+      return typeof seed === "object" && seed !== null && "companyDomain" in seed && "country" in seed;
+    } catch {
+      return false;
+    }
+  };
+  let answered: (text: string) => void;
+  const answer = new Promise<string>((resolve) => (answered = resolve));
+  await page.route("**/*", async (route) => {
+    const request = route.request();
+    if (request.method() !== "POST" || !request.headers()["next-action"] || !isRelatedRequest(request.postData())) return route.fallback();
+    const [seed] = JSON.parse(request.postData()!);
+    const response = await route.fetch({
+      postData: JSON.stringify([{ ...seed, title: "Customer Service Representative", location: "CA, Oakville 1, Office", state: null, country: "US" }]),
+    });
+    answered(await response.text());
+    await route.fulfill({ response });
+  });
+  const [path] = await liveJobPaths(page, "customer service", 1);
+  await page.goto(path!);
+  const related = relatedFromFlight(await answer);
+  // Similar roles in Canada, not the company fallback an empty US search fell to.
+  expect(related.basis).toBe("title");
+  expect(related.jobs.length).toBeGreaterThan(0);
+  const us = related.jobs.filter((job) => [job.location_country ?? []].flat().some((c) => /^(us|usa|united states)$/i.test(c.trim())));
+  expect(us).toEqual([]);
+  await expect(page.getByTestId("job-detail-related").getByRole("heading")).toHaveText("More like this", { timeout: 20_000 });
 });
 
 test("the pane's company links say where they go, never a bare company name", { tag: ["@J-DETAIL-30"] }, async ({ page }) => {
