@@ -13,6 +13,7 @@ import {
 } from "@/lib/local-ai/extract-in-browser";
 import { parseResumeLocally, type ParseResumeLocallyOptions } from "@/lib/local-ai/parse-resume";
 import type { ResumeData } from "@/types/resume";
+import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 
 /** Shown when extraction or structure checks refuse the Parsed on-device review. */
 export const PROFILE_REVIEW_UNREADABLE_ERROR =
@@ -138,7 +139,10 @@ export async function parseResumeFileForReview(
         return parseExtractedTextForReview(text, options);
     }
 
-    if (extension !== "pdf" && extension !== "docx" && extension !== "doc") {
+    if (extension === "doc") {
+        return { ok: false, error: LEGACY_DOC_MESSAGE };
+    }
+    if (extension !== "pdf" && extension !== "docx") {
         return {
             ok: false,
             error: "Unsupported file type. Please use .txt, .md, .pdf, or .docx.",

@@ -23,6 +23,12 @@ export type SupportedResumeFileExtension = (typeof SUPPORTED_RESUME_FILE_EXTENSI
 export const EMPTY_EXTRACTABLE_TEXT_MESSAGE =
     "No text could be extracted from this file. It may be image-based or scanned. Please re-upload a text PDF (or .docx/.txt) or paste your resume text instead.";
 
+/** Word 97-2003 `.doc` is a binary format the in-browser reader (mammoth,
+ *  .docx only) can't open; it used to be accepted and then fail with
+ *  "Failed to extract text from DOCX". Say what to do instead. */
+export const LEGACY_DOC_MESSAGE =
+    "Older Word files (.doc) can't be read here. Open it in Word or Google Docs, save it as .docx or PDF, and upload that.";
+
 /** Pure: filename -> its recognized extension, or null when unsupported. */
 export function resumeFileExtension(filename: string): SupportedResumeFileExtension | null {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -37,6 +43,7 @@ export function resumeFileExtension(filename: string): SupportedResumeFileExtens
 export async function extractResumeFileText(file: File): Promise<string> {
   const ext = resumeFileExtension(file.name);
   if (!ext) throw new Error("Unsupported file type. Please use .txt, .md, .pdf, or .docx.");
+  if (ext === "doc") throw new Error(LEGACY_DOC_MESSAGE);
   if (ext === "txt" || ext === "md") {
     const text = (await file.text()).trim();
     if (!text) throw new Error(EMPTY_EXTRACTABLE_TEXT_MESSAGE);
