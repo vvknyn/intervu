@@ -5,6 +5,9 @@
  * ordered the way the deck and the ranked Search list order them. Prints the top rows and how
  * many of the top 10 and 20 are the résumé's own role.
  *
+ * Also prints what the rows carry beyond the title (tags, skills, years) and, for the deck's top 10,
+ * whether the full posting has a real requirements section: the inputs whole-posting matching needs.
+ *
  * Read-only. Needs MEILISEARCH_HOST and MEILISEARCH_SEARCH_KEY (read from .env.local when unset).
  * Written for the 2026-09-30 report "I don't even see a single TAM role in my list"; runs
  * unchanged on an older checkout (no own-role tier there), so a before/after is two runs:
@@ -72,9 +75,30 @@ for (const name of names) {
         search: searchOrder(jobs, scores),
     };
     const countries = candidateCountries(signals);
+    const has = (pick: (job: Job) => unknown) =>
+        jobs.filter((job) => {
+            const v = pick(job);
+            return Array.isArray(v) ? v.length > 0 : v != null;
+        }).length;
     console.log(`\n=== ${name} · ${resume.profile.profession} · ${resume.profile.location}`);
     console.log(`q: ${q}`);
     console.log(`filters: ${JSON.stringify(params.facets)} · posted ${params.postedBucket ?? "-"} · ${result.total} total${result.unavailable ? " · UNAVAILABLE" : ""}`);
+    // What a list row carries beyond its title, for matching on the whole posting (read off the list payload).
+    console.log(
+        `fields on the ${jobs.length} rows: tags ${has((j) => j.tags)} · must_have_skills ${has((j) => j.must_have_skills)} · ` +
+            `tech_stack ${has((j) => j.tech_stack)} · min_years_experience ${has((j) => j.min_years_experience)}`,
+    );
+    // The full posting behind the deck's top 10 (one id lookup each): is there a real requirements section?
+    const full = (
+        await Promise.all(lists.deck.slice(0, 10).map((job) => searchJobs({ id: job.id, limit: 1, offset: 0, hideGhosts: false })))
+    ).flatMap((r) => r.hits as Job[]);
+    console.log(
+        `top-10 postings: skills section found ${full.filter((j) => j.skills_section_found === true).length}/${full.length} · ` +
+            `description chars median ${[...full.map((j) => (j.description ?? "").length)].sort((a, b) => a - b)[Math.floor(full.length / 2)] ?? 0}`,
+    );
+    for (const job of full.slice(0, 3)) {
+        console.log(`   ${(job.title ?? "").slice(0, 50)} · must ${JSON.stringify((job.must_have_skills ?? []).slice(0, 8))} · preferred ${JSON.stringify((job.preferred_skills ?? []).slice(0, 5))} · stack ${JSON.stringify((job.tech_stack ?? []).slice(0, 6))} · min yrs ${job.min_years_experience ?? "-"}`);
+    }
     for (const [list, ordered] of Object.entries(lists)) {
         const own = (n: number) => ordered.slice(0, n).filter((job) => golden.own.test(job.title ?? "")).length;
         const bands = (n: number) =>
