@@ -7,9 +7,12 @@
  * Its text items carry their position, so this rejoins a printed line with
  * the next when the next one's first word wouldn't have fit, meaning the
  * printer wrapped it. A line that ends short of the right edge ends its
- * paragraph or bullet. Pure, so it runs in the browser (résumé bytes never
- * leave the device) and in unit tests.
+ * paragraph or bullet, and a heading never joins the line above it. Pure,
+ * so it runs in the browser (résumé bytes never leave the device) and in
+ * unit tests.
  */
+
+import { isResumeBoundaryLine } from "@/lib/resume/structure-resume-text";
 
 /** The fields of a pdf.js `TextItem` this reads. */
 export interface PdfTextItem {
@@ -102,6 +105,7 @@ function charWidth(line: PrintedLine): number {
 /** Whether `next` continues `prev`'s paragraph because the printer ran out of width. */
 function wrapsOnto(prev: PrintedLine, next: PrintedLine, rightEdge: number): boolean {
     if (prev.tabular || next.tabular || next.startsWithBullet) return false;
+    if (isResumeBoundaryLine(prev.text) || isResumeBoundaryLine(next.text)) return false;
     if (Math.abs(prev.size - next.size) > 0.3) return false;
     const gap = prev.y - next.y;
     if (gap <= 0 || gap > 1.8 * Math.max(prev.size, next.size)) return false;
@@ -116,15 +120,27 @@ function wrapsOnto(prev: PrintedLine, next: PrintedLine, rightEdge: number): boo
     return true;
 }
 
-/** One page's text items to text: a line per paragraph, bullet or heading. */
+/**
+ * One page's text items to text: a line per paragraph, bullet or heading.
+ *
+ * The right edge is the widest line, which proves nothing on its own: on a
+ * page of short lines the widest one is "full" by definition. So a page
+ * joins lines only once it shows a real wrap: a full line that ends on a
+ * comma or a word broken by a hyphen, or is followed by one that carries on
+ * mid-sentence (starts lowercase). Otherwise it keeps one line per printed
+ * line, as before.
+ */
 export function pdfPageText(items: PdfTextItem[]): string {
     const lines = printedLines(items);
     if (lines.length === 0) return "";
     const rightEdge = Math.max(...lines.map((l) => l.right));
+    const wraps = lines.map((line, i) => i > 0 && wrapsOnto(lines[i - 1], line, rightEdge));
+    const provesWrap = (i: number) => /^\p{Ll}/u.test(lines[i].text) || /(,|\p{L}-)$/u.test(lines[i - 1].text);
+    if (!wraps.some((wrap, i) => wrap && provesWrap(i))) return lines.map((l) => l.text).join("\n");
     const out: string[] = [];
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (i > 0 && wrapsOnto(lines[i - 1], line, rightEdge)) {
+        if (wraps[i]) {
             const last = out.length - 1;
             out[last] = HYPHEN_WRAP_RE.test(out[last]) && /^\p{L}/u.test(line.text) ? `${out[last]}${line.text}` : `${out[last]} ${line.text}`;
         } else {

@@ -190,6 +190,19 @@ function isSectionHeader(line: string): string | null {
     return null;
 }
 
+/**
+ * A line that starts a block of its own and never continues the line above:
+ * a section heading (a known one, or a short all-caps line such as
+ * "CORE COMPETENCIES") or a dated role line. Rejoining wrapped lines, at
+ * upload (`lib/local-ai/pdf-text-lines.ts`) and on stored text
+ * (unwrap-lines.ts), never joins across one.
+ */
+export function isResumeBoundaryLine(line: string): boolean {
+    const trimmed = line.trim();
+    if (isSectionHeader(trimmed) || DATE_RANGE_RE.test(trimmed)) return true;
+    return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && trimmed.split(/\s+/).length <= 4;
+}
+
 function assignRoleCompany(first: string, second: string): { role: string; company: string } {
     const a = first.trim();
     const b = second.trim();
@@ -685,7 +698,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     // A PDF uploaded before extraction rejoined wrapped lines is stored one
     // printed line per line; rejoin them here so the summary and skills read
     // like the file (unwrap-lines.ts). Headings and dated role lines stay put.
-    const lines = unwrapHardWrappedLines(normalizeLines(text), (l) => !!isSectionHeader(l) || DATE_RANGE_RE.test(l));
+    const lines = unwrapHardWrappedLines(normalizeLines(text), isResumeBoundaryLine);
     const contact = extractContact(lines);
     const location = sanitizeLocation(extractLocation(lines));
     const unconfirmedPlaces = location ? [] : barePlacesFromHeader(lines);
