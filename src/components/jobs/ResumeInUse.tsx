@@ -8,14 +8,15 @@ const LINK_CLASS = "text-foreground underline underline-offset-2 transition-opac
 /**
  * What to call the résumé a page ranks against. An uploaded file goes by its
  * name, so "Résumé_V4.pdf" tells the visitor exactly which one; anything else
- * (pasted text, an edit on the page, a résumé read back from the account)
- * gets a plain description rather than an internal label.
+ * (pasted text, an edit on the page, a résumé read back from the account, or
+ * a browser copy an account without one falls back to) gets a plain
+ * description rather than an internal label.
  */
-export function resumeInUseLabel(input: { sourceLabel: string | null; signedIn: boolean }): string {
-    const label = input.sourceLabel?.trim() ?? "";
+export function resumeInUseLabel(sourceLabel: string | null): string {
+    const label = sourceLabel?.trim() ?? "";
     if (/\.(pdf|docx?|txt|md|rtf|odt)$/i.test(label)) return label;
     if (label === "Pasted text") return "the résumé you pasted";
-    return input.signedIn ? "your saved résumé" : "your résumé";
+    return "your résumé";
 }
 
 /**
@@ -58,19 +59,18 @@ export function ResumeRemove({
 }
 
 /**
- * Which résumé the matches and counts on this page come from, with Replace,
- * and Remove when it is a guest's copy in this browser. Without it a ranked
- * page reads like numbers made up from nothing.
+ * Which résumé the matches and counts on the packs home come from, with
+ * Replace. Without it a ranked page reads like numbers made up from nothing.
+ * The packs home needs an account, whose résumé is managed on /resume, so
+ * there is no Remove here (a guest's is on the Search toolbar).
  */
 export function ResumeInUse({
     label,
     onReplace,
-    onRemove,
     className,
 }: {
     label: string;
     onReplace: () => void;
-    onRemove?: () => void;
     className?: string;
 }) {
     return (
@@ -84,7 +84,6 @@ export function ResumeInUse({
             <button type="button" data-testid="today-replace-resume" onClick={onReplace} className={LINK_CLASS}>
                 Replace
             </button>
-            {onRemove ? <ResumeRemove onRemove={onRemove} testIdPrefix="today" /> : null}
         </p>
     );
 }

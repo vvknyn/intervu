@@ -6563,13 +6563,10 @@ export function JobsContent() {
                                         onApply={handleOpenPosting}
                                         onOpenPack={(id) => openHubPack(id, "today")}
                                         resumeLine={
-                                            signedIn || guestResumeInBrowser ? (
-                                                <ResumeInUse
-                                                    label={resumeInUseLabel({ sourceLabel: resumeSourceLabel, signedIn })}
-                                                    onReplace={() => handleUploadClick()}
-                                                    onRemove={signedIn ? undefined : removeGuestResume}
-                                                />
-                                            ) : null
+                                            <ResumeInUse
+                                                label={resumeInUseLabel(resumeSourceLabel)}
+                                                onReplace={() => handleUploadClick()}
+                                            />
                                         }
                                     />
                                 ) : null}
