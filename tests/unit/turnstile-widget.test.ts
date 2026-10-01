@@ -8,6 +8,10 @@ import {
     normalizeTurnstileErrorCode,
     reportTurnstileError,
 } from "../../src/components/ui/turnstile-widget";
+import { setPostHogClient } from "../../src/lib/analytics/posthog-client";
+
+// What PostHogProvider does right after init (posthog-client.ts).
+setPostHogClient(posthog);
 
 /**
  * Error path of the one Turnstile wrapper. Incident: Cloudflare error 110200

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import { scheduleAfterLoadOrIdle } from "@/lib/perf/schedule-after-load-or-idle";
+import { scheduleDeferredProviderMount } from "@/lib/perf/schedule-after-load-or-idle";
 
 const PostHogProvider = dynamic(
     () => import("@/components/providers/PostHogProvider").then((m) => m.PostHogProvider),
@@ -21,7 +21,9 @@ const PostHogProvider = dynamic(
 export function DeferredPostHogProvider({ children }: { children: React.ReactNode }) {
     const [ready, setReady] = useState(false);
 
-    useEffect(() => scheduleAfterLoadOrIdle(() => setReady(true), { timeout: 8000 }), []);
+    // /jobs holds this until its first list is on screen (see
+    // `holdDeferredLoadsUntilFirstList`); events wait in events.ts meanwhile.
+    useEffect(() => scheduleDeferredProviderMount(() => setReady(true), { timeout: 8000 }), []);
 
     return (
         <>

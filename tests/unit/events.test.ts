@@ -13,6 +13,11 @@ import {
 } from "../../src/lib/analytics/events";
 import { extractLedgerColumns } from "../../src/lib/telemetry/client";
 import { MAX_PROPS_LENGTH, processBatch } from "../../src/lib/telemetry/ingest";
+import { setPostHogClient } from "../../src/lib/analytics/posthog-client";
+
+// What PostHogProvider does right after init. Before it, `__loaded` below is
+// still false, so the "PostHog absent" tests hold either way.
+setPostHogClient(posthog);
 
 /**
  * The Node test env has no `window` and posthog.__loaded starts false (no

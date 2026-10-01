@@ -51,7 +51,7 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
-import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
@@ -1547,14 +1547,15 @@ export function JobsContent() {
     // "settled" means that FIRST attempt completed (success or failure),
     // not that every later search has to be waited on too.
     const [firstSearchSettled, setFirstSearchSettled] = useState(false);
-    // JobsRouteGate holds AuthKit until the first list is on screen (its
-    // session check is a server action and would queue ahead of the search);
+    // JobsRouteGate holds AuthKit and PostHog until the first list is on
+    // screen (AuthKit's session check is a server action and would queue
+    // ahead of the search; PostHog's download and parse competed with it);
     // lift the hold then, or when leaving the page.
     useEffect(() => {
         if (!firstSearchSettled) return;
-        requireAuthKitSoon();
+        releaseFirstListHold();
     }, [firstSearchSettled]);
-    useEffect(() => requireAuthKitSoon, []);
+    useEffect(() => releaseFirstListHold, []);
 
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
