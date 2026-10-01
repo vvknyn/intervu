@@ -694,22 +694,28 @@ test("on a small phone an opened pack fits its card, actions and Next between th
     return box ? box.y + box.height : Infinity;
   };
   // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
-  // Again after going back to the packs and opening another one (its roles arrive in two batches).
-  for (const round of ["first open", "second open"]) {
-    if (round === "second open") {
+  // Again after going back to the packs and opening another one (its roles arrive in two batches), and again
+  // on reopening that pack: its roles are on screen at once, and the page kept the hub's scroll down at its
+  // chips, clamped past the stack, until the fit learned to scroll back up.
+  let other = "";
+  for (const round of ["first open", "second open", "same pack again"]) {
+    if (round !== "first open") {
       await page.getByTestId("for-you-next").click();
       await page.getByTestId("jobs-back-to-packs").click();
-      // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
-      const shown = await settledHubTiles(page);
-      const other = shown.find((id) => id !== "all");
-      expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
-      await openHubTile(page, other!);
+      if (round === "second open") {
+        // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
+        const shown = await settledHubTiles(page);
+        other = shown.find((id) => id !== "all") ?? "";
+        expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
+      }
+      await openHubTile(page, other);
       await expect(front).toHaveCount(1, { timeout: 60_000 });
     }
-    await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000, message: round }).toBe(true);
+    const nextTop = async () => (await page.getByTestId("for-you-next").boundingBox())?.y ?? -1;
+    await expect
+      .poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()) && (await nextTop()) >= 48, { timeout: 10_000, message: round })
+      .toBe(true);
     expect(await bottom("for-you-download-apply"), round).toBeLessThanOrEqual(await tabbarTop());
-    const next = (await page.getByTestId("for-you-next").boundingBox())!;
-    expect(next.y, round).toBeGreaterThanOrEqual(48);
   }
   expect(diagnostics.serverErrors).toEqual([]);
 });
