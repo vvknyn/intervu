@@ -251,7 +251,7 @@ describe("getCompanyExhaust — section isolation", () => {
         let rows: unknown[] = [];
         if (text.includes("MIN(day)")) rows = [{ first_day: "2026-08-05" }];
         else if (text.includes("company_posting_daily")) rows = [{ week_start: "2026-08-03", total: 40 }];
-        else if (text.includes("MIN(first_seen_at)")) rows = [{ n: 2, tracked_since: "2026-08-05" }];
+        else if (text.includes("MIN(first_seen_at)")) rows = [{ n: 2, tracked_since: "2026-08-05", tracked: true }];
         return { rows: rows as R[] };
       },
     };
@@ -261,6 +261,37 @@ describe("getCompanyExhaust — section isolation", () => {
     assert.equal(result?.cadence?.data.weeks[0].firstTracked, true);
     assert.equal(result?.integrity?.data.openedCount, 2);
     assert.equal(result?.integrity?.data.trackedSinceIso, "2026-08-05");
+  });
+
+  it("keeps a zero record for an employer tracked since before the window", async () => {
+    const pg: Queryable = {
+      query: async <R,>(text: string) => {
+        const rows = text.includes("MIN(first_seen_at)") ? [{ n: 0, tracked_since: null, tracked: true }] : [];
+        return { rows: rows as R[] };
+      },
+    };
+    const result = await getCompanyExhaust("example.com", () => pg, NOW);
+    assert.equal(result?.integrity?.data.openedCount, 0);
+    assert.equal(result?.integrity?.data.trackedSinceIso, null);
+  });
+
+  it("reads job_listings only inside a bounded window, never every row the employer ever had", async () => {
+    const reads: string[] = [];
+    const pg: Queryable = {
+      query: async <R,>(text: string) => {
+        if (text.includes("job_listings")) reads.push(text);
+        return { rows: [] as R[] };
+      },
+    };
+    await getCompanyExhaust("example.com", () => pg, NOW);
+    assert.ok(reads.length > 0);
+    for (const sql of reads) {
+      // A whole-row reference (`j.*`) detoasts every row's description.
+      assert.doesNotMatch(sql, /\b\w+\.\*/);
+      // Every scan of the table is bounded by a date on the indexed domain.
+      const scans = sql.split(/FROM job_listings/).slice(1);
+      for (const scan of scans) assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) [<>]=? now\(\)/);
+    }
   });
 
   it("returns null outright when the pg seam itself is unavailable", async () => {

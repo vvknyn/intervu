@@ -30,6 +30,8 @@ type Status = "idle" | "submitting" | "sent" | "error";
 export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }: FollowEmailStepProps) {
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Bumped after a refused submit: the token it sent is spent (single-use).
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [status, setStatus] = useState<Status>("idle");
   const [rejectMessage, setRejectMessage] = useState<string | null>(null);
 
@@ -66,8 +68,10 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
       const body = (await res.json().catch(() => null)) as { message?: string } | null;
       setRejectMessage(body?.message ?? null);
       setStatus(res.ok ? "sent" : "error");
+      if (!res.ok) setTurnstileResetKey((key) => key + 1);
     } catch {
       setStatus("error");
+      setTurnstileResetKey((key) => key + 1);
     }
   };
 
@@ -93,7 +97,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
           data-testid="follow-email-input"
           className="ctl-md text-xs"
         />
-        <TurnstileWidget surface="follow_email" onVerify={setTurnstileToken} />
+        <TurnstileWidget surface="follow_email" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
         {status === "error" && (
           <p className="text-xs text-destructive">{rejectMessage ?? "Couldn't send that — try again."}</p>
         )}

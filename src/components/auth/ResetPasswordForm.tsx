@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { PageTitle } from "@/components/ui/heading";
+import { MIN_PASSWORD_LENGTH, NEW_PASSWORD_HINT, newPasswordProblem } from "@/lib/auth/password-rules";
 
 export function ResetPasswordForm() {
     const router = useRouter();
@@ -48,8 +49,9 @@ export function ResetPasswordForm() {
             setError("Passwords do not match");
             return;
         }
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
+        const passwordProblem = newPasswordProblem(password);
+        if (passwordProblem) {
+            setError(passwordProblem);
             return;
         }
         if (!token) {
@@ -114,7 +116,7 @@ export function ResetPasswordForm() {
                                 type={showPassword ? "text" : "password"}
                                 autoComplete="new-password"
                                 required
-                                minLength={6}
+                                minLength={MIN_PASSWORD_LENGTH}
                                 className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
                             />
                             <button
@@ -127,6 +129,7 @@ export function ResetPasswordForm() {
                                 {showPassword ? "Hide" : "Show"}
                             </button>
                         </div>
+                        <p className="text-xs text-muted-foreground">{NEW_PASSWORD_HINT}</p>
                     </Field>
 
                     <Field label="Confirm password" htmlFor="reset-password-confirm">
@@ -137,7 +140,7 @@ export function ResetPasswordForm() {
                                 type={showConfirmPassword ? "text" : "password"}
                                 autoComplete="new-password"
                                 required
-                                minLength={6}
+                                minLength={MIN_PASSWORD_LENGTH}
                                 className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
                             />
                             <button

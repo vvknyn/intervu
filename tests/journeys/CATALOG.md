@@ -395,10 +395,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-44 | Turnstile api.js blocked or offline on signup shows the same message and focus move (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
 | J-AUTH-45 | A signed-in account with no résumé lands on the /jobs board with the résumé band (no sign-in line), not a full-page onboarding card | signed-in | /jobs (dev-only fake sign-in, no résumé) | signed-in | no | covered | auth-no-resume.spec.ts |
 | J-AUTH-46 | Signing up from the Apply gate (its default Create account tab) keeps the results page as `next` (the gate queues the Apply, so the résumé upload step is skipped): the visitor comes back to their search and the Apply replays | signing-up | /jobs?q=engineer (click Apply, Create account tab) | signed-out | no | uncovered | — |
-| J-AUTH-47 | Signup with an undeliverable or disposable email domain shows the email-quality message | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
+| J-AUTH-47 | Signup with a disposable email domain shows the email-quality message (an undeliverable domain needs a live DNS lookup and stays unit-tested) | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
 | J-AUTH-48 | Signup with a taken username shows "Username is already taken" | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
 | J-AUTH-49 | Sign in with an email address in the "Email or username" field | anon | /login | signed-out | no | uncovered | — |
 | J-AUTH-50 | @writes Set a new password from a valid reset link, see "Password updated", and land on /jobs after 2 s | anon | /reset-password?token=<real token from the reset email> | signed-out | yes | uncovered | — |
+| J-AUTH-51 | A refused signup asks Turnstile for a fresh token, so pressing Create account again sends a new one, never the spent one, and no "Too many" refusal appears (2026-10-01 replay: six retries on one token, then the rate limit) (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
+| J-AUTH-52 | The signup password hint states the real rule (10+ characters, not "6+"), and a shorter password is stopped on the form with that rule, sending nothing | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
+| J-AUTH-53 | A refused password signup shows its message at the top of the auth card, above the form, scrolled into view on every press, including a repeat press that gets the same answer; never under the button out of sight (2026-10-01 replay: the message sat below the fold of the phone dialog and the visitor kept pressing) | signing-up | /jobs?q=Remote+Frontend+Developer (header Create account dialog) | signed-out | no | covered | signup-refusals.spec.ts |
 
 ## RESUME
 

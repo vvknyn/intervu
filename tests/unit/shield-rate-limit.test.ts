@@ -3,18 +3,23 @@ import assert from "node:assert/strict";
 import {
   allowAuthResetRequest,
   allowAuthSignInRequest,
-  allowAuthSignupRequest,
+  allowAuthAccountCreate,
+  allowAuthSignupSubmit,
   allowConnectWaitlistRequest,
   allowJobsSuggestRequest,
   allowSearchRequest,
   AUTH_RESET_REQUEST_MAX_REQUESTS,
   AUTH_SIGNIN_MAX_REQUESTS,
   AUTH_SIGNIN_WINDOW_MS,
-  AUTH_SIGNUP_MAX_REQUESTS,
+  AUTH_SIGNUP_CREATE_MAX_REQUESTS,
+  AUTH_SIGNUP_CREATE_WINDOW_MS,
+  AUTH_SIGNUP_SUBMIT_MAX_REQUESTS,
   checkRateLimitWindow,
   clearRateLimitStateForTests,
   CONNECT_WAITLIST_MAX_REQUESTS,
   JOBS_SUGGEST_MAX_REQUESTS,
+  minutesLabel,
+  msUntilSlotFrees,
   RATE_LIMIT_MAX_REQUESTS,
   RATE_LIMIT_WINDOW_MS,
 } from "../../src/lib/shield/rate-limit";
@@ -179,14 +184,63 @@ test("allowAuthResetRequest: its own store, separate from sign-in's even for the
   clearRateLimitStateForTests();
 });
 
-test("allowAuthSignupRequest: its own store, separate from sign-in's even for the same IP", () => {
+test("allowAuthAccountCreate: its own store, separate from sign-in's even for the same IP", () => {
   clearRateLimitStateForTests();
   const now = 0;
-  for (let i = 0; i < AUTH_SIGNUP_MAX_REQUESTS; i++) {
-    assert.equal(allowAuthSignupRequest("1.2.3.4", now), true);
+  for (let i = 0; i < AUTH_SIGNUP_CREATE_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthAccountCreate("1.2.3.4", now), true);
   }
-  assert.equal(allowAuthSignupRequest("1.2.3.4", now), false);
-  // Signup is exhausted, but the SAME ip's sign-in budget is untouched.
+  assert.equal(allowAuthAccountCreate("1.2.3.4", now), false);
+  // Account creation is exhausted, but the SAME ip's sign-in budget is untouched.
   assert.equal(allowAuthSignInRequest("1.2.3.4", now), true);
   clearRateLimitStateForTests();
+});
+
+test("signup submits and account creations are counted apart: a visitor fixing mistakes never spends the creation budget", () => {
+  clearRateLimitStateForTests();
+  const now = 0;
+  // The 2026-10-01 replay: seven presses inside two minutes. Under the old
+  // single 5-per-10-min budget the sixth was refused before anything ran.
+  for (let i = 0; i < 7; i++) assert.equal(allowAuthSignupSubmit("49.36.0.1", now + i * 10_000), true);
+  // None of those reached createUser, so the first real attempt still gets through.
+  assert.equal(allowAuthAccountCreate("49.36.0.1", now + 80_000), true);
+  clearRateLimitStateForTests();
+});
+
+test("allowAuthSignupSubmit: a flood guard well above anything a person does, still finite", () => {
+  clearRateLimitStateForTests();
+  assert.ok(AUTH_SIGNUP_SUBMIT_MAX_REQUESTS >= 20, "sized for typo fixes and carrier NAT, not for a person to meet");
+  for (let i = 0; i < AUTH_SIGNUP_SUBMIT_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthSignupSubmit("9.9.9.9", 0), true);
+  }
+  assert.equal(allowAuthSignupSubmit("9.9.9.9", 0), false);
+  clearRateLimitStateForTests();
+});
+
+test("retryAfterMs: 0 while a slot is free, then the time until the oldest counted hit ages out; reading it never counts", () => {
+  clearRateLimitStateForTests();
+  assert.equal(allowAuthAccountCreate.retryAfterMs("5.5.5.5", 0), 0);
+  for (let i = 0; i < AUTH_SIGNUP_CREATE_MAX_REQUESTS; i++) {
+    assert.equal(allowAuthAccountCreate("5.5.5.5", i * 60_000), true);
+  }
+  const now = 5 * 60_000;
+  assert.equal(allowAuthAccountCreate.retryAfterMs("5.5.5.5", now), AUTH_SIGNUP_CREATE_WINDOW_MS - now);
+  // Reading did not use a slot: exactly at that moment one opens.
+  assert.equal(allowAuthAccountCreate("5.5.5.5", AUTH_SIGNUP_CREATE_WINDOW_MS), true);
+  clearRateLimitStateForTests();
+});
+
+test("msUntilSlotFrees: the hit that has to age out is the oldest one beyond the cap", () => {
+  assert.equal(msUntilSlotFrees([], 0, 60_000, 2), 0);
+  assert.equal(msUntilSlotFrees([10_000], 20_000, 60_000, 2), 0);
+  assert.equal(msUntilSlotFrees([30_000, 10_000], 40_000, 60_000, 2), 30_000);
+  // A hit already out of the window does not count.
+  assert.equal(msUntilSlotFrees([0, 50_000], 70_000, 60_000, 2), 0);
+});
+
+test("minutesLabel: whole minutes, rounded up, never zero", () => {
+  assert.equal(minutesLabel(0), "1 minute");
+  assert.equal(minutesLabel(59_000), "1 minute");
+  assert.equal(minutesLabel(60_001), "2 minutes");
+  assert.equal(minutesLabel(600_000), "10 minutes");
 });
