@@ -1318,17 +1318,18 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 
     if (shouldRunFitPhraseLane(searchParams)) {
       const fitPhrases = resolveFitPhrases(searchParams)!;
-      const { hits: laneHits, facetDistribution } = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
+      const { lanes, facetDistribution } = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
-      for (const hit of laneHits) {
+      for (const hit of lanes.flat()) {
         if (seen.has(hit.id)) continue;
         seen.add(hit.id);
         unique.push(hit);
       }
-      const rerankQ = fitPhrases[0] ?? p.q ?? "";
+      // Relevance: every phrase gets a share of each page (`interleaveFitPhraseLanes`),
+      // each lane ranked against its own phrase.
       const ranked = isRelevance
-        ? applyRelevanceQualityReranking(unique, rerankQ)
+        ? interleaveFitPhraseLanes(lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? p.q ?? "")))
         : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
@@ -1454,13 +1455,49 @@ function fitPhraseTitleScoped(phrase: string): boolean {
   return phrase.trim().split(/\s+/).length >= 2;
 }
 
+/**
+ * One ranked list from the fit-phrase lanes, phrase order = strength order: page
+ * slots go to the lanes in proportion to n, n-1, …, 1 (smooth weighted round
+ * robin), so with four phrases every 10 rows hold about 4, 3, 2 and 1 from
+ * each. A row two lanes found keeps its first slot; an empty lane gives its
+ * share to the rest.
+ *
+ * Before (2026-10-01), the union was ranked against the FIRST phrase's title
+ * alone, so a page held only that phrase's rows until they ran out: a résumé
+ * whose pack searched "Product Manager" first and "Customer Success Manager"
+ * second got 60 Product Manager rows and not one Customer Success role, and
+ * the device, which ranks only the rows it was sent, could not put them first.
+ */
+export function interleaveFitPhraseLanes(lanes: readonly (readonly PublicJob[])[]): PublicJob[] {
+  const weight = lanes.map((_, i) => lanes.length - i);
+  const credit = lanes.map(() => 0);
+  const next = lanes.map(() => 0);
+  const seen = new Set<string>();
+  const out: PublicJob[] = [];
+  const advance = (i: number) => {
+    while (next[i] < lanes[i].length && seen.has(lanes[i][next[i]].id)) next[i]++;
+    return next[i] < lanes[i].length;
+  };
+  for (;;) {
+    const live = lanes.map((_, i) => i).filter(advance);
+    if (live.length === 0) return out;
+    const total = live.reduce((sum, i) => sum + weight[i], 0);
+    for (const i of live) credit[i] += weight[i];
+    const pick = live.reduce((best, i) => (credit[i] > credit[best] ? i : best), live[0]);
+    credit[pick] -= total;
+    const hit = lanes[pick][next[pick]++];
+    seen.add(hit.id);
+    out.push(hit);
+  }
+}
+
 async function fetchFitPhraseLaneHits(
   h: string,
   p: JobSearchParams,
   companyScoped: boolean,
-): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
+): Promise<{ lanes: PublicJob[][]; facetDistribution?: FacetDistribution }> {
   const phrases = resolveFitPhrases(p);
-  if (!phrases || phrases.length === 0) return { hits: [] };
+  if (!phrases || phrases.length === 0) return { lanes: [] };
 
   const searchPhrase = async (
     phrase: string,
@@ -1509,7 +1546,7 @@ async function fetchFitPhraseLaneHits(
     phrases.map((phrase, i) => searchPhrase(phrase, i === 0 && !!p.withFacets, false)),
   );
   return {
-    hits: batches.flatMap((b) => b.hits),
+    lanes: batches.map((b) => b.hits),
     facetDistribution: batches[0]?.facetDistribution,
   };
 }

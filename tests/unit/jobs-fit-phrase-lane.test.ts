@@ -4,6 +4,7 @@ import { formatQuotedOrQuery } from "../../src/lib/jobs/fit-phrases";
 import {
     resetCompanyDomainFilterSupportForTests,
     resetCompanyIntentCacheForTests,
+    interleaveFitPhraseLanes,
     resolveCompanyIntent,
     searchMeili,
 } from "../../src/lib/jobs/meilisearch";
@@ -202,5 +203,57 @@ describe("searchMeili fit-phrase lane", () => {
 
         const result = await searchMeili({ q, sort: "relevance" });
         assert.ok(result.hits.some((h) => h.id === "pm-only"), "PM lane hit should surface in union");
+    });
+});
+
+describe("fit-phrase lanes share each page", () => {
+    const lane = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => job({ id: `${prefix}${i}`, title: prefix }));
+
+    it("gives four phrases about 4, 3, 2 and 1 of every 10 rows, strongest phrase first", () => {
+        const out = interleaveFitPhraseLanes([lane("a", 30), lane("b", 30), lane("c", 30), lane("d", 30)]);
+        const first10 = out.slice(0, 10).map((h) => h.title);
+        assert.equal(out[0].id, "a0");
+        assert.deepEqual(
+            ["a", "b", "c", "d"].map((p) => first10.filter((t) => t === p).length),
+            [4, 3, 2, 1],
+            first10.join(""),
+        );
+        assert.equal(out.length, 120);
+    });
+
+    it("keeps each lane's own order, lists a row two lanes found once, and gives an empty lane's share to the rest", () => {
+        const shared = job({ id: "shared", title: "a" });
+        const out = interleaveFitPhraseLanes([[shared, ...lane("a", 3)], [], [shared, ...lane("c", 3)]]);
+        assert.deepEqual(out.map((h) => h.id).filter((id) => id.startsWith("a")), ["a0", "a1", "a2"]);
+        assert.equal(out.filter((h) => h.id === "shared").length, 1);
+        assert.equal(out.length, 7);
+    });
+
+    it("a résumé pack searching Product Manager first still gets its Customer Success roles on the first page", async () => {
+        const phrases = ["Product Manager", "Customer Success Manager", "Technical Account Manager", "Technical Product Manager"];
+        const q = formatQuotedOrQuery(phrases);
+        await primeNonCompanyIntent(q);
+        const byPhrase: Record<string, PublicJob[]> = {
+            "product manager": lane("Product Manager ", 200).map((h, i) => ({ ...h, title: "Product Manager", id: `pm${i}` })),
+            "customer success manager": lane("csm", 50).map((h, i) => ({ ...h, title: "Customer Success Manager", id: `csm${i}` })),
+            "technical account manager": lane("tam", 20).map((h, i) => ({ ...h, title: "Technical Account Manager", id: `tam${i}` })),
+            "technical product manager": lane("tpm", 20).map((h, i) => ({ ...h, title: "Technical Product Manager", id: `tpm${i}` })),
+        };
+        mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+            if (String(input).includes("/indexes/jobs/search") && init?.method === "POST") {
+                const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+                const hits = byPhrase[String(body.q ?? "").toLowerCase()] ?? [];
+                return jsonResponse(200, { hits, totalHits: hits.length });
+            }
+            return jsonResponse(200, { hits: [], totalHits: 0 });
+        });
+        const result = await searchMeili({ q, sort: "relevance", limit: 60, offset: 0 });
+        mock.reset();
+        const count = (title: string) => result.hits.filter((h) => h.title === title).length;
+        assert.equal(result.hits.length, 60);
+        assert.ok(count("Customer Success Manager") >= 15, `CSM rows: ${count("Customer Success Manager")}`);
+        assert.ok(count("Technical Account Manager") >= 10, `TAM rows: ${count("Technical Account Manager")}`);
+        assert.ok(count("Product Manager") >= 20, `PM rows: ${count("Product Manager")}`);
+        assert.equal(result.total, 290);
     });
 });

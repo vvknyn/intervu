@@ -103,6 +103,8 @@ export interface MatchScore {
     role?: RoleAffinity;
     /** The candidate's own role as the résumé names it: the one the posting matched, else their main one. */
     yourRole?: string | null;
+    /** Which of the résumé's role families the title belongs to, strongest first (`familyRank`). */
+    familyRank?: number;
 }
 
 /**
@@ -342,6 +344,8 @@ interface ResumeTargets {
     searched: string[];
     own: string[];
     ownFamilies: RoleFamilyId[];
+    /** `ownFamilies` in the whole résumé's order of strength (`families`): which of its own roles leads. */
+    leading: RoleFamilyId[];
 }
 
 /** Per résumé object: the role families it targets, the titles its packs search for, and its own role. */
@@ -356,6 +360,10 @@ function resumeTargets(resume: ResumeData): ResumeTargets {
             searched: buildMatchQuery(resume).phrases.map((phrase) => phrase.toLowerCase()),
             own: roles.own,
             ownFamilies: roles.ownFamilies,
+            leading: [
+                ...roles.families.filter((family) => roles.ownFamilies.includes(family)),
+                ...roles.ownFamilies.filter((family) => !roles.families.includes(family)),
+            ],
         };
         TARGETS.set(resume, targets);
     }
@@ -420,17 +428,45 @@ function yourRoleFor(resume: ResumeData, job: PublicJob): string | null {
     return own.find((phrase) => jobTitleMatchesTarget(job.title ?? "", phrase)) ?? own[0] ?? null;
 }
 
+/**
+ * Which of the candidate's own kinds of role a posting belongs to, the one the
+ * whole résumé leads with first. The kinds are the families their own titles
+ * name (headline, current job, the title the summary opens with), ordered by
+ * the résumé as a whole (`targetRoles().families`: headline, summary, skill
+ * groups, then the current job). 0 is the leading kind; a title of none of
+ * them ranks after all of them, except the candidate's own title, which is
+ * theirs whatever family it names (or none). Skill groups alone never make a
+ * kind of role theirs, they only decide between the ones that are.
+ *
+ * A résumé whose current job is "Product Manager" but whose summary and skills
+ * lead with customer success is customer success first: its Customer Success
+ * and TAM postings come before its Product Manager ones, which still count as
+ * its own role. A résumé with one kind of role is unchanged.
+ */
+function familyRank(resume: ResumeData, job: PublicJob, role: RoleAffinity): number {
+    const { leading } = resumeTargets(resume);
+    const ranks = familiesNamedBy([job.title ?? ""])
+        .map((family) => leading.indexOf(family))
+        .filter((rank) => rank >= 0);
+    if (ranks.length > 0) return Math.min(...ranks);
+    return role === "own" ? 0 : leading.length;
+}
+
 const ROLE_TIERS: readonly RoleAffinity[] = ["own", "family", "adjacent", "unverified", "off-target"];
 
+/** After every scored posting, whatever its family rank. */
+const UNSCORED_TIER = 10_000;
+
 /**
- * Sort key for a ranked list, before the band and the score: the candidate's own
+ * Sort key for a ranked list, before the band and the score: the résumé's
+ * leading family first (`familyRank`), and inside a family the candidate's own
  * role, then the same kind of role, then neighbours, then the rest. A score
  * without a role (built before roles were scored) sits with the neighbours; no
  * score at all sorts last.
  */
 export function roleTier(score: MatchScore | null | undefined): number {
-    if (!score) return ROLE_TIERS.length;
-    return ROLE_TIERS.indexOf(score.role ?? "adjacent");
+    if (!score) return UNSCORED_TIER;
+    return (score.familyRank ?? 0) * ROLE_TIERS.length + ROLE_TIERS.indexOf(score.role ?? "adjacent");
 }
 
 /** Ranked-list order: role tier, then the higher total. Stable sorts keep the incoming order on a tie. */
@@ -485,8 +521,9 @@ export function scoreJobAgainstResume(
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
     const abroad = components.some((c) => c.reason === "abroad" || c.reason === "remote_abroad");
 
-    if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole };
+    const rank = familyRank(resume, job, role);
+    if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole, familyRank: rank };
     const capped =
         locationUnknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent";
-    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components, role, yourRole };
+    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components, role, yourRole, familyRank: rank };
 }
