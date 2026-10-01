@@ -14,8 +14,20 @@ import { captureEvent } from "@/lib/analytics/events";
  * the honest "opened the page → saw rows" number. Every later list, and a
  * first list reached by client-side navigation, is timed from its own
  * request start instead.
+ *
+ * A first list the server rendered (/jobs/first-rows) was on screen with the
+ * page's first paint, well before hydration runs this hook, so it reports
+ * the first contentful paint instead.
  */
 let firstLoadReported = false;
+
+function firstContentfulPaintMs(): number | null {
+    try {
+        return performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null;
+    } catch {
+        return null;
+    }
+}
 
 function openedAtJobs(): boolean {
     try {
@@ -35,9 +47,11 @@ export function useListRenderTiming(input: {
      *  written by the caller's search effect. */
     requestStartedAtRef: RefObject<number | null>;
     narrow: boolean;
+    /** The rows of the first list came in the page's HTML. */
+    renderedOnServer?: boolean;
 }): void {
     const reported = useRef<string | null>(null);
-    const { searchId, rows, loading, surface, requestStartedAtRef, narrow } = input;
+    const { searchId, rows, loading, surface, requestStartedAtRef, narrow, renderedOnServer = false } = input;
 
     useEffect(() => {
         if (!searchId || loading || rows === 0 || reported.current === searchId) return;
@@ -46,6 +60,18 @@ export function useListRenderTiming(input: {
         firstLoadReported = true;
         const startedAt = firstLoad ? 0 : requestStartedAtRef.current;
         if (startedAt === null) return;
+        const paintedAt = firstLoad && renderedOnServer ? firstContentfulPaintMs() : null;
+        if (paintedAt !== null) {
+            captureEvent("list_rendered", {
+                phase: "first_load",
+                ms: Math.round(paintedAt),
+                surface,
+                rows,
+                viewport: narrow ? "narrow" : "wide",
+                rendered: "server",
+            });
+            return;
+        }
         let frame = requestAnimationFrame(() => {
             frame = requestAnimationFrame(() => {
                 captureEvent("list_rendered", {
@@ -58,5 +84,5 @@ export function useListRenderTiming(input: {
             });
         });
         return () => cancelAnimationFrame(frame);
-    }, [searchId, rows, loading, surface, requestStartedAtRef, narrow]);
+    }, [searchId, rows, loading, surface, requestStartedAtRef, narrow, renderedOnServer]);
 }

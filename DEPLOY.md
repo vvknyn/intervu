@@ -15,7 +15,7 @@ The live web stack is **not** this repo’s solo `docker-compose.yml`. It is the
 
 **Source tree on the box:** `/opt/intervu` — a plain directory with **no `.git`**. The private repo is not cloned on the box (no credentials there); `git clone` / `git pull` under `/opt/intervu` will fail by design.
 
-**Environment:** canonical production env is `/opt/interview-os/deploy/contabo-web/intervu.env`, copied to `/opt/intervu/.env.production` before build. `NEXT_PUBLIC_WORKOS_REDIRECT_URI` must be `https://velai.app/auth/callback`.
+**Environment:** production env is `/opt/interview-os/deploy/contabo-web/intervu.env`. The image build and the container both read it; there is no `/opt/intervu/.env.production` on the box, so a check against that path reports every key unset. `NEXT_PUBLIC_WORKOS_REDIRECT_URI` must be `https://velai.app/auth/callback`.
 
 ### Deploy procedure (from a machine with repo access)
 
@@ -75,11 +75,11 @@ Never commit directly on `main` or `staging`.
 
 ## Environment variables
 
-Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `.env.production` on the host — **not** in git.
+Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `/opt/interview-os/deploy/contabo-web/intervu.env` on the Contabo box (`.env.production` on a solo box) — **not** in git. After changing it, rerun `/opt/deploy-intervu-quad.sh`: a plain `docker restart` keeps the old values.
 
-`FOUNDING_MEMBER_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the founding-seat button on `/pricing`. Create the link in the Stripe dashboard with the after-payment redirect set to `https://velai.app/pricing?checkout=success&session_id={CHECKOUT_SESSION_ID}`, then add the `https://buy.stripe.com/…` URL to `.env.production` and restart the container. Unset, the Pro column takes reservations instead (an email into the Firestore `founding_waitlist` collection, one confirmation email, counted on /admin under Waitlist), the headline, badge and meta description say "open soon", and nothing links out. It is not `NEXT_PUBLIC_*`: `src/app/pricing/page.tsx` reads it at request time.
+`FOUNDING_MEMBER_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the founding-seat button on `/pricing`. Create the link in the Stripe dashboard with the after-payment redirect set to `https://velai.app/pricing?checkout=success&session_id={CHECKOUT_SESSION_ID}`, then add the `https://buy.stripe.com/…` URL to `intervu.env` and rerun the deploy script. Unset, the Pro column takes reservations instead (an email into the Firestore `founding_waitlist` collection, one confirmation email, counted on /admin under Waitlist), the headline, badge and meta description say "open soon", and nothing links out. It is not `NEXT_PUBLIC_*`: `src/app/pricing/page.tsx` reads it at request time.
 
-`LANDED_PLEDGE_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the pay-it-forward panel the tracker shows on a pursuit in the Offer lane (`src/components/tracker/LandedPledgePanel.tsx`). Create it as a pay-what-you-want link with $99 preset, so the panel's "$99 suggested, any amount" is true, then add it to `.env.production` and restart the container; `src/app/yours/layout.tsx` reads it per request. Unset, the panel congratulates and asks how it went, linking to the contact page, and nothing links out.
+`LANDED_PLEDGE_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the pay-it-forward panel the tracker shows on a pursuit in the Offer lane (`src/components/tracker/LandedPledgePanel.tsx`). Create it as a pay-what-you-want link with $99 preset, so the panel's "$99 suggested, any amount" is true, then add it to `intervu.env` and rerun the deploy script; `src/app/yours/layout.tsx` reads it per request. Unset, the panel congratulates and asks how it went, linking to the contact page, and nothing links out.
 
 `NEXT_PUBLIC_*` are required at **docker build** time (inlined into the client bundle). Server secrets are runtime-only via `env_file`.
 

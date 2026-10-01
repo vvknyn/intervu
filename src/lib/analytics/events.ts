@@ -1,4 +1,4 @@
-import posthog from "posthog-js";
+import { getPostHogClient, isPostHogLoaded } from "@/lib/analytics/posthog-client";
 import { trackToLedger } from "@/lib/telemetry/client";
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { AuthContinuityFields, AuthEventContext } from "@/lib/analytics/auth-event-payload";
@@ -187,6 +187,9 @@ export interface EventPayloads {
     rows: number;
     /** Below the `lg` breakpoint or not, so phone and desktop read apart. */
     viewport: "narrow" | "wide";
+    /** "server" when a first load's rows came in the page's own HTML
+     *  (/jobs/first-rows): timed to the page's first contentful paint. */
+    rendered?: "server";
   };
 
   search_alert_impressed: {
@@ -464,7 +467,7 @@ const heldEvents: HeldEvent[] = [];
  *
  * SSR-safe (`typeof window === "undefined"`), and a safe no-op when PostHog
  * was never initialized (no NEXT_PUBLIC_POSTHOG_KEY -> posthog.init() never
- * ran -> posthog.__loaded stays false): the event waits in a bounded hold
+ * ran -> no client registered in posthog-client.ts): the event waits in a bounded hold
  * that nothing flushes — no throw, no console spam beyond whatever
  * posthog-js does internally. Before PostHog loads, events wait in that hold
  * until `PostHogProvider` calls `flushHeldEvents()` (see `captureRoute`).
@@ -487,7 +490,7 @@ export function captureEvent<K extends AnalyticsEventKey>(
   payload: EventPayloads[K],
   ledgerOnly?: K extends keyof LedgerOnlyPayloads ? LedgerOnlyPayloads[K] : never,
 ): void {
-  const route = captureRoute(typeof window !== "undefined", posthog.__loaded === true);
+  const route = captureRoute(typeof window !== "undefined", isPostHogLoaded());
   if (route === "drop") return;
   const name = ANALYTICS_EVENTS[event];
   if (route === "hold") {
@@ -500,7 +503,7 @@ export function captureEvent<K extends AnalyticsEventKey>(
     });
     return;
   }
-  posthog.capture(name, payload);
+  getPostHogClient()?.capture(name, payload);
   trackToLedger(
     name,
     buildLedgerProps(payload as Record<string, unknown>, ledgerOnly as Record<string, unknown> | undefined),
@@ -513,7 +516,8 @@ export function captureEvent<K extends AnalyticsEventKey>(
  * does nothing, so the hold stays for the next one.
  */
 export function flushHeldEvents(): void {
-  if (!shouldCaptureEvent(typeof window !== "undefined", posthog.__loaded === true)) return;
+  const posthog = getPostHogClient();
+  if (!posthog || !shouldCaptureEvent(typeof window !== "undefined", isPostHogLoaded())) return;
   for (const held of heldEvents.splice(0)) {
     posthog.capture(held.name, held.payload, { timestamp: held.at });
     trackToLedger(held.name, held.ledger);

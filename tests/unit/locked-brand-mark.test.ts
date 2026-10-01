@@ -30,6 +30,8 @@ const LOCKED_SHA256: Record<string, string> = {
     "src/app/icon.png": "b839777d8eeeeba9622fda068477476f1ade435d9310c7152347022cdeac5c74",
     // Header-only derivative of velai-logo.png: paper plate knocked out, brackets + live dot kept.
     "public/velai-mark-on-dark.png": "80c42f057859dd2fdff8672852156ada001a9edccdd255061cad982101c35222",
+    // The same header raster resized to 96px (BrandMark's HEADER_MARK_SMALL_SRC), served through srcSet.
+    "public/velai-mark-on-dark-96.png": "b62670fe1607b547809fd6bbdbd76f9c17434257bf664d5e882700e41520d923",
 };
 
 function sha256(rel: string): string {

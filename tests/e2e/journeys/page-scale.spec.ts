@@ -25,6 +25,10 @@ for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
         await returningVisitor(page);
         await page.goto(path);
         await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
+        // The board mounts after hydration and can land after the header's
+        // sign-in link; measuring before it did is how a stranded "?" on the
+        // phone toolbar went unseen. The "?" sits in the board's toolbar.
+        await expect(page.getByTestId("jobs-tour-replay").first()).toBeVisible({ timeout: 15_000 });
         const stranded = await page.evaluate(() => {
             const CONTROL = "button, a, input, select, [role=button], [role=tab]";
             const visible = (e: Element) => {
