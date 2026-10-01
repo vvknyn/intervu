@@ -94,7 +94,8 @@ async function fetchServerUser(signal?: AbortSignal): Promise<SessionFetchResult
  * Only the e2e mock can answer synchronously now that there is no client SDK
  * holding session state in memory — a real session reads as null here and is
  * corrected a moment later by `onAuthChange`. Callers use this for a first
- * paint, never as the last word.
+ * paint, never as the last word: a click that decides between the account and
+ * this browser asks `getSignedInUser()` instead.
  */
 export function getCurrentUser(): ServerUser | null {
     return e2eMockUser();
@@ -111,6 +112,24 @@ let inflightAbort: AbortController | null = null;
 let pageshowRegistered = false;
 /** While true, a late session GET must not paint the previous account. */
 let applyingSignOut = false;
+
+/**
+ * Who is signed in right now, for a click that decides where a write goes
+ * (the account or this browser's guest store). It reads the account the
+ * server last confirmed, the one `onAuthChange` handed every surface, so the
+ * click agrees with what the page is showing.
+ *
+ * `getCurrentUser()` is null for every real session, so handlers branching on
+ * it sent signed-in people down the guest path in production (the dev-only
+ * e2e hook hid it): a status change on a tracked role said "Could not find
+ * this pursuit." (founder report 2026-10-01).
+ */
+export function getSignedInUser(): ServerUser | null {
+    const mock = e2eMockUser();
+    if (mock) return mock;
+    if (typeof window === "undefined" || isSignedOutMarkerSet()) return null;
+    return resolvedUser;
+}
 
 function notifyAuthListeners(user: ServerUser | null): void {
     authListeners.forEach((listener) => listener(user));
