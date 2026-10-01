@@ -4742,7 +4742,7 @@ export function JobsContent() {
         const tileId = isHubPackId(id) ? id : undefined;
         setHubSelectedCategoryId(id);
         setForYouPackDeckOpen(true);
-        forYouDeck.setActiveIndex(0);
+        forYouDeck.restart();
         // The list mounts from browse hits without waiting
         // on fit. A usable résumé still ranks when it arrives,
         // with the tile's own filter on the pack (hub-tiles.ts).
@@ -6485,6 +6485,12 @@ export function JobsContent() {
                                 onActiveIndexChange={forYouDeck.setActiveIndex}
                                 activeJob={forYouDeck.activeJob}
                                 onSkip={forYouDeck.handleSkip}
+                                onFewerLikeThis={forYouDeck.handleFewer}
+                                onMoreLikeThis={forYouDeck.handleMore}
+                                likedIds={forYouDeck.likedIds}
+                                onRoleSignal={forYouDeck.nudgeActive}
+                                tuning={forYouDeck.tuning}
+                                onResetTuning={forYouDeck.resetTuning}
                                 matchScores={matchScores}
                                 resume={resume}
                                 signals={signals}

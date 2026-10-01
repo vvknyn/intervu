@@ -71,6 +71,7 @@ export function StackedRoleCard({
     onRetryDescription,
     onOpenPosting,
     actions,
+    tuning = null,
 }: {
     job: PublicJob;
     active: boolean;
@@ -81,6 +82,8 @@ export function StackedRoleCard({
     onRetryDescription?: () => void;
     onOpenPosting: () => void;
     actions: ReactNode;
+    /** "More / fewer like this", beside the match label (RoleTuningButtons). */
+    tuning?: ReactNode;
 }) {
     const presented = presentJob(job);
     const company = displayCompanyBrand(job.company, job.company_domain, job.title);
@@ -129,6 +132,7 @@ export function StackedRoleCard({
                     {matchScore ? (
                         <MatchChip score={matchScore} jobId={job.id} testId={active ? "match-chip" : null} className="shrink-0" />
                     ) : null}
+                    {tuning}
                 </div>
 
                 <div>

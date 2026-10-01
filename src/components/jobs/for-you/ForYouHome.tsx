@@ -25,6 +25,7 @@ import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { RoleStack, focusedStackControl, restoreStackFocus } from "@/components/jobs/for-you/RoleStack";
 import { StackedRoleCard } from "@/components/jobs/for-you/StackedRoleCard";
+import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
@@ -37,6 +38,7 @@ import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
 import { prefetchIndexesAhead } from "@/lib/jobs/for-you/deck-active-job";
 import { clampDeckIndex } from "@/lib/jobs/for-you/deck-index";
+import { tuningLine, type TuningSignal, type TuningSummary } from "@/lib/jobs/for-you/tuning";
 import type { MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -60,6 +62,9 @@ export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAM
  *  position; the stack fills the rest of the screen and each card scrolls
  *  inside itself. */
 
+/** Seconds on one role before reading it counts as interest (tuning.ts "dwell"). */
+const DWELL_SECONDS = 20;
+
 const REPLACE_RESUME_CLASS =
     "shrink-0 whitespace-nowrap text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground";
 
@@ -69,6 +74,17 @@ export interface ForYouHomeProps {
     onActiveIndexChange: (index: number) => void;
     activeJob: PublicJob | null;
     onSkip: () => void;
+    /** "Fewer like this": the open role goes, like Skip, and roles like it move down (tuning.ts). */
+    onFewerLikeThis?: () => void;
+    /** "More like this" on the open role, or takes it back. */
+    onMoreLikeThis?: () => void;
+    /** Roles given "more like this", to show the button pressed. */
+    likedIds?: ReadonlySet<string>;
+    /** Apply, Save, opening the posting or reading a while nudge too, more gently. */
+    onRoleSignal?: (signal: Extract<TuningSignal, "apply" | "save" | "open" | "dwell">) => void;
+    /** What the nudges lean toward and away from, with a way to drop them. */
+    tuning?: TuningSummary | null;
+    onResetTuning?: () => void;
     matchScores: Map<string, MatchScore | null> | null;
     resume: ResumeData | null;
     /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
@@ -151,6 +167,12 @@ export function ForYouHome({
     onActiveIndexChange,
     activeJob,
     onSkip,
+    onFewerLikeThis,
+    onMoreLikeThis,
+    likedIds,
+    onRoleSignal,
+    tuning = null,
+    onResetTuning,
     matchScores,
     resume,
     signals,
@@ -271,6 +293,7 @@ export function ForYouHome({
     const handleDownloadApply = useCallback(() => {
         if (!activeJob || !resume || applying) return;
         onOpenPosting(activeJob);
+        onRoleSignal?.("apply");
         setApplying(true);
         void (async () => {
             try {
@@ -291,7 +314,7 @@ export function ForYouHome({
                 setApplying(false);
             }
         })();
-    }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenPosting]);
+    }, [activeJob, resume, applying, hydratedJobs, exportPdfForJob, onOpenPosting, onRoleSignal]);
 
     // Rows render without a résumé. fitActive stays on the props type for
     // callers; it must not keep a non-empty pack on the ranking shell.
@@ -414,6 +437,32 @@ export function ForYouHome({
         return () => window.clearTimeout(id);
     }, [departing]);
 
+    // "Fewer like this" leaves the same way Skip does.
+    const fewerActive = useCallback(() => {
+        const job = visiblePacks[clampDeckIndex(activeIndex, visiblePacks.length)];
+        if (job) setDeparting(job);
+        carryFocus.current = focusedStackControl();
+        onFewerLikeThis?.();
+    }, [visiblePacks, activeIndex, onFewerLikeThis]);
+
+    // Reading one role for a while is a quiet "more like this". Counted once
+    // per role, and only while the page is in front.
+    const dwellJobId = showLoading ? null : selectedJobId;
+    const roleSignalRef = useRef(onRoleSignal);
+    roleSignalRef.current = onRoleSignal;
+    useEffect(() => {
+        if (!dwellJobId) return;
+        let elapsed = 0;
+        const id = window.setInterval(() => {
+            if (document.visibilityState !== "visible") return;
+            elapsed += 1;
+            if (elapsed < DWELL_SECONDS) return;
+            window.clearInterval(id);
+            roleSignalRef.current?.("dwell");
+        }, 1000);
+        return () => window.clearInterval(id);
+    }, [dwellJobId]);
+
     const shortcutStateRef = useRef({ selectedIndex, canNavigate, applying, goTo, skipActive });
     shortcutStateRef.current = { selectedIndex, canNavigate, applying, goTo, skipActive };
 
@@ -481,8 +530,22 @@ export function ForYouHome({
                 resume={resume}
                 descriptionPending={hydration.descriptionPending}
                 onRetryDescription={onRetryDescription ? () => onRetryDescription(job.id) : undefined}
-                onOpenPosting={() => onOpenPosting(hydration.job)}
+                onOpenPosting={() => {
+                    onOpenPosting(hydration.job);
+                    if (active) onRoleSignal?.("open");
+                }}
                 actions={cardActions(hydration.job, active)}
+                tuning={
+                    onMoreLikeThis && onFewerLikeThis ? (
+                        <RoleTuningButtons
+                            active={active}
+                            liked={likedIds?.has(job.id) ?? false}
+                            disabled={applying}
+                            onMore={onMoreLikeThis}
+                            onFewer={fewerActive}
+                        />
+                    ) : null
+                }
             />
         );
     };
@@ -548,7 +611,10 @@ export function ForYouHome({
                     <span data-testid="for-you-deck-save" className="shrink-0">
                         <RowBookmarkButton
                             pursuit={activePursuit}
-                            onGoAfter={() => onGoAfter?.(job)}
+                            onGoAfter={() => {
+                                if (!activePursuit) onRoleSignal?.("save");
+                                onGoAfter?.(job);
+                            }}
                             successPulse={saveSuccessPulse}
                             className="rounded-ctl border border-border bg-surface"
                         />
@@ -751,6 +817,23 @@ export function ForYouHome({
                         footer and the AI note on the first screen and the role card short. */}
                     <div className="role-stack-screen">
                         {thinBlock}
+                        {tuning ? (
+                            <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
+                                <span className="min-w-0 truncate" aria-live="polite">
+                                    {tuningLine(tuning)}
+                                </span>
+                                {onResetTuning ? (
+                                    <button
+                                        type="button"
+                                        data-testid="deck-tuning-reset"
+                                        onClick={onResetTuning}
+                                        className={cn(REPLACE_RESUME_CLASS, "shrink-0")}
+                                    >
+                                        Reset
+                                    </button>
+                                ) : null}
+                            </p>
+                        ) : null}
                         <RoleStack
                             className="flex-1"
                             roles={visiblePacks}

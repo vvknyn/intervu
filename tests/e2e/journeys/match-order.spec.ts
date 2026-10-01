@@ -1,10 +1,11 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90/91).
+ * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90/91/92).
  * Read-only: the résumé lives in localStorage and the search answer is replaced in the browser.
  *
  * Reported 2026-09-30 with a Technical Account Manager résumé: "I don't even see a single TAM
@@ -83,7 +84,7 @@ const LISTED = [
  * is replaced. Row 0 of the flight response is the action envelope (build id, "$@1"); row 1
  * carries the return value.
  */
-const answerResumeSearch = (page: Page) =>
+const answerResumeSearch = (page: Page, listed = LISTED) =>
   page.route("**/*", async (route) => {
     const req = route.request();
     const body = req.postData() ?? "";
@@ -93,7 +94,7 @@ const answerResumeSearch = (page: Page) =>
     }
     const res = await route.fetch();
     const envelope = (await res.text()).split("\n")[0];
-    const result = { hits: LISTED, total: LISTED.length, backend: "meilisearch", configured: true, searchId: "journey-tam" };
+    const result = { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId: "journey-tam" };
     return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(result)}\n` });
   });
 
@@ -156,4 +157,78 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
   // Readable on the tooltip's own (inverted) background: it once rendered white on white.
   const [ink, paper] = await reason.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el.closest("[data-side]") ?? document.body).backgroundColor]);
   expect(ink).not.toBe(paper);
+});
+
+/**
+ * An opened pack for the same résumé: its own role first, then two customer success roles, the
+ * senior one ranked ahead (its level fits nine years). Three roles, the most a guest's pack shows.
+ */
+const PACK = [
+  posting("22222222-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
+  posting("22222222-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior"),
+  posting("22222222-0000-4000-8000-000000000003", "Customer Success Manager, Mid-Market", "Fernway", "unknown"),
+];
+const [TAM_ROLE, SENIOR_CSM, CSM] = PACK.map((p) => p.id);
+
+/** Open the packs hub's "all" pack. The hub paints before it hydrates, so tap until the pack opens. */
+async function openPack(page: Page) {
+  await page.goto("/jobs?view=for-you");
+  const card = page.getByTestId("hub-pack-card-all");
+  const back = page.getByTestId("jobs-back-to-packs");
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(async () => {
+    if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
+    await expect(back).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
+test("more or fewer like this on an open role reorders what comes next, hides nothing, says what it is tuned to and resets", { tag: ["@J-JOBS-92"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await answerResumeSearch(page, PACK);
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const upcoming = stack.locator('[data-testid="role-stack-card"][data-stack-pose="upcoming"]');
+  const position = page.getByTestId("for-you-deck-position");
+  const tuned = page.getByTestId("deck-tuning");
+
+  await expect(front).toHaveAttribute("data-job-id", TAM_ROLE, { timeout: 60_000 });
+  await expect(upcoming).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await expect(position).toHaveText("Role 1 of 3");
+  await expect(tuned).toHaveCount(0);
+
+  // More like this: the role stays open, nothing is hidden, and the deck says what it leans toward.
+  const more = front.getByTestId("role-more-like-this");
+  await more.click();
+  await expect(more).toHaveAttribute("aria-pressed", "true");
+  await expect(tuned).toContainText("Tuned toward Technical Account Manager.");
+  await expect(position).toHaveText("Role 1 of 3");
+
+  // Fewer like this: the open role goes, like Skip, and the deck leans away from it too.
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await front.getByTestId("role-fewer-like-this").click();
+  await expect(position).toHaveText("Role 2 of 2");
+  await expect(front).toHaveAttribute("data-job-id", CSM);
+  await expect(tuned).toContainText("Tuned toward Technical Account Manager, away from Customer Success Manager.");
+
+  // The nudges stay on this device: back on the pack, nothing is hidden, but the customer success
+  // role it was told "fewer" about now waits behind the other one.
+  await page.reload();
+  await openPack(page);
+  await expect(front).toHaveAttribute("data-job-id", TAM_ROLE, { timeout: 60_000 });
+  await expect(position).toHaveText("Role 1 of 3");
+  await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "true");
+  await expect(upcoming).toHaveAttribute("data-job-id", CSM);
+  await expect(tuned).toContainText("away from Customer Success Manager");
+
+  // Reset drops every nudge: the ranked order comes back.
+  await page.getByTestId("deck-tuning-reset").click();
+  await expect(tuned).toHaveCount(0);
+  await expect(upcoming).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "false");
+  expect(diagnostics.pageErrors).toEqual([]);
 });
