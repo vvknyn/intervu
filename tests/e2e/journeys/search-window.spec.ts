@@ -36,24 +36,39 @@ const returningVisitor = (page: Page) =>
 /**
  * Every search result a Server Action returns while the page is open. Row 0
  * of an action response is the envelope; row 1 carries the return value
- * (the same shape J-JOBS-52's outage stub writes).
+ * (the same shape J-JOBS-52's outage stub writes). The bodies are read through
+ * the route, not from the `response` event: Chromium sometimes drops an
+ * action's body before an event handler can read it ("No data found for
+ * resource with given identifier"), and the poll below then waited on a result
+ * it never saw.
  */
-function collectSearchResults(page: Page): SearchResult[] {
+async function collectSearchResults(page: Page): Promise<SearchResult[]> {
   const out: SearchResult[] = [];
-  page.on("response", async (res) => {
-    const req = res.request();
-    if (req.method() !== "POST" || !req.headers()["next-action"]) return;
-    const text = await res.text().catch(() => "");
-    for (const line of text.split("\n")) {
-      if (!line.startsWith("1:")) continue;
+  await page.route(
+    (url) => !url.pathname.startsWith("/_next/"),
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.fallback();
+      let response;
       try {
-        const value = JSON.parse(line.slice(2)) as SearchResult;
-        if (value && Array.isArray(value.hits)) out.push(value);
+        response = await route.fetch();
       } catch {
-        // not a JSON row
+        await route.abort().catch(() => {});
+        return;
       }
-    }
-  });
+      const text = await response.text().catch(() => "");
+      for (const line of text.split("\n")) {
+        if (!line.startsWith("1:")) continue;
+        try {
+          const value = JSON.parse(line.slice(2)) as SearchResult;
+          if (value && Array.isArray(value.hits)) out.push(value);
+        } catch {
+          // not a JSON row
+        }
+      }
+      await route.fulfill({ response }).catch(() => {});
+    },
+  );
   return out;
 }
 
@@ -63,7 +78,7 @@ function collectSearchResults(page: Page): SearchResult[] {
  */
 async function typedSearch(page: Page, q: string): Promise<SearchResult | null> {
   await returningVisitor(page);
-  const results = collectSearchResults(page);
+  const results = await collectSearchResults(page);
   await page.goto("/jobs");
   const rows = page.getByTestId("job-row");
   const empty = page.getByTestId("search-empty-results");
