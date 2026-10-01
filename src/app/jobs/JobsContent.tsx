@@ -4950,26 +4950,12 @@ export function JobsContent() {
     };
 
     // A guest's résumé lives only in this browser (`velai.localAi.resume`).
-    // Remove forgets it and goes back to Search's front door, so nothing on
-    // the page is ranked against a résumé the visitor no longer wants used.
+    // Remove forgets it and reloads bare /jobs, so the ranked list goes with
+    // it, and so do the pack's filters and everything else read from the
+    // résumé: the visitor lands on the front door with nothing ranked.
     const removeGuestResume = () => {
         clearLocalAiResume();
-        setGuestResumeInBrowser(false);
-        setResume(null);
-        setResumeUpdatedAt(null);
-        setResumeSourceLabel(null);
-        setFitActive(false);
-        setFitResolving(false);
-        fitIntentRef.current?.begin();
-        setForYouPackDeckOpen(false);
-        setHubSelectedCategoryId(undefined);
-        setSortOverride(null);
-        setQueryDraft("");
-        setQuery("");
-        setHomeView("search");
-        writeLastJobsHomeView("search");
-        applyUrlState(buildUrlState({ homeView: "search", q: "", sort: null, jobId: null }), "replace");
-        toast.success("Résumé removed from this device.");
+        window.location.replace("/jobs");
     };
 
     const showMatchTeaser = needsResumeEntry({
