@@ -181,8 +181,8 @@ describe("tuneDeck", () => {
 
     it("lets a role's skills and company carry a nudge when titles differ", () => {
         const deck = [
-            job("a", "Solutions Consultant", { must_have_skills: ["Salesforce", "SQL", "APIs"], company: "Northwind" }),
-            job("b", "Implementation Specialist", { must_have_skills: ["Salesforce", "SQL"], company: "Northwind" }),
+            job("a", "Solutions Consultant", { must_have_skills: ["Salesforce", "SQL", "APIs"], skills_section_found: true, company: "Northwind" }),
+            job("b", "Implementation Specialist", { must_have_skills: ["Salesforce", "SQL"], skills_section_found: true, company: "Northwind" }),
             job("c", "Office Manager"),
             job("d", "Account Coordinator"),
         ];
@@ -190,6 +190,11 @@ describe("tuneDeck", () => {
         const liked = [nudge(deck[0], "more", deck)];
         assert.ok(roleNudge(roleTerms(deck[1]), liked, NOW, weight) > 0, "shared skills and company");
         assert.equal(roleNudge(roleTerms(deck[2]), liked, NOW, weight), 0, "a shared country and level alone is not enough");
+    });
+
+    it("ignores skills a posting has no skills section for", () => {
+        const terms = roleTerms(job("a", "Solutions Consultant", { must_have_skills: ["Salesforce", "SQL"] }));
+        assert.equal(terms.filter((term) => term.startsWith("s:")).length, 0);
     });
 });
 

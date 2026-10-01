@@ -27,7 +27,7 @@
  * tuning-store.ts.
  */
 import { familiesNamedBy, RANK_WORDS } from "@/lib/match/duty-signals";
-import { decodeText, meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { decodeText, evidencedSkills, meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 export type TuningSignal = "more" | "fewer" | "apply" | "save" | "open" | "dwell" | "skip";
@@ -107,7 +107,8 @@ export function roleTerms(job: PublicJob): string[] {
     const terms = [
         ...titleWords(decodeText(job.title)).map((word) => `w:${word}`),
         ...(job.tags ?? []).map((tag) => lower(tag)).filter(Boolean).map((tag) => `g:${tag}`),
-        ...[...(job.must_have_skills ?? []), ...(job.tech_stack ?? [])]
+        // Only skills read from a posting's own skills section (`evidencedSkills`).
+        ...[...evidencedSkills(job, "must_have_skills"), ...(job.tech_stack ?? [])]
             .map((skill) => lower(skill))
             .filter(Boolean)
             .slice(0, 16)
