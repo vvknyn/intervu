@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from "react";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import { DescriptionLoadingStatus } from "@/components/jobs/for-you/DescriptionLoadingStatus";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { descriptionNeedsFill } from "@/lib/jobs/fill-description";
@@ -20,7 +21,7 @@ import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { buildDeterministicJdTemplate, jdTemplateIsThin } from "@/lib/local-ai/format-job-description";
-import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
+import type { MatchScore } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -38,12 +39,6 @@ const TONE_WORD: Record<InferredTone, string> = {
     neutral: "Worth knowing",
     caution: "Worth checking",
 };
-
-function bandClass(band: ReturnType<typeof matchBand>): string {
-    if (band === "strong") return "border-live-tint-border bg-live-tint-bg text-verdict-live";
-    if (band === "good") return "border-border bg-verdict-good-bg text-verdict-good";
-    return "border-border bg-verdict-caution-bg text-verdict-caution";
-}
 
 function blocksText(blocks: DescBlock[]): string {
     return blocks
@@ -90,7 +85,6 @@ export function StackedRoleCard({
     const presented = presentJob(job);
     const company = displayCompanyBrand(job.company, job.company_domain, job.title);
     const place = stackCardPlace(job);
-    const band = matchScore ? matchBand(matchScore.total) : null;
     const freshness = classifyPostingFreshness(job, nowMs);
     const postedRelative =
         freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), nowMs) : null;
@@ -132,17 +126,8 @@ export function StackedRoleCard({
                 <div className="flex items-center gap-3">
                     <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
                     <p className="min-w-0 flex-1 truncate font-semibold text-foreground">{company || "Unknown company"}</p>
-                    {band ? (
-                        <span
-                            data-testid={active ? "match-chip" : undefined}
-                            aria-label={`${matchBandLabel(band)} match`}
-                            className={cn(
-                                "mono-data inline-block shrink-0 rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
-                                bandClass(band),
-                            )}
-                        >
-                            {matchBandLabel(band)}
-                        </span>
+                    {matchScore ? (
+                        <MatchChip score={matchScore} jobId={job.id} testId={active ? "match-chip" : null} className="shrink-0" />
                     ) : null}
                 </div>
 

@@ -5,6 +5,7 @@
  * City is intentionally never emitted (Richmond Hill, Ontario vs
  * Richmond Hill, Georgia collision).
  */
+import { regionLabel, resolveRegionPhrase } from "@/lib/geo/regions";
 import { classifyCountryValue } from "./country-classification";
 import type { PublicJob } from "./types";
 
@@ -188,4 +189,35 @@ export function jobCountries(job: PublicJob): string[] {
     return [
         ...new Set([job.location, job.location_city, job.location_state].flatMap(resumeCountriesFromLocation)),
     ];
+}
+
+/** ISO2 → English country name, for turning a region's members into canonical country names. */
+const REGION_NAMES =
+    typeof Intl !== "undefined" && "DisplayNames" in Intl ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+
+/**
+ * The place a posting's TITLE names after the role, for a posting whose place
+ * fields name none: "Technical Account Manager - Europe", "TAM (DACH)",
+ * "Account Manager, UK". A remote posting with no country used to read as
+ * "open to any location", so a Europe-only role scored as a same-country fit
+ * for a Toronto résumé. The first piece is the role itself and is never read.
+ */
+export function titlePlace(title: string | null | undefined): { label: string; countries: string[] } | null {
+    const pieces = (title ?? "")
+        .split(/\s[-–—|]\s|[(),/|]/)
+        .map((piece) => piece.trim())
+        .filter(Boolean)
+        .slice(1);
+    for (const piece of pieces) {
+        const members = resolveRegionPhrase(piece);
+        if (members && REGION_NAMES) {
+            const countries = [
+                ...new Set(members.map((iso2) => canonicalCountry(REGION_NAMES.of(iso2) ?? "")).filter((c): c is string => Boolean(c))),
+            ];
+            if (countries.length > 0) return { label: regionLabel(piece) ?? piece, countries };
+        }
+        const named = resumeCountriesFromLocation(piece);
+        if (named.length > 0) return { label: named.join(", "), countries: named };
+    }
+    return null;
 }
