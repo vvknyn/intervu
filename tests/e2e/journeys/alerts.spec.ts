@@ -101,10 +101,17 @@ test("a signed-in person's Save search saves to the account, not to this browser
   });
   await page.goto("/jobs?view=search&q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
+  // Save the search once its results show, as a person would. Next runs a
+  // page's server actions one at a time and the search is one, so a save
+  // pressed while it loads waits for it: on a phone against prod that wait
+  // outran the 5s default (R16 check, 2026-10-01).
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   await page.getByTestId("save-search-trigger").first().click();
   await page.getByTestId("save-search-name").press("Enter");
-  await expect.poll(() => saves).toEqual([expect.objectContaining({ href: expect.stringContaining("q=engineer") })]);
-  await expect(page.getByTestId("save-search-name")).toHaveCount(0);
+  await expect
+    .poll(() => saves, { timeout: 15_000 })
+    .toEqual([expect.objectContaining({ href: expect.stringContaining("q=engineer") })]);
+  await expect(page.getByTestId("save-search-name")).toHaveCount(0, { timeout: 15_000 });
   expect(await page.evaluate((key) => localStorage.getItem(key), SAVED_SEARCHES_KEY)).toBeNull();
   expect(diagnostics.pageErrors).toEqual([]);
   await page.unrouteAll({ behavior: "ignoreErrors" });
