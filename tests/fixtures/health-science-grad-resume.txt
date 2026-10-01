@@ -1,0 +1,27 @@
+Jordan Sample
+Health Science Graduate
+Toronto, ON, Canada | jordan.sample@example.com | (555) 010-4567
+
+SUMMARY
+Health science graduate with research assistant experience in a hospital cardiology study and clinic volunteering.
+
+EXPERIENCE
+Lakeview Research Institute
+Research Assistant
+Sep 2024 - Present
+• Collected patient data for a cardiology study
+• Maintained the REDCap database and consented participants
+
+Riverside Community Health Centre
+Patient Services Assistant
+Jan 2022 - Aug 2024
+• Supported patient intake and triage
+• Charting and appointment booking
+
+SKILLS
+Literature review, Data collection, SPSS, REDCap, Patient intake, Vital signs
+
+EDUCATION
+Bachelor of Health Sciences
+McMaster University
+2024

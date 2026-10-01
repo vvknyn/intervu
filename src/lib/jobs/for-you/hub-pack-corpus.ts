@@ -20,7 +20,7 @@ import {
     searchKey,
 } from "@/lib/jobs/meilisearch";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, PlaceClause } from "@/lib/jobs/types";
-import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { BROWSE_HUB_PACK_IDS, type BrowseHubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import { DEFAULT_URL_STATE } from "@/lib/jobs/url-state";
 
 const HAS_SALARY_FILTER =
@@ -84,7 +84,7 @@ function baseBrowseParams(places: PlaceClause[] | undefined): JobSearchParams {
     };
 }
 
-function extraFiltersForPack(packId: HubPackId): string[] {
+function extraFiltersForPack(packId: BrowseHubPackId): string[] {
     if (packId === "all") return [];
     const extra: string[] = [];
     if (packId === "salary") extra.push(`(${HAS_SALARY_FILTER})`);
@@ -92,7 +92,7 @@ function extraFiltersForPack(packId: HubPackId): string[] {
     return extra;
 }
 
-export function hubPackCorpusParams(packId: HubPackId, places: PlaceClause[] | undefined): JobSearchParams {
+export function hubPackCorpusParams(packId: BrowseHubPackId, places: PlaceClause[] | undefined): JobSearchParams {
     const base = baseBrowseParams(places);
     switch (packId) {
         case "all":
@@ -118,7 +118,7 @@ export function hubPackCorpusParams(packId: HubPackId, places: PlaceClause[] | u
 }
 
 function packSearchBody(
-    packId: HubPackId,
+    packId: BrowseHubPackId,
     places: PlaceClause[] | undefined,
     legacy: boolean,
     q?: string,
@@ -137,7 +137,7 @@ function packSearchBody(
 }
 
 async function postHubPackCorpusSearch(
-    packId: HubPackId,
+    packId: BrowseHubPackId,
     places: PlaceClause[] | undefined,
     q?: string,
 ): Promise<JobSearchResult | null> {
@@ -196,7 +196,7 @@ async function fetchKeywordPackCount(
 }
 
 export async function fetchHubPackCorpusCount(
-    packId: HubPackId,
+    packId: BrowseHubPackId,
     places: PlaceClause[] | undefined,
 ): Promise<CorpusCount | null> {
     if (packId === "ai") return fetchKeywordPackCount(packId, places, AI_PACK_QUERIES);
@@ -213,13 +213,13 @@ export async function fetchHubPackCorpusCount(
     return count;
 }
 
-export type HubPackCorpusCounts = Partial<Record<HubPackId, CorpusCount | null>>;
+export type HubPackCorpusCounts = Partial<Record<BrowseHubPackId, CorpusCount | null>>;
 
 export async function fetchAllHubPackCorpusCounts(
     places: PlaceClause[] | undefined,
 ): Promise<HubPackCorpusCounts> {
     const entries = await Promise.all(
-        HUB_PACK_IDS.map(async (packId) => [packId, await fetchHubPackCorpusCount(packId, places)] as const),
+        BROWSE_HUB_PACK_IDS.map(async (packId) => [packId, await fetchHubPackCorpusCount(packId, places)] as const),
     );
     return Object.fromEntries(entries);
 }

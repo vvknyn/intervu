@@ -60,19 +60,20 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         expect(await restingPackTitle(page)).toBe(initialJob);
     });
 
-    test("TC-DECK-004: choosing another row changes the open role", async ({ page }) => {
+    test("TC-DECK-004: Next and Previous change the open role", async ({ page }) => {
         await waitForMockDeckReady(page);
 
         const firstJob = await restingPackTitle(page);
-        const rows = page.getByTestId("job-row");
-        await rows.nth(1).click();
+        await page.getByTestId("for-you-next").click();
         await waitForDeckRestingState(page);
         const secondJob = await restingPackTitle(page);
         expect(secondJob).not.toBe(firstJob);
+        await expect(page.getByTestId("for-you-deck-position")).toContainText("Role 2 of");
 
-        await rows.nth(0).click();
+        await page.getByTestId("for-you-previous").click();
         await waitForDeckRestingState(page);
         await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
+        await expect(page.getByTestId("for-you-previous")).toBeDisabled();
     });
 
     test("TC-DECK-005: keyboard shortcuts navigate between jobs", async ({ page }) => {
@@ -89,12 +90,60 @@ test.describe("FOR-YOU-DECK — mock fixture (deterministic)", () => {
         await expect(deckRestingPackHeading(page)).toHaveText(firstJob, { timeout: 5000 });
     });
 
+    test("TC-DECK-008: Skip hands focus to the Skip of the role that comes forward", async ({ page }) => {
+        await waitForMockDeckReady(page);
+
+        const firstJob = await restingPackTitle(page);
+        await page.getByTestId("for-you-skip").click();
+        await waitForDeckRestingState(page);
+        await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
+        await expect(deckRestingPack(page).getByTestId("for-you-skip")).toBeFocused();
+    });
+
+    test("TC-DECK-009: a sideways swipe inside the card changes role and never navigates", async ({ browser }) => {
+        const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+        const page = await context.newPage();
+        await seedDeckMockHintDismissed(page);
+        await waitForMockDeckReady(page);
+        const url = page.url();
+        const cdp = await context.newCDPSession(page);
+        // The stage, not the card: the open card slides up into place when the page loads.
+        const box = (await page.getByTestId("role-stack").boundingBox())!;
+        const y = box.y + box.height * 0.4;
+        const swipe = async (from: number, to: number) => {
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width * from, y }] });
+            for (let i = 1; i <= 6; i++) {
+                await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: box.x + box.width * (from + ((to - from) * i) / 6), y }] });
+            }
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        };
+
+        await swipe(0.8, 0.15);
+        await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 2 of 3");
+        await swipe(0.15, 0.85);
+        await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3");
+        expect(page.url()).toBe(url);
+        await context.close();
+    });
+
+    test("TC-DECK-010: closing Customize résumé returns focus to its button", async ({ page }) => {
+        await waitForMockDeckReady(page);
+
+        const trigger = deckRestingPack(page).getByTestId("local-customize-open");
+        await trigger.focus();
+        await page.keyboard.press("Enter");
+        await expect(page.getByRole("dialog")).toBeVisible();
+        await page.keyboard.press("Escape");
+        await expect(page.getByRole("dialog")).toHaveCount(0);
+        await expect(trigger).toBeFocused();
+    });
+
     test("TC-DECK-007: reduced motion still advances with Next", async ({ page }) => {
         await page.emulateMedia({ reducedMotion: "reduce" });
         await waitForMockDeckReady(page);
 
         const firstJob = await restingPackTitle(page);
-        await page.getByTestId("job-row").nth(1).click();
+        await page.getByTestId("for-you-next").click();
         await waitForDeckRestingState(page);
         await expect(deckRestingPackHeading(page)).not.toHaveText(firstJob, { timeout: 5000 });
     });
@@ -110,7 +159,7 @@ test.describe("FOR-YOU-DECK — mock fixture hint banner", () => {
         await page.goto(FOR_YOU_DECK_MOCK_PATH);
         await waitForDeckRestingState(page);
         await expect(page.getByText("Getting around")).toHaveCount(0);
-        await expect(page.getByTestId("job-row").first()).toBeVisible();
+        await expect(page.getByTestId("role-stack-card").first()).toBeVisible();
     });
 });
 
