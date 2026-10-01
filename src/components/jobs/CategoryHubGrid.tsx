@@ -130,6 +130,11 @@ export function CategoryHubGrid({
         </>
     );
 
+    // Without a résumé nothing is matched, so the first chip is every role, not "your matches".
+    const chipCategories = hasResume
+        ? categories
+        : categories.map((category) => (category.id === "all" ? { ...category, label: "All roles" } : category));
+
     const browseAllButton = (
         <Button
             type="button"
@@ -141,7 +146,7 @@ export function CategoryHubGrid({
             }}
             className="w-full justify-center sm:w-auto"
         >
-            Browse all matches
+            {hasResume ? "Browse all matches" : "Browse all roles"}
         </Button>
     );
 
@@ -202,7 +207,7 @@ export function CategoryHubGrid({
 
             {/* The packs as one row of chips: label, live count, and "+N" since the last visit. */}
             <ul aria-label="Your packs" data-testid="hub-pack-chips" className="flex flex-wrap gap-2 poster-list-inset-x">
-                {categories.map((category, hubIndex) => {
+                {chipCategories.map((category, hubIndex) => {
                     const countLabel = hubCountLabels?.[category.id] ?? "";
                     const counting = countLabel === HUB_PACK_CORPUS_COUNT_LOADING;
                     const delta = hubCountDeltas?.[category.id] ?? 0;
