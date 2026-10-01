@@ -19,7 +19,7 @@ import { addManualGuestPursuit, listGuestPursuits, removeGuestPursuit, updateGue
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import { orderPursuits, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
-import { countAppliedSince, matchesTrackerSearch, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
+import { countAppliedSince, matchesTrackerSearch, parseTrackerStage, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import {
     TRACKER_EMPTY_DESCRIPTION,
     TRACKER_EMPTY_TITLE,
@@ -402,6 +402,7 @@ function YoursContent() {
                         selectedId={selectedId}
                         detailOpen={detailOpen}
                         onRowClick={openDetail}
+                        stage={parseTrackerStage(searchParams.get("stage"))}
                     />
                 )}
             </div>

@@ -1,15 +1,18 @@
 /**
- * The Today header on the packs home: what changed since the visitor last
- * looked, and what is theirs to do now. Pure helpers only; the component
- * (`components/jobs/for-you/TodayHome.tsx`) owns the search and storage.
+ * Today on the packs home, under the pack chips: the week's roles worth a
+ * look for this résumé, and what is the visitor's to do now. Pure helpers
+ * only; the component (`components/jobs/for-you/TodayHome.tsx`) owns the
+ * search and storage.
  *
  * "New since your last visit" is per device, like every other visit cursor
  * in the product (`visit-cursor.ts`). A reload inside one sitting keeps the
- * same baseline, so the list doesn't empty itself the moment it is read.
+ * same baseline, so what reads as new doesn't change the moment it is read.
  */
+import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
-import { matchBand, type MatchScore } from "@/lib/match/score";
+import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
+import { compareFit, matchBand, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -22,11 +25,14 @@ export const TODAY_FOLLOW_UP_DAYS = 7;
 /** "Interviews this week": today and the next six calendar days. */
 export const TODAY_INTERVIEW_WINDOW_DAYS = 7;
 
-/** Rows the header lists before "See more". */
-export const TODAY_NEW_ROWS = 5;
+/** Rows Today lists before "More in Added this week". */
+export const TODAY_PICK_ROWS = 5;
 
-/** Roles the new-since search reads (newest first) before scoring. */
-export const TODAY_NEW_FETCH_LIMIT = 40;
+/** Today picks from roles posted this far back: the week, whatever the last visit. */
+export const TODAY_PICKS_WINDOW_MS = 7 * DAY_MS;
+
+/** Roles the picks search reads (the pack's own relevance order) before scoring. */
+export const TODAY_PICKS_FETCH_LIMIT = 60;
 
 /** A first visit (no stored visit) looks back this far. */
 export const TODAY_FIRST_VISIT_LOOKBACK_MS = 7 * DAY_MS;
@@ -86,23 +92,82 @@ export function interviewsThisWeek(pursuits: Pursuit[], nowMs: number): Pursuit[
 export type TodayRole = { job: PublicJob; score: MatchScore };
 
 /**
- * The roles worth a look: Strong or Good against the résumé, posted since the
- * baseline, not skipped here and not already in the tracker. Strong before
- * Good, then newest first.
+ * Why a scored role is not one of today's picks, or `null` when it is one.
+ * Today is the short list, so its bar is higher than a pack's, and it is the
+ * same for any role or industry because it reads only the score:
+ *  - `stretch`: under Good against the résumé;
+ *  - `other-role`: the title is not the candidate's own kind of role (a
+ *    neighbour the pack also searched for, a title tied to no role the
+ *    résumé names, or a different kind of job). Packs still list these;
+ *  - `level`: the role asks for more seniority than the résumé shows;
+ *  - `abroad`: the role is in, or remote from, a country the candidate
+ *    can't work in.
  */
-export function pickNewForYou(
+export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad";
+
+export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
+    if (matchBand(score.total) === "stretch") return "stretch";
+    if (score.role !== "own" && score.role !== "family") return "other-role";
+    const reasons = new Set(score.components.map((c) => c.reason));
+    if (reasons.has("level_below_ask")) return "level";
+    if (reasons.has("abroad") || reasons.has("remote_abroad")) return "abroad";
+    return null;
+}
+
+/** The same opening listed twice (re-synced or cross-posted): its title, company and place. A role open in two cities is two openings. */
+function sameRoleKey(job: PublicJob): string {
+    const norm = (s: string | null | undefined) => decodeText(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+    return `${norm(job.company)}\0${norm(job.title)}\0${norm(locationText(job))}`;
+}
+
+/**
+ * Today's picks, best first: the roles `todayLeftOut` keeps that weren't
+ * skipped here and aren't in the tracker, ordered as every ranked list is
+ * (`compareFit`: the candidate's own role first, then the higher score),
+ * newest first on a tie, each opening once. The visitor's ratings
+ * reorder these afterwards (`tuneDeck`).
+ */
+export function pickToday(
     roles: TodayRole[],
-    opts: { sinceMs: number; skipped: ReadonlySet<string>; tracked: ReadonlySet<string> },
+    opts: { skipped: ReadonlySet<string>; tracked: ReadonlySet<string> },
 ): TodayRole[] {
-    const rank = (r: TodayRole) => (matchBand(r.score.total) === "strong" ? 0 : 1);
+    const seen = new Set<string>();
     return roles
+        .filter((r) => !opts.skipped.has(r.job.id) && !opts.tracked.has(r.job.id) && todayLeftOut(r.score) == null)
+        .sort((a, b) => compareFit(a.score, b.score) || (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0))
         .filter((r) => {
-            if (opts.skipped.has(r.job.id) || opts.tracked.has(r.job.id)) return false;
-            if (matchBand(r.score.total) === "stretch") return false;
-            const posted = derivePostedTs(r.job);
-            return posted != null && posted >= opts.sinceMs;
-        })
-        .sort((a, b) => rank(a) - rank(b) || (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0));
+            const key = sameRoleKey(r.job);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+
+/**
+ * The picks in the order to show them after the visitor's ratings: the same
+ * nudges that reorder a pack's roles (`tuneDeck`, shared through
+ * tuning-store.ts), so a thumbs up here and one in a pack tune one list.
+ * `held` (rows the visitor has rated or acted past, in order) stay where
+ * they are; the rest move.
+ */
+export function tuneToday(
+    picks: TodayRole[],
+    nudges: readonly TuningNudge[],
+    held: readonly string[],
+    nowMs: number,
+): TodayRole[] {
+    const jobs = picks.map((r) => r.job);
+    const tuned = tuneDeck(jobs, nudges, held, nowMs);
+    if (tuned === jobs) return picks;
+    const byId = new Map(picks.map((r) => [r.job.id, r]));
+    return tuned.map((job) => byId.get(job.id)).filter((r): r is TodayRole => r != null);
+}
+
+/** Posted since the last visit (`sinceMs`); nothing is "new" on a first visit. */
+export function isNewSince(job: PublicJob, sinceMs: number | null): boolean {
+    if (sinceMs == null) return false;
+    const posted = derivePostedTs(job);
+    return posted != null && posted >= sinceMs;
 }
 
 /** What the visit store holds: when this device last opened the home, and the sitting's baseline. */

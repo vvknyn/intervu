@@ -1,16 +1,25 @@
 "use client";
 
 /**
- * The Today header on the packs home (`/jobs` with a résumé): what changed
- * since the visitor last looked and what is theirs to do now, above the pack
- * tiles. The rules (what counts as new, due or this week) live in
- * `lib/jobs/for-you/today.ts`; this file owns the one new-since search, the
+ * Today on the packs home (`/jobs`), under the pack chips and above the
+ * tracker: the week's roles worth a look for this résumé, and what is the
+ * visitor's to do now (follow-ups, interviews, saved searches). The rules
+ * (what counts as a pick, due or this week) live in
+ * `lib/jobs/for-you/today.ts`; this file owns the one picks search, the
  * device storage and the layout.
+ *
+ * A pick is rated with thumbs up or down. Ratings, Apply, Skip and opening a
+ * posting are the same nudges a pack's role cards record
+ * (`lib/jobs/for-you/tuning-store.ts`), so Today and the packs tune one list,
+ * on this device, and the tuning line says what it leans toward with Reset.
+ *
+ * Signed in without a usable résumé, Today still lists what needs the
+ * visitor and says how to get picks (or that the saved résumé couldn't be read).
  *
  * `TodayHomeView` is the layout alone, so `/mock/today` can render every
  * state without a search.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { searchJobs } from "@/lib/jobs/search-client";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -18,37 +27,43 @@ import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { Button } from "@/components/ui/button";
-import { SectionTitle, SubTitle } from "@/components/ui/heading";
+import { SubTitle } from "@/components/ui/heading";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { HubPanel, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
 import { NeedsYouView, useNeedsYouRemote, type NeedsYouRemoteState } from "@/components/jobs/for-you/NeedsYou";
+import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
 import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
-import { PRIVATE_MATCHING_ACTIVE } from "@/lib/jobs/resume-privacy-copy";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
 import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
 import { packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import {
-    TODAY_NEW_FETCH_LIMIT,
-    TODAY_NEW_ROWS,
+    TODAY_PICK_ROWS,
+    TODAY_PICKS_FETCH_LIMIT,
+    TODAY_PICKS_WINDOW_MS,
+    TODAY_SESSION_GAP_MS,
     followUpsDue,
     formatLastHere,
     interviewsThisWeek,
-    pickNewForYou,
+    isNewSince,
+    pickToday,
     readTodaySkipped,
     readTodayVisit,
     resolveTodaySince,
     sincePhrase,
     todaySearchFloor,
+    tuneToday,
     writeTodaySkipped,
     writeTodayVisit,
     type TodayRole,
 } from "@/lib/jobs/for-you/today";
-import { hubGreeting } from "@/lib/jobs/front-door-state";
+import { summarizeTuning, tuningLine, type TuningSignal } from "@/lib/jobs/for-you/tuning";
+import { clearNudge, recordNudge, resetNudges, useDeckNudges } from "@/lib/jobs/for-you/tuning-store";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
@@ -63,42 +78,90 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
 
-/** The packs the header can open: everything, or this week's. */
+/** The packs Today can open: everything, or this week's. */
 export type TodayPackId = "all" | "fresh";
 
-type NewSearch =
+type PicksSearch =
     | { kind: "loading" }
     | { kind: "failed" }
-    | { kind: "ready"; roles: TodayRole[]; saturated: boolean };
+    | { kind: "ready"; roles: TodayRole[] };
 
-/** The last settled new-since search, repainted on a return to the hub (same rule as the hub probe's memo). */
-let todayMemo: { key: string; at: number; complete: true; search: NewSearch } | null = null;
-
-export function TodayHome({
-    auth,
-    returnTo,
-    userName,
-    resume,
-    resumeKey,
-    signals,
-    pack,
-    pursuits,
-    pursuitsLoading,
-    accountKey,
-    onApply,
-    onOpenPack,
-    resumeLine = null,
-}: {
-    /** The page's confirmed auth state: a guest sees the fit preview and the gate, never before it is known. */
-    auth: "signed-in" | "signed-out" | "pending";
-    /** Where the sign-up gate brings a guest back to — the packs hub. */
-    returnTo: SitePath;
-    userName?: string | null;
+/** The résumé Today ranks against, once the page has a usable one. */
+export interface TodayMatching {
     resume: ResumeData;
     /** Changes only when the résumé's content does (`hubResumeKey`): a new object with the same content must not re-search. */
     resumeKey: string;
     signals: CandidateSignals;
     pack: JobsUrlState;
+}
+
+/** Why there are no picks to rank: no résumé yet, one with no role we can read, or the account's still loading. */
+export type TodayNoResume = "missing" | "unreadable" | "loading";
+
+/** The last settled picks search, repainted on a return to the hub (same rule as the hub probe's memo). */
+let todayMemo: { key: string; at: number; complete: true; search: PicksSearch } | null = null;
+
+/** This sitting's visit baseline, shared by the "Last here" line and Today so both read the same one. */
+type VisitMemo = { at: number; visit: ReturnType<typeof resolveTodaySince> };
+let visitMemo: VisitMemo | null = null;
+
+const subscribeNever = () => () => {};
+
+/** Read once per sitting: a return after a break of TODAY_SESSION_GAP_MS is a new sitting. */
+function visitSnapshot(): VisitMemo {
+    const nowMs = Date.now();
+    if (!visitMemo || nowMs - visitMemo.at >= TODAY_SESSION_GAP_MS) {
+        visitMemo = { at: nowMs, visit: resolveTodaySince(readTodayVisit(), nowMs) };
+    }
+    return visitMemo;
+}
+
+/**
+ * When this device last opened the packs home (`resolveTodaySince`), read
+ * once per sitting and recorded for the next visit. Client-only: the server
+ * render has no device store, so it reports nothing until hydrated.
+ */
+export function useTodayVisit(): { hydrated: boolean; sinceMs: number | null; nowMs: number } {
+    const memo = useSyncExternalStore(subscribeNever, visitSnapshot, () => null);
+    useEffect(() => {
+        if (memo) writeTodayVisit(memo.visit.next);
+    }, [memo]);
+    return { hydrated: memo != null, sinceMs: memo?.visit.sinceMs ?? null, nowMs: memo?.at ?? 0 };
+}
+
+/** "Last here Friday" for the welcome panel; nothing on a first visit. */
+export function TodayLastHere({ className }: { className?: string }) {
+    const { hydrated, sinceMs, nowMs } = useTodayVisit();
+    const lastHere = hydrated ? formatLastHere(sinceMs, nowMs) : null;
+    if (!lastHere) return null;
+    return (
+        <p className={cn("text-sm text-muted-foreground", className)} data-testid="today-last-here">
+            Last here {lastHere}
+        </p>
+    );
+}
+
+export function TodayHome({
+    auth,
+    returnTo,
+    matching,
+    noResume,
+    pursuits,
+    pursuitsLoading,
+    accountKey,
+    onApply,
+    onOpenPack,
+    onAddResume,
+    onRetryResume,
+}: {
+    /** The page's confirmed auth state: a guest sees the fit preview and the gate, never before it is known. */
+    auth: "signed-in" | "signed-out" | "pending";
+    /** Where the sign-up gate brings a guest back to — the packs hub. */
+    returnTo: SitePath;
+    /** The résumé to rank against; `null` until the page has a usable one. */
+    matching: TodayMatching | null;
+    /** With no `matching`, why not. */
+    noResume: TodayNoResume;
     pursuits: Pursuit[];
     /** The signed-in tracker's first read is in flight: "Needs you" waits for it. */
     pursuitsLoading: boolean;
@@ -107,45 +170,47 @@ export function TodayHome({
     /** The page's own Apply (auth gate, apply-intent prompt, "did you apply?" return). */
     onApply: (job: PublicJob) => void;
     onOpenPack: (id: TodayPackId) => void;
-    /** Which résumé the page ranks against, with Replace (`ResumeInUse`), under the private-matching line. */
-    resumeLine?: ReactNode;
+    /** Add or replace the résumé (the page's upload flow). */
+    onAddResume: () => void;
+    /** Read the saved résumé again (`noResume: "unreadable"`). */
+    onRetryResume: () => void;
 }) {
-    const [nowMs] = useState(() => Date.now());
-    // This header mounts only once a résumé has loaded on the client, so the device store is readable here.
-    // A reload inside one sitting resolves to the same baseline, so a second read is harmless.
-    const [visit] = useState(() => resolveTodaySince(readTodayVisit(), nowMs));
-    useEffect(() => writeTodayVisit(visit.next), [visit]);
+    const visit = useTodayVisit();
+    const [mountedAt] = useState(() => Date.now());
+    const nowMs = visit.hydrated ? visit.nowMs : mountedAt;
     const [skipped, setSkipped] = useState<ReadonlySet<string>>(readTodaySkipped);
     const [attempt, setAttempt] = useState(0);
 
-    const floorMs = todaySearchFloor(visit.sinceMs, nowMs);
-    // A first visit's floor moves with the clock; the key says "first" so a return to the hub reuses its search.
-    const memoKey = `${resumeKey}\0${serializeJobsUrl(pack)}\0${visit.sinceMs ?? "first"}`;
+    const windowFloorMs = nowMs - TODAY_PICKS_WINDOW_MS;
+    const memoKey = matching ? `${matching.resumeKey}\0${serializeJobsUrl(matching.pack)}` : "";
     const requestKey = `${memoKey}\0${attempt}`;
-    const [settled, setSettled] = useState<{ key: string; search: NewSearch } | null>(null);
-    const search = useMemo<NewSearch>(() => {
+    const [settled, setSettled] = useState<{ key: string; search: PicksSearch } | null>(null);
+    const search = useMemo<PicksSearch>(() => {
         if (settled?.key === requestKey) return settled.search;
-        const memo = attempt === 0 ? freshHubProbeMemo(todayMemo, memoKey, nowMs) : null;
+        const memo = attempt === 0 && memoKey ? freshHubProbeMemo(todayMemo, memoKey, nowMs) : null;
         return memo ? memo.search : { kind: "loading" };
     }, [settled, requestKey, attempt, memoKey, nowMs]);
 
     // The search reads the latest résumé and pack without re-running for a new object with the same content.
-    const inputsRef = useRef({ resume, signals, pack, floorMs });
+    const inputsRef = useRef({ matching, windowFloorMs });
     useEffect(() => {
-        inputsRef.current = { resume, signals, pack, floorMs };
-    }, [resume, signals, pack, floorMs]);
+        inputsRef.current = { matching, windowFloorMs };
+    }, [matching, windowFloorMs]);
 
     useEffect(() => {
-        // Going into a pack and back remounts this header, and the search limit is shared with the packs.
+        if (!memoKey) return;
+        // Going into a pack and back remounts this section, and the search limit is shared with the packs.
         if (attempt === 0 && freshHubProbeMemo(todayMemo, memoKey, Date.now())) return;
         let cancelled = false;
         void (async () => {
-            const { resume, signals, pack, floorMs } = inputsRef.current;
+            const { matching, windowFloorMs } = inputsRef.current;
+            if (!matching) return;
+            const { resume, signals, pack } = matching;
+            // The pack's own search and order (most relevant first), limited to the week.
             const params = {
                 ...packSearchParams(pack),
-                postedSinceMs: floorMs,
-                sort: "newest" as const,
-                limit: TODAY_NEW_FETCH_LIMIT,
+                postedSinceMs: windowFloorMs,
+                limit: TODAY_PICKS_FETCH_LIMIT,
                 offset: 0,
                 withFacets: false,
             };
@@ -175,11 +240,7 @@ export function TodayHome({
                 }
                 if (score) roles.push({ job, score });
             }
-            const ready: NewSearch = {
-                kind: "ready",
-                roles,
-                saturated: hits.length >= TODAY_NEW_FETCH_LIMIT && (r.total ?? 0) > hits.length,
-            };
+            const ready: PicksSearch = { kind: "ready", roles };
             todayMemo = { key: memoKey, at: Date.now(), complete: true, search: ready };
             setSettled({ key: requestKey, search: ready });
         })();
@@ -192,20 +253,29 @@ export function TodayHome({
         () => new Set(pursuits.map((p) => p.job_id).filter((id): id is string => Boolean(id))),
         [pursuits],
     );
-    const picks = useMemo(
-        () => (search.kind === "ready" ? pickNewForYou(search.roles, { sinceMs: floorMs, skipped, tracked }) : []),
-        [search, floorMs, skipped, tracked],
+    const ranked = useMemo(
+        () => (search.kind === "ready" ? pickToday(search.roles, { skipped, tracked }) : []),
+        [search, skipped, tracked],
     );
+    // Ratings reorder the picks the visitor hasn't reached; the rows down to the one they rated stay put.
+    const nudges = useDeckNudges();
+    const [held, setHeld] = useState<readonly string[]>([]);
+    const picks = useMemo(() => tuneToday(ranked, nudges, held, nowMs), [ranked, nudges, held, nowMs]);
+    const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
+    const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
+
+    const newCount = useMemo(() => picks.filter((r) => isNewSince(r.job, visit.sinceMs)).length, [picks, visit.sinceMs]);
     const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
     const followUps = useMemo(() => followUpsDue(pursuits, nowMs).length, [pursuits, nowMs]);
     const interviews = useMemo(() => interviewsThisWeek(pursuits, nowMs).length, [pursuits, nowMs]);
 
     // "Needs you": the tracker's dates and waits now, the account's saved searches, follows and closed listings once read.
+    const needsFloorMs = todaySearchFloor(visit.sinceMs, nowMs);
     const savedJobIds = useMemo(() => savedRolesToCheck(pursuits), [pursuits]);
     const needsRemote = useNeedsYouRemote({
-        enabled: auth === "signed-in" && !pursuitsLoading && accountKey != null,
+        enabled: auth === "signed-in" && !pursuitsLoading && accountKey != null && visit.hydrated,
         accountKey: accountKey ?? "",
-        sinceIso: new Date(floorMs).toISOString(),
+        sinceIso: new Date(needsFloorMs).toISOString(),
         savedJobIds,
         nowMs,
     });
@@ -215,19 +285,21 @@ export function TodayHome({
     const needs = useMemo(() => buildNeedsYou(pursuits, nowMs, remoteData), [pursuits, nowMs, remoteData]);
     const steps = useMemo(() => (remoteData ? starterSteps(pursuits, remoteData) : null), [pursuits, remoteData]);
 
-    // Once per load, when the list has settled: what the header showed.
+    const status: TodayStatus = matching ? search.kind : `no-resume-${noResume}`;
+
+    // Once per load, when the list has settled: what Today showed.
     const viewedRef = useRef(false);
     useEffect(() => {
-        if (viewedRef.current || search.kind === "loading") return;
+        if (viewedRef.current || !visit.hydrated || status === "loading" || status === "no-resume-loading") return;
         viewedRef.current = true;
         captureEvent("home_viewed", {
-            new_count: picks.length,
+            new_count: newCount,
             applied_today: appliedToday,
             follow_ups: followUps,
             interviews,
             has_last_visit: visit.sinceMs != null,
         });
-    }, [visit, search.kind, picks.length, appliedToday, followUps, interviews]);
+    }, [visit.hydrated, visit.sinceMs, status, newCount, appliedToday, followUps, interviews]);
 
     const track = (kind: HomeActionKind, role?: TodayRole) =>
         captureEvent("home_action_clicked", {
@@ -235,48 +307,85 @@ export function TodayHome({
             ...(role ? { job_id: role.job.id, ...matchAnalyticsProps(role.score) } : {}),
         });
 
-    const sinceMs = visit.sinceMs;
+    const rowLimit = auth === "signed-in" ? TODAY_PICK_ROWS : FIT_GUEST_PREVIEW_ROWS;
+    const shownIds = picks.slice(0, rowLimit).map((r) => r.job.id);
+    const deck = picks.map((r) => r.job);
+    /** Hold the shown rows down to `index` (inclusive or not) where they are. */
+    const holdThrough = (jobId: string, inclusive: boolean) => {
+        const index = shownIds.indexOf(jobId);
+        if (index < 0) return;
+        setHeld(shownIds.slice(0, inclusive ? index + 1 : index));
+    };
+    // An own-role pick is rated like the packs rate one (#747): a thumbs down steers by employer, not the whole title.
+    const nudge = (role: TodayRole, signal: TuningSignal) => recordNudge(role.job, signal, deck, { own: role.score.role === "own" });
+    /** A thumbs down: the pick leaves (kept out on this device) and roles like it move down. */
+    const turnDown = (role: TodayRole) => {
+        holdThrough(role.job.id, false);
+        nudge(role, "fewer");
+        const next = new Set(skipped).add(role.job.id);
+        setSkipped(next);
+        writeTodaySkipped(next);
+    };
+
     return (
         <TodayHomeView
-            title={hubGreeting({ signedIn: auth === "signed-in", userName, hasResume: true }).title}
-            lastHere={formatLastHere(sinceMs, nowMs)}
-            since={sincePhrase(sinceMs, nowMs)}
-            status={search.kind}
+            status={status}
+            since={sincePhrase(visit.sinceMs, nowMs)}
+            firstVisit={visit.sinceMs == null}
+            sinceMs={visit.sinceMs}
             roles={picks}
-            saturated={search.kind === "ready" && search.saturated}
+            newCount={newCount}
             appliedToday={appliedToday}
-            followUps={followUps}
-            interviews={interviews}
             nowMs={nowMs}
+            likedIds={liked}
+            tuning={tuning ? tuningLine(tuning) : null}
             gate={
                 auth === "signed-out" ? (
                     <SignupGate
                         reason="fit"
                         originSurface="for_you"
                         returnTo={returnTo}
-                        count={{ kind: search.kind === "ready" && search.saturated ? "floor" : "exact", value: picks.length }}
+                        count={{ kind: "exact", value: picks.length }}
                         className="w-full"
                     />
                 ) : null
             }
-            rowLimit={auth === "signed-in" ? TODAY_NEW_ROWS : FIT_GUEST_PREVIEW_ROWS}
+            rowLimit={rowLimit}
             onTrack={track}
+            onOpen={(role) => {
+                track("new_role_open", role);
+                nudge(role, "open");
+            }}
             onApply={(role) => {
                 track("new_role_apply", role);
+                nudge(role, "apply");
                 onApply(role.job);
             }}
-            onSkip={(role) => {
-                track("new_role_skip", role);
-                const next = new Set(skipped).add(role.job.id);
-                setSkipped(next);
-                writeTodaySkipped(next);
+            onMore={(role) => {
+                track("new_role_more", role);
+                holdThrough(role.job.id, true);
+                if (liked.has(role.job.id)) clearNudge(role.job.id);
+                else nudge(role, "more");
+            }}
+            onFewer={(role) => {
+                track("new_role_fewer", role);
+                turnDown(role);
+            }}
+            onResetTuning={() => {
+                track("tuning_reset");
+                setHeld(shownIds);
+                resetNudges();
             }}
             onOpenPack={(id) => {
                 track("see_more");
                 onOpenPack(id);
             }}
+            onAddResume={() => {
+                track("add_resume");
+                onAddResume();
+            }}
+            onRetryResume={onRetryResume}
             onRetry={() => setAttempt((n) => n + 1)}
-            resumeLine={resumeLine}
             needsYou={
                 <NeedsYouView
                     items={needs}
@@ -302,128 +411,163 @@ const NEEDS_YOU_ACTION: Record<NeedsYouKind, HomeActionKind> = {
     follow: "needs_follow",
 };
 
+/** What the picks list shows: the search's state, or why there is no résumé to rank against. */
+export type TodayStatus = PicksSearch["kind"] | `no-resume-${TodayNoResume}`;
+
 function plural(n: number, one: string, many: string): string {
     return n === 1 ? one : many;
 }
 
+/** The rule a pick passed (`todayLeftOut`), said once at the top so every row's fit word has its basis. */
+const PICKS_BASIS = "This week's roles in your line of work, at your level, where you can work. Your own role comes first.";
+
+/** The summary line's links: plain text with a quiet underline, the number in bold. */
+const SUMMARY_LINK =
+    "underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+
 export function TodayHomeView({
-    title,
-    lastHere,
-    since,
     status,
+    since,
+    firstVisit,
+    sinceMs,
     roles,
-    saturated,
+    newCount,
     appliedToday,
     goal = DEFAULT_DAILY_APPLY_GOAL,
-    followUps,
-    interviews,
     nowMs,
-    rowLimit = TODAY_NEW_ROWS,
+    likedIds,
+    tuning,
+    rowLimit = TODAY_PICK_ROWS,
     gate = null,
     onTrack,
+    onOpen,
     onApply,
-    onSkip,
+    onMore,
+    onFewer,
+    onResetTuning,
     onOpenPack,
+    onAddResume,
+    onRetryResume,
     onRetry,
     needsYou = null,
-    resumeLine = null,
 }: {
-    title: string;
-    /** "Tuesday", "earlier today"; `null` on a first visit. */
-    lastHere: string | null;
-    /** What the new count covers: "since Tuesday", "today", "this week". */
+    status: TodayStatus;
+    /** What "new" covers: "since Tuesday", "today", "this week". */
     since: string;
-    status: NewSearch["kind"];
-    /** The picks, best first; the list shows the first `rowLimit`. */
+    firstVisit: boolean;
+    /** The last visit, for each row's "New"; `null` on a first visit. */
+    sinceMs: number | null;
+    /** The picks, best first after ratings; the list shows the first `rowLimit`. */
     roles: TodayRole[];
-    /** The search read its whole page and more were posted: the count is a floor. */
-    saturated: boolean;
+    /** Picks posted since the last visit. */
+    newCount: number;
     appliedToday: number;
     goal?: number;
-    followUps: number;
-    interviews: number;
     nowMs: number;
-    /** Rows shown: `TODAY_NEW_ROWS`, or a guest's fit preview (`FIT_GUEST_PREVIEW_ROWS`). */
+    /** Picks given a thumbs up. */
+    likedIds: ReadonlySet<string>;
+    /** "Tuned toward …, away from …." while ratings steer the list. */
+    tuning: string | null;
+    /** Rows shown: `TODAY_PICK_ROWS`, or a guest's fit preview (`FIT_GUEST_PREVIEW_ROWS`). */
     rowLimit?: number;
     /** A guest's sign-up gate, shown in place of "More" when the picks run past `rowLimit`. */
     gate?: ReactNode;
     onTrack?: (kind: HomeActionKind) => void;
+    onOpen?: (role: TodayRole) => void;
     onApply: (role: TodayRole) => void;
-    onSkip: (role: TodayRole) => void;
+    onMore: (role: TodayRole) => void;
+    onFewer: (role: TodayRole) => void;
+    onResetTuning: () => void;
     onOpenPack: (id: TodayPackId) => void;
+    onAddResume: () => void;
+    onRetryResume?: () => void;
     onRetry: () => void;
-    /** "Needs you" (`NeedsYouView`): beside the new matches from lg up, under them on a phone. The due and this-week stats link to it. */
+    /** "Needs you" (`NeedsYouView`): beside the picks from lg up, under them on a phone. Its header counts what's due. */
     needsYou?: ReactNode;
-    /** Which résumé these matches come from (`ResumeInUse`). */
-    resumeLine?: ReactNode;
 }) {
-    const tallyHref = needsYou ? "#today-needs-you" : "/yours";
-    const firstVisit = lastHere == null;
-    const newCount = `${roles.length}${saturated ? "+" : ""}`;
+    // Ranked against a résumé (or about to be): the picks count and "All of this week" belong.
+    const matched = !status.startsWith("no-resume");
+    const ranking = matched || status === "no-resume-loading";
     const shown = roles.slice(0, rowLimit);
-    const gated = gate != null && (roles.length > rowLimit || saturated);
+    const gated = gate != null && roles.length > rowLimit;
 
     return (
-        <section data-testid="today-home" aria-labelledby="today-title" className="space-y-5 pb-6">
-            <div className="space-y-1 poster-list-inset-x">
-                <SectionTitle id="today-title">{title}</SectionTitle>
-                {lastHere ? (
-                    <p className="text-sm text-muted-foreground" data-testid="today-last-here">
-                        Last here {lastHere}
+        <HubPanel
+            id="today"
+            title="Today"
+            titleId="today-title"
+            testId="today-home"
+            link={
+                matched ? (
+                    <button
+                        type="button"
+                        data-testid="today-see-more"
+                        onClick={() => onOpenPack("fresh")}
+                        className={HUB_PANEL_LINK_CLASS}
+                    >
+                        All of this week
+                    </button>
+                ) : null
+            }
+            intro={
+                <>
+                    <p className="text-sm text-muted-foreground" data-testid="today-basis">
+                        {ranking
+                            ? PICKS_BASIS
+                            : status === "no-resume-unreadable"
+                              ? "What needs you today. This week's roles that fit your résumé show here once it loads."
+                              : "What needs you today. Add your résumé and this week's roles that fit it show here too."}
                     </p>
-                ) : null}
-                {/* This header mounts only once a résumé has loaded, so the ranking below runs on this device. */}
-                <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-live" data-testid="today-private-matching">
-                    <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
-                    {PRIVATE_MATCHING_ACTIVE}
-                </p>
-                {resumeLine}
-            </div>
-
-            <ul data-testid="today-stats" className="grid grid-cols-2 gap-x-4 gap-y-4 poster-list-inset-x sm:grid-cols-4">
-                <TodayStat
-                    testId="today-stat-new"
-                    href="#today-new"
-                    tone={status === "ready" && roles.length > 0 ? "brand" : undefined}
-                    value={status === "ready" ? newCount : status === "failed" ? "–" : null}
-                    label={`new ${plural(roles.length, "match", "matches")} ${since}`}
-                    onClick={() => onTrack?.("stat_new")}
-                />
-                <TodayStat
-                    testId="today-stat-applied"
-                    href="/yours"
-                    value={String(appliedToday)}
-                    suffix={`of ${goal}`}
-                    label="applied today"
-                    onClick={() => onTrack?.("stat_applied")}
-                />
-                <TodayStat
-                    testId="today-stat-follow-ups"
-                    href={tallyHref}
-                    tone={followUps > 0 ? "warn" : undefined}
-                    value={String(followUps)}
-                    label={plural(followUps, "follow-up due", "follow-ups due")}
-                    onClick={() => onTrack?.("stat_follow_ups")}
-                />
-                <TodayStat
-                    testId="today-stat-interviews"
-                    href={tallyHref}
-                    value={String(interviews)}
-                    label={`${plural(interviews, "interview", "interviews")} this week`}
-                    onClick={() => onTrack?.("stat_interviews")}
-                />
-            </ul>
-
-            <div className={cn("grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem]")}>
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground" data-testid="today-summary">
+                        {status === "ready" ? (
+                            <>
+                                <a href="#today-new" data-testid="today-stat-new" className={SUMMARY_LINK} onClick={() => onTrack?.("stat_new")}>
+                                    <span className="font-semibold tabular-nums">{newCount}</span>{" "}
+                                    {firstVisit
+                                        ? `${plural(newCount, "pick", "picks")} this week`
+                                        : `new ${plural(newCount, "pick", "picks")} ${since}`}
+                                </a>
+                                <span aria-hidden className="text-muted-foreground">
+                                    ·
+                                </span>
+                            </>
+                        ) : null}
+                        <Link
+                            href="/yours?stage=applied"
+                            data-testid="today-stat-applied"
+                            className={SUMMARY_LINK}
+                            onClick={() => onTrack?.("stat_applied")}
+                        >
+                            <span className="font-semibold tabular-nums">{appliedToday}</span> of {goal} applied today
+                        </Link>
+                    </p>
+                    {matched && tuning ? (
+                        <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground" data-testid="today-tuning">
+                            <span className="min-w-0" aria-live="polite">
+                                {tuning}
+                            </span>
+                            <button
+                                type="button"
+                                data-testid="today-tuning-reset"
+                                onClick={onResetTuning}
+                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                            >
+                                Reset
+                            </button>
+                        </p>
+                    ) : null}
+                </>
+            }
+        >
+            <div className={cn("mt-4 grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-2")}>
                 <div id="today-new" data-testid="today-new" className="min-w-0 scroll-mt-24">
                     <div className="flex items-baseline justify-between gap-3 border-b border-border poster-list-inset-x py-2 text-sm text-muted-foreground">
-                        <SubTitle>New for you</SubTitle>
-                        {status === "ready" && roles.length > 0 ? <span>Strong first</span> : null}
+                        <SubTitle>Roles to look at</SubTitle>
                     </div>
 
-                    {status === "loading" ? (
+                    {status === "loading" || status === "no-resume-loading" ? (
                         <WaitState
-                            label="Finding new matches"
+                            label={status === "loading" ? "Picking this week's roles for you" : "Reading your résumé"}
                             data-testid="today-new-loading"
                             skeleton={
                                 <div>
@@ -442,131 +586,106 @@ export function TodayHomeView({
                     ) : status === "failed" ? (
                         <div className="poster-list-inset-x pt-4">
                             <LoadFailedState
-                                title="We can't load new matches right now."
+                                title="We can't load this week's roles right now."
                                 onRetry={onRetry}
                                 testId="today-new-failed"
                             />
                         </div>
+                    ) : status === "no-resume-missing" || status === "no-resume-unreadable" ? (
+                        <div data-testid="today-no-resume" data-reason={status.slice("no-resume-".length)} className="space-y-3 poster-list-inset-x py-6">
+                            <p className="text-sm text-foreground">
+                                {status === "no-resume-unreadable"
+                                    ? "Your saved résumé didn't load, or we couldn't read a role from it, so there's nothing to rank yet."
+                                    : "Picks need your résumé: Today ranks the week's roles against it, on this device."}
+                            </p>
+                            <div className="wrap-row">
+                                {status === "no-resume-unreadable" && onRetryResume ? (
+                                    <Button type="button" variant="outline" data-testid="today-retry-resume" onClick={onRetryResume}>
+                                        Try again
+                                    </Button>
+                                ) : null}
+                                <Button
+                                    type="button"
+                                    variant={status === "no-resume-unreadable" ? "ghost" : "outline"}
+                                    data-testid="today-add-resume"
+                                    onClick={onAddResume}
+                                >
+                                    {status === "no-resume-unreadable" ? "Replace résumé" : "Add your résumé"}
+                                </Button>
+                            </div>
+                        </div>
                     ) : shown.length === 0 ? (
                         <div data-testid="today-new-empty" className="space-y-3 poster-list-inset-x py-8 text-left">
                             <p className="text-sm text-foreground">
-                                {firstVisit ? "No new matches this week." : `No new matches ${since}.`}
+                                No role posted this week fits your own line of work, level and place yet. Your packs list the near ones.
                             </p>
                             <Button
                                 type="button"
                                 variant="outline"
                                 data-testid="today-new-empty-action"
-                                onClick={() => onOpenPack(firstVisit ? "all" : "fresh")}
+                                onClick={() => onOpenPack("all")}
                             >
-                                {firstVisit ? "Browse all matches" : "Open Added this week"}
+                                Browse all matches
                             </Button>
                         </div>
                     ) : (
                         <>
-                            <ul aria-label="New for you">
+                            <ul aria-label="Roles to look at">
                                 {shown.map((role) => (
                                     <TodayRow
                                         key={role.job.id}
                                         role={role}
                                         nowMs={nowMs}
-                                        onOpen={() => onTrack?.("new_role_open")}
+                                        isNew={isNewSince(role.job, sinceMs)}
+                                        liked={likedIds.has(role.job.id)}
+                                        onOpen={() => onOpen?.(role)}
                                         onApply={() => onApply(role)}
-                                        onSkip={() => onSkip(role)}
+                                        onMore={() => onMore(role)}
+                                        onFewer={() => onFewer(role)}
                                     />
                                 ))}
                             </ul>
-                            <div className="poster-list-inset-x pt-3">
-                                {gated ? (
-                                    gate
-                                ) : (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        data-testid="today-see-more"
-                                        onClick={() => onOpenPack("fresh")}
-                                    >
-                                        More in Added this week
-                                    </Button>
-                                )}
-                            </div>
+                            {gated ? <div className="poster-list-inset-x pt-4">{gate}</div> : null}
                         </>
                     )}
                 </div>
                 {needsYou}
             </div>
-        </section>
+        </HubPanel>
     );
 }
 
-function TodayStat({
-    testId,
-    href,
-    value,
-    suffix,
-    label,
-    tone,
-    onClick,
-}: {
-    testId: string;
-    href: string;
-    /** `null` while the number is still loading. */
-    value: string | null;
-    suffix?: string;
-    label: string;
-    tone?: "brand" | "warn";
-    onClick: () => void;
-}) {
-    const body = (
-        <>
-            <div
-                className={cn(
-                    "text-xl font-semibold leading-snug tabular-nums",
-                    tone === "brand" ? "text-brand" : tone === "warn" ? "text-warn" : "text-foreground",
-                )}
-            >
-                {value == null ? (
-                    <WaitBar className="my-1 h-5 w-8" aria-hidden />
-                ) : (
-                    <>
-                        {value}
-                        {suffix ? <span className="text-sm font-normal text-muted-foreground"> {suffix}</span> : null}
-                    </>
-                )}
-            </div>
-            <div className="mono-data mt-0.5 text-sm text-muted-foreground underline-offset-2 group-hover:underline">
-                {label}
-            </div>
-        </>
-    );
-    const className =
-        "group block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand";
-    return (
-        <li data-testid={testId}>
-            {href.startsWith("#") ? (
-                <a href={href} className={className} onClick={onClick}>
-                    {body}
-                </a>
-            ) : (
-                <Link href={href} className={className} onClick={onClick}>
-                    {body}
-                </Link>
-            )}
-        </li>
-    );
-}
+/** Hidden until the row is hovered or focused, only where there is a mouse. */
+const ROW_ACTIONS_ON_HOVER =
+    "transition-opacity motion-reduce:transition-none pointer-fine:opacity-0 pointer-fine:group-hover/today-row:opacity-100 pointer-fine:group-focus-within/today-row:opacity-100";
 
+/**
+ * One pick. Every row has the same few things, so each is said once and
+ * quietly: the fit word leads the meta line (it opens the same receipt as the
+ * chip), Apply is a text button, and the thumbs are the only other control (a
+ * thumbs down takes the pick out, which is what Skip did, and tunes the rest).
+ * With a mouse, Apply and the thumbs show on hover or keyboard focus, so the
+ * list reads as roles, not a column of buttons; a liked row keeps its lit
+ * thumb in view. Touch has no hover, so there they always show.
+ */
 function TodayRow({
     role,
     nowMs,
+    isNew,
+    liked,
     onOpen,
     onApply,
-    onSkip,
+    onMore,
+    onFewer,
 }: {
     role: TodayRole;
     nowMs: number;
+    isNew: boolean;
+    liked: boolean;
     onOpen: () => void;
     onApply: () => void;
-    onSkip: () => void;
+    onMore: () => void;
+    onFewer: () => void;
 }) {
     const { job, score } = role;
     const presented = presentJob(job);
@@ -576,14 +695,13 @@ function TodayRow({
         <li
             data-testid="today-new-row"
             data-job-id={job.id}
-            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-4"
+            className="group/today-row grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-3"
         >
             <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
-            {/* Phone: Apply and Skip under the facts. From sm up they join the right rail under the fit and age, so the row stays one row tall. */}
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
-                <div className="col-start-1 row-start-1 min-w-0 sm:row-span-2">
+            <div className="min-w-0 border-b border-border pb-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-4">
+                <div className="min-w-0">
                     <Link
                         href={jobPath(job)}
                         data-testid="today-role-title"
@@ -592,9 +710,10 @@ function TodayRow({
                     >
                         {presented.title}
                     </Link>
-                    <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                    <div className="mt-0.5 flex flex-wrap items-baseline text-sm text-muted-foreground">
                         <MetaLine
                             items={[
+                                <MatchChip key="fit" score={score} jobId={job.id} variant="text" />,
                                 <span key="company">{presented.company.name}</span>,
                                 locationKnown && <span key="location">{presented.location}</span>,
                                 presented.salary && (
@@ -602,21 +721,31 @@ function TodayRow({
                                         {presented.salary}
                                     </span>
                                 ),
+                                isNew && (
+                                    <span key="new" className="font-semibold text-foreground" data-testid="today-new-badge">
+                                        New
+                                    </span>
+                                ),
+                                age && (
+                                    <span key="age" className="tabular-nums">
+                                        {age}
+                                    </span>
+                                ),
                             ]}
                         />
                     </div>
                 </div>
-                <span className="col-start-2 row-start-1 flex h-fit flex-col items-end gap-1 self-start">
-                    <MatchChip score={score} jobId={job.id} />
-                    {age ? <span className="mono-data text-xs leading-none text-muted-foreground">{age}</span> : null}
-                </span>
-                <div className="wrap-row col-span-2 row-start-2 pt-3 sm:col-span-1 sm:col-start-2 sm:pt-2 sm:text-right">
-                    <Button type="button" data-testid="today-apply" onClick={onApply}>
+                <div
+                    data-testid="today-row-actions"
+                    className={cn(
+                        "mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end",
+                        !liked && ROW_ACTIONS_ON_HOVER,
+                    )}
+                >
+                    <Button type="button" variant="ghost" data-testid="today-apply" onClick={onApply} className="-ml-3 sm:ml-0">
                         Apply
                     </Button>
-                    <Button type="button" variant="outline" data-testid="today-skip" onClick={onSkip}>
-                        Skip
-                    </Button>
+                    <RoleTuningButtons active liked={liked} onMore={onMore} onFewer={onFewer} />
                 </div>
             </div>
         </li>
