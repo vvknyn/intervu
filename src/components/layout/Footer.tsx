@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
 import { isLeanProductSurface, isQuietFooterPath, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
@@ -51,6 +52,7 @@ function withFromParam(href: string, pathname: string): string {
  */
 export function FooterLinks({ children }: { children?: React.ReactNode }) {
     const pathname = usePathname();
+    const prefetchOnIntent = usePrefetchOnIntent();
     return (
         <nav
             aria-label="Company"
@@ -60,6 +62,8 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
                 <Link
                     key={link.href}
                     href={"fromCurrentPage" in link && link.fromCurrentPage ? withFromParam(link.href, pathname) : link.href}
+                    prefetch={false}
+                    {...prefetchOnIntent(link.href)}
                     className="transition-colors duration-100 hover:text-foreground"
                 >
                     {link.label}
@@ -72,6 +76,7 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
 
 /** Compact 1-line footer links — removed from filter panels; use `FooterContent`. */
 export function FooterContent() {
+    const prefetchOnIntent = usePrefetchOnIntent();
     return (
         <footer
             data-testid="site-footer"
@@ -84,7 +89,12 @@ export function FooterContent() {
                     {/* Provenance without the geo clause from marketing-stats — avoids
                         the multi-country list on guest surfaces. */}
                     Every listing is from companies&apos; own career pages,{" "}
-                    <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                    <Link
+                        href={GHOST_RESEARCH_HREF}
+                        prefetch={false}
+                        {...prefetchOnIntent(GHOST_RESEARCH_HREF)}
+                        className="underline underline-offset-2 hover:text-foreground"
+                    >
                         {GHOST_SCREENING_CLAUSE}
                     </Link>
                     . Never resold, never curated.
@@ -107,6 +117,11 @@ export function FooterContent() {
 }
 
 /**
+ * Footer links prefetch on intent (use-prefetch-on-intent.ts), not on sight:
+ * /jobs paints its list after the page's own code loads, so until then the
+ * footer sits in the viewport, and prefetching Privacy and Terms there
+ * competed with that code on a phone connection.
+ *
  * Quiet product band, mounted once in the root layout (same as `TopBar` and
  * `MobileTabBar`) rather than per-page, and visible on all viewports. Hides
  * on the same routes `TopBar` hides its own chrome on — a login/auth screen
@@ -124,6 +139,7 @@ export function Footer() {
 /** Privacy/Terms only — keeps legal reachable without the ~17-link farm on
  *  hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
+    const prefetchOnIntent = usePrefetchOnIntent();
     return (
         <footer
             data-testid="site-footer"
@@ -135,6 +151,8 @@ function LeanFooterContent() {
                     <Link
                         key={link.href}
                         href={link.href}
+                        prefetch={false}
+                        {...prefetchOnIntent(link.href)}
                         className="transition-colors duration-100 hover:text-foreground"
                     >
                         {link.label}

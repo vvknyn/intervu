@@ -111,6 +111,8 @@ export function TopBar() {
             >
                 <Link
                     href="/"
+                    prefetch={false}
+                    {...prefetchOnIntent("/")}
                     className="flex shrink-0 items-center gap-2 transition-opacity hover:opacity-90"
                     data-testid="topbar-logo"
                     data-rulebook-exempt

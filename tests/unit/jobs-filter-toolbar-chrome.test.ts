@@ -176,7 +176,6 @@ describe("jobs filter toolbar chrome", () => {
         const facetBarIdx = toolbar.indexOf("facetBarEl");
         const inPageClear = toolbar.indexOf("unnamedEntries.length === 0 && clearFiltersEl");
         const filtersToggleIdxUndocked = toolbar.indexOf('data-testid="filters-toggle"');
-        const inPageSpacer = toolbar.indexOf("min-w-0 flex-1");
         const inPageActions = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
         assert.equal(filterChipsRowIdx, -1, "undocked toolbar must not mount FilterChipsRow");
         assert.ok(filtersToggleIdxUndocked > -1, "undocked filters-toggle present");
@@ -186,8 +185,7 @@ describe("jobs filter toolbar chrome", () => {
             filtersToggleIdxUndocked < fieldDirectoryIdx && filtersToggleIdxUndocked < facetBarIdx,
             "undocked filters-toggle must not sit between field-directory and facets",
         );
-        assert.ok(inPageClear > -1 && inPageClear < inPageSpacer, "undocked clear before spacer");
-        assert.ok(inPageSpacer < inPageActions, "undocked spacer before actions");
+        assert.ok(inPageClear > -1 && inPageClear < inPageActions, "undocked clear before the actions cluster");
 
         const activeRow = page.slice(
             page.indexOf('data-testid="active-filter-row"'),
@@ -238,12 +236,15 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(src, /\[data-testid="topbar-docked-extras"\]:empty/);
     });
 
-    it("undocked actions cluster sits after the flex-1 spacer", () => {
+    it("undocked actions cluster keeps to the trailing edge with ml-auto, not a spacer", () => {
         const page = readFileSync(PAGE, "utf8");
         const toolbar = page.slice(page.indexOf('data-testid="jobs-toolbar"'), page.indexOf('data-testid="active-filter-row"'));
-        const spacerIdx = toolbar.indexOf("min-w-0 flex-1");
         const actionsIdx = toolbar.indexOf('data-testid="jobs-toolbar-actions"');
-        assert.ok(spacerIdx > -1 && actionsIdx > spacerIdx);
+        assert.ok(actionsIdx > -1);
+        // An empty flex-1 spacer takes a row gap of its own, which stranded the
+        // "?" on a 390px phone (J-NAV-35); the margin takes none.
+        assert.match(toolbar.slice(actionsIdx, actionsIdx + 120), /className="wrap-row ml-auto /);
+        assert.doesNotMatch(toolbar, /<div className="min-w-0 flex-1" aria-hidden \/>/);
         assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /savedSearchMountEl/);
         assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /\{sortEl\}/);
     });

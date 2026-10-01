@@ -2,11 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
-import {
-    isAuthKitHeld,
-    REQUIRE_AUTHKIT_EVENT,
-    scheduleAfterLoadOrIdle,
-} from "@/lib/perf/schedule-after-load-or-idle";
+import { scheduleDeferredProviderMount } from "@/lib/perf/schedule-after-load-or-idle";
 
 const AuthKitProvider = dynamic(
     () =>
@@ -32,23 +28,9 @@ const AuthKitProvider = dynamic(
 export function DeferredAuthKitProvider({ children }: { children: React.ReactNode }) {
     const [ready, setReady] = useState(false);
 
-    useEffect(() => {
-        const mount = () => setReady(true);
-        const onRequire = () => mount();
-        window.addEventListener(REQUIRE_AUTHKIT_EVENT, onRequire);
-        // A held page (see `holdAuthKitUntilRequired`) mounts it through the
-        // require event instead, once its first list is on screen.
-        const cancelIdle = scheduleAfterLoadOrIdle(
-            () => {
-                if (!isAuthKitHeld()) mount();
-            },
-            { timeout: 5000 },
-        );
-        return () => {
-            window.removeEventListener(REQUIRE_AUTHKIT_EVENT, onRequire);
-            cancelIdle();
-        };
-    }, []);
+    // /jobs holds this until its first list is on screen (see
+    // `holdDeferredLoadsUntilFirstList`).
+    useEffect(() => scheduleDeferredProviderMount(() => setReady(true), { timeout: 5000 }), []);
 
     return (
         <>

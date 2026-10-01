@@ -5,18 +5,18 @@
  * POST /api/search-alerts; mirrors FollowEmailStep + AccountEmailPrompt styling.
  */
 import { useEffect, useState } from "react";
-import posthog from "posthog-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
+import { getPostHogClient } from "@/lib/analytics/posthog-client";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
 
 /** Never throws — a missing/unavailable PostHog distinct id must not block
  *  the alert submission it would otherwise ride along with. */
 function readPosthogDistinctId(): string | null {
   try {
-    return posthog.get_distinct_id() || null;
+    return getPostHogClient()?.get_distinct_id() || null;
   } catch {
     return null;
   }
