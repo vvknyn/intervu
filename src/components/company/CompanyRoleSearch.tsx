@@ -5,7 +5,7 @@ import Link from "next/link";
 import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
-import { KpiStat } from "@/components/jobs/JobDetail";
+import { KpiStat } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";

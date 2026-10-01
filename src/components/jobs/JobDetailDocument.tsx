@@ -525,6 +525,7 @@ export function JobDetailDocument({
     const reportControlEl = !closed && reportJobEnabled && job.apply_url && (
         <div className="border-t border-border py-4">
             <ReportJobButton
+                jobId={job.id}
                 jobUrl={job.apply_url}
                 jobTitle={jobTitle}
             />

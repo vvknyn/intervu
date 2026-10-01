@@ -737,6 +737,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-MODAL-05 | Open Feedback from the account menu; the menu closes, the Type picker opens above the dialog and picking an option sets it, Cancel closes without sending (dev-server only: signed-in mock) | signed-in | any page, `topbar-avatar` then Feedback | signed-in | no | covered | modal.spec.ts |
 | J-MODAL-06 | Customize a role twice with a guest résumé (on-device mode on); each draft starts from the guest's own summary, offers only Close, Copy and Download PDF, and the résumé stored in the browser is unchanged | anon with a guest résumé | /jobs?view=search&q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
 
+## SPEED
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|----|---------|---------|-------|------|--------|--------|------|
+| J-SPEED-01 | A typed search shows its first matching rows within 2 seconds of pressing Search | anon | /jobs, type "accountant", Search | signed-out | no | covered | speed.spec.ts |
+| J-SPEED-02 | Opening /jobs?q=<role> on a mid-range phone shows rows within 2 seconds (today about 3.5 s on a 4x-throttled phone profile, almost all of it loading and running the page before the search is sent; needs the first page rendered on the server) | anon | /jobs?q=nurse | signed-out | no | uncovered | — |
+
 ## Legacy specs pending repair
 
 Specs in `tests/e2e/` triaged "fix" that no row above cites. Not run by the journey suite; the journey each guards is not covered.

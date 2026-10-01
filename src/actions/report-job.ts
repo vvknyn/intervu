@@ -19,6 +19,7 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowReportListingRequest } from "@/lib/shield/rate-limit";
 import { resolveReporterKey } from "@/lib/jobs/reporter-key";
+import { reportOpenedJob } from "@/lib/jobs/liveness-demand";
 
 /** Plain-language radio label the dialog shows. */
 export type ReportJobReason =
@@ -61,6 +62,8 @@ export async function reportJobEnabledAction(): Promise<boolean> {
 }
 
 export async function reportJobAction(input: {
+  /** Optional: older clients send only the URL. */
+  jobId?: string;
   jobUrl: string;
   jobTitle: string;
   reason: ReportJobReason;
@@ -77,6 +80,12 @@ export async function reportJobAction(input: {
   const reporterKey = resolveReporterKey(user?.uid ?? null, ip, config.key);
   if (!reporterKey) return { kind: "error", message: "We couldn't verify this request. Try again shortly." };
   if (!allowReportListingRequest(ip)) return { kind: "rate_limited" };
+
+  // "The link is dead" / "it's filled" puts the listing at the front of
+  // Subspace's liveness checks; the verifier decides, never this report alone.
+  if (input.reason === "dead_link" || input.reason === "filled") {
+    reportOpenedJob(typeof input.jobId === "string" ? input.jobId : null);
+  }
 
   // "dead-link: " prefix on notes distinguishes the two plain-language
   // reasons that both map onto the schema's single "expired" value.

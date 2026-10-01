@@ -2149,9 +2149,15 @@ export interface CompanyIntentResult {
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
+// One probe per key at a time: a single search asks this from several
+// places at once (main query, beyond-window and count probes), and before
+// the first answer is cached each of them used to send its own identical
+// probe — three at once on a cold query, roughly doubling its server time.
+const companyIntentInFlight = new Map<string, Promise<CompanyIntentResult>>();
 
 export function resetCompanyIntentCacheForTests(): void {
   companyIntentCache.clear();
+  companyIntentInFlight.clear();
 }
 
 export async function resolveCompanyIntentResult(q: string | undefined): Promise<CompanyIntentResult> {
@@ -2159,9 +2165,17 @@ export async function resolveCompanyIntentResult(q: string | undefined): Promise
   if (!query) return { companyScoped: false, companyDomains: [] };
   const key = normalizeCompanyName(query);
   const hit = companyIntentCache.get(key);
-  const now = Date.now();
-  if (hit && now - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
 
+  const pending = companyIntentInFlight.get(key);
+  if (pending) return pending;
+  const probe = probeCompanyIntent(query, key).finally(() => companyIntentInFlight.delete(key));
+  companyIntentInFlight.set(key, probe);
+  return probe;
+}
+
+async function probeCompanyIntent(query: string, key: string): Promise<CompanyIntentResult> {
+  const now = Date.now();
   const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
   const companyScoped = isCompanyNameQuery(query, sample);
   const value: CompanyIntentResult = {

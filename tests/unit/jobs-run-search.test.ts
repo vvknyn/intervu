@@ -64,3 +64,14 @@ test("reads only hideGhosts/postedBucket off whatever basis it's given — extra
     };
     assert.deepEqual(planProbes(richBasis), { ghost: true, beyondWindow: true });
 });
+
+test("a later page (offset > 0) runs no probes: load-more never reads them", () => {
+    assert.deepEqual(planProbes({ hideGhosts: true, postedBucket: "30d", offset: 20 }), {
+        ghost: false,
+        beyondWindow: false,
+    });
+    assert.deepEqual(planProbes({ hideGhosts: true, postedBucket: "30d", offset: 0 }), {
+        ghost: true,
+        beyondWindow: true,
+    });
+});
