@@ -17,6 +17,7 @@ import {
     sanitizeLocation,
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
+import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { DATE_RANGE_RE, MONTH } from "./resume-dates";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
@@ -189,6 +190,22 @@ function isSectionHeader(line: string): string | null {
     return null;
 }
 
+/**
+ * A line that starts a block of its own and never continues the line above:
+ * a section heading (a known one, or a short all-caps line such as
+ * "CORE COMPETENCIES") or a dated role line. Rejoining wrapped lines, at
+ * upload (`lib/local-ai/pdf-text-lines.ts`) and on stored text
+ * (unwrap-lines.ts), never joins across one.
+ */
+export function isResumeBoundaryLine(line: string): boolean {
+    const trimmed = line.trim();
+    const words = trimmed.split(/\s+/).length;
+    if (isSectionHeader(trimmed)) return true;
+    // A dated role line, not a sentence that mentions "2019 to 2021".
+    if (DATE_RANGE_RE.test(trimmed) && words <= 12 && !/[.!?]$/.test(trimmed)) return true;
+    return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && words <= 4;
+}
+
 function assignRoleCompany(first: string, second: string): { role: string; company: string } {
     const a = first.trim();
     const b = second.trim();
@@ -199,9 +216,28 @@ function assignRoleCompany(first: string, second: string): { role: string; compa
     return { role: a, company: b };
 }
 
+const CLOSER_TO_OPENER: Record<string, string> = { ")": "(", "]": "[", "}": "{" };
+
+/** Strips separators and stray brackets from both ends, but keeps a closing
+ *  bracket that closes one in the text: "Job-Search Platform (live)" keeps its ")". */
+function trimEdgePunctuation(text: string): string {
+    let out = text.replace(/^[\s(\[{|·•,;—–-]+/, "");
+    for (;;) {
+        const next = out.replace(/[\s|·•,;—–-]+$/, "");
+        const closer = next.slice(-1);
+        const opener = CLOSER_TO_OPENER[closer];
+        if (opener && next.split(opener).length - 1 < next.split(closer).length - 1) {
+            out = next.slice(0, -1);
+            continue;
+        }
+        if (next === out) return out;
+        out = next;
+    }
+}
+
 function parseRoleCompanyFromLine(line: string, dates: string): { role: string; company: string } {
     let leftover = line.replace(dates, "").trim();
-    leftover = leftover.replace(/\(\s*\)/g, "").replace(/^[\s(\[{|·•,;—–-]+|[\s)\]}|·•,;—–-]+$/g, "");
+    leftover = trimEdgePunctuation(leftover.replace(/\(\s*\)/g, ""));
 
     const atMatch = leftover.match(/^(.+?)\s+(?:at|@)\s+(.+)$/i);
     if (atMatch) {
@@ -466,15 +502,32 @@ function stripSkillsWrapper(line: string): string {
     return m ? m[1].trim() : line;
 }
 
+/** Splits "SQL, LLM Integration (Claude, OpenAI), Next.js" on the commas
+ *  outside brackets, so a parenthesised list stays one skill. */
+function splitSkillList(text: string): string[] {
+    const skills: string[] = [];
+    let depth = 0;
+    let current = "";
+    for (const ch of text) {
+        if (ch === "(" || ch === "[") depth++;
+        else if ((ch === ")" || ch === "]") && depth > 0) depth--;
+        if (ch === "," && depth === 0) {
+            skills.push(current);
+            current = "";
+        } else {
+            current += ch;
+        }
+    }
+    skills.push(current);
+    return skills.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
 function unpackCategoryColonItems(items: string[]): ResumeCompetencyCategory[] {
     const categories: ResumeCompetencyCategory[] = [];
     for (const item of items) {
         const match = item.match(SKILL_CATEGORY_RE);
         if (match) {
-            const skills = match[2]
-                .split(",")
-                .map((s) => s.trim())
-                .filter((s) => s.length > 0);
+            const skills = splitSkillList(match[2]);
             if (skills.length > 0) {
                 categories.push({ category: match[1].trim(), skills });
             }
@@ -524,10 +577,7 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
         if (!cleaned) continue;
         const categoryMatch = cleaned.match(SKILL_CATEGORY_RE);
         if (categoryMatch) {
-            const skills = categoryMatch[2]
-                .split(",")
-                .map((s) => s.trim())
-                .filter((s) => s.length > 0);
+            const skills = splitSkillList(categoryMatch[2]);
             if (skills.length > 0) {
                 categories.push({ category: categoryMatch[1].trim(), skills });
             }
@@ -648,7 +698,10 @@ export function resumeDataFromPlainText(text: string): ResumeData {
  * Extract structured fields from pasted/uploaded plain-text résumé content.
  */
 export function structureResumeText(text: string): StructuredResumeDraft {
-    const lines = normalizeLines(text);
+    // A PDF uploaded before extraction rejoined wrapped lines is stored one
+    // printed line per line; rejoin them here so the summary and skills read
+    // like the file (unwrap-lines.ts). Headings and dated role lines stay put.
+    const lines = unwrapHardWrappedLines(normalizeLines(text), isResumeBoundaryLine);
     const contact = extractContact(lines);
     const location = sanitizeLocation(extractLocation(lines));
     const unconfirmedPlaces = location ? [] : barePlacesFromHeader(lines);
