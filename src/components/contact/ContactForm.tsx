@@ -24,6 +24,8 @@ export function ContactForm() {
     const [message, setMessage] = useState("");
     const [honeypot, setHoneypot] = useState("");
     const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+    // Bumped after a refused submit: the token it sent is spent (single-use).
+    const [turnstileResetKey, setTurnstileResetKey] = useState(0);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
     const [error, setError] = useState<string | null>(null);
@@ -77,11 +79,13 @@ export function ContactForm() {
             } else {
                 setStatus("error");
                 setError(withEscapeHatch(result.error));
+                setTurnstileResetKey((key) => key + 1);
             }
         } catch (err) {
             console.error(err);
             setStatus("error");
             setError(withEscapeHatch());
+            setTurnstileResetKey((key) => key + 1);
         } finally {
             setIsSubmitting(false);
         }
@@ -161,7 +165,7 @@ export function ContactForm() {
                     />
                 </div>
 
-                <TurnstileWidget surface="contact" onVerify={setTurnstileToken} />
+                <TurnstileWidget surface="contact" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
 
                 {status === "error" && error && (
                     <Alert variant="destructive">

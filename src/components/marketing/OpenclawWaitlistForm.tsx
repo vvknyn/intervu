@@ -28,6 +28,8 @@ export function OpenclawWaitlistForm({
 }: OpenclawWaitlistFormProps) {
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Bumped after a refused submit: the token it sent is spent (single-use).
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
 
@@ -36,6 +38,7 @@ export function OpenclawWaitlistForm({
     startTransition(async () => {
       const res = await joinConnectWaitlist({ email, client: "openclaw", turnstileToken: turnstileToken ?? undefined });
       setResult(res);
+      if (!res.success) setTurnstileResetKey((key) => key + 1);
     });
   };
 
@@ -65,7 +68,7 @@ export function OpenclawWaitlistForm({
               {pending ? "Joining…" : ctaLabel}
             </Button>
           </form>
-          <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} />
+          <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
           {outcome?.kind === "error" ? (
             <p className="mt-2 text-sm text-destructive" data-testid="openclaw-waitlist-error">
               {outcome.message}
