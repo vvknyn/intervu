@@ -4,7 +4,7 @@
  * unit-tested without a DOM.
  */
 
-import { parseJobsUrl, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
+import { jobsBoardHref, parseJobsUrl, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
 
 export const SAVED_SEARCHES_KEY = "intervu.saved-searches";
 export const MAX_SAVED_SEARCHES = 8;
@@ -26,9 +26,24 @@ export function hrefFromJobsUrlState(state: JobsUrlState): string {
     return serializeJobsUrl(stateForSavedSearch(state));
 }
 
+/**
+ * A saved search's state. The panel saves the query string alone
+ * (`hrefFromJobsUrlState`, "?q=pm"); an older server row may hold the
+ * whole path ("/jobs?q=pm"). Both read the same.
+ */
 export function jobsUrlStateFromSavedHref(href: string): JobsUrlState {
-    const qs = href.startsWith("?") ? href.slice(1) : href;
-    return parseJobsUrl(new URLSearchParams(qs));
+    const at = href.indexOf("?");
+    return parseJobsUrl(new URLSearchParams(at === -1 ? "" : href.slice(at + 1)));
+}
+
+/** A link that reruns a saved search on the search board, whichever shape it was saved in. */
+export function savedSearchBoardHref(href: string): string {
+    return jobsBoardHref(jobsUrlStateFromSavedHref(href));
+}
+
+/** What a saved search may hold: its query string, or the /jobs path with one (older rows). */
+export function isSavedSearchHref(href: string): boolean {
+    return href.startsWith("?") || href === "/jobs" || href.startsWith("/jobs?");
 }
 
 export function suggestSavedSearchName(state: JobsUrlState): string {

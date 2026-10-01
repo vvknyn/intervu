@@ -6,6 +6,7 @@
 export const MOTION_EASE = {
   standard: "cubic-bezier(0.4, 0, 0.2, 1)",
   outExit: "cubic-bezier(0.4, 0, 1, 1)",
+  stack: "cubic-bezier(0.22, 0.9, 0.24, 1)",
 } as const;
 
 /** Durations in milliseconds — keep in sync with `--transition-*` in globals.css. */
@@ -19,6 +20,7 @@ export const MOTION_DURATION_MS = {
   enter: 200,
   deck: 220,
   page: 180,
+  stack: 600,
 } as const;
 
 export const MOTION_SCALE = {
@@ -37,6 +39,8 @@ export const MOTION_CSS_VAR = {
   transitionEnter: "--transition-enter",
   transitionDeck: "--transition-deck",
   transitionPage: "--transition-page",
+  transitionStack: "--transition-stack",
+  easeStack: "--ease-stack",
   motionPressScale: "--motion-press-scale",
   motionLiftY: "--motion-lift-y",
 } as const;

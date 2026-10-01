@@ -1,6 +1,7 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
 import { resolveFundingOrListingCell } from "@/lib/companies/exhaust";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
+import { prettyEnum } from "@/lib/jobs/presentation";
 
 interface FactCell {
   key: string;
@@ -19,35 +20,17 @@ function money(amount: number): string {
 /**
  * Band 5 — "On the record": one small fact per enrichment source, each with
  * its own receipt. Rule 2 from the design freeze applies per-cell (a field
- * with no value drops its own cell, never an "N/A") and to the band as a
- * whole (below two cells there is nothing worth a full-width band for, so
- * the band drops). Funding vs. SEC listing is mutually exclusive —
+ * with no value drops its own cell, never an "N/A"), and the band drops when
+ * no cell is left. It is a flat section now, so one fact no longer leaves a
+ * half-empty grid. Funding vs. SEC listing is mutually exclusive —
  * `resolveFundingOrListingCell` (exhaust.ts) is the one place that decides
  * which of the two a public filer shows.
  */
 export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
   const cells: FactCell[] = [];
-  const profile = exhaust.profile?.data ?? null;
 
-  if (profile?.yearFounded) {
-    cells.push({
-      key: "incorporated",
-      label: "Founded",
-      value: profile.organizationType
-        ? `${profile.yearFounded} · ${profile.organizationType}`
-        : String(profile.yearFounded),
-      receipt: exhaust.profile!.label,
-    });
-  }
-
-  if (profile?.nbEmployees) {
-    cells.push({
-      key: "headcount",
-      label: "Headcount",
-      value: `≈${profile.nbEmployees} people`,
-      receipt: exhaust.profile!.label,
-    });
-  }
+  // Founding year, organization type and headcount are not repeated here:
+  // the header's facts row already states them from the same profile row.
 
   const fundingCell = resolveFundingOrListingCell({
     secListing: exhaust.secListing?.data ?? null,
@@ -69,12 +52,9 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
     const f = exhaust.funding.data;
     const parts: string[] = [];
     if (f.latestFundingAmount != null) parts.push(`${money(f.latestFundingAmount)} total raised`);
-    if (f.latestFundingType) {
-      parts.push(
-        f.latestFundingYear
-          ? `last round ${f.latestFundingType.replace(/_/g, " ")}, ${f.latestFundingYear}`
-          : `last round ${f.latestFundingType.replace(/_/g, " ")}`,
-      );
+    const round = prettyEnum(f.latestFundingType); // "series_c" -> "Series C"
+    if (round) {
+      parts.push(f.latestFundingYear ? `last round ${round}, ${f.latestFundingYear}` : `last round ${round}`);
     }
     if (parts.length > 0) {
       cells.push({ key: "funding", label: "Funding", value: parts.join(" · "), receipt: exhaust.funding.label });
@@ -90,20 +70,20 @@ export function CompanyFactRow({ exhaust }: { exhaust: CompanyExhaust }) {
     });
   }
 
-  if (cells.length < 2) return null;
+  if (cells.length === 0) return null;
 
   return (
-    <section data-testid="company-fact-row" className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-6 py-6 sm:px-8">
-      <h2 className="text-xs font-semibold text-muted-foreground">On the record</h2>
-      <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
+    <section data-testid="company-fact-row" className="border-t border-border pt-6">
+      <h2 className="text-base font-semibold leading-snug text-foreground">On the record</h2>
+      <dl className="mt-3 grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
         {cells.map((c) => (
-          <div key={c.key} className="border border-border px-4 py-3">
-            <div className="text-xs font-semibold text-muted-foreground">{c.label}</div>
-            <div className="mt-1 text-sm font-semibold text-foreground">{c.value}</div>
-            <div className="mono-data mt-1 text-xs text-muted-foreground">{c.receipt}</div>
+          <div key={c.key}>
+            <dt className="text-sm text-muted-foreground">{c.label}</dt>
+            <dd className="mt-0.5 text-sm font-semibold text-foreground">{c.value}</dd>
+            <dd className="mono-data mt-0.5 text-xs text-muted-foreground">{c.receipt}</dd>
           </div>
         ))}
-      </div>
+      </dl>
     </section>
   );
 }

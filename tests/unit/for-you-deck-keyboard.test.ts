@@ -37,9 +37,9 @@ describe("resolveDeckShortcut", () => {
         assert.equal(resolveDeckShortcut(event({ key: "K" }), readFakeTarget(PLAIN_TARGET)), "previous");
     });
 
-    it("maps ArrowUp/ArrowDown to previous/next, mirroring Left/Right", () => {
-        assert.equal(resolveDeckShortcut(event({ key: "ArrowDown" }), readFakeTarget(PLAIN_TARGET)), "next");
-        assert.equal(resolveDeckShortcut(event({ key: "ArrowUp" }), readFakeTarget(PLAIN_TARGET)), "previous");
+    it("leaves ArrowUp/ArrowDown to scroll the open role card", () => {
+        assert.equal(resolveDeckShortcut(event({ key: "ArrowDown" }), readFakeTarget(PLAIN_TARGET)), null);
+        assert.equal(resolveDeckShortcut(event({ key: "ArrowUp" }), readFakeTarget(PLAIN_TARGET)), null);
     });
 
     it("maps S (either case) to skip", () => {

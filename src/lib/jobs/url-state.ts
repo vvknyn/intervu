@@ -135,12 +135,28 @@ const PARAM_FOR_FACET = Object.fromEntries(
     Object.entries(FACET_PARAMS).map(([p, k]) => [k, p]),
 ) as Record<FacetKey, string>;
 
-const SALARY_TIERS: Record<string, number> = {
-    "50k": 50_000, "100k": 100_000, "150k": 150_000, "200k": 200_000,
-};
-const TIER_FOR_SALARY = Object.fromEntries(
-    Object.entries(SALARY_TIERS).map(([label, n]) => [n, label]),
-) as Record<number, string>;
+/**
+ * `salary` carries any floor a person can pick: every preset ($30k+, $75k+,
+ * …) and any custom minimum. It used to accept only 50k/100k/150k/200k, so
+ * the other presets and custom values silently fell off on reload or share.
+ * Whole thousands read as `75k`; anything else is the plain number
+ * (`65500`). A floor under $1,000 is junk (including the "Pay listed"
+ * pack's internal `1`), and so is one over $1,000,000.
+ */
+const SALARY_URL_MIN = 1_000;
+const SALARY_URL_MAX = 1_000_000;
+
+function parseSalaryParam(raw: string | null): number | null {
+    const m = raw?.trim().toLowerCase().match(/^(\d+)(k?)$/);
+    if (!m) return null;
+    const n = Number(m[1]) * (m[2] ? 1_000 : 1);
+    return n >= SALARY_URL_MIN && n <= SALARY_URL_MAX ? n : null;
+}
+
+function salaryParam(n: number): string | null {
+    if (!Number.isInteger(n) || n < SALARY_URL_MIN || n > SALARY_URL_MAX) return null;
+    return n % 1_000 === 0 ? `${n / 1_000}k` : String(n);
+}
 
 const POSTED_VALUES: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "older"];
 const YEARS_EXPERIENCE_VALUES: readonly YearsExperienceBucket[] = ["0-2", "3-5", "6-10", "11+"];
@@ -224,8 +240,8 @@ export function parseJobsUrl(sp: URLSearchParams): JobsUrlState {
     if (years && (YEARS_EXPERIENCE_VALUES as readonly string[]).includes(years)) {
         s.yearsExperience = years as YearsExperienceBucket;
     }
-    const salary = sp.get("salary");
-    if (salary && salary in SALARY_TIERS) s.salaryMin = SALARY_TIERS[salary];
+    const salary = parseSalaryParam(sp.get("salary"));
+    if (salary !== null) s.salaryMin = salary;
     if (sp.get("visa") === "1") s.visaOnly = true;
     if (sp.get("ghosts") === "show") s.hideGhosts = false;
     if (sp.get("viewed") === "hide") s.hideViewed = true;
@@ -258,7 +274,8 @@ export function serializeJobsUrl(s: JobsUrlState): string {
     else if (s.postedBucket === DEFAULT_URL_STATE.postedBucket && s.postedExplicit) sp.set("posted", s.postedBucket);
     else if (s.postedBucket !== DEFAULT_URL_STATE.postedBucket) sp.set("posted", s.postedBucket);
     if (s.yearsExperience) sp.set("years", s.yearsExperience);
-    if (s.salaryMin > 0 && TIER_FOR_SALARY[s.salaryMin]) sp.set("salary", TIER_FOR_SALARY[s.salaryMin]);
+    const salary = salaryParam(s.salaryMin);
+    if (salary) sp.set("salary", salary);
     if (s.visaOnly) sp.set("visa", "1");
     if (!s.hideGhosts) sp.set("ghosts", "show");
     if (s.hideViewed) sp.set("viewed", "hide");

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { followCompanyAction, unfollowCompanyAction } from "@/actions/follows";
 import { recordFollowFunnelAction } from "@/actions/follow-funnel";
 import { captureEvent } from "@/lib/analytics/events";
-import { unfollowByContactCookieAction } from "@/actions/email-follow";
+import { followByContactCookieAction, unfollowByContactCookieAction } from "@/actions/email-follow";
 import { Button } from "@/components/ui/button";
 import { FollowEmailStep } from "@/components/companies/FollowEmailStep";
 import { Popover, PopoverContent } from "@/components/ui/popover";
@@ -27,19 +27,22 @@ export function followButtonFollowingLabel(): string {
   return "Unfollow";
 }
 
-export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "open-email-step" };
+export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "follow-by-contact" } | { kind: "open-email-step" };
 
 /**
  * Pure: what a signed-out click on Follow must do next. The return type has
  * no "start following locally" member — a guest can only become "following"
  * through a real channel (a verified email link or a returning
- * contact-cookie identity, both server-confirmed), never by clicking. This
- * is the fix for "how can I follow a company when I have not shared an
- * email or logged in???" — the click either reverses an already-real follow
- * or opens the channel-capture step; it never fakes the follow itself.
+ * contact-cookie identity, both server-confirmed), never by a local flag.
+ * This is the fix for "how can I follow a company when I have not shared an
+ * email or logged in???" — the click either reverses an already-real follow,
+ * follows through the verified identity this browser already has (the
+ * design's "the second follow is one click"; the server writes it and says
+ * so), or opens the channel-capture step. It never fakes the follow itself.
  */
-export function decideGuestFollowClick(currentlyFollowing: boolean): GuestFollowClickAction {
-  return currentlyFollowing ? { kind: "unfollow" } : { kind: "open-email-step" };
+export function decideGuestFollowClick(currentlyFollowing: boolean, contactKnown = false): GuestFollowClickAction {
+  if (currentlyFollowing) return { kind: "unfollow" };
+  return contactKnown ? { kind: "follow-by-contact" } : { kind: "open-email-step" };
 }
 
 /**
@@ -72,6 +75,13 @@ export interface FollowButtonProps {
    */
   emailVerified?: boolean;
   /**
+   * This browser carries a verified email identity (the contact cookie), so a
+   * guest's Follow click follows in one click instead of opening the email
+   * step. Only a page that has asked the server (the company page's follow
+   * channel) sets it.
+   */
+  contactKnown?: boolean;
+  /**
    * Idle (not-following) label override — default "Follow". `/co`'s hero
    * wants the promise stated up front ("Follow — new roles by email"); every
    * other surface (SERP row pill, hot-table) leaves this unset so its
@@ -83,6 +93,9 @@ export interface FollowButtonProps {
    *  so a richer wrapper tracking its own verified state (e.g.
    *  `CompanyFollowControl`) can stop showing it too. */
   onGuestUnfollow?: () => void;
+  /** Fired once a guest's one-click (contact-cookie) follow is actually
+   *  written, the mirror of `onGuestUnfollow`. */
+  onGuestFollow?: () => void;
   /** Passed through to the email-capture step's "sign in instead" link.
    *  Omit to hide that link (e.g. the hot-table pill has no auth popover
    *  of its own to hand off to). */
@@ -96,8 +109,10 @@ export function FollowButton({
   variant = "outline",
   className,
   emailVerified = false,
+  contactKnown = false,
   idleLabel = "Follow",
   onGuestUnfollow,
+  onGuestFollow,
   onSignInInstead,
 }: FollowButtonProps) {
   const normalizedDomain = domain.trim().toLowerCase();
@@ -130,7 +145,27 @@ export function FollowButton({
     const user = getCurrentUser();
 
     if (!user) {
-      const action = decideGuestFollowClick(following);
+      const action = decideGuestFollowClick(following, contactKnown);
+      if (action.kind === "follow-by-contact") {
+        setBusy(true);
+        void recordFollowFunnelAction("follow_click", normalizedDomain);
+        try {
+          const res = await followByContactCookieAction({ companyDomain: normalizedDomain, displayName });
+          if (res.status === "followed") {
+            onGuestFollow?.();
+            captureEvent("company_followed", { company_domain: normalizedDomain });
+            return;
+          }
+        } catch {
+          // A failed call falls through to the email step below.
+        } finally {
+          setBusy(false);
+        }
+        // The cookie no longer names anyone (or the call failed): ask for the email instead.
+        addGuestFollow({ domain: normalizedDomain, slug, displayName });
+        setEmailStepOpen(true);
+        return;
+      }
       if (action.kind === "unfollow") {
         // A guest can only be "following" via a real, verified channel —
         // reverse that for real (contact-cookie), not just a local

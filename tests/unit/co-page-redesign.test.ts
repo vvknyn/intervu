@@ -25,6 +25,10 @@ import type { PublicJob } from "../../src/lib/jobs/types";
  */
 
 const CO_PAGE = join(__dirname, "..", "..", "src", "app", "co", "[slug]", "page.tsx");
+/** The page's composed tree (header, roles, rail, bands). page.tsx fetches
+ *  and hands the data to this component, which /mock/company-page also
+ *  renders with fixtures. */
+const CO_PAGE_BODY = join(__dirname, "..", "..", "src", "components", "company", "CompanyPageBody.tsx");
 const INTEL_GRID = join(__dirname, "..", "..", "src", "components", "company", "CompanyIntelligenceGrid.tsx");
 const ROLE_SEARCH = join(__dirname, "..", "..", "src", "components", "company", "CompanyRoleSearch.tsx");
 const CHANGE_EVENTS = join(__dirname, "..", "..", "src", "components", "company", "CompanyChangeEvents.tsx");
@@ -42,6 +46,7 @@ const BANNED_TERMS = ["ELITE", "TECH DNA", "DETECTED", "COMPANY INTELLIGENCE & I
 describe("/co/[slug]: retired back-office vocabulary is gone from the component tree", () => {
   for (const [label, file] of [
     ["page.tsx", CO_PAGE],
+    ["CompanyPageBody.tsx", CO_PAGE_BODY],
     ["CompanyIntelligenceGrid.tsx", INTEL_GRID],
     ["CompanyRoleSearch.tsx", ROLE_SEARCH],
     ["CompanyChangeEvents.tsx", CHANGE_EVENTS],
@@ -56,24 +61,27 @@ describe("/co/[slug]: retired back-office vocabulary is gone from the component 
 
 describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity) content", () => {
   it("<CompanyRoleSearch appears before the company-secondary wrapper in the composed tree", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const rolesIndex = source.indexOf("<CompanyRoleSearch");
     const secondaryIndex = source.indexOf('data-testid="company-secondary"');
-    assert.ok(rolesIndex !== -1, "page.tsx no longer renders <CompanyRoleSearch — did the marker move?");
-    assert.ok(secondaryIndex !== -1, 'page.tsx no longer has a data-testid="company-secondary" wrapper');
+    assert.ok(rolesIndex !== -1, "CompanyPageBody.tsx no longer renders <CompanyRoleSearch — did the marker move?");
+    assert.ok(secondaryIndex !== -1, 'CompanyPageBody.tsx no longer has a data-testid="company-secondary" wrapper');
     assert.ok(
       rolesIndex < secondaryIndex,
       "the roles list must render before the demoted secondary content, not after",
     );
   });
 
-  it("the intelligence grid and hiring-activity section live inside the secondary wrapper, not beside the header", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+  it("the intelligence grid sits in the secondary wrapper and the hiring record in the rail, both after the roles", () => {
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
+    const rolesIndex = source.indexOf("<CompanyRoleSearch");
     const secondaryIndex = source.indexOf('data-testid="company-secondary"');
     const intelIndex = source.indexOf("<CompanyIntelligenceGrid");
+    const railIndex = source.indexOf('data-testid="company-rail"');
     const hiringActivityIndex = source.indexOf('data-testid="company-hiring-activity"');
     assert.ok(secondaryIndex < intelIndex, "CompanyIntelligenceGrid moved ahead of the secondary wrapper");
-    assert.ok(secondaryIndex < hiringActivityIndex, "hiring-activity section moved ahead of the secondary wrapper");
+    assert.ok(railIndex !== -1 && railIndex < hiringActivityIndex, "the hiring record must live in the rail");
+    assert.ok(rolesIndex < railIndex, "the rail must come after the roles, so phones reach the roles first");
   });
 });
 
@@ -81,7 +89,7 @@ describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity
 // row has no icons, so it is plain DotSeparated text.
 describe("/co/[slug]: hero fact row is plain dot-separated facts, not a joined mono string", () => {
   it("renders the domain as a real link plus the hiring-geos and remote-share facts via buildCompanyFacts", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     assert.match(source, /buildCompanyFacts\(/, "hero must read the structured facts, not the retired joined-line helper");
     assert.match(source, /href=\{`https:\/\/\$\{facts\.domain\}`\}/, "domain must render as a real external link");
     assert.match(source, /<DotSeparated/);
@@ -90,17 +98,17 @@ describe("/co/[slug]: hero fact row is plain dot-separated facts, not a joined m
   });
 
   it("carries no font-mono utility — the fact row is prose, not a tabular/aligned surface", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     assert.doesNotMatch(source, /(?<![-\w])font-mono(?![-\w])/);
   });
 });
 
 describe("/co/[slug]: the rail — hiring record and list health, gated, no button", () => {
   it("a second, distinct CompanyIntelGate carries the rail's two named boxes", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const secondaryGateIndex = source.indexOf("<CompanyIntelGate", source.indexOf('data-testid="company-secondary"'));
     const railGateIndex = source.indexOf('testId="company-intel-gate-record"');
-    const recordHeadingIndex = source.indexOf("The hiring record");
+    const recordHeadingIndex = source.indexOf('data-testid="company-hiring-activity"');
     const listHealthIndex = source.indexOf("List health");
     assert.ok(railGateIndex !== -1, "rail gate with a distinct testId is missing");
     assert.ok(secondaryGateIndex < railGateIndex, "the rail gate must be a second, later gate instance");
@@ -110,7 +118,7 @@ describe("/co/[slug]: the rail — hiring record and list health, gated, no butt
   // #554 (d3622138): the rail gate renders nothing when locked (fallback={null})
   // instead of a CTA-less second card, so the page shows exactly one lock card.
   it("the rail gate passes fallback={null} — no duplicate lock card beside the header's Follow control", () => {
-    const source = readFileSync(CO_PAGE, "utf8");
+    const source = readFileSync(CO_PAGE_BODY, "utf8");
     const railGate = source.slice(source.indexOf('testId="company-intel-gate-record"'));
     assert.match(railGate.slice(0, railGate.indexOf(">")), /fallback=\{null\}/);
   });
@@ -118,7 +126,7 @@ describe("/co/[slug]: the rail — hiring record and list health, gated, no butt
 
 describe("/co/[slug]: Recent changes mounts once", () => {
   it("CompanyChangeEvents appears once — not once per gate (follow vs sign-in)", () => {
-    const source = stripComments(readFileSync(CO_PAGE, "utf8"));
+    const source = stripComments(readFileSync(CO_PAGE_BODY, "utf8"));
     const mounts = source.match(/<CompanyChangeEvents/g) ?? [];
     assert.equal(mounts.length, 1, `expected one Recent changes list, found ${mounts.length}`);
   });

@@ -9,7 +9,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/46/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -138,6 +138,47 @@ const guestWithResume = (page: Page, location: string) =>
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
   );
 
+/** Fabricated nurse (no real person), for the health packs. */
+const guestNurse = (page: Page, location: string) =>
+  page.addInitScript(
+    ([enabledKey, resumeKey, location]) => {
+      const resume = {
+        profile: { name: "Priya Sample", profession: "Registered Nurse", yearsOfExperience: 6, location, email: "priya.sample@example.com", phone: "555-010-3456", linkedin: "", website: "" },
+        experience: [{ id: "exp1", company: "Lakeview Health Sciences Centre", role: "Registered Nurse, ICU", dates: "2021 - Present", description: "Bedside care for critically ill patients; triage; medication administration; charting in Epic." }],
+        competencies: [{ category: "Clinical Skills", skills: ["Patient assessment", "Medication administration", "IV therapy", "BLS", "ACLS"] }],
+        education: [{ id: "edu1", degree: "Bachelor of Science in Nursing", institution: "State University", year: "2019" }],
+        generatedSummary: "Registered Nurse with six years of acute care experience in ICU and medical-surgical units.",
+      };
+      localStorage.setItem(enabledKey, "1");
+      localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+    },
+    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
+  );
+
+/**
+ * The pack chips once every count has settled: a résumé visitor's hub hides the tiles
+ * that hold under 3 roles or nearly all of them (industry-tiles.ts), so which chips a
+ * journey can open is only known then. "1-Click tailored apply" never shows for a
+ * résumé, so its chip means the résumé's tiles haven't replaced the browse ones yet.
+ */
+async function settledHubTiles(page: Page): Promise<string[]> {
+  await expect(page.getByTestId("hub-pack-chips")).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          if (document.querySelector('[data-testid="hub-pack-card-apply"]')) return false;
+          const counts = [...document.querySelectorAll('[data-testid^="hub-pack-count-"]')];
+          return counts.length > 0 && counts.every((el) => !el.textContent?.includes("…") && el.getAttribute("data-matching") !== "true");
+        }),
+      { timeout: 90_000, message: "every pack chip count settled" },
+    )
+    .toBe(true);
+  return page
+    .locator('[data-testid="hub-pack-chips"] [data-testid^="hub-pack-card-"]')
+    .evaluateAll((els) => els.map((el) => (el.getAttribute("data-testid") ?? "").replace("hub-pack-card-", "")));
+}
+
 /**
  * Open a packs-hub tile. The hub paints before it hydrates, and a tap that lands in that
  * gap does nothing, so tap again until the pack opens (its Back to Job Packs link shows).
@@ -242,30 +283,35 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const cards = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
+  const places = page.locator('[data-testid="for-you-deck"] [data-testid="role-card-place"]');
+  const frontPlace = page.locator('[data-testid="role-stack-card"][data-stack-pose="front"] [data-testid="role-card-place"]');
 
   // Fully remote: the deck used to show the hub's own rows (onsite, anywhere) until the
-  // tile's search landed. Every row it shows, from the first, is a remote role.
+  // tile's search landed. Every role it shows, from the first, is a remote role: the cards
+  // on the stack before and after the search settles, then each role Next brings up.
   await openHubTile(page, "remote");
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  const firstPaint = await rows.allInnerTexts();
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+  const firstPaint = await places.allInnerTexts();
   expect(firstPaint.length).toBeGreaterThan(0);
   for (const text of firstPaint) expect(text).toMatch(/\bRemote\b/);
   await page.waitForTimeout(3_000);
-  for (const text of await rows.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  for (const text of await places.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  const next = page.getByTestId("for-you-next");
+  for (let step = 0; step < 4 && (await next.isEnabled()); step++) {
+    await next.click();
+    await expect(frontPlace).toHaveText(/\bRemote\b/);
+  }
 
   // A row tile (AI roles) counted on the hub opens on those roles, even behind the guest
   // preview: it used to keep only the AI roles among the pack's top 3, usually none.
+  // A row tile only shows when it holds 3 or more roles, so the one shown lists them.
   await page.getByTestId("jobs-back-to-packs").click();
-  const aiCount = page.getByTestId("hub-pack-count-ai");
-  await expect(aiCount).not.toHaveText(/…/, { timeout: 60_000 });
-  const counted = Number(((await aiCount.textContent()) ?? "").replace(/[^\d]/g, "") || "0");
-  await page.getByTestId("hub-pack-card-ai").click({ timeout: 30_000 });
-  if (counted > 0) {
-    await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  } else {
-    await expect(page.getByTestId("for-you-empty").or(rows.first())).toBeVisible({ timeout: 60_000 });
-  }
+  const shown = await settledHubTiles(page);
+  const rowTile = ["ai", "lead", "good"].find((id) => shown.includes(id));
+  expect(rowTile, `a row tile among ${shown.join(", ")}`).toBeTruthy();
+  await page.getByTestId(`hub-pack-card-${rowTile}`).click({ timeout: 30_000 });
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
@@ -274,9 +320,11 @@ test("going back to the packs hub keeps the tile counts it had, without counting
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const tiles = ["remote", "fresh", "salary"] as const;
+  // The filter tiles the hub shows (a tile holding nearly every role is hidden), each with its own count.
+  const shown = await settledHubTiles(page);
+  const tiles = ["remote", "fresh", "salary"].filter((id) => shown.includes(id));
+  expect(tiles).toContain("remote");
   const count = (id: string) => page.getByTestId(`hub-pack-count-${id}`);
-  for (const id of tiles) await expect(count(id)).not.toHaveText(/…/, { timeout: 60_000 });
   const before = await Promise.all(tiles.map((id) => count(id).textContent()));
 
   // Each return used to re-run the hub's probe and every tile count: the counts blanked to
@@ -317,6 +365,183 @@ test("signed out, the packs hub keeps a place for the tracker and Recently viewe
   expect(signIn.pathname).toBe("/login");
   expect(signIn.searchParams.get("next")).toMatch(/^\/jobs\?(.*&)?view=for-you/);
   expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("with a résumé, the packs home opens on Today: the day's numbers and new matches above the pack tiles, and a skipped role stays gone after a reload", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // Last here two days ago (seeded once, so the reload below is the same sitting and keeps that baseline).
+  await page.addInitScript((key) => {
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null }));
+  }, "intervu.today.visit");
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  await expect(today).toBeVisible({ timeout: 30_000 });
+  await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
+  // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
+  const tile = page.getByTestId("hub-pack-card-all");
+  await expect(tile).toBeVisible({ timeout: 30_000 });
+  expect((await today.boundingBox())!.y).toBeLessThan((await tile.boundingBox())!.y);
+  await expect(page.getByTestId("hub-compact-header")).toBeVisible();
+  await expect(page.getByTestId("hub-browse-all-matches")).toBeVisible();
+  await expect(page.getByTestId("hub-daily-apply-tip")).toHaveCount(0);
+
+  // The day's numbers, each a link: new since the last visit, applied today of the goal, follow-ups, interviews.
+  const stats = today.getByTestId("today-stats");
+  await expect(stats.getByTestId("today-stat-new")).toContainText(/new match(es)? since \w+/);
+  await expect(stats.getByTestId("today-stat-applied")).toContainText("0 of 12");
+  for (const id of ["today-stat-new", "today-stat-applied", "today-stat-follow-ups", "today-stat-interviews"]) {
+    await expect(stats.getByTestId(id).getByRole("link")).toBeVisible();
+  }
+
+  // The list settles on rows or on one way on, never both. A guest sees the fit preview (3 rows) and the gate past it.
+  const rows = today.getByTestId("today-new-row");
+  const empty = today.getByTestId("today-new-empty");
+  await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
+  if (await empty.isVisible()) {
+    await expect(rows).toHaveCount(0);
+    await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
+  } else {
+    expect(await rows.count()).toBeLessThanOrEqual(3);
+    for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
+    await expect(rows.first().getByTestId("today-apply")).toBeVisible();
+    await expect(today.getByTestId("signup-gate").or(today.getByTestId("today-see-more"))).toHaveCount(1);
+
+    const skippedId = (await rows.first().getAttribute("data-job-id"))!;
+    const skipped = today.locator(`[data-testid="today-new-row"][data-job-id="${skippedId}"]`);
+    await rows.first().getByTestId("today-skip").click();
+    await expect(skipped).toHaveCount(0);
+    await page.reload();
+    await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
+    await expect(skipped).toHaveCount(0);
+  }
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("Needs you lists the tracker's interview this week and the application gone quiet, each opening that application", { tag: ["@J-JOBS-44"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // A guest tracker: an interview tomorrow (a picked date is stored as its UTC midnight) and an application with no update for 10 days.
+  await page.addInitScript((key) => {
+    const now = new Date();
+    const at = (daysAgo: number) => new Date(now.getTime() - daysAgo * 86_400_000).toISOString();
+    const tomorrow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1)).toISOString();
+    const row = (id: string, company: string, position: string, status: string, updatedDaysAgo: number, extra = {}) => ({
+      id,
+      user_id: "guest",
+      company_name: company,
+      position,
+      status,
+      created_at: at(updatedDaysAgo + 3),
+      updated_at: at(updatedDaysAgo),
+      ...extra,
+    });
+    localStorage.setItem(
+      key,
+      JSON.stringify([
+        row("journey-interview", "Northwind", "Platform Engineer", "interviewing", 2, { interview_date: tomorrow }),
+        row("journey-quiet", "Contoso", "Backend Engineer", "applied", 10),
+      ]),
+    );
+  }, "intervu.pursuits.guest");
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  await expect(today).toBeVisible({ timeout: 30_000 });
+  const needs = today.getByTestId("today-needs-you");
+  await expect(needs).toBeVisible();
+
+  // Soonest first: the interview, then the follow-up, each with one button into that application.
+  const items = needs.getByTestId("today-needs-you-item");
+  await expect(items).toHaveCount(2);
+  await expect(items.nth(0)).toHaveAttribute("data-kind", "interview");
+  await expect(items.nth(0)).toContainText("Interview tomorrow");
+  await expect(items.nth(0).getByTestId("today-needs-you-action")).toHaveAttribute("href", "/yours/journey-interview");
+  await expect(items.nth(1)).toHaveAttribute("data-kind", "follow_up");
+  await expect(items.nth(1)).toContainText("Follow up with Contoso");
+  await expect(items.nth(1)).toContainText("No update in 10 days");
+
+  // The due and this-week numbers count the same rows and jump to the list.
+  const stats = today.getByTestId("today-stats");
+  await expect(stats.getByTestId("today-stat-follow-ups")).toContainText(/1\s*follow-up due/);
+  await expect(stats.getByTestId("today-stat-interviews")).toContainText(/1\s*interview this week/);
+  await stats.getByTestId("today-stat-follow-ups").getByRole("link").click();
+  await expect(page).toHaveURL(/#today-needs-you$/);
+  await expect(needs).toBeInViewport();
+
+  await items.nth(1).getByTestId("today-needs-you-action").click();
+  await expect(page).toHaveURL(/\/yours\/journey-quiet$/, { timeout: 30_000 });
+  await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Backend Engineer").first()).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const chips = page.getByTestId("hub-pack-chips");
+  await expect(chips).toBeVisible({ timeout: 30_000 });
+  // All your matches, then at most six of the résumé's industry tiles (industry-tiles.ts).
+  const shown = await settledHubTiles(page);
+  expect(shown[0]).toBe("all");
+  expect(shown.length).toBeLessThanOrEqual(7);
+
+  // A first visit: once every count settles the device remembers them, and no chip claims a gain.
+  const memoryKey = "velai.hub.tileCounts.v1";
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), memoryKey), { timeout: 90_000 }).not.toBeNull();
+  await expect(page.locator('[data-testid^="hub-pack-delta-"]')).toHaveCount(0);
+
+  // Make the last visit two days ago, with 3 fewer roles in each pack it counted exactly.
+  const gained = await page.evaluate((key) => {
+    const memory = JSON.parse(localStorage.getItem(key)!) as { counts: Record<string, number> };
+    const ids = Object.keys(memory.counts).filter((id) => memory.counts[id] >= 3);
+    const counts = Object.fromEntries(Object.entries(memory.counts).map(([id, n]) => [id, n >= 3 ? n - 3 : n]));
+    localStorage.setItem(key, JSON.stringify({ ...memory, lastAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), counts, since: null }));
+    return ids;
+  }, memoryKey);
+  expect(gained.length).toBeGreaterThan(0);
+
+  await page.reload();
+  for (const id of gained) {
+    // At least the 3 taken away; a role posted in between can add to it.
+    await expect(page.getByTestId(`hub-pack-delta-${id}`)).toHaveText(/^\+([3-9]|\d{2,})$/, { timeout: 90_000 });
+    await expect(page.getByTestId(`hub-pack-card-${id}`)).toHaveAttribute("aria-label", /more since your last visit$/);
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a nurse's packs hub shows health tiles, never the tech ones, and each tile it shows opens on its own roles", { tag: ["@J-JOBS-48"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestNurse(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  // The hub used to give every résumé the same eight tiles: a nurse saw "Artificial
+  // intelligence", "Tech for good" and "Lead & principal" (which counted Staff Nurse).
+  const shown = await settledHubTiles(page);
+  for (const tech of ["ai", "good", "lead", "apply"]) expect(shown, `no ${tech} tile for a nurse`).not.toContain(tech);
+  const health = shown.filter((id) => id.startsWith("health_"));
+  expect(health.length, `health tiles among ${shown.join(", ")}`).toBeGreaterThan(0);
+
+  // A tile shows only when it holds at least 3 roles.
+  const counts = await page
+    .locator('[data-testid="hub-pack-chips"] [data-testid^="hub-pack-count-"]')
+    .evaluateAll((els) => els.map((el) => [el.getAttribute("data-testid"), Number((el.textContent ?? "").replace(/[^\d]/g, "") || "0")] as const));
+  for (const [id, n] of counts) if (id !== "hub-pack-count-all") expect(n, id ?? "").toBeGreaterThanOrEqual(3);
+
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
+  await openHubTile(page, health[0]);
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
@@ -362,15 +587,19 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   await openHubTile(page, "remote");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("jobs-back-to-packs").click();
 
   // The next pack's read fails. It used to wait on that read forever ("Loading your ranked
   // roles") because only a reported outage, not a thrown one, counted as settled.
+  // Any other pack the hub shows will do; which ones show depends on the counts.
+  const shown = await settledHubTiles(page);
+  const next = ["salary", "fresh", ...shown].find((id) => id !== "all" && id !== "remote" && shown.includes(id));
+  expect(next, `another pack among ${shown.join(", ")}`).toBeTruthy();
   const recover = await failEveryAction(page);
-  await page.getByTestId("hub-pack-card-salary").click({ timeout: 30_000 });
+  await page.getByTestId(`hub-pack-card-${next}`).click({ timeout: 30_000 });
   const failed = page.getByTestId("for-you-load-failed");
   await expect(failed).toBeVisible({ timeout: 30_000 });
   await expect(rows).toHaveCount(0);
@@ -379,6 +608,138 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const card = (id: string) => stack.locator(`[data-testid="role-stack-card"][data-job-id="${id}"]`);
+  const frontId = async () => (await front.getAttribute("data-job-id")) ?? "";
+  const position = page.getByTestId("for-you-deck-position");
+
+  // One open role, in two parts: what we inferred about it on one side, what the posting states on the other.
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expect(front.getByTestId("role-card-inferred")).toContainText("What we inferred");
+  await expect(front.getByTestId("role-card-description")).toBeVisible();
+  await expect(front.getByTestId("for-you-download-apply")).toBeVisible();
+  await expect(position).toHaveText(/^Role 1 of \d+$/);
+  const total = Number(/of (\d+)/.exec((await position.textContent()) ?? "")?.[1] ?? "0");
+  test.skip(total < 3, "the pack needs three roles to step through");
+  const first = await frontId();
+
+  // Next brings the next role up in front; the one it covers tips back into the stack behind.
+  await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText(`Role 2 of ${total}`);
+  await expect(card(first)).toHaveAttribute("data-stack-pose", "behind-1");
+  const second = await frontId();
+  expect(second).not.toBe(first);
+
+  // Skip drops the open role: the next one takes its place and the count goes down by one.
+  // Focus moves to the Skip of the role that came forward, so a keyboard user can keep going.
+  await page.getByTestId("for-you-skip").click();
+  await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+  await expect.poll(frontId).not.toBe(second);
+  await expect(front.getByTestId("for-you-skip")).toBeFocused();
+  await expect(card(second)).toHaveCount(0, { timeout: 5_000 });
+
+  // Previous brings the first role back to the front.
+  await page.getByTestId("for-you-previous").click();
+  await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+  await expect.poll(frontId).toBe(first);
+  await expect(page.getByTestId("for-you-previous")).toBeDisabled();
+
+  // On a touch screen a sideways swipe inside the card changes role and never reaches the browser as Back.
+  if (testInfo.project.use.hasTouch) {
+    const url = page.url();
+    const cdp = await page.context().newCDPSession(page);
+    // The stage, not the card: the card may still be moving into place.
+    const box = (await stack.boundingBox())!;
+    const y = box.y + box.height * 0.4;
+    const swipe = async (from: number, to: number) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width * from, y }] });
+      for (let i = 1; i <= 6; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: box.x + box.width * (from + ((to - from) * i) / 6), y }] });
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    await swipe(0.8, 0.15);
+    await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+    await swipe(0.15, 0.85);
+    await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+    expect(page.url()).toBe(url);
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("on a small phone an opened pack fits its card, actions and Next between the top bar and the tab bar", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "the tab bar only shows on a phone-sized screen");
+  await page.setViewportSize({ width: 360, height: 640 });
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  const tabbarTop = async () => (await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? 640;
+  const bottom = async (testId: string) => {
+    const box = await front.getByTestId(testId).boundingBox();
+    return box ? box.y + box.height : Infinity;
+  };
+  // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
+  // Again after going back to the packs and opening another one (its roles arrive in two batches), and again
+  // on reopening that pack: its roles are on screen at once, and the page kept the hub's scroll down at its
+  // chips, clamped past the stack, until the fit learned to scroll back up.
+  let other = "";
+  for (const round of ["first open", "second open", "same pack again"]) {
+    if (round !== "first open") {
+      await page.getByTestId("for-you-next").click();
+      await page.getByTestId("jobs-back-to-packs").click();
+      if (round === "second open") {
+        // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
+        const shown = await settledHubTiles(page);
+        other = shown.find((id) => id !== "all") ?? "";
+        expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
+      }
+      await openHubTile(page, other);
+      await expect(front).toHaveCount(1, { timeout: 60_000 });
+    }
+    const nextTop = async () => (await page.getByTestId("for-you-next").boundingBox())?.y ?? -1;
+    await expect
+      .poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()) && (await nextTop()) >= 48, { timeout: 10_000, message: round })
+      .toBe(true);
+    expect(await bottom("for-you-download-apply"), round).toBeLessThanOrEqual(await tabbarTop());
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await failEveryAction(page);
+  await page.goto("/jobs?view=for-you");
+
+  // One automatic retry (2-4 s) runs first, then the failure shows.
+  const failed = page.getByTestId("today-new-failed");
+  await expect(failed).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("today-new-failed-retry")).toBeVisible();
+
+  // The chips' counts come from the same refused searches. They used to read "…" for good.
+  // A software engineer's chips: All, the tech tiles and the two shared ones, shown in full
+  // while no count can say which to hide.
+  const chips = page.getByTestId("hub-pack-chips");
+  await expect(chips.getByRole("button")).toHaveCount(7);
+  await expect(chips.locator('[data-testid^="hub-pack-count-"]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(chips).not.toContainText("…");
+  await expect(page.getByTestId("hub-pack-card-all")).toHaveAttribute("aria-label", "All your matches");
 });
 
 /**
@@ -412,7 +773,7 @@ test("a pack whose search is down shows the error with Retry, never 'No roles in
   const recover = await answerPackSearchAsOutage(page, "Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
 
   // One automatic retry (2-4 s) runs first, then the failure shows. The outage answer names
   // Canada as unmatched; the pack used to say "No roles in Canada yet." instead of the error.
