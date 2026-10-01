@@ -108,6 +108,7 @@ import {
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
 import { TodayHome } from "@/components/jobs/for-you/TodayHome";
+import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -4882,6 +4883,29 @@ export function JobsContent() {
         beginResumeUpload();
     };
 
+    // A guest's résumé lives only in this browser (`velai.localAi.resume`).
+    // Remove forgets it and goes back to Search's front door, so nothing on
+    // the page is ranked against a résumé the visitor no longer wants used.
+    const removeGuestResume = () => {
+        clearLocalAiResume();
+        setGuestResumeInBrowser(false);
+        setResume(null);
+        setResumeUpdatedAt(null);
+        setResumeSourceLabel(null);
+        setFitActive(false);
+        setFitResolving(false);
+        fitIntentRef.current?.begin();
+        setForYouPackDeckOpen(false);
+        setHubSelectedCategoryId(undefined);
+        setSortOverride(null);
+        setQueryDraft("");
+        setQuery("");
+        setHomeView("search");
+        writeLastJobsHomeView("search");
+        applyUrlState(buildUrlState({ homeView: "search", q: "", sort: null, jobId: null }), "replace");
+        toast.success("Résumé removed from this device.");
+    };
+
     const showMatchTeaser = needsResumeEntry({
         signedIn: Boolean(user),
         resumeOnFile,
@@ -5750,6 +5774,16 @@ export function JobsContent() {
                 >
                     Replace
                 </button>
+                {!signedIn ? (
+                    <>
+                        {" "}·{" "}
+                        <ResumeRemove
+                            onRemove={removeGuestResume}
+                            testIdPrefix="jobs"
+                            className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                        />
+                    </>
+                ) : null}
             </span>
         ) : null;
 
@@ -6409,6 +6443,15 @@ export function JobsContent() {
                                         accountKey={user?.uid ?? null}
                                         onApply={handleOpenPosting}
                                         onOpenPack={(id) => openHubPack(id, "today")}
+                                        resumeLine={
+                                            signedIn || guestResumeInBrowser ? (
+                                                <ResumeInUse
+                                                    label={resumeInUseLabel({ sourceLabel: resumeSourceLabel, signedIn })}
+                                                    onReplace={() => handleUploadClick()}
+                                                    onRemove={signedIn ? undefined : removeGuestResume}
+                                                />
+                                            ) : null
+                                        }
                                     />
                                 ) : null}
                                 <CategoryHubGrid
