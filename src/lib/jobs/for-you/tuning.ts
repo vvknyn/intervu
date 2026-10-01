@@ -61,6 +61,10 @@ export interface RoleFeatures {
     /** Kind-prefixed terms: `w:` title word, `g:` tag, `s:` skill, `f:` role family,
      *  `c:` company, `l:` level, `t:` work type, `k:` country. */
     terms: string[];
+    /** The role was the candidate's own kind of role (match/score.ts `roleAffinity`
+     *  "own"). A thumbs-down or skip on it then steers by what else set it apart,
+     *  not by the role itself (`OWN_DOWN_MIN_WEIGHT`). */
+    own?: boolean;
 }
 
 export interface TuningNudge {
@@ -77,19 +81,27 @@ function rankWord(word: string): boolean {
     return RANK_WORDS.has(word.toLowerCase().replace(/[^a-z-]/g, ""));
 }
 
+/** Titles that open on the post and name the work after it: "Director, Technical Account Management". */
+const POST_FIRST = new Set(["director", "head", "manager", "supervisor", "officer", "president", "vice president", "vp", "svp", "evp", "avp"]);
+
 /**
  * The role a title names, without its rank or qualifiers: "Sr. Technical
- * Account Manager, Enterprise - Europe" → "Technical Account Manager".
+ * Account Manager, Enterprise - Europe" → "Technical Account Manager". A title
+ * that opens on the post keeps the work it names: "Director, Technical Account
+ * Management", "Manager, Customer Success".
  */
 export function roleName(title: string | null | undefined): string {
     const decoded = decodeText(title).trim();
-    const head = decoded.split(QUALIFIER_SPLIT)[0]?.trim() || decoded;
+    const parts = decoded.split(QUALIFIER_SPLIT).map((part) => part.trim()).filter(Boolean);
+    const head = parts[0] || decoded;
     const words = head.split(/\s+/).filter(Boolean);
     let start = 0;
     let end = words.length;
     while (start < end && rankWord(words[start])) start += 1;
     while (end > start && rankWord(words[end - 1])) end -= 1;
-    return words.slice(start, end).join(" ") || head;
+    const core = words.slice(start, end).join(" ");
+    if (parts[1] && POST_FIRST.has(core.toLowerCase().replace(/\./g, ""))) return `${core}, ${parts[1]}`;
+    return core || head;
 }
 
 function lower(value: string | null | undefined): string | null {
@@ -161,25 +173,40 @@ function titleCase(word: string, title: string): string {
     return match ? match[0] : word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+/** The terms that name a role: the words of its role name and its role families. */
+function roleNamingTerms(role: string, terms: readonly string[]): Set<string> {
+    return new Set([...titleWords(role).map((word) => `w:${word}`), ...terms.filter((term) => term.startsWith("f:"))]);
+}
+
 /**
  * What a nudge remembers about `job`. Given the deck it was seen in, `label` is
  * the term that most sets it apart from the other roles there (only terms some
  * other role shares, since only those steer the deck): its role when that is a
  * word of the role ("Product Manager" in a TAM's deck), else that word
  * ("Security"), its company or a skill.
+ *
+ * `own`: the role is the candidate's own kind of role. A thumbs-down or skip
+ * on it is about this posting, not their line of work, so its label skips the
+ * role's own words ("away from HashiCorp", not "away from Technical Account
+ * Manager"), and is empty when nothing else sets it apart.
  */
-export function roleFeatures(job: PublicJob, deck: readonly PublicJob[] = []): RoleFeatures {
+export function roleFeatures(
+    job: PublicJob,
+    deck: readonly PublicJob[] = [],
+    { own = false, signal }: { own?: boolean; signal?: TuningSignal } = {},
+): RoleFeatures {
     const role = roleName(job.title);
     const terms = roleTerms(job);
-    let label = role;
+    const ownDown = own && signal != null && SIGNAL_WEIGHT[signal] < 0;
+    let label = ownDown ? "" : role;
     const others = deck.filter((other) => other.id !== job.id);
     if (others.length > 0) {
         const weight = deckTermWeights(others.map(roleTerms));
-        const roleWords = new Set(titleWords(role));
+        const naming = roleNamingTerms(role, terms);
         const best = terms
-            .filter((term) => /^[wcsg]:/.test(term) && weight(term) > 0)
+            .filter((term) => /^[wcsg]:/.test(term) && weight(term) > 0 && !(ownDown && naming.has(term)))
             .sort((a, b) => weight(b) - weight(a))[0];
-        if (best && !(best.startsWith("w:") && roleWords.has(best.slice(2)))) {
+        if (best && !naming.has(best)) {
             const value = best.slice(2);
             label = best.startsWith("w:")
                 ? titleCase(value, job.title ?? "")
@@ -188,7 +215,7 @@ export function roleFeatures(job: PublicJob, deck: readonly PublicJob[] = []): R
                   : value;
         }
     }
-    return { role, label, terms };
+    return own ? { role, label, terms, own } : { role, label, terms };
 }
 
 /** How much a nudge given `ageMs` ago still counts. */
@@ -219,6 +246,37 @@ export function similarity(candidate: readonly string[], nudged: readonly string
 /** Below this two roles share too little (a level, a work type) for a nudge to carry over. */
 const SIMILARITY_FLOOR = 0.25;
 
+/**
+ * A thumbs-down or skip on one posting of the candidate's own kind of role is
+ * about that posting, not their line of work. One "fewer" on a plain
+ * "Technical Account Manager" in a TAM's deck used to move every TAM below
+ * the roles around them. Now the words naming the role don't count for it;
+ * what else set the posting apart does (its company, "Security"), and if
+ * that is next to nothing (below `OWN_DOWN_MIN_WEIGHT`, squared weights as in
+ * `similarity`) the nudge moves nothing. The posting itself still goes.
+ */
+export const OWN_DOWN_MIN_WEIGHT = 0.05;
+
+const namingTermsOf = new WeakMap<RoleFeatures, Set<string>>();
+
+/**
+ * The term weights a nudge steers with: `weight`, or for a thumbs-down on the
+ * candidate's own role, `weight` without the role's own words. Null when such
+ * a nudge has too little else to steer by.
+ */
+function nudgeWeight(features: RoleFeatures, strength: number, weight: (term: string) => number): ((term: string) => number) | null {
+    if (!features.own || strength >= 0) return weight;
+    let naming = namingTermsOf.get(features);
+    if (!naming) {
+        naming = roleNamingTerms(features.role, features.terms);
+        namingTermsOf.set(features, naming);
+    }
+    const dropped = naming;
+    const steering = (term: string) => (dropped.has(term) ? 0 : weight(term));
+    const left = features.terms.reduce((sum, term) => sum + steering(term) ** 2, 0);
+    return left < OWN_DOWN_MIN_WEIGHT ? null : steering;
+}
+
 /** The net nudge on one role, from -1 (fewer) to 1 (more). */
 export function roleNudge(
     terms: readonly string[],
@@ -230,7 +288,9 @@ export function roleNudge(
     for (const nudge of nudges) {
         const strength = SIGNAL_WEIGHT[nudge.signal] * decay(nowMs - nudge.at);
         if (Math.abs(strength) < 0.01) continue;
-        const alike = similarity(terms, nudge.features.terms, weight);
+        const steering = nudgeWeight(nudge.features, strength, weight);
+        if (!steering) continue;
+        const alike = similarity(terms, nudge.features.terms, steering);
         if (alike <= SIMILARITY_FLOOR) continue;
         total += strength * ((alike - SIMILARITY_FLOOR) / (1 - SIMILARITY_FLOOR));
     }
