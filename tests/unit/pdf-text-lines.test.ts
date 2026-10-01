@@ -84,6 +84,30 @@ describe("PDF extraction keeps paragraphs and bullets whole", () => {
         for (const items of cases) assert.equal(pdfPageText(items).split("\n").length, 2, JSON.stringify(items.map((i) => i.str)));
     });
 
+    it("keeps a page of short lines one per line: its widest line is not proof of a wrap", () => {
+        const lines = ["Jane Doe", "SKILLS", "TypeScript, React, Node.js, PostgreSQL", "EXPERIENCE", "Acme Corp", "Led the migration"];
+        const text = pdfPageText(lines.map((str, i) => item(str, 72, 720 - 14 * i, { size: 11 })));
+        assert.deepEqual(text.split("\n"), lines);
+    });
+
+    it("never joins a heading onto the full line above it", () => {
+        const full = words(100);
+        const text = pdfPageText([
+            item(full, 50, 700),
+            item("continues mid-sentence.", 50, 687),
+            item(full, 50, 674),
+            item("Experience", 50, 661),
+            item(full, 50, 648),
+            item("CORE COMPETENCIES", 50, 635),
+        ]);
+        assert.deepEqual(text.split("\n"), [`${full} continues mid-sentence.`, full, "Experience", full, "CORE COMPETENCIES"]);
+    });
+
+    it("joins a bullet whose first line mentions a date range: it is not a dated role line", () => {
+        const first = `• Grew revenue 40% from 2019 to 2021 ${words(70)}`;
+        assert.equal(pdfPageText([item(first, 50, 700), item("and kept churn flat.", 50, 687)]), `${first} and kept churn flat.`);
+    });
+
     it("reads a bullet glyph drawn apart from its text as one bullet, and joins its continuation", () => {
         const text = pdfPageText([
             item("•", 54, 700, { hasEOL: false }),

@@ -37,6 +37,8 @@ describe("motion token contract in globals.css", () => {
     assert.equal(cssToken("--transition-enter"), `${MOTION_DURATION_MS.enter}ms`);
     assert.equal(cssToken("--transition-deck"), `${MOTION_DURATION_MS.deck}ms`);
     assert.equal(cssToken("--transition-page"), `${MOTION_DURATION_MS.page}ms`);
+    assert.equal(cssToken("--transition-stack"), `${MOTION_DURATION_MS.stack}ms`);
+    assert.equal(cssToken("--ease-stack"), MOTION_EASE.stack);
     assert.equal(cssToken("--motion-press-scale"), String(MOTION_SCALE.press));
   });
 

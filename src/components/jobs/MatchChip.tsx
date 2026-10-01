@@ -44,6 +44,8 @@ export interface MatchChipProps {
      *  because not every render site (yet) has a job id in scope; omit to
      *  render the chip without that capture rather than fabricate an id. */
     jobId?: string;
+    /** The chip's test id; null leaves it off (a role card stacked behind the open one). */
+    testId?: string | null;
 }
 
 /** Locked teaser occupying the same footprint as {@link MatchChip}. */
@@ -70,7 +72,7 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
     );
 }
 
-export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {
+export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip" }: MatchChipProps) {
     const band = matchBand(score.total);
     const label = matchBandLabel(band);
     return (
@@ -87,7 +89,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
             }}
         >
             <span
-                data-testid="match-chip"
+                data-testid={testId ?? undefined}
                 aria-label={`${label} match`}
                 className={cn(
                     "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
