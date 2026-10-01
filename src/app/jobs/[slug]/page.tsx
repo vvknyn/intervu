@@ -8,6 +8,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
+import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
@@ -83,6 +84,9 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
     // Slug is decorative; if it drifted (a re-titled posting, a stale shared
     // link), send crawlers and humans to the one canonical URL.
     if (`/jobs/${slug}` !== path) permanentRedirect(path);
+    // Buffer-only: a visited job page's link joins Subspace's liveness checks
+    // (liveness-demand.ts dedupes repeat visits for 15 minutes).
+    reportShownJobs([job]);
 
     return (
         <div data-testid="job-page" className="shell-row py-6">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { BookmarkSimple, UploadSimple } from "@phosphor-icons/react";
+import { ArrowLeft, BookmarkSimple, CaretLeft, CaretRight, UploadSimple } from "@phosphor-icons/react";
 import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
@@ -18,7 +18,7 @@ import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { countResults, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
-import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import { hubTile } from "@/lib/jobs/for-you/hub-tiles";
 import { jobsBoardHref, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
@@ -31,7 +31,7 @@ import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { deckListLoading } from "@/lib/jobs/for-you/deck-list-loading";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";
@@ -55,11 +55,13 @@ import type { Pursuit } from "@/lib/pursuits/types";
 export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAME_CLASS };
 
 /** An opened pack is a stack of role cards (RoleStack): one role at a time,
- *  moved through with Previous / Next / Skip, arrow keys or a swipe. The
- *  stack fills the locked pane, and each card scrolls inside itself. */
+ *  moved through with Previous / Next / Skip, arrow keys or a swipe. One
+ *  header row carries the pack's name, the way back, its links and the
+ *  position; the stack fills the rest of the screen and each card scrolls
+ *  inside itself. */
 
 const REPLACE_RESUME_CLASS =
-    "text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground";
+    "shrink-0 whitespace-nowrap text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-foreground";
 
 export interface ForYouHomeProps {
     visiblePacks: PublicJob[];
@@ -104,6 +106,8 @@ export interface ForYouHomeProps {
     unmatchedPlaces?: string[];
     /** The hub tile this list was opened from: a filter tile's own filter is part of the pack (hub-tiles.ts). */
     tileId?: HubPackId;
+    /** Back to the packs hub; the header row shows the way back only with it. */
+    onBackToPacks?: () => void;
     /** CRAFT-3 — enter-reveal on first pack after auto-reveal. */
     firstRevealEnter?: boolean;
     /** CRAFT-3 — focus deck primary CTA once after first-pack auto-reveal. */
@@ -177,6 +181,7 @@ export function ForYouHome({
     saveSuccessPulse = false,
     unmatchedPlaces,
     tileId,
+    onBackToPacks,
 }: ForYouHomeProps) {
     // The pack is a `/jobs` filter state: "Edit filters" opens /jobs on exactly it.
     const filters = useMemo(
@@ -313,12 +318,16 @@ export function ForYouHome({
     const selectedJob = visiblePacks[selectedIndex] ?? activeJob;
     const selectedJobId = selectedJob?.id;
 
-    // A sign-up card, the pack's header or a short screen can leave the bottom
-    // of the stack (and its actions) under the fold. When the pack's roles
-    // arrive, scroll just far enough to show the whole stack, never so far
-    // that the Previous/Next bar goes under the top bar. The header above
-    // keeps growing for a moment (filter counts, the résumé band), so refit
-    // while the page settles, until the visitor scrolls or touches anything.
+    // The résumé place question above the pack, or a screen too short for the
+    // stack's floor, can leave the bottom of the stack (and its actions) under
+    // the fold. When the pack's roles arrive, scroll just far enough to show
+    // the whole stack, never so far that it slides under the header row (which
+    // stays stuck under the top bar). A page left scrolled past the stack (the
+    // hub was scrolled down to its chips, and the shorter pack page clamps
+    // there) scrolls back up to that row. What sits above keeps growing for a
+    // moment (filter counts, the résumé band), and the router may reset the
+    // scroll after the first fit, so refit on every resize and scroll while
+    // the page settles, until the visitor scrolls or touches anything.
     // Keyed on having roles, not on how many, so stepping or Skip never
     // refits. A pack opened after another first shows the old list for a
     // moment, which empties before its own roles arrive: those start a fresh fit.
@@ -340,12 +349,16 @@ export function ForYouHome({
             const tabbar = document.querySelector("[data-mobile-tabbar]");
             const floor = tabbar?.getClientRects().length ? tabbar.getBoundingClientRect().top : window.innerHeight;
             const below = stage.getBoundingClientRect().bottom + 8 - floor;
-            const room = controls.getBoundingClientRect().top - topbar - 8;
-            const by = Math.min(below, room);
-            if (by > 1) window.scrollBy({ top: by, behavior: "instant" });
+            // As far as the stack can rise before it meets the header row, which
+            // sticks under the top bar (anything between them scrolls away).
+            // Negative when the page sits past the stack: scroll back up.
+            const room = stage.getBoundingClientRect().top - topbar - controls.offsetHeight - 4;
+            const by = room < 0 ? room : Math.min(Math.max(below, 0), room);
+            if (Math.abs(by) > 1) window.scrollBy({ top: by, behavior: "instant" });
         };
         const inputs = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
         for (const type of inputs) window.addEventListener(type, settle, { passive: true });
+        window.addEventListener("scroll", fit, { passive: true });
         const main = document.getElementById("main");
         const observer = new ResizeObserver(fit);
         if (main) observer.observe(main);
@@ -355,6 +368,7 @@ export function ForYouHome({
         const stop = window.setTimeout(settle, 5000);
         return () => {
             for (const type of inputs) window.removeEventListener(type, settle);
+            window.removeEventListener("scroll", fit);
             observer.disconnect();
             window.cancelAnimationFrame(frame);
             window.clearTimeout(stop);
@@ -451,6 +465,7 @@ export function ForYouHome({
         if (activeIndex < 0 || activeIndex >= visiblePacks.length) onActiveIndexChange(0);
     }, [activeIndex, visiblePacks.length, onActiveIndexChange]);
 
+    const packLabel = HUB_PACK_SHORT_LABELS[tileId ?? "all"];
     const lastIndex = visiblePacks.length - 1;
     const atEnd = selectedIndex >= lastIndex;
     const upNext = atEnd ? null : visiblePacks[selectedIndex + 1];
@@ -554,29 +569,85 @@ export function ForYouHome({
         </div>
     );
 
+    // A thin pack's note and broaden options: above the stack, inside the
+    // screen it fills, so they shorten the cards instead of pushing them down.
+    const thinBlock =
+        filters && !showLoading && packTotal != null && isThinResults(packTotal) ? (
+            <div className="mb-3 shrink-0 space-y-3" data-testid="for-you-pack-filters">
+                {packTotal > 0 ? (
+                    <p className="text-xs text-muted-foreground" data-testid="for-you-thin-note">
+                        Only {packTotal} {packTotal === 1 ? "role matches" : "roles match"} your filters.
+                    </p>
+                ) : null}
+                <BroadenOptions
+                    state={filters}
+                    total={packTotal}
+                    ctx={{ relocation: signals?.relocation.value, locationRequired: true }}
+                    search={searchJobsAction}
+                />
+            </div>
+        ) : null;
+    const stackOpen = !showLoading && !noRolesThereTitle && hasRoles;
+
     return (
         <div
             className={cn(
                 JOBS_SESSION_FRAME_CLASS,
-                "state-opacity-in h-auto min-h-0 flex-1 overflow-hidden",
+                // clip, not hidden: a hidden box is a scroll container, and the
+                // pack header's sticky would stick to it instead of the page.
+                "state-opacity-in h-auto min-h-0 flex-1 overflow-clip",
             )}
             data-testid="for-you-home"
         >
-            {hasUsableResume && onReplaceResume ? (
-                <div className="mb-3 flex justify-end">
+            {/* One row above the stack (Vivek, 2026-09-30: the way back, Replace
+                résumé, Edit filters and the position each took a row of their own,
+                pushing the role down the screen). It names the pack, which nothing
+                on the page did, and keeps every control the rows held. A phone
+                keeps the way back, Edit filters and Previous / Next as icons;
+                Replace résumé is the Résumé tab there. It sticks under the top bar,
+                so whatever scrolls the page (a short screen, a card's scroll
+                carrying on) never takes the way back or Next with it. */}
+            <div
+                ref={controlsRef}
+                data-testid="for-you-pack-header"
+                className="sticky top-[var(--topbar-h)] z-[var(--z-pack-header)] mb-1 flex min-h-10 shrink-0 items-center gap-2 bg-background sm:gap-3"
+            >
+                {onBackToPacks ? (
                     <button
                         type="button"
-                        data-testid="jobs-replace-resume"
-                        onClick={onReplaceResume}
-                        className={REPLACE_RESUME_CLASS}
+                        onClick={() => onBackToPacks()}
+                        className="ctl-md ctl-button -ml-2 inline-flex shrink-0 items-center gap-1 px-2 text-brand hover:underline"
+                        data-testid="jobs-back-to-packs"
+                        aria-label="Back to Job Packs"
+                        title="Back to Job Packs"
                     >
-                        Replace résumé
+                        <ArrowLeft size={16} weight="bold" aria-hidden />
+                        <span className="hidden sm:inline">Job Packs</span>
                     </button>
+                ) : null}
+                <div className="min-w-0 flex-1">
+                    <h2 className="truncate text-sm font-semibold text-foreground" title={packLabel}>
+                        {packLabel}
+                    </h2>
+                    {canNavigate ? (
+                        <p className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
+                            <span data-testid="for-you-deck-position" className="shrink-0 tabular-nums" aria-live="polite">
+                                Role {selectedIndex + 1} of {visiblePacks.length}
+                            </span>
+                            <span className="hidden min-w-0 truncate lg:inline">
+                                <span aria-hidden>· </span>
+                                {upNext
+                                    ? `Up next: ${upNext.title ?? "Untitled role"}${
+                                          displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)
+                                              ? `, ${displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)}`
+                                              : ""
+                                      }`
+                                    : "That's the last role here."}
+                            </span>
+                        </p>
+                    ) : null}
                 </div>
-            ) : null}
-
-            {filters && !showLoading ? (
-                <div className="mb-3 shrink-0 space-y-3" data-testid="for-you-pack-filters">
+                {filters && !showLoading ? (
                     <Link
                         href={jobsBoardHref(filters)}
                         data-testid="pack-edit-filters"
@@ -584,23 +655,48 @@ export function ForYouHome({
                     >
                         Edit filters
                     </Link>
-                    {packTotal != null && isThinResults(packTotal) ? (
-                        <>
-                            {packTotal > 0 ? (
-                                <p className="text-xs text-muted-foreground" data-testid="for-you-thin-note">
-                                    Only {packTotal} {packTotal === 1 ? "role matches" : "roles match"} your filters.
-                                </p>
-                            ) : null}
-                            <BroadenOptions
-                                state={filters}
-                                total={packTotal}
-                                ctx={{ relocation: signals?.relocation.value, locationRequired: true }}
-                                search={searchJobsAction}
-                            />
-                        </>
-                    ) : null}
-                </div>
-            ) : null}
+                ) : null}
+                {hasUsableResume && onReplaceResume ? (
+                    <button
+                        type="button"
+                        data-testid="jobs-replace-resume"
+                        onClick={onReplaceResume}
+                        className={cn(REPLACE_RESUME_CLASS, "hidden md:inline")}
+                    >
+                        Replace résumé
+                    </button>
+                ) : null}
+                {canNavigate ? (
+                    <div className="flex shrink-0 gap-1 sm:gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            data-testid="for-you-previous"
+                            onClick={() => goTo(selectedIndex - 1)}
+                            disabled={selectedIndex === 0}
+                            aria-label="Previous role"
+                            className="px-2.5 sm:px-3"
+                        >
+                            <CaretLeft weight="bold" aria-hidden className="sm:hidden" />
+                            <span className="hidden sm:inline">Previous</span>
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            data-testid="for-you-next"
+                            onClick={() => goTo(selectedIndex + 1)}
+                            disabled={atEnd}
+                            aria-label="Next role"
+                            className="px-2.5 sm:px-3"
+                        >
+                            <span className="hidden sm:inline">Next</span>
+                            <CaretRight weight="bold" aria-hidden className="sm:hidden" />
+                        </Button>
+                    </div>
+                ) : null}
+            </div>
+
+            {stackOpen ? null : thinBlock}
 
             {showLoading ? (
                 <WaitState
@@ -647,57 +743,23 @@ export function ForYouHome({
             ) : (
                 <>
                 <div
-                    ref={controlsRef}
-                    data-testid="role-stack-controls"
-                    className="flex shrink-0 items-center justify-between gap-3"
-                >
-                    <div className="min-w-0">
-                        <p data-testid="for-you-deck-position" className="text-sm font-semibold text-foreground" aria-live="polite">
-                            Role {selectedIndex + 1} of {visiblePacks.length}
-                        </p>
-                        <p className="hidden truncate text-xs text-muted-foreground sm:block">
-                            {upNext
-                                ? `Up next: ${upNext.title ?? "Untitled role"}${
-                                      displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)
-                                          ? `, ${displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)}`
-                                          : ""
-                                  }`
-                                : "That's the last role here."}
-                        </p>
-                    </div>
-                    <div className="flex shrink-0 gap-2">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            data-testid="for-you-previous"
-                            onClick={() => goTo(selectedIndex - 1)}
-                            disabled={selectedIndex === 0}
-                        >
-                            Previous
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            data-testid="for-you-next"
-                            onClick={() => goTo(selectedIndex + 1)}
-                            disabled={atEnd}
-                        >
-                            Next
-                        </Button>
-                    </div>
-                </div>
-                <div
                     data-testid="for-you-deck"
                     className={cn("flex min-h-0 flex-1 flex-col", firstRevealEnter && "state-opacity-in")}
                 >
-                    <RoleStack
-                        className="flex-1"
-                        roles={visiblePacks}
-                        activeIndex={selectedIndex}
-                        departing={departing}
-                        renderCard={renderCard}
-                        onSwipe={(direction) => goTo(selectedIndex + (direction === "next" ? 1 : -1))}
-                    />
+                    {/* The screen under the header row (globals.css .role-stack-screen),
+                        not what the page leaves over: growing into the leftover kept the
+                        footer and the AI note on the first screen and the role card short. */}
+                    <div className="role-stack-screen">
+                        {thinBlock}
+                        <RoleStack
+                            className="flex-1"
+                            roles={visiblePacks}
+                            activeIndex={selectedIndex}
+                            departing={departing}
+                            renderCard={renderCard}
+                            onSwipe={(direction) => goTo(selectedIndex + (direction === "next" ? 1 : -1))}
+                        />
+                    </div>
                     {signupGate}
                     {!signupGate && atEnd && (showingLine || (hasMore && onLoadMore)) ? (
                         <div

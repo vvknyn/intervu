@@ -22,7 +22,8 @@ import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { formatAuthGateValueLine, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
-import { JobDescription, JobDetail } from "@/components/jobs/JobDetail";
+import { JobDetail } from "@/components/jobs/JobDetail";
+import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
 import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
@@ -539,7 +540,7 @@ export default function PursuitDetailPage() {
                             About this role
                         </h2>
                         <div data-testid="pursuit-description" className="max-w-prose">
-                            <JobDescription blocks={descriptionBlocks} headingLevel={3} />
+                            <FormattedJobDescription description={snapshot?.description} headingLevel={3} />
                         </div>
                     </section>
                 )}

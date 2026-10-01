@@ -27,6 +27,7 @@ export const ANALYTICS_EVENTS = {
   search_filter_applied: "search_filter_applied",
   search_results_paged: "search_results_paged",
   results_impressed: "results_impressed",
+  list_rendered: "list_rendered",
 
   search_alert_impressed: "search_alert_impressed",
   search_alert_submitted: "search_alert_submitted",

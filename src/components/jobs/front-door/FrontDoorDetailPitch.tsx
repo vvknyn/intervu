@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { PostingCheckSignalsGrid } from "@/components/jobs/JobDetail";
+import { PostingCheckSignalsGrid } from "@/components/jobs/job-detail-primitives";
 import { GHOST_CHECK_TAGLINE, REPRESENTATIVE_GHOST_SIGNALS } from "@/components/jobs/job-detail-facts";
 import { VARIANT_COPY } from "@/components/mcp/McpHandoffNote";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";

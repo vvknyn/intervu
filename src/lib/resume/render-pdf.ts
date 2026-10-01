@@ -439,26 +439,6 @@ export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetr
   return doc.output("arraybuffer") as ArrayBuffer;
 }
 
-/** Pure: `<Company>-<Role>-resume-<YYYY-MM-DD>` (no extension — the caller
- *  appends it), matching the founder's reference filename convention
- *  (Indigo-Digital-Product-Manager-resume-2026-08-07.pdf). Falls back
- *  gracefully when pursuit metadata is absent (a base-résumé download has
- *  no company/role at all) rather than producing an empty/broken name. */
-export function deriveResumePdfFilename(meta: {
-  company?: string | null;
-  role?: string | null;
-  fallbackLabel?: string | null;
-  dateIso: string;
-}): string {
-  const slug = (s: string) =>
-    s
-      .trim()
-      .replace(/[^\w.-]+/g, "-")
-      .replace(/-+/g, "-")
-      .replace(/^-|-$/g, "");
-  const company = meta.company ? slug(meta.company) : "";
-  const role = meta.role ? slug(meta.role) : "";
-  const stem = company && role ? `${company}-${role}` : company || role || (meta.fallbackLabel ? slug(meta.fallbackLabel) : "") || "resume";
-  const date = /^\d{4}-\d{2}-\d{2}/.test(meta.dateIso) ? meta.dateIso.slice(0, 10) : new Date().toISOString().slice(0, 10);
-  return `${stem}-resume-${date}`;
-}
+// Re-exported for existing importers; new code imports it from
+// pdf-filename.ts, which doesn't pull jsPDF into the importing bundle.
+export { deriveResumePdfFilename } from "./pdf-filename";

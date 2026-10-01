@@ -174,6 +174,20 @@ export interface EventPayloads {
      *  fired with no resolved search (shouldn't happen in practice). */
     query_id?: string;
   };
+  /** Real-user timing for the 2-second list budget: how long a job list took
+   *  to put its first rows on screen (src/lib/analytics/use-list-render-timing.ts). */
+  list_rendered: {
+    /** "first_load": the page was opened at this list, timed from navigation
+     *  start. "search": a later search on the page, timed from when its
+     *  request was started (after any typing debounce). */
+    phase: "first_load" | "search";
+    ms: number;
+    /** "browse" for the default list with no query or filters. */
+    surface: "search" | "browse";
+    rows: number;
+    /** Below the `lg` breakpoint or not, so phone and desktop read apart. */
+    viewport: "narrow" | "wide";
+  };
 
   search_alert_impressed: {
     surface: "zero_results" | "results";

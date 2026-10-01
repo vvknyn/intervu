@@ -1,8 +1,12 @@
 import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { LOCAL_AI_CONSENT_KEY } from "../../../src/lib/local-ai/consent";
+import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
+import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
+import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
 
-/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37, J-JOBS-11/53). Read-only. */
+/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37/41/42, J-JOBS-11/53). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
 /** The one "Customize résumé" (with a résumé) or "Upload résumé to customize." (without) button. */
@@ -278,6 +282,10 @@ test("closing a job opened from a shared link stays on /jobs with ?job= cleared;
   await shared.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
   const detail = shared.locator(DETAIL).first();
   await expect(detail).toBeVisible({ timeout: 20_000 });
+  // The job stays open once the list has loaded: on a dev server the second run of the list's fetch closed it about 3s in (2026-10-01).
+  await shared.waitForLoadState("networkidle");
+  await expect(detail).toBeVisible();
+  expect(new URL(shared.url()).searchParams.get("job")).toBe(id);
   await closeJob(shared);
   await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
   if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();
@@ -308,5 +316,112 @@ test("on a phone a tap anywhere on a job row opens that job, and the job links i
   const sheet = page.getByTestId("mobile-detail-scroller");
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('a[href^="/co/"]').first()).toBeVisible({ timeout: 20_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Opens a live job in the board (pane on desktop, sheet on a phone) with `description` served as its text, and returns its description. */
+async function openJobWithDescription(page: Page, description: string): Promise<Locator> {
+  await page.route("**/api/jobs/*/description", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (body?.hits?.[0]) body.hits[0].description = description;
+    await route.fulfill({ response, json: body });
+  });
+  const [id] = await liveJobIds(page, "product manager", 1);
+  await page.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
+  const detail = page.locator(DETAIL).first();
+  await expect(detail).toBeVisible({ timeout: 20_000 });
+  const more = detail.getByRole("button", { name: "Show full description" });
+  if (await more.waitFor({ timeout: 5_000 }).then(() => true, () => false)) await more.click();
+  return detail.getByTestId("job-description-body");
+}
+
+test("a posting whose lists and titles arrived as plain lines reads as headings, lists and fine print", { tag: ["@J-DETAIL-41"] }, async ({ page, diagnostics }) => {
+  // Vivek's screenshot (2026-09-30): an Expel TAM role showed every duty and
+  // requirement as its own paragraph and "What you should bring with you" as
+  // body text, because ingest turns <li> and <strong> titles into bare lines.
+  const body = await openJobWithDescription(page, stripHtmlLikeIngest(EXPEL_TAM_HTML));
+  await expect(body.getByRole("heading")).toHaveText(["About Expel", "What you’ll do", "What you should bring with you", "Compensation"], { timeout: 20_000 });
+  await expect(body).toHaveAttribute("data-layout", "rules");
+  const lists = body.getByRole("list");
+  await expect(lists).toHaveCount(2);
+  await expect(lists.nth(0).getByRole("listitem")).toHaveCount(5);
+  await expect(lists.nth(1).getByRole("listitem")).toHaveCount(4);
+  await expect(lists.nth(1).getByRole("listitem").first()).toHaveText(/^5\+ years of security industry experience/);
+  // Pay reads at full size; the equal-opportunity notice steps down.
+  const size = (text: string) => body.locator("p", { hasText: text }).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const pay = await size("$150,000");
+  expect(await size("equal opportunity employer")).toBeLessThan(pay);
+  expect(await sidewaysScroll(page)).toBeLessThanOrEqual(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("the on-device model lays out the lines the rules guessed, never holds the text back, and the original is one tap away", { tag: ["@J-DETAIL-42"] }, async ({ page, diagnostics }) => {
+  const lines = [
+    "What we need",
+    "You have five years of B2B sales experience.",
+    "You have closed deals above $100,000.",
+    "You are based in Toronto.",
+    "Compensation: $90,000 base plus commission.",
+  ];
+  await page.addInitScript(
+    ([enabledKey, consentKey]) => {
+      localStorage.setItem(enabledKey, "1");
+      localStorage.setItem(consentKey, "1");
+      // A stand-in for Chrome's Prompt API that answers only when the test says
+      // so: short titles H, "You have/are…" lines B, the rest P.
+      const w = window as unknown as { __prompts: string[]; __answer: () => void; LanguageModel: unknown };
+      let answer!: () => void;
+      const answered = new Promise<void>((resolve) => (answer = resolve));
+      w.__prompts = [];
+      w.__answer = () => answer();
+      const session = {
+        async prompt(prompt: string) {
+          w.__prompts.push(prompt);
+          await answered;
+          return prompt
+            .split("Posting lines:\n")[1]!
+            .split("\n")
+            .map((line) => {
+              const [n, ...rest] = line.split(" ");
+              const text = rest.join(" ");
+              return `${n} ${/^You (have|are)/.test(text) ? "B" : text.length < 40 && !text.endsWith(".") ? "H" : "P"}`;
+            })
+            .join("\n");
+        },
+        async clone() {
+          return session;
+        },
+        destroy() {},
+      };
+      w.LanguageModel = { create: async () => session };
+    },
+    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_CONSENT_KEY],
+  );
+  const body = await openJobWithDescription(page, lines.join("\n\n"));
+  // The rules' layout shows at once while the model is still working.
+  await expect(body.getByText(lines[1]!)).toBeVisible({ timeout: 20_000 });
+  await expect(body).toHaveAttribute("data-layout", "rules");
+  await expect(body.getByRole("listitem")).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length), { timeout: 20_000 }).toBe(1);
+
+  await page.evaluate(() => (window as unknown as { __answer: () => void }).__answer());
+  await expect(body).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
+  // Word for word: the model only chose which lines are list items.
+  await expect(body.getByRole("listitem")).toHaveText(lines.slice(1, 4));
+  await expect(body.getByRole("heading", { name: "What we need" })).toBeVisible();
+  await expect(body.getByText("Laid out on your device.")).toBeVisible();
+
+  await body.getByRole("button", { name: "Show original text" }).click();
+  await expect(body.getByTestId("job-description-original")).toHaveText(lines.join("\n\n"), { useInnerText: true });
+  await expect(body.getByRole("listitem")).toHaveCount(0);
+  await body.getByRole("button", { name: "Show formatted" }).click();
+  await expect(body.getByRole("listitem")).toHaveCount(3);
+
+  // This browser remembers the layout: the next view needs no model call.
+  await page.reload();
+  const again = page.locator(DETAIL).first().getByTestId("job-description-body");
+  await expect(again).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
+  expect(await page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length)).toBe(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

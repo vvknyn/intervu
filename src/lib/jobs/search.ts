@@ -270,8 +270,35 @@ export async function getJobsLastUpdated(p: JobSearchParams = {}): Promise<strin
  * that silently does nothing.
  */
 export async function isPostedDateFilterSupported(): Promise<boolean | null> {
-  if (activeBackend() === "meilisearch") return fetchPostedDateFilterSupported();
-  return false;
+  if (activeBackend() !== "meilisearch") return false;
+  // Two whole-corpus counts per call, and the default browse, the count
+  // route and the page's own probe all ask on every visit. The answer moves
+  // only as fast as the corpus does, so it is kept for POSTED_DATE_SUPPORT_TTL_MS
+  // and concurrent askers share one probe. An unknown answer (null) is not kept.
+  const now = Date.now();
+  if (postedDateSupport.value !== null && now - postedDateSupport.atMs < POSTED_DATE_SUPPORT_TTL_MS) {
+    return postedDateSupport.value;
+  }
+  postedDateSupport.pending ??= fetchPostedDateFilterSupported()
+    .then((value) => {
+      if (value !== null) Object.assign(postedDateSupport, { value, atMs: Date.now() });
+      return value;
+    })
+    .finally(() => {
+      postedDateSupport.pending = null;
+    });
+  return postedDateSupport.pending;
+}
+
+const POSTED_DATE_SUPPORT_TTL_MS = 10 * 60_000;
+const postedDateSupport: { value: boolean | null; atMs: number; pending: Promise<boolean | null> | null } = {
+  value: null,
+  atMs: 0,
+  pending: null,
+};
+
+export function resetPostedDateSupportCacheForTests(): void {
+  Object.assign(postedDateSupport, { value: null, atMs: 0, pending: null });
 }
 
 /**
