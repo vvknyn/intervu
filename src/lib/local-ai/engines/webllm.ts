@@ -6,7 +6,7 @@
  */
 
 import type { ModelLoadReport } from "../model-load";
-import type { LocalAiEngine, ModelParseOutput } from "./types";
+import type { GenerateOptions, LocalAiEngine, ModelParseOutput } from "./types";
 
 const WEBLLM_CDN = "https://esm.run/@mlc-ai/web-llm@0.2.79";
 
@@ -43,7 +43,7 @@ function tryParseJson(text: string): ModelParseOutput {
     }
 }
 
-let engine: { chat: { completions: { create: (opts: { messages: { role: string; content: string }[]; temperature?: number }) => Promise<{ choices: { message: { content: string } }[] }> } } } | null = null;
+let engine: { chat: { completions: { create: (opts: { messages: { role: string; content: string }[]; temperature?: number; max_tokens?: number }) => Promise<{ choices: { message: { content: string } }[] }> } } } | null = null;
 
 type WebllmModule = {
     CreateMLCEngine: (
@@ -109,11 +109,12 @@ export const webllmEngine: LocalAiEngine = {
         return tryParseJson(content);
     },
 
-    async generate(prompt: string) {
+    async generate(prompt: string, options?: GenerateOptions) {
         if (!engine) await this.init();
         const response = await engine!.chat.completions.create({
             messages: [{ role: "user", content: prompt }],
-            temperature: 0.3,
+            temperature: options?.temperature ?? 0.3,
+            ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
         });
         return response.choices[0]?.message?.content ?? null;
     },
