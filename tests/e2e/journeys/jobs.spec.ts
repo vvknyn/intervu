@@ -283,17 +283,25 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const cards = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
+  const places = page.locator('[data-testid="for-you-deck"] [data-testid="role-card-place"]');
+  const frontPlace = page.locator('[data-testid="role-stack-card"][data-stack-pose="front"] [data-testid="role-card-place"]');
 
   // Fully remote: the deck used to show the hub's own rows (onsite, anywhere) until the
-  // tile's search landed. Every row it shows, from the first, is a remote role.
+  // tile's search landed. Every role it shows, from the first, is a remote role: the cards
+  // on the stack before and after the search settles, then each role Next brings up.
   await openHubTile(page, "remote");
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  const firstPaint = await rows.allInnerTexts();
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+  const firstPaint = await places.allInnerTexts();
   expect(firstPaint.length).toBeGreaterThan(0);
   for (const text of firstPaint) expect(text).toMatch(/\bRemote\b/);
   await page.waitForTimeout(3_000);
-  for (const text of await rows.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  for (const text of await places.allInnerTexts()) expect(text).toMatch(/\bRemote\b/);
+  const next = page.getByTestId("for-you-next");
+  for (let step = 0; step < 4 && (await next.isEnabled()); step++) {
+    await next.click();
+    await expect(frontPlace).toHaveText(/\bRemote\b/);
+  }
 
   // A row tile (AI roles) counted on the hub opens on those roles, even behind the guest
   // preview: it used to keep only the AI roles among the pack's top 3, usually none.
@@ -303,7 +311,7 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   const rowTile = ["ai", "lead", "good"].find((id) => shown.includes(id));
   expect(rowTile, `a row tile among ${shown.join(", ")}`).toBeTruthy();
   await page.getByTestId(`hub-pack-card-${rowTile}`).click({ timeout: 30_000 });
-  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
@@ -531,7 +539,7 @@ test("a nurse's packs hub shows health tiles, never the tech ones, and each tile
     .evaluateAll((els) => els.map((el) => [el.getAttribute("data-testid"), Number((el.textContent ?? "").replace(/[^\d]/g, "") || "0")] as const));
   for (const [id, n] of counts) if (id !== "hub-pack-count-all") expect(n, id ?? "").toBeGreaterThanOrEqual(3);
 
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   await openHubTile(page, health[0]);
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
@@ -579,7 +587,7 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await guestWithResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   await openHubTile(page, "remote");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("jobs-back-to-packs").click();
@@ -600,6 +608,110 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await page.getByTestId("for-you-load-failed-retry").click();
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+});
+
+test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const card = (id: string) => stack.locator(`[data-testid="role-stack-card"][data-job-id="${id}"]`);
+  const frontId = async () => (await front.getAttribute("data-job-id")) ?? "";
+  const position = page.getByTestId("for-you-deck-position");
+
+  // One open role, in two parts: what we inferred about it on one side, what the posting states on the other.
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expect(front.getByTestId("role-card-inferred")).toContainText("What we inferred");
+  await expect(front.getByTestId("role-card-description")).toBeVisible();
+  await expect(front.getByTestId("for-you-download-apply")).toBeVisible();
+  await expect(position).toHaveText(/^Role 1 of \d+$/);
+  const total = Number(/of (\d+)/.exec((await position.textContent()) ?? "")?.[1] ?? "0");
+  test.skip(total < 3, "the pack needs three roles to step through");
+  const first = await frontId();
+
+  // Next brings the next role up in front; the one it covers tips back into the stack behind.
+  await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText(`Role 2 of ${total}`);
+  await expect(card(first)).toHaveAttribute("data-stack-pose", "behind-1");
+  const second = await frontId();
+  expect(second).not.toBe(first);
+
+  // Skip drops the open role: the next one takes its place and the count goes down by one.
+  // Focus moves to the Skip of the role that came forward, so a keyboard user can keep going.
+  await page.getByTestId("for-you-skip").click();
+  await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+  await expect.poll(frontId).not.toBe(second);
+  await expect(front.getByTestId("for-you-skip")).toBeFocused();
+  await expect(card(second)).toHaveCount(0, { timeout: 5_000 });
+
+  // Previous brings the first role back to the front.
+  await page.getByTestId("for-you-previous").click();
+  await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+  await expect.poll(frontId).toBe(first);
+  await expect(page.getByTestId("for-you-previous")).toBeDisabled();
+
+  // On a touch screen a sideways swipe inside the card changes role and never reaches the browser as Back.
+  if (testInfo.project.use.hasTouch) {
+    const url = page.url();
+    const cdp = await page.context().newCDPSession(page);
+    // The stage, not the card: the card may still be moving into place.
+    const box = (await stack.boundingBox())!;
+    const y = box.y + box.height * 0.4;
+    const swipe = async (from: number, to: number) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: box.x + box.width * from, y }] });
+      for (let i = 1; i <= 6; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: box.x + box.width * (from + ((to - from) * i) / 6), y }] });
+      }
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    await swipe(0.8, 0.15);
+    await expect(position).toHaveText(`Role 2 of ${total - 1}`);
+    await swipe(0.15, 0.85);
+    await expect(position).toHaveText(`Role 1 of ${total - 1}`);
+    expect(page.url()).toBe(url);
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("on a small phone an opened pack fits its card, actions and Next between the top bar and the tab bar", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "the tab bar only shows on a phone-sized screen");
+  await page.setViewportSize({ width: 360, height: 640 });
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  const tabbarTop = async () => (await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? 640;
+  const bottom = async (testId: string) => {
+    const box = await front.getByTestId(testId).boundingBox();
+    return box ? box.y + box.height : Infinity;
+  };
+  // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
+  // Again after going back to the packs and opening another one (its roles arrive in two batches).
+  for (const round of ["first open", "second open"]) {
+    if (round === "second open") {
+      await page.getByTestId("for-you-next").click();
+      await page.getByTestId("jobs-back-to-packs").click();
+      // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
+      const shown = await settledHubTiles(page);
+      const other = shown.find((id) => id !== "all");
+      expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
+      await openHubTile(page, other!);
+      await expect(front).toHaveCount(1, { timeout: 60_000 });
+    }
+    await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000, message: round }).toBe(true);
+    expect(await bottom("for-you-download-apply"), round).toBeLessThanOrEqual(await tabbarTop());
+    const next = (await page.getByTestId("for-you-next").boundingBox())!;
+    expect(next.y, round).toBeGreaterThanOrEqual(48);
+  }
+  expect(diagnostics.serverErrors).toEqual([]);
 });
 
 test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
@@ -655,7 +767,7 @@ test("a pack whose search is down shows the error with Retry, never 'No roles in
   const recover = await answerPackSearchAsOutage(page, "Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
-  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+  const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
 
   // One automatic retry (2-4 s) runs first, then the failure shows. The outage answer names
   // Canada as unmatched; the pack used to say "No roles in Canada yet." instead of the error.

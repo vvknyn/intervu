@@ -86,22 +86,28 @@ async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band
     }).toPass({ timeout: 60_000 });
     await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 60_000 });
     const settled = page.locator(
-        '[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
+        '[data-testid="for-you-deck"] [data-testid="role-stack-card"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
     );
     await expect(settled.first()).toBeVisible({ timeout: 60_000 });
     if (await page.getByTestId("for-you-load-failed").isVisible()) {
         await page.waitForTimeout(RATE_LIMIT_WAIT_MS);
         await page.getByTestId("for-you-load-failed-retry").click();
-        await expect(page.locator('[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"]').first()).toBeVisible({ timeout: 60_000 });
+        await expect(page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"]').first()).toBeVisible({ timeout: 60_000 });
     }
     await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 60_000 });
-    const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+    // The pack is a stack of role cards: read the open role, then step with Next.
+    const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
     const out: { id: string; band: string | null }[] = [];
-    for (let i = 0; i < Math.min(await rows.count(), ROWS_PER_TILE); i++) {
-        const row = rows.nth(i);
-        const chip = row.getByTestId("match-chip");
+    if ((await front.count()) === 0) return out;
+    const next = page.getByTestId("for-you-next");
+    for (let i = 0; i < ROWS_PER_TILE; i++) {
+        const id = (await front.getAttribute("data-job-id")) ?? "";
+        const chip = front.locator('[aria-label$=" match"]');
         const label = (await chip.count()) > 0 ? await chip.first().getAttribute("aria-label") : null;
-        out.push({ id: (await row.getAttribute("data-job-id")) ?? "", band: label?.replace(/ match$/, "") ?? null });
+        out.push({ id, band: label?.replace(/ match$/, "") ?? null });
+        if (!(await next.isEnabled())) break;
+        await next.click();
+        await expect(front).not.toHaveAttribute("data-job-id", id);
     }
     return out.filter((r) => r.id);
 }

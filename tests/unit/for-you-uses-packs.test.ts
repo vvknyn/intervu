@@ -9,11 +9,13 @@ const FOR_YOU_HOME_SRC = readFileSync(
 );
 const FOR_YOU_DIR = join(__dirname, "../../src/components/jobs/for-you");
 
-test("ForYouHome uses the jobs list and detail, not the postcard coach", () => {
-    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/JobCard"/);
-    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/for-you\/DeckRoleDetail"/);
-    assert.match(FOR_YOU_HOME_SRC, /<JobCard/);
-    assert.match(FOR_YOU_HOME_SRC, /<DeckRoleDetail/);
+test("ForYouHome opens a pack as the stacked role cards, not the list or the postcard coach", () => {
+    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/for-you\/RoleStack"/);
+    assert.match(FOR_YOU_HOME_SRC, /from "@\/components\/jobs\/for-you\/StackedRoleCard"/);
+    assert.match(FOR_YOU_HOME_SRC, /<RoleStack/);
+    assert.match(FOR_YOU_HOME_SRC, /<StackedRoleCard/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /<JobCard/);
+    assert.doesNotMatch(FOR_YOU_HOME_SRC, /DeckRoleDetail/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /Why this fits/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /FitReasons/);
     assert.doesNotMatch(FOR_YOU_HOME_SRC, /Getting around/);
