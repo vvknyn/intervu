@@ -2,16 +2,19 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { TODAY_NEW_ROWS } from "../../../src/lib/jobs/for-you/today";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
+import { DEFAULT_URL_STATE } from "../../../src/lib/jobs/url-state";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
+import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
-// Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
+// Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52/61, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/50/51/52/54/55/56/57/58/60/61, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -35,40 +38,76 @@ async function expectBoard(page: Page, timeout = FIRST_PAINT_MS) {
     .toBeGreaterThanOrEqual(5);
 }
 
+/** The résumé-upload band a visitor with no résumé gets at rest (FrontDoorResumeBand). */
+const RESUME_BAND = 'section[aria-label="Add your resume"]';
+
+/**
+ * Bare /jobs at rest is a front door, not a list: the search box, one h1, the résumé band,
+ * and no job rows. The rows are checked after the page has had time to fetch any, so a list
+ * that arrives late still fails.
+ */
+async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
+  await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout });
+  await expect(page.locator(RESUME_BAND)).toBeVisible({ timeout: 15_000 });
+  await page.waitForTimeout(3_000);
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+}
+
+/**
+ * The résumé-ranked list is a recommendation, so it keeps the packs' 30-day window whatever the
+ * typed-search default is: no `posted` param while 30 days is the default, `posted=30d` once it isn't.
+ */
+async function expectPackWindow(page: Page) {
+  if (DEFAULT_URL_STATE.postedBucket === "30d") await expect(page).not.toHaveURL(/[?&]posted=/);
+  else await expect(page).toHaveURL(/[?&]posted=30d\b/);
+}
+
 /** Fresh = empty storage. Previous-session = the visit cookie is set but velai.onboarding.completed is not. */
 const VISITORS = [
   { name: "fresh visitor", previousSession: false },
   { name: "previous-session visitor (onboarding flag unset)", previousSession: true },
 ];
 
-async function openJobs(page: Page, baseURL: string | undefined, previousSession: boolean) {
+async function openJobs(page: Page, baseURL: string | undefined, previousSession: boolean, path = "/jobs") {
   if (previousSession) await page.context().addCookies([{ name: JOBS_VISITOR_COOKIE, value: "1", url: baseURL! }]);
-  await page.goto("/jobs");
+  await page.goto(path);
 }
 
-test("first-time visitor opens /jobs and sees the search box and job rows on first paint", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
+test("first-time visitor opens /jobs and sees the front door: search box, one h1, the week's count, the résumé band, no job rows", { tag: ["@J-JOBS-01"] }, async ({ page, diagnostics }) => {
   const res = await page.goto("/jobs");
   expect(res?.status()).toBe(200);
-  await expectBoard(page);
+  await expectFrontDoor(page);
+  await expect(page.getByTestId("front-door-week-count")).toContainText(/^[\d,]+\+? roles? posted this week/, { timeout: 15_000 });
   await expect(page.locator(POSTER)).toHaveCount(0);
   await expect(page.locator("h1:visible")).toHaveCount(1);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("a guest taps the week's count on the front door and gets that week's roles", { tag: ["@J-JOBS-60"] }, async ({ page, diagnostics }) => {
+  await page.goto("/jobs");
+  const count = page.getByTestId("front-door-week-count");
+  await expect(count).toBeVisible({ timeout: 15_000 });
+  await count.click();
+  await expect(page).toHaveURL(/[?&]posted=7d/);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 for (const visitor of VISITORS) {
-  test(`${visitor.name} clicks a row title and the job detail opens`, { tag: ["@J-JOBS-23"] }, async ({ page, baseURL }) => {
-    await openJobs(page, baseURL, visitor.previousSession);
-    await expectBoard(page);
+  test(`${visitor.name} searches, clicks a row title and the job detail opens`, { tag: ["@J-JOBS-23"] }, async ({ page, baseURL }) => {
+    await openJobs(page, baseURL, visitor.previousSession, "/jobs?q=engineer");
+    await expectBoard(page, 30_000);
     // The row centre is the company link; the title is the detail affordance.
     await page.getByTestId("job-row").getByTestId("job-title").first().click();
     await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
     await expect(page.locator('[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible').first()).toBeVisible();
   });
 
-  test(`${visitor.name} clicks Sign in or Get started and the board is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
+  test(`${visitor.name} clicks Sign in or Get started and the front door is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
     await openJobs(page, baseURL, visitor.previousSession);
-    await expectBoard(page);
+    await expectFrontDoor(page);
     // By accessible name, so any visible entry point counts, not one testid.
     const cta = page
       .getByRole("button", { name: /^(sign in|get started)$/i })
@@ -76,7 +115,7 @@ for (const visitor of VISITORS) {
     await expect(cta.first()).toBeVisible();
     await cta.first().click();
     await page.waitForTimeout(2_000);
-    await expectBoard(page, 1_000);
+    await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout: 1_000 });
     await expect(page.locator(POSTER)).toHaveCount(0);
   });
 }
@@ -91,11 +130,11 @@ test("list analytics fire: results_impressed on first render, search_submitted o
     for (const e of body.events ?? []) events.push(e.event_name);
     await route.fulfill({ status: 204 });
   });
-  await page.goto("/jobs");
-  await expectBoard(page);
+  await page.goto("/jobs?q=engineer");
+  await expectBoard(page, 30_000);
   await expect.poll(() => events, { timeout: 15_000, message: "results_impressed after first render" }).toContain("results_impressed");
 
-  await page.locator(SEARCH_INPUT).first().fill("engineer");
+  await page.locator(SEARCH_INPUT).first().fill("analyst");
   await page.locator(SEARCH_INPUT).first().press("Enter");
   await expect.poll(() => events, { timeout: 15_000, message: "search_submitted after a search" }).toContain("search_submitted");
 });
@@ -124,10 +163,12 @@ test("returning visitor's search session throws no uncaught page errors", { tag:
 });
 
 /**
- * Fabricated candidate (no real person) whose résumé location is `location`. Seeded on every
- * page load, or with `once` only on the first, so a journey can remove it and reload.
+ * Fabricated candidate (no real person) whose résumé location is `location`, kept in this browser.
+ * For you needs an account, so the pack journeys below run signed in (`signedInTest`); an account
+ * with no résumé on file ranks this one. Seeded on every page load, or with `once` only on the
+ * first, so a journey can remove it and reload.
  */
-const guestWithResume = (page: Page, location: string, { sourceLabel = "e2e-journey-synthetic", once = false } = {}) =>
+const withResume = (page: Page, location: string, { sourceLabel = "e2e-journey-synthetic", once = false } = {}) =>
   page.addInitScript(
     ([enabledKey, resumeKey, location, sourceLabel, once]) => {
       if (once && sessionStorage.getItem("e2e-guest-resume-seeded")) return;
@@ -145,8 +186,82 @@ const guestWithResume = (page: Page, location: string, { sourceLabel = "e2e-jour
     [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location, sourceLabel, once] as const,
   );
 
+const fitGate = (page: Page) => page.locator('[data-testid="signup-gate"][data-gate-reason="fit"]');
+
+test("a returning guest with a résumé in this browser opens /jobs on their top 3 matches and the sign-in card, not the front door", { tag: ["@J-JOBS-54"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  await expectPackWindow(page);
+  // A résumé is on file: no upload band, and not the front door's week count.
+  await expect(page.locator(RESUME_BAND)).toHaveCount(0);
+  await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a guest with no résumé who opens a fit link gets the front door, and the fit sort leaves the URL", { tag: ["@J-JOBS-58"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs?view=search&sort=fit");
+  await expectFrontDoor(page, 30_000);
+  await expect(page).not.toHaveURL(/[?&]sort=fit/);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a signed-in user who skipped the résumé card lands on Search with no job rows and the résumé band, with no sign-in line", { tag: ["@J-JOBS-55"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs");
+  await expectFrontDoor(page, 30_000);
+  const band = page.locator(RESUME_BAND);
+  await expect(band.getByRole("button", { name: "Upload résumé" })).toBeVisible();
+  // Already signed in: no "Sign in to sync" line and no "free account" pitch.
+  await expect(band.getByRole("button", { name: /^sign in$/i })).toHaveCount(0);
+  await expect(band).not.toContainText(/free account/i);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a signed-in user with a résumé opens the Search tab on their résumé-ranked list, with no sign-in card", { tag: ["@J-JOBS-56"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=search");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expectPackWindow(page);
+  // More than a guest's top 3, and no gate between them.
+  await expect.poll(() => page.getByTestId("job-row").count(), { timeout: 45_000 }).toBeGreaterThan(3);
+  await expect(page.getByTestId("signup-gate")).toHaveCount(0);
+  await expect(page.getByTestId("front-door-week-count")).toHaveCount(0);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("on a phone, a guest with a résumé who goes back to Jobs gets 'See roles that fit your résumé', which reopens their matches", { tag: ["@J-JOBS-57"] }, async ({ page, diagnostics }) => {
+  // Guests have a Jobs link only in the phone tab bar; on a wide screen there is no way back to rest.
+  test.skip((page.viewportSize()?.width ?? 0) >= 1024, "guests have a Jobs link only in the phone tab bar");
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs");
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+
+  // The tab bar's Jobs link: same page, so the résumé list isn't forced open a second time.
+  // A DOM click, since the dev server's overlay badge sits over the tab bar's corner.
+  await page.locator('a[href="/jobs"]:visible').first().evaluate((a: HTMLAnchorElement) => a.click());
+  await expect(page).toHaveURL(/\/jobs$/, { timeout: 15_000 });
+  const matches = page.getByTestId("front-door-matches");
+  await expect(matches).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+
+  await matches.click();
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /** Fabricated nurse (no real person), for the health packs. */
-const guestNurse = (page: Page, location: string) =>
+const withNurseResume = (page: Page, location: string) =>
   page.addInitScript(
     ([enabledKey, resumeKey, location]) => {
       const resume = {
@@ -200,9 +315,9 @@ async function openHubTile(page: Page, id: string) {
   }).toPass({ timeout: 60_000 });
 }
 
-test("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
+signedInTest("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
   // Iceland: a country with few software roles, so the pack is thin whatever the corpus holds today.
-  await guestWithResume(page, "Reykjavik, Iceland");
+  await withResume(page, "Reykjavik, Iceland");
   await page.goto("/jobs?view=for-you");
   // For you opens on the packs hub; its first-visit intro must not block the pack controls once dismissed.
   await page.getByTestId("packs-home-intro-got-it").click({ timeout: 30_000 });
@@ -238,14 +353,14 @@ test("a board search with zero results offers to broaden, each option with its c
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
+signedInTest("a For-you pack in a country with no roles says so, never listing roles from elsewhere", { tag: ["@J-JOBS-37"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // Tuvalu: a country with no roles for this pack. With none there at all the search drops the
   // place, and the pack used to list the whole corpus (or the visitor's own country) as its
   // matches. With a few there, none of them the pack's, it showed the generic "No ranked roles
   // to show right now." instead of naming the place.
-  await guestWithResume(page, "Funafuti, Tuvalu");
+  await withResume(page, "Funafuti, Tuvalu");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
@@ -260,10 +375,10 @@ test("a For-you pack in a country with no roles says so, never listing roles fro
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a pack tile opens the pack with the tile's own filter, and the next tile does not inherit it", { tag: ["@J-JOBS-38"] }, async ({ page, diagnostics }) => {
+signedInTest("a pack tile opens the pack with the tile's own filter, and the next tile does not inherit it", { tag: ["@J-JOBS-38"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const editHref = async () => {
     const edit = page.getByTestId("pack-edit-filters");
@@ -285,10 +400,10 @@ test("a pack tile opens the pack with the tile's own filter, and the next tile d
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("an opened pack tile lists only its own roles, from the first row it shows", { tag: ["@J-JOBS-39"] }, async ({ page, diagnostics }) => {
+signedInTest("an opened pack tile lists only its own roles, from the first row it shows", { tag: ["@J-JOBS-39"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const cards = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   const places = page.locator('[data-testid="for-you-deck"] [data-testid="role-card-place"]');
@@ -310,8 +425,8 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
     await expect(frontPlace).toHaveText(/\bRemote\b/);
   }
 
-  // A row tile (AI roles) counted on the hub opens on those roles, even behind the guest
-  // preview: it used to keep only the AI roles among the pack's top 3, usually none.
+  // A row tile (AI roles) counted on the hub opens on those roles: it used to keep only the
+  // AI roles among the pack's top 3, usually none.
   // A row tile only shows when it holds 3 or more roles, so the one shown lists them.
   await page.getByTestId("jobs-back-to-packs").click();
   const shown = await settledHubTiles(page);
@@ -322,10 +437,10 @@ test("an opened pack tile lists only its own roles, from the first row it shows"
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("going back to the packs hub keeps the tile counts it had, without counting again", { tag: ["@J-JOBS-40"] }, async ({ page, diagnostics }) => {
+signedInTest("going back to the packs hub keeps the tile counts it had, without counting again", { tag: ["@J-JOBS-40"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   // The filter tiles the hub shows (a tile holding nearly every role is hidden), each with its own count.
   const shown = await settledHubTiles(page);
@@ -347,35 +462,7 @@ test("going back to the packs hub keeps the tile counts it had, without counting
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("signed out, the packs hub keeps a place for the tracker and Recently viewed under the tiles, with one sign-in gate back to the hub", { tag: ["@J-JOBS-46"] }, async ({ page, diagnostics }) => {
-  await returningVisitor(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
-  await page.goto("/jobs?view=for-you");
-  await expect(page.getByTestId("hub-pack-card-all")).toBeVisible({ timeout: 30_000 });
-
-  const band = page.getByTestId("hub-your-jobs");
-  await expect(band).toBeVisible({ timeout: 30_000 });
-  await expect(band).toHaveAttribute("data-signed-in", "false");
-  // Under the tiles, not above them.
-  const tilesBottom = (await page.getByTestId("hub-pack-card-all").boundingBox())!.y;
-  expect((await band.boundingBox())!.y).toBeGreaterThan(tilesBottom);
-  for (const id of ["hub-tracker-placeholder", "hub-recent-placeholder"]) await expect(band.getByTestId(id)).toBeVisible();
-  // Placeholders only: no rows, loaders or empty states of a signed-in account.
-  await expect(band.getByTestId("hub-tracker-row")).toHaveCount(0);
-  await expect(band.getByTestId("hub-recent-row")).toHaveCount(0);
-
-  const gate = band.getByTestId("signup-gate");
-  await expect(gate).toHaveCount(1);
-  await expect(gate).toHaveAttribute("data-gate-reason", "tracker");
-  const signIn = new URL((await gate.getByTestId("signup-gate-signin").getAttribute("href"))!, "https://velai.app");
-  expect(signIn.pathname).toBe("/login");
-  expect(signIn.searchParams.get("next")).toMatch(/^\/jobs\?(.*&)?view=for-you/);
-  expect(diagnostics.pageErrors).toEqual([]);
-  expect(diagnostics.serverErrors).toEqual([]);
-});
-
-test("with a résumé, the packs home opens on Today: the day's numbers and new matches above the pack tiles, and a skipped role stays gone after a reload", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }) => {
+signedInTest("with a résumé, the packs home opens on Today: the day's numbers and new matches above the pack tiles, and a skipped role stays gone after a reload", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // Last here two days ago (seeded once, so the reload below is the same sitting and keeps that baseline).
@@ -383,7 +470,7 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null }));
   }, "intervu.today.visit");
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
 
   const today = page.getByTestId("today-home");
@@ -391,11 +478,12 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
   await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
   // Results are ranked in this browser; the welcome panel used to say so, and now the header does.
   await expect(today.getByTestId("today-private-matching")).toHaveText("Private matching active on this device");
-  // ...and which résumé they are ranked against (the seed has no file name), with Replace and, for a guest, Remove.
+  // ...and which résumé they are ranked against (the seed has no file name), with Replace. An account's
+  // résumé is managed on /resume, so no Remove here (a guest's Remove is on Search, J-JOBS-61).
   const inUse = today.getByTestId("today-resume-in-use");
   await expect(inUse).toContainText("Ranked against your résumé");
   await expect(inUse.getByTestId("today-replace-resume")).toBeVisible();
-  await expect(inUse.getByTestId("today-remove-resume")).toBeVisible();
+  await expect(inUse.getByTestId("today-remove-resume")).toHaveCount(0);
   // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
   const tile = page.getByTestId("hub-pack-card-all");
   await expect(tile).toBeVisible({ timeout: 30_000 });
@@ -412,7 +500,7 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
     await expect(stats.getByTestId(id).getByRole("link")).toBeVisible();
   }
 
-  // The list settles on rows or on one way on, never both. A guest sees the fit preview (3 rows) and the gate past it.
+  // The list settles on rows or on one way on, never both. Signed in: up to TODAY_NEW_ROWS rows and "More in Added this week", no sign-in card.
   const rows = today.getByTestId("today-new-row");
   const empty = today.getByTestId("today-new-empty");
   await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
@@ -420,10 +508,11 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
     await expect(rows).toHaveCount(0);
     await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
   } else {
-    expect(await rows.count()).toBeLessThanOrEqual(3);
+    expect(await rows.count()).toBeLessThanOrEqual(TODAY_NEW_ROWS);
     for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
     await expect(rows.first().getByTestId("today-apply")).toBeVisible();
-    await expect(today.getByTestId("signup-gate").or(today.getByTestId("today-see-more"))).toHaveCount(1);
+    await expect(today.getByTestId("today-see-more")).toHaveCount(1);
+    await expect(today.getByTestId("signup-gate")).toHaveCount(0);
 
     const skippedId = (await rows.first().getAttribute("data-job-id"))!;
     const skipped = today.locator(`[data-testid="today-new-row"][data-job-id="${skippedId}"]`);
@@ -433,11 +522,11 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
     await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
     await expect(skipped).toHaveCount(0);
   }
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("Needs you lists the tracker's interview this week and the application gone quiet, each opening that application", { tag: ["@J-JOBS-44"] }, async ({ page, diagnostics }) => {
+signedInTest("Needs you lists the tracker's interview this week and the application gone quiet, each opening that application", { tag: ["@J-JOBS-44"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // A guest tracker: an interview tomorrow (a picked date is stored as its UTC midnight) and an application with no update for 10 days.
@@ -463,7 +552,7 @@ test("Needs you lists the tracker's interview this week and the application gone
       ]),
     );
   }, "intervu.pursuits.guest");
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
 
   const today = page.getByTestId("today-home");
@@ -493,14 +582,14 @@ test("Needs you lists the tracker's interview this week and the application gone
   await expect(page).toHaveURL(/\/yours\/journey-quiet$/, { timeout: 30_000 });
   await expect(page.getByTestId("pursuit-stage")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("Backend Engineer").first()).toBeVisible();
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
+signedInTest("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
 
   const chips = page.getByTestId("hub-pack-chips");
@@ -538,41 +627,40 @@ test("the packs are one row of chips, and a chip says how many roles its pack ga
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("a guest's packs home names the résumé it ranks against, and Remove forgets it for good", { tag: ["@J-JOBS-61"] }, async ({ page, diagnostics }) => {
+test("a guest's Search names the résumé it ranks against, and Remove forgets it for good", { tag: ["@J-JOBS-61"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // The upload's file name, as the importer stores it. Seeded once, so the reload below finds what Remove left.
-  await guestWithResume(page, "Toronto, Ontario, Canada", { sourceLabel: "Sam_Rivera_Resume_V4.pdf", once: true });
-  await page.goto("/jobs?view=for-you");
-
-  const inUse = page.getByTestId("today-resume-in-use");
-  await expect(inUse).toBeVisible({ timeout: 30_000 });
-  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume_V4.pdf");
+  await withResume(page, "Toronto, Ontario, Canada", { sourceLabel: "Sam_Rivera_Resume_V4.pdf", once: true });
+  await page.goto("/jobs");
+  // For you needs an account, so a guest's résumé opens Search on their top 3.
+  await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
+  const inUse = page.getByTestId("resume-as-of");
+  await expect(inUse).toContainText("Scoring with Sam_Rivera_Resume_V4.pdf");
 
   // Remove asks once; "Keep it" changes nothing.
-  await inUse.getByTestId("today-remove-resume").click();
-  await inUse.getByTestId("today-remove-resume-no").click();
-  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume_V4.pdf");
+  await inUse.getByTestId("jobs-remove-resume").click();
+  await inUse.getByTestId("jobs-remove-resume-no").click();
+  await expect(inUse).toContainText("Sam_Rivera_Resume_V4.pdf");
 
-  await inUse.getByTestId("today-remove-resume").click();
-  await inUse.getByTestId("today-remove-resume-yes").click();
-  await expect(page.getByTestId("today-home")).toHaveCount(0);
-  await expect(page.getByTestId("hub-pack-chips")).toHaveCount(0);
-  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("search");
+  await inUse.getByTestId("jobs-remove-resume").click();
+  await inUse.getByTestId("jobs-remove-resume-yes").click();
+  // Nothing is ranked against a résumé now: the front door, no rows, no fit sort.
+  await expectFrontDoor(page, 30_000);
+  await expect(page.getByTestId("resume-as-of")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]sort=fit/);
   expect(await page.evaluate((key) => localStorage.getItem(key), LOCAL_AI_RESUME_KEY)).toBeNull();
 
-  // A reload doesn't bring it back: nothing is ranked against a résumé.
+  // A reload doesn't bring it back.
   await page.goto("/jobs");
-  await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId("today-home")).toHaveCount(0);
+  await expectFrontDoor(page, 30_000);
   await expect(page.getByTestId("resume-as-of")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a nurse's packs hub shows health tiles, never the tech ones, and each tile it shows opens on its own roles", { tag: ["@J-JOBS-48"] }, async ({ page, diagnostics }) => {
+signedInTest("a nurse's packs hub shows health tiles, never the tech ones, and each tile it shows opens on its own roles", { tag: ["@J-JOBS-48"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestNurse(page, "Toronto, Ontario, Canada");
+  await withNurseResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
 
   // The hub used to give every résumé the same eight tiles: a nurse saw "Artificial
@@ -611,10 +699,10 @@ const failEveryAction = async (page: Page) => {
   };
 };
 
-test("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
+signedInTest("a failed ranked-list read shows an error with Retry, never the empty state", { tag: ["@J-JOBS-31"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   const recover = await failEveryAction(page);
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
@@ -631,10 +719,10 @@ test("a failed ranked-list read shows an error with Retry, never the empty state
   await expect(failed).toHaveCount(0, { timeout: 30_000 });
 });
 
-test("a pack whose own read fails after another pack loaded shows the error with Retry, not a spinner or the other pack's roles", { tag: ["@J-JOBS-41"] }, async ({ page }) => {
+signedInTest("a pack whose own read fails after another pack loaded shows the error with Retry, not a spinner or the other pack's roles", { tag: ["@J-JOBS-41"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');
   await openHubTile(page, "remote");
@@ -659,10 +747,10 @@ test("a pack whose own read fails after another pack loaded shows the error with
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
 });
 
-test("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+signedInTest("an opened pack shows one role at a time as a stack, and Next, Previous and Skip move through it", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
@@ -726,12 +814,12 @@ test("an opened pack shows one role at a time as a stack, and Next, Previous and
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("on a small phone an opened pack fits its card, actions and Next between the top bar and the tab bar", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
+signedInTest("on a small phone an opened pack fits its card, actions and Next between the top bar and the tab bar", { tag: ["@J-JOBS-50"] }, async ({ page, diagnostics }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "the tab bar only shows on a phone-sized screen");
   await page.setViewportSize({ width: 360, height: 640 });
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
@@ -769,7 +857,7 @@ test("on a small phone an opened pack fits its card, actions and Next between th
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("an opened pack's role card shows the posting in its own sections, word for word", { tag: ["@J-DETAIL-43"] }, async ({ page, diagnostics }) => {
+signedInTest("an opened pack's role card shows the posting in its own sections, word for word", { tag: ["@J-DETAIL-43"] }, async ({ page, diagnostics }) => {
   // The card used to sort a posting into fixed "What you'll do / What you bring / Nice to have / Perks"
   // boxes, dropping whatever fit none of them (the company, pay); it now shows the whole posting
   // laid out like the job pane (2026-10-01). Every role's text is served as the ingest-shaped Expel posting.
@@ -781,7 +869,7 @@ test("an opened pack's role card shows the posting in its own sections, word for
   });
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 
@@ -794,13 +882,13 @@ test("an opened pack's role card shows the posting in its own sections, word for
   // The Summary is the posting's own first sentence.
   await expect(front.getByText("Summary", { exact: true })).toBeVisible();
   await expect(front.getByText(/^Expel is a security operations provider that helps organizations of all sizes minimize business risk\.$/)).toBeVisible();
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
-test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
+signedInTest("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await failEveryAction(page);
   await page.goto("/jobs?view=for-you");
 
@@ -843,10 +931,10 @@ const answerPackSearchAsOutage = async (page: Page, country: string) => {
   };
 };
 
-test("a pack whose search is down shows the error with Retry, never 'No roles in <country>' or another list's roles", { tag: ["@J-JOBS-52"] }, async ({ page }) => {
+signedInTest("a pack whose search is down shows the error with Retry, never 'No roles in <country>' or another list's roles", { tag: ["@J-JOBS-52"] }, async ({ page }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   const recover = await answerPackSearchAsOutage(page, "Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
@@ -887,10 +975,10 @@ test("no job card or job page location label repeats an adjacent token", { tag: 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("an opened pack's controls share one row under the top bar, and its role card starts right under them and fills the screen", { tag: ["@J-JOBS-80"] }, async ({ page, diagnostics }, testInfo) => {
+signedInTest("an opened pack's controls share one row under the top bar, and its role card starts right under them and fills the screen", { tag: ["@J-JOBS-80"] }, async ({ page, diagnostics }, testInfo) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await withResume(page, "Toronto, Ontario, Canada");
   await page.goto("/jobs?view=for-you");
   await openHubTile(page, "all");
 

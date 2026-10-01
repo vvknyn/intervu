@@ -18,6 +18,9 @@ export function resolveJobsHomeView(input: {
      * treated as an optimistic signal — never last Search, which re-creates
      * the Search-chrome flash for a returning user with a résumé. */
     lastHomeView?: JobsHomeView | null;
+    /** Confirmed signed out. For you needs an account, so it is never a
+     * signed-out visitor's default home. */
+    signedOut?: boolean;
 }): JobsHomeResolution {
     if (input.urlView === "search") return "search";
     if (input.companyDomain || input.board) return "search";
@@ -26,6 +29,10 @@ export function resolveJobsHomeView(input: {
     // An explicit For you choice sticks, even before a résumé is on file.
     // The implicit default below still sends a known-missing résumé to Search.
     if (input.urlView === "for-you") return "for-you";
+
+    // A guest résumé in this browser, or a For you seen earlier, does not
+    // open For you for a signed-out visitor: it would only show a sign-in card.
+    if (input.signedOut) return "search";
 
     if (input.resumeOnFile === true) return "for-you";
     if (input.resumeOnFile === false) return "search";
