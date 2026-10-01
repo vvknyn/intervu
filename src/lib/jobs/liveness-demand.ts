@@ -162,10 +162,14 @@ export function createDemandReporter(deps: DemandReporterDeps): DemandReporter {
   };
 }
 
-const reporter = createDemandReporter({
+// One buffer per process: Next bundles server actions, route handlers and
+// pages separately, and a module-level instance in each would dedupe and
+// flush on its own.
+const shared = globalThis as typeof globalThis & { __velaiLivenessDemand?: DemandReporter };
+const reporter = (shared.__velaiLivenessDemand ??= createDemandReporter({
   enabled: hasSubspaceApiKey,
   send: (batch) => postLivenessDemand(batch.ids, batch.urgent, { timeoutMs: REQUEST_TIMEOUT_MS }),
-});
+}));
 
 /** The first SHOWN_IDS_PER_LIST rows of a list a person is about to see. */
 export function reportShownJobs(jobs: ReadonlyArray<{ id: string }> | null | undefined): void {
