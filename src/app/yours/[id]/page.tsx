@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { toast } from "@/lib/toast";
-import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { getCurrentUser, getSignedInUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { deleteApplication, updateApplication } from "@/actions/application";
 import { captureEvent } from "@/lib/analytics/events";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -147,6 +147,19 @@ export default function PursuitDetailPage() {
     const params = useParams<{ id: string }>();
     const id = Array.isArray(params.id) ? params.id[0] : params.id;
     const { pursuits, loading, failed, retry } = usePursuits();
+    const [user, setUser] = useState<User | null>(() => getCurrentUser());
+    // Whether the server has said who this is yet. Until it has, an account's
+    // pursuits haven't been asked for, so the page holds its loading state
+    // instead of flashing "couldn't find that pursuit" at a signed-in person.
+    const [authReady, setAuthReady] = useState(false);
+    useEffect(
+        () =>
+            onAuthChange((u) => {
+                setUser(u);
+                setAuthReady(true);
+            }),
+        [],
+    );
     // Pursuits live in this browser (a guest's store) or behind client-side
     // auth, so the server can only ever render "couldn't find that pursuit".
     // Hold the loading state until the client has read them, instead of
@@ -211,8 +224,8 @@ export default function PursuitDetailPage() {
      * routes.ts), where this effect re-fires and completes the download.
      */
     useEffect(() => {
-        if (loading || searchParams.get("download") !== "pdf") return;
-        if (!getCurrentUser()) {
+        if (loading || !authReady || searchParams.get("download") !== "pdf") return;
+        if (!user) {
             const here = `/yours/${id}?${searchParams.toString()}`;
             router.replace(`/login?next=${encodeURIComponent(here)}`); // signup-gate-exempt: client redirect into the auth flow, not a rendered prompt
             return;
@@ -226,7 +239,7 @@ export default function PursuitDetailPage() {
             toast.error("Couldn't find that resume version — it may have been re-filed since this link was created.");
         }
         router.replace(`/yours/${id}`);
-    }, [loading, pursuit, id, searchParams, router]);
+    }, [loading, authReady, user, pursuit, id, searchParams, router]);
 
     /**
      * Open the live posting behind this pursuit. Only reachable when `job_id`
@@ -276,8 +289,6 @@ export default function PursuitDetailPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [retryNonce]);
 
-    const [user, setUser] = useState<User | null>(() => getCurrentUser());
-    useEffect(() => onAuthChange(setUser), []);
 
     // Job 2 gate (2026-09-18): `/yours` is explicitly public (guest
     // tracker — see this page's own doc comment), so every control below
@@ -321,7 +332,7 @@ export default function PursuitDetailPage() {
     const mutate = async (patch: Partial<Pursuit>, { busy = true }: { busy?: boolean } = {}) => {
         if (busy) setSaving(true);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await updateApplication(id, patch);
                 if (res.error) {
                     toast.error(`Could not save: ${res.error}`);
@@ -350,7 +361,7 @@ export default function PursuitDetailPage() {
         <PageHeader sticky={false} size="display" title={title} description={description} actions={backLink} />
     );
 
-    if (!hydrated || loading || (removed && !pursuit)) {
+    if (!hydrated || !authReady || loading || (removed && !pursuit)) {
         return (
             <PageLayout header={header("Tracker")}>
                 <WaitState
@@ -425,7 +436,7 @@ export default function PursuitDetailPage() {
         const jobId = pursuit.job_id;
         setRemoving(true);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await deleteApplication(id);
                 if (res.error) {
                     toast.error(res.error);

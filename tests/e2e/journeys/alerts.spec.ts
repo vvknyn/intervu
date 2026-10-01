@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { SAVED_SEARCHES_KEY } from "../../../src/lib/jobs/saved-searches";
 import { expect, test } from "./fixtures";
+import { actionObject, signInLikeProduction } from "./signed-in";
 
 /**
  * Journeys for alerts on /jobs — see tests/journeys/CATALOG.md (J-ALERTS-*). Read-only:
@@ -80,6 +82,32 @@ test("a signed-in user never gets the guest email-alert form; Save search is the
   await expect(page.getByTestId("jobs-create-alert-trigger")).toHaveCount(0);
   await page.waitForTimeout(2_000);
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
+});
+
+test("a signed-in person's Save search saves to the account, not to this browser", { tag: ["@J-ALERTS-46"] }, async ({ page, diagnostics }) => {
+  // Signed in the way production signs in, Save search took the guest path
+  // and kept the search in this browser only, where the account's list never
+  // showed it (founder report 2026-10-01, same cause as the tracker's "Could
+  // not find this pursuit."). Lists answer empty; the save is recorded, not written.
+  const saves: Record<string, unknown>[] = [];
+  await signInLikeProduction(page, (args) => {
+    if (args.length === 0) return { data: [] };
+    const input = actionObject(args[0]);
+    if (args.length === 1 && typeof input.name === "string" && typeof input.href === "string") {
+      saves.push(input);
+      return { data: { id: "saved-journey", name: input.name, href: input.href } };
+    }
+    return undefined;
+  });
+  await page.goto("/jobs?view=search&q=engineer");
+  await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("save-search-trigger").first().click();
+  await page.getByTestId("save-search-name").press("Enter");
+  await expect.poll(() => saves).toEqual([expect.objectContaining({ href: expect.stringContaining("q=engineer") })]);
+  await expect(page.getByTestId("save-search-name")).toHaveCount(0);
+  expect(await page.evaluate((key) => localStorage.getItem(key), SAVED_SEARCHES_KEY)).toBeNull();
+  expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("a search-alert link that fails lands on /jobs saying so, and the flag leaves the URL", { tag: ["@J-ALERTS-11"] }, async ({ page, diagnostics }) => {

@@ -344,6 +344,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-42 | Signed-out company visitor gets the site's SignupGate (Create free account, Sign in) returning to the company page, with no hand-rolled sign-in button and no "Followers only" lock card | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-44 | Searching a company with more roles than were fetched says "Searching the N most recent roles — use full search for all", and its link opens the full company search | anon | /co/<slug of a company with more roles than the page fetches>, type in the role search | signed-out | no | uncovered | — |
 | J-COMPANY-45 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
+| J-COMPANY-46 | Signed in the way production signs in (the session check names the account; no dev-only hook), Follow on a company page follows from the account in one click with no email step. It took the guest path and asked for an email (2026-10-01, same cause as J-TRACKER-67) | signed-in | /co/anthropic--com (session and follow actions answered in the browser) | signed-in | no | covered | company-page.spec.ts |
 
 ## AUTH
 
@@ -547,6 +548,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-64 | The /yours detail sheet offers "Open posting", which opens the posting in a new tab | anon | /yours (1024x768, seeded), open a row | signed-out | no | uncovered | — |
 | J-TRACKER-65 | History marks tracked jobs with their stage badge, and a failed read shows "We can't load your history right now." with Retry | signed-in | /yours/history (a tracked job opened; then the read answered with an error) | signed-in | no | uncovered | — |
 | J-TRACKER-66 | When the tracker read fails, /yours shows "We can't load your tracker right now." with Retry | signed-in | /yours (tracker read answered with an error) | signed-in | no | uncovered | — |
+| J-TRACKER-67 | Signed in the way production signs in (the session check names the account; no dev-only hook), a status change on a tracked role's page saves to the account: "Marked rejected", and a reload reads it back. It said "Could not find this pursuit." for every signed-in status change (founder report 2026-10-01). While the session check runs the page shows its loading state, never "We couldn't find that pursuit" | signed-in | /yours/<id> (1440x900; session and pursuit actions answered in the browser) | signed-in | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-68 | Signed in the way production signs in, the board's sheet saves a status change and a removal to the account (Remove used to say "Removed" and leave the role), and the board never shows its empty state before the account's roles arrive | signed-in | /yours (1024x768; session and pursuit actions answered in the browser), open a row | signed-in | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 
@@ -592,6 +595,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-43 | Dismissing the follow-alerts bell, or opening one of its roles, clears the alerts and hides the bell until new roles appear | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
 | J-ALERTS-44 | `/unsubscribe?token=…&forget=1` deletes the address's data ("Your data has been deleted"), and Undo on the unsubscribe page says "You're back on the list" @writes | anon | GET /unsubscribe?token=<real token>&forget=1; Undo from a plain unsubscribe | signed-out | yes | uncovered | — |
 | J-ALERTS-45 | A guest's "Get new matches by email" on the results line (`result-line-get-alerts`) opens the alert capture above the rows | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | uncovered | — |
+| J-ALERTS-46 | Signed in the way production signs in, Save search on a search saves it to the account, not to this browser's storage, where the account's list never showed it (2026-10-01, same cause as J-TRACKER-67) | signed-in | /jobs?view=search&q=engineer (session and saved-search actions answered in the browser) | signed-in | no | covered | alerts.spec.ts |
 
 ## CONNECT
 

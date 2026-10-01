@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
 import { expect, test } from "./fixtures";
+import { actionObject, PRODUCTION_SIGN_IN_ACCOUNT, signInLikeProduction } from "./signed-in";
 
 /**
  * Changing a tracked role's status, and the full pursuit page (/yours/[id])
@@ -454,4 +455,103 @@ test("a guest's Open posting on a tracked role's page asks to sign in to apply, 
     await expect(dialog.getByText(authGateTitle("apply")!, { exact: true }).and(page.locator(":visible")).first()).toBeVisible({ timeout: 10_000 });
     expect(popups, "no employer tab opens before sign-in").toBe(0);
     expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test.describe("signed in the way production signs in", () => {
+    // The tracker's writes branched on `getCurrentUser()`, which only the
+    // dev-only sign-in hook answers; see `signInLikeProduction`.
+    function accountPursuit(id: string, status: Status) {
+        const now = new Date().toISOString();
+        return {
+            ...guestPursuit(id, status),
+            user_id: PRODUCTION_SIGN_IN_ACCOUNT.uid,
+            // Every argument-less action answers the same way signed out (the
+            // header's follows too), so each row also carries a follow's fields.
+            domain: "1password.com",
+            slug: "1password",
+            displayName: "1password",
+            createdAt: now,
+        };
+    }
+
+    /**
+     * Serves the account's pursuits: an argument-less action gets the list,
+     * and an update or delete naming a row is applied to it and recorded.
+     */
+    async function signInWithAccount(page: Page, rows: ReturnType<typeof accountPursuit>[]) {
+        const writes: { id: string; patch?: Record<string, unknown> }[] = [];
+        await signInLikeProduction(page, (args) => {
+            if (args.length === 0) return { data: rows };
+            const row = rows.find((r) => r.id === args[0]);
+            if (!row) return undefined;
+            if (args.length === 2) {
+                const patch = actionObject(args[1]);
+                Object.assign(row, patch);
+                writes.push({ id: row.id, patch });
+            } else {
+                rows.splice(rows.indexOf(row), 1);
+                writes.push({ id: row.id });
+            }
+            return { success: true };
+        });
+        return writes;
+    }
+
+    /** Records whether `selector` was ever in the page, for a flash that's gone before an assertion could look. */
+    async function watchFor(page: Page, selector: string) {
+        await page.addInitScript((sel) => {
+            new MutationObserver(() => {
+                if (document.querySelector(sel)) (window as unknown as Record<string, boolean>).__journeyFlashed = true;
+            }).observe(document, { childList: true, subtree: true });
+        }, selector);
+    }
+    const flashed = (page: Page) => page.evaluate(() => (window as unknown as Record<string, boolean>).__journeyFlashed === true);
+
+    test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
+
+    test("the pursuit page saves a status change to the account, with no not-found flash while the session check runs", { tag: ["@J-TRACKER-67"] }, async ({ page, diagnostics }) => {
+        const writes = await signInWithAccount(page, [accountPursuit("app-journey-status", "applied")]);
+        await watchFor(page, '[data-testid="pursuit-not-found"]');
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto("/yours/app-journey-status");
+
+        await expectPressed(page, "Applied");
+        await statusButton(page, "Rejected").click();
+        await expect(page.getByText("Marked rejected")).toBeVisible();
+        await expectPressed(page, "Rejected");
+        await expect(page.getByText("Could not find this pursuit.")).toHaveCount(0);
+        expect(writes).toEqual([{ id: "app-journey-status", patch: expect.objectContaining({ status: "rejected" }) }]);
+
+        // The account's copy is what a reload reads back.
+        await page.reload();
+        await expectPressed(page, "Rejected");
+        expect(await flashed(page)).toBe(false);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+
+    test("the board's sheet saves a status change and a removal to the account, with no empty-board flash while the session check runs", { tag: ["@J-TRACKER-68"] }, async ({ page, diagnostics }) => {
+        const writes = await signInWithAccount(page, [accountPursuit("app-journey-sheet", "applied")]);
+        await watchFor(page, '[data-testid="yours-empty"], [data-testid="yours-guest-empty"]');
+        await page.setViewportSize({ width: 1024, height: 768 });
+        await page.goto("/yours");
+
+        await page.getByTestId("pursuit-row").first().click();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible({ timeout: 10_000 });
+        const rejected = dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: "Rejected", exact: true });
+        await rejected.click();
+        await expect(page.getByText("Marked rejected")).toBeVisible();
+        await expect(rejected).toHaveAttribute("aria-pressed", "true");
+        expect(writes).toEqual([{ id: "app-journey-sheet", patch: expect.objectContaining({ status: "rejected" }) }]);
+        expect(await flashed(page)).toBe(false);
+
+        // Remove used to say "Removed" and leave the account's role in place.
+        await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+        await dialog.getByRole("button", { name: "Remove", exact: true }).last().click();
+        await expect(dialog).toBeHidden();
+        await expect(page.getByTestId("pursuit-row")).toHaveCount(0);
+        expect(writes).toEqual([{ id: "app-journey-sheet", patch: expect.objectContaining({ status: "rejected" }) }, { id: "app-journey-sheet" }]);
+        await expect(page.getByText("Could not find this pursuit.")).toHaveCount(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
 });
