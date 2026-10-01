@@ -654,11 +654,18 @@ export function TodayHomeView({
     );
 }
 
+/** Hidden until the row is hovered or focused, only where there is a mouse. */
+const ROW_ACTIONS_ON_HOVER =
+    "transition-opacity motion-reduce:transition-none pointer-fine:opacity-0 pointer-fine:group-hover/today-row:opacity-100 pointer-fine:group-focus-within/today-row:opacity-100";
+
 /**
  * One pick. Every row has the same few things, so each is said once and
  * quietly: the fit word leads the meta line (it opens the same receipt as the
  * chip), Apply is a text button, and the thumbs are the only other control (a
  * thumbs down takes the pick out, which is what Skip did, and tunes the rest).
+ * With a mouse, Apply and the thumbs show on hover or keyboard focus, so the
+ * list reads as roles, not a column of buttons; a liked row keeps its lit
+ * thumb in view. Touch has no hover, so there they always show.
  */
 function TodayRow({
     role,
@@ -687,7 +694,7 @@ function TodayRow({
         <li
             data-testid="today-new-row"
             data-job-id={job.id}
-            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-3"
+            className="group/today-row grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-3"
         >
             <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
@@ -727,7 +734,13 @@ function TodayRow({
                         />
                     </div>
                 </div>
-                <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end">
+                <div
+                    data-testid="today-row-actions"
+                    className={cn(
+                        "mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end",
+                        !liked && ROW_ACTIONS_ON_HOVER,
+                    )}
+                >
                     <Button type="button" variant="ghost" data-testid="today-apply" onClick={onApply} className="-ml-3 sm:ml-0">
                         Apply
                     </Button>

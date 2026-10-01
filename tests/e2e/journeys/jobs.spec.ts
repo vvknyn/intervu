@@ -463,7 +463,7 @@ signedInTest("going back to the packs hub keeps the tile counts it had, without 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, tracker, history; Today has one summary line that links and this week's picks, each with its fit, Apply and thumbs up/down", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }) => {
+signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, tracker, history; Today has one summary line that links and this week's picks, each with its fit, Apply and thumbs up/down (on hover with a mouse)", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }, testInfo) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // Last here two days ago (seeded once, so the reload below is the same sitting and keeps that baseline).
@@ -526,6 +526,21 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
     await expect(rows.first().getByTestId("role-more-like-this")).toBeVisible();
     await expect(rows.first().getByTestId("role-fewer-like-this")).toBeVisible();
     await expect(today.getByTestId("today-skip")).toHaveCount(0);
+    // With a mouse the row's Apply and thumbs wait for hover or keyboard focus ("maybe some of these actions can be on
+    // hover", Vivek 2026-10-01); on touch there is no hover, so they always show.
+    const actions = rows.first().getByTestId("today-row-actions");
+    if (testInfo.project.use.hasTouch) {
+      await expect(actions).toHaveCSS("opacity", "1");
+    } else {
+      await page.mouse.move(0, 0);
+      await expect(actions).toHaveCSS("opacity", "0");
+      await rows.first().hover();
+      await expect(actions).toHaveCSS("opacity", "1");
+      await page.mouse.move(0, 0);
+      await expect(actions).toHaveCSS("opacity", "0");
+      await rows.first().getByTestId("today-apply").focus();
+      await expect(actions).toHaveCSS("opacity", "1");
+    }
     await expect(today.getByTestId("today-see-more")).toHaveText("All of this week");
     await expect(today.getByTestId("signup-gate")).toHaveCount(0);
   }
