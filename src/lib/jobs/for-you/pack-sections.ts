@@ -74,8 +74,10 @@ export function splitPackSections(description: string | null | undefined): PackS
 
     for (const block of blocks) {
         const section = classifyBlock(block);
-        if (section && block.type === "heading") {
-            current = section;
+        // Headings title a section; they are never section content, even
+        // one ("About the role", "Benefits") that maps to no section here.
+        if (block.type === "heading") {
+            if (section) current = section;
             continue;
         }
         if (section && block.type === "para") {

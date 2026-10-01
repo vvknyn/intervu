@@ -9,6 +9,13 @@ export const ENGINE_LABELS: Record<LocalAiEngineId, string> = {
     heuristic: "On-device · local rules",
 };
 
+/** Per-call knobs; an engine that can't honour one ignores it. */
+export interface GenerateOptions {
+    temperature?: number;
+    /** Cap on generated tokens — a labelling task needs a few per line. */
+    maxTokens?: number;
+}
+
 /** Raw JSON-ish object from a model before shared normalization. */
 export type ModelParseOutput = Record<string, unknown> | null;
 
@@ -25,7 +32,7 @@ export interface LocalAiEngine {
     /** Attempt to structure résumé text; null → caller falls back. */
     parseResumeText(text: string): Promise<ModelParseOutput>;
     /** Free-text generation for light rewrite/tailor. Null/throw → caller degrades. */
-    generate(prompt: string): Promise<string | null>;
+    generate(prompt: string, options?: GenerateOptions): Promise<string | null>;
     /** Human-readable label reflecting the actually loaded model. */
     getDisplayLabel(): string;
 }

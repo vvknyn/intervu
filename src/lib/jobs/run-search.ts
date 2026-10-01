@@ -78,7 +78,11 @@ export interface ProbePlan {
  * not merely truthy — an explicit narrower pick like "30d"/"7d", "any" and
  * undefined all leave the affordance off, matching `resolveBeyondWindow`.
  */
-export function planProbes(probeBasis: Pick<JobSearchParams, "hideGhosts" | "postedBucket">): ProbePlan {
+export function planProbes(probeBasis: Pick<JobSearchParams, "hideGhosts" | "postedBucket" | "offset">): ProbePlan {
+  // A later page ("load more") never reads either count — they describe the
+  // first page's rail — so it skips both rather than paying two extra
+  // corpus queries per scroll.
+  if ((probeBasis.offset ?? 0) > 0) return { ghost: false, beyondWindow: false };
   return {
     ghost: probeBasis.hideGhosts === true,
     beyondWindow: probeBasis.postedBucket !== undefined && probeBasis.postedBucket === DEFAULT_URL_STATE.postedBucket,

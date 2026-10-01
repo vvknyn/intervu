@@ -1,14 +1,19 @@
 /**
  * Live audit of the For-you packs: for each golden résumé (tests/fixtures),
  * open every pack tile the hub shows that résumé on velai.app (the tiles of
- * its profession's industry, industry-tiles.ts) as a guest, take the
+ * its profession's industry, industry-tiles.ts) signed in, take the
  * roles the tile recommends, read the full posting behind each, and check it
  * (pack-audit.ts): the right country, the right level, the kind of role the
  * résumé targets, and a member of the tile. Writes audit-output/pack-audit.md
  * and .json; fails when any recommendation fails a check.
  *
+ * For you needs an account, so the audit signs in: as the account in
+ * E2E_STORAGE_STATE (one with no résumé on file, so the seeded résumé is the
+ * one ranked), or with the dev-only hook on a local dev server
+ * (journeys/signed-in.ts). Anywhere else it fails rather than skip.
+ *
  * Read-only, but it runs real searches under the per-IP search limit, so it
- * paces itself between tiles. Run: `npm run audit:packs:prod`.
+ * paces itself between tiles. Run: `E2E_STORAGE_STATE=<file> npm run audit:packs:prod`.
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -21,6 +26,7 @@ import type { PublicJob } from "../../../src/lib/jobs/types";
 import { structureResumeText } from "../../../src/lib/resume/structure-resume-text";
 import type { ResumeData } from "../../../src/types/resume";
 import { auditRecommendation, failedChecks, renderAuditMarkdown, type AuditVerdict } from "./pack-audit";
+import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "../journeys/signed-in";
 
 const RESUMES = [
     "vivek-pm-resume",
@@ -30,7 +36,7 @@ const RESUMES = [
     "health-science-grad-resume",
     "health-physio-resume",
 ];
-/** Rows per tile: a guest sees the top 3 before the fit gate. */
+/** Rows per tile: the top of the pack, where a visitor starts. */
 const ROWS_PER_TILE = Number(process.env.AUDIT_ROWS_PER_TILE ?? 3);
 const TILE_PAUSE_MS = Number(process.env.AUDIT_TILE_PAUSE_MS ?? 20_000);
 const RATE_LIMIT_WAIT_MS = 65_000;
@@ -39,7 +45,15 @@ const OUT_DIR = path.join(process.cwd(), "audit-output");
 const loadResume = (name: string): ResumeData =>
     structureResumeText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), "utf8").replace(/'/g, "’")) as ResumeData;
 
-async function seedGuest(page: Page, resume: ResumeData) {
+test.use({ storageState: process.env.E2E_STORAGE_STATE || undefined });
+
+async function signIn(page: Page, baseURL: string | undefined) {
+    if (process.env.E2E_STORAGE_STATE) return;
+    if (!isLocalOrigin(baseURL)) throw new Error(`The pack audit needs an account (For you is signed-in only). ${SIGNED_IN_SKIP_REASON}`);
+    await mockSignIn(page);
+}
+
+async function seedResume(page: Page, resume: ResumeData) {
     await page.addInitScript(
         ([resumeJson, onboardingKey, introKey]) => {
             localStorage.setItem(onboardingKey, "1");
@@ -151,10 +165,11 @@ function writeReport(section: ReportSection) {
 }
 
 for (const name of RESUMES) {
-    test(`pack audit: ${name}`, async ({ page }) => {
+    test(`pack audit: ${name}`, async ({ page, baseURL }) => {
         test.setTimeout(30 * 60_000);
         const resume = loadResume(name);
-        await seedGuest(page, resume);
+        await signIn(page, baseURL);
+        await seedResume(page, resume);
         await page.goto("/jobs?view=for-you");
 
         const verdicts: AuditVerdict[] = [];

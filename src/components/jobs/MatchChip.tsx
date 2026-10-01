@@ -15,6 +15,7 @@
 import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
+import { explainMatch } from "@/lib/match/explain";
 import { matchBand, matchBandLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -43,6 +44,8 @@ export interface MatchChipProps {
      *  because not every render site (yet) has a job id in scope; omit to
      *  render the chip without that capture rather than fabricate an id. */
     jobId?: string;
+    /** The chip's test id; null leaves it off (a role card stacked behind the open one). */
+    testId?: string | null;
 }
 
 /** Locked teaser occupying the same footprint as {@link MatchChip}. */
@@ -69,7 +72,7 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
     );
 }
 
-export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps) {
+export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip" }: MatchChipProps) {
     const band = matchBand(score.total);
     const label = matchBandLabel(band);
     return (
@@ -86,7 +89,7 @@ export function MatchChip({ score, asOfDate, className, jobId }: MatchChipProps)
             }}
         >
             <span
-                data-testid="match-chip"
+                data-testid={testId ?? undefined}
                 aria-label={`${label} match`}
                 className={cn(
                     "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
@@ -110,11 +113,14 @@ function MatchReceipt({
     label: string;
 }) {
     return (
-        <div className="min-w-[220px]">
-            <div className="mb-2 text-xs font-semibold text-muted-foreground">
+        <div className="min-w-[220px] max-w-xs">
+            <div className="mb-1 text-xs font-semibold text-muted-foreground">
                 Why {label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
+            <p data-testid="match-reason" className="mb-2 text-sm leading-snug">
+                {explainMatch(score)}
+            </p>
             <div className="space-y-1.5">
                 {score.components.map((component) => (
                     <ReceiptRow key={component.key} label={component.label} value={component.detail} />

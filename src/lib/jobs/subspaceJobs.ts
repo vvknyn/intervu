@@ -215,6 +215,24 @@ export async function fillVisibleDescriptions(
   return env.data ?? [];
 }
 
+/**
+ * Tell Subspace which listings people saw (`urgent: false`) or opened
+ * (`urgent: true`), so its liveness verifier probes them first. Returns how
+ * many it recorded (unknown and closed ids are skipped). Only
+ * liveness-demand.ts calls this, off the request path.
+ */
+export async function postLivenessDemand(
+  ids: string[],
+  urgent: boolean,
+  opts?: { timeoutMs?: number },
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const env = await postJson<{ data?: { recorded?: number } }>("/jobs/liveness-demand", { ids, urgent }, {
+    timeoutMs: opts?.timeoutMs,
+  });
+  return env.data?.recorded ?? 0;
+}
+
 /** Async-iterate the delta since `since`, following `next_cursor`. */
 export async function* iterateChanged(
   opts: { since: string; limit?: number; maxPages?: number },

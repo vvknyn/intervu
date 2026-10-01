@@ -8,6 +8,35 @@ import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 
 const NO_COUNT: CorpusCount = { kind: "exact", value: 0 };
 
+type VisitRead = { hadCursor: boolean; count: CorpusCount };
+
+/**
+ * One read per page load. The list remounts this line when a search's results
+ * arrive, and a second read would diff against the cursor the first one just
+ * wrote (0 new, so the line vanished on every searched list). Every later
+ * mount reuses the first answer; a failed read is forgotten so a later mount
+ * can try again.
+ */
+let visitRead: Promise<VisitRead> | null = null;
+
+function readVisitOnce(): Promise<VisitRead> {
+    visitRead ??= (async () => {
+        const hadCursor = hasVisitCursor("board");
+        const count = hadCursor ? await countNewSinceAction({ scope: "board" }, readVisitCursor("board")) : NO_COUNT;
+        // The ONE write moment: always after the read, regardless of
+        // whether a cursor already existed — this plants a cursor for
+        // first-time visitors too, which is what makes THEIR next visit
+        // eligible. Writing before the read would clobber the value
+        // just diffed against.
+        writeVisitCursor("board", new Date().toISOString());
+        return { hadCursor, count };
+    })().catch((error: unknown) => {
+        visitRead = null;
+        throw error;
+    });
+    return visitRead;
+}
+
 /**
  * "New roles since your last visit" — one quiet line at the top of the list
  * panel, self-contained about its own fetch (same posture as
@@ -39,21 +68,14 @@ export function BoardVisitBanner({
     useEffect(() => {
         let cancelled = false;
 
-        void (async () => {
-            const hadCursor = hasVisitCursor("board");
-            const n = hadCursor
-                ? await countNewSinceAction({ scope: "board" }, readVisitCursor("board"))
-                : NO_COUNT;
-            // The ONE write moment: always after the read, regardless of
-            // whether a cursor already existed — this plants a cursor for
-            // first-time visitors too, which is what makes THEIR next visit
-            // eligible. Writing before the read would clobber the value
-            // just diffed against.
-            writeVisitCursor("board", new Date().toISOString());
-            if (cancelled) return;
-            setCount(n);
-            setState(resolveVisitBannerState({ hasCursor: hadCursor, count: n }));
-        })();
+        readVisitOnce().then(
+            ({ hadCursor, count: n }) => {
+                if (cancelled) return;
+                setCount(n);
+                setState(resolveVisitBannerState({ hasCursor: hadCursor, count: n }));
+            },
+            () => {},
+        );
 
         return () => {
             cancelled = true;

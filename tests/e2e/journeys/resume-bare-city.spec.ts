@@ -1,10 +1,11 @@
 import type { Page } from "@playwright/test";
-import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
 /**
  * J-RESUME-29 — a résumé whose contact line names a bare city ("Mississauga")
- * gets a one-tap question on For-you instead of a silent blank or a guess.
+ * gets a one-tap question instead of a silent blank or a guess. For you needs
+ * an account, so a guest is asked above the Search board their résumé ranks.
  * Read-only: the résumé is parsed in the browser and the answer is saved to
  * this browser only (guest).
  */
@@ -35,13 +36,12 @@ const BARE_CITY_RESUME = [
     "Figma, Prototyping, Design Systems, User Research",
 ].join("\n");
 
-const skipPacksIntro = (page: Page) => page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+const returningVisitor = (page: Page) => page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
 
 const storedProfile = (page: Page) =>
     page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null")?.data?.profile, LOCAL_AI_RESUME_KEY);
 
-test("a bare city on the contact line is asked about on For-you; Yes saves the place", { tag: ["@J-RESUME-29"] }, async ({ page, diagnostics }) => {
-    await skipPacksIntro(page);
+test("a bare city on the contact line is asked about above the ranked board; Yes saves the place", { tag: ["@J-RESUME-29"] }, async ({ page, diagnostics }) => {
     await page.goto("/jobs");
     await page.getByRole("button", { name: "Upload résumé" }).first().click({ timeout: 60_000 });
     const dialog = page.getByRole("dialog");
@@ -51,6 +51,8 @@ test("a bare city on the contact line is asked about on For-you; Yes saves the p
     // No guess: the review leaves the location blank.
     await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue("", { timeout: 30_000 });
     await dialog.getByRole("button", { name: "Rank my jobs" }).click();
+    await expect(page).toHaveURL(/[?&]view=search/);
+    await expect(page).toHaveURL(/[?&]sort=fit/);
 
     const prompt = page.getByTestId("resume-place-confirm");
     await expect(prompt).toContainText("Your résumé says “Mississauga”. Is that Mississauga, Ontario, Canada?", { timeout: 30_000 });
@@ -59,11 +61,13 @@ test("a bare city on the contact line is asked about on For-you; Yes saves the p
     const profile = await storedProfile(page);
     expect(profile.location).toBe("Mississauga, Ontario, Canada");
     expect(profile).not.toHaveProperty("unconfirmedPlaces");
+    // The answer re-ranks the board there.
+    await expect(page).toHaveURL(/[?&]country=Canada/);
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
 test("an ambiguous bare city offers every candidate; None of these leaves the location blank", { tag: ["@J-RESUME-29"] }, async ({ page, diagnostics }) => {
-    await skipPacksIntro(page);
+    await returningVisitor(page);
     await page.addInitScript(
         ([enabledKey, resumeKey]) => {
             if (localStorage.getItem(resumeKey)) return; // seed once; the reload below must see the saved answer
@@ -79,7 +83,7 @@ test("an ambiguous bare city offers every candidate; None of these leaves the lo
         },
         [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY],
     );
-    await page.goto("/jobs?view=for-you");
+    await page.goto("/jobs?view=search&sort=fit");
 
     const prompt = page.getByTestId("resume-place-confirm");
     await expect(prompt).toContainText("Which place is it?", { timeout: 30_000 });
@@ -94,7 +98,7 @@ test("an ambiguous bare city offers every candidate; None of these leaves the lo
 
     // Settled: asked once, not on every visit.
     await page.reload();
-    await expect(page.getByTestId("hub-pack-card-all")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
     await expect(prompt).toHaveCount(0);
     expect(diagnostics.pageErrors).toEqual([]);
 });

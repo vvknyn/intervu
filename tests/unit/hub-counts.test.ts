@@ -440,7 +440,16 @@ describe("resumeHubPackCounts", () => {
         assert.deepEqual(counts.all, { kind: "exact", value: 40 });
         assert.deepEqual(counts.remote, { kind: "floor", value: 2 });
         assert.deepEqual(counts.fresh, { kind: "floor", value: 0 });
-        assert.equal(formatHubPackCorpusRoleLabels(counts).remote, "2+ roles");
+        // "2+" and "0+" say nothing about a pack that may hold many more: no count.
+        assert.equal(formatHubPackCorpusRoleLabels(counts).remote, "");
+        assert.equal(formatHubPackCorpusRoleLabels(counts).fresh, "");
+    });
+
+    it("shows a floor from ten up, and a small exact count as it is", () => {
+        assert.equal(formatHubPackCorpusRoleLabel({ kind: "floor", value: 9 }), "");
+        assert.equal(formatHubPackCorpusRoleLabel({ kind: "floor", value: 10 }), "10+ roles");
+        assert.equal(formatHubPackCorpusRoleLabel({ kind: "exact", value: 0 }), "0 roles");
+        assert.equal(formatHubPackCorpusRoleLabel({ kind: "exact", value: 1 }), "1 role");
     });
 
     it("is a floor when the list total itself is capped", () => {

@@ -1,3 +1,5 @@
+import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { regionDisplayName } from "@/lib/jobs/location-default-preference";
 import { needsResumeEntry } from "@/lib/jobs/resume-entry";
 
 /**
@@ -53,4 +55,17 @@ export function hubGreeting(input: {
         ? "Choose a category below to browse verified roles ranked against your résumé."
         : "Choose a category below to browse verified roles.";
     return { title, subtitle };
+}
+
+/**
+ * The front door's live line: "1,234 roles posted this week in Canada or
+ * remote". The count covers the visitor's country plus remote roles open
+ * anywhere (`getFrontDoorWeekCountAction`), so the copy names both; with no
+ * country it covers everything and names none.
+ */
+export function frontDoorWeekCountLine(count: CorpusCount, iso2: string | null): string {
+    const n = formatCorpusCount(count);
+    const noun = count.kind === "exact" && count.value === 1 ? "role" : "roles";
+    const where = iso2 ? ` in ${regionDisplayName(iso2)} or remote` : "";
+    return `${n} ${noun} posted this week${where}`;
 }

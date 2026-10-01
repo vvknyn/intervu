@@ -67,6 +67,9 @@ export interface EventPayloads {
      *  optional rather than a fabricated id — SERP always has one once a
      *  search has resolved). */
     query_id?: string;
+    /** Whole days since the opened role was posted (`posted_ts`), floored at
+     *  0. Absent when the row has no posted date (never a fabricated 0). */
+    posted_age_days?: number;
   } & Partial<MatchQualityAnalyticsProps>;
   apply_clicked: {
     job_id: string;
@@ -170,6 +173,20 @@ export interface EventPayloads {
      *  a position-corrected CTR needs (SPEC §2). Absent only when impressions
      *  fired with no resolved search (shouldn't happen in practice). */
     query_id?: string;
+  };
+  /** Real-user timing for the 2-second list budget: how long a job list took
+   *  to put its first rows on screen (src/lib/analytics/use-list-render-timing.ts). */
+  list_rendered: {
+    /** "first_load": the page was opened at this list, timed from navigation
+     *  start. "search": a later search on the page, timed from when its
+     *  request was started (after any typing debounce). */
+    phase: "first_load" | "search";
+    ms: number;
+    /** "browse" for the default list with no query or filters. */
+    surface: "search" | "browse";
+    rows: number;
+    /** Below the `lg` breakpoint or not, so phone and desktop read apart. */
+    viewport: "narrow" | "wide";
   };
 
   search_alert_impressed: {
