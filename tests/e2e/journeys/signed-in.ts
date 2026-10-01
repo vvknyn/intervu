@@ -1,3 +1,4 @@
+import type { Page } from "@playwright/test";
 import { test as base } from "./fixtures";
 
 /**
@@ -13,8 +14,17 @@ import { test as base } from "./fixtures";
 export const SIGNED_IN_SKIP_REASON =
   "For you needs an account: set E2E_STORAGE_STATE, or run against a local dev server (dev-only __INTERVU_E2E_AUTH__ hook)";
 
-const isLocal = (baseURL: string | undefined) =>
+export const isLocalOrigin = (baseURL: string | undefined) =>
   /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
+
+/** Signs the page in with the dev-only hook before any script runs; a local dev server only. */
+export const mockSignIn = (page: Page) =>
+  page.addInitScript(() => {
+    (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = {
+      uid: "e2e-packs", displayName: "Sam Rivera", email: "sam.rivera.dev@example.com", emailVerified: true, isAnonymous: false,
+      providerData: [], metadata: {}, photoURL: null, phoneNumber: null, providerId: "password", tenantId: null, refreshToken: "x",
+    };
+  });
 
 export const signedInTest = base.extend<{ signedIn: void }>({
   storageState: async ({}, use) => {
@@ -23,13 +33,8 @@ export const signedInTest = base.extend<{ signedIn: void }>({
   signedIn: [
     async ({ page, baseURL }, use) => {
       if (!process.env.E2E_STORAGE_STATE) {
-        base.skip(!isLocal(baseURL), SIGNED_IN_SKIP_REASON);
-        await page.addInitScript(() => {
-          (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = {
-            uid: "e2e-packs", displayName: "Sam Rivera", email: "sam.rivera.dev@example.com", emailVerified: true, isAnonymous: false,
-            providerData: [], metadata: {}, photoURL: null, phoneNumber: null, providerId: "password", tenantId: null, refreshToken: "x",
-          };
-        });
+        base.skip(!isLocalOrigin(baseURL), SIGNED_IN_SKIP_REASON);
+        await mockSignIn(page);
       }
       await use();
     },
