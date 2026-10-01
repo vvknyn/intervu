@@ -8,12 +8,17 @@ import {
     formatLastHere,
     interviewDayMs,
     interviewsThisWeek,
-    pickNewForYou,
+    isNewSince,
+    pickToday,
     resolveTodaySince,
     sincePhrase,
+    todayLeftOut,
     todaySearchFloor,
+    tuneToday,
     type TodayRole,
 } from "@/lib/jobs/for-you/today";
+import { roleFeatures, type TuningNudge } from "@/lib/jobs/for-you/tuning";
+import type { MatchComponent, MatchReason, MatchScore, RoleAffinity } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 
@@ -54,10 +59,32 @@ function job(id: string, postedAgoMs: number | null): PublicJob {
     } as PublicJob;
 }
 
-const role = (id: string, total: number, postedAgoMs: number | null): TodayRole => ({
-    job: job(id, postedAgoMs),
-    score: { total, components: [] },
-});
+function score(total: number, role: RoleAffinity = "own", reasons: MatchReason[] = [], familyRank = 0): MatchScore {
+    const components: MatchComponent[] = [
+        { key: "relevance", label: "Relevance", detail: "", score: total / 100 },
+        ...reasons.map((reason): MatchComponent => ({
+            key: reason.startsWith("level") ? "seniority" : "location",
+            label: "",
+            detail: "",
+            score: 0.5,
+            reason,
+        })),
+    ];
+    return { total, components, role, familyRank };
+}
+
+const role = (
+    id: string,
+    total: number,
+    postedAgoMs: number | null,
+    opts: { affinity?: RoleAffinity; reasons?: MatchReason[]; title?: string; company?: string; city?: string; familyRank?: number } = {},
+): TodayRole => {
+    const j = job(id, postedAgoMs);
+    if (opts.title) j.title = opts.title;
+    if (opts.company) j.company = opts.company;
+    if (opts.city) j.location_city = opts.city;
+    return { job: j, score: score(total, opts.affinity ?? "own", opts.reasons ?? [], opts.familyRank ?? 0) };
+};
 
 function pursuit(id: string, status: PursuitStage, updatedAgoMs: number, extra: Partial<Pursuit> = {}): Pursuit {
     return {
@@ -72,31 +99,48 @@ function pursuit(id: string, status: PursuitStage, updatedAgoMs: number, extra: 
     };
 }
 
-describe("pickNewForYou", () => {
+describe("todayLeftOut", () => {
+    it("keeps a Strong or Good role of the candidate's own kind, at their level, where they can work", () => {
+        assert.equal(todayLeftOut(score(85, "own", ["level_fits", "same_country"])), null);
+        assert.equal(todayLeftOut(score(65, "family", ["level_above_ask", "remote_same_country"])), null);
+        // An unlisted level or place is not a reason to leave a role out; the score already caps it.
+        assert.equal(todayLeftOut(score(70, "own", ["level_unlisted", "country_unlisted"])), null);
+    });
+
+    it("leaves out a Stretch, another kind of role, a role above their level and one abroad", () => {
+        assert.equal(todayLeftOut(score(55, "own")), "stretch");
+        for (const affinity of ["adjacent", "unverified", "off-target"] as const) {
+            assert.equal(todayLeftOut(score(75, affinity)), "other-role", affinity);
+        }
+        assert.equal(todayLeftOut(score(75, "own", ["level_below_ask"])), "level");
+        assert.equal(todayLeftOut(score(75, "own", ["abroad"])), "abroad");
+        assert.equal(todayLeftOut(score(75, "own", ["remote_abroad"])), "abroad");
+    });
+});
+
+describe("pickToday", () => {
     const none = new Set<string>();
 
-    it("keeps Strong and Good roles posted since the baseline, Strong first, then newest", () => {
-        const since = NOW - 3 * DAY;
-        const picks = pickNewForYou(
+    it("orders the kept roles as every ranked list does: own role first, then the higher score, then newest", () => {
+        const picks = pickToday(
             [
-                role("good-new", 65, 1 * HOUR),
-                role("strong-old", 85, 2 * DAY),
-                role("stretch", 40, 1 * HOUR),
-                role("strong-new", 90, 5 * HOUR),
-                role("before-baseline", 95, 4 * DAY),
-                role("no-date", 95, null),
+                role("family-strong", 92, 1 * HOUR, { affinity: "family", title: "Customer Success Manager" }),
+                role("own-good-old", 70, 3 * DAY, { title: "Account Manager" }),
+                role("own-strong", 88, 5 * HOUR, { title: "Technical Account Manager" }),
+                role("own-good-new", 70, 1 * HOUR, { title: "Account Manager II" }),
+                role("neighbour", 79, HOUR, { affinity: "adjacent", title: "Product Manager" }),
+                role("stretch", 40, HOUR, { title: "Other" }),
             ],
-            { sinceMs: since, skipped: none, tracked: none },
+            { skipped: none, tracked: none },
         );
         assert.deepEqual(
             picks.map((r) => r.job.id),
-            ["strong-new", "strong-old", "good-new"],
+            ["own-strong", "own-good-new", "own-good-old", "family-strong"],
         );
     });
 
     it("drops roles skipped here or already in the tracker", () => {
-        const picks = pickNewForYou([role("a", 85, HOUR), role("b", 85, HOUR), role("c", 85, HOUR)], {
-            sinceMs: NOW - DAY,
+        const picks = pickToday([role("a", 85, HOUR), role("b", 85, HOUR, { title: "B" }), role("c", 85, HOUR, { title: "C" })], {
             skipped: new Set(["a"]),
             tracked: new Set(["c"]),
         });
@@ -104,6 +148,62 @@ describe("pickNewForYou", () => {
             picks.map((r) => r.job.id),
             ["b"],
         );
+    });
+
+    it("lists an opening once: same title, company and place; another city is another opening", () => {
+        const picks = pickToday(
+            [
+                role("toronto", 85, HOUR, { title: "Barista", company: "Balzac's", city: "Toronto" }),
+                role("toronto-again", 85, 2 * HOUR, { title: "Barista", company: "Balzac's", city: "Toronto" }),
+                role("richmond-hill", 85, 3 * HOUR, { title: "Barista", company: "Balzac's", city: "Richmond Hill" }),
+            ],
+            { skipped: none, tracked: none },
+        );
+        assert.deepEqual(
+            picks.map((r) => r.job.id),
+            ["toronto", "richmond-hill"],
+        );
+    });
+});
+
+describe("tuneToday", () => {
+    const deck = [
+        role("tam-1", 90, HOUR, { title: "Technical Account Manager", company: "Okta" }),
+        role("sec-1", 89, HOUR, { title: "Technical Account Manager, Security", company: "Elastic" }),
+        role("tam-2", 88, HOUR, { title: "Technical Account Manager", company: "Datadog" }),
+        role("sec-2", 87, HOUR, { title: "Technical Account Manager, Security", company: "Snowflake" }),
+        role("tam-3", 86, HOUR, { title: "Technical Account Manager", company: "Twilio" }),
+    ];
+    const nudge = (r: TodayRole, signal: TuningNudge["signal"]): TuningNudge => ({
+        jobId: r.job.id,
+        signal,
+        at: NOW,
+        features: roleFeatures(r.job, deck.map((d) => d.job)),
+    });
+
+    it("returns the picks as they were with no ratings", () => {
+        assert.equal(tuneToday(deck, [], [], NOW), deck);
+    });
+
+    it("a thumbs down on a security role moves the other security roles down, never out", () => {
+        const rest = deck.filter((r) => r.job.id !== "sec-1");
+        const tuned = tuneToday(rest, [nudge(deck[1], "fewer")], ["tam-1"], NOW).map((r) => r.job.id);
+        assert.deepEqual(tuned.slice(0, 3), ["tam-1", "tam-2", "tam-3"]);
+        assert.ok(tuned.includes("sec-2"));
+    });
+
+    it("rows the visitor already rated stay where they are", () => {
+        const tuned = tuneToday(deck, [nudge(deck[4], "more")], ["tam-1", "sec-1"], NOW).map((r) => r.job.id);
+        assert.deepEqual(tuned.slice(0, 2), ["tam-1", "sec-1"]);
+    });
+});
+
+describe("isNewSince", () => {
+    it("is new when posted at or after the last visit; nothing is new on a first visit", () => {
+        assert.equal(isNewSince(job("a", HOUR), NOW - DAY), true);
+        assert.equal(isNewSince(job("b", 2 * DAY), NOW - DAY), false);
+        assert.equal(isNewSince(job("c", null), NOW - DAY), false);
+        assert.equal(isNewSince(job("d", HOUR), null), false);
     });
 });
 

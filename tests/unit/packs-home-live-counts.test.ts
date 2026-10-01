@@ -23,7 +23,8 @@ describe("packs home live counts + deeper deck", () => {
         assert.match(src, /const FOR_YOU_PAGE = 60/);
         assert.match(src, /firstPageLimit = deepForYou \? FOR_YOU_PAGE : PAGE/);
         assert.match(src, /hubCountLabels=\{hubCountLabels\}/);
-        assert.match(src, /dailyApplyTip=\{DAILY_APPLY_HUB_TIP\}/);
+        // Today takes the daily tip's place whenever it shows (signed in, or a résumé on the device).
+        assert.match(src, /dailyApplyTip=\{todayShown \? null : DAILY_APPLY_HUB_TIP\}/);
         assert.match(src, /hubCorpusLine=\{hubCorpusLine\}/);
         assert.match(src, /hubMatching=/);
         assert.match(src, /hubRemovalsLine=/);

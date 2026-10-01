@@ -110,7 +110,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { TodayHome } from "@/components/jobs/for-you/TodayHome";
+import { TodayHome, TodayLastHere, type TodayNoResume } from "@/components/jobs/for-you/TodayHome";
 import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
@@ -4704,16 +4704,38 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // never started and every category sat on an empty count. One in-flight
     // fetch: a new `user` object must not launch a second download that
     // replaces `resume` and cancels the count probe.
+    // `hubResumeReading` lets Today say "Reading your résumé" rather than ask for one;
+    // `hubResumeAttempt` is Today's "Try again" when the saved one didn't load.
     const hubResumeLoadRef = useRef(false);
+    const [hubResumeReading, setHubResumeReading] = useState(false);
+    const [hubResumeAttempt, setHubResumeAttempt] = useState(0);
     useEffect(() => {
         if (!forYouOpen || forYouPackDeckOpen) return;
         if (resume && resumeIsUsable(resume)) return;
         if (hubResumeLoadRef.current) return;
         hubResumeLoadRef.current = true;
-        void resolveUsableResume().then((loaded) => {
-            if (!loaded) hubResumeLoadRef.current = false;
-        });
-    }, [forYouOpen, forYouPackDeckOpen, user, resume]);
+        setHubResumeReading(true);
+        void resolveUsableResume()
+            .then((loaded) => {
+                if (!loaded) hubResumeLoadRef.current = false;
+            })
+            .finally(() => setHubResumeReading(false));
+    }, [forYouOpen, forYouPackDeckOpen, user, resume, hubResumeAttempt]);
+
+    // Today on the packs home: ranked against the résumé once there is a usable one. Signed in it
+    // shows without one too (what needs them, and why there are no picks), so a slow or unreadable
+    // saved résumé never leaves the page looking like it has none.
+    const todayMatching = useMemo(
+        () => (resume && signals && pack && hubResumeKey ? { resume, resumeKey: hubResumeKey, signals, pack } : null),
+        [resume, signals, pack, hubResumeKey],
+    );
+    const todayShown = Boolean(todayMatching) || signedIn;
+    const todayNoResume: TodayNoResume =
+        hubResumeReading || (signedIn && resumeKnownOnServer == null)
+            ? "loading"
+            : resume || resumeKnownOnServer === true
+              ? "unreadable"
+              : "missing";
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
@@ -6598,47 +6620,50 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <>
-                                {resume && signals && pack && hubResumeKey ? (
-                                    <TodayHome
-                                        auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                        returnTo={serpReturnTo}
-                                        userName={user?.displayName}
-                                        resume={resume}
-                                        resumeKey={hubResumeKey}
-                                        signals={signals}
-                                        pack={pack}
-                                        pursuits={pursuits}
-                                        pursuitsLoading={pursuitsLoading}
-                                        accountKey={user?.uid ?? null}
-                                        onApply={handleOpenPosting}
-                                        onOpenPack={(id) => openHubPack(id, "today")}
-                                        resumeLine={
-                                            <ResumeInUse
-                                                label={resumeInUseLabel(resumeSourceLabel)}
-                                                onReplace={() => handleUploadClick()}
-                                            />
-                                        }
-                                    />
-                                ) : null}
                                 <CategoryHubGrid
                                     categories={hubCategories}
-                                    compactHeader={Boolean(resume && signals && pack && hubResumeKey)}
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
                                     hasResume={hasUsableResume}
                                     activeCategoryId={hubSelectedCategoryId}
                                     hubCountLabels={hubCountLabels}
                                     hubCountDeltas={hubCountDeltas}
-                                    dailyApplyTip={DAILY_APPLY_HUB_TIP}
+                                    dailyApplyTip={todayShown ? null : DAILY_APPLY_HUB_TIP}
                                     hubMatching={hubFitProbe.loading || hubFitProbe.probing}
                                     hubCorpusLine={hubCorpusLine}
                                     hubRemovalsLine={hubFitProbe.removalsLine}
+                                    resumeLine={
+                                        todayMatching ? (
+                                            <ResumeInUse
+                                                label={resumeInUseLabel(resumeSourceLabel)}
+                                                onReplace={() => handleUploadClick()}
+                                            />
+                                        ) : null
+                                    }
+                                    lastHere={todayShown ? <TodayLastHere /> : null}
                                     onSelectCategory={(category, source) => openHubPack(category.id, source)}
                                     footer={
-                                        <HubYourJobs
-                                            auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                            returnTo={serpReturnTo}
-                                        />
+                                        <div className="space-y-4">
+                                            {todayShown ? (
+                                                <TodayHome
+                                                    auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                                    returnTo={serpReturnTo}
+                                                    matching={todayMatching}
+                                                    noResume={todayNoResume}
+                                                    pursuits={pursuits}
+                                                    pursuitsLoading={pursuitsLoading}
+                                                    accountKey={user?.uid ?? null}
+                                                    onApply={handleOpenPosting}
+                                                    onOpenPack={(id) => openHubPack(id, "today")}
+                                                    onAddResume={() => handleUploadClick()}
+                                                    onRetryResume={() => setHubResumeAttempt((n) => n + 1)}
+                                                />
+                                            ) : null}
+                                            <HubYourJobs
+                                                auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                                returnTo={serpReturnTo}
+                                            />
+                                        </div>
                                     }
                                 />
                             </>

@@ -9,6 +9,7 @@
  * saved searches and followed companies.
  */
 import { displayCompanyName } from "@/lib/jobs/presentation";
+import { trackerStageHref } from "@/lib/pursuits/tracker-display";
 import { hasReachedStage, isEnded, type Pursuit } from "@/lib/pursuits/types";
 import { followUpsDue, interviewDayMs, interviewsThisWeek } from "./today";
 
@@ -16,6 +17,13 @@ const DAY_MS = 86_400_000;
 
 /** Items the list shows before "Show N more". */
 export const NEEDS_YOU_MAX_ITEMS = 6;
+
+/**
+ * From this many applications gone quiet, the follow-ups are one line into the
+ * Applied stage instead of a line each: 21 "Follow up with …" rows bury the
+ * interview above them and say nothing the count doesn't.
+ */
+export const NEEDS_YOU_GROUP_FOLLOW_UPS_AT = 3;
 
 /** Saved roles whose listings one read checks. */
 export const NEEDS_YOU_MAX_SAVED_ROLES = 50;
@@ -104,7 +112,26 @@ export function buildNeedsYou(pursuits: Pursuit[], nowMs: number, remote: NeedsY
         });
     }
 
-    for (const p of followUpsDue(pursuits, nowMs)) {
+    const due = followUpsDue(pursuits, nowMs);
+    const groupFollowUps = due.length >= NEEDS_YOU_GROUP_FOLLOW_UPS_AT;
+    if (groupFollowUps) {
+        // Longest waiting first, so the first and last bound the wait.
+        const longest = daysWaiting(due[0], nowMs);
+        const shortest = daysWaiting(due[due.length - 1], nowMs);
+        const names = [...new Set(due.map(company))];
+        items.push({
+            key: "follow_up",
+            kind: "follow_up",
+            title: `Follow up on ${due.length} applications`,
+            detail: `No update in ${shortest === longest ? longest : `${shortest} to ${longest}`} days · ${
+                names.length > 2 ? `${names.slice(0, 2).join(", ")} and ${names.length - 2} more` : names.join(", ")
+            }`,
+            href: trackerStageHref("applied"),
+            action: "Review",
+            tone: "warn",
+        });
+    }
+    for (const p of groupFollowUps ? [] : due) {
         const days = daysWaiting(p, nowMs);
         items.push({
             key: `follow_up:${p.id}`,
