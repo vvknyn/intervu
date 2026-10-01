@@ -52,6 +52,7 @@ import {
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
+import { takeEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
@@ -441,7 +442,9 @@ type JobsSearchActionResult = Awaited<ReturnType<typeof searchJobsActionRaw>>;
 
 const searchJobsAction = (params: JobSearchParams): Promise<JobsSearchActionResult> =>
     withSettleGuard(
-        searchJobsActionRaw(params).then((r) => {
+        // The landing's first search may already be in flight from
+        // JobsRouteGate (early-first-search.ts); same params take it.
+        (takeEarlyFirstSearch<JobsSearchActionResult>(params) ?? searchJobsActionRaw(params)).then((r) => {
             lastSearchId = r.searchId;
             return r;
         }),
@@ -747,7 +750,9 @@ function DeadJobUnresolved({
 
 /* ----------------------------- page ----------------------------- */
 
-/** Page size for SERP results + each infinite-scroll / Show more chunk. */
+/** Page size for SERP results + each infinite-scroll / Show more chunk.
+ *  The early first search JobsRouteGate sends uses the same size
+ *  (`SEARCH_FIRST_PAGE_SIZE`, pinned equal by early-first-search.test.ts). */
 const PAGE = 20;
 /** Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). */
 const FOR_YOU_PAGE = 60;
