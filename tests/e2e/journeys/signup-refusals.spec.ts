@@ -1,4 +1,4 @@
-import type { Page, Request } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 /**
@@ -60,10 +60,15 @@ async function openSignup(page: Page) {
   await page.getByRole("tab", { name: "Create account" }).click();
 }
 
-async function fillSignup(page: Page, password: string) {
-  await page.getByLabel("Email").fill(DISPOSABLE_EMAIL);
-  await page.getByLabel("Username").fill("journeycheck");
-  await page.getByLabel("Password", { exact: true }).fill(password);
+async function fillSignup(scope: Page | Locator, password: string) {
+  await scope.getByLabel("Email").fill(DISPOSABLE_EMAIL);
+  await scope.getByLabel("Username").fill("journeycheck");
+  await scope.getByLabel("Password", { exact: true }).fill(password);
+}
+
+/** Resolves when the server has answered this form's next signup POST. */
+function nextSignupAnswer(page: Page) {
+  return page.waitForResponse((r) => r.request().method() === "POST" && (r.request().postData() ?? "").includes(DISPOSABLE_EMAIL));
 }
 
 test("signup with a disposable email shows the email-quality message", { tag: ["@J-AUTH-47"] }, async ({ page }) => {
@@ -111,4 +116,27 @@ test("a password shorter than the rule is stopped on the form, with the rule sho
 
   await expect(page.getByRole("alert").filter({ hasText: "Use at least 10 characters for your password." })).toBeVisible();
   expect(posts, "nothing was sent: no token or rate-limit slot spent").toHaveLength(0);
+});
+
+test("a refused signup in the header's Create account dialog shows its message at the top, scrolled into view, on every press", { tag: ["@J-AUTH-53"] }, async ({ page }) => {
+  // The incident's own path: a visitor on a search, header Create account, a refusal. The message
+  // used to render under the button, below the fold of the scrolled dialog on a phone, unseen.
+  await stubPassingTurnstile(page);
+  await page.goto("/jobs?q=Remote+Frontend+Developer");
+  await page.getByTestId("topbar-create-account").click();
+  const dialog = page.getByRole("dialog").filter({ has: page.getByTestId("auth-submit-button") });
+  await fillSignup(dialog, LONG_ENOUGH_PASSWORD);
+
+  const submit = dialog.getByTestId("auth-submit-button");
+  const message = dialog.getByTestId("auth-message");
+  for (const press of [1, 2]) {
+    const answered = nextSignupAnswer(page);
+    await submit.click();
+    await answered;
+    await expect(message, `press ${press}`).toContainText("Disposable email addresses aren't accepted");
+    await expect(message, `press ${press}: in view without scrolling`).toBeInViewport({ ratio: 1 });
+    const [messageBox, emailBox] = await Promise.all([message.boundingBox(), dialog.getByLabel("Email").boundingBox()]);
+    expect(messageBox!.y, `press ${press}: above the form`).toBeLessThan(emailBox!.y);
+  }
+  await expect(message).toHaveCount(1);
 });

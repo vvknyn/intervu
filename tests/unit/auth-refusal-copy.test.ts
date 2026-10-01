@@ -14,7 +14,7 @@ test("a signup refusal names the wait in minutes and the two ways in above the f
     const message = signupRateLimitMessage(7 * 60_000 + 1);
     assert.match(message, /^Too many sign-up tries from your network just now\./);
     assert.match(message, /Try again in 8 minutes/);
-    assert.match(message, /Continue with Google or the email code above/);
+    assert.match(message, /Continue with Google or the email code below/);
 });
 
 test("a sign-in refusal does the same, in its own words", () => {
