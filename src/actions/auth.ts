@@ -8,11 +8,19 @@ import { runUserDataPlan } from "@/lib/db/user-data";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
-import { allowAuthSignupRequest, allowAuthSignInRequest, allowAuthResetRequest } from "@/lib/shield/rate-limit";
+import {
+    allowAuthSignupSubmit,
+    allowAuthAccountCreate,
+    allowAuthSignInRequest,
+    allowAuthResetRequest,
+} from "@/lib/shield/rate-limit";
 import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
 import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
-import { friendlyWorkosAuthMessage } from "@/lib/auth/workos-errors";
+import { friendlyWorkosAuthMessage, workosErrorCodes } from "@/lib/auth/workos-errors";
+import { newPasswordProblem } from "@/lib/auth/password-rules";
+import { SIGNUP_FAILED_MESSAGE, signupRateLimitMessage, signInRateLimitMessage } from "@/lib/auth/auth-refusal-copy";
+import { logServer } from "@/lib/observability/posthog-logs";
 import { resolveWorkosUserId, getWorkosUserManagement } from "@/lib/auth/workos-runtime";
 import { provisionAppAccess } from "@/lib/auth/provisioning";
 import { claimSignupEvent } from "@/lib/auth/signup-event";
@@ -39,6 +47,16 @@ export async function checkUsernameAvailability(username: string) {
 }
 
 /**
+ * Every refused signup goes to the server log with WHY (never the email,
+ * username or password). Before this, a refusal was a `console.warn` on the
+ * box at best, so the 2026-10-01 replay showed seven failed presses and
+ * nothing anywhere said what failed the first one.
+ */
+function logSignupRefused(reason: string, attrs: Record<string, string | number | undefined> = {}): void {
+    logServer("warn", `signup refused: ${reason}`, { reason, ...attrs });
+}
+
+/**
  * Pure decision, injected deps: create the WorkOS user + Firestore profile,
  * then sign the fresh account straight in. Unit-testable against a fake
  * `AuthActionDeps` — no WorkOS SDK, no Firestore, no Next.js request scope.
@@ -58,10 +76,15 @@ export async function signUpCore(
     try {
         created = await deps.createUser({ email, password, metadata: { username } });
     } catch (error) {
-        if ((error as { name?: string } | null)?.name === "ConflictException") {
-            return { error: "Username is already taken" };
-        }
-        return { error: friendlyWorkosAuthMessage(error, "Failed to create account") };
+        // A WorkOS conflict is about the EMAIL: WorkOS has no usernames (ours
+        // rides in `metadata`), so this used to say "Username is already
+        // taken" to someone whose username was fine.
+        logSignupRefused("workos_create_user", {
+            error_name: (error as { name?: string } | null)?.name ?? "unknown",
+            error_status: (error as { status?: number } | null)?.status,
+            error_codes: workosErrorCodes(error).join(",") || undefined,
+        });
+        return { error: friendlyWorkosAuthMessage(error, SIGNUP_FAILED_MESSAGE) };
     }
 
     try {
@@ -96,12 +119,19 @@ export async function signUp(
     const password = formData.get("password") as string;
     const turnstileToken = formData.get("turnstileToken") as string | null;
 
+    // Free, local checks first (no I/O, nothing counted against the visitor):
+    // a refusal here costs nothing and says exactly what to change.
     if (!username || !password) {
         return { error: "Username and password are required" };
     }
 
     if (username.length < 3) {
         return { error: "Username must be at least 3 characters" };
+    }
+
+    const passwordProblem = newPasswordProblem(password);
+    if (passwordProblem) {
+        return { error: passwordProblem };
     }
 
     // A real, mail-deliverable address is now mandatory ("ok keep accounts,
@@ -121,22 +151,27 @@ export async function signUp(
     }
     const email = emailResult.email;
 
+    // Flood guard (generous): only guards the siteverify call and the lookups
+    // behind it. The tight budget is `allowAuthAccountCreate` below.
     const ip = await getClientIp();
-    if (!allowAuthSignupRequest(ip)) {
-        return { error: "Too many attempts — try again in a few minutes." };
+    if (!allowAuthSignupSubmit(ip)) {
+        logSignupRefused("rate_limited_submit");
+        return { error: signupRateLimitMessage(allowAuthSignupSubmit.retryAfterMs(ip)) };
     }
 
     const turnstile = await verifyTurnstile(turnstileToken, ip);
     if (turnstile.status === "reject") {
+        logSignupRefused("turnstile", { turnstile_reason: turnstile.reason });
         return { error: `${turnstileRejectMessage(turnstile.reason)} Or continue with Google or an email code.` };
     }
 
-    // Deliverability (MX/A/AAAA) check runs only here — after rate-limiting
+    // Deliverability (MX/A/AAAA) check runs only here — after the flood guard
     // and Turnstile — so a DNS resolver round trip is never a free
     // amplification vector for someone probing arbitrary domains.
     const emailQuality = await assessSignupEmail(email, realEmailQualityDeps);
     if (!emailQuality.ok) {
         console.warn("[Auth] signup_email_rejected", { reason: emailQuality.reason, domain: emailDomain(email) });
+        logSignupRefused("email_quality", { email_reason: emailQuality.reason });
         return { error: EMAIL_QUALITY_MESSAGES[emailQuality.reason] };
     }
 
@@ -144,7 +179,16 @@ export async function signUp(
     // between the client's earlier check and this submit).
     const { available } = await checkUsernameAvailability(username);
     if (!available) {
+        logSignupRefused("username_taken");
         return { error: "Username is already taken" };
+    }
+
+    // The tight per-IP budget counts only what is about to become a WorkOS
+    // `createUser` call — never a submit refused above for something the
+    // visitor can fix (see rate-limit.ts, 2026-10-01).
+    if (!allowAuthAccountCreate(ip)) {
+        logSignupRefused("rate_limited_create");
+        return { error: signupRateLimitMessage(allowAuthAccountCreate.retryAfterMs(ip)) };
     }
 
     const deps = await realAuthActionDeps();
@@ -200,7 +244,7 @@ export async function signIn(
 
     const ip = await getClientIp();
     if (!allowAuthSignInRequest(ip)) {
-        return { error: "Too many attempts — wait a minute and try again." };
+        return { error: signInRateLimitMessage(allowAuthSignInRequest.retryAfterMs(ip)) };
     }
 
     const deps = await realAuthActionDeps();
@@ -258,10 +302,12 @@ export async function confirmPasswordResetCore(
     if (!input.token) {
         return { error: "This reset link is invalid or has expired." };
     }
-    // Matches the signup form's own "6+ characters" copy (login-form.tsx) —
-    // not a new, stricter rule invented for this path.
-    if (input.newPassword.length < 6) {
-        return { error: "Password must be at least 6 characters" };
+    // The same local rule as signup (password-rules.ts): WorkOS applies its
+    // own policy to a reset too, and a refusal from it used to read "This
+    // reset link is invalid or has expired" — now mapped in workos-errors.ts.
+    const passwordProblem = newPasswordProblem(input.newPassword);
+    if (passwordProblem) {
+        return { error: passwordProblem };
     }
     try {
         await deps.resetPassword({ token: input.token, newPassword: input.newPassword });

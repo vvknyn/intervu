@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { actionObject, signInLikeProduction } from "./signed-in";
 
 /**
  * Journeys for the company page's numbers (/co/[slug]): each stat says what
@@ -40,7 +41,9 @@ test("the hiring headline states the open-role count on Velai, with no 'Yes —'
 test("the remote fact is a count by work type and opens the matching Remote search on /jobs", { tag: ["@J-COMPANY-36"] }, async ({ page }) => {
     await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("company-page")).not.toContainText(/\b\d+% of roles remote/);
+    // A bare share ("3% of roles remote") is the old title-match stat; over a sample of a
+    // big employer's roles the fact is a rounded share and says so ("about 3% of roles remote").
+    await expect(page.getByTestId("company-page")).not.toContainText(/(?<!about )\b\d+% of roles remote/);
     const remote = page.getByTestId("company-remote-share");
     test.skip((await remote.count()) === 0, "no remote roles at this employer right now");
     await expect(remote).toHaveText(/^(\d[\d,]* of \d[\d,]* roles remote|about \d+% of roles remote)$/);
@@ -168,6 +171,34 @@ test("the verify link's ?followed=1 is used once, so a reload doesn't bring back
     await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
     await expect(page.getByTestId("follow-company").first()).toHaveAttribute("data-following", "false", { timeout: 30_000 });
     await expect(page.getByTestId("follow-email-verified")).toHaveCount(0);
+});
+
+test("a signed-in person's Follow follows from the account in one click, with no email step", { tag: ["@J-COMPANY-46"] }, async ({ page, diagnostics }) => {
+    // Signed in the way production signs in, Follow took the guest path and
+    // asked for an email (founder report 2026-10-01, same cause as the
+    // tracker's "Could not find this pursuit."). Lists answer empty; the
+    // follow itself is recorded, not written.
+    const follows: Record<string, unknown>[] = [];
+    await signInLikeProduction(page, (args) => {
+        if (args.length === 0) return { data: [] };
+        const input = actionObject(args[0]);
+        if (args.length === 1 && typeof input.domain === "string" && "slug" in input) {
+            follows.push(input);
+            return {};
+        }
+        return undefined;
+    });
+    await openCompany(page, COMPANY);
+    // The header's account menu shows once the session check has answered.
+    await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
+    const follow = page.getByTestId("follow-company").first();
+    await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
+    await follow.click();
+    await expect(follow).toHaveAttribute("data-following", "true");
+    await expect(page.getByTestId("follow-email-step")).toHaveCount(0);
+    await expect.poll(() => follows).toEqual([expect.objectContaining({ domain: "anthropic.com" })]);
+    expect(diagnostics.pageErrors).toEqual([]);
+    await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 test("a verified guest's follow is one click, opening pages never follows, and Unfollow survives a reload", { tag: ["@J-COMPANY-18", "@writes"] }, async ({ page, context, baseURL }) => {

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FollowEmailStep } from "@/components/companies/FollowEmailStep";
 import { Popover, PopoverContent } from "@/components/ui/popover";
 import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
 import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
 import { InlineSpinner } from "@/components/ui/wait-state";
@@ -142,7 +142,7 @@ export function FollowButton({
 
   const handleClick = async () => {
     if (busy) return;
-    const user = getCurrentUser();
+    const user = getSignedInUser();
 
     if (!user) {
       const action = decideGuestFollowClick(following, contactKnown);

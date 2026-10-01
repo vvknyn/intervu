@@ -98,6 +98,11 @@ export function usePursuits(): UsePursuitsResult {
     const [pursuits, setPursuits] = useState<Pursuit[]>(() => (user ? (server.peek() ?? []) : listGuestPursuits()));
     const [loading, setLoading] = useState(!!user && !server.peek());
     const [failed, setFailed] = useState(false);
+    // Whose list `pursuits` holds (an account uid, or null for this browser's
+    // guest list). The sign-in answer reaches this hook before the account's
+    // list does; for that gap the list on hand is still the guest one, so the
+    // hook reports loading instead of letting a page call the role missing.
+    const [listUid, setListUid] = useState<string | null>(() => user?.uid ?? null);
 
     useEffect(
         () =>
@@ -106,6 +111,7 @@ export function usePursuits(): UsePursuitsResult {
                 if (!nextUser) {
                     invalidatePursuitsCache();
                     setPursuits(listGuestPursuits());
+                    setListUid(null);
                     setLoading(false);
                     setFailed(false);
                 }
@@ -121,11 +127,13 @@ export function usePursuits(): UsePursuitsResult {
     useEffect(() => {
         let cancelled = false;
         const signedIn = !!user;
+        const uid = user?.uid ?? null;
 
         const refresh = () => {
             if (cancelled) return;
             if (!signedIn) {
                 setPursuits(listGuestPursuits());
+                setListUid(null);
                 setLoading(false);
                 setFailed(false);
                 return;
@@ -133,6 +141,7 @@ export function usePursuits(): UsePursuitsResult {
             const pendingGuest = listGuestPursuits();
             if (pendingGuest.length > 0) {
                 setPursuits(pendingGuest);
+                setListUid(uid);
                 setLoading(false);
                 setFailed(false);
                 return;
@@ -141,6 +150,7 @@ export function usePursuits(): UsePursuitsResult {
             server.fetch().then((res) => {
                 if (cancelled) return;
                 if (res.ok) setPursuits(res.data);
+                setListUid(uid);
                 setFailed(!res.ok);
                 setLoading(false);
             });
@@ -161,5 +171,12 @@ export function usePursuits(): UsePursuitsResult {
     const byJobId = new Map<string, Pursuit>();
     for (const p of pursuits) if (p.job_id) byJobId.set(p.job_id, p);
 
-    return { pursuits, loading, failed, retry: invalidatePursuitsCache, hasAny: pursuits.length > 0, byJobId };
+    return {
+        pursuits,
+        loading: loading || listUid !== (user?.uid ?? null),
+        failed,
+        retry: invalidatePursuitsCache,
+        hasAny: pursuits.length > 0,
+        byJobId,
+    };
 }

@@ -335,7 +335,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-33 | /watch/[id] keeps the visitor on the link | anon | /watch/some-unguessable-id | signed-out | no | uncovered | — (legacy: watch-page.spec.ts › keeps the visitor on the link so logging in does not lose the session) |
 | J-COMPANY-34 | /watch/anywhere renders the static setup guide | anon | /watch/anywhere | signed-out | no | uncovered | — |
 | J-COMPANY-35 | Company hiring headline states the open-role count "N open roles live on Velai right now" (no "Yes —", capital V), plus how many were seen live in the past week when every role is fetched | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
-| J-COMPANY-36 | Company remote fact counts roles by work type ("5 of 43 roles remote", never a title match) and links to the company's Remote search on /jobs, which shows roles | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-36 | Company remote fact counts roles by work type ("5 of 43 roles remote", or "about 3% of roles remote" when only a sample of a big employer's roles is fetched; never a bare share or a title match) and links to the company's Remote search on /jobs, which shows roles | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-37 | Company posting chart starts at the first tracked week (flagged as including roles already open), prints every week's count, dashes this week as in progress, and sizes no bar with an inline style | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-38 | Company page gives one answer to "is this company hiring?": no "Are they actually hiring?" verdict, no health score, no "Active" operating status | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-39 | Company page's first screen shows an open role at desktop (1440x900) and phone (390x844) widths, with the posting chart and hiring record rail after the roles on a phone | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
@@ -344,6 +344,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-42 | Signed-out company visitor gets the site's SignupGate (Create free account, Sign in) returning to the company page, with no hand-rolled sign-in button and no "Followers only" lock card | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-44 | Searching a company with more roles than were fetched says "Searching the N most recent roles — use full search for all", and its link opens the full company search | anon | /co/<slug of a company with more roles than the page fetches>, type in the role search | signed-out | no | uncovered | — |
 | J-COMPANY-45 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
+| J-COMPANY-46 | Signed in the way production signs in (the session check names the account; no dev-only hook), Follow on a company page follows from the account in one click with no email step. It took the guest path and asked for an email (2026-10-01, same cause as J-TRACKER-67) | signed-in | /co/anthropic--com (session and follow actions answered in the browser) | signed-in | no | covered | company-page.spec.ts |
 
 ## AUTH
 
@@ -393,10 +394,13 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-44 | Turnstile api.js blocked or offline on signup shows the same message and focus move (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | turnstile.spec.ts |
 | J-AUTH-45 | A signed-in account with no résumé lands on the /jobs board with the résumé band (no sign-in line), not a full-page onboarding card | signed-in | /jobs (dev-only fake sign-in, no résumé) | signed-in | no | covered | auth-no-resume.spec.ts |
 | J-AUTH-46 | Signing up from the Apply gate (its default Create account tab) keeps the results page as `next` (the gate queues the Apply, so the résumé upload step is skipped): the visitor comes back to their search and the Apply replays | signing-up | /jobs?q=engineer (click Apply, Create account tab) | signed-out | no | uncovered | — |
-| J-AUTH-47 | Signup with an undeliverable or disposable email domain shows the email-quality message | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
+| J-AUTH-47 | Signup with a disposable email domain shows the email-quality message (an undeliverable domain needs a live DNS lookup and stays unit-tested) | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
 | J-AUTH-48 | Signup with a taken username shows "Username is already taken" | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
 | J-AUTH-49 | Sign in with an email address in the "Email or username" field | anon | /login | signed-out | no | uncovered | — |
 | J-AUTH-50 | @writes Set a new password from a valid reset link, see "Password updated", and land on /jobs after 2 s | anon | /reset-password?token=<real token from the reset email> | signed-out | yes | uncovered | — |
+| J-AUTH-51 | A refused signup asks Turnstile for a fresh token, so pressing Create account again sends a new one, never the spent one, and no "Too many" refusal appears (2026-10-01 replay: six retries on one token, then the rate limit) (skips if the build has no site key) | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
+| J-AUTH-52 | The signup password hint states the real rule (10+ characters, not "6+"), and a shorter password is stopped on the form with that rule, sending nothing | signing-up | /login (Create account tab) | signed-out | no | covered | signup-refusals.spec.ts |
+| J-AUTH-53 | A refused password signup shows its message at the top of the auth card, above the form, scrolled into view on every press, including a repeat press that gets the same answer; never under the button out of sight (2026-10-01 replay: the message sat below the fold of the phone dialog and the visitor kept pressing) | signing-up | /jobs?q=Remote+Frontend+Developer (header Create account dialog) | signed-out | no | covered | signup-refusals.spec.ts |
 
 ## RESUME
 
@@ -544,6 +548,8 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-TRACKER-64 | The /yours detail sheet offers "Open posting", which opens the posting in a new tab | anon | /yours (1024x768, seeded), open a row | signed-out | no | uncovered | — |
 | J-TRACKER-65 | History marks tracked jobs with their stage badge, and a failed read shows "We can't load your history right now." with Retry | signed-in | /yours/history (a tracked job opened; then the read answered with an error) | signed-in | no | uncovered | — |
 | J-TRACKER-66 | When the tracker read fails, /yours shows "We can't load your tracker right now." with Retry | signed-in | /yours (tracker read answered with an error) | signed-in | no | uncovered | — |
+| J-TRACKER-67 | Signed in the way production signs in (the session check names the account; no dev-only hook), a status change on a tracked role's page saves to the account: "Marked rejected", and a reload reads it back. It said "Could not find this pursuit." for every signed-in status change (founder report 2026-10-01). While the session check runs the page shows its loading state, never "We couldn't find that pursuit" | signed-in | /yours/<id> (1440x900; session and pursuit actions answered in the browser) | signed-in | no | covered | pursuit-status.spec.ts |
+| J-TRACKER-68 | Signed in the way production signs in, the board's sheet saves a status change and a removal to the account (Remove used to say "Removed" and leave the role), and the board never shows its empty state before the account's roles arrive | signed-in | /yours (1024x768; session and pursuit actions answered in the browser), open a row | signed-in | no | covered | pursuit-status.spec.ts |
 
 ## ALERTS
 
@@ -589,6 +595,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-43 | Dismissing the follow-alerts bell, or opening one of its roles, clears the alerts and hides the bell until new roles appear | signed-in | /jobs (with follow alerts) | signed-in | yes | uncovered | — |
 | J-ALERTS-44 | `/unsubscribe?token=…&forget=1` deletes the address's data ("Your data has been deleted"), and Undo on the unsubscribe page says "You're back on the list" @writes | anon | GET /unsubscribe?token=<real token>&forget=1; Undo from a plain unsubscribe | signed-out | yes | uncovered | — |
 | J-ALERTS-45 | A guest's "Get new matches by email" on the results line (`result-line-get-alerts`) opens the alert capture above the rows | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | uncovered | — |
+| J-ALERTS-46 | Signed in the way production signs in, Save search on a search saves it to the account, not to this browser's storage, where the account's list never showed it (2026-10-01, same cause as J-TRACKER-67) | signed-in | /jobs?view=search&q=engineer (session and saved-search actions answered in the browser) | signed-in | no | covered | alerts.spec.ts |
 
 ## CONNECT
 

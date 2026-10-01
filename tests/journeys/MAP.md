@@ -57,17 +57,17 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92 · NAV 30–32 | 23 | 19 | 4 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75 · MOB 03, 09–10 · DETAIL 01–37, 40–43 · ERR 07–08 | 54 | 20 | 34 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–33 | 33 | 8 | 25 | 0 | 0 |
-| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–66 · NAV 10 · MODAL 04 | 70 | 23 | 47 | 0 | 0 |
-| [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–29, 31–41, 43–45 | 38 | 5 | 33 | 0 | 0 |
-| [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–45 | 40 | 11 | 29 | 0 | 0 |
-| [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–50 · NAV 03–05, 17–19 | 52 | 6 | 46 | 0 | 0 |
+| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–68 · NAV 10 · MODAL 04 | 72 | 25 | 47 | 0 | 0 |
+| [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–29, 31–41, 43–46 | 39 | 6 | 33 | 0 | 0 |
+| [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–46 | 41 | 12 | 29 | 0 | 0 |
+| [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–53 · NAV 03–05, 17–19 | 55 | 10 | 45 | 0 | 0 |
 | [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27, 30–36 · MODAL 03, 06 | 35 | 9 | 26 | 0 | 0 |
 | [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–33 · NAV 11–13, 20 | 35 | 5 | 30 | 0 | 0 |
 | [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–28 · OAUTH 01–22 | 53 | 4 | 49 | 0 | 0 |
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–26 · SEO 01–09 | 34 | 1 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–10 | 10 | 5 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19 · NAV 07–09, 14, 22–29, 33–40 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 46 | 12 | 34 | 0 | 0 |
-| **All stages** | | **647** | **170** | **477** | **0** | **0** |
+| **All stages** | | **654** | **178** | **476** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search

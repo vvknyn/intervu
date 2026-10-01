@@ -8,7 +8,7 @@ import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
-import { getCurrentUser } from "@/lib/firebase/client-auth";
+import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { guestSaveGateReached } from "@/lib/auth/guest-save-gate";
@@ -27,7 +27,7 @@ import type { JobsUrlState } from "@/lib/jobs/url-state";
 
 /**
  * The one auth-branching call site for saved-search mutations (mirrors
- * `FollowButton.tsx`'s `handleClick`, which branches `getCurrentUser()`
+ * `FollowButton.tsx`'s `handleClick`, which branches `getSignedInUser()`
  * inline rather than forking call sites elsewhere): signed-in writes go
  * through the server actions + cache invalidation; signed-out writes stay
  * on the pre-existing localStorage broker in `lib/jobs/saved-searches.ts`.
@@ -77,7 +77,7 @@ export function SavedSearchesPanel({
     const [gated, setGated] = useState(false);
 
     const startSave = () => {
-        if (!getCurrentUser() && guestSaveGateReached()) {
+        if (!getSignedInUser() && guestSaveGateReached()) {
             setGated(true);
             return;
         }
@@ -91,7 +91,7 @@ export function SavedSearchesPanel({
         setSaving(true);
         try {
             const href = hrefFromJobsUrlState(urlState);
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await saveSavedSearchAction({ name, href });
                 if (!res.error) invalidateSavedSearchesCache();
             } else {
@@ -114,7 +114,7 @@ export function SavedSearchesPanel({
         if (removingId) return;
         setRemovingId(s.id);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await deleteSavedSearchAction(s.id);
                 if (!res.error) invalidateSavedSearchesCache();
             } else {

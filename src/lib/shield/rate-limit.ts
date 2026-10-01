@@ -84,13 +84,42 @@ function createIpRateLimiter(windowMs: number, maxRequests: number) {
   const store = new Map<string, number[]>();
   registeredStores.push(store);
 
-  return function allow(ip: string, now: number = Date.now()): boolean {
+  function allow(ip: string, now: number = Date.now()): boolean {
     if (store.size > SWEEP_THRESHOLD) sweepStale(store, now, windowMs);
     const existing = store.get(ip) ?? [];
     const { allowed, retained } = checkRateLimitWindow(existing, now, windowMs, maxRequests);
     store.set(ip, retained);
     return allowed;
-  };
+  }
+
+  /** How long until `ip` gets a slot back (0 when it has one now) — read-only, never counts as a hit. */
+  allow.retryAfterMs = (ip: string, now: number = Date.now()): number =>
+    msUntilSlotFrees(store.get(ip) ?? [], now, windowMs, maxRequests);
+
+  return allow;
+}
+
+/**
+ * Pure: how long until a window holding `timestamps` admits one more request
+ * — 0 when it already would. The oldest hit that still counts has to age out
+ * (strict `t > cutoff`, as in `checkRateLimitWindow`), so a refusal can say
+ * "try again in N minutes" instead of a vague "a few".
+ */
+export function msUntilSlotFrees(
+  timestamps: readonly number[],
+  now: number,
+  windowMs: number,
+  maxRequests: number,
+): number {
+  const live = timestamps.filter((t) => t > now - windowMs).sort((a, b) => a - b);
+  if (live.length < maxRequests) return 0;
+  return live[live.length - maxRequests] + windowMs - now;
+}
+
+/** Pure: a wait in ms, as the whole minutes a person reads ("1 minute", "7 minutes"), rounded up. */
+export function minutesLabel(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000));
+  return `${minutes} minute${minutes === 1 ? "" : "s"}`;
 }
 
 /** Test-only reset so cases don't leak state across each other — mirrors
@@ -181,20 +210,36 @@ export function typeaheadRetryAfterHeader(windowMs: number): Record<string, stri
 }
 
 /**
- * Per-IP sliding-window rate limit for `signUp` (actions/auth.ts) — its own
- * store: creating a brand-new account is a different concern from every
- * other chokepoint in this file, even from the same IP. A real visitor
- * creates an account once; retrying a taken username or a typo a couple
- * times is normal — 5 per 600s mirrors the connect-waitlist budget's
- * reasoning for a rare, one-shot action, and stays tight against a scripted
- * account-creation loop (each hit is a WorkOS user plus a Firestore profile
- * write).
+ * Two per-IP limits on `signUp` (actions/auth.ts), each in its own store.
+ *
+ * Until 2026-10-01 there was one: 5 per 600s, counted on EVERY submit before
+ * anything else ran. A visitor whose first try failed for another reason (a
+ * password WorkOS refused, shown only as "Failed to create account") spent
+ * the whole budget retrying and was then told "Too many attempts" — after
+ * never once creating an account (replay 01a0f6b4, India, /jobs?q=Remote
+ * Frontend Developer). So the budget now splits by what it protects:
+ *
+ * - SUBMIT (30 per 600s): every submit that passes the free local checks,
+ *   counted before Turnstile. A flood guard for the Turnstile siteverify call
+ *   and the Firestore/DNS checks behind it — sized so a person fixing typos,
+ *   or several people behind one carrier NAT, never meets it.
+ * - CREATE (5 per 600s): only attempts that passed Turnstile and every local
+ *   and lookup check, i.e. that are about to call WorkOS `createUser`. Each is
+ *   a real account (plus a Firestore profile) or a WorkOS refusal; a person
+ *   makes one or two. Tight against a scripted account-creation loop that has
+ *   bought its way past Turnstile.
  */
-export const AUTH_SIGNUP_WINDOW_MS = 600_000;
-export const AUTH_SIGNUP_MAX_REQUESTS = 5;
+export const AUTH_SIGNUP_SUBMIT_WINDOW_MS = 600_000;
+export const AUTH_SIGNUP_SUBMIT_MAX_REQUESTS = 30;
 
-/** Thin I/O wrapper: `checkRateLimitWindow` wired to the signup action's own store. */
-export const allowAuthSignupRequest = createIpRateLimiter(AUTH_SIGNUP_WINDOW_MS, AUTH_SIGNUP_MAX_REQUESTS);
+/** Thin I/O wrapper: the signup flood guard's own store. */
+export const allowAuthSignupSubmit = createIpRateLimiter(AUTH_SIGNUP_SUBMIT_WINDOW_MS, AUTH_SIGNUP_SUBMIT_MAX_REQUESTS);
+
+export const AUTH_SIGNUP_CREATE_WINDOW_MS = 600_000;
+export const AUTH_SIGNUP_CREATE_MAX_REQUESTS = 5;
+
+/** Thin I/O wrapper: the account-creation budget's own store. */
+export const allowAuthAccountCreate = createIpRateLimiter(AUTH_SIGNUP_CREATE_WINDOW_MS, AUTH_SIGNUP_CREATE_MAX_REQUESTS);
 
 /**
  * Per-IP sliding-window rate limit for `signIn` (actions/auth.ts) — its own

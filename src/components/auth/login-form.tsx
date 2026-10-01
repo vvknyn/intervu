@@ -1,13 +1,14 @@
 'use client'
 
-import { useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
 import { authStartedPayloadFromAttempt } from '@/lib/analytics/auth-event-payload'
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
 import { clearSignupSignalCookieFromDocument } from '@/lib/auth/authkit-signup-signal'
-import { TurnstileWidget } from '@/components/ui/turnstile-widget'
+import { TurnstileWidget, useTurnstileToken } from '@/components/ui/turnstile-widget'
+import { NEW_PASSWORD_HINT, newPasswordProblem } from '@/lib/auth/password-rules'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field } from '@/components/ui/field'
@@ -87,6 +88,14 @@ function captureAuthStartedFromGate() {
     captureEvent('auth_started', authStartedPayloadFromAttempt(attempt))
 }
 
+/** A submit that found no fresh security-check token after waiting: the challenge is still running, or wants a tick. */
+export const TURNSTILE_PENDING_MESSAGE =
+    "The security check under the password hasn't finished yet. If it shows a box, tick it, then press Create account again." // signup-gate-exempt: the login form's own button, part of the auth flow
+
+/** A submit after the challenge itself failed: this form can't be sent, the buttons below the message can. */
+export const TURNSTILE_FAILED_MESSAGE =
+    "The security check couldn't run, so this form can't be sent. Use Continue with Google or the email code below."
+
 export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", headline }: LoginFormProps = {}) {
     const router = useRouter()
     const [activeTab, setActiveTab] = useState<"login" | "signup">(defaultTab)
@@ -96,9 +105,30 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const [showPassword, setShowPassword] = useState(false)
     const [isPending, startTransition] = useTransition()
     const [authKitPending, setAuthKitPending] = useState<string | null>(null)
-    const [message, setMessage] = useState<string | null>(null)
+    // The answer to the last press, shown at the top of the card and scrolled
+    // into view. Rendered under the button it went unseen: on a phone the
+    // button sits at the bottom of a scrolled card, so the message landed
+    // below the fold and the visitor kept pressing (2026-10-01 replay: seven
+    // presses, then "Too many attempts"). Each answer gets a new id, so a
+    // repeat of the same text still re-reveals and re-scrolls.
+    const [notice, setNotice] = useState<{ text: string; id: number } | null>(null)
+    const noticeIdRef = useRef(0)
+    // The heading and the message together: scrolled as one so the card's
+    // top shows whole, not a line cut in half above the message. Instant, not
+    // smooth: the dialog's own focused-field reveal (lib/ui/reveal-focused-field.ts)
+    // fires instant scrolls as the phone keyboard closes, and those cancel a
+    // smooth scroll halfway.
+    const cardTopRef = useRef<HTMLDivElement>(null)
+    const setMessage = useCallback((text: string | null) => {
+        setNotice(text === null ? null : { text, id: ++noticeIdRef.current })
+    }, [])
+    useEffect(() => {
+        if (notice) cardTopRef.current?.scrollIntoView({ block: 'nearest' })
+    }, [notice])
     const [showForgotPassword, setShowForgotPassword] = useState(false)
-    const [turnstileToken, setTurnstileToken] = useState<string | null>(null)
+    // Single-use: taken on each submit and reset after any refusal, so a
+    // retry never resends a token Cloudflare already spent.
+    const turnstile = useTurnstileToken()
     // Where a failed Turnstile sends the visitor: the Google button above the form.
     const googleButtonRef = useRef<HTMLButtonElement>(null)
 
@@ -106,8 +136,9 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
-        setMessage(null)
 
+        // The last answer stays up until this press has its own: clearing it
+        // first would pull the form up under the visitor's thumb.
         startTransition(async () => {
             // Identifier field label reads "Email or username" — shape
             // decides the routing server-side (see resolveLoginEmail).
@@ -119,6 +150,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 setMessage(result.error)
                 return
             }
+            setMessage(null)
             router.refresh()
             revalidateClientSession()
             await syncGuestFollowsToServer()
@@ -176,21 +208,38 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
             setMessage(AUTH_MESSAGES.missingCredentials)
             return
         }
-
-        setMessage(null)
+        // Same rule the server applies, checked here so a short password
+        // never spends a security-check token or a rate-limit slot.
+        const passwordProblem = newPasswordProblem(password)
+        if (passwordProblem) {
+            setMessage(passwordProblem)
+            return
+        }
 
         startTransition(async () => {
+            const check = await turnstile.take()
+            if (check.status === 'pending') {
+                setMessage(TURNSTILE_PENDING_MESSAGE)
+                return
+            }
+            if (check.status === 'failed') {
+                setMessage(TURNSTILE_FAILED_MESSAGE)
+                googleButtonRef.current?.focus()
+                return
+            }
             try {
                 const formData = new FormData()
                 formData.append('email', email)
                 formData.append('username', username)
                 formData.append('password', password)
-                formData.append('turnstileToken', turnstileToken ?? '')
+                formData.append('turnstileToken', check.token ?? '')
                 const result = await signUp(null, formData)
                 if ("error" in result) {
+                    turnstile.reset()
                     setMessage(result.error)
                     return
                 }
+                setMessage(null)
                 // `signUp` already authenticates the fresh account and saves the
                 // session server-side — no second client-side sign-in round trip.
                 //
@@ -219,6 +268,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 }
                 if (onSuccess) onSuccess()
             } catch (err) {
+                turnstile.reset()
                 setMessage(err instanceof Error ? err.message : "Failed to create account") // signup-gate-exempt: the login form itself, part of the auth flow
             }
         })
@@ -230,22 +280,36 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
 
     return (
         <div className="space-y-4 sm:space-y-5 pt-0 sm:pt-1">
-            <div className="space-y-1.5">
-                {/* A dead end otherwise — this card had no wordmark/home link
-                    back to the rest of the site. Reuses TopBar's own lockup
-                    (BrandMark.tsx) rather than a second copy of the mark. */}
-                <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
-                    <BrandLockup />
-                </Link>
-                <PageTitle>
-                    {headline?.title ?? copy.title}
-                </PageTitle>
-                {headline ? (
-                    <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
-                ) : (
-                    activeTab === "signup" && (
-                        <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
-                    )
+            {/* scroll-mt matches the dialog's top padding (auth-popover.tsx). */}
+            <div ref={cardTopRef} className="scroll-mt-7 space-y-4 sm:scroll-mt-8 sm:space-y-5">
+                <div className="space-y-1.5">
+                    {/* A dead end otherwise — this card had no wordmark/home link
+                        back to the rest of the site. Reuses TopBar's own lockup
+                        (BrandMark.tsx) rather than a second copy of the mark. */}
+                    <Link href="/jobs" className="inline-flex w-fit transition-opacity hover:opacity-90" data-rulebook-exempt>
+                        <BrandLockup />
+                    </Link>
+                    <PageTitle>
+                        {headline?.title ?? copy.title}
+                    </PageTitle>
+                    {headline ? (
+                        <p className="whitespace-pre-line text-xs text-muted-foreground">{headline.body}</p>
+                    ) : (
+                        activeTab === "signup" && (
+                            <p className="text-xs text-muted-foreground">{SIGNUP_SUBCOPY}</p>
+                        )
+                    )}
+                </div>
+
+                {notice && (
+                    <Alert
+                        key={notice.id}
+                        variant="destructive"
+                        data-testid="auth-message"
+                        className="enter-reveal text-center"
+                    >
+                        <AlertDescription>{notice.text}</AlertDescription>
+                    </Alert>
                 )}
             </div>
 
@@ -378,13 +442,13 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     </button>
                                 </div>
                                 {activeTab === "signup" && (
-                                    <p className="text-xs text-muted-foreground">6+ characters</p>
+                                    <p className="text-xs text-muted-foreground">{NEW_PASSWORD_HINT}</p>
                                 )}
                             </Field>
                             {activeTab === "signup" && (
                                 <TurnstileWidget
                                     surface="signup"
-                                    onVerify={setTurnstileToken}
+                                    {...turnstile.widgetProps}
                                     errorMessage="Security check couldn't load. Sign up with Google or an email code above."
                                     alternativeRef={googleButtonRef}
                                 />
@@ -416,12 +480,6 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                     )}
                 </div>
             </Tabs>
-
-            {message && (
-                <Alert variant="destructive" className="text-center">
-                    <AlertDescription>{message}</AlertDescription>
-                </Alert>
-            )}
         </div>
     )
 }
