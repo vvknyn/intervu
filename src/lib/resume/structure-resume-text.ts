@@ -199,8 +199,11 @@ function isSectionHeader(line: string): string | null {
  */
 export function isResumeBoundaryLine(line: string): boolean {
     const trimmed = line.trim();
-    if (isSectionHeader(trimmed) || DATE_RANGE_RE.test(trimmed)) return true;
-    return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && trimmed.split(/\s+/).length <= 4;
+    const words = trimmed.split(/\s+/).length;
+    if (isSectionHeader(trimmed)) return true;
+    // A dated role line, not a sentence that mentions "2019 to 2021".
+    if (DATE_RANGE_RE.test(trimmed) && words <= 12 && !/[.!?]$/.test(trimmed)) return true;
+    return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && words <= 4;
 }
 
 function assignRoleCompany(first: string, second: string): { role: string; company: string } {

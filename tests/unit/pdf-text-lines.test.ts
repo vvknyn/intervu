@@ -103,6 +103,11 @@ describe("PDF extraction keeps paragraphs and bullets whole", () => {
         assert.deepEqual(text.split("\n"), [`${full} continues mid-sentence.`, full, "Experience", full, "CORE COMPETENCIES"]);
     });
 
+    it("joins a bullet whose first line mentions a date range: it is not a dated role line", () => {
+        const first = `• Grew revenue 40% from 2019 to 2021 ${words(70)}`;
+        assert.equal(pdfPageText([item(first, 50, 700), item("and kept churn flat.", 50, 687)]), `${first} and kept churn flat.`);
+    });
+
     it("reads a bullet glyph drawn apart from its text as one bullet, and joins its continuation", () => {
         const text = pdfPageText([
             item("•", 54, 700, { hasEOL: false }),
