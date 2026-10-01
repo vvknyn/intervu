@@ -41,7 +41,6 @@ import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { FooterLinks } from "@/components/layout/Footer";
 import { getCurrentUser, onAuthChange, revalidateClientSession, type User } from "@/lib/firebase/client-auth";
 import {
-    searchJobsAction as searchJobsActionRaw,
     getDefaultBrowseAction,
     getHubPackCorpusCountsAction,
     markJobAppliedAction,
@@ -49,6 +48,10 @@ import {
     getPostedDateFilterSupportAction,
     recordJobOpenedAction,
 } from "@/actions/jobs";
+// The list search over fetch, not a Server Action call: actions run one at a
+// time, so every click and every other search on this page used to wait
+// behind whichever search was loading (see app/api/jobs/search/route.ts).
+import { searchJobs as searchJobsActionRaw } from "@/lib/jobs/search-client";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";

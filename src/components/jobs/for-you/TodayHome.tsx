@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { searchJobsAction } from "@/actions/jobs";
+import { searchJobs } from "@/lib/jobs/search-client";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
@@ -149,7 +149,7 @@ export function TodayHome({
                 offset: 0,
                 withFacets: false,
             };
-            const read = () => searchJobsAction(params).catch(() => null); // load-result-allow: null is a failed read here, retried once and then shown as LoadFailedState
+            const read = () => searchJobs(params).catch(() => null); // load-result-allow: null is a failed read here, retried once and then shown as LoadFailedState
             // One automatic retry after a jittered delay, then the failure shows (`lib/load-result.ts`).
             let r = await read();
             if (cancelled) return;
