@@ -478,11 +478,12 @@ signedInTest("with a résumé, the packs home opens on Today: the day's numbers 
   await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
   // Results are ranked in this browser; the welcome panel used to say so, and now the header does.
   await expect(today.getByTestId("today-private-matching")).toHaveText("Private matching active on this device");
-  // ...and which résumé they are ranked against (the seed has no file name), with Replace and, for a guest, Remove.
+  // ...and which résumé they are ranked against (the seed has no file name), with Replace. An account's
+  // résumé is managed on /resume, so no Remove here (a guest's Remove is on Search, J-JOBS-61).
   const inUse = today.getByTestId("today-resume-in-use");
   await expect(inUse).toContainText("Ranked against your résumé");
   await expect(inUse.getByTestId("today-replace-resume")).toBeVisible();
-  await expect(inUse.getByTestId("today-remove-resume")).toBeVisible();
+  await expect(inUse.getByTestId("today-remove-resume")).toHaveCount(0);
   // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
   const tile = page.getByTestId("hub-pack-card-all");
   await expect(tile).toBeVisible({ timeout: 30_000 });
