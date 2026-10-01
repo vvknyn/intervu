@@ -6,11 +6,10 @@
  *
  * One OR of every way a visitor can arrive at "show me jobs," so a future
  * entry point is covered by construction instead of a new special case
- * landing here later:
+ * landing here later. Arriving is not one of them: bare /jobs at rest shows
+ * no rows (a list needs a reason — a résumé, a search, filters, or the job
+ * the visitor came for), where it used to run a newest-roles feed:
  *
- *  - `defaultFeedAtRest`: the Search home tab is at rest (no typed query, no
- *    `?job=`) but should still show the default recency feed below the
- *    compact hero — empty query, default posted window, location default.
  *  - `query`: the debounced (never per-keystroke) search text is non-empty.
  *  - `filtersAwayFromDefault`: any filter or sort control differs from its
  *    default — pass `activeFilterEntries(filterState).length > 0` (facets,
@@ -29,14 +28,13 @@
  *    that surface is always a ranked-results view, never the at-rest page.
  *
  * When every clause clears (query emptied before any submit, filters back
- * to their defaults, no job open, For-you not active, default feed off),
+ * to their defaults, no job open, For-you not active),
  * this returns to false and the page returns to rest without a results
  * fetch — there is no additional state here beyond the caller-held
  * `explicitlySubmitted` flag, so nothing but that one flag can keep the
  * page out of rest once the rest all clear.
  */
 export interface SearchIntentInput {
-    defaultFeedAtRest: boolean;
     query: string;
     filtersAwayFromDefault: boolean;
     explicitlySubmitted: boolean;
@@ -46,7 +44,6 @@ export interface SearchIntentInput {
 
 export function hasSearchIntent(input: SearchIntentInput): boolean {
     return (
-        input.defaultFeedAtRest ||
         Boolean(input.query.trim()) ||
         input.filtersAwayFromDefault ||
         input.explicitlySubmitted ||

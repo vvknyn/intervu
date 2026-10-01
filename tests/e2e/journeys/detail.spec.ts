@@ -281,7 +281,10 @@ test("closing a job opened from a shared link stays on /jobs with ?job= cleared;
   await closeJob(shared);
   await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
   if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();
-  await expect(shared.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  // Nothing searched and no job open: /jobs is the front door, search box and résumé band, no rows.
+  await expect(shared.getByPlaceholder("Job title, skill, or company").first()).toBeVisible({ timeout: 30_000 });
+  await expect(shared.locator('section[aria-label="Add your resume"]')).toBeVisible({ timeout: 15_000 });
+  await expect(shared.getByTestId("job-row")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

@@ -124,6 +124,7 @@ import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
+import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -169,6 +170,8 @@ import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
+import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
+import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 const CategoryHubGrid = dynamic(
     () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
@@ -2047,10 +2050,17 @@ export function JobsContent() {
                 q: query,
                 sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
                 lastHomeView,
+                signedOut,
             }),
-        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView],
+        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView, signedOut],
     );
     const showForYouHome = resolvedHomeView === "for-you";
+    // For you needs an account. A confirmed guest who asks for it gets one
+    // sign-in card, and no packs, counts or pack searches run behind it.
+    // While auth is still resolving it shows the pending shell, so a guest's
+    // last-seen For you cannot start the hub's searches before we know.
+    const forYouOpen = showForYouHome && signedIn;
+    const forYouGated = showForYouHome && signedOut;
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
     // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
@@ -2199,9 +2209,11 @@ export function JobsContent() {
     // no résumé used to get a full-page onboarding card here instead; it now
     // gets the same board, with the résumé band after the feed and the
     // importer opening over it straight after sign-up (`?resume=gate`).
-    // At rest the Search home runs the default recency feed below the search
-    // box, so first paint shows real jobs.
-    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome;
+    // At rest the Search home shows no job rows: a list needs a reason (a
+    // résumé, the visitor's own search or filters, or the job they came
+    // for). The newest-in-your-country feed that used to fill it was opened
+    // by 6% of guests. A résumé on file ranks the list instead (the at-rest
+    // fit effect below `resolveAndApplyFit`).
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -2213,13 +2225,14 @@ export function JobsContent() {
     // ambient default-browse auto-selection is not deliberate intent — see
     // `atRest`'s own comment above for the same distinction).
     const searchIntent = hasSearchIntent({
-        defaultFeedAtRest,
         query,
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
-        forYouActive: showForYouHome,
+        forYouActive: forYouOpen,
     });
+    // The at-rest front door: Search home, nothing typed, filtered or open.
+    const frontDoorAtRest = atRest && showSearchHome && !searchIntent;
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
@@ -2702,6 +2715,9 @@ export function JobsContent() {
                 // armed with below. That's the id a click must carry to join
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // How old the opened role was: whether searchers open fresh
+                // roles or older ones is what the posted-date window is tuned on.
+                ...postedAgeAnalyticsProps(hit),
                 ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
             if (!user) recordGuestResultClick();
@@ -2918,11 +2934,11 @@ export function JobsContent() {
     const forYouDeck = useForYouDeck(forYouPacks);
 
     useEffect(() => {
-        if (!showForYouHome || firstPackRevealAttemptedRef.current) return;
+        if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
         if (!consumeFirstPackReveal()) return;
         firstPackRevealAttemptedRef.current = true;
         setPendingFirstPackReveal(true);
-    }, [showForYouHome]);
+    }, [forYouOpen]);
 
     useEffect(() => {
         if (!pendingFirstPackReveal || !hasUsableResume) return;
@@ -2976,17 +2992,17 @@ export function JobsContent() {
     // from the browse hits already on the hub. Stop updating once a fit key
     // exists or a pack is open, so a later deck page cannot blank the pills.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
+        if (!forYouOpen || forYouPackDeckOpen || hubResumeKey) return;
         const current = result;
         if (!current || !current.hits?.length) return;
         setHubBrowse({
             jobs: current.hits,
             total: typeof current.total === "number" ? current.total : null,
         });
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, result]);
 
     useEffect(() => {
-        if (!showForYouHome) return;
+        if (!forYouOpen) return;
         let cancelled = false;
         void readWithRetry(() => getHubPackCorpusCountsAction(locationDefaultSuppressed).catch(loadFailed)).then(
             (counts) => {
@@ -2996,13 +3012,13 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, locationDefaultSuppressed]);
+    }, [forYouOpen, locationDefaultSuppressed]);
 
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
+        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
             return;
         }
         const industry = hubIndustry;
@@ -3169,7 +3185,7 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
@@ -4621,21 +4637,21 @@ export function JobsContent() {
     // replaces `resume` and cancels the count probe.
     const hubResumeLoadRef = useRef(false);
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen) return;
+        if (!forYouOpen || forYouPackDeckOpen) return;
         if (resume && resumeIsUsable(resume)) return;
         if (hubResumeLoadRef.current) return;
         hubResumeLoadRef.current = true;
         void resolveUsableResume().then((loaded) => {
             if (!loaded) hubResumeLoadRef.current = false;
         });
-    }, [showForYouHome, forYouPackDeckOpen, user, resume]);
+    }, [forYouOpen, forYouPackDeckOpen, user, resume]);
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData, tileId?: HubPackId) => {
+    const applyFit = (r: ResumeData, tileId?: HubPackId, homeViewOverride?: JobsHomeView) => {
         // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
         // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
@@ -4659,7 +4675,16 @@ export function JobsContent() {
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit", ...tileWindow }), "replace");
+        applyUrlState(
+            buildUrlState({
+                q,
+                facets: merged,
+                sort: "fit",
+                ...tileWindow,
+                ...(homeViewOverride ? { homeView: homeViewOverride } : {}),
+            }),
+            "replace",
+        );
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4692,6 +4717,47 @@ export function JobsContent() {
             setFitResolving(false);
         }
     };
+
+    // A list needs a reason, and a résumé on file is one: the Search home at
+    // rest opens on the résumé-ranked list (a guest's résumé in this browser:
+    // their top 3, then the fit gate; a signed-in user's: the whole list) instead
+    // of the front door. Once per stay on the Search home, so a visitor who
+    // leaves that list for rest isn't pulled back to it; the front door's
+    // "See roles that fit your résumé" reopens it. An explicit empty submit,
+    // a filter or a sort choice is the visitor's own list and is left alone.
+    // It is the "all" pack on the board, window included: a recommendation
+    // list keeps the packs' posted window, not the wider typed-search one.
+    // `sort=fit` with no query (a shared or bookmarked fit link) ranks nothing
+    // by itself, so it resolves the résumé here too, or drops the fit sort
+    // when there is no résumé to rank by.
+    const autoFitAtRestRef = useRef(false);
+    // A signed-in résumé can take a network read; a search typed meanwhile wins.
+    const atRestRef = useRef(atRest);
+    atRestRef.current = atRest;
+    useEffect(() => {
+        if (!showSearchHome) {
+            autoFitAtRestRef.current = false;
+            return;
+        }
+        if (autoFitAtRestRef.current || !authReady) return;
+        if (!atRest || activeEntries.length > 0 || sortOverride !== null || explicitlySubmitted) return;
+        if (resumeOnFile === null) return;
+        if (resumeOnFile === false) {
+            if (fitActive) {
+                setFitActive(false);
+                applyUrlState(buildUrlState({ sort: null }), "replace");
+            }
+            return;
+        }
+        autoFitAtRestRef.current = true;
+        const token = fitIntentRef.current!.begin();
+        setFitResolving(true);
+        void resolveUsableResume()
+            .then((r) => {
+                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r, "all");
+            })
+            .finally(() => setFitResolving(false));
+    }, [showSearchHome, authReady, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Do NOT auto-apply fit on for-you entry. Packs home is CategoryHubGrid
     // (default whenever for-you + !advanced search + !explicit pack deck).
@@ -4983,10 +5049,13 @@ export function JobsContent() {
         setFacets({});
         setQueryDraft("");
         setQuery("");
-        setHomeView("for-you");
-        writeLastJobsHomeView("for-you");
+        // For you needs an account: a guest's résumé ranks the Search board
+        // (top matches, then the fit gate) instead of opening packs.
+        const home: JobsHomeView = user ? "for-you" : "search";
+        setHomeView(home);
+        writeLastJobsHomeView(home);
         applyUrlState(
-            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
+            buildUrlState({ homeView: home, q: "", facets: {}, sort: null }),
             "replace",
         );
         if (user) {
@@ -5004,10 +5073,13 @@ export function JobsContent() {
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
+        const guestHome: JobsHomeView | undefined = user ? undefined : "search";
         if (queuedAction?.kind === "fit") {
             // Stale-guard check (see `handleUploadClick`'s doc comment): a
             // sort choice made while the modal was open must win, not this.
-            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data, undefined, guestHome);
+        } else if (guestHome) {
+            applyFit(data, undefined, guestHome);
         } else {
             armFirstPackReveal();
         }
@@ -5627,6 +5699,7 @@ export function JobsContent() {
             returnTo={serpReturnTo}
             count={fitGate.count}
             onDismiss={() => chooseSort("relevance")}
+            autoShown={{ hasResume: true }}
             className="my-4 w-full"
         />
     ) : null;
@@ -5845,7 +5918,7 @@ export function JobsContent() {
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
-    const deckPanesLocked = showForYouHome && (showAdvancedSearch || forYouPackDeckOpen);
+    const deckPanesLocked = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
     return (
         <div
             className={
@@ -5895,16 +5968,19 @@ export function JobsContent() {
                     exactly one h1. */}
                 {showSearchHome ? (
                         <div className="pb-1.5">
-                            <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
+                            {/* Job packs need an account: a guest's link would only open the sign-in card. */}
+                            {signedIn && (
+                                <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
+                                    <button
+                                        type="button"
+                                        onClick={() => returnToJobPacksHub()}
+                                        className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
+                                        data-testid="jobs-back-to-packs"
+                                    >
+                                        ← Back to Job Packs
+                                    </button>
+                                </div>
+                            )}
                             {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-live">
@@ -6391,6 +6467,27 @@ export function JobsContent() {
                 {atRest && showSearchHome && (
                     <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                 )}
+                {/* The front door (no job rows until there's a reason):
+                    the week's live count, the visitor's last search, and
+                    for a résumé on file, the way back to their matches.
+                    Visitors with no résumé get FrontDoorResumeBand below. */}
+                {frontDoorAtRest && (
+                    <>
+                        <FrontDoorWeekCount
+                            suppressLocationDefault={locationDefaultSuppressed}
+                            onShow={() => panelPostedBucket("7d")}
+                        />
+                        <div className="mx-auto mt-4 w-full max-w-[960px] empty:hidden">
+                            <FrontDoorReturnCard
+                                recentQuery={recentSearches[0] ?? ""}
+                                onRerun={submitSearch}
+                            />
+                        </div>
+                        {resumeOnFile === true && !fitActive && !fitResolving && (
+                            <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit("all")} />
+                        )}
+                    </>
+                )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
@@ -6414,7 +6511,22 @@ export function JobsContent() {
                     )}
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
-                {showForYouHome ? (
+                {forYouGated ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <SignupGate
+                            reason="packs"
+                            originSurface="for_you"
+                            returnTo={serpReturnTo}
+                            onDismiss={() => selectJobsHome("search")}
+                            autoShown={{ hasResume: hasUsableResume }}
+                            className="mx-auto w-full max-w-xl"
+                        />
+                    </div>
+                ) : showForYouHome && !forYouOpen ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <ForYouHomePending />
+                    </div>
+                ) : showForYouHome ? (
                     <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
@@ -6550,6 +6662,19 @@ export function JobsContent() {
                     stays outside this gate: it's navigation chrome, not a
                     result, and has to show in both views before either one's
                     results fetch. */}
+                {/* For you is not a guest's home, so a guest's bare-city question
+                    is asked above the board their résumé ranks. Answering re-ranks. */}
+                {signedOut && fitActive && (
+                    <div className={cn("mt-4 empty:hidden", cappedContentClass)}>
+                        <ResumePlaceConfirm
+                            resume={resume}
+                            onUpdateResume={(settled) => {
+                                updateResume(settled);
+                                applyFit(settled, undefined, "search");
+                            }}
+                        />
+                    </div>
+                )}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -6908,18 +7033,6 @@ export function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Anonymous return card — "your last search, N new
-                                                since your last visit" — only on the at-rest default
-                                                feed, never over an engaged search's results. Mounted
-                                                unconditionally within that state (the component
-                                                renders null without a card to show) because it also
-                                                owns advancing the jobs visit cursor. */}
-                                            {defaultFeedAtRest && (
-                                                <FrontDoorReturnCard
-                                                    recentQuery={recentSearches[0] ?? ""}
-                                                    onRerun={submitSearch}
-                                                />
-                                            )}
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
                                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
@@ -7139,6 +7252,7 @@ export function JobsContent() {
                                                     originSurface="jobs_banner"
                                                     returnTo={serpReturnTo}
                                                     count={resolveHiddenCount(totalCount, hits.length)}
+                                                    autoShown={{ hasResume: hasUsableResume }}
                                                     className="w-full"
                                                 />
                                             ) : loadingMore ? (
@@ -7319,7 +7433,7 @@ export function JobsContent() {
                 open={
                     !packsIntroDismissed &&
                     resumeOnFile === true &&
-                    showForYouHome
+                    forYouOpen
                 }
                 onGotIt={dismissPacksIntro}
                 onAddOrReplaceResume={() => {

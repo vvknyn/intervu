@@ -67,6 +67,9 @@ export interface EventPayloads {
      *  optional rather than a fabricated id — SERP always has one once a
      *  search has resolved). */
     query_id?: string;
+    /** Whole days since the opened role was posted (`posted_ts`), floored at
+     *  0. Absent when the row has no posted date (never a fabricated 0). */
+    posted_age_days?: number;
   } & Partial<MatchQualityAnalyticsProps>;
   apply_clicked: {
     job_id: string;
