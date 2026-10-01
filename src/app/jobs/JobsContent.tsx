@@ -2990,7 +2990,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                   ),
         [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
     );
-    const forYouDeck = useForYouDeck(forYouPacks);
+    const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
+    const forYouDeck = useForYouDeck(forYouPacks, isOwnRole);
 
     useEffect(() => {
         if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
