@@ -102,3 +102,36 @@ test("the full pursuit page shows the pay-it-forward panel for an offer", { tag:
   await expect(main).not.toContainText("You have an offer");
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("/yours?stage=applied (a tracker number on the packs home) shows the Applied lane alone, and All stages brings back every lane", { tag: ["@J-TRACKER-70"] }, async ({ page, diagnostics }) => {
+  const now = new Date().toISOString();
+  const row = (id: string, position: string, status: string) => ({
+    id,
+    user_id: "guest",
+    company_name: "Acme Corp",
+    position,
+    status,
+    created_at: now,
+    updated_at: now,
+  });
+  await page.addInitScript(
+    ([key, rows]) => localStorage.setItem(key as string, JSON.stringify(rows)),
+    [GUEST_PURSUITS_KEY, [row("guest-stage-applied", "Staff Engineer", "applied"), row("guest-stage-interview", "Platform Lead", "interviewing")]] as const,
+  );
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/yours?stage=applied");
+
+  const board = page.getByTestId("tracker-kanban");
+  await expect(board).toHaveAttribute("data-stage", "applied", { timeout: 30_000 });
+  await expect(page.getByTestId("tracker-stage-filter")).toContainText("Showing Applied only");
+  await expect(board.getByRole("region")).toHaveCount(1);
+  await expect(board.getByRole("region", { name: "Applied" })).toContainText("Staff Engineer");
+  await expect(board.getByText("Platform Lead")).toHaveCount(0);
+
+  await page.getByTestId("tracker-stage-all").click();
+  await expect(page).toHaveURL(/\/yours$/);
+  await expect(board).not.toHaveAttribute("data-stage", /.*/);
+  await expect(board.getByRole("region")).toHaveCount(5);
+  await expect(board.getByText("Platform Lead")).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
