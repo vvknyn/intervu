@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 
 const ICON_BUTTON =
-    "ctl-md ctl-button ctl-square flex shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
+    "ctl-md ctl-button ctl-square flex shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50";
 
 /**
  * The open role's "more / fewer like this" (tuning.ts): one tap nudges which

@@ -3,6 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
+import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 /**
  * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90/91/92/93).
@@ -161,8 +162,7 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
 
 /**
  * An opened pack for the same résumé, as ranked: its own role, a customer success role (the same
- * kind of work), then a Technical Support Manager (a title it can't tie to the résumé). Three
- * roles, the most a guest's pack shows.
+ * kind of work), then a Technical Support Manager (a title it can't tie to the résumé).
  */
 const PACK = [
   posting("22222222-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
@@ -183,7 +183,8 @@ async function openPack(page: Page) {
   }).toPass({ timeout: 60_000 });
 }
 
-test("more or fewer like this on an open role reorders what comes next, hides nothing, says what it is tuned to and resets", { tag: ["@J-JOBS-92"] }, async ({ page, diagnostics }) => {
+// For you needs an account, so the pack runs signed in.
+signedInTest("more or fewer like this on an open role reorders what comes next, hides nothing, says what it is tuned to and resets", { tag: ["@J-JOBS-92"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await seedResume(page);
@@ -234,7 +235,7 @@ test("more or fewer like this on an open role reorders what comes next, hides no
   await expect(tuned).toHaveCount(0);
   await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "false");
-  expect(diagnostics.pageErrors).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
 /**
