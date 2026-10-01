@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
-import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
+import { getCurrentUser, getSignedInUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { createApplication, deleteApplication, updateApplication } from "@/actions/application";
 import { captureEvent } from "@/lib/analytics/events";
 import { toast } from "@/lib/toast";
@@ -148,6 +148,10 @@ function YoursContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [user, setUser] = useState<User | null>(null);
+    // Whether the server has said who this is yet. Until it has, an account's
+    // roles haven't been asked for, so the board holds its loading skeleton
+    // instead of telling a signed-in person they track nothing.
+    const [authReady, setAuthReady] = useState(false);
     const [authPopoverOpen, setAuthPopoverOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(searchParams.get("view") === "new");
     const [search, setSearch] = useState("");
@@ -179,7 +183,10 @@ function YoursContent() {
     useEffect(() => {
         const current = getCurrentUser();
         if (current) setUser(current);
-        const unsub = onAuthChange((u) => setUser(u));
+        const unsub = onAuthChange((u) => {
+            setUser(u);
+            setAuthReady(true);
+        });
         return () => unsub();
     }, []);
 
@@ -229,7 +236,7 @@ function YoursContent() {
     const mutate = async (id: string, patch: Partial<Pursuit>) => {
         setSaving(true);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await updateApplication(id, patch);
                 if (res.error) {
                     toast.error(`Could not save: ${res.error}`);
@@ -252,7 +259,7 @@ function YoursContent() {
     const handleTrackRole = async (draft: TrackRoleDraft) => {
         setSaving(true);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const result = await createApplication({
                     company_name: draft.company,
                     position: draft.position,
@@ -282,7 +289,7 @@ function YoursContent() {
     const handleRemove = async (id: string) => {
         setSaving(true);
         try {
-            if (getCurrentUser()) {
+            if (getSignedInUser()) {
                 const res = await deleteApplication(id);
                 if (res.error) {
                     toast.error(res.error);
@@ -310,7 +317,7 @@ function YoursContent() {
         setDetailOpen(true);
     };
 
-    if (!hydrated || loading) return <YoursLoading />;
+    if (!hydrated || !authReady || loading) return <YoursLoading />;
 
     return (
         <PageLayout
