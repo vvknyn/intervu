@@ -3,10 +3,9 @@
 import { useMemo, type ReactNode } from "react";
 import { ArrowSquareOut } from "@phosphor-icons/react";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { MatchChip } from "@/components/jobs/MatchChip";
-import { JobDescription } from "@/components/jobs/JobDetail";
 import { DescriptionLoadingStatus } from "@/components/jobs/for-you/DescriptionLoadingStatus";
-import { useAiJobDescription } from "@/hooks/use-ai-job-description";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { descriptionNeedsFill } from "@/lib/jobs/fill-description";
 import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
@@ -21,21 +20,13 @@ import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
-import { jdTemplateIsThin, type JdTemplateKey } from "@/lib/local-ai/format-job-description";
+import { buildDeterministicJdTemplate, jdTemplateIsThin } from "@/lib/local-ai/format-job-description";
 import type { MatchScore } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
 
 const SECTION_LABEL = "text-xs font-semibold text-muted-foreground";
-
-/** The posting's own sections, in reading order. The hook is the card's Summary. */
-const DESCRIPTION_SECTIONS: { key: Exclude<JdTemplateKey, "hook">; label: string }[] = [
-    { key: "do", label: "What you'll do" },
-    { key: "bring", label: "What you bring" },
-    { key: "nice", label: "Nice to have" },
-    { key: "perks", label: "Perks" },
-];
 
 const TONE_DOT: Record<InferredTone, string> = {
     good: "bg-live",
@@ -98,7 +89,9 @@ export function StackedRoleCard({
     const postedRelative =
         freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), nowMs) : null;
     const fullBlocks = useMemo(() => formatDescription(job.description), [job.description]);
-    const { template } = useAiJobDescription(job.id, job.description);
+    // The Summary is the posting's own first sentence, never a model's
+    // rewrite: the card states it as the role's, so it has to be word for word.
+    const template = useMemo(() => buildDeterministicJdTemplate(job.description), [job.description]);
 
     const pending = descriptionPending && fullBlocks.length === 0;
     const thin = jdTemplateIsThin(template, job.description);
@@ -214,20 +207,18 @@ export function StackedRoleCard({
 
                 <div className="border-t border-border pt-5">
                     <p className={SECTION_LABEL}>Job description</p>
-                    <div className="mt-3 flex flex-col gap-6 text-foreground" data-testid={active ? "role-card-description" : undefined}>
+                    <div className="mt-3 flex max-w-prose flex-col gap-6 text-foreground" data-testid={active ? "role-card-description" : undefined}>
                         {pending ? (
                             <DescriptionLoadingStatus onRetry={onRetryDescription} />
-                        ) : !thin ? (
-                            DESCRIPTION_SECTIONS.map(({ key, label }) =>
-                                template[key].length > 0 ? (
-                                    <section key={key}>
-                                        <h3 className="mb-2 text-base font-semibold text-foreground">{label}</h3>
-                                        <JobDescription blocks={template[key]} headingLevel={4} />
-                                    </section>
-                                ) : null,
-                            )
-                        ) : !stub && fullBlocks.length > 0 ? (
-                            <JobDescription blocks={fullBlocks} headingLevel={3} />
+                        ) : fullBlocks.length > 0 && (!stub || !thin) ? (
+                            // The whole posting in its own sections, as the job pane shows it.
+                            // The open card's lines go to the on-device model first; the
+                            // cards waiting behind it get laid out in the background.
+                            <FormattedJobDescription
+                                description={job.description}
+                                headingLevel={3}
+                                priority={active ? "visible" : "background"}
+                            />
                         ) : (
                             <p className="text-sm text-muted-foreground">
                                 {job.description?.trim()

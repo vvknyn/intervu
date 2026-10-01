@@ -27,6 +27,7 @@ import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
+import { PRIVATE_MATCHING_ACTIVE } from "@/lib/jobs/resume-privacy-copy";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
 import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
@@ -86,6 +87,7 @@ export function TodayHome({
     accountKey,
     onApply,
     onOpenPack,
+    resumeLine = null,
 }: {
     /** The page's confirmed auth state: a guest sees the fit preview and the gate, never before it is known. */
     auth: "signed-in" | "signed-out" | "pending";
@@ -105,6 +107,8 @@ export function TodayHome({
     /** The page's own Apply (auth gate, apply-intent prompt, "did you apply?" return). */
     onApply: (job: PublicJob) => void;
     onOpenPack: (id: TodayPackId) => void;
+    /** Which résumé the page ranks against, with Replace (`ResumeInUse`), under the private-matching line. */
+    resumeLine?: ReactNode;
 }) {
     const [nowMs] = useState(() => Date.now());
     // This header mounts only once a résumé has loaded on the client, so the device store is readable here.
@@ -272,6 +276,7 @@ export function TodayHome({
                 onOpenPack(id);
             }}
             onRetry={() => setAttempt((n) => n + 1)}
+            resumeLine={resumeLine}
             needsYou={
                 <NeedsYouView
                     items={needs}
@@ -321,6 +326,7 @@ export function TodayHomeView({
     onOpenPack,
     onRetry,
     needsYou = null,
+    resumeLine = null,
 }: {
     title: string;
     /** "Tuesday", "earlier today"; `null` on a first visit. */
@@ -348,6 +354,8 @@ export function TodayHomeView({
     onRetry: () => void;
     /** "Needs you" (`NeedsYouView`): beside the new matches from lg up, under them on a phone. The due and this-week stats link to it. */
     needsYou?: ReactNode;
+    /** Which résumé these matches come from (`ResumeInUse`). */
+    resumeLine?: ReactNode;
 }) {
     const tallyHref = needsYou ? "#today-needs-you" : "/yours";
     const firstVisit = lastHere == null;
@@ -364,6 +372,12 @@ export function TodayHomeView({
                         Last here {lastHere}
                     </p>
                 ) : null}
+                {/* This header mounts only once a résumé has loaded, so the ranking below runs on this device. */}
+                <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-live" data-testid="today-private-matching">
+                    <span aria-hidden className="h-1.5 w-1.5 rounded-pill bg-live" />
+                    {PRIVATE_MATCHING_ACTIVE}
+                </p>
+                {resumeLine}
             </div>
 
             <ul data-testid="today-stats" className="grid grid-cols-2 gap-x-4 gap-y-4 poster-list-inset-x sm:grid-cols-4">

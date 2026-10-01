@@ -10,7 +10,7 @@ import { IDLE_MODEL_LOAD, reduceModelLoad, type ModelLoadEvent, type ModelLoadSt
 import { nanoEngine } from "./engines/nano";
 import { transformersWasmEngine } from "./engines/transformers-wasm";
 import { webllmEngine } from "./engines/webllm";
-import type { LocalAiEngine, LocalAiEngineId, ModelParseOutput } from "./engines/types";
+import type { GenerateOptions, LocalAiEngine, LocalAiEngineId, ModelParseOutput } from "./engines/types";
 import { ENGINE_LABELS } from "./engines/types";
 
 const LADDER: LocalAiEngine[] = [nanoEngine, webllmEngine, transformersWasmEngine];
@@ -163,10 +163,10 @@ export async function parseWithActiveEngine(text: string): Promise<ModelParseOut
 }
 
 /** Free-text generation via active model; null if no model or generation failed. */
-export async function generateWithActiveEngine(prompt: string): Promise<string | null> {
+export async function generateWithActiveEngine(prompt: string, options?: GenerateOptions): Promise<string | null> {
     if (!activeEngine) return null;
     try {
-        return await activeEngine.generate(prompt);
+        return await activeEngine.generate(prompt, options);
     } catch (e) {
         console.warn("[local-ai] model generate failed", e);
         return null;

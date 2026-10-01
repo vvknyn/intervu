@@ -83,6 +83,9 @@ export interface DescBlock {
    *  distinct from a `heading` block: the label stays INLINE with the
    *  paragraph it introduces rather than being promoted to its own line. */
   lead?: string;
+  /** Equal-opportunity / privacy / agency boilerplate: rendered smaller and
+   *  muted, never dropped (see markFinePrint). */
+  fine?: boolean;
 }
 
 const PARA_SOFT_MAX = 360; // Above this, sentence-group long paragraphs.
@@ -303,10 +306,13 @@ export function extractBoldLead(text: string): { lead: string; rest: string } | 
   return { lead: `${phrase}.`, rest };
 }
 
-export function formatDescription(raw: string | null | undefined): DescBlock[] {
-  if (!raw) return [];
+/**
+ * Every repair above, in order: the text a description's segments are cut
+ * from. Nothing after this point changes a word — segmenting, labelling and
+ * block-building only decide where the breaks go and what kind each piece is.
+ */
+function prepareDescriptionText(raw: string): string {
   let text = raw.replace(/\r\n?/g, "\n");
-
   text = stripResidualHtml(text);
   // Greenhouse/Workday HTML→text often leaves whitespace-only "blank" lines
   // (`\n \n`). Those are NOT `\n\n`, so later paragraph splits glue a
@@ -316,87 +322,298 @@ export function formatDescription(raw: string | null | undefined): DescBlock[] {
   text = normalizeMarkdown(text);
   text = repairRunTogethers(text);
   text = promoteHeadings(text);
-  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.replace(/\n{3,}/g, "\n\n");
+}
 
-  const paragraphs = text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+/**
+ * One line of a prepared description: the unit the rules below and the
+ * on-device model (lib/local-ai/label-description.ts) both label. `text` is
+ * the source line with only its bullet marker removed.
+ */
+export interface DescSegment {
+  text: string;
+  /** The source line carried an explicit bullet marker (•, -, *, ·, "1."). */
+  marker: boolean;
+  /** First line of its block: the start, or a blank line, precedes it. */
+  breakBefore: boolean;
+}
 
-  const blocks: DescBlock[] = [];
-  let listBuffer: string[] = [];
-  const flushList = () => {
-    if (listBuffer.length) {
-      blocks.push({ type: "list", items: listBuffer.slice() });
-      listBuffer = [];
+/**
+ * H heading · B bullet item · P starts a paragraph · C continues the block
+ * the line before it opened (a wrapped line of the same paragraph, heading
+ * or item).
+ */
+export type SegmentLabel = "H" | "B" | "P" | "C";
+
+export interface SegmentLabelling {
+  labels: SegmentLabel[];
+  /** False where the label is a guess the model may overrule: a standalone
+   *  one-line block whose kind the source's markup no longer says. */
+  sure: boolean[];
+}
+
+const BULLET_RE = /^([•\-*·]|\d+[.)])\s+/;
+
+export function segmentDescription(raw: string | null | undefined): DescSegment[] {
+  if (!raw) return [];
+  const segments: DescSegment[] = [];
+  for (const para of prepareDescriptionText(raw).split(/\n{2,}/)) {
+    const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
+    lines.forEach((line, i) => {
+      const marker = BULLET_RE.test(line);
+      segments.push({ text: marker ? line.replace(BULLET_RE, "") : line, marker, breakBefore: i === 0 });
+    });
+  }
+  return segments;
+}
+
+function considerHeading(line: string): string | null {
+  if (line.length > 90) return null;
+  const lower = line.toLowerCase().replace(/[:.!?]+$/, "").trim();
+  if (line.endsWith(":")) return line.replace(/:$/, "");
+  if (HEADING_KEYWORDS.has(lower)) return line.replace(/:$/, "");
+  // "ALL-CAPS SECTION" pattern.
+  if (/^[A-Z][A-Z\s&/-]{3,89}$/.test(line)) return line;
+  return null;
+}
+
+/** A short title-shaped line with no sentence punctuation: "What you should
+ *  bring with you", "Who are you?". Only ever asked of a standalone line. */
+function headingLike(text: string): boolean {
+  const words = text.split(/\s+/).length;
+  // One bare word ("Remote", "Full-time") is metadata; one-word section
+  // titles are already in HEADING_KEYWORDS.
+  if (text.length > 70 || words < 2 || words > 10) return false;
+  if (!/^[A-Z]/.test(text)) return false;
+  if (/[.,;:!]$/.test(text) || /[,;]/.test(text)) return false;
+  // "Location: Remote", "Salary: $90k" are label + value facts, not titles.
+  if (/:\s*\S/.test(text)) return false;
+  return /[a-z]/i.test(text);
+}
+
+function sentenceCount(text: string): number {
+  return (text.match(/[.!?](?=\s|$)/g) ?? []).length;
+}
+
+/** Short enough to be one item of a list whose markers ingest dropped. */
+function itemSized(text: string): boolean {
+  return text.length <= 260 && sentenceCount(text) <= 2;
+}
+
+const bare = (text: string) => !/[.!?]$/.test(text);
+
+// A sentence with its own subject ("We are…", "Our engineers…", "Expel is…")
+// reads as prose; list items open on a verb or noun phrase.
+const PROSE_START_RE =
+  /^((We|We're|We’re|We've|We’ve|Our|You|You're|You’re|You'll|You’ll|Your|The|This|These|Those|That|It|It's|It’s|Its|They|Their|If|When|While|At|In|As|Here|There|For)(?=\s)|[A-Z][\w&'’.-]*( [A-Z][\w&'’.-]*)? (is|are|was|has|have|offers|provides|builds|helps)\s)/;
+
+function proseLike(text: string): boolean {
+  return !bare(text) && PROSE_START_RE.test(text);
+}
+
+/**
+ * The rules' labels. Pass one keeps everything the source's own markup still
+ * says (explicit bullets, "Heading:" lines, lines of one block). Pass two
+ * reads runs of standalone one-line blocks — what an ATS page's `<li>` and
+ * `<p><strong>` become once ingest turns every block tag into a blank line
+ * (subspace job-enricher stripHtml) — as headings and lists.
+ */
+export function labelSegments(segments: DescSegment[]): SegmentLabelling {
+  const n = segments.length;
+  const labels: SegmentLabel[] = new Array(n).fill("P");
+  const sure: boolean[] = new Array(n).fill(true);
+  const singleLine = (i: number) => segments[i]!.breakBefore && (i + 1 === n || segments[i + 1]!.breakBefore);
+
+  for (let i = 0; i < n; i++) {
+    const seg = segments[i]!;
+    if (seg.marker) labels[i] = "B";
+    else if (seg.breakBefore && singleLine(i) && considerHeading(seg.text)) labels[i] = "H";
+    // "Responsibilities:" on the first line of a block (promoteHeadings and
+    // `<p><b>Label:</b><br>…` both leave one) titles the lines under it.
+    else if (seg.breakBefore && seg.text.endsWith(":") && considerHeading(seg.text)) labels[i] = "H";
+    else if (!seg.breakBefore && i > 0 && !segments[i - 1]!.marker && labels[i - 1] !== "H") labels[i] = "C";
+  }
+
+  // `<br>`-separated lines inside one block: when every line opens a new
+  // capitalised phrase and most carry no full stop, they are items, not a
+  // hard-wrapped paragraph (whose next line starts lower-case).
+  for (let i = 0; i < n; i++) {
+    if (labels[i] !== "P" || i + 1 >= n || labels[i + 1] !== "C") continue;
+    let end = i + 1;
+    while (end < n && labels[end] === "C") end++;
+    const lines = segments.slice(i, end).map((s) => s.text);
+    const items =
+      lines.every(itemSized) &&
+      lines.slice(1).every((l) => /^[A-Z0-9(“"$]/.test(l)) &&
+      lines.filter(bare).length / lines.length >= 0.5;
+    if (items) {
+      for (let j = i; j < end; j++) {
+        labels[j] = "B";
+        sure[j] = false;
+      }
     }
+    i = end - 1;
+  }
+
+  // A multi-line prose run that is short and punctuation-free reads as one
+  // heading ("What Your Impact Will Be:" above collapsed bullets).
+  for (let i = 0; i < n; i++) {
+    if (labels[i] !== "P") continue;
+    let end = i + 1;
+    while (end < n && labels[end] === "C") end++;
+    const joined = segments.slice(i, end).map((s) => s.text).join(" ").replace(/\s+/g, " ").trim();
+    if (considerHeading(joined) && !/[.!?]\s/.test(joined)) labels[i] = "H";
+  }
+
+  const standalone = (i: number) => labels[i] === "P" && singleLine(i) && !segments[i]!.marker;
+  for (let i = 0; i < n; ) {
+    if (!standalone(i)) {
+      i++;
+      continue;
+    }
+    let end = i;
+    while (end < n && standalone(end)) end++;
+    for (let j = i; j < end; j++) sure[j] = false;
+    labelStandaloneRun(segments, labels, i, end);
+    i = end;
+  }
+  return { labels, sure };
+}
+
+function labelStandaloneRun(segments: DescSegment[], labels: SegmentLabel[], start: number, end: number): void {
+  const hl = segments.slice(start, end).map((s) => headingLike(s.text));
+  // A lone title-shaped line with something after it is a heading; two or
+  // more in a row are short items ("Python", "SQL", "AWS").
+  for (let j = start; j < end; j++) {
+    const k = j - start;
+    if (!hl[k]) continue;
+    const alone = !(hl[k - 1] ?? false) && !(hl[k + 1] ?? false);
+    if (alone && j + 1 < segments.length) labels[j] = "H";
+  }
+  // Boilerplate and "#LI-Remote" tags never join a list; they split the run.
+  const breaker = (j: number) => labels[j] === "H" || isBoilerplate(segments[j]!.text);
+  for (let j = start; j < end; ) {
+    if (breaker(j)) {
+      j++;
+      continue;
+    }
+    let stop = j;
+    while (stop < end && !breaker(stop)) stop++;
+    const items = segments.slice(j, stop).map((s) => s.text);
+    if (itemRun(items, j > 0 && labels[j - 1] === "H")) {
+      // A closing "We hire across Canada." under a bare skills list stays prose.
+      let first = j;
+      let last = stop - 1;
+      while (first < last && proseLike(segments[first]!.text)) first++;
+      while (last > first && proseLike(segments[last]!.text)) last--;
+      for (let m = first; m <= last; m++) labels[m] = "B";
+    }
+    j = stop;
+  }
+}
+
+function isBoilerplate(text: string): boolean {
+  return HASHTAGS_RE.test(text) || (LEGAL_PARA_RE.test(text) && !MONEY_RE.test(text));
+}
+
+function itemRun(items: string[], afterHeading: boolean): boolean {
+  if (!items.every(itemSized)) return false;
+  const bareShare = items.filter(bare).length / items.length;
+  if (bareShare >= 0.5) return items.length >= (afterHeading ? 2 : 3);
+  // Punctuated all the way through: a list only when the lines don't read
+  // as prose with their own subjects, so "About us" paragraphs stay prose.
+  if (items.filter(proseLike).length / items.length >= 0.5) return false;
+  const avg = items.reduce((sum, t) => sum + t.length, 0) / items.length;
+  return items.length >= 3 && avg <= (afterHeading ? 160 : 100);
+}
+
+const LEGAL_HEADING_RE = /equal (employment )?opportunit|\beeo\b|accommodation|privacy|disclaimer|e-verify|legal notice|notice to (applicants|candidates|recruiters|agencies)|recruitment (fraud|scam)|commitment to (diversity|equal|inclusion)/i;
+const LEGAL_PARA_RE = /\b(equal (employment )?opportunity|without regard to|regardless of (race|age|gender|sex)|protected (veteran|characteristic|class|status)|reasonable accommodations?|e-verify|affirmative action|fair chance|arrest (and|or) conviction|unsolicited (resumes|résumés|candidates)|recruitment agenc|privacy (notice|policy))/i;
+const HASHTAGS_RE = /^(#[\w-]+[\s,]*)+$/;
+/** Pay and money are facts people decide on: never shown as fine print. */
+const MONEY_RE = /[$€£¥₹]\s?\d|\d\s?(USD|CAD|EUR|GBP|k\b)|\b(salary|base pay|pay range|compensation|hourly|per hour|OTE|bonus|equity|stock)\b/i;
+
+function blockText(block: DescBlock): string {
+  return block.type === "list" ? (block.items ?? []).join(" ") : `${block.lead ?? ""} ${block.text ?? ""}`;
+}
+
+/** Equal-opportunity, privacy and agency boilerplate, and trailing "#LI-…"
+ *  tags, read as fine print: same words, less weight. */
+function markFinePrint(blocks: DescBlock[]): DescBlock[] {
+  let legal = false;
+  for (const block of blocks) {
+    if (block.type === "heading") {
+      legal = LEGAL_HEADING_RE.test(block.text ?? "");
+      if (legal) block.fine = true;
+      continue;
+    }
+    const text = blockText(block);
+    if (MONEY_RE.test(text)) continue;
+    if (legal || HASHTAGS_RE.test(text.trim()) || (block.type === "para" && LEGAL_PARA_RE.test(text))) block.fine = true;
+  }
+  return blocks;
+}
+
+/**
+ * "Location: Toronto (Hybrid)", "Schedule: Monday to Friday" — a short
+ * label + value line keeps its words and gets its label in bold, the same
+ * `lead` a "Your role." opener gets.
+ */
+export function extractColonLead(text: string): { lead: string; rest: string } | null {
+  const m = text.match(/^([A-Z][^:.!?\n]{1,32}):\s+(\S.*)$/);
+  if (!m || m[1]!.split(/\s+/).length > 4) return null;
+  return { lead: `${m[1]}:`, rest: m[2]! };
+}
+
+export function buildDescriptionBlocks(segments: DescSegment[], labels: SegmentLabel[]): DescBlock[] {
+  const blocks: DescBlock[] = [];
+  let list: string[] = [];
+  let open: { kind: "heading" | "para"; parts: string[] } | null = null;
+
+  const flushList = () => {
+    if (list.length) blocks.push({ type: "list", items: list });
+    list = [];
   };
-
-  const considerHeading = (line: string): string | null => {
-    if (line.length > 90) return null;
-    const lower = line.toLowerCase().replace(/[:.!?]+$/, "").trim();
-    if (line.endsWith(":")) return line.replace(/:$/, "");
-    if (HEADING_KEYWORDS.has(lower)) return line.replace(/:$/, "");
-    // "ALL-CAPS SECTION" pattern.
-    if (/^[A-Z][A-Z\s&/-]{3,89}$/.test(line)) return line;
-    return null;
-  };
-
-  const isBullet = (l: string) => /^([•\-*·]|\d+[.)])\s+/.test(l);
-  const stripBullet = (l: string) => l.replace(/^([•\-*·]|\d+[.)])\s+/, "");
-
-  let proseBuf: string[] = [];
-  const flushProse = () => {
-    if (!proseBuf.length) return;
-    const joined = proseBuf.join(" ").replace(/\s+/g, " ").trim();
-    proseBuf = [];
+  const flushOpen = () => {
+    if (!open) return;
+    const joined = open.parts.join(" ").replace(/\s+/g, " ").trim();
+    const kind = open.kind;
+    open = null;
     if (!joined) return;
-    // A short, punctuation-free prose run may itself be a heading.
-    const head = considerHeading(joined);
-    if (head && !/[.!?]\s/.test(joined)) {
-      blocks.push({ type: "heading", text: head });
+    if (kind === "heading") {
+      blocks.push({ type: "heading", text: joined.replace(/:$/, "") });
       return;
     }
     sentenceGroup(joined).forEach((chunk, i) => {
       // Only the FIRST chunk of a paragraph can carry its original lead —
       // later chunks are sentence-grouped continuations of the same
       // paragraph, not new paragraph openings.
-      const split = i === 0 ? extractBoldLead(chunk) : null;
-      if (split) {
-        blocks.push({ type: "para", text: split.rest, lead: split.lead });
-      } else {
-        blocks.push({ type: "para", text: chunk });
-      }
+      const split = i === 0 ? (extractBoldLead(chunk) ?? extractColonLead(chunk)) : null;
+      blocks.push(split ? { type: "para", text: split.rest, lead: split.lead } : { type: "para", text: chunk });
     });
   };
 
-  for (const para of paragraphs) {
-    const lines = para.split("\n").map((l) => l.trim()).filter(Boolean);
-
-    // Single-line non-bullet block — may be a heading.
-    if (lines.length === 1 && !isBullet(lines[0]!)) {
-      const head = considerHeading(lines[0]!);
-      if (head) {
-        flushProse();
-        flushList();
-        blocks.push({ type: "heading", text: head });
-        continue;
-      }
+  segments.forEach((seg, i) => {
+    const label = labels[i] ?? "P";
+    if (label === "C" && open) {
+      open.parts.push(seg.text);
+    } else if (label === "C" && list.length) {
+      list[list.length - 1] = `${list[list.length - 1]} ${seg.text}`;
+    } else if (label === "B") {
+      flushOpen();
+      list.push(seg.text);
+    } else {
+      flushOpen();
+      flushList();
+      open = { kind: label === "H" ? "heading" : "para", parts: [seg.text] };
     }
-
-    // Walk the paragraph line-by-line so a MIXED block — an intro/heading
-    // line followed by collapsed bullets ("What Your Impact Will Be:\n-
-    // Lead\n- Coordinate", common once Markdown is normalized) — splits
-    // into prose + a real <ul>.
-    for (const l of lines) {
-      if (isBullet(l)) {
-        flushProse();
-        listBuffer.push(stripBullet(l));
-      } else {
-        flushList();
-        proseBuf.push(l);
-      }
-    }
-    flushProse();
-  }
-  flushProse();
+  });
+  flushOpen();
   flushList();
-  return blocks;
+  return markFinePrint(blocks);
+}
+
+export function formatDescription(raw: string | null | undefined): DescBlock[] {
+  const segments = segmentDescription(raw);
+  return buildDescriptionBlocks(segments, labelSegments(segments).labels);
 }

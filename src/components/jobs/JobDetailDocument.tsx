@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { fetchRelatedJobs, JobDescription, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
+import { FormattedJobDescription } from "@/components/jobs/JobDescription";
+import { fetchRelatedJobs, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
@@ -535,7 +536,7 @@ export function JobDetailDocument({
             <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
                 <div className="max-w-[640px]">
-                    <JobDescription blocks={blocks} headingLevel={3} />
+                    <FormattedJobDescription description={job.description} headingLevel={3} />
                 </div>
             ) : (
                 <p className="max-w-[640px] text-base leading-normal text-foreground">
