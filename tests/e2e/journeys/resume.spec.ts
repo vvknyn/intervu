@@ -1,4 +1,6 @@
 import type { Page } from "@playwright/test";
+import { extractText } from "unpdf";
+import { WRAPPED_RESUME, buildWrappedResumePdf } from "../../fixtures/wrapped-resume-pdf";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LEGACY_DOC_MESSAGE } from "../../../src/lib/resume/extract-file-text";
 import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/jobs/resume-privacy-copy";
@@ -114,6 +116,22 @@ test("An old Word .doc file is refused with how to fix it, not a failed read", {
   await expect(dialog.getByText(LEGACY_DOC_MESSAGE)).toBeVisible();
 });
 
+test("A PDF résumé whose lines wrap imports with its summary as one paragraph and its skills whole", { tag: ["@J-RESUME-36"] }, async ({ page }) => {
+  await page.goto("/resume");
+  await page.getByTestId("resume-signed-out-upload").click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[type="file"]').setInputFiles({ name: "jordan-lee.pdf", mimeType: "application/pdf", buffer: Buffer.from(buildWrappedResumePdf()) });
+  await dialog.getByTestId("resume-import-skip-download").click();
+  await dialog.getByTestId("resume-import-parse-primary").click();
+
+  // The review step's fields, found by what they hold.
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeVisible({ timeout: 30_000 });
+  const values = await dialog.locator("input, textarea").evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
+  expect(values, "the summary is the whole paragraph, with no break at each printed line").toContain(WRAPPED_RESUME.summary);
+  expect(values.join("\n")).toContain("Large-Scale Data Pipelines");
+  expect(values.join("\n")).toContain("Event Sourcing (CQRS, Outbox, Sagas)");
+});
+
 test.describe("signed in (dev-server only)", () => {
   test.beforeEach(({ baseURL }) => {
     test.skip(!isLocal(baseURL), "signed-in /resume needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
@@ -130,6 +148,17 @@ test.describe("signed in (dev-server only)", () => {
     await expect(page.getByText("Senior Software Engineer", { exact: true }).first()).toBeVisible();
     // An uncategorized skills list prints plainly, never as ": Go, …".
     await expect(page.getByText("Go, TypeScript, PostgreSQL", { exact: true })).toBeVisible();
+  });
+
+  test("A PDF résumé stored one printed line per line previews its summary as one paragraph", { tag: ["@J-RESUME-35"] }, async ({ page }) => {
+    // What the old extraction stored for a wrapped PDF: a line per printed line.
+    const { text: pages } = await extractText(new Uint8Array(buildWrappedResumePdf()));
+    await signIn(page, { unauthorized: { data: { source: "resume_text", resume_text: pages.join("\n\n"), updatedAt: "2026-09-20T00:00:00.000Z" } } });
+    await page.goto("/resume");
+
+    await expect(page.getByText(WRAPPED_RESUME.summary, { exact: true })).toBeVisible();
+    await expect(page.getByText(/Large-Scale Data Pipelines/).first()).toBeVisible();
+    await expect(page.getByText(/Event Sourcing \(CQRS, Outbox, Sagas\)/).first()).toBeVisible();
   });
 
   test("Back from the editor with unsaved edits asks first; Keep editing stays, Leave closes", { tag: ["@J-RESUME-33"] }, async ({ page }) => {

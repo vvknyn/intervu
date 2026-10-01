@@ -11,7 +11,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52/61, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -123,10 +123,15 @@ test("returning visitor's search session throws no uncaught page errors", { tag:
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-/** Fabricated candidate (no real person) whose résumé location is `location`. */
-const guestWithResume = (page: Page, location: string) =>
+/**
+ * Fabricated candidate (no real person) whose résumé location is `location`. Seeded on every
+ * page load, or with `once` only on the first, so a journey can remove it and reload.
+ */
+const guestWithResume = (page: Page, location: string, { sourceLabel = "e2e-journey-synthetic", once = false } = {}) =>
   page.addInitScript(
-    ([enabledKey, resumeKey, location]) => {
+    ([enabledKey, resumeKey, location, sourceLabel, once]) => {
+      if (once && sessionStorage.getItem("e2e-guest-resume-seeded")) return;
+      sessionStorage.setItem("e2e-guest-resume-seeded", "1");
       const resume = {
         profile: { name: "Sam Rivera", profession: "Software Engineer", yearsOfExperience: 4, location, email: "sam.rivera.dev@example.com", phone: "555-010-1234", linkedin: "", website: "" },
         experience: [{ id: "exp1", company: "Nimbus Data", role: "Software Engineer", dates: "2021 - Present", description: "Built backend services in TypeScript and Node." }],
@@ -135,9 +140,9 @@ const guestWithResume = (page: Page, location: string) =>
         generatedSummary: "Software engineer with four years of experience building backend systems in TypeScript.",
       };
       localStorage.setItem(enabledKey, "1");
-      localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+      localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel }));
     },
-    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location],
+    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, location, sourceLabel, once] as const,
   );
 
 /** Fabricated nurse (no real person), for the health packs. */
@@ -384,6 +389,13 @@ test("with a résumé, the packs home opens on Today: the day's numbers and new 
   const today = page.getByTestId("today-home");
   await expect(today).toBeVisible({ timeout: 30_000 });
   await expect(today.getByTestId("today-last-here")).toHaveText(/^Last here \w+/);
+  // Results are ranked in this browser; the welcome panel used to say so, and now the header does.
+  await expect(today.getByTestId("today-private-matching")).toHaveText("Private matching active on this device");
+  // ...and which résumé they are ranked against (the seed has no file name), with Replace and, for a guest, Remove.
+  const inUse = today.getByTestId("today-resume-in-use");
+  await expect(inUse).toContainText("Ranked against your résumé");
+  await expect(inUse.getByTestId("today-replace-resume")).toBeVisible();
+  await expect(inUse.getByTestId("today-remove-resume")).toBeVisible();
   // Above the tiles; the old welcome panel is one "Your packs" line that keeps Browse all matches.
   const tile = page.getByTestId("hub-pack-card-all");
   await expect(tile).toBeVisible({ timeout: 30_000 });
@@ -502,6 +514,10 @@ test("the packs are one row of chips, and a chip says how many roles its pack ga
   const memoryKey = "velai.hub.tileCounts.v1";
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), memoryKey), { timeout: 90_000 }).not.toBeNull();
   await expect(page.locator('[data-testid^="hub-pack-delta-"]')).toHaveCount(0);
+  // A count is exact or at least 10+: never "0+" or "1+", which read as tiny exact numbers.
+  for (const count of await page.locator('[data-testid^="hub-pack-count-"]').allTextContents()) {
+    expect(count.trim()).not.toMatch(/^\d\+$/);
+  }
 
   // Make the last visit two days ago, with 3 fewer roles in each pack it counted exactly.
   const gained = await page.evaluate((key) => {
@@ -520,6 +536,37 @@ test("the packs are one row of chips, and a chip says how many roles its pack ga
     await expect(page.getByTestId(`hub-pack-card-${id}`)).toHaveAttribute("aria-label", /more since your last visit$/);
   }
   expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a guest's packs home names the résumé it ranks against, and Remove forgets it for good", { tag: ["@J-JOBS-61"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // The upload's file name, as the importer stores it. Seeded once, so the reload below finds what Remove left.
+  await guestWithResume(page, "Toronto, Ontario, Canada", { sourceLabel: "Sam_Rivera_Resume_V4.pdf", once: true });
+  await page.goto("/jobs?view=for-you");
+
+  const inUse = page.getByTestId("today-resume-in-use");
+  await expect(inUse).toBeVisible({ timeout: 30_000 });
+  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume_V4.pdf");
+
+  // Remove asks once; "Keep it" changes nothing.
+  await inUse.getByTestId("today-remove-resume").click();
+  await inUse.getByTestId("today-remove-resume-no").click();
+  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume_V4.pdf");
+
+  await inUse.getByTestId("today-remove-resume").click();
+  await inUse.getByTestId("today-remove-resume-yes").click();
+  await expect(page.getByTestId("today-home")).toHaveCount(0);
+  await expect(page.getByTestId("hub-pack-chips")).toHaveCount(0);
+  await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("search");
+  expect(await page.evaluate((key) => localStorage.getItem(key), LOCAL_AI_RESUME_KEY)).toBeNull();
+
+  // A reload doesn't bring it back: nothing is ranked against a résumé.
+  await page.goto("/jobs");
+  await expect(page.locator(SEARCH_INPUT).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("today-home")).toHaveCount(0);
+  await expect(page.getByTestId("resume-as-of")).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 test("a nurse's packs hub shows health tiles, never the tech ones, and each tile it shows opens on its own roles", { tag: ["@J-JOBS-48"] }, async ({ page, diagnostics }) => {
@@ -696,22 +743,28 @@ test("on a small phone an opened pack fits its card, actions and Next between th
     return box ? box.y + box.height : Infinity;
   };
   // The page settles the stack into view on open: the card's actions clear the tab bar and Next stays under the top bar.
-  // Again after going back to the packs and opening another one (its roles arrive in two batches).
-  for (const round of ["first open", "second open"]) {
-    if (round === "second open") {
+  // Again after going back to the packs and opening another one (its roles arrive in two batches), and again
+  // on reopening that pack: its roles are on screen at once, and the page kept the hub's scroll down at its
+  // chips, clamped past the stack, until the fit learned to scroll back up.
+  let other = "";
+  for (const round of ["first open", "second open", "same pack again"]) {
+    if (round !== "first open") {
       await page.getByTestId("for-you-next").click();
       await page.getByTestId("jobs-back-to-packs").click();
-      // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
-      const shown = await settledHubTiles(page);
-      const other = shown.find((id) => id !== "all");
-      expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
-      await openHubTile(page, other!);
+      if (round === "second open") {
+        // Whichever other pack the hub shows for this résumé (tiles with under 3 roles or nearly all of them are hidden).
+        const shown = await settledHubTiles(page);
+        other = shown.find((id) => id !== "all") ?? "";
+        expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
+      }
+      await openHubTile(page, other);
       await expect(front).toHaveCount(1, { timeout: 60_000 });
     }
-    await expect.poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()), { timeout: 10_000, message: round }).toBe(true);
+    const nextTop = async () => (await page.getByTestId("for-you-next").boundingBox())?.y ?? -1;
+    await expect
+      .poll(async () => (await bottom("for-you-skip")) <= (await tabbarTop()) && (await nextTop()) >= 48, { timeout: 10_000, message: round })
+      .toBe(true);
     expect(await bottom("for-you-download-apply"), round).toBeLessThanOrEqual(await tabbarTop());
-    const next = (await page.getByTestId("for-you-next").boundingBox())!;
-    expect(next.y, round).toBeGreaterThanOrEqual(48);
   }
   expect(diagnostics.serverErrors).toEqual([]);
 });
@@ -831,5 +884,59 @@ test("no job card or job page location label repeats an adjacent token", { tag: 
   await expect(locations.first()).toBeVisible();
   const detailLabels = await locations.allTextContents();
   expect(detailLabels.filter(repeatedToken), "job page location labels with a repeated token").toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("an opened pack's controls share one row under the top bar, and its role card starts right under them and fills the screen", { tag: ["@J-JOBS-80"] }, async ({ page, diagnostics }, testInfo) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const header = page.getByTestId("for-you-pack-header");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  // The page settles the stack into view on open; measure once it has.
+  await page.waitForTimeout(1_500);
+
+  // One row: the way back, the pack's name, where you are in it, Edit filters and Previous/Next.
+  // They used to stack as three rows (Back to Job Packs, Replace résumé, Edit filters) above the controls.
+  await expect(header.getByRole("heading", { name: "All your matches" })).toBeVisible();
+  for (const id of ["jobs-back-to-packs", "for-you-deck-position", "pack-edit-filters", "for-you-previous", "for-you-next"]) {
+    await expect(header.getByTestId(id), id).toBeVisible();
+  }
+  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(1);
+  const head = (await header.boundingBox())!;
+  expect(head.height, "the controls fit one row").toBeLessThanOrEqual(56);
+  for (const id of ["jobs-back-to-packs", "pack-edit-filters", "for-you-next"]) {
+    const box = (await header.getByTestId(id).boundingBox())!;
+    const middle = box.y + box.height / 2;
+    expect(middle, `${id} sits in the row`).toBeGreaterThan(head.y);
+    expect(middle, `${id} sits in the row`).toBeLessThan(head.y + head.height);
+  }
+
+  // The card starts right under the row (or under a thin pack's broaden options) and runs to the
+  // bottom of the screen, above the tab bar on a phone.
+  const filters = page.getByTestId("for-you-pack-filters");
+  const above = (await filters.isVisible()) ? (await filters.boundingBox())! : head;
+  const card = (await front.boundingBox())!;
+  expect(card.y - (above.y + above.height), "card starts under the controls").toBeLessThanOrEqual(64);
+  const floor = testInfo.project.use.hasTouch
+    ? ((await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? page.viewportSize()!.height)
+    : page.viewportSize()!.height;
+  expect(card.y + card.height, "card ends on screen").toBeLessThanOrEqual(floor);
+  expect(floor - (card.y + card.height), "card fills the screen").toBeLessThanOrEqual(48);
+
+  // The row stays pinned under the top bar while the page scrolls.
+  await page.evaluate(() => window.scrollBy(0, 400));
+  await page.waitForTimeout(300);
+  for (const id of ["jobs-back-to-packs", "for-you-deck-position", "for-you-next"]) {
+    await expect(header.getByTestId(id), `${id} after scrolling`).toBeInViewport();
+  }
+
+  // The back arrow returns to the packs.
+  await header.getByTestId("jobs-back-to-packs").click();
+  await expect(page.getByTestId("hub-pack-chips")).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
