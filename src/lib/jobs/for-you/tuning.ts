@@ -7,12 +7,16 @@
  * this device and fade (half-life `HALF_LIFE_MS`), so an old preference stops
  * steering on its own, and "Reset" drops them all.
  *
- * A nudge remembers what the role was, not only its id: its title words (rank
- * words dropped, so "Senior TAM" and "TAM II" are one role), role families,
- * the skills it lists, company, level, work type and country. A role coming
- * up is nudged by how much it resembles each, the title counting most. Title
- * words are weighted by how rare they are in the deck, as a search engine
- * weighs terms: "manager" in 40 of 60 titles says little, "account" says more.
+ * A nudge remembers what the role was, not only its id: the words of its
+ * title (rank words dropped, so "Senior TAM" and "TAM II" are one role), its
+ * tags, the skills it lists, role family, company, level, work type and
+ * country. Each is weighed by how rare it is among the roles in the deck, as a
+ * search engine weighs terms, so what a role shares with the whole deck says
+ * nothing and what sets it apart says the most. For a Technical Account
+ * Manager whose deck is all TAM roles, "fewer like this" on "Technical Account
+ * Manager, Security" means fewer security roles, not fewer TAM roles (Vivek,
+ * 2026-09-30: "I dont want cyber sec jobs"). A role coming up is nudged by how
+ * much of that standout weight it carries.
  *
  * The deck moves a nudged role by its nudge times what is left to see
  * (`maxShift`): a close match from far down comes up next, a loose one edges
@@ -22,7 +26,7 @@
  * own fields, with no role list of its own. Pure, no I/O; the store is
  * tuning-store.ts.
  */
-import { familiesNamedBy, RANK_WORDS, type RoleFamilyId } from "@/lib/match/duty-signals";
+import { familiesNamedBy, RANK_WORDS } from "@/lib/match/duty-signals";
 import { decodeText, meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -49,16 +53,14 @@ export const MAX_NUDGES = 80;
 
 /** What a nudge remembers about the role it was given on. */
 export interface RoleFeatures {
-    /** The role as the summary names it: "Technical Account Manager". */
+    /** The role as its title names it: "Technical Account Manager". */
     role: string;
-    /** That role's title words, lowercased, rank words dropped. */
-    words: string[];
-    families: RoleFamilyId[];
-    skills: string[];
-    company: string | null;
-    level: string | null;
-    workType: string | null;
-    country: string | null;
+    /** What set it apart in the deck it was seen in, for the summary line: the role, a
+     *  word of its title ("Security"), its company or a skill. */
+    label: string;
+    /** Kind-prefixed terms: `w:` title word, `g:` tag, `s:` skill, `f:` role family,
+     *  `c:` company, `l:` level, `t:` work type, `k:` country. */
+    terms: string[];
 }
 
 export interface TuningNudge {
@@ -95,25 +97,97 @@ function lower(value: string | null | undefined): string | null {
     return trimmed ? trimmed : null;
 }
 
-function firstCountry(value: PublicJob["location_country"]): string | null {
-    return lower(Array.isArray(value) ? value[0] : value);
+function titleWords(title: string): string[] {
+    return meaningfulTitleTokens(title).filter((word) => !RANK_WORDS.has(word));
 }
 
-export function roleFeatures(job: PublicJob): RoleFeatures {
-    const role = roleName(job.title);
-    const skills = [...(job.must_have_skills ?? []), ...(job.tech_stack ?? [])]
-        .map((skill) => skill.trim().toLowerCase())
-        .filter(Boolean);
-    return {
-        role,
-        words: [...new Set(meaningfulTitleTokens(role).filter((word) => !RANK_WORDS.has(word)))],
-        families: familiesNamedBy([job.title ?? ""]),
-        skills: [...new Set(skills)].slice(0, 16),
-        company: lower(job.company),
-        level: lower(job.experience_level),
-        workType: lower(job.work_type),
-        country: firstCountry(job.location_country),
+/** A posting's terms, as `RoleFeatures.terms`. */
+export function roleTerms(job: PublicJob): string[] {
+    const country = Array.isArray(job.location_country) ? job.location_country[0] : job.location_country;
+    const terms = [
+        ...titleWords(decodeText(job.title)).map((word) => `w:${word}`),
+        ...(job.tags ?? []).map((tag) => lower(tag)).filter(Boolean).map((tag) => `g:${tag}`),
+        ...[...(job.must_have_skills ?? []), ...(job.tech_stack ?? [])]
+            .map((skill) => lower(skill))
+            .filter(Boolean)
+            .slice(0, 16)
+            .map((skill) => `s:${skill}`),
+        ...familiesNamedBy([job.title ?? ""]).map((family) => `f:${family}`),
+        ...[
+            ["c", job.company],
+            ["l", job.experience_level],
+            ["t", job.work_type],
+            ["k", country],
+        ]
+            .map(([kind, value]) => (lower(value) ? `${kind}:${lower(value)}` : null))
+            .filter(Boolean),
+    ] as string[];
+    return [...new Set(terms)];
+}
+
+/**
+ * How much each kind of term says about a role. The title is what a visitor
+ * reads and reacts to, so it says the most; the company less (a "fewer" on
+ * "Software Engineer, Backend" is about backend roles more than about that
+ * employer); level, work type and country least.
+ */
+const KIND_WEIGHT: Readonly<Record<string, number>> = { w: 1, g: 0.6, s: 0.5, c: 0.35, f: 0.3, l: 0.2, t: 0.2, k: 0.2 };
+
+/**
+ * Term weights for one deck: a kind's weight times how rare the term is among
+ * `deck` (log of deck size over the roles carrying it). A term every role has
+ * weighs nothing; one no role in the deck has weighs nothing either, since it
+ * can't steer this deck.
+ */
+export function deckTermWeights(deck: readonly (readonly string[])[]): (term: string) => number {
+    const counts = new Map<string, number>();
+    for (const terms of deck) for (const term of terms) counts.set(term, (counts.get(term) ?? 0) + 1);
+    const n = deck.length;
+    const weights = new Map<string, number>();
+    return (term) => {
+        let weight = weights.get(term);
+        if (weight === undefined) {
+            const count = counts.get(term) ?? 0;
+            weight = count === 0 ? 0 : (KIND_WEIGHT[term.slice(0, 1)] ?? 0.2) * Math.log((n + 1) / count);
+            weights.set(term, weight);
+        }
+        return weight;
     };
+}
+
+function titleCase(word: string, title: string): string {
+    const match = decodeText(title).match(new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i"));
+    return match ? match[0] : word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/**
+ * What a nudge remembers about `job`. Given the deck it was seen in, `label` is
+ * the term that most sets it apart from the other roles there (only terms some
+ * other role shares, since only those steer the deck): its role when that is a
+ * word of the role ("Product Manager" in a TAM's deck), else that word
+ * ("Security"), its company or a skill.
+ */
+export function roleFeatures(job: PublicJob, deck: readonly PublicJob[] = []): RoleFeatures {
+    const role = roleName(job.title);
+    const terms = roleTerms(job);
+    let label = role;
+    const others = deck.filter((other) => other.id !== job.id);
+    if (others.length > 0) {
+        const weight = deckTermWeights(others.map(roleTerms));
+        const roleWords = new Set(titleWords(role));
+        const best = terms
+            .filter((term) => /^[wcsg]:/.test(term) && weight(term) > 0)
+            .sort((a, b) => weight(b) - weight(a))[0];
+        if (best && !(best.startsWith("w:") && roleWords.has(best.slice(2)))) {
+            const value = best.slice(2);
+            label = best.startsWith("w:")
+                ? titleCase(value, job.title ?? "")
+                : best.startsWith("c:")
+                  ? (job.company ?? value).trim()
+                  : value;
+        }
+    }
+    return { role, label, terms };
 }
 
 /** How much a nudge given `ageMs` ago still counts. */
@@ -121,87 +195,41 @@ export function decay(ageMs: number): number {
     return Math.pow(0.5, Math.max(0, ageMs) / HALF_LIFE_MS);
 }
 
-/** "manager" is "managers"; a short word ("it", "ux") has to be itself. */
-function sameWord(a: string, b: string): boolean {
-    if (a === b) return true;
-    return Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a));
-}
-
-/** Title word weights for one deck: rarer words weigh more (inverse document frequency). */
-export function titleWordWeights(roles: readonly RoleFeatures[]): (word: string) => number {
-    const counts = new Map<string, number>();
-    for (const role of roles) for (const word of role.words) counts.set(word, (counts.get(word) ?? 0) + 1);
-    const n = Math.max(1, roles.length);
-    const weights = new Map<string, number>();
-    return (word) => {
-        let weight = weights.get(word);
-        if (weight === undefined) {
-            weight = Math.log(1 + n / (counts.get(word) ?? 1));
-            weights.set(word, weight);
-        }
-        return weight;
-    };
-}
-
-function titleSimilarity(a: string[], b: string[], weight: (word: string) => number): number {
-    if (a.length === 0 || b.length === 0) return 0;
-    const total = [...a, ...b].reduce((sum, word) => sum + weight(word), 0);
-    if (total <= 0) return 0;
-    const shared =
-        a.filter((word) => b.some((other) => sameWord(word, other))).reduce((sum, word) => sum + weight(word), 0) +
-        b.filter((word) => a.some((other) => sameWord(word, other))).reduce((sum, word) => sum + weight(word), 0);
-    return shared / total;
-}
-
-function overlap<T>(a: readonly T[], b: readonly T[]): number | null {
-    if (a.length === 0 || b.length === 0) return null;
-    const shared = a.filter((item) => b.includes(item)).length;
-    return (2 * shared) / (a.length + b.length);
-}
-
-function equal(a: string | null, b: string | null): number | null {
-    return a == null || b == null ? null : a === b ? 1 : 0;
-}
-
-/** Title first; the rest only adds when both roles state it. */
-const PARTS: readonly [number, (a: RoleFeatures, b: RoleFeatures) => number | null][] = [
-    [0.15, (a, b) => overlap(a.families, b.families)],
-    [0.15, (a, b) => overlap(a.skills, b.skills)],
-    [0.1, (a, b) => equal(a.company, b.company)],
-    [0.04, (a, b) => equal(a.level, b.level)],
-    [0.03, (a, b) => equal(a.workType, b.workType)],
-    [0.03, (a, b) => equal(a.country, b.country)],
-];
-const TITLE_PART = 0.5;
-
-/** 0 (nothing alike) to 1 (the same role at the same company). */
-export function similarity(a: RoleFeatures, b: RoleFeatures, weight: (word: string) => number): number {
-    let sum = TITLE_PART * titleSimilarity(a.words, b.words, weight);
-    let parts = TITLE_PART;
-    for (const [part, score] of PARTS) {
-        const value = score(a, b);
-        if (value == null) continue;
-        sum += part * value;
-        parts += part;
+/**
+ * How much of what sets `nudged` apart `candidate` also carries, 0 to 1: the
+ * squared weight of the terms they share over that of all the nudged role's
+ * terms. Squared so the term that most sets a role apart leads, and a handful
+ * of weak ones (a tag, a level, the company) can't outvote it: "fewer" on
+ * "Software Engineer, Backend" moves backend roles, not every role that shares
+ * its React tag.
+ */
+export function similarity(candidate: readonly string[], nudged: readonly string[], weight: (term: string) => number): number {
+    let total = 0;
+    let shared = 0;
+    const has = new Set(candidate);
+    for (const term of nudged) {
+        const w = weight(term) ** 2;
+        total += w;
+        if (has.has(term)) shared += w;
     }
-    return sum / parts;
+    return total > 0 ? shared / total : 0;
 }
 
-/** Below this two roles share too little (a level, a country) for a nudge to carry over. */
+/** Below this two roles share too little (a level, a work type) for a nudge to carry over. */
 const SIMILARITY_FLOOR = 0.25;
 
 /** The net nudge on one role, from -1 (fewer) to 1 (more). */
 export function roleNudge(
-    role: RoleFeatures,
+    terms: readonly string[],
     nudges: readonly TuningNudge[],
     nowMs: number,
-    weight: (word: string) => number,
+    weight: (term: string) => number,
 ): number {
     let total = 0;
     for (const nudge of nudges) {
         const strength = SIGNAL_WEIGHT[nudge.signal] * decay(nowMs - nudge.at);
         if (Math.abs(strength) < 0.01) continue;
-        const alike = similarity(role, nudge.features, weight);
+        const alike = similarity(terms, nudge.features.terms, weight);
         if (alike <= SIMILARITY_FLOOR) continue;
         total += strength * ((alike - SIMILARITY_FLOOR) / (1 - SIMILARITY_FLOOR));
     }
@@ -237,13 +265,16 @@ export function tuneDeck<T extends PublicJob>(
     const rest = jobs.filter((job) => !passed.has(job.id));
     if (nudges.length === 0) return head.length === 0 ? jobs : [...head, ...rest];
 
-    const features = rest.map(roleFeatures);
-    const weight = titleWordWeights([...features, ...nudges.map((nudge) => nudge.features)]);
+    const terms = rest.map(roleTerms);
+    // The deck's vocabulary leaves out the nudged roles themselves: a term only
+    // they carry steers nothing, so it must not water down the terms that do.
+    const nudged = new Set(nudges.map((nudge) => nudge.jobId));
+    const weight = deckTermWeights(terms.filter((_, index) => !nudged.has(rest[index].id)));
     const shift = maxShift(rest.length);
     const keyed = rest.map((job, index) => ({
         job,
         index,
-        key: index - shift * roleNudge(features[index], nudges, nowMs, weight),
+        key: index - shift * roleNudge(terms[index], nudges, nowMs, weight),
     }));
     keyed.sort((a, b) => a.key - b.key || a.index - b.index);
     const tuned = keyed.map((entry) => entry.job);
@@ -270,7 +301,7 @@ export function removeNudge(list: readonly TuningNudge[], jobId: string): Tuning
     return list.filter((item) => item.jobId !== jobId);
 }
 
-/** A role named in the summary once its nudges add up to this, either way. */
+/** A label named in the summary once its nudges add up to this, either way. */
 const SUMMARY_MIN = 0.75;
 
 export interface TuningSummary {
@@ -278,11 +309,11 @@ export interface TuningSummary {
     away: string[];
 }
 
-/** The roles the deck leans toward and away from, strongest first, two of each at most. */
+/** What the deck leans toward and away from (each nudge's `label`), strongest first, two of each at most. */
 export function summarizeTuning(nudges: readonly TuningNudge[], nowMs: number): TuningSummary | null {
     const roles = new Map<string, { name: string; sum: number }>();
     for (const nudge of nudges) {
-        const name = nudge.features.role;
+        const name = nudge.features.label;
         const key = name.toLowerCase();
         if (!key) continue;
         const entry = roles.get(key) ?? { name, sum: 0 };

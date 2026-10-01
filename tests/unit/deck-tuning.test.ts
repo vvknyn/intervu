@@ -6,11 +6,12 @@ import {
     HALF_LIFE_MS,
     maxShift,
     reachedIds,
+    deckTermWeights,
     roleFeatures,
     roleName,
     roleNudge,
+    roleTerms,
     summarizeTuning,
-    titleWordWeights,
     tuneDeck,
     tuningLine,
     type TuningNudge,
@@ -35,8 +36,8 @@ function job(id: string, title: string, extra: Partial<PublicJob> = {}): PublicJ
     } as PublicJob;
 }
 
-function nudge(target: PublicJob, signal: TuningSignal, at = NOW): TuningNudge {
-    return { jobId: target.id, signal, at, features: roleFeatures(target) };
+function nudge(target: PublicJob, signal: TuningSignal, deck: PublicJob[] = [], at = NOW): TuningNudge {
+    return { jobId: target.id, signal, at, features: roleFeatures(target, deck) };
 }
 
 const ids = (jobs: PublicJob[]) => jobs.map((j) => j.id);
@@ -78,7 +79,7 @@ describe("tuneDeck", () => {
 
     it("more like this on a TAM role brings the next TAM roles forward, and hides nothing", () => {
         const deck = tamDeck();
-        const tuned = tuneDeck(deck, [nudge(deck[0], "more")], ["tam1"], NOW);
+        const tuned = tuneDeck(deck, [nudge(deck[0], "more", deck)], ["tam1"], NOW);
         assert.deepEqual(new Set(ids(tuned)), new Set(ids(deck)), "a nudge never removes a role");
         assert.equal(tuned[0].id, "tam1", "the role the visitor is on stays put");
         assert.equal(tuned[1].id, "tam2", "the closest TAM role, 8th before, comes up next");
@@ -87,33 +88,53 @@ describe("tuneDeck", () => {
 
     it("fewer like this on a PM role moves the PM roles down", () => {
         const deck = tamDeck();
-        const tuned = tuneDeck(deck, [nudge(deck[1], "fewer")], ["tam1"], NOW);
+        const tuned = tuneDeck(deck, [nudge(deck[1], "fewer", deck)], ["tam1"], NOW);
         const firstPm = ids(tuned).findIndex((id) => id.startsWith("pm"));
         const lastOther = Math.max(...["csm1", "tpm1", "tam2"].map((id) => ids(tuned).indexOf(id)));
         assert.ok(firstPm > lastOther, `PM roles after the rest: ${ids(tuned).join(", ")}`);
         assert.equal(tuned.length, deck.length);
     });
 
-    it("weighs rare title words over common ones: a TAM nudge barely moves PM roles", () => {
+    it("weighs what sets a role apart: a TAM nudge barely moves PM roles", () => {
         const deck = tamDeck();
-        const features = deck.map(roleFeatures);
-        const weight = titleWordWeights(features);
-        const more = [nudge(deck[0], "more")];
-        const pm = roleNudge(roleFeatures(deck[1]), more, NOW, weight);
-        const tam = roleNudge(roleFeatures(deck[8]), more, NOW, weight);
-        assert.ok(tam > 0.6, `TAM II nudged ${tam}`);
-        assert.ok(pm < 0.15, `PM nudged ${pm}`);
+        const weight = deckTermWeights(deck.slice(1).map(roleTerms));
+        const more = [nudge(deck[0], "more", deck)];
+        const pm = roleNudge(roleTerms(deck[1]), more, NOW, weight);
+        const tam = roleNudge(roleTerms(deck[8]), more, NOW, weight);
+        assert.ok(tam > 0.5, `TAM II nudged ${tam}`);
+        assert.equal(pm, 0, "a PM role shares only words every role here has");
+    });
+
+    it("fewer like this on a security TAM role, in a TAM's deck, means fewer security roles, not fewer TAM roles", () => {
+        const deck = [
+            job("t0", "Technical Account Manager"),
+            job("s1", "Technical Account Manager, Security"),
+            job("t1", "Senior Technical Account Manager"),
+            job("s2", "Security Technical Account Manager"),
+            job("t2", "Technical Account Manager II"),
+            job("t3", "Enterprise Technical Account Manager"),
+            job("s3", "Technical Account Manager - Cloud Security"),
+            job("t4", "Technical Account Manager, Strategic Accounts"),
+            job("t5", "Technical Account Manager"),
+        ];
+        const fewer = nudge(deck[1], "fewer", deck);
+        assert.equal(fewer.features.label, "Security");
+        const rest = deck.filter((j) => j.id !== "s1");
+        const tuned = tuneDeck(rest, [fewer], ["t0"], NOW);
+        assert.deepEqual(ids(tuned).slice(0, 6), ["t0", "t1", "t2", "t3", "t4", "t5"], "the TAM roles keep their order");
+        assert.deepEqual(ids(tuned).slice(6).sort(), ["s2", "s3"], "the security roles wait at the end, still there");
+        assert.deepEqual(summarizeTuning([fewer], NOW), { toward: [], away: ["Security"] });
     });
 
     it("never moves the roles already reached", () => {
         const deck = tamDeck();
         const passed = ["tam1", "pm1", "pm2"];
-        const tuned = tuneDeck(deck, [nudge(deck[1], "fewer")], passed, NOW);
+        const tuned = tuneDeck(deck, [nudge(deck[1], "fewer", deck)], passed, NOW);
         assert.deepEqual(ids(tuned).slice(0, 3), passed);
     });
 
     it("moves a fully nudged role by at most what is left to see (at least 12 places)", () => {
-        const deck = Array.from({ length: 40 }, (_, i) => job(`r${i}`, `Data Analyst ${i}`));
+        const deck = Array.from({ length: 40 }, (_, i) => job(`r${i}`, "Data Analyst"));
         deck[39] = job("nurse", "Registered Nurse");
         const liked = [nudge(job("x", "Registered Nurse"), "more"), nudge(job("y", "Registered Nurse"), "more")];
         const tuned = tuneDeck(deck, liked, ["r0"], NOW);
@@ -122,16 +143,17 @@ describe("tuneDeck", () => {
         assert.equal(ids(tuned).indexOf("nurse"), 1, "from last to next");
     });
 
-    it("lets other roles through when the role told fewer fills the deck", () => {
+    it("in a deck of one role, fewer like this moves the roles that share what set it apart", () => {
         const deck = [
-            ...Array.from({ length: 18 }, (_, i) => job(`p${i}`, i % 2 ? "Physiotherapist" : "Senior Physiotherapist - Outpatient")),
+            ...Array.from({ length: 12 }, (_, i) =>
+                job(`p${i}`, i % 3 === 0 ? "Physiotherapist - Outpatient Orthopaedics" : "Physiotherapist"),
+            ),
             job("k1", "Kinesiologist"),
-            job("r1", "Rehabilitation Assistant"),
-            job("k2", "Athletic Therapist"),
         ];
-        const tuned = tuneDeck(deck.slice(1), [nudge(deck[0], "fewer")], ["p1"], NOW);
-        const next5 = ids(tuned).slice(1, 6);
-        assert.ok(next5.filter((id) => !id.startsWith("p")).length >= 2, `others in the next five: ${next5.join(", ")}`);
+        const fewer = nudge(deck[3], "fewer", deck);
+        const tuned = tuneDeck(deck.filter((j) => j.id !== "p3"), [fewer], ["p0"], NOW);
+        const outpatient = ids(tuned).filter((id) => ["p6", "p9"].includes(id));
+        assert.deepEqual(ids(tuned).slice(-2).sort(), outpatient.sort(), `outpatient roles last: ${ids(tuned).join(", ")}`);
         assert.equal(tuned.length, deck.length - 1, "nothing hidden");
     });
 
@@ -143,7 +165,7 @@ describe("tuneDeck", () => {
             job("a3", "Patient Care Aide"),
             job("n1", "Registered Nurse, ICU"),
         ];
-        const tunedNursing = tuneDeck(nursing, [nudge(nursing[0], "more")], ["n0"], NOW);
+        const tunedNursing = tuneDeck(nursing, [nudge(nursing[0], "more", nursing)], ["n0"], NOW);
         assert.deepEqual(ids(tunedNursing).slice(0, 2), ["n0", "n1"]);
 
         const teaching = [
@@ -153,7 +175,7 @@ describe("tuneDeck", () => {
             job("t2", "Occasional Teacher"),
             job("c1", "Curriculum Coordinator"),
         ];
-        const tunedTeaching = tuneDeck(teaching, [nudge(teaching[0], "fewer")], [], NOW);
+        const tunedTeaching = tuneDeck(teaching, [nudge(teaching[0], "fewer", teaching)], [], NOW);
         assert.deepEqual(ids(tunedTeaching).slice(0, 2), ["e1", "c1"]);
     });
 
@@ -162,11 +184,12 @@ describe("tuneDeck", () => {
             job("a", "Solutions Consultant", { must_have_skills: ["Salesforce", "SQL", "APIs"], company: "Northwind" }),
             job("b", "Implementation Specialist", { must_have_skills: ["Salesforce", "SQL"], company: "Northwind" }),
             job("c", "Office Manager"),
+            job("d", "Account Coordinator"),
         ];
-        const weight = titleWordWeights(deck.map(roleFeatures));
-        const liked = [nudge(deck[0], "more")];
-        assert.ok(roleNudge(roleFeatures(deck[1]), liked, NOW, weight) > 0, "shared skills and company");
-        assert.equal(roleNudge(roleFeatures(deck[2]), liked, NOW, weight), 0, "a shared country and level alone is not enough");
+        const weight = deckTermWeights(deck.slice(1).map(roleTerms));
+        const liked = [nudge(deck[0], "more", deck)];
+        assert.ok(roleNudge(roleTerms(deck[1]), liked, NOW, weight) > 0, "shared skills and company");
+        assert.equal(roleNudge(roleTerms(deck[2]), liked, NOW, weight), 0, "a shared country and level alone is not enough");
     });
 });
 
@@ -201,7 +224,7 @@ describe("addNudge", () => {
     });
 
     it("drops nudges too old to count", () => {
-        const old = nudge(job("old", "Data Analyst"), "more", NOW - 90 * DAY);
+        const old = nudge(job("old", "Data Analyst"), "more", [], NOW - 90 * DAY);
         const list = addNudge([old], nudge(tam, "more"), NOW);
         assert.deepEqual(list.map((n) => n.jobId), ["tam1"]);
     });
@@ -209,10 +232,13 @@ describe("addNudge", () => {
 
 describe("summarizeTuning", () => {
     it("names the role a tap leans toward, and the role skips lean away from", () => {
-        const pms = ["Senior Product Manager", "Product Manager II", "Staff Product Manager"].map((t, i) =>
-            job(`pm${i}`, t),
-        );
-        const nudges = [nudge(job("tam", "Sr. Technical Account Manager"), "more"), ...pms.map((p) => nudge(p, "skip"))];
+        const deck = [
+            job("tam", "Sr. Technical Account Manager"),
+            job("tam2", "Technical Account Manager"),
+            ...["Senior Product Manager", "Product Manager II", "Staff Product Manager", "Product Manager"].map((t, i) => job(`pm${i}`, t)),
+            job("csm", "Customer Success Manager"),
+        ];
+        const nudges = [nudge(deck[0], "more", deck), ...deck.slice(2, 5).map((p) => nudge(p, "skip", deck))];
         const summary = summarizeTuning(nudges, NOW);
         assert.deepEqual(summary, { toward: ["Technical Account Manager"], away: ["Product Manager"] });
         assert.equal(tuningLine(summary!), "Tuned toward Technical Account Manager, away from Product Manager.");

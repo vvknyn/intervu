@@ -97,7 +97,7 @@ export function useForYouDeck(packs: PublicJob[]) {
         (signal: "skip" | "fewer") => {
             if (!activeJob) return;
             const skippedId = activeJob.id;
-            const nextNudges = recordNudge(activeJob, signal);
+            const nextNudges = recordNudge(activeJob, signal, visiblePacks);
             const before = visiblePacks.slice(0, activeIndex).map((p) => p.id);
             const remaining = tuneDeck(
                 unskipped.filter((p) => p.id !== skippedId),
@@ -119,7 +119,7 @@ export function useForYouDeck(packs: PublicJob[]) {
         (signal: Exclude<TuningSignal, "skip" | "fewer">) => {
             if (!activeJob) return;
             setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
-            recordNudge(activeJob, signal);
+            recordNudge(activeJob, signal, visiblePacks);
         },
         [activeJob, activeIndex, visiblePacks, passedIds],
     );

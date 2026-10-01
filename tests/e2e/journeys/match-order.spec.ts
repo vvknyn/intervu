@@ -160,15 +160,16 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
 });
 
 /**
- * An opened pack for the same résumé: its own role first, then two customer success roles, the
- * senior one ranked ahead (its level fits nine years). Three roles, the most a guest's pack shows.
+ * An opened pack for the same résumé, as ranked: its own role, a customer success role (the same
+ * kind of work), then a Technical Support Manager (a title it can't tie to the résumé). Three
+ * roles, the most a guest's pack shows.
  */
 const PACK = [
   posting("22222222-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
   posting("22222222-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior"),
-  posting("22222222-0000-4000-8000-000000000003", "Customer Success Manager, Mid-Market", "Fernway", "unknown"),
+  posting("22222222-0000-4000-8000-000000000003", "Technical Support Manager", "Fernway", "senior"),
 ];
-const [TAM_ROLE, SENIOR_CSM, CSM] = PACK.map((p) => p.id);
+const [TAM_ROLE, CSM_ROLE, SUPPORT_ROLE] = PACK.map((p) => p.id);
 
 /** Open the packs hub's "all" pack. The hub paints before it hydrates, so tap until the pack opens. */
 async function openPack(page: Page) {
@@ -196,39 +197,42 @@ test("more or fewer like this on an open role reorders what comes next, hides no
   const tuned = page.getByTestId("deck-tuning");
 
   await expect(front).toHaveAttribute("data-job-id", TAM_ROLE, { timeout: 60_000 });
-  await expect(upcoming).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(position).toHaveText("Role 1 of 3");
   await expect(tuned).toHaveCount(0);
 
-  // More like this: the role stays open, nothing is hidden, and the deck says what it leans toward.
+  // More like this: the role stays open, nothing is hidden, the role most like it (the other
+  // "Technical ... Manager") comes up next, and the deck says what it leans toward.
   const more = front.getByTestId("role-more-like-this");
   await more.click();
   await expect(more).toHaveAttribute("aria-pressed", "true");
+  await expect(upcoming).toHaveAttribute("data-job-id", SUPPORT_ROLE);
   await expect(tuned).toContainText("Tuned toward Technical Account Manager.");
   await expect(position).toHaveText("Role 1 of 3");
 
   // Fewer like this: the open role goes, like Skip, and the deck leans away from it too.
   await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", CSM_ROLE);
   await front.getByTestId("role-fewer-like-this").click();
   await expect(position).toHaveText("Role 2 of 2");
-  await expect(front).toHaveAttribute("data-job-id", CSM);
+  await expect(front).toHaveAttribute("data-job-id", SUPPORT_ROLE);
   await expect(tuned).toContainText("Tuned toward Technical Account Manager, away from Customer Success Manager.");
 
-  // The nudges stay on this device: back on the pack, nothing is hidden, but the customer success
-  // role it was told "fewer" about now waits behind the other one.
+  // The nudges stay on this device: back on the pack, nothing is hidden, and the order still
+  // leans their way.
   await page.reload();
   await openPack(page);
   await expect(front).toHaveAttribute("data-job-id", TAM_ROLE, { timeout: 60_000 });
   await expect(position).toHaveText("Role 1 of 3");
   await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "true");
-  await expect(upcoming).toHaveAttribute("data-job-id", CSM);
+  await expect(upcoming).toHaveAttribute("data-job-id", SUPPORT_ROLE);
   await expect(tuned).toContainText("away from Customer Success Manager");
 
   // Reset drops every nudge: the ranked order comes back.
   await page.getByTestId("deck-tuning-reset").click();
   await expect(tuned).toHaveCount(0);
-  await expect(upcoming).toHaveAttribute("data-job-id", SENIOR_CSM);
+  await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "false");
   expect(diagnostics.pageErrors).toEqual([]);
 });

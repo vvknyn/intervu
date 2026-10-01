@@ -33,9 +33,9 @@ function isNudge(value: unknown): value is TuningNudge {
         typeof f === "object" &&
         f != null &&
         typeof f.role === "string" &&
-        Array.isArray(f.words) &&
-        Array.isArray(f.families) &&
-        Array.isArray(f.skills)
+        typeof f.label === "string" &&
+        Array.isArray(f.terms) &&
+        f.terms.every((term) => typeof term === "string")
     );
 }
 
@@ -79,10 +79,15 @@ function getServerNudges(): TuningNudge[] {
     return NO_NUDGES;
 }
 
-/** Record a signal on a role; returns the nudges as they now stand. */
-export function recordNudge(job: PublicJob, signal: TuningSignal, nowMs = Date.now()): TuningNudge[] {
+/** Record a signal on a role seen in `deck`; returns the nudges as they now stand. */
+export function recordNudge(
+    job: PublicJob,
+    signal: TuningSignal,
+    deck: readonly PublicJob[],
+    nowMs = Date.now(),
+): TuningNudge[] {
     const current = getNudgesSnapshot();
-    const next = addNudge(current, { jobId: job.id, signal, at: nowMs, features: roleFeatures(job) }, nowMs);
+    const next = addNudge(current, { jobId: job.id, signal, at: nowMs, features: roleFeatures(job, deck) }, nowMs);
     if (next.length === current.length && next.every((nudge, index) => nudge === current[index])) return current;
     return commit(next);
 }
