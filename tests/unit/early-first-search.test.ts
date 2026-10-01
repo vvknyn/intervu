@@ -58,7 +58,7 @@ test("the early request is the one JobsContent's first search sends for the URL"
     assert.equal(searchParamsKey(early), searchParamsKey(expected));
     assert.equal(early.sort, "relevance");
     assert.equal(early.hideGhosts, true, "likely ghosts stay hidden by default");
-    assert.equal(early.postedBucket, "30d", "the fresh-visit window is a real filter");
+    assert.equal(early.postedBucket, "90d", "a typed search's 90-day window is a real filter");
     assert.deepEqual(early.facets, { location_country: ["CA"], work_type: ["remote"] });
 });
 
