@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
 import { labelDescriptionOnDevice, layOutWithModelLetters } from "@/lib/local-ai/label-description";
-import { localAiTaskReady } from "@/lib/local-ai/run-task";
+import { localAiTaskReady, type LocalAiTaskPriority } from "@/lib/local-ai/run-task";
 
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
@@ -80,8 +80,13 @@ export type DescriptionLayoutSource = "rules" | "device";
  * The rules' layout at once (and on the server), then — where local AI is on
  * — the on-device model's line labels once they arrive (cached per device, so
  * a posting it has seen lays out right on the first paint after mount).
+ * `background` queues the model call behind whatever the person is looking
+ * at; switching to `visible` moves it up.
  */
-export function useFormattedDescription(description: string | null | undefined): {
+export function useFormattedDescription(
+    description: string | null | undefined,
+    priority: LocalAiTaskPriority = "visible",
+): {
     blocks: DescBlock[];
     source: DescriptionLayoutSource;
 } {
@@ -91,13 +96,13 @@ export function useFormattedDescription(description: string | null | undefined):
     useEffect(() => {
         if (!description?.trim() || !localAiTaskReady()) return;
         const controller = new AbortController();
-        void labelDescriptionOnDevice({ description, signal: controller.signal }).then((letters) => {
+        void labelDescriptionOnDevice({ description, priority, signal: controller.signal }).then((letters) => {
             if (controller.signal.aborted || !letters) return;
             const laidOut = layOutWithModelLetters(description, letters);
             if (laidOut.changed) setDevice({ description, blocks: laidOut.blocks });
         });
         return () => controller.abort();
-    }, [description]);
+    }, [description, priority]);
 
     const current = device?.description === description ? device : null;
     return { blocks: current?.blocks ?? rules, source: current ? "device" : "rules" };
@@ -112,11 +117,13 @@ export function useFormattedDescription(description: string | null | undefined):
 export function FormattedJobDescription({
     description,
     headingLevel,
+    priority,
 }: {
     description: string | null | undefined;
     headingLevel: 3 | 4;
+    priority?: LocalAiTaskPriority;
 }) {
-    const { blocks, source } = useFormattedDescription(description);
+    const { blocks, source } = useFormattedDescription(description, priority);
     const [originalFor, setOriginalFor] = useState<string | null>(null);
     const showOriginal = source === "device" && originalFor === description;
 

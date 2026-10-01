@@ -3,13 +3,15 @@ import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
+import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
+import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
 
 // Guest résumé path: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -712,6 +714,34 @@ test("on a small phone an opened pack fits its card, actions and Next between th
     expect(next.y, round).toBeGreaterThanOrEqual(48);
   }
   expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("an opened pack's role card shows the posting in its own sections, word for word", { tag: ["@J-DETAIL-43"] }, async ({ page, diagnostics }) => {
+  // The card used to sort a posting into fixed "What you'll do / What you bring / Nice to have / Perks"
+  // boxes, dropping whatever fit none of them (the company, pay); it now shows the whole posting
+  // laid out like the job pane (2026-10-01). Every role's text is served as the ingest-shaped Expel posting.
+  await page.route("**/api/jobs/*/description", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    if (body?.hits?.[0]) body.hits[0].description = stripHtmlLikeIngest(EXPEL_TAM_HTML);
+    await route.fulfill({ response, json: body });
+  });
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  const description = front.getByTestId("role-card-description");
+  await expect(description.getByRole("heading")).toHaveText(["About Expel", "What you’ll do", "What you should bring with you", "Compensation"], { timeout: 60_000 });
+  await expect(description.getByRole("list")).toHaveCount(2);
+  await expect(description.getByText("The base salary range for this role is $150,000 - $180,000 USD, plus equity and benefits.")).toBeVisible();
+  await expect(description.getByText("#LI-Remote")).toBeVisible();
+  // The Summary is the posting's own first sentence.
+  await expect(front.getByText("Summary", { exact: true })).toBeVisible();
+  await expect(front.getByText(/^Expel is a security operations provider that helps organizations of all sizes minimize business risk\.$/)).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 test("when every search fails, the packs home settles on saying so: Today shows the error with Retry and the chips drop their counts, never an endless \"…\"", { tag: ["@J-JOBS-51"] }, async ({ page }) => {
