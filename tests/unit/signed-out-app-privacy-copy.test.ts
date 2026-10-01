@@ -22,6 +22,7 @@ const SIGNED_OUT_APP_COPY_FILES = [
     "src/components/jobs/LocalCustomizePanel.tsx",
     "src/components/settings/SettingsContainer.tsx",
     "src/app/connect/connect-client.tsx",
+    "src/components/jobs/for-you/TodayHome.tsx",
 ] as const;
 
 const MISLEADING_ABSOLUTES: { pattern: RegExp; label: string }[] = [

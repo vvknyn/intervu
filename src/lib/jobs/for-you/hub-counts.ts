@@ -265,12 +265,19 @@ export function hubChipCountText(label: string): string {
     return label.replace(/\s+roles?$/, "");
 }
 
-/** Role pill from a `CorpusCount` — never from browse page hits. */
+/**
+ * Smallest "at least" count a pack shows. A floor only counts the rows read
+ * so far, so "0+" or "1+" reads as a tiny exact number for a pack that may
+ * hold many more; below this the pack shows no count instead.
+ */
+export const HUB_FLOOR_MIN_SHOWN = 10;
+
+/** Role pill from a `CorpusCount` — never from browse page hits. "" when there's no count worth showing. */
 export function formatHubPackCorpusRoleLabel(count: CorpusCount | null | undefined): string {
     if (count == null) return HUB_PACK_CORPUS_COUNT_LOADING;
     const n = Math.floor(count.value);
     if (!Number.isFinite(n) || n < 0) return HUB_PACK_CORPUS_COUNT_LOADING;
-    if (count.kind === "floor") return `${n.toLocaleString()}+ roles`;
+    if (count.kind === "floor") return n >= HUB_FLOOR_MIN_SHOWN ? `${n.toLocaleString()}+ roles` : "";
     return n === 1 ? "1 role" : `${n.toLocaleString()} roles`;
 }
 
