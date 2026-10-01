@@ -30,8 +30,29 @@ export function parseSearchBody(raw: string): JobSearchParams | null {
   }
 }
 
+/** The body as text, or null past `cap` bytes, without reading further than that. */
+async function readCapped(request: Request, cap: number): Promise<string | null> {
+  if (Number(request.headers.get("content-length") ?? 0) > cap) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > cap) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function POST(request: Request): Promise<NextResponse> {
-  const params = parseSearchBody(await request.text());
+  const raw = await readCapped(request, MAX_SEARCH_BODY_BYTES);
+  const params = raw === null ? null : parseSearchBody(raw);
   if (!params) return NextResponse.json({ error: "Not a search" }, { status: 400 });
   const result = await searchJobsAction(params);
   // Per person (the depth cap reads the session) and per moment: never cached.

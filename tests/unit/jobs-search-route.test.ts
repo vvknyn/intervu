@@ -6,14 +6,15 @@
  * searches ran one after another. Same reason as ../suggest and the detail
  * route before it.
  *
- * `parseSearchBody` is pinned directly; `POST` itself reaches
- * `searchJobsAction`, which reads next/headers and needs a request scope.
+ * `parseSearchBody` is pinned directly; `POST` is driven only on bodies it
+ * refuses, since a real one reaches `searchJobsAction`, which reads
+ * next/headers and needs a request scope.
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { MAX_SEARCH_BODY_BYTES, parseSearchBody } from "../../src/app/api/jobs/search/route";
+import { MAX_SEARCH_BODY_BYTES, parseSearchBody, POST } from "../../src/app/api/jobs/search/route";
 
 describe("parseSearchBody", () => {
     it("reads a params object", () => {
@@ -26,6 +27,30 @@ describe("parseSearchBody", () => {
 
     it("refuses a body far past any real search", () => {
         assert.equal(parseSearchBody(JSON.stringify({ q: "a".repeat(MAX_SEARCH_BODY_BYTES) })), null);
+    });
+});
+
+describe("POST", () => {
+    const post = (body: BodyInit, headers: Record<string, string> = {}) =>
+        POST(new Request("http://localhost/api/jobs/search", { method: "POST", body, headers: { "content-type": "application/json", ...headers }, duplex: "half" } as RequestInit));
+
+    it("answers 400 to a body that isn't a search, without searching", async () => {
+        assert.equal((await post("[]")).status, 400);
+        assert.equal((await post("not json")).status, 400);
+    });
+
+    it("stops reading an oversized body, declared or streamed", async () => {
+        assert.equal((await post("{}", { "content-length": String(MAX_SEARCH_BODY_BYTES + 1) })).status, 400);
+        const chunk = new TextEncoder().encode("a".repeat(8_192));
+        let sent = 0;
+        const endless = new ReadableStream<Uint8Array>({
+            pull(controller) {
+                sent += chunk.byteLength;
+                controller.enqueue(chunk);
+            },
+        });
+        assert.equal((await post(endless)).status, 400);
+        assert.ok(sent <= MAX_SEARCH_BODY_BYTES + 2 * chunk.byteLength, `read ${sent} bytes`);
     });
 });
 
