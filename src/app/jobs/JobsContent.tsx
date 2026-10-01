@@ -6404,9 +6404,11 @@ export function JobsContent() {
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
-                        {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
+                        {/* ml-auto, not an empty flex-1 spacer: the spacer took a
+                            gap of its own, and that 8px pushed the "?" onto a
+                            line by itself on a 390px phone (J-NAV-35). */}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="wrap-row min-w-0 max-w-full">
+                            <div data-testid="jobs-toolbar-actions" className="wrap-row ml-auto min-w-0 max-w-full">
                                 {showToolbarFilters && savedSearchMountEl}
                                 {sortEl}
                                 {tourReplayEl}
