@@ -316,9 +316,13 @@ export function ForYouHome({
     // A sign-up card, the pack's header or a short screen can leave the bottom
     // of the stack (and its actions) under the fold. When the pack's roles
     // arrive, scroll just far enough to show the whole stack, never so far
-    // that the Previous/Next bar goes under the top bar. The header above
-    // keeps growing for a moment (filter counts, the résumé band), so refit
-    // while the page settles, until the visitor scrolls or touches anything.
+    // that the Previous/Next bar goes under the top bar. A page left scrolled
+    // past the stack (the hub was scrolled down to its chips, and the shorter
+    // pack page clamps there) scrolls back up to that bar. The header above
+    // keeps growing for a moment (filter counts, the résumé band), and the
+    // router may reset the scroll after the first fit, so refit on every
+    // resize and scroll while the page settles, until the visitor scrolls or
+    // touches anything.
     // Keyed on having roles, not on how many, so stepping or Skip never
     // refits. A pack opened after another first shows the old list for a
     // moment, which empties before its own roles arrive: those start a fresh fit.
@@ -341,11 +345,12 @@ export function ForYouHome({
             const floor = tabbar?.getClientRects().length ? tabbar.getBoundingClientRect().top : window.innerHeight;
             const below = stage.getBoundingClientRect().bottom + 8 - floor;
             const room = controls.getBoundingClientRect().top - topbar - 8;
-            const by = Math.min(below, room);
-            if (by > 1) window.scrollBy({ top: by, behavior: "instant" });
+            const by = room < 0 ? room : Math.min(Math.max(below, 0), room);
+            if (Math.abs(by) > 1) window.scrollBy({ top: by, behavior: "instant" });
         };
         const inputs = ["wheel", "touchstart", "keydown", "pointerdown"] as const;
         for (const type of inputs) window.addEventListener(type, settle, { passive: true });
+        window.addEventListener("scroll", fit, { passive: true });
         const main = document.getElementById("main");
         const observer = new ResizeObserver(fit);
         if (main) observer.observe(main);
@@ -355,6 +360,7 @@ export function ForYouHome({
         const stop = window.setTimeout(settle, 5000);
         return () => {
             for (const type of inputs) window.removeEventListener(type, settle);
+            window.removeEventListener("scroll", fit);
             observer.disconnect();
             window.cancelAnimationFrame(frame);
             window.clearTimeout(stop);
