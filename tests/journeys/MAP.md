@@ -4,64 +4,42 @@ A readable map of the journeys in [CATALOG.md](CATALOG.md), grouped by where a v
 
 ## Where job lists appear
 
-**The rule the product is moving to:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Bare /jobs becomes a front door with no rows (upload a résumé, sign in, or search). Typed search stays open to guests: the first 90 rows, then a sign-in card. A guest with a résumé sees their top 3 matches, then a sign-in card. Company and job pages stay public. **Live on staging:** guest search with the sign-in card after 90 rows (J-JOBS-06), a guest's top 3 matches and then the sign-in card (J-JOBS-34), and public company and job pages. **In flight:** the For you gate PR #711 (For you needs an account: a signed-out visitor gets one sign-in card instead of job packs; bare /jobs becomes the front door with no rows and a live count of the week's roles; a résumé on file opens Search on the résumé-ranked list, a guest's top 3 then the sign-in card) and the search relevance PR (typed search covers 90 days instead of 30, newer roles first among equally good matches, and a country search stops listing remote roles tagged to a city elsewhere; packs and the résumé-ranked list keep 30 days, because on the pack audit 90 days put an older copy of the same title into the top 3 of 13 of 24 tiles). **Not live until #711 ships:** the front door; bare /jobs still lists the newest roles in the visitor's country (J-JOBS-01).
+**The rule:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Since release 16 (#711, #723):
+- Bare /jobs is a front door with no rows: the search box, the field links, a live count of the week's roles in the visitor's country plus remote (tapping it opens that week's roles), their last search, and the résumé band.
+- A résumé on file opens Search on the roles ranked against it, from the last 30 days: a guest sees their top 3, then a sign-in card; a signed-in user sees the whole list.
+- For you (job packs) needs an account. A guest who opens it gets one sign-in card.
+- Typed search stays open to guests and covers the last 90 days, newer roles first among equally good matches. A guest sees the first 90 rows, then a sign-in card. A country search no longer lists remote roles tagged to a city or state elsewhere.
+- Company and job pages stay public.
 
-Today (staging): what a visitor sees arriving on /jobs. Red: a job list with no reason behind it; green: a list with a reason; blue: what #711 changes; tan: a sign-in card.
+What a visitor sees arriving on /jobs. Green: a list with a reason behind it; grey: the front door, no rows; tan: a sign-in card.
 
 ```mermaid
 flowchart TD
   A([Opens velai.app or /jobs]):::entry --> B{Signed in?}
   B -- no --> C{Résumé saved<br/>in this browser?}
-  C -- no --> D["Search home, nothing typed<br/>newest roles in your country<br/>(ranked by date only)"]:::bad
-  C -- yes --> E["For you: pack tiles and pack rows<br/>#711 sends guests to Search,<br/>which shows the same newest roles"]:::bad
-  D -- types a search<br/>or picks filters --> F["Results for that search<br/>guests: first 90"]:::ok
-  F -- scrolls past 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
-  D -- uploads résumé --> H["Review résumé, then For you packs<br/>#711: Search ranked by résumé"]:::fix
-  H --> I["Top 3 matches"]:::ok --> G2["Sign-in card:<br/>See all N matches"]:::gate
+  C -- no --> D["Front door, no job rows<br/>search box · field links · résumé band<br/>live count: roles posted this week"]:::door
+  C -- yes --> I
+  D -- uploads résumé --> R["Review résumé<br/>(stays on this device)"]:::ok --> I["Search: their top 3 matches<br/>best fit first, last 30 days"]:::ok
+  I --> G2["Sign-in card:<br/>See all N matches"]:::gate
+  D -- taps the week's count --> W["That week's roles"]:::ok
+  D -- searches or picks filters --> F["Results for their search, last 90 days<br/>best match, newest first among equals<br/>a guest sees the first 90 rows"]:::ok
+  F -- scrolls past row 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
+  C -. opens For you .-> G3["Sign-in card:<br/>See your job packs"]:::gate
   B -- yes --> J{Résumé on file?}
   J -- no --> K["Résumé card:<br/>Upload or Skip"]:::ok
-  K -- Skip --> L["Search home, nothing typed<br/>newest roles in your country"]:::bad
+  K -- Skip --> L["Front door, no job rows<br/>Add your résumé to see the roles that fit you"]:::door
   K -- Upload --> M
-  J -- yes --> M["For you: job packs<br/>ranked by résumé"]:::ok
-  M -- opens a pack --> P["Pack rows"]:::ok
-  M -- Advanced search --> N["Search home, nothing typed<br/>newest roles, résumé not used"]:::bad
-  L -- types a search --> F2["Results, no limit"]:::ok
-  N -- types a search --> F2
-  classDef bad fill:#f8d4cf,stroke:#b3261e,color:#3d0c07
-  classDef ok fill:#d9efe0,stroke:#1f7a44,color:#0b2e19
-  classDef fix fill:#d6e4fb,stroke:#2757b6,color:#0b1f4d
-  classDef gate fill:#efe6d2,stroke:#8a6a1f,color:#2e2308
-  classDef entry fill:#e4e6ec,stroke:#5a6070,color:#17191e
-  classDef q fill:#f1f2f5,stroke:#5a6070,color:#17191e
-  class B,C,J q
-```
-
-Proposed: the same arrival under the rule. Orange: new or changed; green: as today; tan: a sign-in card.
-
-```mermaid
-flowchart TD
-  A([Opens velai.app or /jobs]):::entry --> B{Signed in?}
-  B -- no --> C{Résumé saved<br/>in this browser?}
-  C -- no --> D["Front door, no job rows<br/>Upload résumé · Sign in · Search jobs<br/>live count: roles posted this week"]:::new
-  C -- yes --> I
-  D -- uploads résumé --> R["Review résumé<br/>(stays on this device)"]:::same --> I["Their top 3 matches<br/>best fit first, last 30 days"]:::new
-  I --> G2["Sign-in card:<br/>See all N matches"]:::gate
-  D -- Search jobs<br/>(advanced search) --> F["Results for their search, last 90 days<br/>best match, newest first among equals<br/>a guest sees the first 90 rows"]:::new
-  F -- scrolls past row 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
-  B -- yes --> J{Résumé on file?}
-  J -- no --> K["Résumé card:<br/>Upload or Skip"]:::same
-  K -- Skip --> L["Search, no rows until they search<br/>Add your résumé to see the roles that fit you"]:::new
-  K -- Upload --> M
-  J -- yes --> M["For you: job packs<br/>best fit, last 30 days"]:::same
-  M -- Advanced search --> N["Search opens on<br/>the roles that fit you"]:::new
-  L -- searches --> F2["Results, no limit, last 90 days<br/>best match, newest first among equals"]:::new
+  J -- yes --> M["For you: job packs<br/>best fit, last 30 days"]:::ok
+  M -- Search tab --> N["Search opens on<br/>every role that fits them"]:::ok
+  L -- searches --> F2["Results, no limit, last 90 days<br/>best match, newest first among equals"]:::ok
   N -- searches --> F2
   G1 -- signs up --> F2
   G2 -- signs up --> M
+  G3 -- signs up --> J
   classDef gate fill:#efe6d2,stroke:#8a6a1f,color:#2e2308
   classDef entry fill:#e4e6ec,stroke:#5a6070,color:#17191e
-  classDef new fill:#fbe8c8,stroke:#a15c00,color:#2f1c00
-  classDef same fill:#d9efe0,stroke:#1f7a44,color:#0b2e19
+  classDef door fill:#eceef2,stroke:#5a6070,color:#17191e
+  classDef ok fill:#d9efe0,stroke:#1f7a44,color:#0b2e19
   classDef q fill:#f1f2f5,stroke:#5a6070,color:#17191e
   class B,C,J q
 ```
@@ -94,19 +72,19 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 
 ### Landing on /jobs with no search
 
-What someone sees when they open velai.app or /jobs without typing anything. Today that is the search box over the newest roles in their country, with the country chip, a return card for a returning guest and, on a phone, the Search button; under the new rule it becomes the front door with no rows.
+What someone sees when they open velai.app or /jobs without typing anything: the front door with no rows. The search box, the field links, a live count of the week's roles (tapping it opens them), a return card with a returning guest's last search, the résumé band and, on a phone, the Search button. A visitor with a résumé on file opens on their ranked list instead (next stages).
 
 ### Search, filters and results
 
-Typing a search or picking filters, and everything on the results list: suggestions, location, filters and their chips, sort, loading more up to a guest's 90 rows, and the empty, stale and error states.
+Typing a search or picking filters, and everything on the results list: suggestions, location, filters and their chips, the 90-day default window, sort, loading more up to a guest's 90 rows, and the empty, stale and error states.
 
 ### Résumé upload and top matches
 
-Adding a résumé from /jobs, checking what was read from it, and seeing roles ranked against it: a guest sees their top 3, then a sign-in card. Also the board's prompts to add one ("Rank with my résumé", the résumé moment) and the résumé step right after sign-up.
+Adding a résumé from /jobs, checking what was read from it, and seeing roles ranked against it: a guest sees their top 3, then a sign-in card; a signed-in user sees the whole list. A résumé on file opens Search on this list once per visit. Also the board's prompts to add one ("Rank with my résumé", the résumé moment) and the résumé step right after sign-up.
 
 ### For you: job packs
 
-The job packs a visitor with a résumé gets on For you: pack tiles and their counts, opening a pack and coming back, the For you / Search switch, and what a pack shows when a read fails. The For you gate PR #711 makes this signed-in only.
+The job packs a visitor with a résumé gets on For you: pack tiles and their counts, opening a pack and coming back, the For you / Search switch, and what a pack shows when a read fails. For you is signed-in only: a guest who opens it gets one sign-in card.
 
 ### Job detail: pane, sheet, page
 
@@ -167,4 +145,4 @@ Rows written around the same bugs now describe the working behaviour and still n
 - Add or change the row in [CATALOG.md](CATALOG.md) first; the Contract there still applies (tag, Writes, status).
 - Put the row in the right stage. Rows in APPLY, TRACKER, ALERTS, COMPANY, AUTH, RESUME, SETTINGS, CONNECT, OAUTH, CONTENT, SEO, PRICING, SRCH, FILT, DETAIL, ERR and ADMIN land in their area's stage on their own. A row in JOBS, MOB, NAV or MODAL, or one that belongs in another stage than its area's, needs its ID added to `STAGES` in `scripts/journey-map-counts.mjs`.
 - Regenerate the stage table: `node scripts/journey-map-counts.mjs --write` (no dependencies). `--check` exits non-zero when the table is stale or a row has no stage.
-- When a row's bug is fixed, drop its "(known bug: …)" note, give the row a spec, and take it off the list above. When #711 or the search relevance PR lands, update the live and in-flight lines and the diagrams.
+- When a row's bug is fixed, drop its "(known bug: …)" note, give the row a spec, and take it off the list above. When a change moves where job lists appear, update the rule and the diagram at the top.
