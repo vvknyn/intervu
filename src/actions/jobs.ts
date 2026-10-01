@@ -16,11 +16,11 @@ import {
   dedupeRelatedJobs,
   MIN_RELATED_HITS,
   pickRelatedJobs,
-  relatedCountryIso2,
   relatedTitleQuery,
   type RelatedBasis,
   type RelatedSeed,
 } from "@/lib/jobs/related-jobs";
+import { relatedCountryIso2 } from "@/lib/jobs/related-country";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {

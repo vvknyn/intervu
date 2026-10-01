@@ -12,7 +12,6 @@
  * "like this" (Vivek, 2026-09-30).
  */
 
-import type { Gazetteer } from "@/lib/geo/gazetteer";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -107,50 +106,6 @@ export function relatedSeed(
         state: text(job.location_state),
         country: relatedCountry(job.location_country),
     };
-}
-
-/** The one country an admin1 name ("California", "Ontario") belongs to, or
- *  null when the name is unknown or shared across countries. */
-function admin1Country(name: string, gazetteer: Gazetteer): string | null {
-    const countries = new Set((gazetteer.admin1ByName.get(name.toLowerCase()) ?? []).map((a) => a.countryCode));
-    return countries.size === 1 ? [...countries][0]! : null;
-}
-
-/**
- * The ISO2 country to keep similar roles in, or null to search everywhere.
- *
- * The job's own country field comes first, read as a country: a two-letter
- * value is a country code, so "CA" is Canada. Passed through the search box's
- * place parser it was California, and a Canadian job listed US roles
- * (2026-09-30). With no country, the state ("CALIFORNIA") or a comma-separated
- * piece of the location text ("Universal City, California") that names a
- * country or a state of exactly one country decides it.
- */
-export function relatedCountryIso2(seed: Pick<RelatedSeed, "country" | "state" | "location">, gazetteer: Gazetteer): string | null {
-    const country = seed.country?.trim();
-    if (country) {
-        const hit =
-            country.length === 2
-                ? gazetteer.countriesByIso2.get(country.toUpperCase())
-                : country.length === 3
-                  ? gazetteer.countriesByIso3.get(country.toUpperCase())
-                  : gazetteer.countriesByName.get(country.toLowerCase());
-        if (hit) return hit.iso2;
-    }
-    const state = seed.state?.trim();
-    if (state && state.length > 2) {
-        const iso2 = admin1Country(state, gazetteer);
-        if (iso2) return iso2;
-    }
-    // Last piece first: "Toronto, Ontario, Canada" is most specific at the end.
-    const pieces = (seed.location ?? "").split(",").map((p) => p.trim()).filter((p) => p.length > 2).reverse();
-    for (const piece of pieces) {
-        const byName = gazetteer.countriesByName.get(piece.toLowerCase());
-        if (byName) return byName.iso2;
-        const iso2 = admin1Country(piece, gazetteer);
-        if (iso2) return iso2;
-    }
-    return null;
 }
 
 /** Which list "More like this" is showing — decides its heading. */

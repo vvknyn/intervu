@@ -14,6 +14,7 @@ export type OriginSurface =
     | "resume_page"
     | "tracker"
     | "topbar"
+    | "company_page"
     | "login";
 
 export interface GateAttempt {
@@ -120,6 +121,7 @@ export type SignupGateId =
     | "resume_fit"
     | "save"
     | "follow"
+    | "company"
     | "alert"
     | "depth"
     | "header"
@@ -133,6 +135,7 @@ export const SIGNUP_GATE_ID_BY_REASON: Record<AuthGateReason, SignupGateId> = {
     save: "save",
     tracker: "save",
     follow: "follow",
+    company: "company",
     alert: "alert",
     depth: "depth",
     topbar: "header",

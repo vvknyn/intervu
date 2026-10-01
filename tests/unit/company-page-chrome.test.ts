@@ -20,6 +20,7 @@ const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url),
 const CONTROL = read("src/components/companies/CompanyFollowControl.tsx");
 const GATE = read("src/components/company/CompanyIntelGate.tsx");
 const CO_PAGE = read("src/app/co/[slug]/page.tsx");
+const CO_PAGE_BODY = read("src/components/company/CompanyPageBody.tsx");
 const CO_LOADING = read("src/app/co/[slug]/loading.tsx");
 const ROLE_SEARCH = read("src/components/company/CompanyRoleSearch.tsx");
 
@@ -69,7 +70,7 @@ describe("follow control: the parent places it, not the other way round", () => 
         // that were RELYING on the removed defaults must now be explicit, or
         // they silently fall back to `stretch`.
         for (const [label, src] of [
-            ["company page header", CO_PAGE],
+            ["company page header", CO_PAGE_BODY],
             ["unlock overlay", GATE],
             ["no-open-roles panel", ROLE_SEARCH],
         ] as const) {

@@ -1,5 +1,5 @@
 import React from "react";
-import { TrendUp, TrendDown, Minus } from "@phosphor-icons/react/dist/ssr";
+import { SectionTitle } from "@/components/ui/heading";
 import { eventTypeLabel, humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyChangeEventEvidence } from "@/lib/companies/types";
 import { cn } from "@/lib/utils";
@@ -110,21 +110,20 @@ function EventEvidence({ evidence }: { evidence: CompanyChangeEventEvidence }) {
  *  off `--verdict-good`/`--verdict-caution` (see `Badge`'s `verdict-good` /
  *  `verdict-caution` variants); anything else is drawn neutral rather than
  *  guessed at. Colour is a signal here, not decoration, so it can never be
- *  brand blue (that's reserved for interactive elements) or a hardcoded hue. */
+ *  brand blue (that's reserved for interactive elements) or a hardcoded hue.
+ *  Status is the coloured word itself, with no arrow icon beside it. */
 export function directionStyle(direction: CompanyChangeEvent["direction"]): {
-  Icon: typeof TrendUp;
   /** Word color for the event-type label — status reads as a plain colored
    *  word, never a bordered/filled pill (rulebook: status = words). */
   label: string;
-  icon: string;
 } {
   switch (direction) {
     case "improving":
-      return { Icon: TrendUp, label: "text-verdict-good", icon: "text-verdict-good" };
+      return { label: "text-verdict-good" };
     case "declining":
-      return { Icon: TrendDown, label: "text-verdict-caution", icon: "text-verdict-caution" };
+      return { label: "text-verdict-caution" };
     default:
-      return { Icon: Minus, label: "text-muted-foreground", icon: "text-muted-foreground" };
+      return { label: "text-muted-foreground" };
   }
 }
 
@@ -155,14 +154,14 @@ export function CompanyChangeEvents({
 
   return (
     <section data-testid="company-change-events" className="mb-8">
-      <h2 className="mb-1 font-display text-xl font-semibold">Recent changes</h2>
-      <p className="mb-4 text-xs text-muted-foreground">
+      <SectionTitle className="mb-1">Recent changes</SectionTitle>
+      <p className="text-sm text-muted-foreground">
         Observed shifts in {companyName}&apos;s hiring, from postings we track over time.
       </p>
 
-      <ul className="space-y-2.5">
+      <ul className="mt-2">
         {events.map((event, idx) => {
-          const { Icon, label: tone, icon } = directionStyle(event.direction);
+          const { label: tone } = directionStyle(event.direction);
           const label = eventTypeLabel(event.event_type);
           const date = eventDate(event.occurred_at);
           return (
@@ -171,10 +170,9 @@ export function CompanyChangeEvents({
             // folded in — the list is server-rendered and never reordered.
             <li
               key={`${event.event_type}-${event.occurred_at}-${idx}`}
-              className="flex items-start gap-3.5 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-5 py-4"
+              className="border-b border-border py-4"
             >
-              <Icon size={18} weight="bold" className={cn("mt-0.5 shrink-0", icon)} aria-hidden />
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   {label && (
                     <span className={cn("text-xs font-semibold", tone)}>
