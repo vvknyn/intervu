@@ -112,14 +112,27 @@ describe("tuneDeck", () => {
         assert.deepEqual(ids(tuned).slice(0, 3), passed);
     });
 
-    it("moves a fully nudged role at most half of what is left (at least 12 places)", () => {
+    it("moves a fully nudged role by at most what is left to see (at least 12 places)", () => {
         const deck = Array.from({ length: 40 }, (_, i) => job(`r${i}`, `Data Analyst ${i}`));
         deck[39] = job("nurse", "Registered Nurse");
         const liked = [nudge(job("x", "Registered Nurse"), "more"), nudge(job("y", "Registered Nurse"), "more")];
-        const tuned = tuneDeck(deck, liked, [], NOW);
-        assert.equal(maxShift(40), 20);
-        assert.equal(maxShift(10), 12);
-        assert.equal(ids(tuned).indexOf("nurse"), 20, "39 - 20, after the role already there");
+        const tuned = tuneDeck(deck, liked, ["r0"], NOW);
+        assert.equal(maxShift(39), 39);
+        assert.equal(maxShift(5), 12);
+        assert.equal(ids(tuned).indexOf("nurse"), 1, "from last to next");
+    });
+
+    it("lets other roles through when the role told fewer fills the deck", () => {
+        const deck = [
+            ...Array.from({ length: 18 }, (_, i) => job(`p${i}`, i % 2 ? "Physiotherapist" : "Senior Physiotherapist - Outpatient")),
+            job("k1", "Kinesiologist"),
+            job("r1", "Rehabilitation Assistant"),
+            job("k2", "Athletic Therapist"),
+        ];
+        const tuned = tuneDeck(deck.slice(1), [nudge(deck[0], "fewer")], ["p1"], NOW);
+        const next5 = ids(tuned).slice(1, 6);
+        assert.ok(next5.filter((id) => !id.startsWith("p")).length >= 2, `others in the next five: ${next5.join(", ")}`);
+        assert.equal(tuned.length, deck.length - 1, "nothing hidden");
     });
 
     it("works the same in other fields: nursing and teaching", () => {

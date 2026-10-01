@@ -14,9 +14,9 @@
  * words are weighted by how rare they are in the deck, as a search engine
  * weighs terms: "manager" in 40 of 60 titles says little, "account" says more.
  *
- * The deck moves a nudged role by at most half of what is left to see
- * (`maxShift`): a strong match from further down comes up next, a weak one
- * edges forward, and nothing the visitor has already passed moves.
+ * The deck moves a nudged role by its nudge times what is left to see
+ * (`maxShift`): a close match from far down comes up next, a loose one edges
+ * forward, and nothing the visitor has already passed moves.
  *
  * Works for any role or industry: it reads titles, skills and the posting's
  * own fields, with no role list of its own. Pure, no I/O; the store is
@@ -209,12 +209,14 @@ export function roleNudge(
 }
 
 /**
- * The furthest a fully nudged role moves: half of what is left to see, at least
- * 12 places. One tap on a role brings the close matches in the next dozen
- * forward; a reading pause ("dwell", 0.15) moves them a few places.
+ * The furthest a fully nudged role moves: the length of what is left to see
+ * (at least 12 places). A tap is a deliberate ask, so "fewer like this" on a
+ * role that fills the deck lets the other roles through, and "more like this"
+ * brings its close matches up from anywhere. A quieter signal moves roles by
+ * its share of that: reading a role a while ("dwell", 0.15) a few places.
  */
 export function maxShift(remaining: number): number {
-    return Math.max(12, Math.round(remaining / 2));
+    return Math.max(12, remaining);
 }
 
 /**
