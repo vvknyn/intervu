@@ -12,7 +12,7 @@ import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { parseResumeContent } from "@/lib/resume/parse-resume-content";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import {
     deleteResumeVersionAction,
     fetchResumeVersionsAction,

@@ -191,6 +191,7 @@ export function TopBar() {
                                 <TabItem key={tab.href + tab.label} asChild size="bar" current={active ? "page" : false}>
                                     <Link
                                         href={tab.href}
+                                        prefetch={false}
                                         title={tab.title}
                                         data-testid={tab.testId}
                                         data-tour={tab.tourSelector}

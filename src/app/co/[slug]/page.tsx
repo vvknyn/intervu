@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -9,20 +10,25 @@ import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 
+// `cache()` so generateMetadata and the page body share ONE load per request
+// (same pattern as jobs/[slug]/page.tsx): each load is a 200-role search plus
+// the news, events and hiring-record reads, and it used to run twice.
+const loadCompany = cache((slug: string) => getCompanyPageData(slug));
+
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const data = await getCompanyPageData(slug);
+  const data = await loadCompany(slug);
   if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
   return buildCompanyPageMetadata(data);
 }
 
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = await getCompanyPageData(slug);
+  const data = await loadCompany(slug);
   if (!data) notFound();
   // Buffer-only: the roles this visitor is about to see get their links
   // checked first (liveness-demand.ts).

@@ -1,6 +1,5 @@
 import { downloadBlob } from "@/lib/export-utils";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { renderResumePdf } from "@/lib/resume/render-pdf";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { buildZipResumeDocument, parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
@@ -54,6 +53,9 @@ export async function exportZipResumePdfFromData(data: ResumeData, filename: str
             "[resume-pdf] Chrome/Skia print failed; falling back to text jsPDF layout from ResumeData (not markdown parse, not canvas raster)",
             err,
         );
+        // Loaded only here: jsPDF is ~135 KB gzipped and this fallback is rare,
+        // so it stays out of every page that merely offers a download.
+        const { renderResumePdf } = await import("@/lib/resume/render-pdf");
         downloadBlob(renderResumePdf(parsed), outName, "application/pdf");
     }
 }

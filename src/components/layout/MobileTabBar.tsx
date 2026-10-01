@@ -53,6 +53,7 @@ export function MobileTabBar() {
                     <Link
                         key={tab.href + tab.label}
                         href={tab.href}
+                        prefetch={false}
                         title={tab.title}
                         // Prefixed so a testid is unique page-wide: this bar
                         // shares NAV_TABS with the desktop TopBar and both are

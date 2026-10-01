@@ -51,6 +51,8 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
+import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
@@ -177,15 +179,23 @@ const HubYourJobs = dynamic(
     () => import("@/components/jobs/for-you/HubYourJobs").then((m) => m.HubYourJobs),
     { loading: () => null },
 );
-const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail));
-const JobDetailActionBar = dynamic(() =>
-    import("@/components/jobs/JobDetail").then((m) => m.JobDetailActionBar),
+// `loading: () => null` on each: without it a dynamic() component holds up
+// the first render of everything around it until its own chunk arrives, and
+// these only show once a job is opened or the importer is asked for.
+const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail), {
+    loading: () => null,
+});
+const JobDetailActionBar = dynamic(
+    () => import("@/components/jobs/JobDetail").then((m) => m.JobDetailActionBar),
+    { loading: () => null },
 );
-const JobDetailSkeleton = dynamic(() =>
-    import("@/components/jobs/JobDetail").then((m) => m.JobDetailSkeleton),
+const JobDetailSkeleton = dynamic(
+    () => import("@/components/jobs/JobDetail").then((m) => m.JobDetailSkeleton),
+    { loading: () => null },
 );
-const ResumeImportModal = dynamic(() =>
-    import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+const ResumeImportModal = dynamic(
+    () => import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+    { ssr: false, loading: () => null },
 );
 const SearchAutocomplete = dynamic(
     () => import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
@@ -1278,6 +1288,7 @@ export function JobsContent() {
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        submitImmediateRef.current = true;
         setExplicitlySubmitted(true);
         // Every submit path funnels through here (the box's own Enter/
         // suggestion-pick already self-closes; this covers the ones that
@@ -1530,6 +1541,14 @@ export function JobsContent() {
     // "settled" means that FIRST attempt completed (success or failure),
     // not that every later search has to be waited on too.
     const [firstSearchSettled, setFirstSearchSettled] = useState(false);
+    // JobsRouteGate holds AuthKit until the first list is on screen (its
+    // session check is a server action and would queue ahead of the search);
+    // lift the hold then, or when leaving the page.
+    useEffect(() => {
+        if (!firstSearchSettled) return;
+        requireAuthKitSoon();
+    }, [firstSearchSettled]);
+    useEffect(() => requireAuthKitSoon, []);
 
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
@@ -1595,6 +1614,11 @@ export function JobsContent() {
     // body runs, before anything async — a state flag wouldn't be readable
     // that soon and would itself trigger a needless extra render.
     const isFirstSearchRunRef = useRef(true);
+    // Set by `submitSearch`: a submitted search (Enter, a suggestion, a chip)
+    // skips the 250ms typing debounce below, since nothing more is coming.
+    const submitImmediateRef = useRef(false);
+    // When the current first-page request started, for `useListRenderTiming`.
+    const searchStartedAtRef = useRef<number | null>(null);
 
     const [user, setUser] = useState<User | null>(null);
     // Session cookie is httpOnly — first paint is "not yet known", not signed
@@ -2256,15 +2280,12 @@ export function JobsContent() {
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
     //
-    // When `searchIntent` is false (For-you-only, etc.) this skips the fetch.
-    // `firstSearchSettled` is still flipped true immediately so the secondary
-    // mount probes gated on it (posted-date support, report-job-enabled,
-    // live-jobs-count) aren't left waiting on a fetch that will never fire;
+    // When `searchIntent` is false (For-you-only, etc.) this skips the fetch;
     // `loading` is flipped false so the results div never carries a stuck
     // "still loading" flag into the moment intent later appears.
+    // `firstSearchSettled` for that case is the effect just below.
     useEffect(() => {
         if (!searchIntent) {
-            setFirstSearchSettled(true);
             setLoading(false);
             return;
         }
@@ -2292,8 +2313,10 @@ export function JobsContent() {
         // sees it as no longer the first.
         const isFirstRun = isFirstSearchRunRef.current;
         isFirstSearchRunRef.current = false;
-        const debounceMs = isFirstRun ? 0 : 250;
+        const debounceMs = isFirstRun || submitImmediateRef.current ? 0 : 250;
+        submitImmediateRef.current = false;
         const t = setTimeout(async () => {
+            searchStartedAtRef.current = performance.now();
             try {
                 // Browse-by-default (2026-08-07): the pristine zero-query
                 // landing (`emptySearchState === "overlay-ask"` — no query,
@@ -2598,6 +2621,17 @@ export function JobsContent() {
         // alone would not re-run this effect for that transition.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed, searchIntent]);
+
+    // No search to wait for: flip `firstSearchSettled` so the secondary mount
+    // probes gated on it (posted-date support, report-job-enabled,
+    // live-jobs-count) aren't left waiting on a fetch that will never fire.
+    // Not while the home view is still pending, though: that resolves within
+    // moments into For you or a browse list, and settling early let those
+    // probes (server actions run one at a time) queue ahead of the list's own
+    // request, which measured ~1 s later on a throttled phone profile.
+    useEffect(() => {
+        if (!searchIntent && !showJobsHomePending) setFirstSearchSettled(true);
+    }, [searchIntent, showJobsHomePending]);
 
     // Sort-reset (approved product change, 2026-08-13): an explicit sort is
     // sticky across query edits now — the only remaining reset is the
@@ -3695,6 +3729,14 @@ export function JobsContent() {
     // ?.searchId`) so impressions and the clicks they produce always join
     // on one query_id.
     useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
+    useListRenderTiming({
+        searchId: result?.searchId,
+        rows: result?.hits.length ?? 0,
+        loading,
+        surface: emptySearchState === "overlay-ask" ? "browse" : "search",
+        requestStartedAtRef: searchStartedAtRef,
+        narrow: !isLgUp,
+    });
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {

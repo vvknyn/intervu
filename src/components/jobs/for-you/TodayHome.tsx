@@ -15,7 +15,7 @@ import Link from "next/link";
 import { searchJobsAction } from "@/actions/jobs";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { MetaLine } from "@/components/jobs/JobDetail";
+import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { Button } from "@/components/ui/button";
 import { SectionTitle, SubTitle } from "@/components/ui/heading";

@@ -30,7 +30,7 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ContextHelp } from "@/components/ui/context-help";
 import { MatchChip, MatchChipTeaser } from "@/components/jobs/MatchChip";
-import { MetaLine } from "@/components/jobs/JobDetail";
+import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";

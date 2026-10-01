@@ -31,7 +31,7 @@ import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { deckListLoading } from "@/lib/jobs/for-you/deck-list-loading";
 import { resolveDeckShortcut } from "@/lib/jobs/for-you/deck-keyboard";
 import { resolveDescriptionHydration } from "@/lib/jobs/for-you/description-pane-state";

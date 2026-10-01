@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import {
+    isAuthKitHeld,
     REQUIRE_AUTHKIT_EVENT,
     scheduleAfterLoadOrIdle,
 } from "@/lib/perf/schedule-after-load-or-idle";
@@ -35,7 +36,14 @@ export function DeferredAuthKitProvider({ children }: { children: React.ReactNod
         const mount = () => setReady(true);
         const onRequire = () => mount();
         window.addEventListener(REQUIRE_AUTHKIT_EVENT, onRequire);
-        const cancelIdle = scheduleAfterLoadOrIdle(mount, { timeout: 5000 });
+        // A held page (see `holdAuthKitUntilRequired`) mounts it through the
+        // require event instead, once its first list is on screen.
+        const cancelIdle = scheduleAfterLoadOrIdle(
+            () => {
+                if (!isAuthKitHeld()) mount();
+            },
+            { timeout: 5000 },
+        );
         return () => {
             window.removeEventListener(REQUIRE_AUTHKIT_EVENT, onRequire);
             cancelIdle();
