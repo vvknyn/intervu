@@ -79,15 +79,16 @@ const LISTED = [
 ];
 
 /**
- * The résumé's own search (its query names the TAM title) answers with LISTED, in the browser
- * only: the action still runs, its answer is replaced. Row 0 of the flight response is the
- * action envelope (build id, "$@1"); row 1 carries the return value.
+ * The list's search answers with LISTED, in the browser only: the action still runs, its answer
+ * is replaced. Row 0 of the flight response is the action envelope (build id, "$@1"); row 1
+ * carries the return value.
  */
 const answerResumeSearch = (page: Page) =>
   page.route("**/*", async (route) => {
     const req = route.request();
     const body = req.postData() ?? "";
-    if (req.method() !== "POST" || !req.headers()["next-action"] || !body.includes("Technical Account Manager") || !body.includes('"offset"')) {
+    // The list's first page (a guest's ranked Search reads the newest roles and orders them on the device).
+    if (req.method() !== "POST" || !req.headers()["next-action"] || !body.includes('"withFacets":true') || !body.includes('"offset":0')) {
       return route.fallback();
     }
     const res = await route.fetch();
@@ -109,7 +110,8 @@ test("a TAM résumé's ranked Search list opens on TAM roles, not the senior PM 
   const titles = page.getByTestId("job-row").getByTestId("job-title");
   // A guest sees the top 3, then the fit gate. All three are the résumé's own role.
   await expect(titles).toHaveCount(3, { timeout: 30_000 });
-  for (const title of await titles.allTextContents()) expect(title).toMatch(/Technical Account Manager/);
+  // Own role first, then by score: the senior one (100), the mid one (92), the unlabelled one (79).
+  await expect(titles).toHaveText(["Senior Technical Account Manager", "Technical Account Manager", "Technical Account Manager II"]);
   await expect(page.getByTestId("job-row").filter({ hasText: /Product Manager/ })).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -129,4 +131,7 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
   if (phone) expect(new URL(page.url()).searchParams.get("job")).toBeNull();
   await expect(reason).toContainText("It's your own role: the title matches Technical Account Manager on your résumé.");
   await expect(reason).toContainText(/its level fits your experience/i);
+  // Readable on the tooltip's own (inverted) background: it once rendered white on white.
+  const [ink, paper] = await reason.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el.closest("[data-side]") ?? document.body).backgroundColor]);
+  expect(ink).not.toBe(paper);
 });

@@ -116,7 +116,7 @@ function MatchReceipt({
                 Why {label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
-            <p data-testid="match-reason" className="mb-2 text-sm leading-snug text-foreground">
+            <p data-testid="match-reason" className="mb-2 text-sm leading-snug">
                 {explainMatch(score)}
             </p>
             <div className="space-y-1.5">
