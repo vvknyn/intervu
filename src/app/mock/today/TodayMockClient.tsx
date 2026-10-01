@@ -1,20 +1,24 @@
 "use client";
 
 /**
- * Fixture-driven `/mock/today` preview. The Today header reads a live
- * search, the tracker and this device's last visit, so its states can't be
- * seen on demand. This renders the real `TodayHomeView` over the real pack
- * tiles (`CategoryHubGrid` with `compactHeader`), fed static fixtures.
+ * Fixture-driven `/mock/today` preview of the packs home in order: the
+ * welcome panel (which résumé, last here), the pack chips, Today, then the
+ * tracker and Recently viewed. Today reads a live search, the tracker and
+ * this device's last visit, so its states can't be seen on demand; this
+ * renders the real `CategoryHubGrid`, `TodayHomeView` and `HubYourJobsView`
+ * fed static fixtures.
  *
- * `?state=first | empty | loading | failed | guest`; anything else is filled
- * (last here Friday, 7 new matches, 2 of 12 applied, 3 follow-ups, 1
- * interview). `guest` is a signed-out visitor: the fit preview and the gate.
+ * `?state=first | empty | loading | failed | guest | no-resume | unreadable | tuned`;
+ * anything else is filled (last here Friday, 7 picks with 3 new, 2 of 12
+ * applied, 3 follow-ups, 1 interview). `guest` is a signed-out visitor: the
+ * fit preview and the gate. `no-resume` and `unreadable` are a signed-in
+ * visitor without a usable résumé. `tuned` has a thumbs up given and the
+ * tuning line with Reset.
  *
- * "Needs you" beside it is built by the real `buildNeedsYou` from fixture
- * tracker rows and account counts. `first` shows a new account's starter
- * steps, `loading` and `failed` its read's states, `guest` its empty line.
- * The pack chips under it carry fixture counts and "+N" deltas (none on
- * `first`).
+ * "Needs you" beside the picks is built by the real `buildNeedsYou` from
+ * fixture tracker rows and account counts. `first` shows a new account's
+ * starter steps, `loading` and `failed` its read's states, `guest` its empty
+ * line. The pack chips carry fixture counts and "+N" deltas (none on `first`).
  */
 
 import { Suspense } from "react";
@@ -22,7 +26,9 @@ import { useSearchParams } from "next/navigation";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { CategoryHubGrid } from "@/components/jobs/CategoryHubGrid";
-import { TodayHomeView } from "@/components/jobs/for-you/TodayHome";
+import { ResumeInUse } from "@/components/jobs/ResumeInUse";
+import { HubYourJobsView } from "@/components/jobs/for-you/HubYourJobs";
+import { TodayHomeView, type TodayStatus } from "@/components/jobs/for-you/TodayHome";
 import { NeedsYouView } from "@/components/jobs/for-you/NeedsYou";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
 import { buildNeedsYou, starterSteps, type NeedsYouRemote } from "@/lib/jobs/for-you/needs-you";
@@ -72,8 +78,9 @@ const FIXTURE_ROLES: TodayRole[] = ROLES.map(([title, company, domain, city, wor
         ghost_badge: "clear",
         ghost_checked_at: null,
     } as PublicJob,
-    score: { total, components: [] },
+    score: { total, components: [], role: "own" },
 }));
+const MOCK_SINCE = MOCK_NOW - 40 * 3600_000;
 
 const daysAgo = (d: number) => hoursAgo(d * 24);
 const pursuit = (id: string, company: string, position: string, status: Pursuit["status"], updatedDays: number, extra: Partial<Pursuit> = {}): Pursuit => ({
@@ -120,64 +127,104 @@ function TodayMockBody() {
     const state = useSearchParams().get("state");
     const first = state === "first";
     const guest = state === "guest";
-    const status = state === "loading" ? "loading" : state === "failed" ? "failed" : "ready";
+    const noResume = state === "no-resume" || state === "unreadable";
+    const status: TodayStatus =
+        state === "loading"
+            ? "loading"
+            : state === "failed"
+              ? "failed"
+              : state === "no-resume"
+                ? "no-resume-missing"
+                : state === "unreadable"
+                  ? "no-resume-unreadable"
+                  : "ready";
     const roles = state === "empty" || status !== "ready" ? [] : FIXTURE_ROLES;
     const pursuits = first || guest ? [] : FIXTURE_PURSUITS;
-    const remote = guest || status !== "ready" ? null : first ? EMPTY_REMOTE : FIXTURE_REMOTE;
+    const remote = guest || (status !== "ready" && !noResume) ? null : first ? EMPTY_REMOTE : FIXTURE_REMOTE;
     const needs = buildNeedsYou(pursuits, MOCK_NOW, remote);
+    const sinceMs = first ? null : MOCK_SINCE;
+    const newCount = sinceMs == null ? roles.length : roles.filter((r) => Date.parse(r.job.posted_at!) >= sinceMs).length;
     return (
         <PageLayout fullWidth>
             <div className="shell-row pb-16 pt-6">
-                <TodayHomeView
-                    title={guest ? "Your matches" : "Welcome, Vivek"}
-                    lastHere={first ? null : "Friday"}
-                    since={first ? "this week" : "since Friday"}
-                    status={status}
-                    roles={roles}
-                    saturated={false}
-                    appliedToday={first ? 0 : 2}
-                    followUps={first ? 0 : 3}
-                    interviews={first ? 0 : 1}
-                    nowMs={MOCK_NOW}
-                    rowLimit={guest ? FIT_GUEST_PREVIEW_ROWS : undefined}
-                    gate={
-                        guest ? (
-                            <SignupGate
-                                reason="fit"
-                                originSurface="for_you"
-                                returnTo="/jobs?view=for-you"
-                                count={{ kind: "exact", value: roles.length }}
-                                className="w-full"
-                            />
-                        ) : null
-                    }
-                    onApply={() => {}}
-                    onSkip={() => {}}
-                    onOpenPack={() => {}}
-                    onRetry={() => {}}
-                    needsYou={
-                        <NeedsYouView
-                            items={needs}
-                            remote={guest ? "none" : status}
-                            steps={remote ? starterSteps(pursuits, remote) : null}
-                            guest={guest}
-                            onItem={() => {}}
-                            onStep={() => {}}
-                            onTracker={() => {}}
-                            onShowMore={() => {}}
-                            onRetry={() => {}}
-                        />
-                    }
-                />
                 <CategoryHubGrid
-                    compactHeader
                     isAuthenticated={!guest}
-                    userName="Vivek"
-                    hasResume
-                    hubCorpusLine="~508 matches ranked Strong first"
-                    hubCountLabels={PACK_COUNTS}
-                    hubCountDeltas={first ? undefined : PACK_DELTAS}
+                    userName="Sam"
+                    hasResume={!noResume}
+                    hubCorpusLine={noResume ? null : "~508 matches ranked Strong first"}
+                    hubCountLabels={noResume ? undefined : PACK_COUNTS}
+                    hubCountDeltas={first || noResume ? undefined : PACK_DELTAS}
+                    resumeLine={noResume ? null : <ResumeInUse label="Sam_Rivera_Resume.pdf" onReplace={() => {}} />}
+                    lastHere={
+                        first ? null : (
+                            <p className="text-sm text-muted-foreground" data-testid="today-last-here">
+                                Last here Friday
+                            </p>
+                        )
+                    }
                     onSelectCategory={() => {}}
+                    footer={
+                        <div className="space-y-4">
+                            <TodayHomeView
+                                status={status}
+                                since={first ? "this week" : "since Friday"}
+                                firstVisit={first}
+                                sinceMs={sinceMs}
+                                roles={roles}
+                                newCount={newCount}
+                                appliedToday={first ? 0 : 2}
+                                nowMs={MOCK_NOW}
+                                likedIds={state === "tuned" ? new Set(["mock-today-2"]) : new Set()}
+                                tuning={state === "tuned" ? "Tuned toward Payments, away from Growth." : null}
+                                rowLimit={guest ? FIT_GUEST_PREVIEW_ROWS : undefined}
+                                gate={
+                                    guest ? (
+                                        <SignupGate
+                                            reason="fit"
+                                            originSurface="for_you"
+                                            returnTo="/jobs?view=for-you"
+                                            count={{ kind: "exact", value: roles.length }}
+                                            className="w-full"
+                                        />
+                                    ) : null
+                                }
+                                onApply={() => {}}
+                                onMore={() => {}}
+                                onFewer={() => {}}
+                                onResetTuning={() => {}}
+                                onOpenPack={() => {}}
+                                onAddResume={() => {}}
+                                onRetryResume={() => {}}
+                                onRetry={() => {}}
+                                needsYou={
+                                    <NeedsYouView
+                                        items={needs}
+                                        remote={guest ? "none" : remote ? "ready" : status === "failed" ? "failed" : "loading"}
+                                        steps={remote ? starterSteps(pursuits, remote) : null}
+                                        guest={guest}
+                                        onItem={() => {}}
+                                        onStep={() => {}}
+                                        onTracker={() => {}}
+                                        onShowMore={() => {}}
+                                        onRetry={() => {}}
+                                    />
+                                }
+                            />
+                            <HubYourJobsView
+                                signedIn={!guest}
+                                returnTo="/jobs?view=for-you"
+                                nowMs={MOCK_NOW}
+                                pursuits={pursuits}
+                                trackerLoading={false}
+                                trackerFailed={false}
+                                onRetryTracker={() => {}}
+                                views={[]}
+                                recentLoading={false}
+                                recentFailed={false}
+                                onRetryRecent={() => {}}
+                            />
+                        </div>
+                    }
                 />
             </div>
         </PageLayout>

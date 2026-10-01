@@ -56,14 +56,16 @@ export interface CategoryHubGridProps {
     hubCorpusLine?: string | null;
     /** Honest removal cue when prior known pack counts shrink. */
     hubRemovalsLine?: string | null;
-    /** Rendered under the pack chips — the packs hub puts the visitor's tracker and Recently viewed here. */
+    /** Rendered under the pack chips — the packs hub puts Today, the visitor's tracker and Recently viewed here. */
     footer?: React.ReactNode;
     /**
-     * The Today header (`TodayHome`) sits above and owns the greeting and the
-     * daily count: the welcome panel shrinks to a "Your packs" line with the
-     * corpus line and "Browse all matches".
+     * Which résumé the counts and matches are ranked against, with Replace
+     * (`ResumeInUse`): it takes the subtitle's place, which only says the
+     * same thing less exactly.
      */
-    compactHeader?: boolean;
+    resumeLine?: React.ReactNode;
+    /** "Last here Friday" (`TodayLastHere`), under the greeting. */
+    lastHere?: React.ReactNode;
     className?: string;
 }
 
@@ -81,7 +83,8 @@ export function CategoryHubGrid({
     hubCorpusLine = null,
     hubRemovalsLine = null,
     footer,
-    compactHeader = false,
+    resumeLine = null,
+    lastHere = null,
     className,
 }: CategoryHubGridProps) {
     const router = useRouter();
@@ -138,7 +141,6 @@ export function CategoryHubGrid({
     const browseAllButton = (
         <Button
             type="button"
-            variant={compactHeader ? "outline" : "default"}
             data-testid="hub-browse-all-matches"
             onClick={() => {
                 const allItem = categories.find((c) => c.id === "all") ?? DEFAULT_CATEGORY_HUBS[0];
@@ -159,24 +161,15 @@ export function CategoryHubGrid({
                 className,
             )}
         >
-            {compactHeader ? (
-                <div
-                    data-testid="hub-compact-header"
-                    className="poster-list-inset-x flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between"
-                >
-                    <div className="min-w-0 space-y-0.5">
-                        <h2 className="text-base font-semibold leading-snug text-foreground">Your packs</h2>
-                        {hubStatusLines}
-                    </div>
-                    {browseAllButton}
-                </div>
-            ) : (
-            /* Welcome banner — Concept A calm Velai panel */
+            {/* Welcome banner — Concept A calm Velai panel */}
             <div className="rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-7">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                     <div className="space-y-1">
                         {hasResume && (
-                            <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
+                            <div
+                                className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live"
+                                data-testid="hub-private-matching"
+                            >
                                 <span className="h-1.5 w-1.5 rounded-pill bg-live" />
                                 {PRIVATE_MATCHING_ACTIVE}
                             </div>
@@ -184,9 +177,12 @@ export function CategoryHubGrid({
                         <h2 className="text-xl font-semibold text-foreground">
                             {greetingTitle}
                         </h2>
-                        <p className="text-xs text-muted-foreground">
-                            {greetingSubtitle}
-                        </p>
+                        {lastHere}
+                        {resumeLine ?? (
+                            <p className="text-xs text-muted-foreground">
+                                {greetingSubtitle}
+                            </p>
+                        )}
                         {dailyApplyTip ? (
                             <p
                                 className="pt-1 text-xs text-muted-foreground"
@@ -203,7 +199,6 @@ export function CategoryHubGrid({
                     </div>
                 </div>
             </div>
-            )}
 
             {/* The packs as one row of chips: label, live count, and "+N" since the last visit. */}
             <ul aria-label="Your packs" data-testid="hub-pack-chips" className="flex flex-wrap gap-2 poster-list-inset-x">

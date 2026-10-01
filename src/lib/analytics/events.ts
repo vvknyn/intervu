@@ -277,7 +277,7 @@ export interface EventPayloads {
     /** The starter step used (`kind: "starter_step"`). */
     step?: "apply" | "save_search" | "follow";
   } & Partial<MatchQualityAnalyticsProps>;
-  /** A pack opened from the packs home: a tile, "Browse all matches", or the Today header's "See more". */
+  /** A pack opened from the packs home: a tile, "Browse all matches", or Today's "All of this week". */
   pack_opened: {
     pack: string;
     source: "tile" | "browse_all" | "today";
@@ -286,11 +286,17 @@ export interface EventPayloads {
 
 export type UpgradePlan = "pro_founding" | "data_api";
 
-/** What was used on the Today header (`home_action_clicked.kind`). */
+/** What was used in Today on the packs home (`home_action_clicked.kind`). */
 export type HomeActionKind =
   | "new_role_open"
   | "new_role_apply"
   | "new_role_skip"
+  // A pick's thumbs up / thumbs down, and Reset on the tuning line.
+  | "new_role_more"
+  | "new_role_fewer"
+  | "tuning_reset"
+  // "Add your résumé" / "Replace résumé" where the picks would be.
+  | "add_resume"
   | "see_more"
   | "stat_new"
   | "stat_applied"

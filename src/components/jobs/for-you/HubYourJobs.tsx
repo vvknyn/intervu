@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Under the pack tiles on the packs hub: the visitor's tracker (the roles
- * they've applied to and saved, with each one's stage) and the last 20 roles
- * they opened. Same flat grammar as the job page's lower sections — hairline
- * top divider, a plain heading, value-over-label numbers, hairline rows — and
- * signed-out it keeps both sections as placeholders behind the one shared
- * `SignupGate`.
+ * Under Today on the packs hub: the visitor's tracker (the roles they've
+ * applied to and saved, with each one's stage) and the last 20 roles they
+ * opened. Each is its own panel (`HubPanel`) with hairline rows, and the
+ * tracker's numbers are tiles that open that stage's applications on
+ * /yours (`/yours?stage=applied`). Signed out it keeps both sections as
+ * placeholders behind the one shared `SignupGate`.
  *
  * `HubYourJobs` wires the shared account reads (`usePursuits`, `useViewed`);
  * `HubYourJobsView` is the pure render the /mock/hub-your-jobs fixture reuses.
@@ -20,6 +20,7 @@ import { DotSeparated } from "@/components/ui/dot-separated";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { StageBadge } from "@/components/tracker/StageBadge";
+import { HubPanel, HubStatTile, HubStatTiles, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
 import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import {
@@ -32,6 +33,7 @@ import {
 } from "@/lib/jobs/for-you/hub-your-jobs";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { displayCompanyName } from "@/lib/jobs/presentation";
+import { trackerStageHref } from "@/lib/pursuits/tracker-display";
 import { TRACKER_PRIMARY_CTA } from "@/lib/pursuits/tracker-voice-copy";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { usePursuits } from "@/lib/pursuits/use-pursuits";
@@ -86,23 +88,18 @@ export function HubYourJobsView(props: HubYourJobsViewProps) {
     for (const p of props.pursuits) if (p.job_id) stageByJobId.set(p.job_id, p.status);
 
     return (
-        <div data-testid="hub-your-jobs" data-signed-in="true">
+        <div data-testid="hub-your-jobs" data-signed-in="true" className="space-y-4">
             <TrackerSection {...props} />
             <RecentSection {...props} stageByJobId={stageByJobId} />
         </div>
     );
 }
 
-function SectionHeader({ title, link }: { title: string; link?: { href: string; label: string; testId: string } }) {
+function PanelLink({ href, label, testId }: { href: string; label: string; testId: string }) {
     return (
-        <div className="flex items-baseline justify-between gap-3 poster-list-inset-x">
-            <h2 className="text-base font-semibold leading-snug text-foreground">{title}</h2>
-            {link ? (
-                <Link href={link.href} data-testid={link.testId} className="shrink-0 text-sm text-brand hover:underline">
-                    {link.label}
-                </Link>
-            ) : null}
-        </div>
+        <Link href={href} data-testid={testId} className={HUB_PANEL_LINK_CLASS}>
+            {label}
+        </Link>
     );
 }
 
@@ -110,20 +107,22 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
     const rows = hubTrackerRows(pursuits);
     const hasAny = pursuits.length > 0;
     return (
-        <section aria-label={COPY.trackerTitle} data-testid="hub-tracker" className="border-t border-border py-6">
-            <SectionHeader
-                title={COPY.trackerTitle}
-                link={hasAny ? { href: "/yours", label: COPY.trackerLink, testId: "hub-tracker-open" } : undefined}
-            />
+        <HubPanel
+            title={COPY.trackerTitle}
+            titleId="hub-tracker-title"
+            testId="hub-tracker"
+            link={hasAny ? <PanelLink href="/yours" label={COPY.trackerLink} testId="hub-tracker-open" /> : null}
+        >
             {trackerLoading && !hasAny ? (
                 <RowsLoading label="Loading your tracker" />
             ) : trackerFailed && !hasAny ? (
-                <LoadFailedState
-                    title="We can't load your tracker right now."
-                    onRetry={onRetryTracker}
-                    testId="hub-tracker-load-failed"
-                    className="mt-4"
-                />
+                <div className="mt-4 poster-list-inset-x">
+                    <LoadFailedState
+                        title="We can't load your tracker right now."
+                        onRetry={onRetryTracker}
+                        testId="hub-tracker-load-failed"
+                    />
+                </div>
             ) : !hasAny ? (
                 <div className="poster-list-inset-x pt-2" data-testid="hub-tracker-empty">
                     <p className="text-sm text-muted-foreground">{COPY.trackerEmpty}</p>
@@ -133,18 +132,21 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                 </div>
             ) : (
                 <>
-                    <dl className="mt-4 flex flex-wrap gap-x-10 gap-y-3 poster-list-inset-x" data-testid="hub-tracker-stats">
+                    <HubStatTiles testId="hub-tracker-stats" label="Your tracker by stage" count={4}>
                         {hubTrackerStats(pursuits).map((stat) => (
-                            <div key={stat.key} className="flex flex-col-reverse" data-testid={`hub-tracker-stat-${stat.key}`}>
-                                <dt className="mono-data mt-0.5 text-sm text-muted-foreground">{stat.label}</dt>
-                                <dd className="text-xl font-semibold leading-snug tabular-nums text-foreground">{stat.value}</dd>
-                            </div>
+                            <HubStatTile
+                                key={stat.key}
+                                testId={`hub-tracker-stat-${stat.key}`}
+                                href={stat.value > 0 ? trackerStageHref(stat.key) : null}
+                                value={String(stat.value)}
+                                label={stat.label}
+                            />
                         ))}
-                    </dl>
+                    </HubStatTiles>
                     {rows.length === 0 ? (
                         <p className="mt-4 poster-list-inset-x text-sm text-muted-foreground">{COPY.trackerAllClosed}</p>
                     ) : (
-                        <div className="mt-2 grid md:grid-cols-2 md:gap-x-6">
+                        <div className="mt-3 grid md:grid-cols-2 md:gap-x-6">
                             {rows.map((p) => (
                                 <HubRow
                                     key={p.id}
@@ -163,7 +165,7 @@ function TrackerSection({ pursuits, trackerLoading, trackerFailed, onRetryTracke
                     )}
                 </>
             )}
-        </section>
+        </HubPanel>
     );
 }
 
@@ -177,20 +179,22 @@ function RecentSection({
 }: HubYourJobsViewProps & { stageByJobId: Map<string, PursuitStage> }) {
     const rows = hubRecentRows(views);
     return (
-        <section aria-label={COPY.recentTitle} data-testid="hub-recent" className="border-t border-border py-6">
-            <SectionHeader
-                title={COPY.recentTitle}
-                link={rows.length > 0 ? { href: "/yours/history", label: COPY.recentLink, testId: "hub-recent-all" } : undefined}
-            />
+        <HubPanel
+            title={COPY.recentTitle}
+            titleId="hub-recent-title"
+            testId="hub-recent"
+            link={rows.length > 0 ? <PanelLink href="/yours/history" label={COPY.recentLink} testId="hub-recent-all" /> : null}
+        >
             {recentLoading && rows.length === 0 ? (
                 <RowsLoading label="Loading the roles you viewed" />
             ) : recentFailed && rows.length === 0 ? (
-                <LoadFailedState
-                    title="We can't load your history right now."
-                    onRetry={onRetryRecent}
-                    testId="hub-recent-load-failed"
-                    className="mt-4"
-                />
+                <div className="mt-4 poster-list-inset-x">
+                    <LoadFailedState
+                        title="We can't load your history right now."
+                        onRetry={onRetryRecent}
+                        testId="hub-recent-load-failed"
+                    />
+                </div>
             ) : rows.length === 0 ? (
                 <p className="poster-list-inset-x pt-2 text-sm text-muted-foreground" data-testid="hub-recent-empty">
                     {COPY.recentEmpty}
@@ -209,7 +213,7 @@ function RecentSection({
                     ))}
                 </div>
             )}
-        </section>
+        </HubPanel>
     );
 }
 
@@ -278,15 +282,12 @@ function SignedOutPlaceholder({ returnTo }: { returnTo: SitePath }) {
         { title: COPY.recentTitle, body: COPY.recentPlaceholder, testId: "hub-recent-placeholder" },
     ];
     return (
-        <div data-testid="hub-your-jobs" data-signed-in="false" className="border-t border-border py-6">
-            <div className="grid gap-6 md:grid-cols-2">
+        <div data-testid="hub-your-jobs" data-signed-in="false">
+            <div className="grid gap-4 md:grid-cols-2">
                 {sections.map((s) => (
-                    <section key={s.testId} aria-label={s.title} data-testid={s.testId}>
-                        <SectionHeader title={s.title} />
-                        <p className="mt-3 rounded-panel border border-dashed border-border bg-card poster-list-inset-x py-6 text-sm text-muted-foreground">
-                            {s.body}
-                        </p>
-                    </section>
+                    <HubPanel key={s.testId} title={s.title} titleId={`${s.testId}-title`} testId={s.testId}>
+                        <p className="mt-3 poster-list-inset-x text-sm text-muted-foreground">{s.body}</p>
+                    </HubPanel>
                 ))}
             </div>
             <SignupGate reason="tracker" originSurface="for_you" returnTo={returnTo} className="mt-6" />

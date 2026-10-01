@@ -25,6 +25,18 @@ export const TRACKER_BOARD_COLUMNS: { column: BoardColumn; label: string }[] = [
     { column: "closed", label: "Closed" },
 ];
 
+const BOARD_COLUMN_IDS = new Set<string>(TRACKER_BOARD_COLUMNS.map(({ column }) => column));
+
+/** /yours showing one stage's applications: what the packs home's tracker numbers link to. */
+export function trackerStageHref(column: BoardColumn): string {
+    return `/yours?stage=${column}`;
+}
+
+/** The `?stage=` on /yours, when it names a board column; anything else shows every stage. */
+export function parseTrackerStage(value: string | null | undefined): BoardColumn | null {
+    return value && BOARD_COLUMN_IDS.has(value) ? (value as BoardColumn) : null;
+}
+
 /** Which board columns to render for the active chip filter. */
 export function visibleTrackerBoardColumns(filter: TrackerFilter): BoardColumn[] {
     if (filter === "all") return TRACKER_BOARD_COLUMNS.map(({ column }) => column);
