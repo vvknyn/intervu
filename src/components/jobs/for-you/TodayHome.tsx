@@ -316,7 +316,8 @@ export function TodayHome({
         if (index < 0) return;
         setHeld(shownIds.slice(0, inclusive ? index + 1 : index));
     };
-    const nudge = (role: TodayRole, signal: TuningSignal) => recordNudge(role.job, signal, deck);
+    // An own-role pick is rated like the packs rate one (#747): a thumbs down steers by employer, not the whole title.
+    const nudge = (role: TodayRole, signal: TuningSignal) => recordNudge(role.job, signal, deck, { own: role.score.role === "own" });
     /** A thumbs down: the pick leaves (kept out on this device) and roles like it move down. */
     const turnDown = (role: TodayRole) => {
         holdThrough(role.job.id, false);
