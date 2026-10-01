@@ -1,9 +1,10 @@
 /**
- * Document-level keyboard shortcuts for the For-you deck: `←`/`↑` and
- * `K`/`J` move to the previous job, `→`/`↓` and `J` move to the next
- * (the ranked-results list reads top-to-bottom, so Up/Down mirror
- * Left/Right rather than introducing a fourth action), `S` skips the
- * active one. Everything else (Space, PageDown, letters outside the
+ * Document-level keyboard shortcuts for an opened pack's role stack:
+ * `←` and `K` move to the previous role, `→` and `J` to the next, `S`
+ * skips the open one. Up/Down are deliberately NOT here: each role card
+ * scrolls, and Up/Down are how a keyboard reader scrolls it (they mirrored
+ * Left/Right while the pack was a top-to-bottom list, until the stacked role
+ * cards, 2026-09-30). Everything else (Space, PageDown, letters outside the
  * three sets below, …) is left alone so native scrolling and page
  * behavior keep working — this is an allowlist of handled keys, not a
  * denylist of blocked ones, so a new key never needs a new exclusion
@@ -35,8 +36,8 @@ export type DeckShortcutEvent = {
 };
 
 const EDITABLE_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
-const PREVIOUS_KEYS = new Set(["ArrowLeft", "ArrowUp", "k", "K"]);
-const NEXT_KEYS = new Set(["ArrowRight", "ArrowDown", "j", "J"]);
+const PREVIOUS_KEYS = new Set(["ArrowLeft", "k", "K"]);
+const NEXT_KEYS = new Set(["ArrowRight", "j", "J"]);
 const SKIP_KEYS = new Set(["s", "S"]);
 
 const defaultReadTarget: ShortcutTargetReader = (target) => {
