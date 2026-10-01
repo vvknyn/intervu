@@ -123,7 +123,9 @@ export interface IntegrityFacts {
    *  in the first week Velai tracked the employer (those were already open —
    *  the first crawl's backlog, not new hiring). */
   openedCount: number;
-  /** Earliest `first_seen_at` Velai has for this employer, or null. */
+  /** Earliest `first_seen_at` Velai has for this employer when that is
+   *  recent enough to matter (inside the 90-day window plus a week); null
+   *  when tracking began earlier, or never. */
   trackedSinceIso: string | null;
 }
 
@@ -400,10 +402,21 @@ async function fetchCadenceRows(pg: Queryable, domain: string): Promise<CadenceR
   return { rows: weeks.rows, firstDay: first.rows[0]?.first_day ?? null };
 }
 
-async function fetchIntegrityRows(
-  pg: Queryable,
-  domain: string,
-): Promise<{ closedReasons: ClosedReasonRow[]; openedCount: number; trackedSince: string | null }> {
+/** How far back the "when did tracking begin" lookups read: the record's
+ *  window plus the week the first crawl is left out of. A first sighting
+ *  older than this changes neither the opened count nor the sentence. */
+const TRACKING_LOOKBACK_DAYS = INTEGRITY_WINDOW_DAYS + 7;
+
+interface IntegrityRows {
+  closedReasons: ClosedReasonRow[];
+  openedCount: number;
+  /** First sighting when it falls inside the lookback, else null. */
+  trackedSince: string | null;
+  /** Velai has seen at least one of the employer's roles, ever. */
+  tracked: boolean;
+}
+
+async function fetchIntegrityRows(pg: Queryable, domain: string): Promise<IntegrityRows> {
   const [closed, opened] = await Promise.all([
     pg.query<ClosedReasonRow>(
       `SELECT closed_reason, COUNT(*)::int AS n
@@ -416,23 +429,39 @@ async function fetchIntegrityRows(
     // Velai found the employer; counting them as "opened" inflated every
     // newly-tracked employer's record. Same week boundary the cadence strip
     // flags as `firstTracked`.
-    pg.query<{ n: number; tracked_since: string | null }>(
-      `WITH s AS (SELECT MIN(first_seen_at) AS first_seen FROM job_listings WHERE company_domain = $1)
+    //
+    // Reads stay inside the lookback, and the rows are scanned once (`r`).
+    // Release 15's version took MIN(first_seen_at) over the employer's whole
+    // history and counted `j.*` over every row it had ever seen. A whole-row
+    // reference makes Postgres detoast each row's description, so a large
+    // employer's page waited seconds on it. An EXISTS on one older row
+    // answers "tracked before the window?" without reading that history.
+    pg.query<{ n: number; tracked_since: string | null; tracked: boolean }>(
+      `WITH r AS (
+         SELECT first_seen_at FROM job_listings
+         WHERE company_domain = $1 AND first_seen_at >= now() - interval '${TRACKING_LOOKBACK_DAYS} days'
+       ), b AS (
+         SELECT
+           (SELECT MIN(first_seen_at) FROM r) AS first_seen,
+           EXISTS (SELECT 1 FROM job_listings
+             WHERE company_domain = $1 AND first_seen_at < now() - interval '${TRACKING_LOOKBACK_DAYS} days') AS tracked_before
+       )
        SELECT
-         COUNT(j.*) FILTER (
-           WHERE j.first_seen_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'
-             AND j.first_seen_at >= date_trunc('week', s.first_seen) + interval '7 days'
-         )::int AS n,
-         s.first_seen::date::text AS tracked_since
-       FROM s LEFT JOIN job_listings j ON j.company_domain = $1
-       GROUP BY s.first_seen`,
+         (SELECT COUNT(*) FROM r
+           WHERE r.first_seen_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'
+             AND (b.tracked_before OR r.first_seen_at >= date_trunc('week', b.first_seen) + interval '7 days'))::int AS n,
+         CASE WHEN b.tracked_before THEN NULL ELSE b.first_seen::date::text END AS tracked_since,
+         (b.tracked_before OR b.first_seen IS NOT NULL) AS tracked
+       FROM b`,
       [domain],
     ),
   ]);
+  const row = opened.rows[0];
   return {
     closedReasons: closed.rows,
-    openedCount: opened.rows[0]?.n ?? 0,
-    trackedSince: opened.rows[0]?.tracked_since ?? null,
+    openedCount: row?.n ?? 0,
+    trackedSince: row?.tracked_since ?? null,
+    tracked: row?.tracked === true,
   };
 }
 
@@ -652,13 +681,10 @@ function buildCadenceSection(result: CadenceResult | null, nowMs: number): Exhau
   };
 }
 
-function buildIntegritySection(
-  result: { closedReasons: ClosedReasonRow[]; openedCount: number; trackedSince: string | null } | null,
-  nowMs: number,
-): ExhaustSection<IntegrityFacts> {
+function buildIntegritySection(result: IntegrityRows | null, nowMs: number): ExhaustSection<IntegrityFacts> {
   // Kept with zero counts once tracking has started: "tracked since X, 0
   // opened, 0 closed" is a record, where a null would read as "not tracked".
-  if (!result || (result.closedReasons.length === 0 && result.openedCount === 0 && !result.trackedSince)) return null;
+  if (!result || (result.closedReasons.length === 0 && result.openedCount === 0 && !result.tracked)) return null;
   return {
     data: {
       closedReasonCounts: result.closedReasons
