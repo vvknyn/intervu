@@ -195,3 +195,62 @@ describe('the plain-English reason behind the label', () => {
         assert.equal(text, 'Its level fits your experience.');
     });
 });
+
+describe('the whole résumé decides which of its roles leads', () => {
+    // Vivek's CSM résumé: current job "Client-facing Product Manager", but the summary opens
+    // "Senior Customer Success and Technical Account Manager" and the first skill group is
+    // "Customer Success & Account Management". Its list was every Product Manager posting first.
+    const listed = [
+        canada('Senior Product Manager', 'senior'),
+        canada('Product Manager, Growth', 'senior'),
+        canada('Technical Product Manager', 'senior'),
+        canada('Senior Customer Success Manager', 'senior'),
+        canada('Technical Account Manager', 'senior'),
+    ];
+    const order = (resume: ResumeData, jobs: PublicJob[]) => {
+        const scores = new Map(jobs.map((job) => [job.id, score(resume, job)]));
+        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, buildMatchQuery(resume, NOW_YEAR).q).map((job) => job.title);
+    };
+
+    it('a résumé whose summary and skills lead with customer success lists those roles before its Product Manager ones', () => {
+        const ordered = order(CSM, listed);
+        assert.deepEqual(ordered.slice(0, 2), ['Senior Customer Success Manager', 'Technical Account Manager'], ordered.join(' | '));
+        assert.ok(ordered.slice(2).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+    });
+
+    it('its Product Manager postings are still its own role and can still read Strong', () => {
+        const pm = score(CSM, canada('Senior Product Manager', 'senior'))!;
+        assert.equal(pm.role, 'own');
+        assert.equal(matchBand(pm.total), 'strong');
+    });
+
+    it('skill groups alone never put another kind of role ahead of the candidate\'s own title', () => {
+        // A barista whose skill group says "Customer Service": barista postings stay first.
+        const barista = {
+            profile: { name: 'Test Person', profession: 'Barista', yearsOfExperience: 3, location: 'Toronto, ON, Canada', email: 't@example.com', phone: '', linkedin: '', website: '' },
+            experience: [{ id: 'e1', company: 'Cafe', role: 'Barista', dates: '2022 - Present', description: 'Made drinks and served customers.' }],
+            competencies: [{ category: 'Customer Service', skills: ['Customer success', 'Cash handling'] }],
+            education: [],
+            generatedSummary: '',
+        } as unknown as ResumeData;
+        const ordered = order(barista, [canada('Customer Success Manager', 'mid'), canada('Barista', 'mid')]);
+        assert.equal(ordered[0], 'Barista', ordered.join(' | '));
+    });
+
+    it('a PM résumé that names no other kind of role keeps its order', () => {
+        const ordered = order(PM, listed);
+        assert.ok(ordered.slice(0, 3).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+    });
+
+    it('works outside tech: a nurse now managing clinic operations, whose summary leads with nursing, sees nursing roles first', () => {
+        const nurse = {
+            profile: { name: 'Test Person', profession: 'Clinic Operations Manager', yearsOfExperience: 4, location: 'Toronto, ON, Canada', email: 't@example.com', phone: '', linkedin: '', website: '' },
+            experience: [{ id: 'e1', company: 'Clinic Group', role: 'Clinic Operations Manager', dates: '2023 - Present', description: 'Scheduled clinic staff and patient intake.' }],
+            competencies: [{ category: 'Patient Care', skills: ['Medication administration', 'Patient assessment'] }],
+            education: [{ id: 'ed1', degree: 'BScN', institution: 'State University', year: '2020' }],
+            generatedSummary: 'Registered Nurse with 4 years of acute care and clinic operations experience.',
+        } as unknown as ResumeData;
+        const ordered = order(nurse, [canada('Operations Manager', 'mid'), canada('Registered Nurse', 'mid'), canada('Clinic Operations Manager', 'mid'), canada('Registered Nurse, Day Surgery', 'mid')]);
+        assert.deepEqual(ordered.slice(0, 2).map((t) => /nurse/i.test(t)), [true, true], ordered.join(' | '));
+    });
+});

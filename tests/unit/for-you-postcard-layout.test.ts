@@ -19,7 +19,7 @@ describe("for-you postcard layout", () => {
         const stage = css.match(/\.role-stack-stage \{[^}]*\}/)?.[0] ?? "";
         assert.match(
             home,
-            /<div className="role-stack-screen">\s*\{thinBlock\}\s*<RoleStack/,
+            /<div className="role-stack-screen">\s*\{thinBlock\}\s*(?:\{tuning \?[\s\S]*?\) : null\}\s*)?<RoleStack/,
             "the stack shares the screen under the pack's header row with a thin pack's broaden options",
         );
         const screen = css.match(/\.role-stack-screen \{[^}]*\}/)?.[0] ?? "";
