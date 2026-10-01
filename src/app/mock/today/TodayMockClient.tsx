@@ -149,12 +149,12 @@ function TodayMockBody() {
             <div className="shell-row pb-16 pt-6">
                 <CategoryHubGrid
                     isAuthenticated={!guest}
-                    userName="Vivek"
+                    userName="Sam"
                     hasResume={!noResume}
                     hubCorpusLine={noResume ? null : "~508 matches ranked Strong first"}
                     hubCountLabels={noResume ? undefined : PACK_COUNTS}
                     hubCountDeltas={first || noResume ? undefined : PACK_DELTAS}
-                    resumeLine={noResume ? null : <ResumeInUse label="Vivek_Narayanan_Resume.pdf" onReplace={() => {}} />}
+                    resumeLine={noResume ? null : <ResumeInUse label="Sam_Rivera_Resume.pdf" onReplace={() => {}} />}
                     lastHere={
                         first ? null : (
                             <p className="text-sm text-muted-foreground" data-testid="today-last-here">
