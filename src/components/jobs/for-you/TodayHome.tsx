@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 import { SubTitle } from "@/components/ui/heading";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
-import { HubPanel, HubStatTile, HubStatTiles, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
+import { HubPanel, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
 import { NeedsYouView, useNeedsYouRemote, type NeedsYouRemoteState } from "@/components/jobs/for-you/NeedsYou";
 import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
@@ -317,9 +317,10 @@ export function TodayHome({
         setHeld(shownIds.slice(0, inclusive ? index + 1 : index));
     };
     const nudge = (role: TodayRole, signal: TuningSignal) => recordNudge(role.job, signal, deck);
-    const remove = (role: TodayRole, signal: "skip" | "fewer") => {
+    /** A thumbs down: the pick leaves (kept out on this device) and roles like it move down. */
+    const turnDown = (role: TodayRole) => {
         holdThrough(role.job.id, false);
-        nudge(role, signal);
+        nudge(role, "fewer");
         const next = new Set(skipped).add(role.job.id);
         setSkipped(next);
         writeTodaySkipped(next);
@@ -334,8 +335,6 @@ export function TodayHome({
             roles={picks}
             newCount={newCount}
             appliedToday={appliedToday}
-            followUps={followUps}
-            interviews={interviews}
             nowMs={nowMs}
             likedIds={liked}
             tuning={tuning ? tuningLine(tuning) : null}
@@ -361,10 +360,6 @@ export function TodayHome({
                 nudge(role, "apply");
                 onApply(role.job);
             }}
-            onSkip={(role) => {
-                track("new_role_skip", role);
-                remove(role, "skip");
-            }}
             onMore={(role) => {
                 track("new_role_more", role);
                 holdThrough(role.job.id, true);
@@ -373,7 +368,7 @@ export function TodayHome({
             }}
             onFewer={(role) => {
                 track("new_role_fewer", role);
-                remove(role, "fewer");
+                turnDown(role);
             }}
             onResetTuning={() => {
                 track("tuning_reset");
@@ -422,9 +417,12 @@ function plural(n: number, one: string, many: string): string {
     return n === 1 ? one : many;
 }
 
-/** The rule a pick passed (`todayLeftOut`), said once at the top so every row's chip has its basis. */
-const PICKS_BASIS =
-    "This week's roles in your line of work, at your level and where you can work. Thumbs up or down tunes this list and your packs.";
+/** The rule a pick passed (`todayLeftOut`), said once at the top so every row's fit word has its basis. */
+const PICKS_BASIS = "This week's roles in your line of work, at your level, where you can work. Your own role comes first.";
+
+/** The summary line's links: plain text with a quiet underline, the number in bold. */
+const SUMMARY_LINK =
+    "underline decoration-border underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export function TodayHomeView({
     status,
@@ -435,8 +433,6 @@ export function TodayHomeView({
     newCount,
     appliedToday,
     goal = DEFAULT_DAILY_APPLY_GOAL,
-    followUps,
-    interviews,
     nowMs,
     likedIds,
     tuning,
@@ -445,7 +441,6 @@ export function TodayHomeView({
     onTrack,
     onOpen,
     onApply,
-    onSkip,
     onMore,
     onFewer,
     onResetTuning,
@@ -467,8 +462,6 @@ export function TodayHomeView({
     newCount: number;
     appliedToday: number;
     goal?: number;
-    followUps: number;
-    interviews: number;
     nowMs: number;
     /** Picks given a thumbs up. */
     likedIds: ReadonlySet<string>;
@@ -481,7 +474,6 @@ export function TodayHomeView({
     onTrack?: (kind: HomeActionKind) => void;
     onOpen?: (role: TodayRole) => void;
     onApply: (role: TodayRole) => void;
-    onSkip: (role: TodayRole) => void;
     onMore: (role: TodayRole) => void;
     onFewer: (role: TodayRole) => void;
     onResetTuning: () => void;
@@ -489,13 +481,12 @@ export function TodayHomeView({
     onAddResume: () => void;
     onRetryResume?: () => void;
     onRetry: () => void;
-    /** "Needs you" (`NeedsYouView`): beside the picks from lg up, under them on a phone. The due and this-week numbers link to it. */
+    /** "Needs you" (`NeedsYouView`): beside the picks from lg up, under them on a phone. Its header counts what's due. */
     needsYou?: ReactNode;
 }) {
     // Ranked against a résumé (or about to be): the picks count and "All of this week" belong.
     const matched = !status.startsWith("no-resume");
     const ranking = matched || status === "no-resume-loading";
-    const tallyHref = needsYou ? "#today-needs-you" : "/yours";
     const shown = roles.slice(0, rowLimit);
     const gated = gate != null && roles.length > rowLimit;
 
@@ -526,6 +517,29 @@ export function TodayHomeView({
                               ? "What needs you today. This week's roles that fit your résumé show here once it loads."
                               : "What needs you today. Add your résumé and this week's roles that fit it show here too."}
                     </p>
+                    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground" data-testid="today-summary">
+                        {status === "ready" ? (
+                            <>
+                                <a href="#today-new" data-testid="today-stat-new" className={SUMMARY_LINK} onClick={() => onTrack?.("stat_new")}>
+                                    <span className="font-semibold tabular-nums">{newCount}</span>{" "}
+                                    {firstVisit
+                                        ? `${plural(newCount, "pick", "picks")} this week`
+                                        : `new ${plural(newCount, "pick", "picks")} ${since}`}
+                                </a>
+                                <span aria-hidden className="text-muted-foreground">
+                                    ·
+                                </span>
+                            </>
+                        ) : null}
+                        <Link
+                            href="/yours?stage=applied"
+                            data-testid="today-stat-applied"
+                            className={SUMMARY_LINK}
+                            onClick={() => onTrack?.("stat_applied")}
+                        >
+                            <span className="font-semibold tabular-nums">{appliedToday}</span> of {goal} applied today
+                        </Link>
+                    </p>
                     {matched && tuning ? (
                         <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground" data-testid="today-tuning">
                             <span className="min-w-0" aria-live="polite">
@@ -544,47 +558,10 @@ export function TodayHomeView({
                 </>
             }
         >
-            <HubStatTiles testId="today-stats" label="Today in numbers" count={ranking ? 4 : 3}>
-                {ranking ? (
-                    <HubStatTile
-                        testId="today-stat-new"
-                        href="#today-new"
-                        tone={status === "ready" && newCount > 0 ? "brand" : undefined}
-                        value={status === "ready" ? String(newCount) : status === "failed" ? "–" : null}
-                        label={firstVisit ? `${plural(newCount, "pick", "picks")} this week` : `new ${plural(newCount, "pick", "picks")} ${since}`}
-                        onClick={() => onTrack?.("stat_new")}
-                    />
-                ) : null}
-                <HubStatTile
-                    testId="today-stat-applied"
-                    href="/yours?stage=applied"
-                    value={String(appliedToday)}
-                    suffix={`of ${goal}`}
-                    label="applied today"
-                    onClick={() => onTrack?.("stat_applied")}
-                />
-                <HubStatTile
-                    testId="today-stat-follow-ups"
-                    href={tallyHref}
-                    tone={followUps > 0 ? "warn" : undefined}
-                    value={String(followUps)}
-                    label={plural(followUps, "follow-up due", "follow-ups due")}
-                    onClick={() => onTrack?.("stat_follow_ups")}
-                />
-                <HubStatTile
-                    testId="today-stat-interviews"
-                    href={tallyHref}
-                    value={String(interviews)}
-                    label={`${plural(interviews, "interview", "interviews")} this week`}
-                    onClick={() => onTrack?.("stat_interviews")}
-                />
-            </HubStatTiles>
-
-            <div className={cn("mt-5 grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-2")}>
+            <div className={cn("mt-4 grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-2")}>
                 <div id="today-new" data-testid="today-new" className="min-w-0 scroll-mt-24">
                     <div className="flex items-baseline justify-between gap-3 border-b border-border poster-list-inset-x py-2 text-sm text-muted-foreground">
                         <SubTitle>Roles to look at</SubTitle>
-                        {status === "ready" && shown.length > 0 ? <span>Your own role first</span> : null}
                     </div>
 
                     {status === "loading" || status === "no-resume-loading" ? (
@@ -662,7 +639,6 @@ export function TodayHomeView({
                                         liked={likedIds.has(role.job.id)}
                                         onOpen={() => onOpen?.(role)}
                                         onApply={() => onApply(role)}
-                                        onSkip={() => onSkip(role)}
                                         onMore={() => onMore(role)}
                                         onFewer={() => onFewer(role)}
                                     />
@@ -678,6 +654,12 @@ export function TodayHomeView({
     );
 }
 
+/**
+ * One pick. Every row has the same few things, so each is said once and
+ * quietly: the fit word leads the meta line (it opens the same receipt as the
+ * chip), Apply is a text button, and the thumbs are the only other control (a
+ * thumbs down takes the pick out, which is what Skip did, and tunes the rest).
+ */
 function TodayRow({
     role,
     nowMs,
@@ -685,7 +667,6 @@ function TodayRow({
     liked,
     onOpen,
     onApply,
-    onSkip,
     onMore,
     onFewer,
 }: {
@@ -695,7 +676,6 @@ function TodayRow({
     liked: boolean;
     onOpen: () => void;
     onApply: () => void;
-    onSkip: () => void;
     onMore: () => void;
     onFewer: () => void;
 }) {
@@ -707,57 +687,50 @@ function TodayRow({
         <li
             data-testid="today-new-row"
             data-job-id={job.id}
-            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-4"
+            className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 poster-list-inset-x pt-3"
         >
             <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
-            <div className="min-w-0 border-b border-border pb-3">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3">
-                    <div className="min-w-0">
-                        <Link
-                            href={jobPath(job)}
-                            data-testid="today-role-title"
-                            onClick={onOpen}
-                            className="text-base font-semibold leading-snug text-foreground line-clamp-2 hover:underline"
-                        >
-                            {presented.title}
-                        </Link>
-                        <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
-                            <MetaLine
-                                items={[
-                                    <span key="company">{presented.company.name}</span>,
-                                    locationKnown && <span key="location">{presented.location}</span>,
-                                    presented.salary && (
-                                        <span key="salary" className="font-semibold text-foreground">
-                                            {presented.salary}
-                                        </span>
-                                    ),
-                                ]}
-                            />
-                        </div>
+            <div className="min-w-0 border-b border-border pb-3 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-4">
+                <div className="min-w-0">
+                    <Link
+                        href={jobPath(job)}
+                        data-testid="today-role-title"
+                        onClick={onOpen}
+                        className="text-base font-semibold leading-snug text-foreground line-clamp-2 hover:underline"
+                    >
+                        {presented.title}
+                    </Link>
+                    <div className="mt-0.5 flex flex-wrap items-baseline text-sm text-muted-foreground">
+                        <MetaLine
+                            items={[
+                                <MatchChip key="fit" score={score} jobId={job.id} variant="text" />,
+                                <span key="company">{presented.company.name}</span>,
+                                locationKnown && <span key="location">{presented.location}</span>,
+                                presented.salary && (
+                                    <span key="salary" className="font-semibold text-foreground">
+                                        {presented.salary}
+                                    </span>
+                                ),
+                                isNew && (
+                                    <span key="new" className="font-semibold text-foreground" data-testid="today-new-badge">
+                                        New
+                                    </span>
+                                ),
+                                age && (
+                                    <span key="age" className="tabular-nums">
+                                        {age}
+                                    </span>
+                                ),
+                            ]}
+                        />
                     </div>
-                    <span className="flex h-fit flex-col items-end gap-1 self-start">
-                        <MatchChip score={score} jobId={job.id} />
-                        <span className="mono-data inline-flex gap-1.5 text-xs leading-none text-muted-foreground">
-                            {isNew ? (
-                                <span className="font-semibold text-brand" data-testid="today-new-badge">
-                                    New
-                                </span>
-                            ) : null}
-                            {age}
-                        </span>
-                    </span>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="wrap-row">
-                        <Button type="button" data-testid="today-apply" onClick={onApply}>
-                            Apply
-                        </Button>
-                        <Button type="button" variant="outline" data-testid="today-skip" onClick={onSkip}>
-                            Skip
-                        </Button>
-                    </div>
+                <div className="mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end">
+                    <Button type="button" variant="ghost" data-testid="today-apply" onClick={onApply} className="-ml-3 sm:ml-0">
+                        Apply
+                    </Button>
                     <RoleTuningButtons active liked={liked} onMore={onMore} onFewer={onFewer} />
                 </div>
             </div>

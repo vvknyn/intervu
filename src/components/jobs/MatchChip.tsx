@@ -35,6 +35,11 @@ function bandChipClass(band: MatchBand): string {
     return "border-border bg-verdict-caution-bg text-verdict-caution";
 }
 
+/** The band's colour alone, for the `text` variant that sits in a row's meta line. */
+function bandTextClass(band: MatchBand): string {
+    return band === "strong" ? "text-verdict-live" : band === "good" ? "text-verdict-good" : "text-verdict-caution";
+}
+
 export interface MatchChipProps {
     score: MatchScore;
     /** Résumé's stored update date, already formatted (e.g. "aug 27") — see `shortDate` in lib/jobs/presentation.ts. Omitted head line when unknown. */
@@ -46,6 +51,12 @@ export interface MatchChipProps {
     jobId?: string;
     /** The chip's test id; null leaves it off (a role card stacked behind the open one). */
     testId?: string | null;
+    /**
+     * `chip` (default): the bordered pill. `text`: the band word in its colour,
+     * for a list where every row has one and a pill per row would crowd it
+     * (the packs home's Today picks). Both open the same receipt.
+     */
+    variant?: "chip" | "text";
 }
 
 /** Locked teaser occupying the same footprint as {@link MatchChip}. */
@@ -72,7 +83,7 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
     );
 }
 
-export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip" }: MatchChipProps) {
+export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip", variant = "chip" }: MatchChipProps) {
     const band = matchBand(score.total);
     const label = matchBandLabel(band);
     return (
@@ -92,8 +103,9 @@ export function MatchChip({ score, asOfDate, className, jobId, testId = "match-c
                 data-testid={testId ?? undefined}
                 aria-label={`${label} match`}
                 className={cn(
-                    "mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none",
-                    bandChipClass(band),
+                    variant === "text"
+                        ? cn("font-semibold", bandTextClass(band))
+                        : cn("mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none", bandChipClass(band)),
                     className,
                 )}
             >

@@ -173,8 +173,6 @@ function TodayMockBody() {
                                 roles={roles}
                                 newCount={newCount}
                                 appliedToday={first ? 0 : 2}
-                                followUps={first ? 0 : 3}
-                                interviews={first ? 0 : 1}
                                 nowMs={MOCK_NOW}
                                 likedIds={state === "tuned" ? new Set(["mock-today-2"]) : new Set()}
                                 tuning={state === "tuned" ? "Tuned toward Payments, away from Growth." : null}
@@ -191,7 +189,6 @@ function TodayMockBody() {
                                     ) : null
                                 }
                                 onApply={() => {}}
-                                onSkip={() => {}}
                                 onMore={() => {}}
                                 onFewer={() => {}}
                                 onResetTuning={() => {}}
