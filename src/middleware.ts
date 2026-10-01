@@ -27,14 +27,6 @@ export async function middleware(request: NextRequest) {
 
     const { pathname } = request.nextUrl;
 
-    // The server-rendered /jobs is reached only by the rewrite below; a
-    // direct visit gets the page it stands in for.
-    if (pathname === FIRST_ROWS_PATH) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/jobs";
-        return NextResponse.redirect(url, 308);
-    }
-
     const jobsHasQuery =
         pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0;
     if (jobsHasQuery) {
@@ -92,15 +84,32 @@ export async function middleware(request: NextRequest) {
     // A signed-out phone opening a search link gets the list's first rows in
     // the page itself (lib/jobs/server-first-rows.ts): rewritten to the
     // dynamic copy of /jobs, the address bar unchanged.
+    const isFirstRowsPath = pathname === FIRST_ROWS_PATH;
     const firstRows = shouldServeFirstRows({
         method: request.method,
-        pathname,
+        pathname: isFirstRowsPath ? "/jobs" : pathname,
         searchParams: request.nextUrl.searchParams,
         headers: request.headers,
         signedIn: !!session.user,
         isBot: userAgent(request).isBot,
     });
+    if (isFirstRowsPath) {
+        // Normally the rewrite below is routed inside this server and never
+        // comes back through here. When the server's own address differs
+        // from the one Next.js writes the rewrite with (bound to 127.0.0.1,
+        // rewritten as localhost), Next.js proxies it to that URL instead,
+        // and it arrives here as a new request: serve it. Anyone the rewrite
+        // wouldn't pick is sent to the page this one stands in for, which
+        // never rewrites back, so the two can't loop.
+        return firstRows ? response : handleAuthkitHeaders(request, headers, { redirect: jobsUrl(request), redirectStatus: 308 });
+    }
     return firstRows ? asRewrite(response, request, FIRST_ROWS_PATH) : response;
+}
+
+function jobsUrl(request: NextRequest): URL {
+    const url = request.nextUrl.clone();
+    url.pathname = "/jobs";
+    return url;
 }
 
 /**

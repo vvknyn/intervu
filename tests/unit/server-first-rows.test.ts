@@ -105,17 +105,33 @@ test("the rewrite target can never be a job's page", () => {
 
 test("the middleware rewrites AuthKit's own response and sends direct visits back to /jobs", () => {
     const src = read("src/middleware.ts");
-    const redirect = src.indexOf("if (pathname === FIRST_ROWS_PATH)");
-    const authkitCall = src.indexOf("authkit(request)");
     const authkitResponse = src.indexOf("const response = handleAuthkitHeaders(request, headers);");
     const decision = src.indexOf("shouldServeFirstRows({");
-    assert.ok(redirect > 0 && redirect < authkitCall, "direct visits are bounced before AuthKit runs");
     assert.ok(decision > authkitResponse, "decided once the session is known, on AuthKit's response");
     assert.match(src, /signedIn: !!session\.user/);
     assert.match(src, /return firstRows \? asRewrite\(response, request, FIRST_ROWS_PATH\) : response;/);
+    // A request on the internal path (the rewrite proxied back to this server
+    // when it's bound to 127.0.0.1) is judged as the /jobs request it came
+    // from: served if the rewrite would pick it, else sent to /jobs, which
+    // then doesn't rewrite. A path-only redirect looped there.
+    assert.match(src, /pathname: isFirstRowsPath \? "\/jobs" : pathname,/);
+    assert.match(
+        src,
+        /return firstRows \? response : handleAuthkitHeaders\(request, headers, \{ redirect: jobsUrl\(request\), redirectStatus: 308 \}\);/,
+    );
     // Its forwarded request headers, cookies and robots header carry over.
     assert.match(src, /NextResponse\.rewrite\(url, \{ headers: response\.headers \}\)/);
     assert.match(src, /rewrite\.headers\.delete\("x-middleware-next"\)/);
+});
+
+test("the server binds to 0.0.0.0, so the rewrite stays inside it", () => {
+    // Bound to 127.0.0.1, Next.js writes a middleware rewrite as localhost,
+    // can't match it to its own address and proxies it instead: behind
+    // Caddy (X-Forwarded-Proto: https) that proxy dials TLS on a plain HTTP
+    // port and phones' search links get a 500. The live compose in the
+    // Subspace repo (deploy/contabo-web) sets the same.
+    assert.match(read("Dockerfile"), /^ENV HOSTNAME=0\.0\.0\.0$/m);
+    assert.match(read("docker-compose.yml"), /^\s+HOSTNAME: 0\.0\.0\.0$/m);
 });
 
 test("the server-rendered page searches with the list's own first-search params and passes them on", () => {
