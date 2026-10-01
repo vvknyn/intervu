@@ -7,6 +7,7 @@ import { onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
 import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 
 // `mobilePrimary: false` (nav-tabs.tsx) opts a tab OUT of this bar while it
@@ -26,6 +27,7 @@ const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
  *  this bar's). */
 export function MobileTabBar() {
     const pathname = usePathname();
+    const prefetchOnIntent = usePrefetchOnIntent();
     const [user, setUser] = useState<User | null | undefined>(undefined);
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
@@ -54,6 +56,7 @@ export function MobileTabBar() {
                         key={tab.href + tab.label}
                         href={tab.href}
                         prefetch={false}
+                        {...prefetchOnIntent(tab.href)}
                         title={tab.title}
                         // Prefixed so a testid is unique page-wide: this bar
                         // shares NAV_TABS with the desktop TopBar and both are

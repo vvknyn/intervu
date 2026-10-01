@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
 import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
@@ -30,6 +31,7 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
  */
 export function TopBar() {
     const pathname = usePathname();
+    const prefetchOnIntent = usePrefetchOnIntent();
     const leanSurface = isLeanProductSurface(pathname);
     // `undefined` until `onAuthChange` resolves — NOT `null`, which would
     // claim "signed out" during the server round-trip and flash a Sign-in
@@ -192,6 +194,7 @@ export function TopBar() {
                                     <Link
                                         href={tab.href}
                                         prefetch={false}
+                                        {...prefetchOnIntent(tab.href)}
                                         title={tab.title}
                                         data-testid={tab.testId}
                                         data-tour={tab.tourSelector}
