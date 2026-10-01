@@ -19,19 +19,25 @@ export interface CategoryHubItem {
     label: string;
 }
 
-/** The packs, in chip order. Labels match `HUB_PACK_SHORT_LABELS`; counts are always live (`hubCountLabels`), never written here. */
+/**
+ * The packs a visitor without a résumé sees, in chip order. A résumé visitor
+ * gets their industry's tiles instead (`categories`, industry-tiles.ts).
+ * Labels match `HUB_PACK_SHORT_LABELS`; counts are always live (`hubCountLabels`), never written here.
+ */
 export const DEFAULT_CATEGORY_HUBS: CategoryHubItem[] = [
     { id: "all", label: "All your matches" },
     { id: "ai", label: "Artificial intelligence" },
     { id: "remote", label: "Fully remote" },
     { id: "fresh", label: "Added this week" },
-    { id: "salary", label: "Jobs with salaries" },
+    { id: "salary", label: "Pay listed" },
     { id: "apply", label: "1-Click tailored apply" },
     { id: "lead", label: "Lead & principal" },
     { id: "good", label: "Tech for good" },
 ];
 
 export interface CategoryHubGridProps {
+    /** The chips to show, "all" first; defaults to `DEFAULT_CATEGORY_HUBS`. */
+    categories?: CategoryHubItem[];
     userName?: string | null;
     isAuthenticated?: boolean;
     hasResume?: boolean;
@@ -62,6 +68,7 @@ export interface CategoryHubGridProps {
 }
 
 export function CategoryHubGrid({
+    categories = DEFAULT_CATEGORY_HUBS,
     userName,
     isAuthenticated = false,
     hasResume = false,
@@ -129,7 +136,7 @@ export function CategoryHubGrid({
             variant={compactHeader ? "outline" : "default"}
             data-testid="hub-browse-all-matches"
             onClick={() => {
-                const allItem = DEFAULT_CATEGORY_HUBS.find((c) => c.id === "all");
+                const allItem = categories.find((c) => c.id === "all") ?? DEFAULT_CATEGORY_HUBS[0];
                 if (allItem) onSelectCategory(allItem, "browse_all");
             }}
             className="w-full justify-center sm:w-auto"
@@ -195,7 +202,7 @@ export function CategoryHubGrid({
 
             {/* The packs as one row of chips: label, live count, and "+N" since the last visit. */}
             <ul aria-label="Your packs" data-testid="hub-pack-chips" className="flex flex-wrap gap-2 poster-list-inset-x">
-                {DEFAULT_CATEGORY_HUBS.map((category, hubIndex) => {
+                {categories.map((category, hubIndex) => {
                     const countLabel = hubCountLabels?.[category.id] ?? "";
                     const counting = countLabel === HUB_PACK_CORPUS_COUNT_LOADING;
                     const delta = hubCountDeltas?.[category.id] ?? 0;
@@ -208,7 +215,7 @@ export function CategoryHubGrid({
                         .filter(Boolean)
                         .join(", ");
                     const prefetchAdjacentHub = () => {
-                        const next = DEFAULT_CATEGORY_HUBS[hubIndex + 1] ?? DEFAULT_CATEGORY_HUBS[0];
+                        const next = categories[hubIndex + 1] ?? categories[0];
                         try {
                             router.prefetch(jobsForYouHubHref());
                             if (next?.id === "all") {

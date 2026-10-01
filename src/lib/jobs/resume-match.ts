@@ -27,6 +27,7 @@ import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
 import { isRoleTitlePhrase } from "@/lib/resume/title-text";
 import { formatQuotedOrQuery } from "./fit-phrases";
+import { resumeIndustry, type IndustryId } from "./resume-industry";
 
 export interface DerivedQuery {
     q: string;
@@ -149,6 +150,23 @@ export function targetRoles(resume: ResumeData): TargetRoles {
 }
 
 /**
+ * A headline or role that names no job a posting carries: "Health Science
+ * Graduate", "Clinic Volunteer". Searched as a phrase it finds nothing and
+ * spends one of the pack's four slots.
+ */
+const NOT_A_JOB_TITLE = /\b(graduate|student|volunteer|candidate)\s*$/i;
+
+const isJobTitle = (phrase: string) => !NOT_A_JOB_TITLE.test(phrase.trim());
+
+/**
+ * `suggestAdjacentRolesLocal` is a table of software and go-to-market jumps
+ * (any "manager" → Engineering Manager, any "analyst" → Business Analyst), so
+ * it only speaks for résumés in those industries. A Nurse Manager's pack must
+ * not search Engineering Manager.
+ */
+const ADJACENCY_INDUSTRIES: ReadonlySet<IndustryId> = new Set(["tech", "business"]);
+
+/**
  * Match / Rank (`sort=fit`): the role titles a pack searches for, strongest
  * first, capped at 4 (see `capExploreTerms`):
  *
@@ -156,10 +174,12 @@ export function targetRoles(resume: ResumeData): TargetRoles {
  *   2. the standard titles of the role families the résumé names
  *      ("Customer Success Manager", "Technical Account Manager");
  *   3. earlier roles that are still recent (`STALE_ROLE_YEARS`);
- *   4. roles adjacent to the targets (`suggestAdjacentRolesLocal`);
+ *   4. roles adjacent to the targets (`suggestAdjacentRolesLocal`), for tech
+ *      and go-to-market résumés only (`ADJACENCY_INDUSTRIES`);
  *   5. families inferred from duties alone (`dutyDerivedRoleTitles`);
  *   6. top skills, only when nothing else produced a query.
  *
+ * Headlines and roles that aren't job titles (`NOT_A_JOB_TITLE`) are skipped.
  * Seniority widens to mid+senior so adjacent mid-level roles stay visible.
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
@@ -167,14 +187,15 @@ export function targetRoles(resume: ResumeData): TargetRoles {
 export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date().getFullYear()): DerivedQuery {
     const skills = topSkills(resume, 6);
     const target = targetRoles(resume);
-    const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle);
+    const ownTitles = target.phrases.filter(isJobTitle);
+    const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle).filter(isJobTitle);
 
     let terms = capExploreTerms(
-        [...target.phrases, ...familyRetrievalTitles(target.families), ...recentTitles],
+        [...ownTitles, ...familyRetrievalTitles(target.families), ...recentTitles],
         4,
     );
-    if (terms.length < 4 && target.phrases.length > 0) {
-        terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(target.phrases, skills, 8)], 4);
+    if (terms.length < 4 && ownTitles.length > 0 && ADJACENCY_INDUSTRIES.has(resumeIndustry(resume))) {
+        terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(ownTitles, skills, 8)], 4);
     }
     if (terms.length < 4) {
         terms = capExploreTerms([...terms, ...dutyDerivedRoleTitles(resume)], 4);
