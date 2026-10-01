@@ -539,7 +539,7 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("a thumbs up or down on a Today pick tunes the list on this device: the tuning line names it, a thumbs down takes the pick out, the rating survives a reload, and Reset clears it", { tag: ["@J-JOBS-94"] }, async ({ page, diagnostics }) => {
+signedInTest("a thumbs up or down on a Today pick tunes the list on this device: the tuning line names it, a thumbs down takes the pick out, the rating survives a reload, and Reset clears it", { tag: ["@J-JOBS-96"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await withResume(page, "Toronto, Ontario, Canada");
@@ -581,7 +581,7 @@ signedInTest("a thumbs up or down on a Today pick tunes the list on this device:
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("signed in without a résumé, the packs home still has Today under the chips: what needs them, and where the picks would be, a way to add a résumé", { tag: ["@J-JOBS-95"] }, async ({ page, diagnostics }) => {
+signedInTest("signed in without a résumé, the packs home still has Today under the chips: what needs them, and where the picks would be, a way to add a résumé", { tag: ["@J-JOBS-97"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await page.goto("/jobs?view=for-you");
