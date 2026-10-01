@@ -29,12 +29,29 @@ interface ContextHelpProps {
 
 export function ContextHelp({ content, className, side = "top", icon, children, onOpenChange }: ContextHelpProps) {
     const textTrigger = children != null;
+    const [open, setOpen] = React.useState(false)
+    const change = (next: boolean) => {
+        setOpen(next)
+        onOpenChange?.(next)
+    }
+    // A tap has no hover, and Radix closes a tooltip on click: a touch tap toggles
+    // the tip itself, and stays on it rather than reaching the row under it.
+    const tap = React.useRef<{ touch: boolean; wasOpen: boolean }>({ touch: false, wasOpen: false })
     return (
         <TooltipProvider delayDuration={300}>
-            <Tooltip onOpenChange={onOpenChange}>
+            <Tooltip open={open} onOpenChange={change}>
                 <TooltipTrigger asChild>
                     <button
                         type="button"
+                        onPointerDown={(event) => {
+                            tap.current = { touch: event.pointerType === "touch", wasOpen: open }
+                        }}
+                        onClick={(event) => {
+                            if (!tap.current.touch) return
+                            event.preventDefault()
+                            event.stopPropagation()
+                            change(!tap.current.wasOpen)
+                        }}
                         className={cn(
                             textTrigger
                                 ? "cursor-help inline-flex items-center"

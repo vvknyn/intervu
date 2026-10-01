@@ -319,6 +319,8 @@
 
   /* Z-index ladder — one source; consume --z-topbar through --z-toast at call sites. */
   --z-topbar: 50;
+  /* An opened pack's header row, stuck under the top bar above its role cards. */
+  --z-pack-header: 20;
   --z-skip-link: 60;
   --z-tour-trigger: 80;
   --z-landing-poster: 100;
@@ -994,9 +996,10 @@ h4 {
 }
 
 /* An opened pack is a stack of role cards that fills the screen without
-   locking it: the page stays at least viewport-tall and the stack takes the
-   height left over, never less than its floor (.role-stack-stage). A sign-up
-   card or a short screen scrolls the page instead of squeezing the cards. */
+   locking it: the stack takes the screen under the pack's header row
+   (.role-stack-screen), never less than its floor (.role-stack-stage). A
+   sign-up card or a short screen scrolls the page instead of squeezing the
+   cards. */
 body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"] {
   display: flex;
   flex: 1 1 auto;
@@ -1196,6 +1199,19 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
   animation: deck-slide-in-previous var(--transition-deck) var(--ease-standard) both;
 }
 
+/* The screen under an opened pack's header row, down to the phone tab bar:
+   a thin pack's broaden options, then the stack, which grows into the rest
+   (Vivek, 2026-09-30: the space above and below the role went unused).
+   3.5rem is the header row with its margin and the page's top padding. svh,
+   so a phone's toolbar sliding away doesn't resize the cards mid-scroll. */
+.role-stack-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(
+    100svh - var(--topbar-h) - 3.5rem - var(--mobile-tabbar-h) - env(safe-area-inset-bottom, 0px) - 0.75rem
+  );
+}
+
 /* Stacked role cards — the opened pack (RoleStack.tsx, role-stack.ts).
    "Tip back under": the next role slides up over the open one, which tips
    back from its top edge, shrinks and dims into the stack behind. The stage
@@ -1206,8 +1222,8 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
   --role-stack-peek: 2.75rem;
   position: relative;
   /* A usable card at least: 30rem, or the screen between the top bar, the
-     Previous/Next bar (2.25rem, plus 0.5rem either side) and the phone tab
-     bar when that is shorter. Tall screens stop at 56rem. */
+     header row (2.5rem, with its margin and the page's top padding) and the
+     phone tab bar when that is shorter. Tall screens stop at 56rem. */
   min-height: min(
     30rem,
     calc(100dvh - var(--topbar-h) - var(--mobile-tabbar-h) - env(safe-area-inset-bottom, 0px) - 3.5rem)

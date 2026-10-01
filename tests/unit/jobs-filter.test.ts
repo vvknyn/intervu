@@ -67,6 +67,23 @@ test("postedSinceMs and postedBucket compose additively (both clauses present) w
     assert.ok(f.filter((c) => c.includes("posted_ts")).length === 2, JSON.stringify(f));
 });
 
+test("postedBucket 90d (the default since 2026-09-30) is a 90-day lookback; 30d stays a 30-day one; older starts past 90 days", () => {
+    const DAY = 86_400_000;
+    const cutoff = (bucket: "30d" | "90d" | "older") => {
+        const before = Date.now();
+        const clause = buildFilter({ postedBucket: bucket }).find((c) => c.startsWith("posted_ts"))!;
+        const after = Date.now();
+        const m = /^posted_ts (>=|<) (\d+)$/.exec(clause);
+        assert.ok(m, clause);
+        return { op: m![1], ageDays: [(before - Number(m![2])) / DAY, (after - Number(m![2])) / DAY] };
+    };
+    for (const [bucket, op, days] of [["90d", ">=", 90], ["30d", ">=", 30], ["older", "<", 90]] as const) {
+        const c = cutoff(bucket);
+        assert.equal(c.op, op, bucket);
+        assert.ok(Math.abs(c.ageDays[0] - days) < 0.001 && Math.abs(c.ageDays[1] - days) < 0.001, `${bucket}: ${c.ageDays}`);
+    }
+});
+
 test("postedSinceMs drops out under the TRANSITIONAL legacy retry, same as postedBucket", () => {
     const f = buildFilter({ postedSinceMs: 1_800_000_000_000 }, true);
     assert.ok(!f.some((c) => c.includes("posted_ts")), JSON.stringify(f));

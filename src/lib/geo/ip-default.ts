@@ -98,7 +98,8 @@ export interface LocationDefaultApplication {
   /** ISO2, present only when the default actually applied. */
   defaultedLocation?: string;
   /** Whether the applied default's own place clause also OR's in every
-   *  remote role with no country tag (`PlaceClause.remoteAnywhere`,
+   *  remote role with no place at all — no country, city or state
+   *  (`REMOTE_ANYWHERE_CLAUSE`; `PlaceClause.remoteAnywhere`,
    *  resolve-place.ts) — read off the SAME clause `params.places` now holds,
    *  never assumed. A country-level default passes `remoteAnywhere: true`
    *  into `placeClause`, but this derives it rather

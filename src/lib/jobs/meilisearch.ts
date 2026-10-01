@@ -439,6 +439,7 @@ const BUCKET_MS: Record<Exclude<NonNullable<JobSearchParams["postedBucket"]>, "o
   "3d": 3 * 86_400_000,
   "7d": 7 * 86_400_000,
   "30d": 30 * 86_400_000,
+  "90d": 90 * 86_400_000,
 };
 
 /** Years-of-experience bucket → inclusive `[min, max]` on `min_years_experience`;
@@ -468,6 +469,10 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   titleScoped?: boolean;
   /** Expand pass: whole-document retrieval, still `matchingStrategy: "all"`. */
   wholeDocument?: boolean;
+  /** Ask for `_rankingScoreDetails` on every hit — only the relevance-sorted
+   *  typed search sets this, for `preferNewerAmongCloseMatches` below, which
+   *  also strips the details before any hit leaves `searchMeili`. */
+  rankingScoreDetails?: boolean;
 }
 
 /** TRANSITIONAL: live index may lack `company_domain` in filterableAttributes. */
@@ -530,8 +535,23 @@ export function filterHitsByDomainFilters(
  * probe (PR #479 body) and any future caller building the equivalent
  * top-level predicate quote the same literal, never a hand-copied second
  * one.
+ *
+ * "No place at all", not merely "no country" (2026-09-30): a remote role
+ * whose location names a city or state but carries no country tag is a
+ * role whose country is MISSING, not one open anywhere — prod listed
+ * "Digital Data Analyst" at Afni, Burton-on-Trent (UK), in a Canada search
+ * because the clause only asked for `location_country IS NULL`. City and
+ * state must be empty too. Meilisearch keeps three different "empty"
+ * shapes apart — `IS NULL` matches only a JSON null, `NOT EXISTS` only a
+ * missing attribute, `IS EMPTY` only `""`/`[]` (verified on 1.45.2) — so
+ * city and state accept all three. The country test stays exactly the
+ * live-verified `IS NULL`: this change only narrows the set, never widens
+ * it.
  */
-export const REMOTE_ANYWHERE_CLAUSE = 'work_type = "remote" AND location_country IS NULL';
+export const REMOTE_ANYWHERE_CLAUSE =
+  'work_type = "remote" AND location_country IS NULL' +
+  " AND (location_city IS NULL OR location_city NOT EXISTS OR location_city IS EMPTY)" +
+  " AND (location_state IS NULL OR location_state NOT EXISTS OR location_state IS EMPTY)";
 
 /** Pure: one `PlaceClause` -> its Meilisearch boolean sub-expression — the
  *  `any` OR-group alone, or ANDed against `scopedToCountry` when present
@@ -633,7 +653,8 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
   if (p.postedBucket && !legacy) {
     const now = Date.now();
     if (p.postedBucket === "older") {
-      f.push(`posted_ts < ${now - BUCKET_MS["30d"]}`);
+      // "Older" is everything the widest window (the 90d default) hides.
+      f.push(`posted_ts < ${now - BUCKET_MS["90d"]}`);
     } else {
       f.push(`posted_ts >= ${now - BUCKET_MS[p.postedBucket]}`);
     }
@@ -776,6 +797,7 @@ export interface MeiliSearchBody {
   sort?: string[];
   attributesToSearchOn?: string[];
   attributesToRetrieve?: readonly string[];
+  showRankingScoreDetails?: boolean;
 }
 
 /**
@@ -932,6 +954,7 @@ export function buildSearchBody(
     offset: p.offset ?? 0,
     sort: buildMeiliSort(p, legacy),
     ...(p.id ? {} : { attributesToRetrieve: [...JOB_LIST_ATTRIBUTES_TO_RETRIEVE] }),
+    ...(opts?.rankingScoreDetails ? { showRankingScoreDetails: true } : {}),
   };
 }
 
@@ -1121,8 +1144,10 @@ async function applySortIntegrityGuard(
  * surfaces like any other Meilisearch error.
  */
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
-  const strictBody = buildSearchBody(p, false, "all", {});
-  const wholeBody = buildSearchBody(p, false, "all", { wholeDocument: true });
+  // Relevance order only: the details feed `preferNewerAmongCloseMatches`.
+  const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
+  const strictBody = buildSearchBody(p, false, "all", rankingScoreDetails ? { rankingScoreDetails } : {});
+  const wholeBody = buildSearchBody(p, false, "all", { wholeDocument: true, ...(rankingScoreDetails ? { rankingScoreDetails } : {}) });
   const { limit: _sLimit, offset: _sOffset, facets: _sFacets, ...strictQuery } = strictBody;
   const { limit: _wLimit, offset: _wOffset, facets: _wFacets, ...wholeQuery } = wholeBody;
 
@@ -1232,6 +1257,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       // post-filter path above is deliberately excluded — those are
       // `board`/`companyDomain` browses that are ALREADY constrained to one
       // employer, so company-scoping the query text would add nothing.
+      const rankingScoreDetails = resolveEffectiveSort(params) === "relevance";
       const runPass = async (wholeDocument = false): Promise<JobSearchResult> => {
         const post = (legacy: boolean) =>
           meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -1239,7 +1265,11 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
             headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
             cache: "no-store",
             body: JSON.stringify(
-              buildSearchBody(params, legacy, "all", { companyScoped, ...(wholeDocument ? { wholeDocument: true } : {}) }),
+              buildSearchBody(params, legacy, "all", {
+                companyScoped,
+                ...(wholeDocument ? { wholeDocument: true } : {}),
+                ...(rankingScoreDetails ? { rankingScoreDetails } : {}),
+              }),
             ),
           });
 
@@ -1371,7 +1401,12 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 
     result = await runSearch();
     if (isRelevance && result.hits.length > 0) {
-      result.hits = applyRelevanceQualityReranking(result.hits, p.q);
+      // Rerank first, then newest-first among close matches: the reorder
+      // keeps every hit in a slot the rerank gave its close-match group, so
+      // the rerank's relevance tiers hold; it also strips the ranking-score
+      // details. Relevance only — the sort-integrity guard below returns
+      // early for relevance, so it can never flag (or re-sort) this page.
+      result.hits = preferNewerAmongCloseMatches(applyRelevanceQualityReranking(result.hits, p.q), p.q);
     }
 
     return applySortIntegrityGuard(result, p, () => runSearch());
@@ -1574,6 +1609,41 @@ async function fetchRoleTitleLaneHits(
 
 const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist|driver|paramedic|phlebotomist|teacher|substitute teacher|caregiver|cook|waiter|bus monitor|janitor|custodian)\b/i;
 
+/** Per-query inputs to the relevance rerank's leading keys, resolved once. */
+interface RelevanceRerankContext {
+  query: string;
+  isTech: boolean;
+  rolePair: boolean;
+}
+
+function relevanceRerankContext(q?: string): RelevanceRerankContext {
+  const query = (q ?? "").trim().toLowerCase();
+  return { query, isTech: isTechSkillQuery(query), rolePair: Boolean(query) && roleTitlePairQueries(query).length > 0 };
+}
+
+/**
+ * The rerank's relevance keys for one hit, lower = better, compared in
+ * order: (0) a non-tech title on a tech query, (0b) a title that misses the
+ * role-title query's shape, (1) minus the title-token coverage score. Shared
+ * by `applyRelevanceQualityReranking` and `preferNewerAmongCloseMatches` so
+ * the two can never disagree about which hits are equally relevant.
+ */
+function relevanceTierKey(hit: PublicJob, ctx: RelevanceRerankContext): [number, number, number] {
+  const title = decodeText(hit.title);
+  return [
+    ctx.isTech && NON_TECH_ROLE_REGEX.test(title) ? 1 : 0,
+    ctx.rolePair && !titleSatisfiesRoleQuery(title, ctx.query) ? 1 : 0,
+    ctx.query ? -titleRelevanceScore(title, ctx.query) : 0,
+  ];
+}
+
+function compareTierKeys(a: readonly number[], b: readonly number[]): number {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] - b[i];
+  }
+  return 0;
+}
+
 /**
  * Post-search relevance & quality reranking for default/relevance searches:
  * Subtly elevates high-signal postings that candidates prioritize:
@@ -1585,43 +1655,114 @@ const NON_TECH_ROLE_REGEX = /\b(therapist|nurse|nursing|physician|dental|dentist
  */
 export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): PublicJob[] {
   if (!hits || hits.length <= 1) return hits;
-  const query = (q ?? "").trim().toLowerCase();
-  const isTech = isTechSkillQuery(query);
+  const ctx = relevanceRerankContext(q);
+  const ghostScore = (g: string) => (g === "clear" ? 2 : g === "likely_ghost" ? 0 : 1);
+  const hasSalary = (j: PublicJob) => ((j.salary_min != null && j.salary_min > 0) || (j.salary_max != null && j.salary_max > 0) ? 1 : 0);
+  const keyed = hits.map((hit) => ({ hit, tier: relevanceTierKey(hit, ctx) }));
 
-  return [...hits].sort((a, b) => {
-    // 0. Non-tech role demotion for tech queries
-    if (isTech) {
-      const aIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(a.title)) ? 1 : 0;
-      const bIsNonTech = NON_TECH_ROLE_REGEX.test(decodeText(b.title)) ? 1 : 0;
-      if (aIsNonTech !== bIsNonTech) return aIsNonTech - bIsNonTech;
-    }
-
-    // 0b. Role-title lane: satisfy query shape first, demote — never drop.
-    if (query && roleTitlePairQueries(query).length > 0) {
-      const aRole = titleSatisfiesRoleQuery(decodeText(a.title), query) ? 1 : 0;
-      const bRole = titleSatisfiesRoleQuery(decodeText(b.title), query) ? 1 : 0;
-      if (aRole !== bRole) return bRole - aRole;
-    }
-
-    // 1. Title relevance tier (meaningful-token coverage, stopword-tolerant)
-    const aTitleScore = query ? titleRelevanceScore(decodeText(a.title), query) : 0;
-    const bTitleScore = query ? titleRelevanceScore(decodeText(b.title), query) : 0;
-    if (aTitleScore !== bTitleScore) return bTitleScore - aTitleScore;
+  keyed.sort((x, y) => {
+    const a = x.hit;
+    const b = y.hit;
+    // 0, 0b, 1. Relevance tier (non-tech demotion, role-title shape, title coverage).
+    const tier = compareTierKeys(x.tier, y.tier);
+    if (tier !== 0) return tier;
 
     // 2. Salary disclosure boost (disclosed pay is high signal for job seekers)
-    const aHasSalary = (a.salary_min != null && a.salary_min > 0) || (a.salary_max != null && a.salary_max > 0) ? 1 : 0;
-    const bHasSalary = (b.salary_min != null && b.salary_min > 0) || (b.salary_max != null && b.salary_max > 0) ? 1 : 0;
-    if (aHasSalary !== bHasSalary) return bHasSalary - aHasSalary;
+    const salary = hasSalary(b) - hasSalary(a);
+    if (salary !== 0) return salary;
 
     // 3. Ghost status tiering (clear > unscored/caution > likely_ghost)
-    const ghostScore = (g: string) => (g === "clear" ? 2 : g === "likely_ghost" ? 0 : 1);
-    const aGhost = ghostScore(a.ghost_badge);
-    const bGhost = ghostScore(b.ghost_badge);
-    if (aGhost !== bGhost) return bGhost - aGhost;
+    const ghost = ghostScore(b.ghost_badge) - ghostScore(a.ghost_badge);
+    if (ghost !== 0) return ghost;
 
     // 4. Recency tie-break (posted_ts)
     return (b.posted_ts ?? 0) - (a.posted_ts ?? 0);
   });
+  return keyed.map((k) => k.hit);
+}
+
+/**
+ * The ranking rules that decide whether two hits match the query equally
+ * well: `words`, `typo`, `proximity`, `attributeRank` — every rule in
+ * `JOBS_INDEX_SETTINGS.rankingRules` ahead of `wordPosition`/`exactness`
+ * (`sort` sits between them but is inert without a `sort` param, which is
+ * the only mode this runs in). Meilisearch omits `words` under
+ * `matchingStrategy: "all"`, where every hit matches every word; a rule
+ * absent from both hits compares equal.
+ */
+const CLOSE_MATCH_RULES = ["words", "typo", "proximity", "attributeRank"] as const;
+
+type RankingScoreDetails = Partial<Record<string, { score?: number }>>;
+type HitWithRankingDetails = PublicJob & { _rankingScoreDetails?: RankingScoreDetails };
+
+/** Stable key of a hit's close-match group, or `null` when the engine sent no details for it. */
+function closeMatchKey(hit: HitWithRankingDetails, ctx: RelevanceRerankContext): string | null {
+  const details = hit._rankingScoreDetails;
+  if (!details) return null;
+  return JSON.stringify([
+    // Federated tiers are separate queries; their scores are not comparable.
+    hit.tier ?? 0,
+    ...CLOSE_MATCH_RULES.map((rule) => details[rule]?.score ?? null),
+    ...relevanceTierKey(hit, ctx),
+  ]);
+}
+
+function postedTsOrOldest(job: PublicJob): number {
+  return typeof job.posted_ts === "number" && Number.isFinite(job.posted_ts) ? job.posted_ts : Number.NEGATIVE_INFINITY;
+}
+
+function withoutRankingScoreDetails(hit: PublicJob): PublicJob {
+  if (!("_rankingScoreDetails" in hit)) return hit;
+  const { _rankingScoreDetails: _details, ...rest } = hit as HitWithRankingDetails;
+  return rest;
+}
+
+/**
+ * Newer first among close matches, within ONE returned page (2026-09-30,
+ * approved). The index ranks by words, typo, proximity, attributeRank,
+ * wordPosition, exactness and only then `posted_ts:desc`, so recency breaks
+ * exact ties alone: an exact "Data Analyst" posted 80 days ago outranked a
+ * "Senior Data Analyst" posted yesterday on nothing but word position and
+ * exactness. Index settings stay as they are; this works at query time off
+ * `showRankingScoreDetails` (requested only for relevance-sorted typed
+ * searches — `rankingScoreDetails` in `buildSearchBody`).
+ *
+ * Hits that tie on `CLOSE_MATCH_RULES` (so differ only in word position and
+ * exactness), come from the same federated tier, and share the rerank's
+ * relevance tier (`relevanceTierKey`) form one group. Each group keeps the
+ * page slots it already holds and refills them newest `posted_ts` first
+ * (stable). Nothing else moves: no hit changes page, so pagination and
+ * totals are untouched, and because a group only swaps slots among its own
+ * members, every relevance-tier boundary the rerank drew still holds.
+ * Page-bound by design: when one page holds both of the example's rows, the
+ * newer one now leads; when older exact titles fill whole pages ahead of
+ * it, the newer one still starts on a later page. Inside a group, recency
+ * now outranks the rerank's salary-disclosure and ghost-tier boosts, which
+ * is the point: those still order hits that are NOT close matches. A hit
+ * with no details (a lane, the domain post-filter scan) stays where it is.
+ *
+ * Always returns hits WITHOUT `_rankingScoreDetails` — the engine's scoring
+ * never leaves the server.
+ */
+export function preferNewerAmongCloseMatches(hits: PublicJob[], q?: string): PublicJob[] {
+  const ctx = relevanceRerankContext(q);
+  const slotsByGroup = new Map<string, number[]>();
+  hits.forEach((hit, index) => {
+    const key = closeMatchKey(hit as HitWithRankingDetails, ctx);
+    if (key === null) return;
+    const slots = slotsByGroup.get(key);
+    if (slots) slots.push(index);
+    else slotsByGroup.set(key, [index]);
+  });
+  const ordered = [...hits];
+  for (const slots of slotsByGroup.values()) {
+    if (slots.length < 2) continue;
+    const newestFirst = slots.map((i) => hits[i]).sort((a, b) => postedTsOrOldest(b) - postedTsOrOldest(a) || 0);
+    slots.forEach((slot, i) => {
+      ordered[slot] = newestFirst[i];
+    });
+  }
+  return ordered.map(withoutRankingScoreDetails);
 }
 
 /** The three location fields a parsed place can constrain. */
@@ -2149,9 +2290,15 @@ export interface CompanyIntentResult {
 }
 
 const companyIntentCache = new Map<string, { value: CompanyIntentResult; atMs: number }>();
+// One probe per key at a time: a single search asks this from several
+// places at once (main query, beyond-window and count probes), and before
+// the first answer is cached each of them used to send its own identical
+// probe — three at once on a cold query, roughly doubling its server time.
+const companyIntentInFlight = new Map<string, Promise<CompanyIntentResult>>();
 
 export function resetCompanyIntentCacheForTests(): void {
   companyIntentCache.clear();
+  companyIntentInFlight.clear();
 }
 
 export async function resolveCompanyIntentResult(q: string | undefined): Promise<CompanyIntentResult> {
@@ -2159,9 +2306,17 @@ export async function resolveCompanyIntentResult(q: string | undefined): Promise
   if (!query) return { companyScoped: false, companyDomains: [] };
   const key = normalizeCompanyName(query);
   const hit = companyIntentCache.get(key);
-  const now = Date.now();
-  if (hit && now - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
+  if (hit && Date.now() - hit.atMs < COMPANY_INTENT_TTL_MS) return hit.value;
 
+  const pending = companyIntentInFlight.get(key);
+  if (pending) return pending;
+  const probe = probeCompanyIntent(query, key).finally(() => companyIntentInFlight.delete(key));
+  companyIntentInFlight.set(key, probe);
+  return probe;
+}
+
+async function probeCompanyIntent(query: string, key: string): Promise<CompanyIntentResult> {
+  const now = Date.now();
   const sample = await probeCompanyNames(query, COMPANY_INTENT_SAMPLE);
   const companyScoped = isCompanyNameQuery(query, sample);
   const value: CompanyIntentResult = {

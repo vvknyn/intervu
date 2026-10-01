@@ -12,7 +12,7 @@ import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdf, exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { captureEvent } from "@/lib/analytics/events";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";

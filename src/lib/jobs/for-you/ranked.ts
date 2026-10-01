@@ -7,9 +7,10 @@
  * A pack IS a `/jobs` filter state (`packFilters`, ./pack-filters.ts): the
  * search call is exactly the one `/jobs` sends for those filters, so the ids
  * a candidate gets by applying them by hand are the ids returned here. Fit
- * only REORDERS that result (sorted by `match.total` descending, then
- * `orderForYouJobsByBand`: Strong → Good → Stretch, unscored last, with
- * target-title relevance inside each band) — it never removes a job.
+ * only REORDERS that result (the candidate's own role first, then by
+ * `match.total` descending, then `orderForYouJobsByBand`: role tier, then
+ * Strong → Good → Stretch, unscored last, with target-title relevance inside
+ * each band) — it never removes a job.
  *
  * Scoring/reasons pairing goes through the ONE fit chokepoint (`fitFor`,
  * ./fit.ts) — this module never calls `scoreJobAgainstResume` or
@@ -23,7 +24,7 @@ import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you
 import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
-import { levelUnverified, type MatchScore } from "@/lib/match/score";
+import { compareFit, levelUnverified, roleTier, type MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { ResumeData } from "@/types/resume";
 
@@ -90,11 +91,12 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
     });
-    // Stable sort: jobs whose level is verified first (a seniority filter also retrieves the
-    // never-derived-level rows, which rank lower), then by total, unscored jobs last
+    // Stable sort: the candidate's own role first (`roleTier`), then jobs whose level is verified
+    // (a seniority filter also retrieves the never-derived-level rows, which rank lower), then by
+    // total, unscored jobs last
     // (Array.prototype.sort is stable per spec). Band order below keeps this order inside a band.
     const unverified = (job: PublicJob) => (levelUnverified(signals, job) ? 1 : 0);
-    scored.sort((a, b) => unverified(a.job) - unverified(b.job) || (b.match?.total ?? -1) - (a.match?.total ?? -1));
+    scored.sort((a, b) => roleTier(a.match) - roleTier(b.match) || unverified(a.job) - unverified(b.job) || compareFit(a.match, b.match));
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const orderedJobs = orderForYouJobsByBand(

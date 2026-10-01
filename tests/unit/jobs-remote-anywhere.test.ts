@@ -10,8 +10,8 @@ import type { CorpusValueChecker } from "../../src/lib/geo/corpus-values";
 import type { PlaceFilter } from "../../src/lib/jobs/types";
 
 /**
- * Untagged remote roles (`work_type = "remote" AND location_country IS NULL`)
- * belong in the IP geo default only — the chip reads "United States · Remote".
+ * Remote roles with no place at all (`REMOTE_ANYWHERE_CLAUSE`: remote, and no
+ * country, city or state — tests (p)/(q)) belong in the IP geo default only — the chip reads "United States · Remote".
  * An explicit country pick (`?country=Canada`) must NOT OR them in: header
  * count, facet distribution, and Past 24h results must agree on Canada-only.
  *
@@ -239,4 +239,77 @@ test("(f) the count route runs the same query-understanding step, in the same re
     understoodIdx < intentIdx,
     "understandSearchParams must run BEFORE company-intent resolution, mirroring search.ts's searchJobs (searchMeili resolves company intent off the ALREADY-understood params) — reordering it after would probe company intent against raw, pre-understanding query text",
   );
+});
+
+/**
+ * A tiny evaluator for exactly the filter grammar `REMOTE_ANYWHERE_CLAUSE`
+ * uses (`f = "v"`, `IS NULL`, `NOT EXISTS`, `IS EMPTY`, AND/OR, parens), with
+ * Meilisearch's semantics as verified on 1.45.2: `IS NULL` matches only a
+ * JSON null, `NOT EXISTS` only a missing attribute, `IS EMPTY` only `""`/`[]`.
+ */
+function matchesClause(clause: string, doc: Record<string, unknown>): boolean {
+  const tokens = clause.match(/\(|\)|"[^"]*"|[A-Za-z_]+|=/g) ?? [];
+  let i = 0;
+  const peek = () => tokens[i];
+  const next = () => tokens[i++];
+  const primary = (): boolean => {
+    if (peek() === "(") {
+      next();
+      const v = orExpr();
+      assert.equal(next(), ")");
+      return v;
+    }
+    const field = next()!;
+    const op = next();
+    if (op === "=") return doc[field] === JSON.parse(next()!);
+    if (op === "IS" && peek() === "NULL") return next(), field in doc && doc[field] === null;
+    if (op === "IS" && peek() === "EMPTY") {
+      next();
+      const v = doc[field];
+      return v === "" || (Array.isArray(v) && v.length === 0);
+    }
+    if (op === "NOT" && peek() === "EXISTS") return next(), !(field in doc);
+    throw new Error(`unsupported filter syntax at ${field} ${op}`);
+  };
+  const andExpr = (): boolean => {
+    let v = primary();
+    while (peek() === "AND") {
+      next();
+      v = primary() && v;
+    }
+    return v;
+  };
+  const orExpr = (): boolean => {
+    let v = andExpr();
+    while (peek() === "OR") {
+      next();
+      v = andExpr() || v;
+    }
+    return v;
+  };
+  const v = orExpr();
+  assert.equal(i, tokens.length, "the whole clause parsed");
+  return v;
+}
+
+test("(p) remote-anywhere means NO place at all — a remote role naming a city or state without a country is not 'anywhere'", () => {
+  const remote = { work_type: "remote" };
+  // Still remote-anywhere: every place field empty, in each shape the index can hold.
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null, location_city: null, location_state: null }), true);
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null }), true, "city/state attributes missing");
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null, location_city: "", location_state: [] }), true, "empty string / empty array");
+  // The prod case (Afni, Burton-on-Trent): a city and a state, country missing.
+  assert.equal(
+    matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null, location_city: "Burton-on-Trent", location_state: "England" }),
+    false,
+  );
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null, location_city: null, location_state: "Ontario" }), false, "state only");
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: null, location_city: "Austin", location_state: null }), false, "city only");
+  // Unchanged: a tagged country, or a non-remote role, was never remote-anywhere.
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { ...remote, location_country: "Canada", location_city: null, location_state: null }), false);
+  assert.equal(matchesClause(REMOTE_ANYWHERE_CLAUSE, { work_type: "onsite", location_country: null, location_city: null, location_state: null }), false);
+});
+
+test("(q) the country test stays the live-verified IS NULL — the tightening only narrows the old set", () => {
+  assert.ok(REMOTE_ANYWHERE_CLAUSE.startsWith('work_type = "remote" AND location_country IS NULL AND '), REMOTE_ANYWHERE_CLAUSE);
 });

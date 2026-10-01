@@ -13,6 +13,32 @@ import type { GhostChecked, PublicJob } from "./types";
 const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
 
 /**
+ * The ONE "when did we last check this job" timestamp: the later of
+ * `last_observed_alive_at` (a scrape or probe saw the posting alive) and
+ * `ghost_checked_at` (the ghost check last ran), skipping either one when it
+ * is missing or doesn't parse. `null` when neither parses.
+ *
+ * Every "checked N days ago" / "✓ live" / "Last checked" line reads this —
+ * `checkFreshness` and `badgeFor` below, `ghostMetaFor` (presentation.ts)
+ * and `ghostCheckedText` (job-detail-facts.ts). Until 2026-09-30 each read
+ * `last_observed_alive_at || ghost_checked_at`, which took the alive stamp
+ * whenever it existed, even when the ghost check had run more recently — so
+ * a job re-checked this morning could still say "checked 12d ago".
+ */
+export function latestCheckAt(job: GhostChecked): string | null {
+    let latest: string | null = null;
+    let latestMs = -Infinity;
+    for (const ts of [job.last_observed_alive_at, job.ghost_checked_at]) {
+        if (!ts) continue;
+        const ms = Date.parse(ts);
+        if (Number.isNaN(ms) || ms <= latestMs) continue;
+        latest = ts;
+        latestMs = ms;
+    }
+    return latest;
+}
+
+/**
  * Is this job's verdict still backed by a CURRENT check? `ghost_checked_at`
  * older than `STALE_CHECK_DAYS`, missing, or unparseable all count as stale —
  * a verdict from a month-plus-old check isn't a current one, whichever way it
@@ -25,8 +51,7 @@ const STALE_CHECK_MS = STALE_CHECK_DAYS * 86_400_000;
  * (types.ts). It read `updated_at` (the last scrape) until 2026-08-17.
  */
 export function checkFreshness(job: GhostChecked, nowMs: number): "fresh" | "stale" {
-    const checkTs = job.last_observed_alive_at || job.ghost_checked_at;
-    return isStale(checkTs ?? null, nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
+    return isStale(latestCheckAt(job), nowMs, STALE_CHECK_MS) ? "stale" : "fresh";
 }
 
 /**
@@ -143,7 +168,7 @@ export function badgeFor(
             }
             // "fresh" guarantees checkTs parses (checkFreshness
             // treats null/unparseable as stale) — no NaN fallback needed.
-            const checkedAt = (job.last_observed_alive_at || job.ghost_checked_at) as string;
+            const checkedAt = latestCheckAt(job) as string;
             const parsed = Date.parse(checkedAt);
             const age = formatRelativeAge(checkedAt, nowMs);
             return nowMs - parsed > STALE_THRESHOLD_MS ? `checked ${age}` : `✓ live ${age}`;

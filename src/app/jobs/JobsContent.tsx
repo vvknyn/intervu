@@ -51,6 +51,8 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
+import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
@@ -78,7 +80,7 @@ import {
     tieredSeamIndex,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { compareFit, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -108,6 +110,7 @@ import {
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
 import { TodayHome } from "@/components/jobs/for-you/TodayHome";
+import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
@@ -123,6 +126,7 @@ import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
+import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
 import {
     activeFilterEntries,
@@ -168,6 +172,8 @@ import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
+import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
+import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 const CategoryHubGrid = dynamic(
     () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
@@ -177,15 +183,23 @@ const HubYourJobs = dynamic(
     () => import("@/components/jobs/for-you/HubYourJobs").then((m) => m.HubYourJobs),
     { loading: () => null },
 );
-const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail));
-const JobDetailActionBar = dynamic(() =>
-    import("@/components/jobs/JobDetail").then((m) => m.JobDetailActionBar),
+// `loading: () => null` on each: without it a dynamic() component holds up
+// the first render of everything around it until its own chunk arrives, and
+// these only show once a job is opened or the importer is asked for.
+const JobDetail = dynamic(() => import("@/components/jobs/JobDetail").then((m) => m.JobDetail), {
+    loading: () => null,
+});
+const JobDetailActionBar = dynamic(
+    () => import("@/components/jobs/JobDetail").then((m) => m.JobDetailActionBar),
+    { loading: () => null },
 );
-const JobDetailSkeleton = dynamic(() =>
-    import("@/components/jobs/JobDetail").then((m) => m.JobDetailSkeleton),
+const JobDetailSkeleton = dynamic(
+    () => import("@/components/jobs/JobDetail").then((m) => m.JobDetailSkeleton),
+    { loading: () => null },
 );
-const ResumeImportModal = dynamic(() =>
-    import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+const ResumeImportModal = dynamic(
+    () => import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+    { ssr: false, loading: () => null },
 );
 const SearchAutocomplete = dynamic(
     () => import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
@@ -229,6 +243,8 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
+    usedDeadLinkPassBefore,
+    type DeadLinkPass,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
@@ -537,7 +553,7 @@ function ToolbarSegment({
  * `remoteAnywhere` (`result.remoteAnywhere`, search.ts) names the scope via
  * `locationDefaultScope` (location-default-preference.ts) instead of a bare
  * country name — the applied place filter also OR's in every remote role
- * with no country tag (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
+ * with no place at all (`REMOTE_ANYWHERE_CLAUSE`), so a bare country scope alone
  * used to read as a promise the query didn't keep (results included e.g.
  * Sydney/Dubai remote listings under a "near Canada" chip).
  */
@@ -765,7 +781,7 @@ const RESUME_MOMENT_OPENS = 3;
  * (FilterPanel.tsx) — the SAME chokepoint the toolbar chips and mobile sheet
  * read from (they omit the opt), so this can never list a different "what's
  * active" than what's actually applied, it just additionally names the
- * pristine "30d" posted-bucket default the toolbar keeps quiet (no parallel
+ * pristine "90d" posted-bucket default the toolbar keeps quiet (no parallel
  * list). `onClearEntry` routes through the caller's `applyFilterState` — the
  * identical apply path the toolbar chips' `onRemove` already uses — so
  * there's exactly one place a FilterState clear becomes local state + a URL
@@ -1100,11 +1116,11 @@ export function JobsContent() {
     filterStateRef.current = filterState;
     /**
      * The date window actually filtering these results — never the raw
-     * `postedBucket`, which still holds the fresh-visit "30d" nobody chose
+     * `postedBucket`, which still holds the fresh-visit "90d" nobody chose
      * and `buildJobSearchPayload` deliberately never sends. Everything that
      * SPEAKS about the window (the count sentence, the beyond-window reveal
      * and its probe) reads this, so the page can't caption an unfiltered
-     * result set "from the last 30 days" or offer to reveal roles it is
+     * result set "from the last 90 days" or offer to reveal roles it is
      * already showing.
      */
     const appliedPosted = appliedPostedBucket(filterState);
@@ -1278,6 +1294,7 @@ export function JobsContent() {
     // search box's Enter/suggestion-pick and a recent-search chip click both
     // route through here, so both record the query the same way.
     const submitSearch = (q: string) => {
+        submitImmediateRef.current = true;
         setExplicitlySubmitted(true);
         // Every submit path funnels through here (the box's own Enter/
         // suggestion-pick already self-closes; this covers the ones that
@@ -1443,13 +1460,13 @@ export function JobsContent() {
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
     // Task 11 review fix — records which id has already used its ONE free
-    // "preserve, don't reassign" pass in the search effect below (see
-    // `resolveSelectionAfterRefresh`'s `wasConfirmed` option in
-    // lib/jobs/result-state.ts). Never explicitly cleared: a stale value
-    // for a since-superseded id simply stops matching `previousSelectedId`
-    // once the user selects something else, which is all the "reset" this
-    // needs.
-    const firstUnresolvedDeadLinkIdRef = useRef<string | null>(null);
+    // "preserve, don't reassign" pass in the search effect below, and on
+    // which search (see `resolveSelectionAfterRefresh`'s `wasConfirmed`
+    // option and `usedDeadLinkPassBefore` in lib/jobs/result-state.ts).
+    // Never explicitly cleared: a stale value for a since-superseded id
+    // simply stops matching `previousSelectedId` once the user selects
+    // something else, which is all the "reset" this needs.
+    const deadLinkPassRef = useRef<DeadLinkPass | null>(null);
 
     /**
      * Deliverable 1 — which `searchKey` has already burned its one automatic
@@ -1459,7 +1476,7 @@ export function JobsContent() {
      * dead-end UI at all. Keyed on `searchKey` rather than a plain boolean so
      * a NEW search (different query/filters) always gets its own fresh
      * attempt — same never-explicitly-cleared pattern as
-     * `firstUnresolvedDeadLinkIdRef` above: a stale value for a
+     * `deadLinkPassRef` above: a stale value for a
      * since-superseded key simply stops matching.
      */
     const autoRetriedSearchKeyRef = useRef<string | null>(null);
@@ -1481,11 +1498,11 @@ export function JobsContent() {
     const ghostHiddenCount = result?.ghostHiddenCount ?? null;
 
     // Beyond-window probe (2026-08-12): the honest corpus count with the
-    // 30d posted-bucket filter lifted, for the results line's "N more
-    // beyond 30 days — show all" affordance. The 30d default hides real
+    // default posted-bucket filter lifted, for the results line's "N more
+    // beyond 90 days — show all" affordance. The default window hides real
     // inventory (measured: 2,294 shown vs 7,199 matching roles, ~68%
     // hidden) — this surfaces the gap rather than fabricating one; `null`
-    // means "not applicable right now" (bucket isn't 30d, or the probe
+    // means "not applicable right now" (bucket isn't the default, or the probe
     // failed) and `resolveBeyondWindow` (lib/jobs/beyond-window.ts) is the
     // single place that turns this + the visible `totalCount` into the
     // show/hide + number decision.
@@ -1512,7 +1529,7 @@ export function JobsContent() {
 
     // Can the corpus answer an age-bucket question? Optimistic default: the
     // sync writes `posted_ts` at full population (verified Jul 2026), and the
-    // fresh-visit default filter is `posted=30d` — starting `false` made every
+    // fresh-visit default filter is `posted=90d` — starting `false` made every
     // first load (and every load while the probe was in flight or failing)
     // ship the match-all browse instead, the corpus's heaviest query shape.
     // The probe now demotes ONLY on a successful measurement of insufficient
@@ -1530,6 +1547,14 @@ export function JobsContent() {
     // "settled" means that FIRST attempt completed (success or failure),
     // not that every later search has to be waited on too.
     const [firstSearchSettled, setFirstSearchSettled] = useState(false);
+    // JobsRouteGate holds AuthKit until the first list is on screen (its
+    // session check is a server action and would queue ahead of the search);
+    // lift the hold then, or when leaving the page.
+    useEffect(() => {
+        if (!firstSearchSettled) return;
+        requireAuthKitSoon();
+    }, [firstSearchSettled]);
+    useEffect(() => requireAuthKitSoon, []);
 
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
@@ -1595,6 +1620,11 @@ export function JobsContent() {
     // body runs, before anything async — a state flag wouldn't be readable
     // that soon and would itself trigger a needless extra render.
     const isFirstSearchRunRef = useRef(true);
+    // Set by `submitSearch`: a submitted search (Enter, a suggestion, a chip)
+    // skips the 250ms typing debounce below, since nothing more is coming.
+    const submitImmediateRef = useRef(false);
+    // When the current first-page request started, for `useListRenderTiming`.
+    const searchStartedAtRef = useRef<number | null>(null);
 
     const [user, setUser] = useState<User | null>(null);
     // Session cookie is httpOnly — first paint is "not yet known", not signed
@@ -2046,10 +2076,17 @@ export function JobsContent() {
                 q: query,
                 sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
                 lastHomeView,
+                signedOut,
             }),
-        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView],
+        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView, signedOut],
     );
     const showForYouHome = resolvedHomeView === "for-you";
+    // For you needs an account. A confirmed guest who asks for it gets one
+    // sign-in card, and no packs, counts or pack searches run behind it.
+    // While auth is still resolving it shows the pending shell, so a guest's
+    // last-seen For you cannot start the hub's searches before we know.
+    const forYouOpen = showForYouHome && signedIn;
+    const forYouGated = showForYouHome && signedOut;
     const showSearchHome = resolvedHomeView === "search";
     const showJobsHomePending = resolvedHomeView === "pending";
     // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
@@ -2097,7 +2134,7 @@ export function JobsContent() {
     // The zero-result state's per-filter clear chips (Task 11) read a SEPARATE
     // call to the same `activeFilterEntries` chokepoint, with
     // `includeQuietDefaults: true` — a silently-applied default (today, only
-    // the pristine "30d" posted-bucket) narrowed the result set just as much
+    // the pristine "90d" posted-bucket) narrowed the result set just as much
     // as an explicit filter, so a zero-result explanation has to name it even
     // though the toolbar pill keeps it quiet. Same function, same clear
     // semantics, one extra opt-in — not a second parallel "what's active"
@@ -2198,9 +2235,11 @@ export function JobsContent() {
     // no résumé used to get a full-page onboarding card here instead; it now
     // gets the same board, with the résumé band after the feed and the
     // importer opening over it straight after sign-up (`?resume=gate`).
-    // At rest the Search home runs the default recency feed below the search
-    // box, so first paint shows real jobs.
-    const defaultFeedAtRest = atRest && showSearchHome && !showForYouHome;
+    // At rest the Search home shows no job rows: a list needs a reason (a
+    // résumé, the visitor's own search or filters, or the job they came
+    // for). The newest-in-your-country feed that used to fill it was opened
+    // by 6% of guests. A résumé on file ranks the list instead (the at-rest
+    // fit effect below `resolveAndApplyFit`).
     // `hasSearchIntent` (lib/jobs/search-intent.ts, unit-tested there) is the
     // ONE gate between "no results surface" and the live results surface (the
     // results list, its skeleton rows, the result-count line, and the fetch
@@ -2212,13 +2251,14 @@ export function JobsContent() {
     // ambient default-browse auto-selection is not deliberate intent — see
     // `atRest`'s own comment above for the same distinction).
     const searchIntent = hasSearchIntent({
-        defaultFeedAtRest,
         query,
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
-        forYouActive: showForYouHome,
+        forYouActive: forYouOpen,
     });
+    // The at-rest front door: Search home, nothing typed, filtered or open.
+    const frontDoorAtRest = atRest && showSearchHome && !searchIntent;
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
@@ -2256,15 +2296,12 @@ export function JobsContent() {
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
     //
-    // When `searchIntent` is false (For-you-only, etc.) this skips the fetch.
-    // `firstSearchSettled` is still flipped true immediately so the secondary
-    // mount probes gated on it (posted-date support, report-job-enabled,
-    // live-jobs-count) aren't left waiting on a fetch that will never fire;
+    // When `searchIntent` is false (For-you-only, etc.) this skips the fetch;
     // `loading` is flipped false so the results div never carries a stuck
     // "still loading" flag into the moment intent later appears.
+    // `firstSearchSettled` for that case is the effect just below.
     useEffect(() => {
         if (!searchIntent) {
-            setFirstSearchSettled(true);
             setLoading(false);
             return;
         }
@@ -2292,8 +2329,10 @@ export function JobsContent() {
         // sees it as no longer the first.
         const isFirstRun = isFirstSearchRunRef.current;
         isFirstSearchRunRef.current = false;
-        const debounceMs = isFirstRun ? 0 : 250;
+        const debounceMs = isFirstRun || submitImmediateRef.current ? 0 : 250;
+        submitImmediateRef.current = false;
         const t = setTimeout(async () => {
+            searchStartedAtRef.current = performance.now();
             try {
                 // Browse-by-default (2026-08-07): the pristine zero-query
                 // landing (`emptySearchState === "overlay-ask"` — no query,
@@ -2376,12 +2415,14 @@ export function JobsContent() {
                 // forever — `wasConfirmedBeforeThisFetch` can never become
                 // true for a genuinely dead id, since it will never appear
                 // in ANY result — leaving a stale mobile detail sheet stuck
-                // open across every later result set. `firstUnresolvedDeadLinkIdRef`
-                // is set (never explicitly cleared) the first time an id
-                // uses its pass; a stale value for a DIFFERENT id simply
-                // never matches, so no explicit reset is needed.
-                const alreadyUsedItsPass = previousSelectedId != null
-                    && firstUnresolvedDeadLinkIdRef.current === previousSelectedId;
+                // open across every later result set. `deadLinkPassRef` is
+                // set (never explicitly cleared) when an id uses its pass,
+                // with the search it used it on; a stale value for a
+                // DIFFERENT id simply never matches, so no explicit reset is
+                // needed. A repeat of the SAME search keeps the pass
+                // (`usedDeadLinkPassBefore`): a dev server runs this effect
+                // twice, which closed a shared job about 3s after load.
+                const alreadyUsedItsPass = usedDeadLinkPassBefore(deadLinkPassRef.current, previousSelectedId, searchKey);
                 const wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass;
                 firstPageSucceeded = true;
                 // Item 4 (2026-08-21 front-door audit): reorder THIS page's
@@ -2426,7 +2467,7 @@ export function JobsContent() {
                     ? interleavedHits.some((h) => h.id === previousSelectedId)
                     : false;
                 if (previousSelectedId && !wasConfirmed && !foundInFreshHits) {
-                    firstUnresolvedDeadLinkIdRef.current = previousSelectedId;
+                    deadLinkPassRef.current = { id: previousSelectedId, searchKey };
                 }
                 // Item 5 (2026-08-21 front-door audit): `resolveSelectionAfterRefresh`
                 // defaulting to `hits[0]` is right for every OTHER case (a
@@ -2512,7 +2553,7 @@ export function JobsContent() {
                         "replace",
                     );
                 }
-                // Ghost-hidden-count and beyond-30d-window probes used to
+                // Ghost-hidden-count and beyond-window probes used to
                 // fire here as two extra client round trips (Task 7 /
                 // 2026-08-12). Perf first-paint (2026-09-18): both are now
                 // computed server-side, in parallel with the main query, by
@@ -2598,6 +2639,17 @@ export function JobsContent() {
         // alone would not re-run this effect for that transition.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchKey, searchRetry, emptySearchState, locationDefaultSuppressed, searchIntent]);
+
+    // No search to wait for: flip `firstSearchSettled` so the secondary mount
+    // probes gated on it (posted-date support, report-job-enabled,
+    // live-jobs-count) aren't left waiting on a fetch that will never fire.
+    // Not while the home view is still pending, though: that resolves within
+    // moments into For you or a browse list, and settling early let those
+    // probes (server actions run one at a time) queue ahead of the list's own
+    // request, which measured ~1 s later on a throttled phone profile.
+    useEffect(() => {
+        if (!searchIntent && !showJobsHomePending) setFirstSearchSettled(true);
+    }, [searchIntent, showJobsHomePending]);
 
     // Sort-reset (approved product change, 2026-08-13): an explicit sort is
     // sticky across query edits now — the only remaining reset is the
@@ -2701,6 +2753,9 @@ export function JobsContent() {
                 // armed with below. That's the id a click must carry to join
                 // back to the impression it came from (SPEC §5).
                 ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // How old the opened role was: whether searchers open fresh
+                // roles or older ones is what the posted-date window is tuned on.
+                ...postedAgeAnalyticsProps(hit),
                 ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
             if (!user) recordGuestResultClick();
@@ -2836,7 +2891,7 @@ export function JobsContent() {
         return Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null;
     }, [resumeUpdatedAt]);
 
-    // `sort=fit`'s visible order: a stable resort of `clusters` by the same
+    // `sort=fit`'s visible order: a stable resort of `clusters` by role tier, then the same
     // per-job score above, applied client-side only while `fitActive`. This
     // is layered ON TOP of `clusters` rather than folded into the
     // `hits`/`displayHits`/`seamIndex` pipeline above — that machinery still
@@ -2859,9 +2914,7 @@ export function JobsContent() {
         const ranked =
             !fitActive || !matchScores
                 ? clusters
-                : [...clusters].sort(
-                      (a, b) => (matchScores.get(b.primary.id)?.total ?? -1) - (matchScores.get(a.primary.id)?.total ?? -1),
-                  );
+                : [...clusters].sort((a, b) => compareFit(matchScores.get(a.primary.id), matchScores.get(b.primary.id)));
         if (!rowTileOpen) return ranked;
         const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
         return ranked.filter((c) => keep.has(c.primary.id));
@@ -2917,11 +2970,11 @@ export function JobsContent() {
     const forYouDeck = useForYouDeck(forYouPacks);
 
     useEffect(() => {
-        if (!showForYouHome || firstPackRevealAttemptedRef.current) return;
+        if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
         if (!consumeFirstPackReveal()) return;
         firstPackRevealAttemptedRef.current = true;
         setPendingFirstPackReveal(true);
-    }, [showForYouHome]);
+    }, [forYouOpen]);
 
     useEffect(() => {
         if (!pendingFirstPackReveal || !hasUsableResume) return;
@@ -2975,17 +3028,17 @@ export function JobsContent() {
     // from the browse hits already on the hub. Stop updating once a fit key
     // exists or a pack is open, so a later deck page cannot blank the pills.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || hubResumeKey) return;
+        if (!forYouOpen || forYouPackDeckOpen || hubResumeKey) return;
         const current = result;
         if (!current || !current.hits?.length) return;
         setHubBrowse({
             jobs: current.hits,
             total: typeof current.total === "number" ? current.total : null,
         });
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, result]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, result]);
 
     useEffect(() => {
-        if (!showForYouHome) return;
+        if (!forYouOpen) return;
         let cancelled = false;
         void readWithRetry(() => getHubPackCorpusCountsAction(locationDefaultSuppressed).catch(loadFailed)).then(
             (counts) => {
@@ -2995,13 +3048,13 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, locationDefaultSuppressed]);
+    }, [forYouOpen, locationDefaultSuppressed]);
 
     // Progressive quiet fit probe — every pack gets live role counts from the
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
+        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
             return;
         }
         const industry = hubIndustry;
@@ -3168,7 +3221,7 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [showForYouHome, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
@@ -3695,6 +3748,14 @@ export function JobsContent() {
     // ?.searchId`) so impressions and the clicks they produce always join
     // on one query_id.
     useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
+    useListRenderTiming({
+        searchId: result?.searchId,
+        rows: result?.hits.length ?? 0,
+        loading,
+        surface: emptySearchState === "overlay-ask" ? "browse" : "search",
+        requestStartedAtRef: searchStartedAtRef,
+        narrow: !isLgUp,
+    });
 
     // Fetch the next page and append it only while its monotonic generation is current.
     const loadMore = useCallback(async () => {
@@ -4620,21 +4681,21 @@ export function JobsContent() {
     // replaces `resume` and cancels the count probe.
     const hubResumeLoadRef = useRef(false);
     useEffect(() => {
-        if (!showForYouHome || forYouPackDeckOpen) return;
+        if (!forYouOpen || forYouPackDeckOpen) return;
         if (resume && resumeIsUsable(resume)) return;
         if (hubResumeLoadRef.current) return;
         hubResumeLoadRef.current = true;
         void resolveUsableResume().then((loaded) => {
             if (!loaded) hubResumeLoadRef.current = false;
         });
-    }, [showForYouHome, forYouPackDeckOpen, user, resume]);
+    }, [forYouOpen, forYouPackDeckOpen, user, resume]);
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData, tileId?: HubPackId) => {
+    const applyFit = (r: ResumeData, tileId?: HubPackId, homeViewOverride?: JobsHomeView) => {
         // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
         // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
@@ -4658,7 +4719,16 @@ export function JobsContent() {
         setQuery(q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(buildUrlState({ q, facets: merged, sort: "fit", ...tileWindow }), "replace");
+        applyUrlState(
+            buildUrlState({
+                q,
+                facets: merged,
+                sort: "fit",
+                ...tileWindow,
+                ...(homeViewOverride ? { homeView: homeViewOverride } : {}),
+            }),
+            "replace",
+        );
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4691,6 +4761,47 @@ export function JobsContent() {
             setFitResolving(false);
         }
     };
+
+    // A list needs a reason, and a résumé on file is one: the Search home at
+    // rest opens on the résumé-ranked list (a guest's résumé in this browser:
+    // their top 3, then the fit gate; a signed-in user's: the whole list) instead
+    // of the front door. Once per stay on the Search home, so a visitor who
+    // leaves that list for rest isn't pulled back to it; the front door's
+    // "See roles that fit your résumé" reopens it. An explicit empty submit,
+    // a filter or a sort choice is the visitor's own list and is left alone.
+    // It is the "all" pack on the board, window included: a recommendation
+    // list keeps the packs' posted window, not the wider typed-search one.
+    // `sort=fit` with no query (a shared or bookmarked fit link) ranks nothing
+    // by itself, so it resolves the résumé here too, or drops the fit sort
+    // when there is no résumé to rank by.
+    const autoFitAtRestRef = useRef(false);
+    // A signed-in résumé can take a network read; a search typed meanwhile wins.
+    const atRestRef = useRef(atRest);
+    atRestRef.current = atRest;
+    useEffect(() => {
+        if (!showSearchHome) {
+            autoFitAtRestRef.current = false;
+            return;
+        }
+        if (autoFitAtRestRef.current || !authReady) return;
+        if (!atRest || activeEntries.length > 0 || sortOverride !== null || explicitlySubmitted) return;
+        if (resumeOnFile === null) return;
+        if (resumeOnFile === false) {
+            if (fitActive) {
+                setFitActive(false);
+                applyUrlState(buildUrlState({ sort: null }), "replace");
+            }
+            return;
+        }
+        autoFitAtRestRef.current = true;
+        const token = fitIntentRef.current!.begin();
+        setFitResolving(true);
+        void resolveUsableResume()
+            .then((r) => {
+                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r, "all");
+            })
+            .finally(() => setFitResolving(false));
+    }, [showSearchHome, authReady, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Do NOT auto-apply fit on for-you entry. Packs home is CategoryHubGrid
     // (default whenever for-you + !advanced search + !explicit pack deck).
@@ -4882,6 +4993,15 @@ export function JobsContent() {
         beginResumeUpload();
     };
 
+    // A guest's résumé lives only in this browser (`velai.localAi.resume`).
+    // Remove forgets it and reloads bare /jobs, so the ranked list goes with
+    // it, and so do the pack's filters and everything else read from the
+    // résumé: the visitor lands on the front door with nothing ranked.
+    const removeGuestResume = () => {
+        clearLocalAiResume();
+        window.location.replace("/jobs");
+    };
+
     const showMatchTeaser = needsResumeEntry({
         signedIn: Boolean(user),
         resumeOnFile,
@@ -4959,10 +5079,13 @@ export function JobsContent() {
         setFacets({});
         setQueryDraft("");
         setQuery("");
-        setHomeView("for-you");
-        writeLastJobsHomeView("for-you");
+        // For you needs an account: a guest's résumé ranks the Search board
+        // (top matches, then the fit gate) instead of opening packs.
+        const home: JobsHomeView = user ? "for-you" : "search";
+        setHomeView(home);
+        writeLastJobsHomeView(home);
         applyUrlState(
-            buildUrlState({ homeView: "for-you", q: "", facets: {}, sort: null }),
+            buildUrlState({ homeView: home, q: "", facets: {}, sort: null }),
             "replace",
         );
         if (user) {
@@ -4980,10 +5103,13 @@ export function JobsContent() {
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
+        const guestHome: JobsHomeView | undefined = user ? undefined : "search";
         if (queuedAction?.kind === "fit") {
             // Stale-guard check (see `handleUploadClick`'s doc comment): a
             // sort choice made while the modal was open must win, not this.
-            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data);
+            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data, undefined, guestHome);
+        } else if (guestHome) {
+            applyFit(data, undefined, guestHome);
         } else {
             armFirstPackReveal();
         }
@@ -5130,7 +5256,7 @@ export function JobsContent() {
               })
             : null;
 
-    // "N more beyond 30 days — show all" affordance (2026-08-12) — gated on
+    // "N more beyond 90 days — show all" affordance (2026-08-12) — gated on
     // `resultCountLine` being present so the affordance can never appear
     // before the FIRST real result for the active filters has landed —
     // `totalCount` defaults to an exact zero before that,
@@ -5603,6 +5729,7 @@ export function JobsContent() {
             returnTo={serpReturnTo}
             count={fitGate.count}
             onDismiss={() => chooseSort("relevance")}
+            autoShown={{ hasResume: true }}
             className="my-4 w-full"
         />
     ) : null;
@@ -5750,6 +5877,16 @@ export function JobsContent() {
                 >
                     Replace
                 </button>
+                {!signedIn ? (
+                    <>
+                        {" "}·{" "}
+                        <ResumeRemove
+                            onRemove={removeGuestResume}
+                            testIdPrefix="jobs"
+                            className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
+                        />
+                    </>
+                ) : null}
             </span>
         ) : null;
 
@@ -5811,11 +5948,11 @@ export function JobsContent() {
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
-    const deckPanesLocked = showForYouHome && (showAdvancedSearch || forYouPackDeckOpen);
+    const deckPanesLocked = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
     return (
         <div
             className={
-                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-screen"
+                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-clip" : "min-h-screen"
             }
         >
             {firstRevealHandoff ? (
@@ -5838,7 +5975,7 @@ export function JobsContent() {
                 className={cn(
                     "shell-row flex flex-col",
                     deckPanesLocked
-                        ? "min-h-0 flex-1 overflow-hidden pt-2 sm:pt-3"
+                        ? "min-h-0 flex-1 overflow-clip pt-2 sm:pt-3"
                         : cn(
                             "pt-2 sm:pt-3",
                             showSearchHome && showMobileSearchCta
@@ -5860,17 +5997,9 @@ export function JobsContent() {
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
                 {showSearchHome ? (
-                        <div className="pb-1.5">
-                            <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
+                        <div className={cn(atRest && "pb-1.5")}>
+                            {/* No "Back to Job Packs" row here: signed in, the header's For you
+                                tab is the same way back, and a guest's packs are a sign-in card. */}
                             {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-live">
@@ -6357,6 +6486,27 @@ export function JobsContent() {
                 {atRest && showSearchHome && (
                     <FrontDoorFieldLinks onSelectQuery={submitSearch} />
                 )}
+                {/* The front door (no job rows until there's a reason):
+                    the week's live count, the visitor's last search, and
+                    for a résumé on file, the way back to their matches.
+                    Visitors with no résumé get FrontDoorResumeBand below. */}
+                {frontDoorAtRest && (
+                    <>
+                        <FrontDoorWeekCount
+                            suppressLocationDefault={locationDefaultSuppressed}
+                            onShow={() => panelPostedBucket("7d")}
+                        />
+                        <div className="mx-auto mt-4 w-full max-w-[960px] empty:hidden">
+                            <FrontDoorReturnCard
+                                recentQuery={recentSearches[0] ?? ""}
+                                onRerun={submitSearch}
+                            />
+                        </div>
+                        {resumeOnFile === true && !fitActive && !fitResolving && (
+                            <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit("all")} />
+                        )}
+                    </>
+                )}
 
                 {headerDockActive && !showLandingMarketing && dockedFieldDirectoryMount &&
                     createPortal(fieldDirectoryMenu, dockedFieldDirectoryMount)}
@@ -6380,26 +6530,29 @@ export function JobsContent() {
                     )}
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
-                {showForYouHome ? (
-                    <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                {forYouGated ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <SignupGate
+                            reason="packs"
+                            originSurface="for_you"
+                            returnTo={serpReturnTo}
+                            onDismiss={() => selectJobsHome("search")}
+                            autoShown={{ hasResume: hasUsableResume }}
+                            className="mx-auto w-full max-w-xl"
+                        />
+                    </div>
+                ) : showForYouHome && !forYouOpen ? (
+                    <div className={cn("mt-4", cappedContentClass)}>
+                        <ForYouHomePending />
+                    </div>
+                ) : showForYouHome ? (
+                    <div className={cn(forYouPackDeckOpen ? "mt-1" : "mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-clip", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
                         <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
-                        {forYouPackDeckOpen && (
-                            <div className="mb-2 flex shrink-0 items-center justify-between">
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
-                        )}
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <>
                                 {resume && signals && pack && hubResumeKey ? (
@@ -6416,6 +6569,12 @@ export function JobsContent() {
                                         accountKey={user?.uid ?? null}
                                         onApply={handleOpenPosting}
                                         onOpenPack={(id) => openHubPack(id, "today")}
+                                        resumeLine={
+                                            <ResumeInUse
+                                                label={resumeInUseLabel(resumeSourceLabel)}
+                                                onReplace={() => handleUploadClick()}
+                                            />
+                                        }
                                     />
                                 ) : null}
                                 <CategoryHubGrid
@@ -6475,6 +6634,7 @@ export function JobsContent() {
                                 resultTotal={deckResultStale ? null : (result?.total ?? null)}
                                 unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
                                 tileId={openHubTileId}
+                                onBackToPacks={forYouPackDeckOpen ? returnToJobPacksHub : undefined}
                                 activePursuit={
                                     forYouDeck.activeJob
                                         ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
@@ -6507,6 +6667,19 @@ export function JobsContent() {
                     stays outside this gate: it's navigation chrome, not a
                     result, and has to show in both views before either one's
                     results fetch. */}
+                {/* For you is not a guest's home, so a guest's bare-city question
+                    is asked above the board their résumé ranks. Answering re-ranks. */}
+                {signedOut && fitActive && (
+                    <div className={cn("mt-4 empty:hidden", cappedContentClass)}>
+                        <ResumePlaceConfirm
+                            resume={resume}
+                            onUpdateResume={(settled) => {
+                                updateResume(settled);
+                                applyFit(settled, undefined, "search");
+                            }}
+                        />
+                    </div>
+                )}
                 {searchIntent && (
                 <div className={cn(
                     headerDockActive
@@ -6865,18 +7038,6 @@ export function JobsContent() {
                                 <>
                                     {!isSerpAsk && (
                                         <>
-                                            {/* Anonymous return card — "your last search, N new
-                                                since your last visit" — only on the at-rest default
-                                                feed, never over an engaged search's results. Mounted
-                                                unconditionally within that state (the component
-                                                renders null without a card to show) because it also
-                                                owns advancing the jobs visit cursor. */}
-                                            {defaultFeedAtRest && (
-                                                <FrontDoorReturnCard
-                                                    recentQuery={recentSearches[0] ?? ""}
-                                                    onRerun={submitSearch}
-                                                />
-                                            )}
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
                                             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
@@ -7096,6 +7257,7 @@ export function JobsContent() {
                                                     originSurface="jobs_banner"
                                                     returnTo={serpReturnTo}
                                                     count={resolveHiddenCount(totalCount, hits.length)}
+                                                    autoShown={{ hasResume: hasUsableResume }}
                                                     className="w-full"
                                                 />
                                             ) : loadingMore ? (
@@ -7276,7 +7438,7 @@ export function JobsContent() {
                 open={
                     !packsIntroDismissed &&
                     resumeOnFile === true &&
-                    showForYouHome
+                    forYouOpen
                 }
                 onGotIt={dismissPacksIntro}
                 onAddOrReplaceResume={() => {

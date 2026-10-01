@@ -54,20 +54,26 @@ test("postedBucket is dropped when the corpus doesn't support date filtering, ev
     assert.equal(p.postedBucket, undefined);
 });
 
-// Phase 1-a #? (30d default): the pristine "30d" IS the product default and
-// must be sent — only an explicit "Any date" lifts it.
-test("the 30d UI default IS sent in the search payload when date filtering is supported", () => {
+// Phase 1-a #? (posted default): the pristine "90d" ("30d" until 2026-09-30)
+// IS the product default and must be sent — only an explicit "Any date"
+// lifts it.
+test("the 90d UI default IS sent in the search payload when date filtering is supported", () => {
     const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", true);
-    assert.equal(p.postedBucket, "30d");
+    assert.equal(p.postedBucket, "90d");
 });
 
-test("explicit 30d (postedExplicit: true) is sent as postedBucket 30d when date filtering is supported", () => {
+test("explicit 90d (postedExplicit: true) is sent as postedBucket 90d when date filtering is supported", () => {
     const state: FilterState = { ...PRISTINE_FILTER_STATE, postedExplicit: true };
     const p = buildJobSearchPayload(state, "", "newest", true);
-    assert.equal(p.postedBucket, "30d");
+    assert.equal(p.postedBucket, "90d");
 });
 
-test("explicit 30d is still dropped when date filtering is unsupported", () => {
+test("a picked 30d window (the old default) is sent as postedBucket 30d", () => {
+    const state: FilterState = { ...PRISTINE_FILTER_STATE, postedBucket: "30d", postedExplicit: true };
+    assert.equal(buildJobSearchPayload(state, "", "newest", true).postedBucket, "30d");
+});
+
+test("explicit 90d is still dropped when date filtering is unsupported", () => {
     const state: FilterState = { ...PRISTINE_FILTER_STATE, postedExplicit: true };
     const p = buildJobSearchPayload(state, "", "newest", false);
     assert.equal(p.postedBucket, undefined);
@@ -79,7 +85,7 @@ test("non-default posted buckets still pass through when date filtering is suppo
     assert.equal(p.postedBucket, "7d");
 });
 
-test("the 30d default is coerced away (not sent) when date filtering is unsupported", () => {
+test("the 90d default is coerced away (not sent) when date filtering is unsupported", () => {
     const p = buildJobSearchPayload(PRISTINE_FILTER_STATE, "", "newest", false);
     assert.equal(p.postedBucket, undefined);
 });

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { hubChipCountText, HUB_PACK_CORPUS_COUNT_LOADING } from "@/lib/jobs/for-you/hub-counts";
 import { hubGreeting } from "@/lib/jobs/front-door-state";
+import { PRIVATE_MATCHING_ACTIVE } from "@/lib/jobs/resume-privacy-copy";
 
 const noSubscription = () => () => {};
 
@@ -129,6 +130,11 @@ export function CategoryHubGrid({
         </>
     );
 
+    // Without a résumé nothing is matched, so the first chip is every role, not "your matches".
+    const chipCategories = hasResume
+        ? categories
+        : categories.map((category) => (category.id === "all" ? { ...category, label: "All roles" } : category));
+
     const browseAllButton = (
         <Button
             type="button"
@@ -140,7 +146,7 @@ export function CategoryHubGrid({
             }}
             className="w-full justify-center sm:w-auto"
         >
-            Browse all matches
+            {hasResume ? "Browse all matches" : "Browse all roles"}
         </Button>
     );
 
@@ -172,7 +178,7 @@ export function CategoryHubGrid({
                         {hasResume && (
                             <div className="inline-flex items-center gap-1.5 rounded-pill bg-muted px-2.5 py-0.5 text-xs font-semibold text-live">
                                 <span className="h-1.5 w-1.5 rounded-pill bg-live" />
-                                Private matching active on this device
+                                {PRIVATE_MATCHING_ACTIVE}
                             </div>
                         )}
                         <h2 className="text-xl font-semibold text-foreground">
@@ -201,7 +207,7 @@ export function CategoryHubGrid({
 
             {/* The packs as one row of chips: label, live count, and "+N" since the last visit. */}
             <ul aria-label="Your packs" data-testid="hub-pack-chips" className="flex flex-wrap gap-2 poster-list-inset-x">
-                {categories.map((category, hubIndex) => {
+                {chipCategories.map((category, hubIndex) => {
                     const countLabel = hubCountLabels?.[category.id] ?? "";
                     const counting = countLabel === HUB_PACK_CORPUS_COUNT_LOADING;
                     const delta = hubCountDeltas?.[category.id] ?? 0;

@@ -6,7 +6,7 @@
  */
 
 import type { ModelLoadReport } from "../model-load";
-import type { LocalAiEngine, ModelParseOutput } from "./types";
+import type { GenerateOptions, LocalAiEngine, ModelParseOutput } from "./types";
 
 /** Preferred instruct model for Xenova transformers.js v2 (text-generation). */
 export const WASM_INSTRUCT_MODEL_ID = "Xenova/Qwen1.5-0.5B-Chat";
@@ -194,19 +194,20 @@ export const transformersWasmEngine: LocalAiEngine = {
         return tryParseJson(extractGeneratedText(result));
     },
 
-    async generate(prompt: string) {
+    async generate(prompt: string, options?: GenerateOptions) {
         if (!loaded) await this.init();
+        const maxNewTokens = options?.maxTokens ?? 320;
         const trimmed = prompt.slice(0, 3000);
         if (loaded!.kind === "instruct") {
             const chatPrompt = formatQwenChat(trimmed, loaded!.tokenizer);
             const result = await loaded!.pipeline(chatPrompt, {
-                max_new_tokens: 320,
+                max_new_tokens: maxNewTokens,
                 do_sample: false,
                 return_full_text: false,
             });
             return extractGeneratedText(result) || null;
         }
-        const result = await loaded!.pipeline(trimmed.replace(/\s+/g, " "), { max_new_tokens: 320 });
+        const result = await loaded!.pipeline(trimmed.replace(/\s+/g, " "), { max_new_tokens: maxNewTokens });
         return extractGeneratedText(result) || null;
     },
 

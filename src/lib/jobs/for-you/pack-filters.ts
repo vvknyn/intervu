@@ -8,7 +8,7 @@
 import { candidateCountries, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { buildMatchQuery, experienceLevelFacet } from "@/lib/jobs/resume-match";
 import { searchParamsFromUrlState } from "@/lib/jobs/search-payload";
-import { DEFAULT_URL_STATE, type JobsUrlState } from "@/lib/jobs/url-state";
+import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -25,7 +25,7 @@ export function packFilters(resume: ResumeData, signals: CandidateSignals): Jobs
     const countries = candidateCountries(signals);
     if (countries.length > 0) facets.location_country = countries;
     if (signals.remotePreference.value) facets.work_type = ["remote"];
-    return { ...DEFAULT_URL_STATE, q, facets, sort: "fit" };
+    return { ...DEFAULT_URL_STATE, postedBucket: PACK_POSTED_BUCKET, q, facets, sort: "fit" };
 }
 
 /** The exact `searchJobsAction` params `/jobs` sends for this pack's filters. */

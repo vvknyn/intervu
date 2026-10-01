@@ -25,7 +25,7 @@ import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { displayCompanyBrand } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";

@@ -93,4 +93,27 @@ describe("resolveJobsHomeView", () => {
             "pending",
         );
     });
+
+    it("signed out never defaults to For you, whatever the guest has on file", () => {
+        assert.equal(resolveJobsHomeView({ ...base, signedOut: true, resumeOnFile: true }), "search");
+        assert.equal(
+            resolveJobsHomeView({ ...base, signedOut: true, resumeOnFile: null, lastHomeView: "for-you" }),
+            "search",
+        );
+        assert.equal(
+            resolveJobsHomeView({
+                ...base,
+                signedOut: true,
+                resumeOnFile: true,
+                q: "software engineer",
+                sort: "fit",
+            }),
+            "search",
+        );
+    });
+
+    it("signed out still honours an explicit view, so For you can show its sign-in card", () => {
+        assert.equal(resolveJobsHomeView({ ...base, signedOut: true, urlView: "for-you" }), "for-you");
+        assert.equal(resolveJobsHomeView({ ...base, signedOut: true, urlView: "search" }), "search");
+    });
 });

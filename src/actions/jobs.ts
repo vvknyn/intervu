@@ -32,7 +32,7 @@ import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
 import { isInternalPosting } from "@/lib/jobs/presentation";
-import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
+import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
@@ -53,6 +53,7 @@ import { after } from "next/server";
 import { DESCRIPTION_FILL_PREFETCH_DEADLINE_MS, planDescriptionFill } from "@/lib/jobs/fill-description";
 import { fillVisibleDescriptions, hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
 import { countryLookup, hydrateJobDescription } from "@/lib/jobs/hydrate-description";
+import { reportOpenedJob, reportShownJobs } from "@/lib/jobs/liveness-demand";
 
 /**
  * `meta` is additive by convention (see `SearchServedMeta` in
@@ -142,6 +143,7 @@ export async function searchJobsAction(
   // (rate limit, depth cap) still runs first, exactly as it did before this
   // extraction — only the id-specific search + fill logic moved.
   if (params.id) {
+    reportOpenedJob(params.id);
     return hydrateJobDescription(params.id, ip);
   }
 
@@ -167,6 +169,10 @@ export async function searchJobsAction(
     after(() => recordSearch(entry));
   }
 
+  // Buffer-only (no await, no network here): the rows this person is about
+  // to see go to Subspace's liveness verifier first. See liveness-demand.ts.
+  reportShownJobs(result.hits);
+
   return { ...result, searchId };
 }
 
@@ -183,7 +189,7 @@ const RELATED_JOBS_LIMIT = 5;
  */
 async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Promise<PublicJob[]> {
   const result = await runSearch({
-    postedBucket: "30d",
+    postedBucket: DEFAULT_URL_STATE.postedBucket,
     hideGhosts: true,
     limit: RELATED_JOBS_LIMIT + 1,
     ...params,
@@ -198,7 +204,7 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * Resolved here with the SAME query shape `getCompanyPageData` uses for that
  * count (companyDomain, COMPANY_JOBS_FETCH_LIMIT, no posted-window, no ghost
  * exclusion) — deliberately NOT `fetchRelatedExcluding` above, which is a
- * narrower, different-purpose query (30d window, ghosts hidden, excludes
+ * narrower, different-purpose query (default posted window, ghosts hidden, excludes
  * this job, caps at RELATED_JOBS_LIMIT) built for "More like this"
  * suggestions; reusing it here would just be a third, disagreeing
  * definition of "open roles" — the exact bug this closes.
@@ -308,7 +314,9 @@ export async function getRelatedJobsAction(seed: RelatedSeed): Promise<{ jobs: P
       ? dedupeRelatedJobs(await fetchRelatedExcluding(viewed.id, { companyDomain: viewed.companyDomain }), viewed)
       : [];
 
-  return pickRelatedJobs({ titleHits, companyHits });
+  const related = pickRelatedJobs({ titleHits, companyHits });
+  reportShownJobs(related.jobs);
+  return related;
 }
 
 /** Page size for the cached default browse — mirrors `PAGE` in
@@ -320,7 +328,7 @@ const DEFAULT_BROWSE_LIMIT = 20;
 /**
  * The fixed "default browse" shape (2026-08-07 front-door reversal, product
  * decision: a zero-query visitor must see real jobs on first paint) — empty
- * query, the app's standing 30d posted-window default (`DEFAULT_URL_STATE`,
+ * query, the app's standing posted-window default (`DEFAULT_URL_STATE`,
  * lib/jobs/url-state.ts), freshest-first, ghosts hidden (the first-screen
  * default), and the resolved country's postings when the corpus has any.
  *
@@ -330,7 +338,7 @@ const DEFAULT_BROWSE_LIMIT = 20;
  * to send before it was killed off for being the single most expensive query
  * the app issued; it survives today only as search.ts's own outage-fallback
  * key for other callers (e.g. MCP), untouched by this. This shape is bounded
- * by the 30d window, so it's cheap enough to serve fresh rather than only
+ * by the default posted window, so it's cheap enough to serve fresh rather than only
  * as a degraded fallback.
  *
  * Cached 600s, keyed ONLY by the resolved `places` clause (i.e. by country —
@@ -354,7 +362,7 @@ const getCachedDefaultBrowse = unstable_cache(
   // above). It scopes only the beyond-window probe's basis, via
   // `probeParams`, to match what page.tsx's now-deleted client probe used to
   // compute for this exact landing state (`buildJobSearchPayload` against
-  // the default `FilterState`, which carries `postedBucket: "30d"` whenever
+  // the default `FilterState`, which carries the default `postedBucket` whenever
   // the corpus can support it) — see `runJobsSearch`'s `probeParams` doc.
   async (
     places: PlaceClause[] | undefined,
@@ -372,7 +380,7 @@ const getCachedDefaultBrowse = unstable_cache(
       {
         probeParams: {
           hideGhosts: true,
-          postedBucket: postedDateSupported ? "30d" : undefined,
+          postedBucket: postedDateSupported ? DEFAULT_URL_STATE.postedBucket : undefined,
           places,
         },
       },
@@ -430,6 +438,8 @@ export async function getDefaultBrowseAction(
   try {
     const postedDateSupported = Boolean(await isPostedDateFilterSupported());
     const result = await getCachedDefaultBrowse(places, postedDateSupported);
+    // Outside the cache: one shared entry still means many visitors seeing it.
+    reportShownJobs(result.hits);
     return {
       ...result,
       searchId,
@@ -526,6 +536,50 @@ export async function countNewSinceAction(
 }
 
 /**
+ * The /jobs front door's one live number: roles posted in the last 7 days
+ * in the visitor's IP country, plus remote roles open anywhere (the same
+ * `placesForCountry` clause the country default applies), or everywhere
+ * when no country resolves. Likely ghosts stay out, as on every default
+ * list. Cached per country for 15 minutes, like the board count above.
+ */
+const getCachedFrontDoorWeekCount = unstable_cache(
+  async (iso2: string | null): Promise<CorpusCount> => {
+    const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
+    const result = await runSearch(
+      { postedBucket: "7d", hideGhosts: true, places, limit: 1, withFacets: false },
+      {},
+    );
+    return resolveCorpusCount(result);
+  },
+  ["jobs-front-door-week-count"],
+  { revalidate: 900 },
+);
+
+/**
+ * `null` whenever the number can't be stated honestly: rate limited, the
+ * index can't filter by posted date (the count would be the whole corpus),
+ * search down, or zero. `iso2` is the country the count covers; `null`
+ * means it covers every country.
+ */
+export async function getFrontDoorWeekCountAction(
+  suppressLocationDefault: boolean,
+): Promise<{ count: CorpusCount; iso2: string | null } | null> {
+  const ip = await getClientIp();
+  if (!allowSearchRequest(ip)) return null;
+  try {
+    if (!(await isPostedDateFilterSupported())) return null;
+    const looked = suppressLocationDefault || !ip ? null : await countryLookup(ip);
+    // A country the gazetteer can't place would count every country under its name.
+    const iso2 = looked && placesForCountry(looked, loadGazetteer()) ? looked : null;
+    const count = await getCachedFrontDoorWeekCount(iso2);
+    return count.value > 0 ? { count, iso2 } : null;
+  } catch (e) {
+    console.error("[jobs-front-door-week-count] transport error:", e);
+    return null;
+  }
+}
+
+/**
  * Record that a searcher opened a result, and where it sat in the list.
  *
  * `rank` is the point of the whole exercise: what people type tells us what
@@ -537,6 +591,9 @@ export async function recordJobOpenedAction(
   jobId: string,
   rank: number,
 ): Promise<void> {
+  // Before the rank guard: a job opened from a URL has no rank to log, but it
+  // is still a listing someone is about to apply to.
+  reportOpenedJob(typeof jobId === "string" ? jobId : null);
   if (!searchId || !jobId || !Number.isFinite(rank) || rank < 0) return;
   const entry = buildJobOpenEntry(searchId, String(jobId).slice(0, 128), rank, Date.now());
   after(() => recordJobOpen(entry));
@@ -572,7 +629,9 @@ export async function jobsBackendStatusAction(): Promise<{
 
 /** Fetch a single job by id. */
 export async function getJobByIdAction(id: string): Promise<PublicJob | null> {
-  return getJobById(id);
+  const job = await getJobById(id);
+  if (job) reportOpenedJob(job.id);
+  return job;
 }
 
 /**

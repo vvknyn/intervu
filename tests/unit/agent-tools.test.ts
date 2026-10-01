@@ -300,13 +300,12 @@ describe('toolSearchJobs', () => {
     assert.equal(out.note, undefined);
   });
 
-  it('maps postedWithinDays 90 -> nearest stricter bucket "30d" with a note', async () => {
+  it('maps postedWithinDays 90 -> postedBucket "90d" exactly, no note', async () => {
     const { deps, searchCalls } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, { postedWithinDays: 90 });
-    assert.equal(searchCalls[0].postedBucket, '30d');
+    assert.equal(searchCalls[0].postedBucket, '90d');
     if ('error' in out) throw new Error('unexpected error shape');
-    assert.equal(typeof out.note, 'string');
-    assert.ok(out.note && out.note.length > 0);
+    assert.equal(out.note, undefined);
   });
 
   it('passes query text through as q', async () => {
@@ -379,13 +378,12 @@ describe('toolSearchJobs', () => {
     assert.ok(out.note?.includes('treat as an error, not as zero matches'));
   });
 
-  it('merges the bucket-narrowing note with a backend note when the backend is NOT unavailable', async () => {
+  it('passes a backend note through when the backend is NOT unavailable (90 days adds no narrowing note)', async () => {
     const { deps } = stubDeps([makeJob()], undefined, { note: 'widened to description search' });
     const out = await toolSearchJobs(deps, { postedWithinDays: 90 });
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.unavailable, undefined);
-    assert.ok(out.note?.includes('widened to description search'));
-    assert.ok(out.note?.includes('30d'));
+    assert.equal(out.note, 'widened to description search');
   });
 
   it('IMPORTANT 3 — treats configured:false the same as unavailable, not a silent empty success', async () => {

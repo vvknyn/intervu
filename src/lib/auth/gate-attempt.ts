@@ -127,6 +127,7 @@ export type SignupGateId =
     | "header"
     | "apply"
     | "tailor"
+    | "packs"
     | "generic";
 
 export const SIGNUP_GATE_ID_BY_REASON: Record<AuthGateReason, SignupGateId> = {
@@ -141,6 +142,7 @@ export const SIGNUP_GATE_ID_BY_REASON: Record<AuthGateReason, SignupGateId> = {
     topbar: "header",
     apply: "apply",
     tailor: "tailor",
+    packs: "packs",
     generic: "generic",
 };
 

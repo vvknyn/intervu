@@ -83,6 +83,9 @@ export const ONBOARDING_UPLOAD_PRIVACY_LABEL = "Parsed on this device:";
 export const ONBOARDING_UPLOAD_PRIVACY_BODY =
     "Your résumé file is read here for parsing. It is not sent to external AI providers for interpretation. Sign in to store a copy in your account.";
 
+/** Packs home, once a résumé has loaded (Today header, and the welcome panel before it): results are ranked in this browser (see `RESUME_UPLOAD_PROMISE`). */
+export const PRIVATE_MATCHING_ACTIVE = "Private matching active on this device";
+
 /** Local customize dialog badge (guest or signed-in). */
 export const LOCAL_CUSTOMIZE_PRIVACY_BADGE = "Tailoring runs in your browser when on-device AI is enabled.";
 
