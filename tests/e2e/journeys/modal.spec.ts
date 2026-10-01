@@ -193,7 +193,8 @@ test("Customize résumé dialog sits above its dim layer: its buttons take click
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
 
-  const dialog = page.getByRole("dialog");
+  // By name: on a phone the role itself is open in a sheet, which is a dialog too and stays open.
+  const dialog = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
   await expect(dialog.getByRole("heading", { name: "Your résumé is ready. Customize for this role." })).toBeVisible();
   await settled(dialog);
   // A dialog stacked under its own scrim renders dimmed and swallows every click (2026-09-30).
