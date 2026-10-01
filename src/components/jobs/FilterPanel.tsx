@@ -61,7 +61,8 @@ export const POSTED_BUCKET_PRESETS: { label: string; value: PostedBucket | undef
     { label: "Last 3 days", value: "3d" },
     { label: "Last week", value: "7d" },
     { label: "Last 30 days", value: "30d" },
-    { label: "Older than 30 days", value: "older" },
+    { label: "Last 90 days", value: "90d" },
+    { label: "Older than 90 days", value: "older" },
 ];
 
 /** Human label for a posted-bucket value, shared with the active-filter chips. */
@@ -72,7 +73,7 @@ export function postedBucketLabel(v: PostedBucket): string {
 /** Shared value+order ladder for the years-of-experience buckets — mirrors
  *  `POSTED_BUCKET_PRESETS` exactly. See `YearsExperienceBucket` (types.ts)
  *  for why "Any" (`undefined`) is also the pristine default here, unlike
- *  posted-date's non-empty "30d" default. */
+ *  posted-date's non-empty "90d" default. */
 export const YEARS_EXPERIENCE_PRESETS: { label: string; value: YearsExperienceBucket | undefined }[] = [
     { label: "Any", value: undefined },
     { label: "0–2 years", value: "0-2" },
@@ -299,7 +300,7 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: "30d",
+    postedBucket: "90d",
     yearsExperience: undefined,
     hideGhosts: true,
     board: null,
@@ -307,7 +308,7 @@ export const PRISTINE_FILTER_STATE: FilterState = {
 };
 
 /**
- * The posted window ACTUALLY in force. The fresh-visit pristine `30d` is a
+ * The posted window ACTUALLY in force. The fresh-visit pristine `90d` is a
  * real, product-default narrowing — not a display-only value — so it is
  * applied exactly like a bucket the searcher picked. `undefined` means
  * exactly one thing: the searcher explicitly widened to "Any date"
@@ -391,7 +392,7 @@ export function toggleFacetValue(
 export function activeFilterEntries(
     state: FilterState,
     /** `includeQuietDefaults` opts a normally-silent default BACK into the
-     *  list — today that's only the pristine "30d" posted-bucket (see below).
+     *  list — today that's only the pristine "90d" posted-bucket (see below).
      *  The toolbar/mobile-sheet callers omit it (default `undefined`), so
      *  their output is unchanged; the zero-result state (page.tsx) passes
      *  `true` because a silently-applied default is exactly the kind of
@@ -462,28 +463,28 @@ export function activeFilterEntries(
         });
     }
 
-    // Soft Signal: quiet defaults stay out of the pill row. "30d" (pristine,
+    // Soft Signal: quiet defaults stay out of the pill row. "90d" (pristine,
     // nobody chose it) and explicit "Any" (`undefined`) are both non-chips —
-    // only finite age buckets (24h / 3d / 7d / …) surface. Clear still
-    // restores pristine 30d. `opts.includeQuietDefaults` opts pristine "30d"
+    // only finite age buckets (24h / 3d / 7d / 30d / …) surface. Clear still
+    // restores pristine 90d. `opts.includeQuietDefaults` opts pristine "90d"
     // back in for callers that need it named (see the param doc above) —
     // "Any" stays excluded either way, since an explicit "no filter" never
     // narrowed anything to name.
     //
     // Deliberately NOT derived from `appliedPostedBucket`: that predicate
-    // answers "is this applied to the request" (pristine 30d: yes, same as
-    // a picked 30d), while this answers "did the searcher choose this" (a
+    // answers "is this applied to the request" (pristine 90d: yes, same as
+    // a picked 90d), while this answers "did the searcher choose this" (a
     // UI-decluttering call, same family as `hideGhosts`'s silent default
     // below never drawing its own chip either).
     const postedIsQuietDefault = state.postedBucket === PRISTINE_FILTER_STATE.postedBucket && !state.postedExplicit;
     if (state.postedBucket && (!postedIsQuietDefault || opts?.includeQuietDefaults)) {
         // A clear must always WIDEN. For every finite bucket that ISN'T the
-        // pristine default, widening means falling back to pristine 30d — as
+        // pristine default, widening means falling back to pristine 90d — as
         // before. But when the entry only exists BECAUSE the bucket is
         // already the pristine default (the `includeQuietDefaults` path),
-        // "restore pristine 30d" is a fixed point (30d → 30d): nothing
+        // "restore pristine 90d" is a fixed point (90d → 90d): nothing
         // changes and the excluder survives its own clear. The only value
-        // that actually widens FROM pristine 30d is explicit "Any"
+        // that actually widens FROM pristine 90d is explicit "Any"
         // (`undefined`) — already a first-class `FilterState`/URL value
         // (`parseJobsUrl`/`serializeJobsUrl`, lib/jobs/url-state.ts).
         const widenTo = postedIsQuietDefault ? undefined : PRISTINE_FILTER_STATE.postedBucket;

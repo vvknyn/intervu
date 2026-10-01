@@ -1,8 +1,19 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense } from "react";
 import dynamic from "next/dynamic";
-import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+import { holdAuthKitUntilRequired, requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+
+// Runs when this module loads, before hydration: start downloading
+// JobsContent alongside hydration instead of after this gate mounts, and keep
+// AuthKit's session action from queuing ahead of the first search.
+// JobsContent lifts the hold once its first search settles; the timer is a
+// backstop if it never does.
+if (typeof window !== "undefined") {
+    void import("@/app/jobs/JobsContent");
+    holdAuthKitUntilRequired();
+    window.setTimeout(requireAuthKitSoon, 10_000);
+}
 
 const JobsContent = dynamic(
     () => import("@/app/jobs/JobsContent").then((m) => ({ default: m.JobsContent })),
@@ -17,9 +28,6 @@ const JobsContent = dynamic(
  * after sign-up (`?resume=gate`, handled inside JobsContent).
  */
 export default function JobsRouteGate() {
-    useEffect(() => {
-        requireAuthKitSoon();
-    }, []);
     return (
         <Suspense fallback={null}>
             <JobsContent />

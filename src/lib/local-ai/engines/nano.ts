@@ -15,14 +15,17 @@ ${text.slice(0, 6000)}
 Return ONLY valid JSON matching this shape:
 {"profile":{},"experience":[],"competencies":[],"education":[],"generatedSummary":""}`;
 
+type NanoSession = {
+    prompt(input: string): Promise<string>;
+    clone?: () => Promise<NanoSession>;
+    destroy?: () => void;
+};
+
 type LanguageModelFactory = {
     create(options?: {
         temperature?: number;
         monitor?: (m: EventTarget) => void;
-    }): Promise<{
-        prompt(input: string): Promise<string>;
-        destroy?: () => void;
-    }>;
+    }): Promise<NanoSession>;
     capabilities?: () => Promise<{ available: string }>;
 };
 
@@ -57,7 +60,7 @@ function tryParseJson(text: string): ModelParseOutput {
     }
 }
 
-let session: { prompt(input: string): Promise<string>; destroy?: () => void } | null = null;
+let session: NanoSession | null = null;
 
 export const nanoEngine: LocalAiEngine = {
     id: "nano",
@@ -103,7 +106,15 @@ export const nanoEngine: LocalAiEngine = {
 
     async generate(prompt: string) {
         if (!session) await this.init();
-        return session!.prompt(prompt);
+        // A Prompt API session is a conversation: prompting the shared one
+        // again and again piles every earlier job into its context window
+        // until it overflows. Each call gets its own copy, then drops it.
+        const call = session!.clone ? await session!.clone() : session!;
+        try {
+            return await call.prompt(prompt);
+        } finally {
+            if (call !== session) call.destroy?.();
+        }
     },
 
     getDisplayLabel() {

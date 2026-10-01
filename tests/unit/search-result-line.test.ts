@@ -23,7 +23,8 @@ test("every window the user can land in reads as a sentence", () => {
     assert.equal(of("3d"), "9 roles from the last 3 days");
     assert.equal(of("7d"), "9 roles from the last 7 days");
     assert.equal(of("30d"), "9 roles from the last 30 days");
-    assert.equal(of("older"), "9 roles posted more than 30 days ago");
+    assert.equal(of("90d"), "9 roles from the last 90 days");
+    assert.equal(of("older"), "9 roles posted more than 90 days ago");
 });
 
 test("no window means the user cleared it — claim nothing", () => {

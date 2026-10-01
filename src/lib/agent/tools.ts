@@ -154,11 +154,13 @@ function structuredResume(base: BaseResume): ResumeData | null {
 
 /**
  * The agent-facing `postedWithinDays` choices (7/30/90) onto the real
- * `PostedBucket` union (`types.ts:92`: "1d"|"3d"|"7d"|"30d"|"older", a
+ * `PostedBucket` union (`types.ts`: "1d"|"3d"|"7d"|"30d"|"90d"|"older", a
  * cumulative "posted within N days" filter — see `BUCKET_MS` in
- * meilisearch.ts). 7 and 30 have exact members; 90 doesn't, so it narrows to
- * the tightest bucket still available (30d) rather than silently searching
- * wider than the agent asked for, and says so via `note`. Keyed off
+ * meilisearch.ts). All three have exact members since "90d" joined the union
+ * (2026-09-30), so 90 no longer narrows to "30d" with a `note`. The agent's
+ * own default when `postedWithinDays` is omitted stays 30 (its documented
+ * wire default) — deliberately NOT /jobs' `DEFAULT_URL_STATE.postedBucket`,
+ * which moved to 90 days for typed searches on the site. Keyed off
  * `POSTED_WITHIN_DAYS_OPTIONS` (`facets.ts`, re-exported above) rather than
  * a second `7|30|90` literal union, so this lookup's allowed keys and the
  * wire schema's allowed values can never drift apart.
@@ -166,10 +168,7 @@ function structuredResume(base: BaseResume): ResumeData | null {
 const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBucket; note?: string }> = {
   7: { bucket: "7d" },
   30: { bucket: "30d" },
-  90: {
-    bucket: "30d",
-    note: 'postedWithinDays=90 has no matching bucket; narrowed to the nearest stricter bucket ("30d").',
-  },
+  90: { bucket: "90d" },
 };
 
 /**

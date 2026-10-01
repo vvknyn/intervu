@@ -15,7 +15,8 @@ const CORPUS = [
     ...['cs1', 'cs2', 'cs3', 'cs4', 'cs5'].map((id) => mkJob(id, { location_country: 'Canada', experience_level: 'senior' })),
     ...['r1', 'r2', 'r3', 'r4'].map((id) => mkJob(id, { location_country: 'United States', work_type: 'remote' })),
     ...['g1', 'g2', 'g3', 'g4', 'g5', 'g6'].map((id) => mkJob(id, { location_country: 'Germany' })),
-    ...['o1', 'o2'].map((id) => mkJob(id, { location_country: 'Canada', posted_at: daysAgo(40) })),
+    // Outside the default 90-day window (DEFAULT_URL_STATE.postedBucket).
+    ...['o1', 'o2'].map((id) => mkJob(id, { location_country: 'Canada', posted_at: daysAgo(100) })),
 ];
 
 const ids = (options: { id: string }[]) => options.map((o) => o.id);
@@ -73,7 +74,10 @@ describe('broadenRungs', () => {
     it('the date rung steps one window wider, and the widest window widens to any date', () => {
         const narrow = broadenRungs(state({}, { postedBucket: '3d' })).find((r) => r.id === 'any_date')!;
         assert.equal(narrow.next.postedBucket, '7d');
-        const widest = broadenRungs(state({}, { postedBucket: '30d' })).find((r) => r.id === 'any_date')!;
+        const month = broadenRungs(state({}, { postedBucket: '30d' })).find((r) => r.id === 'any_date')!;
+        assert.equal(month.next.postedBucket, '90d');
+        assert.equal(month.label, 'Last 90 days');
+        const widest = broadenRungs(state({}, { postedBucket: '90d' })).find((r) => r.id === 'any_date')!;
         assert.equal(widest.next.postedBucket, undefined);
         assert.equal(widest.label, 'Any date');
     });
@@ -82,7 +86,7 @@ describe('broadenRungs', () => {
 describe('resolveBroadenOptions: counts come from the same search call', () => {
     it('counts every option through the shared search and shows only those that add results', async () => {
         const { search, calls } = corpusStub(CORPUS);
-        const total = (await search({ facets: canadaMid.facets, postedBucket: '30d' } as JobSearchParams)).total;
+        const total = (await search({ facets: canadaMid.facets, postedBucket: DEFAULT_URL_STATE.postedBucket } as JobSearchParams)).total;
         assert.equal(total, 3);
         calls.length = 0;
         const options = await resolveBroadenOptions({ state: canadaMid, total, ctx: { relocation: { open: true, countries: ['Germany'] } }, search });

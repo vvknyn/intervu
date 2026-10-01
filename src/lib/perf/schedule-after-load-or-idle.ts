@@ -43,7 +43,26 @@ export function scheduleAfterLoadOrIdle(run: () => void, options?: { timeout?: n
 
 export const REQUIRE_AUTHKIT_EVENT = "velai-require-authkit";
 
+/**
+ * /jobs holds AuthKit's idle mount until its first list is on screen. The
+ * provider's session check is a server action, and server actions run one
+ * at a time, so mounting it first queues the search behind it (measured on
+ * a throttled phone profile: up to ~180 ms before the first row). Nothing on
+ * the page reads AuthKit's context (see DeferredAuthKitProvider), so waiting
+ * costs nothing. `requireAuthKitSoon` lifts the hold.
+ */
+let authKitHeld = false;
+
+export function holdAuthKitUntilRequired(): void {
+    authKitHeld = true;
+}
+
+export function isAuthKitHeld(): boolean {
+    return authKitHeld;
+}
+
 export function requireAuthKitSoon(): void {
+    authKitHeld = false;
     if (typeof window === "undefined") return;
     window.dispatchEvent(new Event(REQUIRE_AUTHKIT_EVENT));
 }

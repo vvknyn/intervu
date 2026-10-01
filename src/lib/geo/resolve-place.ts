@@ -203,9 +203,9 @@ export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): Plac
  * for callers that need to record a country-shaped clause; widening is
  * controlled separately by `opts.remoteAnywhere`.
  *
- * Ruling (Vivek, Sep 2026): untagged remote roles (`work_type = "remote"
- * AND `location_country IS NULL`, live-verified) belong in the IP geo
- * default's result set — the chip honestly reads "United States · Remote".
+ * Ruling (Vivek, Sep 2026): untagged remote roles (`REMOTE_ANYWHERE_CLAUSE`,
+ * meilisearch.ts: remote with no country, city or state) belong in the IP
+ * geo default's result set — the chip honestly reads "United States · Remote".
  * They do NOT belong in an explicit country pick (`?country=Canada`): the
  * chip/URL say Canada, not "Canada · Remote".
  *

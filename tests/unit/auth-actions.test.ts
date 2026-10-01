@@ -10,6 +10,9 @@ import {
 } from "../../src/actions/auth";
 import type { AuthActionDeps } from "../../src/lib/auth/auth-action-deps";
 import { usernameEmail } from "../../src/lib/auth/username-email";
+import { PASSWORD_TOO_SHORT_MESSAGE } from "../../src/lib/auth/password-rules";
+import { SIGNUP_FAILED_MESSAGE } from "../../src/lib/auth/auth-refusal-copy";
+import { WORKOS_EMAIL_TAKEN_MESSAGE, WORKOS_WEAK_PASSWORD_MESSAGE } from "../../src/lib/auth/workos-errors";
 
 // `getSiteUrl()` (called inside signUpCore/signInCore/requestPasswordResetCore
 // to build the session-save URL and the reset link) reads this at call time
@@ -80,7 +83,7 @@ describe("signUpCore — happy path", () => {
 });
 
 describe("signUpCore — createUser conflict", () => {
-    it("maps a ConflictException to the username-taken message without touching the profile", async () => {
+    it("maps a ConflictException to the email-taken message (WorkOS has no usernames) without touching the profile", async () => {
         let profileCalls = 0;
         const deps: Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession"> = {
             createUser: async () => { throw { name: "ConflictException" }; },
@@ -92,8 +95,48 @@ describe("signUpCore — createUser conflict", () => {
 
         const result = await signUpCore(deps, { username: "bob", password: "hunter22", email: "bob@example.com" });
 
-        assert.deepEqual(result, { error: "Username is already taken" });
+        assert.deepEqual(result, { error: WORKOS_EMAIL_TAKEN_MESSAGE });
         assert.equal(profileCalls, 0);
+    });
+});
+
+/** The SDK's own 422 shape: top-level `code`, finer codes folded into `message` one per tab-indented line. */
+function workos422(code: string, errorCodes: string[]) {
+    const lines = errorCodes.map((c) => `\t${c}\n`).join("");
+    return { name: "UnprocessableEntityException", status: 422, code, message: `The following requirements must be met:\n${lines}` };
+}
+
+describe("signUpCore — WorkOS refuses the account (2026-10-01 replay: 'Failed to create account', seven presses)", () => {
+    function refusingDeps(error: unknown): Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession"> {
+        return {
+            createUser: async () => { throw error; },
+            deleteUser: async () => { throw new Error("must not be called"); },
+            createProfile: async () => { throw new Error("must not be called"); },
+            authenticateWithPassword: async () => { throw new Error("must not be called"); },
+            saveSession: async () => { throw new Error("must not be called"); },
+        };
+    }
+
+    it("a password WorkOS's policy refuses says so, instead of the generic line", async () => {
+        const result = await signUpCore(refusingDeps(workos422("password_strength_error", ["password_too_weak"])), {
+            username: "hema", password: "password12", email: "hema@example.com",
+        });
+        assert.deepEqual(result, { error: WORKOS_WEAK_PASSWORD_MESSAGE });
+    });
+
+    it("an email WorkOS already holds says so, whichever status it arrives with", async () => {
+        const result = await signUpCore(refusingDeps(workos422("user_creation_error", ["email_not_available"])), {
+            username: "ivan", password: "a long passphrase", email: "ivan@example.com",
+        });
+        assert.deepEqual(result, { error: WORKOS_EMAIL_TAKEN_MESSAGE });
+    });
+
+    it("anything else gets a fallback that names the ways in that skip this form", async () => {
+        const result = await signUpCore(refusingDeps({ name: "GenericServerException", status: 500 }), {
+            username: "jo", password: "a long passphrase", email: "jo@example.com",
+        });
+        assert.deepEqual(result, { error: SIGNUP_FAILED_MESSAGE });
+        assert.match(SIGNUP_FAILED_MESSAGE, /Continue with Google or the email code/);
     });
 });
 
@@ -225,13 +268,13 @@ describe("confirmPasswordResetCore — input guards", () => {
         assert.equal(resetCalls, 0);
     });
 
-    it("rejects a password under 6 characters without calling resetPassword", async () => {
+    it("rejects a password shorter than the signup rule without calling resetPassword", async () => {
         let resetCalls = 0;
         const deps: Pick<AuthActionDeps, "resetPassword"> = { resetPassword: async () => { resetCalls++; } };
 
-        const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "short" });
+        const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "hunter22" });
 
-        assert.deepEqual(result, { error: "Password must be at least 6 characters" });
+        assert.deepEqual(result, { error: PASSWORD_TOO_SHORT_MESSAGE });
         assert.equal(resetCalls, 0);
     });
 });
@@ -243,10 +286,10 @@ describe("confirmPasswordResetCore — happy path", () => {
             resetPassword: async (opts) => { calls.push(opts); },
         };
 
-        const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "hunter22" });
+        const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "violet kettle 42" });
 
         assert.deepEqual(result, { success: true });
-        assert.deepEqual(calls, [{ token: "tok-abc", newPassword: "hunter22" }]);
+        assert.deepEqual(calls, [{ token: "tok-abc", newPassword: "violet kettle 42" }]);
     });
 });
 
@@ -256,8 +299,18 @@ describe("confirmPasswordResetCore — expired or invalid token", () => {
             resetPassword: async () => { throw { name: "BadRequestException" }; },
         };
 
-        const result = await confirmPasswordResetCore(deps, { token: "tok-expired", newPassword: "hunter22" });
+        const result = await confirmPasswordResetCore(deps, { token: "tok-expired", newPassword: "violet kettle 42" });
 
         assert.deepEqual(result, { error: "This reset link is invalid or has expired." });
+    });
+
+    it("a new password WorkOS's policy refuses says so, not that the link expired", async () => {
+        const deps: Pick<AuthActionDeps, "resetPassword"> = {
+            resetPassword: async () => { throw workos422("password_strength_error", ["password_pwned"]); },
+        };
+
+        const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "password1234" });
+
+        assert.deepEqual(result, { error: WORKOS_WEAK_PASSWORD_MESSAGE });
     });
 });

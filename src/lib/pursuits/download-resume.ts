@@ -1,6 +1,6 @@
 import type { ResumeVersionSnapshot } from "./types";
 import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
-import { deriveResumePdfFilename } from "@/lib/resume/render-pdf";
+import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 
 export type ResumeDownloadFormat = "pdf" | "md";
 

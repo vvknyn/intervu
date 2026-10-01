@@ -24,7 +24,8 @@ export const DATE_POSTED_SHORT_LABELS: Partial<Record<PostedBucket, string>> = {
     "3d": "Past 3 days",
     "7d": "Past week",
     "30d": "Past month",
-    older: "Older than 30 days",
+    "90d": "Past 3 months",
+    older: "Older than 90 days",
 };
 
 export function facetOptions(

@@ -123,7 +123,7 @@ export function sampleCoversAllRoles(
  *
  * `postedBucket: undefined` serializes to `posted=any` (see
  * `serializeJobsUrl`): this page's own count is age-agnostic, so the link
- * must not silently reapply /jobs' 30-day window on top of it.
+ * must not silently reapply /jobs' default posted window on top of it.
  *
  * `hideGhosts: false` (→ `ghosts=show`) is the same rule applied to /jobs'
  * OTHER silent default. This page counts every open role it tracks and
@@ -176,7 +176,7 @@ const MS_PER_DAY = 86_400_000;
 
 /**
  * ms window for /jobs' own default recency filter
- * (`DEFAULT_URL_STATE.postedBucket`, lib/jobs/url-state.ts — "30d" today).
+ * (`DEFAULT_URL_STATE.postedBucket`, lib/jobs/url-state.ts — "90d" today).
  * Deliberately NOT read from `BUCKET_MS` (lib/jobs/meilisearch.ts): that
  * constant is module-private, and meilisearch.ts is out of this change's
  * scope to edit into an export. Parsed off `DEFAULT_URL_STATE`'s own bucket

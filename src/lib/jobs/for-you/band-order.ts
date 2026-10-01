@@ -1,14 +1,16 @@
 /**
- * For-you / postcard pack ordering — Strong (≥80) first, then Good (60–79),
- * then Stretch (<60), then unscored. Within each band, target-title relevance
- * (`partitionByTargetTitle`) runs before adjacent cards; relative order inside
- * each (band × title) slice is preserved (stable bucket pass).
+ * For-you / postcard pack ordering — the candidate's own role first, then the
+ * same kind of role, then neighbours (`roleTier`, match/score.ts); inside each,
+ * Strong (≥80) first, then Good (60–79), then Stretch (<60), then unscored.
+ * Within each band, target-title relevance (`partitionByTargetTitle`) runs
+ * before adjacent cards; relative order inside each (tier × band × title)
+ * slice is preserved (stable bucket pass).
  *
  * Pure, no I/O — same isomorphic convention as match/score.ts and
  * title-relevance.ts.
  */
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
-import { matchBand, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { matchBand, roleTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const BAND_SEQUENCE: readonly MatchBand[] = ["strong", "good", "stretch"];
@@ -31,16 +33,19 @@ export function orderForYouJobsByBand(
 ): PublicJob[] {
     if (!getScore) return [...jobs];
 
-    const bucketCount = BAND_SEQUENCE.length + 1;
-    const buckets: PublicJob[][] = Array.from({ length: bucketCount }, () => []);
-
+    const bands = BAND_SEQUENCE.length + 1;
+    const buckets = new Map<number, PublicJob[]>();
     for (const job of jobs) {
-        buckets[matchBandSortKey(getScore(job))].push(job);
+        const score = getScore(job);
+        const key = roleTier(score) * bands + matchBandSortKey(score);
+        const bucket = buckets.get(key);
+        if (bucket) bucket.push(job);
+        else buckets.set(key, [job]);
     }
 
     const out: PublicJob[] = [];
-    for (const bucket of buckets) {
-        out.push(...partitionByTargetTitle(bucket, query));
+    for (const key of [...buckets.keys()].sort((a, b) => a - b)) {
+        out.push(...partitionByTargetTitle(buckets.get(key)!, query));
     }
     return out;
 }

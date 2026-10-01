@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, type ReactNode } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, Warning, X } from "@phosphor-icons/react";
@@ -10,6 +10,7 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
+import { KpiStat, MetaLine, PostingCheckSignalsGrid } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
@@ -22,7 +23,8 @@ import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
-import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
+import { formatDescription } from "@/lib/jobs/format-description";
+import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
@@ -72,119 +74,14 @@ import { WaitBar } from "@/components/ui/wait-state";
  * react-hooks/purity flags.
  */
 
-/** Render structured description blocks (heading / para / list). Descriptions
- *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
- *  the structure. See lib/jobs/format-description.ts.
- *
- *  `headingLevel` is the caller's own "About this role" section-heading
- *  level + 1 — these headings ("Key Responsibilities" etc.) sit one level
- *  under it in the outline, so each mount passes what keeps that true: the
- *  inline pane/sheet (JobDetail.tsx, "About this role" = h3) passes 4, the
- *  standalone document (JobDetailDocument.tsx, "About this role" = h2)
- *  passes 3. No default — a heading level is never a safe guess. */
-export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; headingLevel: 3 | 4 }) {
-    const HeadingTag = `h${headingLevel}` as const;
-    return (
-        <div className="text-base leading-relaxed text-inherit">
-            {blocks.map((b, i) => {
-                if (b.type === "heading") {
-                    return (
-                        <HeadingTag
-                            key={i}
-                            className="mb-2 mt-4 text-xs font-semibold text-inherit first:mt-0"
-                        >
-                            {b.text}
-                        </HeadingTag>
-                    );
-                }
-                if (b.type === "list") {
-                    return (
-                        <ul key={i} className="mb-3 list-disc space-y-1 pl-5 last:mb-0">
-                            {(b.items ?? []).map((it, j) => (
-                                <li key={j}>{it}</li>
-                            ))}
-                        </ul>
-                    );
-                }
-                return (
-                    <p key={i} className="mb-3 whitespace-pre-line last:mb-0">
-                        {b.lead && <strong className="text-inherit">{b.lead} </strong>}
-                        {b.text}
-                    </p>
-                );
-            })}
-        </div>
-    );
-}
+/** The description renderer moved to JobDescription.tsx (with the on-device
+ *  layout hook); re-exported for the callers that import it from here. */
+export { JobDescription } from "@/components/jobs/JobDescription";
 
-/**
- * The single "· "-joining seam for every flowing facts/meta line in the jobs
- * surfaces (SERP row, SERP detail panel, /jobs/[slug] hero) — rulebook item a.
- * Each caller supplies its own ordered, already-filtered list of nodes (or
- * `false`/`null` for an absent fact); this component drops the absent ones
- * and attaches the "·" to the END of the item that precedes it, inside that
- * item's own inline-flex span, so a wrapped line always starts with real
- * content — never an orphaned leading "·" (the bug this replaces: three
- * separate hand-written joins, one of which didn't separate at all, another
- * of which put the dot at the START of each item and let it wrap alone). */
-export function MetaLine({ items }: { items: Array<ReactNode | null | false | undefined> }) {
-    const visible = items.filter((n): n is ReactNode => n != null && n !== false);
-    return (
-        <>
-            {visible.map((node, i) => (
-                <span key={i} className="inline-flex items-baseline">
-                    {node}
-                    {i < visible.length - 1 && (
-                        // `mx-1`, not `ml-1`: the dot's own spacing must be
-                        // symmetric and self-contained, not depend on the
-                        // caller's flex container also carrying `gap-x-*`
-                        // (the SERP row's container didn't, so with a
-                        // one-sided `ml-1` its line rendered "Onsite
-                        // ·Actively posted" — no space after the dot).
-                        <span className="mx-1" aria-hidden>
-                            ·
-                        </span>
-                    )}
-                </span>
-            ))}
-        </>
-    );
-}
-
-/**
- * One "value over label" KPI chip — the employer rail's "Live roles" shape,
- * pulled out so every KPI in the rail (single stats and paired ones alike,
- * see `pairedKpiChips`, job-detail-facts.ts) renders through the same
- * primitive instead of each stat hand-rolling its own value/label markup.
- */
-export function KpiStat({ value, label, minWidthClassName = "min-w-[100px]" }: { value: string; label: string; minWidthClassName?: string }) {
-    return (
-        <div className={minWidthClassName}>
-            <div className="text-xl font-semibold tabular-nums text-foreground dark:text-white">{value}</div>
-            <div className="mono-data mt-0.5 text-sm text-muted-foreground">{label}</div>
-        </div>
-    );
-}
-
-/**
- * The "posting check" signals grid — the one seam shared by JobDetail.tsx's
- * SERP panel and JobDetailDocument.tsx's Receipt (both previously hand-wrote
- * an identical `grid-cols-1 ... sm:grid-cols-2` wrapper around their own
- * `signals.map(...)`, only the per-cell content differs between the two).
- * `sm:` is a VIEWPORT breakpoint, so on a desktop viewport it went 2-column
- * even when the caller's own rendered width was the narrow ~320px
- * `/jobs/[slug]` right rail — wrapping "Reposts ..." over four lines. A
- * `@container` query measures this wrapper's OWN width instead: the SERP
- * detail column (~800px) still gets 2 columns, the narrow rail collapses to
- * 1. (Container queries can't target the container element's own box, so
- * the containment and the queried grid have to be two nested elements.) */
-export function PostingCheckSignalsGrid({ children }: { children: ReactNode }) {
-    return (
-        <div className="@container">
-            <div className="mono-data grid grid-cols-1 gap-x-4 gap-y-2 pt-3 text-sm @min-[480px]:grid-cols-2">{children}</div>
-        </div>
-    );
-}
+// MetaLine / KpiStat / PostingCheckSignalsGrid live in job-detail-primitives.tsx
+// so list rows can use them without pulling this file (and its PDF export
+// chain) into the first-load bundle. Re-exported for existing importers.
+export { KpiStat, MetaLine, PostingCheckSignalsGrid };
 
 /**
  * The "posting check" header row — title + ratio on one side, verdict word +
@@ -999,6 +896,7 @@ export function JobDetail({
                             own `ml-auto`. */}
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
+                                jobId={job.id}
                                 jobUrl={job.apply_url}
                                 jobTitle={jobTitle}
                                 className="ml-auto"
@@ -1280,7 +1178,7 @@ export function JobDetail({
                                             data-testid="job-detail-description"
                                             className={cn("relative max-w-prose", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
-                                            <JobDescription blocks={blocks} headingLevel={4} />
+                                            <FormattedJobDescription description={job.description} headingLevel={4} />
                                             {collapsible && !descExpanded && (
                                                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-card to-transparent" />
                                             )}

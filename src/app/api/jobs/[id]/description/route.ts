@@ -44,6 +44,7 @@
 import { NextResponse } from "next/server";
 import { hydrateJobDescription, type HydrateDescriptionResult } from "@/lib/jobs/hydrate-description";
 import { isAuthoritativeResult } from "@/lib/jobs/result-state";
+import { reportOpenedJob } from "@/lib/jobs/liveness-demand";
 import { getClientIp } from "@/lib/shield/client-ip";
 import { allowSearchRequest } from "@/lib/shield/rate-limit";
 
@@ -86,6 +87,9 @@ export async function GET(
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
+  // Buffer-only, no network here: an opened listing is checked for a dead
+  // link first (liveness-demand.ts).
+  reportOpenedJob(id);
   const result = await hydrateJobDescription(id, ip);
   return NextResponse.json(result, describeResponseInit(result));
 }

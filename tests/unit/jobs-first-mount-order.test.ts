@@ -74,11 +74,19 @@ test("firstSearchSettled is only ever set inside the search effect itself — th
         PAGE_SOURCE,
     );
     assert.ok(searchEffect, "expected to find the search effect bounded by its searchIntent guard and its own dependency array");
-    const outsideSearchEffect = PAGE_SOURCE.replace(searchEffect![0], "");
+    // The no-search exit lives in its own small effect (2026-10-01): it also
+    // waits for a pending home view, and keeping that dependency off the
+    // search effect stops a pending → resolved flip from restarting a search
+    // already in flight. It is the only other settle site allowed.
+    const noSearchSettle = /useEffect\(\(\) => \{\s*if \(!searchIntent && !showJobsHomePending\) setFirstSearchSettled\(true\);\s*\}, \[searchIntent, showJobsHomePending\]\);/.exec(
+        PAGE_SOURCE,
+    );
+    assert.ok(noSearchSettle, "expected the no-search settle effect, gated on a resolved home view");
+    const outsideSearchEffect = PAGE_SOURCE.replace(searchEffect![0], "").replace(noSearchSettle![0], "");
     assert.doesNotMatch(
         outsideSearchEffect,
         /setFirstSearchSettled\(true\)/,
-        "every settling call site must live inside the search effect itself",
+        "every settling call site must live inside the search effect or the no-search settle effect",
     );
     // Sanity: none of the guarded probe effects are the one setting it —
     // that would be a probe marking its own gate open.

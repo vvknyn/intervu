@@ -52,7 +52,8 @@ const WIDER_POSTED: Record<PostedBucket, PostedBucket | undefined> = {
     "1d": "3d",
     "3d": "7d",
     "7d": "30d",
-    "30d": undefined,
+    "30d": "90d",
+    "90d": undefined,
     older: undefined,
 };
 const POSTED_LABEL: Record<PostedBucket, string> = {
@@ -60,7 +61,8 @@ const POSTED_LABEL: Record<PostedBucket, string> = {
     "3d": "Last 3 days",
     "7d": "Last 7 days",
     "30d": "Last 30 days",
-    older: "Older than 30 days",
+    "90d": "Last 90 days",
+    older: "Older than 90 days",
 };
 
 const isNeutral = (v: string): boolean => ["any", "all"].includes(v.trim().toLowerCase());

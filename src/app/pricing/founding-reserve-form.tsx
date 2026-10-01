@@ -25,6 +25,8 @@ type FoundingReserveFormProps = {
 export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingReserveFormProps) {
   const [email, setEmail] = useState(initialEmail ?? "");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Bumped after a refused submit: the token it sent is spent (single-use).
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
 
@@ -35,6 +37,7 @@ export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingR
       const res = await reserveFoundingSeat({ email, turnstileToken: turnstileToken ?? undefined });
       setResult(res);
       if (res.success) captureEvent("founding_seat_reserved", { signed_in: signedIn });
+      else setTurnstileResetKey((key) => key + 1);
     });
   };
 
@@ -65,7 +68,7 @@ export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingR
       <Button type="submit" data-testid="pricing-founding-cta" className="mt-2 w-full" disabled={pending}>
         {pending ? "Reserving…" : "Reserve a founding seat"}
       </Button>
-      <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} />
+      <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
       {outcome?.kind === "error" ? (
         <p data-testid="pricing-founding-error" className="mt-2 text-sm text-destructive">
           {outcome.message}

@@ -45,6 +45,8 @@ export function SearchAlertCapture({
 }: SearchAlertCaptureProps) {
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Bumped after a refused submit: the token it sent is spent (single-use).
+  const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [status, setStatus] = useState<Status>("idle");
   const [rejectMessage, setRejectMessage] = useState<string | null>(null);
 
@@ -107,9 +109,11 @@ export function SearchAlertCapture({
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         setRejectMessage(body?.message ?? null);
         setStatus("error");
+        setTurnstileResetKey((key) => key + 1);
       }
     } catch {
       setStatus("error");
+      setTurnstileResetKey((key) => key + 1);
     }
   };
 
@@ -141,7 +145,7 @@ export function SearchAlertCapture({
           data-testid="search-alert-email-input"
           className="ctl-md w-full max-w-[260px] text-base"
         />
-        <TurnstileWidget surface="search_alert" onVerify={setTurnstileToken} />
+        <TurnstileWidget surface="search_alert" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
         {status === "error" && (
           <p className="w-full text-xs text-destructive" data-testid="search-alert-error">
             {rejectMessage ?? "Couldn't send that — try again."}

@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
     TurnstileErrorNotice,
+    createTurnstileTokenSlot,
     normalizeTurnstileErrorCode,
     reportTurnstileError,
 } from "../../src/components/ui/turnstile-widget";
@@ -82,3 +83,48 @@ describe("TurnstileErrorNotice", () => {
         assert.doesNotMatch(html, /<button/);
     });
 });
+
+/**
+ * Incident 2026-10-01: a signup retried six times on ONE token. Cloudflare
+ * accepts a token once ("timeout-or-duplicate" after), the widget still said
+ * Success, and every retry spent a rate-limit slot. The slot hands a token out
+ * once; the form resets the widget for the next.
+ */
+describe("createTurnstileTokenSlot", () => {
+    it("hands a token out once, never twice", async () => {
+        const slot = createTurnstileTokenSlot(true, 20);
+        slot.onVerify("tok-1");
+        assert.deepEqual(await slot.take(), { status: "ready", token: "tok-1" });
+        assert.deepEqual(await slot.take(), { status: "pending" }, "a second submit must not resend the spent token");
+    });
+
+    it("waits for a token still on its way instead of sending none", async () => {
+        const slot = createTurnstileTokenSlot(true, 1_000);
+        const taking = slot.take();
+        setTimeout(() => slot.onVerify("tok-2"), 5);
+        assert.deepEqual(await taking, { status: "ready", token: "tok-2" });
+    });
+
+    it("says pending when no token arrives in time, failed when the challenge cannot run", async () => {
+        assert.deepEqual(await createTurnstileTokenSlot(true, 5).take(), { status: "pending" });
+        const broken = createTurnstileTokenSlot(true, 1_000);
+        const taking = broken.take();
+        broken.onError();
+        assert.deepEqual(await taking, { status: "failed" });
+    });
+
+    it("an expired token (onVerify(null)) or a reset (clear) leaves nothing to send", async () => {
+        const slot = createTurnstileTokenSlot(true, 5);
+        slot.onVerify("tok-3");
+        slot.onVerify(null);
+        assert.deepEqual(await slot.take(), { status: "pending" });
+        slot.onVerify("tok-4");
+        slot.clear();
+        assert.deepEqual(await slot.take(), { status: "pending" });
+    });
+
+    it("with no site key in the build, is ready at once with no token (the server's not-configured pass)", async () => {
+        assert.deepEqual(await createTurnstileTokenSlot(false, 1_000).take(), { status: "ready", token: null });
+    });
+});
+
