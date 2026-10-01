@@ -114,6 +114,9 @@ test("JobsContent takes the early result and shares its page size", () => {
     const page = readFileSync(path.join(ROOT, "src/app/jobs/JobsContent.tsx"), "utf8");
     assert.match(page, new RegExp(`const PAGE = ${SEARCH_FIRST_PAGE_SIZE};`), "same first-page size as the early request");
     assert.match(page, /takeEarlyFirstSearch<JobsSearchActionResult>\(params\) \?\? searchJobsActionRaw\(params\)/);
+    // Both send the search the same way: over fetch, through search-client.ts.
+    assert.match(page, /import \{ searchJobs as searchJobsActionRaw \} from "@\/lib\/jobs\/search-client";/);
     const gate = readFileSync(path.join(ROOT, "src/app/jobs/JobsRouteGate.tsx"), "utf8");
-    assert.match(gate, /startEarlyFirstSearch\(params, searchJobsAction\)/);
+    assert.match(gate, /import \{ searchJobs \} from "@\/lib\/jobs\/search-client";/);
+    assert.match(gate, /startEarlyFirstSearch\(params, searchJobs\)/);
 });
