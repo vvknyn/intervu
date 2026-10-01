@@ -220,11 +220,29 @@ export interface ResolveSelectionOptions {
      * dedicated existence check (jobs/page.tsx, Task 11) gets to run.
      *
      * The caller is responsible for only granting this leniency ONCE per
-     * id (see `firstUnresolvedDeadLinkIdRef` in page.tsx) — this function
-     * has no memory of past calls, so a caller that keeps passing `false`
-     * for the same id forever would keep it "preserved" forever too.
+     * id and search (see `usedDeadLinkPassBefore` below and
+     * `deadLinkPassRef` in JobsContent.tsx) — this function has no memory
+     * of past calls, so a caller that keeps passing `false` for the same id
+     * forever would keep it "preserved" forever too.
      */
     wasConfirmed: boolean;
+}
+
+/** The id that used its one "preserve, don't reassign" pass, and the search it used it on. */
+export interface DeadLinkPass {
+    id: string;
+    searchKey: string;
+}
+
+/**
+ * Has `id` already used its free pass on an EARLIER search than `searchKey`?
+ * The pass lasts until the visitor starts a new search; the same search
+ * fetched again keeps it. On a dev server StrictMode runs the fetch effect
+ * twice, and the second run spent the pass, so a job opened from a shared
+ * link closed itself about 3 seconds after load (2026-10-01).
+ */
+export function usedDeadLinkPassBefore(pass: DeadLinkPass | null, id: string | null, searchKey: string): boolean {
+    return id != null && pass?.id === id && pass.searchKey !== searchKey;
 }
 
 export function resolveSelectionAfterRefresh(
