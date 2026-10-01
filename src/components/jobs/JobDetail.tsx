@@ -999,6 +999,7 @@ export function JobDetail({
                             own `ml-auto`. */}
                         {reportJobEnabled && job.apply_url && (
                             <ReportJobButton
+                                jobId={job.id}
                                 jobUrl={job.apply_url}
                                 jobTitle={jobTitle}
                                 className="ml-auto"

@@ -30,10 +30,14 @@ const REASON_OPTIONS: { value: ReportJobReason; label: string }[] = [
 type Phase = "form" | "submitting" | "done";
 
 export function ReportJobButton({
+    jobId,
     jobUrl,
     jobTitle,
     className,
 }: {
+    /** Lets a "link is dead" or "filled" report put the listing at the front
+     *  of Subspace's liveness checks (see liveness-demand.ts). */
+    jobId?: string;
     jobUrl: string;
     jobTitle: string;
     className?: string;
@@ -76,7 +80,7 @@ export function ReportJobButton({
 
     const submit = async () => {
         setPhase("submitting");
-        const result = await reportJobAction({ jobUrl, jobTitle, reason, notes });
+        const result = await reportJobAction({ jobId, jobUrl, jobTitle, reason, notes });
         switch (result.kind) {
             case "ok":
                 setPhase("done");

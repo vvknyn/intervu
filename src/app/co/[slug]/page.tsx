@@ -5,6 +5,7 @@ import { CompanyPageBody } from "@/components/company/CompanyPageBody";
 import { getServerUser } from "@/lib/auth/server-user";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
+import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 
@@ -23,6 +24,9 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
   if (!data) notFound();
+  // Buffer-only: the roles this visitor is about to see get their links
+  // checked first (liveness-demand.ts).
+  reportShownJobs(data.jobs);
   // The page's one sign-in read: it picks which gate card shows and opens
   // `CompanyExhaustGate`'s signed-in bands.
   const signedIn = !!(await getServerUser());
