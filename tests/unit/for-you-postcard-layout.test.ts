@@ -17,6 +17,17 @@ describe("for-you postcard layout", () => {
         assert.match(home, /<RoleStack[\s\S]*className="flex-1"/, "the stack takes the space left");
         const css = readFileSync(join(__dirname, "../../src/app/globals.css"), "utf8");
         const stage = css.match(/\.role-stack-stage \{[^}]*\}/)?.[0] ?? "";
+        assert.match(
+            home,
+            /<div className="role-stack-screen">\s*\{thinBlock\}\s*<RoleStack/,
+            "the stack shares the screen under the pack's header row with a thin pack's broaden options",
+        );
+        const screen = css.match(/\.role-stack-screen \{[^}]*\}/)?.[0] ?? "";
+        assert.match(
+            screen,
+            /min-height: calc\(\s*100svh - var\(--topbar-h\) - 3\.5rem - var\(--mobile-tabbar-h\)/,
+            "the screen under the header row, down to the phone tab bar, not what the page leaves over",
+        );
         assert.match(stage, /min-height: min\(\s*30rem,/, "never squeezed below a usable card (a sign-up card or header scrolls the page instead)");
         assert.doesNotMatch(css, /body:has\(\[data-testid="for-you-home"\]\)\s*\{[^}]*overflow: hidden/, "the pack page is not locked to the viewport");
         assert.match(stage, /var\(--mobile-tabbar-h\) - env\(safe-area-inset-bottom/, "the floor leaves room for the phone tab bar and the home indicator");
