@@ -202,9 +202,10 @@ const ResumeImportModal = dynamic(
     () => import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
     { ssr: false, loading: () => null },
 );
-const SearchAutocomplete = dynamic(
-    () => import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
-    { ssr: false },
+// Rendered on the server too when the list is (/jobs/first-rows), so the
+// search box is in place before the page's code runs.
+const SearchAutocomplete = dynamic(() =>
+    import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
 );
 const AuthPopover = dynamic(
     () => import("@/components/auth/auth-popover").then((m) => m.AuthPopover),
@@ -439,6 +440,10 @@ let lastSearchId = "";
  *  there is visible here for free instead of needing a second widened type
  *  kept in sync by hand. */
 type JobsSearchActionResult = Awaited<ReturnType<typeof searchJobsActionRaw>>;
+
+/** A first search the server already ran for this landing, with the instant
+ *  its rows were rendered against (/jobs/first-rows, server-first-rows.ts). */
+export type InitialSearch = { params: JobSearchParams; result: JobsSearchActionResult; now: number };
 
 const searchJobsAction = (params: JobSearchParams): Promise<JobsSearchActionResult> =>
     withSettleGuard(
@@ -1037,7 +1042,7 @@ function readUsableLocalResume() {
     return stored && resumeIsUsable(stored.data) ? stored : null;
 }
 
-export function JobsContent() {
+export function JobsContent({ initialSearch = null }: { initialSearch?: InitialSearch | null } = {}) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -1075,7 +1080,9 @@ export function JobsContent() {
     // Date.now() per row render" (postedAge's own internal call was the
     // second one, never caught by the linter because it's one level removed
     // from the render body, but the same bug).
-    const [nowMs] = useState(() => Date.now());
+    // A server-rendered first list keeps the server's instant, so its ages
+    // read the same when the page hydrates.
+    const [nowMs] = useState(() => initialSearch?.now ?? Date.now());
 
     const [query, setQuery] = useState(initialUrlState.q);
     const [queryDraft, setQueryDraft] = useState(initialUrlState.q);
@@ -1445,7 +1452,12 @@ export function JobsContent() {
         if (draft !== query.trim()) submitSearch(queryDraft);
     }, [queryDraft, query, submitSearch]);
 
-    const [result, setResult] = useState<JobsSearchActionResult | null>(null);
+    // Seeded from a server-rendered first search the way the search effect
+    // below stores one; that effect then takes the same result again
+    // (JobsRouteGate seeds it), so the rows don't change on hydration.
+    const [result, setResult] = useState<JobsSearchActionResult | null>(() =>
+        initialSearch ? { ...initialSearch.result, hits: interleaveByCompany(initialSearch.result.hits) } : null,
+    );
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
     // Which search `result` answers, and the last search that finished (rows or a
@@ -1454,7 +1466,7 @@ export function JobsContent() {
     // listed the hub's roles, not remote ones, until its own search landed).
     const [resultSearchKey, setResultSearchKey] = useState<string | null>(null);
     const [settledSearchKey, setSettledSearchKey] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!initialSearch);
     const [loadingMore, setLoadingMore] = useState(false);
     // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
     // `interpretLoadMoreResponse`) so the sentinel below can swap "Show N more"
@@ -1626,6 +1638,9 @@ export function JobsContent() {
     // body runs, before anything async — a state flag wouldn't be readable
     // that soon and would itself trigger a needless extra render.
     const isFirstSearchRunRef = useRef(true);
+    // That first run's answer is already on screen when the server rendered
+    // the first list (`initialSearch`); the run takes the same result.
+    const firstListFromServerRef = useRef(initialSearch != null);
     // Set by `submitSearch`: a submitted search (Enter, a suggestion, a chip)
     // skips the 250ms typing debounce below, since nothing more is coming.
     const submitImmediateRef = useRef(false);
@@ -2325,7 +2340,9 @@ export function JobsContent() {
         setDepthGated(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
-        setLoading(true);
+        // Not for a first run whose rows the server rendered: the notes that
+        // hide while loading (thin results, a widened search) would blink.
+        if (!(isFirstSearchRunRef.current && firstListFromServerRef.current)) setLoading(true);
         // First run (mount, URL-seeded) fires immediately — search must be
         // the first action this page dispatches, ahead of the secondary
         // probe effects gated on `firstSearchSettled` above. Every later
@@ -3761,6 +3778,7 @@ export function JobsContent() {
         surface: emptySearchState === "overlay-ask" ? "browse" : "search",
         requestStartedAtRef: searchStartedAtRef,
         narrow: !isLgUp,
+        renderedOnServer: initialSearch != null,
     });
 
     // Fetch the next page and append it only while its monotonic generation is current.
@@ -5620,6 +5638,12 @@ export function JobsContent() {
     // this in there would either hide the word on that first landing or
     // silently invalidate that gate. `savedSearchMountEl` carries both
     // without touching either.
+    //
+    // Over a server-rendered first list, the word holds its place unseen
+    // until sign-in state resolves (that list is only sent to signed-out
+    // visitors, who get the word), so the toolbar doesn't rewrap under the
+    // rows when it appears.
+    const rankByFitPending = initialSearch != null && !showResumeEntry && !fitActive && resumeOnFile === null;
     const rankByFitEl = showResumeEntry ? (
         <button
             type="button"
@@ -5630,6 +5654,16 @@ export function JobsContent() {
                 toolbarControlHeight,
                 "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
             )}
+        >
+            Rank with my résumé
+        </button>
+    ) : rankByFitPending ? (
+        <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            disabled
+            className={cn(toolbarControlHeight, "ctl-button invisible inline-flex shrink-0 items-center whitespace-nowrap")}
         >
             Rank with my résumé
         </button>

@@ -187,6 +187,9 @@ export interface EventPayloads {
     rows: number;
     /** Below the `lg` breakpoint or not, so phone and desktop read apart. */
     viewport: "narrow" | "wide";
+    /** "server" when a first load's rows came in the page's own HTML
+     *  (/jobs/first-rows): timed to the page's first contentful paint. */
+    rendered?: "server";
   };
 
   search_alert_impressed: {

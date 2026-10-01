@@ -797,8 +797,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-SPEED-01 | A typed search shows its first matching rows within 2 seconds of pressing Search | anon | /jobs, type "accountant", Search | signed-out | no | covered | speed.spec.ts |
-| J-SPEED-02 | Opening /jobs?q=<role> on a mid-range phone shows rows within 2 seconds (about 2.7 s on a 4x-throttled phone profile as of 2026-10-01, down from 3.9 s; what is left is running the page's code and the list's first render, so it needs the first rows rendered on the server) | anon | /jobs?q=nurse | signed-out | no | uncovered | — |
+| J-SPEED-02 | Opening /jobs?q=<role> on a phone shows its first rows within 2 seconds: a signed-out phone gets them in the page's own HTML (the list is rendered on the server), so they show before any of the page's code runs (about 0.6 s on a 4x-throttled phone profile as of 2026-10-01, was 2.8 s) | anon | /jobs?q=nurse on a phone | signed-out | no | covered | speed.spec.ts |
 | J-SPEED-03 | Opening a search link (`/jobs?q=nurse`) sends the first-page search once, before the list code mounts, and the list shows its matching rows (the list takes the request the route gate already sent instead of searching again) | anon | /jobs?q=nurse | signed-out | no | covered | speed.spec.ts |
+| J-SPEED-04 | The list a phone gets rendered on the server takes that search instead of searching again; a new search from the box and opening a role then work as usual, and the address bar keeps /jobs | anon | /jobs?q=nurse on a phone, search "accountant", open a role | signed-out | no | covered | speed.spec.ts |
 
 ## Legacy specs pending repair
 

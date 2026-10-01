@@ -65,9 +65,11 @@ test("signed-out /jobs entry is server page + thin route gate", () => {
     assert.match(JOBS_PAGE, /JobsRouteGate/);
     // Imported statically so its code downloads with the page's scripts, and
     // mounted only after hydration: it reads storage and the viewport while
-    // it renders (JobsRouteGate's own comment has the measurements).
-    assert.match(JOBS_GATE, /import \{ JobsContent \} from "@\/app\/jobs\/JobsContent";/);
-    assert.match(JOBS_GATE, /if \(!mounted\) return null;/);
+    // it renders (JobsRouteGate's own comment has the measurements). The one
+    // exception is a list the server already searched for (/jobs/first-rows,
+    // server-first-rows.ts), rendered as a first visit on a phone sees it.
+    assert.match(JOBS_GATE, /import \{ JobsContent, type InitialSearch \} from "@\/app\/jobs\/JobsContent";/);
+    assert.match(JOBS_GATE, /if \(!mounted && !initialSearch\) return null;/);
 });
 
 test("heavy jobs modules load via dynamic import in JobsContent", () => {
