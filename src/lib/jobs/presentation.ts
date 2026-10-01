@@ -1,7 +1,7 @@
 import { ghostBadgeTone, LIVE_PILL, STATUS_PILL } from "@/lib/ui/status-tokens";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { formatRelativeAge, isStale, RESULT_LINE_FRESH_MS } from "@/lib/jobs/freshness";
-import { checkFreshness } from "@/lib/jobs/badges";
+import { checkFreshness, latestCheckAt } from "@/lib/jobs/badges";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import type { GhostBadge, GhostChecked, PostedBucket, PublicJob } from "@/lib/jobs/types";
 import { toValueArray } from "@/lib/jobs/types";
@@ -125,7 +125,7 @@ export function ghostMetaFor(job: GhostChecked, nowMs: number) {
     const stale = checkFreshness(job, nowMs) === "stale";
     const meta = job.ghost_badge === "clear" && stale ? STALE_CLEAR_META : GHOST_META[job.ghost_badge];
     if (!meta || !stale) return meta;
-    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(job.last_observed_alive_at || job.ghost_checked_at, nowMs)}` };
+    return { ...meta, explain: `${meta.explain} ${lastCheckedClause(latestCheckAt(job), nowMs)}` };
 }
 
 /**
@@ -1477,14 +1477,15 @@ const POSTED_WINDOW_PHRASE: Record<PostedBucket, string> = {
     "3d": "from the last 3 days",
     "7d": "from the last 7 days",
     "30d": "from the last 30 days",
-    older: "posted more than 30 days ago",
+    "90d": "from the last 90 days",
+    older: "posted more than 90 days ago",
 };
 
 /**
  * The single grey line under the pinned search box.
  *
  * Says the posted-date window out loud. A fresh visit already filters to the
- * last 30 days (`DEFAULT_URL_STATE.postedBucket`, url-state.ts), and the
+ * last 90 days (`DEFAULT_URL_STATE.postedBucket`, url-state.ts), and the
  * redesigned route gives the searcher no control that reveals it — so the
  * number on screen is NOT the size of the corpus. Naming the window converts a
  * hidden filter into a stated fact; without it the count is quietly wrong.
@@ -1534,7 +1535,7 @@ export function searchResultLine(input: {
  * (`getCachedMarketTrends().liveJobs`, market-trends.ts) is
  * `vacancy_status = "active"` with NO posted-date filter at all, while the
  * result line just above it in the search well
- * (`searchResultLine`) defaults to the last 30 days — so the masthead used to
+ * (`searchResultLine`) defaulted to the last 30 days (90 since 2026-09-30) — so the masthead used to
  * show "2,339,946 live roles" beside "111,151 roles from the last 30 days"
  * with nothing explaining the ~21x gap. The two counts are NOT a clean
  * subset/superset pair (this one's `active`-only; the result line's
@@ -1543,7 +1544,7 @@ export function searchResultLine(input: {
  * contains the other. What IS literally true of every count this function
  * renders: it applies no date window. Naming that ("all posting dates") gives
  * this line its own stated scope, parallel to the result line's "from the
- * last 30 days" — deliberately not "all-time", which already names a
+ * last 90 days" — deliberately not "all-time", which already names a
  * DIFFERENT metric (`totalTracked`, market-trends.ts) and would collide
  * with it.
  */

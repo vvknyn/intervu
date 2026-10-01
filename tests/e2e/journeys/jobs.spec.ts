@@ -4,7 +4,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { TODAY_NEW_ROWS } from "../../../src/lib/jobs/for-you/today";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
-import { DEFAULT_URL_STATE } from "../../../src/lib/jobs/url-state";
+import { PACK_POSTED_BUCKET } from "../../../src/lib/jobs/url-state";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
@@ -54,12 +54,11 @@ async function expectFrontDoor(page: Page, timeout = FIRST_PAINT_MS) {
 }
 
 /**
- * The résumé-ranked list is a recommendation, so it keeps the packs' 30-day window whatever the
- * typed-search default is: no `posted` param while 30 days is the default, `posted=30d` once it isn't.
+ * The résumé-ranked list is a recommendation, so it keeps the packs' window (`PACK_POSTED_BUCKET`,
+ * 30 days), not the typed-search default of 90 days.
  */
 async function expectPackWindow(page: Page) {
-  if (DEFAULT_URL_STATE.postedBucket === "30d") await expect(page).not.toHaveURL(/[?&]posted=/);
-  else await expect(page).toHaveURL(/[?&]posted=30d\b/);
+  await expect(page).toHaveURL(new RegExp(`[?&]posted=${PACK_POSTED_BUCKET}\\b`));
 }
 
 /** Fresh = empty storage. Previous-session = the visit cookie is set but velai.onboarding.completed is not. */
@@ -329,6 +328,8 @@ signedInTest("a For-you pack opened from the hub, past the intro, has Edit filte
   expect(href.pathname).toBe("/jobs");
   expect(href.searchParams.get("country")).toBe("Iceland");
   expect(href.searchParams.get("view")).toBe("search");
+  // Packs keep their own 30-day window, not the board's 90-day default (PACK_POSTED_BUCKET).
+  expect(href.searchParams.get("posted")).toBe(PACK_POSTED_BUCKET);
 
   // Thin pack: the shared broaden nudge, with a count on every option it draws.
   const broaden = page.getByTestId("broaden-options");

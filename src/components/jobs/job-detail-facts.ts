@@ -1,4 +1,5 @@
 import { formatRelativeAge } from "@/lib/jobs/freshness";
+import { latestCheckAt } from "@/lib/jobs/badges";
 import { locationText, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
 import type { GhostChecked, PublicJob } from "@/lib/jobs/types";
@@ -47,15 +48,17 @@ export function buildFactChips(
  * ghost-verdict module (2026-08-01 explained-verdict deliverable).
  *
  * This is a DIFFERENT concern from posting freshness (posted/first-seen,
- * posting-freshness.ts, which describe the LISTING's age): `ghost_checked_at`
- * is when the check itself last ran, and it is the ONLY field that may answer
- * this question. It read `updated_at` — the last scrape — until 2026-08-17,
- * which is how a modal came to show "checked 89d ago" directly above "first
- * seen by us 89d ago": the same column printed twice under two different
- * labels. When `ghost_checked_at` is missing or doesn't parse there is
- * nothing to claim — say so rather than falling back to a timestamp that
- * answers a different question, and never fabricate a checklist of what was
- * inspected beyond the badge's own `explain` copy (ghost_badge is a coarse
+ * posting-freshness.ts, which describe the LISTING's age). The check time is
+ * `latestCheckAt` (badges.ts) — the later of `ghost_checked_at` (the ghost
+ * check ran) and `last_observed_alive_at` (we saw it alive), the same date
+ * the row badge and the verdict banner print. It read `updated_at` — the
+ * last scrape — until 2026-08-17, which is how a modal came to show
+ * "checked 89d ago" directly above "first seen by us 89d ago": the same
+ * column printed twice under two different labels. When neither check
+ * timestamp parses there is nothing to claim — say so rather than falling
+ * back to a timestamp that answers a different question, and never
+ * fabricate a checklist of what was inspected beyond the badge's own
+ * `explain` copy (ghost_badge is a coarse
  * public-safe verdict; the underlying signals are not exposed to this layer
  * — see PublicJob's `ghost_badge` doc comment, types.ts).
  */
@@ -63,8 +66,8 @@ export function ghostCheckedText(
     job: GhostChecked & { first_seen_at?: string | null },
     now: number,
 ): string {
-    const checkTs = job.last_observed_alive_at || job.ghost_checked_at;
-    if (!checkTs || Number.isNaN(Date.parse(checkTs))) return "Check time unavailable";
+    const checkTs = latestCheckAt(job);
+    if (!checkTs) return "Check time unavailable";
 
     // Deduplicate intake check from first-seen age:
     // When a job was only checked once at intake and never re-checked since, and that intake

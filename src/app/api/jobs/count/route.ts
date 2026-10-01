@@ -93,7 +93,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 
     // `null` ("couldn't determine") defaults to supported — the same
     // optimistic posture /jobs itself takes (`useState(true)` in page.tsx)
-    // until told otherwise, so this route's 30d default matches /jobs's.
+    // until told otherwise, so this route's default window matches /jobs's.
     const postedDateSupported = (await isPostedDateFilterSupported()) !== false;
     // "fit" (résumé-ranked) has no meaning without the résumé state /jobs's
     // page component owns — same "fit collapses to no explicit sort" posture

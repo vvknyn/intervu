@@ -259,8 +259,10 @@ export type FacetDistribution = Partial<Record<FacetKey, Record<string, number>>
 export const JOB_SORT_MODES = ["newest", "relevance", "salary_desc"] as const;
 export type JobSortMode = (typeof JOB_SORT_MODES)[number];
 
-/** Age-bucket filter, computed against sanitized `posted_ts` at request time. */
-export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "older";
+/** Age-bucket filter, computed against sanitized `posted_ts` at request time.
+ *  Each "Nd" bucket means "posted within the last N days"; "older" means
+ *  posted before the widest window ("90d", the fresh-visit default). */
+export type PostedBucket = "1d" | "3d" | "7d" | "30d" | "90d" | "older";
 
 /**
  * Minimum-years-of-experience bucket, filtered against `min_years_experience`
@@ -428,7 +430,9 @@ export interface PlaceClause {
   workTypes?: string[];
   /**
    * OR untagged remote roles into this clause's `any` group — exactly
-   * `work_type = "remote" AND location_country IS NULL` (live-verified).
+   * `REMOTE_ANYWHERE_CLAUSE` (meilisearch.ts): remote, and no country, city
+   * or state at all. A remote role naming a city or state with no country
+   * is missing its country tag, not open anywhere, so it is not OR'd in.
    *
    * Set ONLY by the IP geo default (`resolveLocationDefault`,
    * `placesForCountry`, ip-default.ts). An explicit country pick

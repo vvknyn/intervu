@@ -757,10 +757,10 @@ describe('buildZeroResultPayload', () => {
         ]);
     });
 
-    it('names a silently-applied default (pristine 30d posted bucket) in active_facets even though filter_count — the pre-existing dashboard contract — still excludes it', () => {
+    it('names a silently-applied default (pristine 90d posted bucket) in active_facets even though filter_count — the pre-existing dashboard contract — still excludes it', () => {
         const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'nurse', {});
         assert.equal(payload.filter_count, 0);
-        assert.deepEqual(payload.active_facets, [{ key: 'postedBucket', value: postedBucketLabel('30d') }]);
+        assert.deepEqual(payload.active_facets, [{ key: 'postedBucket', value: postedBucketLabel('90d') }]);
     });
 
     it('never emits the raw typed query text anywhere in the payload — only its length', () => {

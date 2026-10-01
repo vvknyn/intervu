@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { badgeFor, checkFreshness, daysOpenFrom, rowTrustChip, type RowTrustChip } from "../../src/lib/jobs/badges";
+import { badgeFor, checkFreshness, daysOpenFrom, latestCheckAt, rowTrustChip, type RowTrustChip } from "../../src/lib/jobs/badges";
 import { STALE_CHECK_DAYS, STALE_THRESHOLD_MS } from "../../src/lib/jobs/freshness";
 import type { GhostBadge } from "../../src/lib/jobs/types";
 
@@ -116,6 +116,38 @@ test("checkFreshness: fresh when last_observed_alive_at is current even if ghost
     );
 });
 
+
+/**
+ * `latestCheckAt` (2026-09-30): the later of the two check timestamps, not
+ * `last_observed_alive_at || ghost_checked_at`. `ghost_checked_at` already
+ * folds in the rescore AND the last alive check, so the `||` could print an
+ * older date than the one we actually have.
+ */
+test("latestCheckAt: the later of last_observed_alive_at and ghost_checked_at, whichever field holds it", () => {
+    const older = ago(12 * 86_400_000);
+    const newer = ago(3 * 3_600_000);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: newer, last_observed_alive_at: older }), newer);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: older, last_observed_alive_at: newer }), newer);
+});
+
+test("latestCheckAt: skips a missing or unparseable side, and is null only when neither parses", () => {
+    const at = ago(86_400_000);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: at, last_observed_alive_at: null }), at);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: at, last_observed_alive_at: "not-a-date" }), at);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: "garbage", last_observed_alive_at: at }), at);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: undefined }), null);
+    assert.equal(latestCheckAt({ ghost_badge: "clear", ghost_checked_at: "garbage", last_observed_alive_at: "" }), null);
+});
+
+test("badge and freshness read the LATER check: an old alive stamp no longer hides this morning's ghost check", () => {
+    // Before: `last_observed_alive_at || ghost_checked_at` took the 12-day-old
+    // alive stamp and printed "checked 12d ago" over a check that ran 3h ago.
+    const j = { ghost_badge: "clear" as const, ghost_checked_at: ago(3 * 3_600_000), last_observed_alive_at: ago(12 * 86_400_000), updated_at: null };
+    assert.equal(badgeFor(j, null, NOW), "✓ live 3h ago");
+    // Sibling: stale-by-alive-stamp alone no longer reads stale when the ghost check is current.
+    const staleAlive = { ...j, last_observed_alive_at: ago(STALE_CHECK_MS + 86_400_000) };
+    assert.equal(checkFreshness(staleAlive, NOW), "fresh");
+});
 
 /**
  * A document indexed before `ghost_checked_at` existed carries no such field

@@ -5,7 +5,7 @@
  * parallel, `Promise.all`, never serialized after it) the two probes
  * jobs/page.tsx used to fire itself as separate client round trips: the
  * ghost-hidden count (the rail's "N hidden" toggle-row suffix) and the
- * beyond-30d-window count (the "more roles beyond 30 days" affordance).
+ * beyond-default-window count (the "more beyond 90 days" affordance).
  * Folding them in here is what turns 3 POSTs/search into 1 — see
  * scratchpad/perf/first-paint-design.md, ADOPT #1.
  */
@@ -14,6 +14,7 @@ import { isUnavailableJobsResult } from "./result-state";
 import { resolveCorpusCount, type CorpusCount } from "./corpus-count";
 import type { CountryLookup } from "../geo/ip-country";
 import type { JobSearchParams, JobSearchResult } from "./types";
+import { DEFAULT_URL_STATE } from "./url-state";
 
 export interface RunJobsSearchContext {
   clientIp?: string;
@@ -23,8 +24,9 @@ export interface RunJobsSearchContext {
    * they differ from the params the main search itself runs with. Only
    * `getDefaultBrowseAction` needs this: its main query is a fixed, cached,
    * unwindowed shape (no `postedBucket` — see that function's doc comment),
-   * but the "beyond 30 days" affordance has always measured against the
-   * app's quiet 30d-default filter state regardless of that — a
+   * but the "beyond 90 days" affordance has always measured against the
+   * app's quiet default posted window (`DEFAULT_URL_STATE.postedBucket`)
+   * regardless of that — a
    * pre-existing split between "what the pristine landing shows" and "what
    * its probes are scoped to" this preserves rather than collapses out from
    * under the pixel-parity requirement. Every other caller passes the same
@@ -48,9 +50,9 @@ export type JobsSearchWithProbes = JobSearchResult & {
    *  probe didn't run (ghosts not hidden in the probe basis) or failed.
    *  Mirrors the deleted client probe's `ghostHiddenCount` state exactly. */
   ghostHiddenCount?: number | null;
-  /** Corpus size with the 30d window lifted, for the "beyond 30 days"
-   *  affordance — `null` when the probe didn't run (probe basis isn't
-   *  bucketed to "30d") or failed. Mirrors the deleted client probe's
+  /** Corpus size with the default posted window lifted, for the "beyond
+   *  90 days" affordance — `null` when the probe didn't run (probe basis
+   *  isn't bucketed to the default, "90d") or failed. Mirrors the deleted client probe's
    *  `beyondWindowCount` state exactly (its `undefined`/"pending" state no
    *  longer exists once this is server-resolved before the client ever
    *  sees the search result). */
@@ -71,8 +73,10 @@ export interface ProbePlan {
  * and `resolveDegradedServe`/`getDegradedServe` (lib/jobs/search-cache.ts).
  * Mirrors exactly what page.tsx's main search effect used to gate the two
  * client-fired probes on: the ghost probe when `hideGhosts` is true, the
- * beyond-window probe when `postedBucket` is exactly `"30d"` (not merely
- * truthy — "7d"/"any"/undefined all leave the affordance off).
+ * beyond-window probe when `postedBucket` is exactly the default window
+ * (`DEFAULT_URL_STATE.postedBucket`, "90d" since 2026-09-30; "30d" before),
+ * not merely truthy — an explicit narrower pick like "30d"/"7d", "any" and
+ * undefined all leave the affordance off, matching `resolveBeyondWindow`.
  */
 export function planProbes(probeBasis: Pick<JobSearchParams, "hideGhosts" | "postedBucket" | "offset">): ProbePlan {
   // A later page ("load more") never reads either count — they describe the
@@ -81,7 +85,7 @@ export function planProbes(probeBasis: Pick<JobSearchParams, "hideGhosts" | "pos
   if ((probeBasis.offset ?? 0) > 0) return { ghost: false, beyondWindow: false };
   return {
     ghost: probeBasis.hideGhosts === true,
-    beyondWindow: probeBasis.postedBucket === "30d",
+    beyondWindow: probeBasis.postedBucket !== undefined && probeBasis.postedBucket === DEFAULT_URL_STATE.postedBucket,
   };
 }
 

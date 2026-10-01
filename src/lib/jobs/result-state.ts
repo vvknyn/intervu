@@ -144,7 +144,7 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
  * chokepoint the toolbar chips, the mobile sheet, and this exact zero-result
  * state's own "clear a filter" suggestions already read — with
  * `includeQuietDefaults: true`, so a silently-applied default (today, only
- * the pristine 30d posted-bucket) is named here just like an explicit pick.
+ * the pristine 90d posted-bucket) is named here just like an explicit pick.
  * That can make `active_facets` longer than `filter_count` (which stays the
  * pre-existing, quiet-defaults-excluded count — an established dashboard
  * contract this change doesn't touch): a search failing under a quiet

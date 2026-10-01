@@ -1,13 +1,21 @@
 import type { CorpusCount } from "./corpus-count";
 import type { PostedBucket } from "./types";
+import { DEFAULT_URL_STATE } from "./url-state";
 
 /**
- * The 30-day posted-bucket default is a deliberate product rule (see
- * `DEFAULT_URL_STATE.postedBucket`, url-state.ts) — not a bug. But it hides
- * real inventory (measured 2026-08-12: 2,294 roles shown vs ~7,199 matching
- * roles in the corpus, a ~68% hidden share), which reads as us having a
- * smaller corpus than we do. The fix is to surface the hidden count with a
- * one-click reveal ("show all"), never to change the default.
+ * The posted-bucket default is a deliberate product rule (see
+ * `DEFAULT_URL_STATE.postedBucket`, url-state.ts — 90 days since
+ * 2026-09-30, 30 before) — not a bug. But it hides real inventory
+ * (measured 2026-08-12 under the old 30-day default: 2,294 roles shown vs
+ * ~7,199 matching roles in the corpus, a ~68% hidden share), which reads as
+ * us having a smaller corpus than we do. The fix is to surface the hidden
+ * count with a one-click reveal ("show all").
+ *
+ * The affordance only ever describes what the DEFAULT window hides: it is
+ * gated on `activeBucket === DEFAULT_URL_STATE.postedBucket`, and its text
+ * names that window's day count, so the two can't drift apart when the
+ * default moves again. A visitor who picked a narrower window on purpose
+ * (e.g. `?posted=30d`) chose to hide the rest and gets no nudge.
  *
  * `show`/`extra`: the results-count line's ONE decision for whether that
  * affordance renders and what number (if any) it prints. jobs/page.tsx
@@ -26,10 +34,14 @@ export interface BeyondWindowDecision {
 
 const HIDDEN: BeyondWindowDecision = { show: false, extra: null };
 
+/** Day count of the default posted window, for the affordance's wording. */
+const DEFAULT_WINDOW_DAYS: Partial<Record<PostedBucket, number>> = { "1d": 1, "3d": 3, "7d": 7, "30d": 30, "90d": 90 };
+const DEFAULT_WINDOW_PHRASE = `${DEFAULT_WINDOW_DAYS[DEFAULT_URL_STATE.postedBucket ?? "90d"] ?? 90} days`;
+
 /**
  * `activeBucket` — the posted-bucket filter currently applied.
  * `currentCount` — the honest count of the ACTIVE (filtered) search, e.g.
- *   the 30d-filtered total. `null` while unresolved.
+ *   the 90d-filtered total. `null` while unresolved.
  * `beyondCount` — the honest count of the same search with the posted-
  *   bucket filter lifted (the probe request page.tsx fires alongside the
  *   ghost-hidden-count probe). `null` while unresolved or on probe failure
@@ -46,7 +58,7 @@ export function resolveBeyondWindow(
     // this function only ever needs to know "is there a decidable number".
     beyondCount: CorpusCount | null | undefined,
 ): BeyondWindowDecision {
-    if (activeBucket !== "30d") return HIDDEN;
+    if (activeBucket === undefined || activeBucket !== DEFAULT_URL_STATE.postedBucket) return HIDDEN;
     if (currentCount === null || beyondCount == null) return HIDDEN;
     if (currentCount.kind === "floor" || beyondCount.kind === "floor") {
         // Either side hit the corpus-count cap — `beyondCount` is always a
@@ -61,7 +73,7 @@ export function resolveBeyondWindow(
 }
 
 /**
- * Text for the "N more roles beyond 30 days" affordance, from an already-
+ * Text for the "N more beyond 90 days" affordance, from an already-
  * resolved `BeyondWindowDecision.extra`. A sentence that names a count
  * must never render without the count (Vivek, 2026-09-17) — this is the
  * ONE place that turns `extra` into words, so page.tsx never interpolates
@@ -71,7 +83,7 @@ export function resolveBeyondWindow(
  *    doesn't jump the list below it the moment this resolves).
  *  - `null` — resolved, but `resolveBeyondWindow` hit the corpus-count cap
  *    on either side with no exact number to report (`floor`) — e.g. the
- *    unqueried landing search, whose "beyond 30 days" population is the
+ *    unqueried landing search, whose "beyond 90 days" population is the
  *    whole corpus and blows past the cap with no facet sum to recover an
  *    exact figure from. The affordance still needs an honest sentence,
  *    just not a fabricated number — phrased to read naturally next to the
@@ -82,7 +94,7 @@ export function resolveBeyondWindow(
  */
 export function formatBeyondWindowText(extra: number | null | undefined): string | null {
     if (extra === undefined) return null;
-    if (extra === null) return "More roles beyond 30 days";
+    if (extra === null) return `More roles beyond ${DEFAULT_WINDOW_PHRASE}`;
     if (extra <= 0) return null;
-    return `${extra.toLocaleString()} more beyond 30 days`;
+    return `${extra.toLocaleString()} more beyond ${DEFAULT_WINDOW_PHRASE}`;
 }

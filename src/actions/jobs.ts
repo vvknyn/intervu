@@ -32,7 +32,7 @@ import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
 import { isInternalPosting } from "@/lib/jobs/presentation";
-import { jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
+import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
   buildJobOpenEntry,
@@ -189,7 +189,7 @@ const RELATED_JOBS_LIMIT = 5;
  */
 async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Promise<PublicJob[]> {
   const result = await runSearch({
-    postedBucket: "30d",
+    postedBucket: DEFAULT_URL_STATE.postedBucket,
     hideGhosts: true,
     limit: RELATED_JOBS_LIMIT + 1,
     ...params,
@@ -204,7 +204,7 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * Resolved here with the SAME query shape `getCompanyPageData` uses for that
  * count (companyDomain, COMPANY_JOBS_FETCH_LIMIT, no posted-window, no ghost
  * exclusion) — deliberately NOT `fetchRelatedExcluding` above, which is a
- * narrower, different-purpose query (30d window, ghosts hidden, excludes
+ * narrower, different-purpose query (default posted window, ghosts hidden, excludes
  * this job, caps at RELATED_JOBS_LIMIT) built for "More like this"
  * suggestions; reusing it here would just be a third, disagreeing
  * definition of "open roles" — the exact bug this closes.
@@ -328,7 +328,7 @@ const DEFAULT_BROWSE_LIMIT = 20;
 /**
  * The fixed "default browse" shape (2026-08-07 front-door reversal, product
  * decision: a zero-query visitor must see real jobs on first paint) — empty
- * query, the app's standing 30d posted-window default (`DEFAULT_URL_STATE`,
+ * query, the app's standing posted-window default (`DEFAULT_URL_STATE`,
  * lib/jobs/url-state.ts), freshest-first, ghosts hidden (the first-screen
  * default), and the resolved country's postings when the corpus has any.
  *
@@ -338,7 +338,7 @@ const DEFAULT_BROWSE_LIMIT = 20;
  * to send before it was killed off for being the single most expensive query
  * the app issued; it survives today only as search.ts's own outage-fallback
  * key for other callers (e.g. MCP), untouched by this. This shape is bounded
- * by the 30d window, so it's cheap enough to serve fresh rather than only
+ * by the default posted window, so it's cheap enough to serve fresh rather than only
  * as a degraded fallback.
  *
  * Cached 600s, keyed ONLY by the resolved `places` clause (i.e. by country —
@@ -362,7 +362,7 @@ const getCachedDefaultBrowse = unstable_cache(
   // above). It scopes only the beyond-window probe's basis, via
   // `probeParams`, to match what page.tsx's now-deleted client probe used to
   // compute for this exact landing state (`buildJobSearchPayload` against
-  // the default `FilterState`, which carries `postedBucket: "30d"` whenever
+  // the default `FilterState`, which carries the default `postedBucket` whenever
   // the corpus can support it) — see `runJobsSearch`'s `probeParams` doc.
   async (
     places: PlaceClause[] | undefined,
@@ -380,7 +380,7 @@ const getCachedDefaultBrowse = unstable_cache(
       {
         probeParams: {
           hideGhosts: true,
-          postedBucket: postedDateSupported ? "30d" : undefined,
+          postedBucket: postedDateSupported ? DEFAULT_URL_STATE.postedBucket : undefined,
           places,
         },
       },

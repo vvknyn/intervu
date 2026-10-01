@@ -72,15 +72,17 @@ test("default homeView stays out of the URL", () => {
     assert.equal(parseJobsUrl(new URLSearchParams("")).homeView, null);
 });
 
-// Product decision: fresh visits default to "30d" instead of unset. Encoding
-// (chosen so absence stays the default and "no filter" gets its own,
-// distinguishable representation): no `posted` param → the default ("30d");
-// `posted=any` → no filter (`undefined`, the pre-existing meaning of
-// undefined everywhere `postedBucket` is read); any other recognized bucket
-// parses exactly as before (back-compat).
-test("absent posted param parses to the 30d default", () => {
-    assert.equal(parseJobsUrl(new URLSearchParams("")).postedBucket, "30d");
-    assert.equal(parseJobsUrl(new URLSearchParams("q=sre")).postedBucket, "30d");
+// Product decision: fresh visits default to a window instead of unset —
+// "90d" since 2026-09-30 ("30d" before). Encoding (chosen so absence stays
+// the default and "no filter" gets its own, distinguishable representation):
+// no `posted` param → the default ("90d"); `posted=any` → no filter
+// (`undefined`, the pre-existing meaning of undefined everywhere
+// `postedBucket` is read); any other recognized bucket parses exactly as
+// before (back-compat) — `posted=30d` included, which now narrows.
+test("absent posted param parses to the 90d default", () => {
+    assert.equal(parseJobsUrl(new URLSearchParams("")).postedBucket, "90d");
+    assert.equal(parseJobsUrl(new URLSearchParams("q=sre")).postedBucket, "90d");
+    assert.equal(DEFAULT_URL_STATE.postedBucket, "90d");
 });
 
 test("posted=any parses to no filter (undefined), not the default", () => {
@@ -94,25 +96,44 @@ test("back-compat: posted=7d (and other existing buckets) parse unchanged", () =
     assert.equal(parseJobsUrl(new URLSearchParams("posted=older")).postedBucket, "older");
 });
 
-test("posted=30d parses to explicit 30d default", () => {
+test("posted=30d — the old default — still parses to a 30-day window, now an explicit narrowing", () => {
     assert.deepEqual(parseJobsUrl(new URLSearchParams("posted=30d")), {
+        ...DEFAULT_URL_STATE,
+        facets: {},
+        postedBucket: "30d",
+        postedExplicit: true,
+    });
+});
+
+test("serializeJobsUrl writes posted=30d for a 30d window, flagged explicit or not (it is not the default)", () => {
+    assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: "30d", postedExplicit: true }), "?posted=30d");
+    assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, postedBucket: "30d" }), "?posted=30d");
+});
+
+test("posted=30d round-trips through serialize + parse", () => {
+    const s = { ...DEFAULT_URL_STATE, postedBucket: "30d" as const, postedExplicit: true };
+    assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
+});
+
+test("posted=90d parses to the explicit 90d default", () => {
+    assert.deepEqual(parseJobsUrl(new URLSearchParams("posted=90d")), {
         ...DEFAULT_URL_STATE,
         facets: {},
         postedExplicit: true,
     });
 });
 
-test("serializeJobsUrl writes posted=30d for explicit 30d", () => {
+test("serializeJobsUrl writes posted=90d for explicit 90d", () => {
     const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, postedExplicit: true });
-    assert.equal(url, "?posted=30d");
+    assert.equal(url, "?posted=90d");
 });
 
-test("explicit posted=30d round-trips through serialize + parse", () => {
+test("explicit posted=90d round-trips through serialize + parse", () => {
     const s = { ...DEFAULT_URL_STATE, postedExplicit: true };
     assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
 });
 
-test("serializeJobsUrl omits posted for the 30d default", () => {
+test("serializeJobsUrl omits posted for the 90d default", () => {
     assert.equal(serializeJobsUrl({ ...DEFAULT_URL_STATE, q: "sre" }), "?q=sre");
 });
 
