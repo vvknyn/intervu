@@ -28,6 +28,8 @@ const lastVisitDaysAgo = (page: Page, days: number) =>
 test("a returning visitor who searches sees how many roles are new since their last visit, and the line stays", { tag: ["@J-ALERTS-22"] }, async ({ page, diagnostics }) => {
   await lastVisitDaysAgo(page, 3);
   await page.goto(VISIT_SEARCH);
+  // It used to vanish as soon as the search's rows arrived, so check it after they have.
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   const line = page.getByTestId("board-visit-banner");
   await expect(line).toBeVisible({ timeout: 30_000 });
   await expect(line).toContainText(/[\d,]+\+? new roles? on Velai since your last visit/);
