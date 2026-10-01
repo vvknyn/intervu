@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+    NEEDS_YOU_GROUP_FOLLOW_UPS_AT,
     NEEDS_YOU_MAX_ITEMS,
     buildNeedsYou,
     interviewDayLabel,
@@ -106,11 +107,37 @@ describe("buildNeedsYou", () => {
         );
     });
 
-    it("keeps every item past the list's cap, longest waiting first", () => {
-        const pursuits = Array.from({ length: NEEDS_YOU_MAX_ITEMS + 2 }, (_, i) => pursuit(`p${i}`, "applied", (8 + i) * DAY));
-        const items = buildNeedsYou(pursuits, NOW, null);
+    it("lists one or two quiet applications each, longest waiting first", () => {
+        const items = buildNeedsYou([pursuit("a", "applied", 8 * DAY), pursuit("b", "applied", 12 * DAY)], NOW, null);
+        assert.deepEqual(
+            items.map((i) => i.key),
+            ["follow_up:b", "follow_up:a"],
+        );
+    });
+
+    it(`groups ${NEEDS_YOU_GROUP_FOLLOW_UPS_AT} or more quiet applications into one line to the Applied stage`, () => {
+        const pursuits = Array.from({ length: 21 }, (_, i) => pursuit(`p${i}`, "applied", (8 + i) * DAY));
+        const items = buildNeedsYou([pursuit("interview", "interviewing", DAY, { interview_date: picked(1) }), ...pursuits], NOW, null);
+        assert.deepEqual(
+            items.map((i) => i.kind),
+            ["interview", "follow_up"],
+        );
+        assert.equal(items[1].title, "Follow up on 21 applications");
+        assert.equal(items[1].detail, "No update in 8 to 28 days · Company p20, Company p19 and 19 more");
+        assert.equal(items[1].href, "/yours?stage=applied");
+        assert.equal(items[1].action, "Review");
+    });
+
+    it("keeps every item past the list's cap", () => {
+        const follows = Array.from({ length: NEEDS_YOU_MAX_ITEMS + 2 }, (_, i) => ({
+            domain: `c${i}.com`,
+            name: `C${i}`,
+            slug: `c${i}`,
+            count: 1,
+            more: false,
+        }));
+        const items = buildNeedsYou([], NOW, { ...NO_REMOTE, follows });
         assert.equal(items.length, NEEDS_YOU_MAX_ITEMS + 2);
-        assert.equal(items[0].key, `follow_up:p${NEEDS_YOU_MAX_ITEMS + 1}`);
     });
 });
 

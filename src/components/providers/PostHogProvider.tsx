@@ -12,6 +12,7 @@ import {
 } from "@/lib/posthog-options";
 import { identityAction } from "@/lib/posthog-identity";
 import { captureEvent, flushHeldEvents } from "@/lib/analytics/events";
+import { setPostHogClient } from "@/lib/analytics/posthog-client";
 import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from "@/lib/auth/gate-attempt";
 
@@ -49,6 +50,8 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       });
       posthog.register({ product: POSTHOG_PRODUCT });
       started.current = true;
+      // events.ts and the other callers reach PostHog only through this.
+      setPostHogClient(posthog);
       // What the page fired as it mounted, before this loaded (events.ts `captureRoute`).
       flushHeldEvents();
     }

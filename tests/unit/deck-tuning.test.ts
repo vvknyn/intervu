@@ -69,6 +69,14 @@ describe("roleName", () => {
         assert.equal(roleName("Staff Software Engineer | Payments"), "Software Engineer");
         assert.equal(roleName("Senior"), "Senior", "a title that is only a rank word stays as it is");
     });
+
+    it("keeps the work a title names after its post", () => {
+        assert.equal(roleName("Director, Technical Account Management"), "Director, Technical Account Management");
+        assert.equal(roleName("Sr. Director, Technical Account Management"), "Director, Technical Account Management");
+        assert.equal(roleName("Manager, Customer Success"), "Manager, Customer Success");
+        assert.equal(roleName("VP, Sales"), "VP, Sales");
+        assert.equal(roleName("Head of Nursing - Surgical"), "Head of Nursing");
+    });
 });
 
 describe("tuneDeck", () => {
@@ -198,6 +206,94 @@ describe("tuneDeck", () => {
     });
 });
 
+/** A nudge given on the candidate's own kind of role (match/score.ts `roleAffinity` "own"). */
+function ownNudge(target: PublicJob, signal: TuningSignal, deck: PublicJob[] = [], at = NOW): TuningNudge {
+    return { jobId: target.id, signal, at, features: roleFeatures(target, deck, { own: true, signal }) };
+}
+
+describe("a thumbs-down on the candidate's own kind of role", () => {
+    /** A TAM's deck: TAM roles at several companies among customer success roles, and one more HashiCorp role. */
+    const deck = [
+        job("t0", "Technical Account Manager", { company: "HashiCorp" }),
+        job("c1", "Customer Success Manager", { company: "Shopify" }),
+        job("t1", "Senior Technical Account Manager", { company: "Datadog" }),
+        job("c2", "Enterprise Customer Success Manager", { company: "Faire" }),
+        job("t2", "Technical Account Manager II", { company: "Okta" }),
+        job("h1", "Solutions Engineer", { company: "HashiCorp" }),
+        job("c3", "Customer Success Manager", { company: "Wealthsimple" }),
+        job("t3", "Technical Account Manager", { company: "Twilio" }),
+    ];
+    const rest = deck.slice(1);
+
+    it("steers by what else set that posting apart, not by the role", () => {
+        const fewer = ownNudge(deck[0], "fewer", deck);
+        assert.equal(fewer.features.label, "HashiCorp");
+        const tuned = tuneDeck(rest, [fewer], [], NOW);
+        assert.deepEqual(ids(tuned).filter((id) => id !== "h1"), ids(rest).filter((id) => id !== "h1"), "the TAM roles keep their places");
+        assert.equal(ids(tuned).at(-1), "h1", "the other HashiCorp role waits at the end, still there");
+        assert.equal(tuningLine(summarizeTuning([fewer], NOW)!), "Tuned away from HashiCorp.");
+    });
+
+    it("still means fewer of a role that isn't the candidate's own", () => {
+        const tuned = tuneDeck(rest, [nudge(deck[0], "fewer", deck)], [], NOW);
+        const lastCsm = Math.max(...["c1", "c2", "c3"].map((id) => ids(tuned).indexOf(id)));
+        assert.ok(["t1", "t2", "t3"].every((id) => ids(tuned).indexOf(id) > lastCsm), `TAM roles after the rest: ${ids(tuned).join(", ")}`);
+    });
+
+    it("a skip on one moves nothing but that employer's roles either", () => {
+        const tuned = tuneDeck(rest, [ownNudge(deck[0], "skip", deck)], [], NOW);
+        assert.deepEqual(ids(tuned).filter((id) => id !== "h1"), ids(rest).filter((id) => id !== "h1"));
+    });
+
+    it("says nothing when nothing else set the posting apart", () => {
+        const same = [job("a", "Technical Account Manager"), job("b", "Technical Account Manager"), job("c", "Customer Success Manager")];
+        const fewer = ownNudge(same[0], "fewer", same);
+        assert.equal(fewer.features.label, "");
+        assert.equal(summarizeTuning([fewer], NOW), null);
+        assert.deepEqual(ids(tuneDeck(same.slice(1), [fewer], [], NOW)), ["b", "c"], "and moves no other TAM role");
+    });
+
+    it("still moves what sets the role apart within it: fewer security TAM roles", () => {
+        const tams = [
+            job("t0", "Technical Account Manager"),
+            job("s1", "Technical Account Manager, Security"),
+            job("t1", "Senior Technical Account Manager"),
+            job("s2", "Security Technical Account Manager"),
+            job("t2", "Technical Account Manager II"),
+            job("s3", "Technical Account Manager - Cloud Security"),
+            job("t3", "Technical Account Manager"),
+        ];
+        const fewer = ownNudge(tams[1], "fewer", tams);
+        assert.equal(fewer.features.label, "Security");
+        const tuned = tuneDeck(tams.filter((j) => j.id !== "s1"), [fewer], ["t0"], NOW);
+        assert.deepEqual(ids(tuned).slice(0, 4), ["t0", "t1", "t2", "t3"]);
+        assert.deepEqual(ids(tuned).slice(4).sort(), ["s2", "s3"]);
+    });
+
+    it("leaves a thumbs-up on the candidate's own role as it was", () => {
+        const tam = tamDeck();
+        const more = ownNudge(tam[0], "more", tam);
+        assert.equal(more.features.label, "Technical Account Manager");
+        assert.equal(tuneDeck(tam, [more], ["tam1"], NOW)[1].id, "tam2");
+    });
+
+    it("works the same in other fields: one nurse posting turned down leaves the other nursing roles in place", () => {
+        const nursing = [
+            job("n0", "Registered Nurse - Med/Surg", { company: "Sunnybrook" }),
+            job("p1", "Personal Support Worker", { company: "Bayshore" }),
+            job("n1", "Registered Nurse - Emergency", { company: "Mount Sinai" }),
+            job("u1", "Unit Clerk", { company: "Sunnybrook" }),
+            job("n2", "Registered Nurse", { company: "Humber River" }),
+            job("p2", "Personal Support Worker", { company: "SE Health" }),
+        ];
+        const fewer = ownNudge(nursing[0], "fewer", nursing);
+        const tuned = tuneDeck(nursing.slice(1), [fewer], [], NOW);
+        assert.deepEqual(ids(tuned).filter((id) => id.startsWith("n")), ["n1", "n2"]);
+        assert.ok(ids(tuned).indexOf("n1") < ids(tuned).indexOf("p2"), `nurse roles keep their place: ${ids(tuned).join(", ")}`);
+        assert.equal(ids(tuned).at(-1), "u1", "the other Sunnybrook role goes last");
+    });
+});
+
 describe("nudges fade", () => {
     it("count half after two weeks and a quarter after four", () => {
         assert.equal(decay(0), 1);
@@ -247,6 +343,17 @@ describe("summarizeTuning", () => {
         const summary = summarizeTuning(nudges, NOW);
         assert.deepEqual(summary, { toward: ["Technical Account Manager"], away: ["Product Manager"] });
         assert.equal(tuningLine(summary!), "Tuned toward Technical Account Manager, away from Product Manager.");
+    });
+
+    it("names a post-first title in full: \"Director, Technical Account Management\", not \"Technical\"", () => {
+        const deck = [
+            job("d", "Director, Technical Account Management"),
+            job("c1", "Senior Customer Success Manager"),
+            job("t1", "Technical Account Manager"),
+            job("c2", "Customer Success Manager"),
+        ];
+        const more = nudge(deck[0], "more", deck);
+        assert.equal(tuningLine(summarizeTuning([more], NOW)!), "Tuned toward Director, Technical Account Management.");
     });
 
     it("says nothing for a single skip or a role read for a while", () => {

@@ -206,9 +206,11 @@ export function NeedsYouView({
 }
 
 function ActionLink({ href, testId, onClick, children }: { href: string; testId: string; onClick: () => void; children: string }) {
-    // An in-page anchor ("#today-new") scrolls; everything else is a route.
+    // An in-page anchor ("#today-new") scrolls; everything else is a route. A text
+    // button, like the picks' Apply beside it: a bordered button on every line of
+    // the list was most of what made Today read as busy.
     return (
-        <Button asChild variant="outline" size="sm">
+        <Button asChild variant="ghost" size="sm" className="-mr-3">
             {href.startsWith("#") ? (
                 <a href={href} data-testid={testId} onClick={onClick}>
                     {children}

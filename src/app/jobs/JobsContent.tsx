@@ -51,7 +51,8 @@ import {
 } from "@/actions/jobs";
 import { goAfterJobAction } from "@/actions/application";
 import { reportJobEnabledAction } from "@/actions/report-job";
-import { requireAuthKitSoon } from "@/lib/perf/schedule-after-load-or-idle";
+import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
+import { takeEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
@@ -109,7 +110,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { TodayHome } from "@/components/jobs/for-you/TodayHome";
+import { TodayHome, TodayLastHere, type TodayNoResume } from "@/components/jobs/for-you/TodayHome";
 import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
@@ -201,9 +202,10 @@ const ResumeImportModal = dynamic(
     () => import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
     { ssr: false, loading: () => null },
 );
-const SearchAutocomplete = dynamic(
-    () => import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
-    { ssr: false },
+// Rendered on the server too when the list is (/jobs/first-rows), so the
+// search box is in place before the page's code runs.
+const SearchAutocomplete = dynamic(() =>
+    import("@/components/search/SearchAutocomplete").then((m) => m.SearchAutocomplete),
 );
 const AuthPopover = dynamic(
     () => import("@/components/auth/auth-popover").then((m) => m.AuthPopover),
@@ -439,9 +441,15 @@ let lastSearchId = "";
  *  kept in sync by hand. */
 type JobsSearchActionResult = Awaited<ReturnType<typeof searchJobsActionRaw>>;
 
+/** A first search the server already ran for this landing, with the instant
+ *  its rows were rendered against (/jobs/first-rows, server-first-rows.ts). */
+export type InitialSearch = { params: JobSearchParams; result: JobsSearchActionResult; now: number };
+
 const searchJobsAction = (params: JobSearchParams): Promise<JobsSearchActionResult> =>
     withSettleGuard(
-        searchJobsActionRaw(params).then((r) => {
+        // The landing's first search may already be in flight from
+        // JobsRouteGate (early-first-search.ts); same params take it.
+        (takeEarlyFirstSearch<JobsSearchActionResult>(params) ?? searchJobsActionRaw(params)).then((r) => {
             lastSearchId = r.searchId;
             return r;
         }),
@@ -747,7 +755,9 @@ function DeadJobUnresolved({
 
 /* ----------------------------- page ----------------------------- */
 
-/** Page size for SERP results + each infinite-scroll / Show more chunk. */
+/** Page size for SERP results + each infinite-scroll / Show more chunk.
+ *  The early first search JobsRouteGate sends uses the same size
+ *  (`SEARCH_FIRST_PAGE_SIZE`, pinned equal by early-first-search.test.ts). */
 const PAGE = 20;
 /** Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). */
 const FOR_YOU_PAGE = 60;
@@ -1032,7 +1042,7 @@ function readUsableLocalResume() {
     return stored && resumeIsUsable(stored.data) ? stored : null;
 }
 
-export function JobsContent() {
+export function JobsContent({ initialSearch = null }: { initialSearch?: InitialSearch | null } = {}) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -1070,7 +1080,9 @@ export function JobsContent() {
     // Date.now() per row render" (postedAge's own internal call was the
     // second one, never caught by the linter because it's one level removed
     // from the render body, but the same bug).
-    const [nowMs] = useState(() => Date.now());
+    // A server-rendered first list keeps the server's instant, so its ages
+    // read the same when the page hydrates.
+    const [nowMs] = useState(() => initialSearch?.now ?? Date.now());
 
     const [query, setQuery] = useState(initialUrlState.q);
     const [queryDraft, setQueryDraft] = useState(initialUrlState.q);
@@ -1440,7 +1452,12 @@ export function JobsContent() {
         if (draft !== query.trim()) submitSearch(queryDraft);
     }, [queryDraft, query, submitSearch]);
 
-    const [result, setResult] = useState<JobsSearchActionResult | null>(null);
+    // Seeded from a server-rendered first search the way the search effect
+    // below stores one; that effect then takes the same result again
+    // (JobsRouteGate seeds it), so the rows don't change on hydration.
+    const [result, setResult] = useState<JobsSearchActionResult | null>(() =>
+        initialSearch ? { ...initialSearch.result, hits: interleaveByCompany(initialSearch.result.hits) } : null,
+    );
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
     // Which search `result` answers, and the last search that finished (rows or a
@@ -1449,7 +1466,7 @@ export function JobsContent() {
     // listed the hub's roles, not remote ones, until its own search landed).
     const [resultSearchKey, setResultSearchKey] = useState<string | null>(null);
     const [settledSearchKey, setSettledSearchKey] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!initialSearch);
     const [loadingMore, setLoadingMore] = useState(false);
     // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
     // `interpretLoadMoreResponse`) so the sentinel below can swap "Show N more"
@@ -1547,14 +1564,15 @@ export function JobsContent() {
     // "settled" means that FIRST attempt completed (success or failure),
     // not that every later search has to be waited on too.
     const [firstSearchSettled, setFirstSearchSettled] = useState(false);
-    // JobsRouteGate holds AuthKit until the first list is on screen (its
-    // session check is a server action and would queue ahead of the search);
+    // JobsRouteGate holds AuthKit and PostHog until the first list is on
+    // screen (AuthKit's session check is a server action and would queue
+    // ahead of the search; PostHog's download and parse competed with it);
     // lift the hold then, or when leaving the page.
     useEffect(() => {
         if (!firstSearchSettled) return;
-        requireAuthKitSoon();
+        releaseFirstListHold();
     }, [firstSearchSettled]);
-    useEffect(() => requireAuthKitSoon, []);
+    useEffect(() => releaseFirstListHold, []);
 
     const [postedDateSupported, setPostedDateSupported] = useState(true);
     useEffect(() => {
@@ -1620,6 +1638,9 @@ export function JobsContent() {
     // body runs, before anything async — a state flag wouldn't be readable
     // that soon and would itself trigger a needless extra render.
     const isFirstSearchRunRef = useRef(true);
+    // That first run's answer is already on screen when the server rendered
+    // the first list (`initialSearch`); the run takes the same result.
+    const firstListFromServerRef = useRef(initialSearch != null);
     // Set by `submitSearch`: a submitted search (Enter, a suggestion, a chip)
     // skips the 250ms typing debounce below, since nothing more is coming.
     const submitImmediateRef = useRef(false);
@@ -2319,7 +2340,9 @@ export function JobsContent() {
         setDepthGated(false);
         // `loading` means any first-page request is in flight. Rendering still
         // distinguishes first load (`hits.length === 0`) from background refresh.
-        setLoading(true);
+        // Not for a first run whose rows the server rendered: the notes that
+        // hide while loading (thin results, a widened search) would blink.
+        if (!(isFirstSearchRunRef.current && firstListFromServerRef.current)) setLoading(true);
         // First run (mount, URL-seeded) fires immediately — search must be
         // the first action this page dispatches, ahead of the secondary
         // probe effects gated on `firstSearchSettled` above. Every later
@@ -2967,7 +2990,8 @@ export function JobsContent() {
                   ),
         [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
     );
-    const forYouDeck = useForYouDeck(forYouPacks);
+    const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
+    const forYouDeck = useForYouDeck(forYouPacks, isOwnRole);
 
     useEffect(() => {
         if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
@@ -3755,6 +3779,7 @@ export function JobsContent() {
         surface: emptySearchState === "overlay-ask" ? "browse" : "search",
         requestStartedAtRef: searchStartedAtRef,
         narrow: !isLgUp,
+        renderedOnServer: initialSearch != null,
     });
 
     // Fetch the next page and append it only while its monotonic generation is current.
@@ -4679,16 +4704,38 @@ export function JobsContent() {
     // never started and every category sat on an empty count. One in-flight
     // fetch: a new `user` object must not launch a second download that
     // replaces `resume` and cancels the count probe.
+    // `hubResumeReading` lets Today say "Reading your résumé" rather than ask for one;
+    // `hubResumeAttempt` is Today's "Try again" when the saved one didn't load.
     const hubResumeLoadRef = useRef(false);
+    const [hubResumeReading, setHubResumeReading] = useState(false);
+    const [hubResumeAttempt, setHubResumeAttempt] = useState(0);
     useEffect(() => {
         if (!forYouOpen || forYouPackDeckOpen) return;
         if (resume && resumeIsUsable(resume)) return;
         if (hubResumeLoadRef.current) return;
         hubResumeLoadRef.current = true;
-        void resolveUsableResume().then((loaded) => {
-            if (!loaded) hubResumeLoadRef.current = false;
-        });
-    }, [forYouOpen, forYouPackDeckOpen, user, resume]);
+        setHubResumeReading(true);
+        void resolveUsableResume()
+            .then((loaded) => {
+                if (!loaded) hubResumeLoadRef.current = false;
+            })
+            .finally(() => setHubResumeReading(false));
+    }, [forYouOpen, forYouPackDeckOpen, user, resume, hubResumeAttempt]);
+
+    // Today on the packs home: ranked against the résumé once there is a usable one. Signed in it
+    // shows without one too (what needs them, and why there are no picks), so a slow or unreadable
+    // saved résumé never leaves the page looking like it has none.
+    const todayMatching = useMemo(
+        () => (resume && signals && pack && hubResumeKey ? { resume, resumeKey: hubResumeKey, signals, pack } : null),
+        [resume, signals, pack, hubResumeKey],
+    );
+    const todayShown = Boolean(todayMatching) || signedIn;
+    const todayNoResume: TodayNoResume =
+        hubResumeReading || (signedIn && resumeKnownOnServer == null)
+            ? "loading"
+            : resume || resumeKnownOnServer === true
+              ? "unreadable"
+              : "missing";
 
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
@@ -5614,6 +5661,12 @@ export function JobsContent() {
     // this in there would either hide the word on that first landing or
     // silently invalidate that gate. `savedSearchMountEl` carries both
     // without touching either.
+    //
+    // Over a server-rendered first list, the word holds its place unseen
+    // until sign-in state resolves (that list is only sent to signed-out
+    // visitors, who get the word), so the toolbar doesn't rewrap under the
+    // rows when it appears.
+    const rankByFitPending = initialSearch != null && !showResumeEntry && !fitActive && resumeOnFile === null;
     const rankByFitEl = showResumeEntry ? (
         <button
             type="button"
@@ -5624,6 +5677,16 @@ export function JobsContent() {
                 toolbarControlHeight,
                 "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
             )}
+        >
+            Rank with my résumé
+        </button>
+    ) : rankByFitPending ? (
+        <button
+            type="button"
+            aria-hidden
+            tabIndex={-1}
+            disabled
+            className={cn(toolbarControlHeight, "ctl-button invisible inline-flex shrink-0 items-center whitespace-nowrap")}
         >
             Rank with my résumé
         </button>
@@ -6398,9 +6461,11 @@ export function JobsContent() {
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
-                        {!headerDockActive && <div className="min-w-0 flex-1" aria-hidden />}
+                        {/* ml-auto, not an empty flex-1 spacer: the spacer took a
+                            gap of its own, and that 8px pushed the "?" onto a
+                            line by itself on a 390px phone (J-NAV-35). */}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="wrap-row min-w-0 max-w-full">
+                            <div data-testid="jobs-toolbar-actions" className="wrap-row ml-auto min-w-0 max-w-full">
                                 {showToolbarFilters && savedSearchMountEl}
                                 {sortEl}
                                 {tourReplayEl}
@@ -6555,47 +6620,50 @@ export function JobsContent() {
                         <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <>
-                                {resume && signals && pack && hubResumeKey ? (
-                                    <TodayHome
-                                        auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                        returnTo={serpReturnTo}
-                                        userName={user?.displayName}
-                                        resume={resume}
-                                        resumeKey={hubResumeKey}
-                                        signals={signals}
-                                        pack={pack}
-                                        pursuits={pursuits}
-                                        pursuitsLoading={pursuitsLoading}
-                                        accountKey={user?.uid ?? null}
-                                        onApply={handleOpenPosting}
-                                        onOpenPack={(id) => openHubPack(id, "today")}
-                                        resumeLine={
-                                            <ResumeInUse
-                                                label={resumeInUseLabel(resumeSourceLabel)}
-                                                onReplace={() => handleUploadClick()}
-                                            />
-                                        }
-                                    />
-                                ) : null}
                                 <CategoryHubGrid
                                     categories={hubCategories}
-                                    compactHeader={Boolean(resume && signals && pack && hubResumeKey)}
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
                                     hasResume={hasUsableResume}
                                     activeCategoryId={hubSelectedCategoryId}
                                     hubCountLabels={hubCountLabels}
                                     hubCountDeltas={hubCountDeltas}
-                                    dailyApplyTip={DAILY_APPLY_HUB_TIP}
+                                    dailyApplyTip={todayShown ? null : DAILY_APPLY_HUB_TIP}
                                     hubMatching={hubFitProbe.loading || hubFitProbe.probing}
                                     hubCorpusLine={hubCorpusLine}
                                     hubRemovalsLine={hubFitProbe.removalsLine}
+                                    resumeLine={
+                                        todayMatching ? (
+                                            <ResumeInUse
+                                                label={resumeInUseLabel(resumeSourceLabel)}
+                                                onReplace={() => handleUploadClick()}
+                                            />
+                                        ) : null
+                                    }
+                                    lastHere={todayShown ? <TodayLastHere /> : null}
                                     onSelectCategory={(category, source) => openHubPack(category.id, source)}
                                     footer={
-                                        <HubYourJobs
-                                            auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                            returnTo={serpReturnTo}
-                                        />
+                                        <div className="space-y-4">
+                                            {todayShown ? (
+                                                <TodayHome
+                                                    auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                                    returnTo={serpReturnTo}
+                                                    matching={todayMatching}
+                                                    noResume={todayNoResume}
+                                                    pursuits={pursuits}
+                                                    pursuitsLoading={pursuitsLoading}
+                                                    accountKey={user?.uid ?? null}
+                                                    onApply={handleOpenPosting}
+                                                    onOpenPack={(id) => openHubPack(id, "today")}
+                                                    onAddResume={() => handleUploadClick()}
+                                                    onRetryResume={() => setHubResumeAttempt((n) => n + 1)}
+                                                />
+                                            ) : null}
+                                            <HubYourJobs
+                                                auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
+                                                returnTo={serpReturnTo}
+                                            />
+                                        </div>
                                     }
                                 />
                             </>

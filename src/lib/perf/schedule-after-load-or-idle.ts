@@ -41,28 +41,46 @@ export function scheduleAfterLoadOrIdle(run: () => void, options?: { timeout?: n
     };
 }
 
-export const REQUIRE_AUTHKIT_EVENT = "velai-require-authkit";
+export const FIRST_LIST_RELEASED_EVENT = "velai-first-list-released";
 
 /**
- * /jobs holds AuthKit's idle mount until its first list is on screen. The
- * provider's session check is a server action, and server actions run one
- * at a time, so mounting it first queues the search behind it (measured on
- * a throttled phone profile: up to ~180 ms before the first row). Nothing on
- * the page reads AuthKit's context (see DeferredAuthKitProvider), so waiting
- * costs nothing. `requireAuthKitSoon` lifts the hold.
+ * /jobs holds the deferred providers' idle mounts (AuthKit, PostHog) until
+ * its first list is on screen. AuthKit's session check is a server action,
+ * and server actions run one at a time, so mounting it first queued the
+ * search behind it (measured on a throttled phone profile: up to ~180 ms
+ * before the first row). PostHog is ~240 KB of JS whose download and parse
+ * landed while the list's own code was starting. Nothing on the page reads
+ * either provider's context, and events wait for PostHog in events.ts's
+ * hold, so waiting costs nothing. `releaseFirstListHold` lifts the hold.
  */
-let authKitHeld = false;
+let firstListHold = false;
 
-export function holdAuthKitUntilRequired(): void {
-    authKitHeld = true;
+export function holdDeferredLoadsUntilFirstList(): void {
+    firstListHold = true;
 }
 
-export function isAuthKitHeld(): boolean {
-    return authKitHeld;
+export function isFirstListHoldActive(): boolean {
+    return firstListHold;
 }
 
-export function requireAuthKitSoon(): void {
-    authKitHeld = false;
+export function releaseFirstListHold(): void {
+    firstListHold = false;
     if (typeof window === "undefined") return;
-    window.dispatchEvent(new Event(REQUIRE_AUTHKIT_EVENT));
+    window.dispatchEvent(new Event(FIRST_LIST_RELEASED_EVENT));
+}
+
+/**
+ * The deferred-provider mount rule: after load and idle, unless /jobs holds
+ * it for its first list, in which case as soon as the hold is lifted.
+ * Returns a cleanup.
+ */
+export function scheduleDeferredProviderMount(mount: () => void, options?: { timeout?: number }): () => void {
+    window.addEventListener(FIRST_LIST_RELEASED_EVENT, mount);
+    const cancelIdle = scheduleAfterLoadOrIdle(() => {
+        if (!isFirstListHoldActive()) mount();
+    }, options);
+    return () => {
+        window.removeEventListener(FIRST_LIST_RELEASED_EVENT, mount);
+        cancelIdle();
+    };
 }

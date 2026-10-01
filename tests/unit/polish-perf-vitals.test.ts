@@ -34,8 +34,12 @@ test("PostHog and AuthKit defer until load or idle", () => {
         path.join(ROOT, "src/components/providers/DeferredAuthKitProvider.tsx"),
         "utf8",
     );
-    assert.match(posthogDefer, /scheduleAfterLoadOrIdle/);
-    assert.match(authDefer, /scheduleAfterLoadOrIdle/);
+    // scheduleDeferredProviderMount = after load/idle, or once /jobs lifts its
+    // first-list hold (schedule-after-load-or-idle.ts).
+    const scheduler = readFileSync(path.join(ROOT, "src/lib/perf/schedule-after-load-or-idle.ts"), "utf8");
+    assert.match(scheduler, /export function scheduleDeferredProviderMount[\s\S]*scheduleAfterLoadOrIdle\(/);
+    assert.match(posthogDefer, /scheduleDeferredProviderMount/);
+    assert.match(authDefer, /scheduleDeferredProviderMount/);
     // Beside the page, never around it: wrapping `children` once ready is a new
     // element type at that spot, so React rebuilt every page (blank until the
     // chunk loaded, then every mount fetch again). J-NAV-39 proves it in a browser.
@@ -59,7 +63,13 @@ test("/jobs is board-first: no poster, chrome-hide classes or first-paint script
 test("signed-out /jobs entry is server page + thin route gate", () => {
     assert.doesNotMatch(JOBS_PAGE, /"use client"/);
     assert.match(JOBS_PAGE, /JobsRouteGate/);
-    assert.match(JOBS_GATE, /import\("@\/app\/jobs\/JobsContent"\)/);
+    // Imported statically so its code downloads with the page's scripts, and
+    // mounted only after hydration: it reads storage and the viewport while
+    // it renders (JobsRouteGate's own comment has the measurements). The one
+    // exception is a list the server already searched for (/jobs/first-rows,
+    // server-first-rows.ts), rendered as a first visit on a phone sees it.
+    assert.match(JOBS_GATE, /import \{ JobsContent, type InitialSearch \} from "@\/app\/jobs\/JobsContent";/);
+    assert.match(JOBS_GATE, /if \(!mounted && !initialSearch\) return null;/);
 });
 
 test("heavy jobs modules load via dynamic import in JobsContent", () => {

@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 /**
- * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90/91/92/93).
+ * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90 to 94).
  * Read-only: the résumé lives in localStorage and the search answer is replaced in the browser.
  *
  * Reported 2026-09-30 with a Technical Account Manager résumé: "I don't even see a single TAM
@@ -235,6 +235,55 @@ signedInTest("more or fewer like this on an open role reorders what comes next, 
   await expect(tuned).toHaveCount(0);
   await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "false");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+/**
+ * A pack with two of the résumé's own roles at different employers, each employer with one more
+ * role, among a customer success role and a support role. Reported 2026-10-01: one thumbs-down on
+ * a plain "Technical Account Manager" moved every TAM role below the rest, as if it meant "fewer
+ * TAM roles".
+ */
+const OWN_PACK = [
+  posting("44444444-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
+  posting("44444444-0000-4000-8000-000000000002", "Technical Account Manager", "Beacon Cloud", "senior"),
+  posting("44444444-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Orchard CRM", "senior"),
+  posting("44444444-0000-4000-8000-000000000004", "Solutions Engineer", "Northstar Data", "senior"),
+  posting("44444444-0000-4000-8000-000000000005", "Solutions Engineer", "Beacon Cloud", "senior"),
+  posting("44444444-0000-4000-8000-000000000006", "Technical Support Manager", "Fernway", "senior"),
+];
+const OWN_TAMS = OWN_PACK.slice(0, 2).map((p) => p.id);
+
+signedInTest("a thumbs-down on one of the résumé's own roles moves that employer's roles, not the résumé's own role", { tag: ["@J-JOBS-94"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await answerResumeSearch(page, OWN_PACK);
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  const tuned = page.getByTestId("deck-tuning");
+
+  // The résumé's own role comes first: one of the two TAM roles.
+  await expect(position).toHaveText(`Role 1 of ${OWN_PACK.length}`, { timeout: 60_000 });
+  const first = (await front.getAttribute("data-job-id")) ?? "";
+  expect(OWN_TAMS).toContain(first);
+  const [turnedDown, otherTam] = first === OWN_TAMS[0] ? OWN_TAMS : [...OWN_TAMS].reverse();
+  const employer = OWN_PACK.find((p) => p.id === turnedDown)!.company;
+  const sameEmployer = OWN_PACK.find((p) => p.company === employer && p.id !== turnedDown)!.id;
+
+  // Thumbs down: that posting goes, the other TAM role comes next, and the line names the employer.
+  await front.getByTestId("role-fewer-like-this").click();
+  await expect(position).toHaveText(`Role 1 of ${OWN_PACK.length - 1}`);
+  await expect(front).toHaveAttribute("data-job-id", otherTam);
+  await expect(tuned).toContainText(`Tuned away from ${employer}.`);
+
+  // The employer's other role waits at the end, still there.
+  for (let step = 1; step < OWN_PACK.length - 1; step += 1) await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText(`Role ${OWN_PACK.length - 1} of ${OWN_PACK.length - 1}`);
+  await expect(front).toHaveAttribute("data-job-id", sameEmployer);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 

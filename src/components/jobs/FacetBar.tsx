@@ -101,15 +101,20 @@ export function hasStandingFacetSelection(
 }
 
 /** One dropdown chip. `activeValue` doubles as the active-state signal and
- *  the chip's value suffix ("Posted · Past week"). */
+ *  the chip's value suffix ("Posted · Past week"). `valueStandsAlone`: the
+ *  value reads on its own ("Past 3 months"), so a phone under 400px shows
+ *  just that and keeps "Posted · " for screen readers; with the label, the
+ *  phone toolbar's last control wraps onto a line of its own (J-NAV-41). */
 function FacetChip({
     label,
     activeValue,
+    valueStandsAlone = false,
     testId,
     children,
 }: {
     label: string;
     activeValue: string | null;
+    valueStandsAlone?: boolean;
     testId: string;
     children: React.ReactNode;
 }) {
@@ -123,7 +128,14 @@ function FacetChip({
                     "ctl-button inline-flex box-border items-center justify-center leading-none px-3 lg:px-2",
                 )}
             >
-                {activeValue ? `${label} · ${activeValue}` : label}
+                {activeValue ? (
+                    <span>
+                        <span className={valueStandsAlone ? "max-[399px]:sr-only" : undefined}>{label} · </span>
+                        {activeValue}
+                    </span>
+                ) : (
+                    label
+                )}
                 <CaretDown size={16} weight="bold" aria-hidden className="opacity-60" />
             </PopoverTrigger>
             <PopoverContent
@@ -191,6 +203,7 @@ export function FacetBar({
                     <FacetChip
                         label="Posted"
                         activeValue={posted ? (DATE_POSTED_SHORT_LABELS[posted] ?? posted) : null}
+                        valueStandsAlone
                         testId="facet-chip-posted"
                     >
                         {POSTED_BUCKET_PRESETS.map((o) => (

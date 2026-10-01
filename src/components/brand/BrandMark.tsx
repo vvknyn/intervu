@@ -20,6 +20,13 @@ import { LOCKED_MARK_SRC } from "@/lib/brand/locked-mark-data-uri";
  *  raster — this component does not paint a background behind the mark. */
 export const HEADER_MARK_SRC = "/velai-mark-on-dark.png" as const;
 
+/** HEADER_MARK_SRC downsampled to 96px (3x the 32px TopBar tile), nothing
+ *  else changed: `sharp("public/velai-mark-on-dark.png").resize(96, 96).png()`.
+ *  Offered via srcSet so the header paints this 4.5 KB file instead of the
+ *  155 KB 512px original, which every page fetched beside its first
+ *  JavaScript and slowed it on a phone connection. */
+export const HEADER_MARK_SMALL_SRC = "/velai-mark-on-dark-96.png" as const;
+
 // Legacy SVG geometry retained only for compare fixtures (LockupMock) that
 // intentionally show non-product variants. Product surfaces must use BrandMark /
 // LOCKED_MARK_* — never these paths as the live mark.
@@ -56,6 +63,8 @@ export function BrandMark({
         // eslint-disable-next-line @next/next/no-img-element -- brand lockup must match email/favicon raster exactly; next/image would re-encode
         <img
             src={src}
+            srcSet={src === HEADER_MARK_SRC ? `${HEADER_MARK_SMALL_SRC} 96w` : undefined}
+            sizes={src === HEADER_MARK_SRC ? `${px}px` : undefined}
             alt=""
             aria-hidden
             width={px}

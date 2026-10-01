@@ -6,31 +6,13 @@
 import { derivePostedTs } from "./meilisearch";
 import { decodeText, titleMatchesQuery } from "./presentation";
 import type { JobSearchParams, JobSortMode, PublicJob } from "./types";
+import { resolveEffectiveSort } from "./sort-mode";
 
-/** Resolve the effective sort, normalizing invalid combinations (e.g. relevance without query). */
-export function resolveEffectiveSort(p: Pick<JobSearchParams, "q" | "sort">): JobSortMode {
-    if (p.sort === "relevance" && !(p.q ?? "").trim()) return "newest";
-    if (p.sort) return p.sort;
-    return (p.q ?? "").trim() ? "relevance" : "newest";
-}
+// Pure and import-free, so /jobs's route gate can build the first search
+// without pulling this module's Meilisearch helpers into the page's first load.
+export { coerceSortToSupported, resolveEffectiveSort } from "./sort-mode";
 
 /** Meilisearch sort array for a search request. `legacy` uses posted_at instead of posted_ts. */
-/**
- * "Newest" ranks on `posted_ts`. When no document carries that field the sort
- * is a silent no-op — Meilisearch falls back to its default order while the UI
- * goes on claiming "newest first", which is how a board ends up listing 1mo,
- * 2mo, 5mo, 1mo under that label.
- *
- * Callers pass whether the corpus can actually answer a date sort (see
- * `isPostedDateFilterSupported`); an unsupported "newest" degrades to relevance
- * rather than lying about the order. Sorting on `posted_at` is NOT the fallback:
- * it is sortable, but the corpus carries future-dated sentinels (2030-01-31),
- * so descending order would put fabricated postings on top.
- */
-export function coerceSortToSupported(mode: JobSortMode, postedDateSupported: boolean): JobSortMode {
-    return mode === "newest" && !postedDateSupported ? "relevance" : mode;
-}
-
 /**
  * The one label source for a `JobSortMode`, shared by every surface that
  * names a sort option (desktop's "Sort: {label}" trigger + its
