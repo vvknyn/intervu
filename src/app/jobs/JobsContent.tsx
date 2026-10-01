@@ -290,7 +290,9 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
-import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { hubIndustryTiles, industryFilterTileIds, industryTileCandidates } from "@/lib/jobs/for-you/industry-tiles";
+import { resumeIndustry } from "@/lib/jobs/resume-industry";
 import {
     parseJobsUrl,
     serializeJobsUrl,
@@ -325,7 +327,7 @@ import {
 import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { HUB_FILTER_TILE_IDS, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
+import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -2978,9 +2980,11 @@ export function JobsContent() {
     // Same résumé content must not restart the probe. A new object identity
     // (parallel fetches of the saved résumé) was cancelling the in-flight
     // search before it could paint category counts.
+    // The industry of the résumé's profession picks which pack tiles the hub shows (industry-tiles.ts).
+    const hubIndustry = resume && hasUsableResume ? resumeIndustry(resume) : null;
     const hubResumeKey =
-        resume && hasUsableResume
-            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}`
+        resume && hasUsableResume && hubIndustry
+            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}\0${hubIndustry}`
             : "";
 
     // No usable résumé (missing, junk, or still loading): paint pack counts
@@ -3013,9 +3017,10 @@ export function JobsContent() {
     // first scored page. Deeper pages only refine the sample. On settle, diff
     // localStorage last-seen counts for honest removal cues.
     useEffect(() => {
-        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack) {
+        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
             return;
         }
+        const industry = hubIndustry;
         const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
         const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
         if (memo) {
@@ -3040,7 +3045,7 @@ export function JobsContent() {
         const failProbe = () => {
             setHubProbeFailed(true);
             setHubFilterTileCounts((prev) =>
-                Object.fromEntries(HUB_FILTER_TILE_IDS.filter((id) => id !== "all").map((id) => [id, prev[id] ?? null])),
+                Object.fromEntries(industryFilterTileIds(industry).map((id) => [id, prev[id] ?? null])),
             );
         };
 
@@ -3114,7 +3119,11 @@ export function JobsContent() {
                     poolTotal,
                     scored,
                 });
-                const nextTotals = packBandTotalsFromSources(sources);
+                // Only this industry's tiles: a removal cue must name a tile the visitor can see.
+                const industryTiles = new Set<HubPackId>(industryTileCandidates(industry));
+                const nextTotals = Object.fromEntries(
+                    Object.entries(packBandTotalsFromSources(sources)).filter(([id]) => industryTiles.has(id as HubPackId)),
+                ) as ReturnType<typeof packBandTotalsFromSources>;
                 const removals = diffHubPackRemovals(previous, nextTotals);
                 const removalsLine = formatHubRemovalsLine(removals) || null;
                 writeHubCountMemory({
@@ -3127,18 +3136,25 @@ export function JobsContent() {
                 // Each filter tile counts its own search (the one its deck sends), one at a
                 // time after the probe so the hub stays inside the search rate limit.
                 const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
-                for (const id of HUB_FILTER_TILE_IDS) {
-                    if (id === "all") continue;
+                for (const id of industryFilterTileIds(industry)) {
                     const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
                     if (cancelled) return;
                     tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
                     setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
                 }
-                // Every chip count is known: compare the exact ones with the last visit's, then remember these.
-                const chipCounts = exactHubCounts({
-                    ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
-                    ...tileCounts,
-                });
+                // Every chip count is known: compare the exact ones with the last visit's, then remember these,
+                // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go).
+                const shown = new Set(
+                    hubIndustryTiles(industry, { listTotal: allCount, listJobs: scored.map((h) => h.job), filterCounts: tileCounts, probing: false }),
+                );
+                const chipCounts = Object.fromEntries(
+                    Object.entries(
+                        exactHubCounts({
+                            ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
+                            ...tileCounts,
+                        }),
+                    ).filter(([id]) => shown.has(id as HubPackId)),
+                ) as HubPackCounts;
                 const { deltas, next } = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
                 writeHubTileCounts(next);
                 setHubCountDeltas(deltas);
@@ -3168,7 +3184,7 @@ export function JobsContent() {
         return () => {
             cancelled = true;
         };
-    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, agentPrefs]);
+    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
     // A résumé visitor's tiles all open the résumé's pack list, so every tile
     // counts inside that list (`resumeHubPackCounts`), never the corpus —
@@ -3196,6 +3212,21 @@ export function JobsContent() {
                         loading: hubPackCorpusCounts == null,
                     }),
         [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts],
+    );
+
+    // A résumé visitor's chips: their industry's tiles, each shown only once its
+    // count says it holds roles and narrows the list (industry-tiles.ts).
+    const hubCategories = useMemo(
+        () =>
+            hubResumeKey && hubIndustry
+                ? hubIndustryTiles(hubIndustry, {
+                      listTotal: hubResumeAllCount,
+                      listJobs: hubFitProbe.scored.map((h) => h.job),
+                      filterCounts: hubFilterTileCounts,
+                      probing: hubFitProbe.loading || hubFitProbe.probing,
+                  }).map((id) => ({ id, label: HUB_PACK_SHORT_LABELS[id] }))
+                : undefined,
+        [hubResumeKey, hubIndustry, hubResumeAllCount, hubFitProbe.scored, hubFitProbe.loading, hubFitProbe.probing, hubFilterTileCounts],
     );
 
     // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
@@ -6500,6 +6531,7 @@ export function JobsContent() {
                                     />
                                 ) : null}
                                 <CategoryHubGrid
+                                    categories={hubCategories}
                                     compactHeader={Boolean(resume && signals && pack && hubResumeKey)}
                                     userName={user?.displayName}
                                     isAuthenticated={Boolean(user)}
