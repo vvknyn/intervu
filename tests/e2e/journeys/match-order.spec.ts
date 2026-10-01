@@ -122,12 +122,34 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
   await expect(first.getByTestId("job-title")).toHaveText(/Technical Account Manager/, { timeout: 30_000 });
   const chip = first.getByTestId("match-chip");
   await expect(chip).toHaveText("Strong");
+  // A thin list's "Broaden this search" counts arrive after the rows and push them down. Point at
+  // the label once it has stopped moving, or the pointer lands beside it.
+  let at = "";
+  await expect
+    .poll(
+      async () => {
+        const box = await chip.boundingBox();
+        const now = box ? `${Math.round(box.x)},${Math.round(box.y)}` : "";
+        const still = now !== "" && now === at;
+        at = now;
+        return still;
+      },
+      { intervals: [1_000], timeout: 30_000, message: "the match label stopped moving" },
+    )
+    .toBe(true);
   // Hover on desktop. A phone has no hover: a tap opens the reason and stays on it, not the row under it.
   const phone = test.info().project.name === "mobile";
-  if (phone) await chip.tap();
-  else await chip.hover();
   const reason = page.getByTestId("match-reason").first();
-  await expect(reason).toBeVisible({ timeout: 10_000 });
+  if (phone) {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
   if (phone) expect(new URL(page.url()).searchParams.get("job")).toBeNull();
   await expect(reason).toContainText("It's your own role: the title matches Technical Account Manager on your résumé.");
   await expect(reason).toContainText(/its level fits your experience/i);
