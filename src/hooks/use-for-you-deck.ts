@@ -31,9 +31,10 @@ const NO_IDS: readonly string[] = [];
  *
  * It also applies the visitor's "more / fewer like this" nudges (tuning.ts):
  * the roles still to come are reordered by them, the ones already reached
- * (`passedIds`) never move.
+ * (`passedIds`) never move. `isOwnRole` says which roles are the candidate's
+ * own kind of role, so a thumbs-down on one steers by what else sets it apart.
  */
-export function useForYouDeck(packs: PublicJob[]) {
+export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) => boolean) {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
     const [passedIds, setPassedIds] = useState<readonly string[]>(NO_IDS);
@@ -97,7 +98,7 @@ export function useForYouDeck(packs: PublicJob[]) {
         (signal: "skip" | "fewer") => {
             if (!activeJob) return;
             const skippedId = activeJob.id;
-            const nextNudges = recordNudge(activeJob, signal, visiblePacks);
+            const nextNudges = recordNudge(activeJob, signal, visiblePacks, { own: isOwnRole?.(activeJob) ?? false });
             const before = visiblePacks.slice(0, activeIndex).map((p) => p.id);
             const remaining = tuneDeck(
                 unskipped.filter((p) => p.id !== skippedId),
@@ -109,7 +110,7 @@ export function useForYouDeck(packs: PublicJob[]) {
             setPassedIds(before);
             setActiveJobId(nextActiveIdAfterSkip(remaining, activeIndex));
         },
-        [activeJob, activeIndex, visiblePacks, unskipped, nowMs],
+        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole],
     );
     const handleSkip = useCallback(() => removeActive("skip"), [removeActive]);
     const handleFewer = useCallback(() => removeActive("fewer"), [removeActive]);
@@ -119,9 +120,9 @@ export function useForYouDeck(packs: PublicJob[]) {
         (signal: Exclude<TuningSignal, "skip" | "fewer">) => {
             if (!activeJob) return;
             setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
-            recordNudge(activeJob, signal, visiblePacks);
+            recordNudge(activeJob, signal, visiblePacks, { own: isOwnRole?.(activeJob) ?? false });
         },
-        [activeJob, activeIndex, visiblePacks, passedIds],
+        [activeJob, activeIndex, visiblePacks, passedIds, isOwnRole],
     );
 
     // "More like this" is a toggle: a second tap takes it back.
