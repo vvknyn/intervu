@@ -67,8 +67,9 @@ async function typedSearch(page: Page, q: string): Promise<SearchResult | null> 
   await page.goto("/jobs");
   const rows = page.getByTestId("job-row");
   const empty = page.getByTestId("search-empty-results");
-  // Let the landing list's own read land first, so it is never mistaken for the search's.
-  await expect(rows.first().or(empty).first()).toBeVisible({ timeout: 30_000 });
+  // Bare /jobs is the front door, with no list of its own. Let it settle, so
+  // the search below is the only read the rows can come from.
+  await expect(page.getByPlaceholder(SEARCH_INPUT)).toBeVisible({ timeout: 30_000 });
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
   const before = results.length;
   await page.getByPlaceholder(SEARCH_INPUT).fill(q);
