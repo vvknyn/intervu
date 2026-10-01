@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 /**
- * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90 to 93, 96).
+ * Journeys for how a résumé orders its matches — see tests/journeys/CATALOG.md (J-JOBS-90 to 94).
  * Read-only: the résumé lives in localStorage and the search answer is replaced in the browser.
  *
  * Reported 2026-09-30 with a Technical Account Manager résumé: "I don't even see a single TAM
@@ -254,7 +254,7 @@ const OWN_PACK = [
 ];
 const OWN_TAMS = OWN_PACK.slice(0, 2).map((p) => p.id);
 
-signedInTest("a thumbs-down on one of the résumé's own roles moves that employer's roles, not the résumé's own role", { tag: ["@J-JOBS-96"] }, async ({ page, diagnostics }) => {
+signedInTest("a thumbs-down on one of the résumé's own roles moves that employer's roles, not the résumé's own role", { tag: ["@J-JOBS-94"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await seedResume(page);
