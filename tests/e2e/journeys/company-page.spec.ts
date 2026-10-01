@@ -40,7 +40,9 @@ test("the hiring headline states the open-role count on Velai, with no 'Yes —'
 test("the remote fact is a count by work type and opens the matching Remote search on /jobs", { tag: ["@J-COMPANY-36"] }, async ({ page }) => {
     await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByTestId("company-page")).not.toContainText(/\b\d+% of roles remote/);
+    // A bare share ("3% of roles remote") is the old title-match stat; over a sample of a
+    // big employer's roles the fact is a rounded share and says so ("about 3% of roles remote").
+    await expect(page.getByTestId("company-page")).not.toContainText(/(?<!about )\b\d+% of roles remote/);
     const remote = page.getByTestId("company-remote-share");
     test.skip((await remote.count()) === 0, "no remote roles at this employer right now");
     await expect(remote).toHaveText(/^(\d[\d,]* of \d[\d,]* roles remote|about \d+% of roles remote)$/);
