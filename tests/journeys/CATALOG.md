@@ -385,7 +385,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-31 | An old Word .doc file in the importer is refused with "save it as .docx or PDF", never a failed DOCX read | anon | `/resume`, Upload résumé, choose `resume.doc` | signed-out | no | covered | resume.spec.ts |
 | J-RESUME-32 | A résumé stored as text (file upload, MCP set_resume) previews its headline and summary section, not its first 300 characters, and an uncategorized skills list prints without a leading ":"; the signed-in subcopy drops "once you sign in" (dev-server only: signed-in mock) | signed-in | `/resume` | signed-in | no | covered | resume.spec.ts |
 | J-RESUME-33 | Back from the template editor with unsaved edits asks "Leave without saving?"; Keep editing stays, Leave closes (dev-server only: signed-in mock) | signed-in | `/resume`, Edit template, edit Professional Summary, Back | signed-in | no | covered | resume.spec.ts |
-| J-RESUME-34 | A résumé saved to the account as text (file upload on /resume or Settings, MCP set_resume) opens /jobs on the ranked packs hub with "Private matching active", not the "Add your résumé" step; the browser structures the text, the server only sends it (dev-server only: signed-in mock) | signed-in | `/jobs` | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-34 | A résumé saved to the account as text (file upload on /resume or Settings, MCP set_resume) opens /jobs on the ranked packs hub with the Today header (it shows only once a résumé has loaded), not the "Add your résumé" step; the browser structures the text, the server only sends it (dev-server only: signed-in mock) | signed-in | `/jobs` | signed-in | no | covered | resume.spec.ts |
 
 ## SETTINGS
 

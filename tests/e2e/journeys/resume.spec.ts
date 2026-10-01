@@ -158,7 +158,8 @@ test.describe("signed in (dev-server only)", () => {
     await page.goto("/jobs");
 
     await expect(page.getByTestId("job-packs-hub")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("Private matching active on this device")).toBeVisible({ timeout: 20_000 });
+    // The Today header mounts only once a résumé has loaded and been read into signals.
+    await expect(page.getByTestId("today-home")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Add your résumé", { exact: true })).toHaveCount(0);
   });
 });
