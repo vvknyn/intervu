@@ -13,6 +13,7 @@ import {
     resolveEndOfListState,
     DEAD_JOB_TOMBSTONE_TEXT,
     shouldClearStaleJobUrl,
+    usedDeadLinkPassBefore,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     shouldSuppressLandingAmbientPreview,
@@ -371,6 +372,27 @@ describe('shouldClearStaleJobUrl', () => {
 
     it('subsumes the dead-link-used-its-pass case: reassigned away, URL still names the dead id', () => {
         assert.equal(shouldClearStaleJobUrl('dead-id', 'dead-id', false), true);
+    });
+});
+
+// A job opened from a shared link isn't in the list's first page, so it rides
+// its one free pass. A dev server runs the fetch effect twice for the same
+// search, and the second run spent the pass and closed the job (2026-10-01).
+describe('usedDeadLinkPassBefore', () => {
+    const pass = { id: 'shared-id', searchKey: 'posted=any' };
+
+    it('the same search fetched again keeps the pass', () => {
+        assert.equal(usedDeadLinkPassBefore(pass, 'shared-id', 'posted=any'), false);
+    });
+
+    it('a new search has used it up', () => {
+        assert.equal(usedDeadLinkPassBefore(pass, 'shared-id', 'q=designer&posted=any'), true);
+    });
+
+    it('another id, no pass yet, or no selection: not used', () => {
+        assert.equal(usedDeadLinkPassBefore(pass, 'other-id', 'q=designer'), false);
+        assert.equal(usedDeadLinkPassBefore(null, 'shared-id', 'q=designer'), false);
+        assert.equal(usedDeadLinkPassBefore(pass, null, 'q=designer'), false);
     });
 });
 

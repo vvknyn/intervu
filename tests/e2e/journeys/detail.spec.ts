@@ -282,6 +282,10 @@ test("closing a job opened from a shared link stays on /jobs with ?job= cleared;
   await shared.goto(`/jobs?posted=any&job=${encodeURIComponent(id!)}`);
   const detail = shared.locator(DETAIL).first();
   await expect(detail).toBeVisible({ timeout: 20_000 });
+  // The job stays open once the list has loaded: on a dev server the second run of the list's fetch closed it about 3s in (2026-10-01).
+  await shared.waitForLoadState("networkidle");
+  await expect(detail).toBeVisible();
+  expect(new URL(shared.url()).searchParams.get("job")).toBe(id);
   await closeJob(shared);
   await expect(shared).toHaveURL((url) => url.pathname === "/jobs" && url.searchParams.get("posted") === "any" && !url.searchParams.has("job"), { timeout: 10_000 });
   if (!isDesktop(shared)) await expect(shared.getByTestId("mobile-detail-scroller")).toBeHidden();

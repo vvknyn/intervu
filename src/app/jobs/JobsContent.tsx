@@ -230,6 +230,8 @@ import {
     DEAD_JOB_TOMBSTONE_TEXT,
     SEARCH_UNAVAILABLE_MESSAGE,
     shouldClearStaleJobUrl,
+    usedDeadLinkPassBefore,
+    type DeadLinkPass,
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
@@ -1444,13 +1446,13 @@ export function JobsContent() {
     const selectedIdRef = useRef<string | null>(null);
     selectedIdRef.current = selectedId;
     // Task 11 review fix — records which id has already used its ONE free
-    // "preserve, don't reassign" pass in the search effect below (see
-    // `resolveSelectionAfterRefresh`'s `wasConfirmed` option in
-    // lib/jobs/result-state.ts). Never explicitly cleared: a stale value
-    // for a since-superseded id simply stops matching `previousSelectedId`
-    // once the user selects something else, which is all the "reset" this
-    // needs.
-    const firstUnresolvedDeadLinkIdRef = useRef<string | null>(null);
+    // "preserve, don't reassign" pass in the search effect below, and on
+    // which search (see `resolveSelectionAfterRefresh`'s `wasConfirmed`
+    // option and `usedDeadLinkPassBefore` in lib/jobs/result-state.ts).
+    // Never explicitly cleared: a stale value for a since-superseded id
+    // simply stops matching `previousSelectedId` once the user selects
+    // something else, which is all the "reset" this needs.
+    const deadLinkPassRef = useRef<DeadLinkPass | null>(null);
 
     /**
      * Deliverable 1 — which `searchKey` has already burned its one automatic
@@ -1460,7 +1462,7 @@ export function JobsContent() {
      * dead-end UI at all. Keyed on `searchKey` rather than a plain boolean so
      * a NEW search (different query/filters) always gets its own fresh
      * attempt — same never-explicitly-cleared pattern as
-     * `firstUnresolvedDeadLinkIdRef` above: a stale value for a
+     * `deadLinkPassRef` above: a stale value for a
      * since-superseded key simply stops matching.
      */
     const autoRetriedSearchKeyRef = useRef<string | null>(null);
@@ -2377,12 +2379,14 @@ export function JobsContent() {
                 // forever — `wasConfirmedBeforeThisFetch` can never become
                 // true for a genuinely dead id, since it will never appear
                 // in ANY result — leaving a stale mobile detail sheet stuck
-                // open across every later result set. `firstUnresolvedDeadLinkIdRef`
-                // is set (never explicitly cleared) the first time an id
-                // uses its pass; a stale value for a DIFFERENT id simply
-                // never matches, so no explicit reset is needed.
-                const alreadyUsedItsPass = previousSelectedId != null
-                    && firstUnresolvedDeadLinkIdRef.current === previousSelectedId;
+                // open across every later result set. `deadLinkPassRef` is
+                // set (never explicitly cleared) when an id uses its pass,
+                // with the search it used it on; a stale value for a
+                // DIFFERENT id simply never matches, so no explicit reset is
+                // needed. A repeat of the SAME search keeps the pass
+                // (`usedDeadLinkPassBefore`): a dev server runs this effect
+                // twice, which closed a shared job about 3s after load.
+                const alreadyUsedItsPass = usedDeadLinkPassBefore(deadLinkPassRef.current, previousSelectedId, searchKey);
                 const wasConfirmed = wasConfirmedBeforeThisFetch || alreadyUsedItsPass;
                 firstPageSucceeded = true;
                 // Item 4 (2026-08-21 front-door audit): reorder THIS page's
@@ -2427,7 +2431,7 @@ export function JobsContent() {
                     ? interleavedHits.some((h) => h.id === previousSelectedId)
                     : false;
                 if (previousSelectedId && !wasConfirmed && !foundInFreshHits) {
-                    firstUnresolvedDeadLinkIdRef.current = previousSelectedId;
+                    deadLinkPassRef.current = { id: previousSelectedId, searchKey };
                 }
                 // Item 5 (2026-08-21 front-door audit): `resolveSelectionAfterRefresh`
                 // defaulting to `hits[0]` is right for every OTHER case (a
