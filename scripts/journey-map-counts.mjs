@@ -23,13 +23,13 @@ const END = "<!-- stage-table:end -->";
 // --check fails until it has one.
 const STAGES = [
   { key: "landing", label: "Landing on /jobs with no search",
-    ids: ["JOBS:1", "JOBS:3", "JOBS:21", "JOBS:24-25", "JOBS:29-30", "JOBS:65-66", "MOB:1", "MOB:14-18", "SRCH:1-2", "SRCH:18", "NAV:1-2", "NAV:6", "NAV:21", "ALERTS:21-23"] },
-  { key: "search", label: "Search, filters and results", areas: ["SRCH", "FILT"],
+    ids: ["JOBS:1", "JOBS:3", "JOBS:21", "JOBS:24-25", "JOBS:29-30", "JOBS:55", "JOBS:58", "JOBS:60", "JOBS:65-66", "MOB:1", "MOB:14-18", "SRCH:1-2", "SRCH:18", "NAV:1-2", "NAV:6", "NAV:21", "ALERTS:21-23"] },
+  { key: "search", label: "Search, filters and results", areas: ["SRCH", "FILT", "SPEED"],
     ids: ["JOBS:4-8", "JOBS:14-18", "JOBS:26", "JOBS:28", "JOBS:67-74", "MOB:2", "MOB:11-13", "MOB:20-21"] },
   { key: "upload", label: "Résumé upload and top matches",
-    ids: ["JOBS:34-36", "JOBS:76-78", "RESUME:28-29", "MODAL:1", "AUTH:31-33"] },
+    ids: ["JOBS:34-36", "JOBS:54", "JOBS:56-57", "JOBS:59", "JOBS:61", "JOBS:76-78", "JOBS:90-91", "RESUME:28-29", "MODAL:1", "AUTH:31-33"] },
   { key: "foryou", label: "For you: job packs",
-    ids: ["JOBS:19-20", "JOBS:27", "JOBS:31", "JOBS:37-52", "NAV:30-32"] },
+    ids: ["JOBS:19-20", "JOBS:27", "JOBS:31", "JOBS:37-52", "JOBS:80", "NAV:30-32"] },
   { key: "detail", label: "Job detail: pane, sheet, page", areas: ["DETAIL"],
     ids: ["JOBS:9-13", "JOBS:23", "JOBS:53", "JOBS:75", "MOB:3", "MOB:9-10", "ERR:7-8"] },
   { key: "apply", label: "Apply", areas: ["APPLY"], ids: [] },
