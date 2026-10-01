@@ -9,7 +9,7 @@ import { expect, test } from "./fixtures";
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/51/52/80, J-SRCH-03, J-SRCH-21, J-DETAIL-01). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -711,6 +711,60 @@ test("on a small phone an opened pack fits its card, actions and Next between th
     const next = (await page.getByTestId("for-you-next").boundingBox())!;
     expect(next.y, round).toBeGreaterThanOrEqual(48);
   }
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("an opened pack's controls share one row under the top bar, and its role card starts right under them and fills the screen", { tag: ["@J-JOBS-80"] }, async ({ page, diagnostics }, testInfo) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await guestWithResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+
+  const header = page.getByTestId("for-you-pack-header");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  // The page settles the stack into view on open; measure once it has.
+  await page.waitForTimeout(1_500);
+
+  // One row: the way back, the pack's name, where you are in it, Edit filters and Previous/Next.
+  // They used to stack as three rows (Back to Job Packs, Replace résumé, Edit filters) above the controls.
+  await expect(header.getByRole("heading", { name: "All your matches" })).toBeVisible();
+  for (const id of ["jobs-back-to-packs", "for-you-deck-position", "pack-edit-filters", "for-you-previous", "for-you-next"]) {
+    await expect(header.getByTestId(id), id).toBeVisible();
+  }
+  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(1);
+  const head = (await header.boundingBox())!;
+  expect(head.height, "the controls fit one row").toBeLessThanOrEqual(56);
+  for (const id of ["jobs-back-to-packs", "pack-edit-filters", "for-you-next"]) {
+    const box = (await header.getByTestId(id).boundingBox())!;
+    const middle = box.y + box.height / 2;
+    expect(middle, `${id} sits in the row`).toBeGreaterThan(head.y);
+    expect(middle, `${id} sits in the row`).toBeLessThan(head.y + head.height);
+  }
+
+  // The card starts right under the row (or under a thin pack's broaden options) and runs to the
+  // bottom of the screen, above the tab bar on a phone.
+  const filters = page.getByTestId("for-you-pack-filters");
+  const above = (await filters.isVisible()) ? (await filters.boundingBox())! : head;
+  const card = (await front.boundingBox())!;
+  expect(card.y - (above.y + above.height), "card starts under the controls").toBeLessThanOrEqual(64);
+  const floor = testInfo.project.use.hasTouch
+    ? ((await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? page.viewportSize()!.height)
+    : page.viewportSize()!.height;
+  expect(card.y + card.height, "card ends on screen").toBeLessThanOrEqual(floor);
+  expect(floor - (card.y + card.height), "card fills the screen").toBeLessThanOrEqual(48);
+
+  // The row stays pinned under the top bar while the page scrolls.
+  await page.evaluate(() => window.scrollBy(0, 400));
+  await page.waitForTimeout(300);
+  for (const id of ["jobs-back-to-packs", "for-you-deck-position", "for-you-next"]) {
+    await expect(header.getByTestId(id), `${id} after scrolling`).toBeInViewport();
+  }
+
+  // The back arrow returns to the packs.
+  await header.getByTestId("jobs-back-to-packs").click();
+  await expect(page.getByTestId("hub-pack-chips")).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
 

@@ -5815,7 +5815,7 @@ export function JobsContent() {
     return (
         <div
             className={
-                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-hidden" : "min-h-screen"
+                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-clip" : "min-h-screen"
             }
         >
             {firstRevealHandoff ? (
@@ -5838,7 +5838,7 @@ export function JobsContent() {
                 className={cn(
                     "shell-row flex flex-col",
                     deckPanesLocked
-                        ? "min-h-0 flex-1 overflow-hidden pt-2 sm:pt-3"
+                        ? "min-h-0 flex-1 overflow-clip pt-2 sm:pt-3"
                         : cn(
                             "pt-2 sm:pt-3",
                             showSearchHome && showMobileSearchCta
@@ -5860,17 +5860,22 @@ export function JobsContent() {
                     in favor of the sr-only heading so the page still carries
                     exactly one h1. */}
                 {showSearchHome ? (
-                        <div className="pb-1.5">
-                            <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
+                        <div className={cn((!showHomeViewToggle || atRest) && "pb-1.5")}>
+                            {/* Signed in, the header's For you tab is this same way
+                                back, a few pixels above: a second copy here only
+                                pushed the results down a row. */}
+                            {!showHomeViewToggle && (
+                                <div className={cn("mb-2 flex items-center justify-between", cappedContentClass)}>
+                                    <button
+                                        type="button"
+                                        onClick={() => returnToJobPacksHub()}
+                                        className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
+                                        data-testid="jobs-back-to-packs"
+                                    >
+                                        ← Back to Job Packs
+                                    </button>
+                                </div>
+                            )}
                             {atRest ? (
                             <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-live">
@@ -6381,25 +6386,13 @@ export function JobsContent() {
 
                 <JobsHomeViewTransition surface={resolvedHomeView}>
                 {showForYouHome ? (
-                    <div className={cn("mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-hidden", cappedContentClass)}>
+                    <div className={cn(forYouPackDeckOpen ? "mt-1" : "mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-clip", cappedContentClass)}>
                         {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
                             fit/query must not swap the 8-pack hub for the postcard deck.
                             Leave hub for Advanced search (view=search) or when a pack is
                             opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
                             all matches set forYouPackDeckOpen — not the hub modal. */}
                         <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
-                        {forYouPackDeckOpen && (
-                            <div className="mb-2 flex shrink-0 items-center justify-between">
-                                <button
-                                    type="button"
-                                    onClick={() => returnToJobPacksHub()}
-                                    className="ctl-sm ctl-button inline-flex items-center gap-1 text-brand hover:underline"
-                                    data-testid="jobs-back-to-packs"
-                                >
-                                    ← Back to Job Packs
-                                </button>
-                            </div>
-                        )}
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <>
                                 {resume && signals && pack && hubResumeKey ? (
@@ -6475,6 +6468,7 @@ export function JobsContent() {
                                 resultTotal={deckResultStale ? null : (result?.total ?? null)}
                                 unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
                                 tileId={openHubTileId}
+                                onBackToPacks={forYouPackDeckOpen ? returnToJobPacksHub : undefined}
                                 activePursuit={
                                     forYouDeck.activeJob
                                         ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
