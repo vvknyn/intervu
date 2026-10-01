@@ -17,7 +17,9 @@ const COMPANY = join(__dirname, "../../src/components/company");
  * tests/unit/control-type.test.ts).
  */
 function buttonBlock(src: string, testid: string): string {
-    const at = src.search(new RegExp(`\\sdata-testid="${testid}"`)); // the JSX attribute, not a selector string
+    // The JSX attribute, not a selector string: `data-testid="x"`, or `data-testid={active ? "x" : undefined}`
+    // on a card that only wires its controls while it is the open role.
+    const at = src.search(new RegExp(`\\sdata-testid=(?:"${testid}"|\\{[^}]*"${testid}")`));
     assert.ok(at >= 0, `${testid} must exist`);
     return src.slice(src.lastIndexOf("<Button", at), src.indexOf("</Button>", at));
 }
@@ -31,11 +33,16 @@ describe("for-you mobile chrome", () => {
     it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
         const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
         assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
-        assert.match(src, /data-testid="for-you-skip"/);
-        assert.match(src, /<JobCard/);
-        assert.doesNotMatch(src, /data-testid="for-you-next"/);
-        assert.doesNotMatch(src, /data-testid="for-you-previous"/);
-        assert.deepEqual(sizesOf(src, "for-you-download-apply", "for-you-skip"), [undefined, undefined]);
+        // One role at a time (stacked role cards): Previous / Next move through the pack, Skip drops a role.
+        assert.match(src, /<RoleStack/);
+        assert.match(src, /onSwipe=/, "a phone swipe moves through the stack too");
+        assert.deepEqual(
+            sizesOf(src, "for-you-download-apply", "for-you-skip", "for-you-previous", "for-you-next"),
+            [undefined, undefined, undefined, undefined],
+        );
+        const stack = readFileSync(join(FOR_YOU, "RoleStack.tsx"), "utf8");
+        assert.match(stack, /resolveDeckSwipe/);
+        assert.match(stack, /touch-pan-y/, "vertical scroll inside a card stays native");
     });
 
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {

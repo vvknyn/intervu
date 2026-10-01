@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { hubPackCorpusParams } from "../../src/lib/jobs/for-you/hub-pack-corpus";
-import { HUB_PACK_IDS } from "../../src/lib/jobs/for-you/hub-pack-filters";
+import { BROWSE_HUB_PACK_IDS } from "../../src/lib/jobs/for-you/hub-pack-filters";
 import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET } from "../../src/lib/jobs/url-state";
 import type { PostedBucket } from "../../src/lib/jobs/types";
 
@@ -16,7 +16,7 @@ const POSTED_WINDOWS: readonly PostedBucket[] = ["1d", "3d", "7d", "30d", "90d"]
 describe("hub pack pills count inside the packs' posted window", () => {
     const rank = (b: string) => (POSTED_WINDOWS as readonly string[]).indexOf(b);
     const packRank = rank(PACK_POSTED_BUCKET);
-    for (const packId of HUB_PACK_IDS) {
+    for (const packId of BROWSE_HUB_PACK_IDS) {
         it(`${packId} carries a posted window no wider than the pack window`, () => {
             const bucket = hubPackCorpusParams(packId, undefined).postedBucket;
             assert.ok(bucket, `${packId} has no posted window (counts all-time)`);

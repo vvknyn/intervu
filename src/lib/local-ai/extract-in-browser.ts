@@ -1,3 +1,5 @@
+import { pdfPageText, type PdfTextItem } from "@/lib/local-ai/pdf-text-lines";
+
 /**
  * Browser-side résumé text extraction. Founder rule: résumé interpretation
  * never happens on our servers — extraction and parsing both run entirely
@@ -35,9 +37,16 @@ export async function extractPDFTextInBrowser(
 
         let pages: string[];
         try {
-            const { extractText } = await import("unpdf");
-            const result = await extractText(bytes);
-            pages = result.text;
+            // Page text with each paragraph and bullet on one line, not one
+            // line per printed line (pdf-text-lines.ts).
+            const { getDocumentProxy } = await import("unpdf");
+            const pdf = await getDocumentProxy(bytes);
+            pages = [];
+            for (let n = 1; n <= pdf.numPages; n++) {
+                const page = await pdf.getPage(n);
+                const content = await page.getTextContent();
+                pages.push(pdfPageText(content.items as PdfTextItem[]));
+            }
         } catch (parseError: any) {
             const msg = parseError?.message || "";
             if (/password/i.test(msg)) {

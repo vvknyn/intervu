@@ -28,6 +28,23 @@ export const RANK_WORDS: ReadonlySet<string> = new Set([
 /** Ambiguous duty tokens that belong to multiple families — need context. */
 const AMBIGUOUS_DUTY_TOKENS = new Set(["pipeline"]);
 
+/**
+ * Health families that duties alone never add; a title has to name or hint
+ * at them ("Clinical Coordinator", "Physiotherapy Resident"). Most need a
+ * licence: a health science graduate who did patient intake and triage is not
+ * a Registered Nurse, and searching "Registered Nurse" lists roles they can't
+ * take. The research and public-health words ("trial", "consent",
+ * "surveillance") also turn up in growth and security résumés.
+ */
+const TITLE_REQUIRED_FAMILIES: ReadonlySet<RoleFamilyId> = new Set([
+    "clinical",
+    "physio",
+    "lab",
+    "pharmacy",
+    "clinical_research",
+    "public_health",
+]);
+
 export type RoleFamilyId =
     | "product"
     | "engineering"
@@ -37,6 +54,11 @@ export type RoleFamilyId =
     | "sales"
     | "customer_success"
     | "clinical"
+    | "physio"
+    | "lab"
+    | "pharmacy"
+    | "clinical_research"
+    | "public_health"
     | "teaching"
     | "operations";
 
@@ -53,6 +75,11 @@ const DUTY_SIGNALS: Readonly<Record<RoleFamilyId, ReadonlySet<string>>> = {
     sales: new Set(["quota", "prospect", "pipeline"]),
     customer_success: new Set(["qbr", "qbrs", "churn", "renewal", "renewals", "nrr"]),
     clinical: new Set(["patient", "bedside", "triage", "medication", "phlebotomy", "charting"]),
+    physio: new Set(["rehabilitation", "musculoskeletal", "orthopaedic", "orthopedic", "mobility"]),
+    lab: new Set(["hematology", "haematology", "microbiology", "specimen", "specimens", "assay", "assays", "phlebotomy"]),
+    pharmacy: new Set(["dispense", "dispensing", "compounding", "prescriptions"]),
+    clinical_research: new Set(["irb", "gcp", "trial", "trials", "redcap", "ctms", "consent"]),
+    public_health: new Set(["surveillance", "epidemiology", "outbreak", "biostatistics"]),
     teaching: new Set(["classroom", "curriculum", "lesson", "students", "pedagogy"]),
     operations: new Set(["onboarding", "cadence", "sla", "retention", "lifecycle", "compliance"]),
 };
@@ -67,6 +94,11 @@ const FAMILY_RETRIEVAL_TITLES: Readonly<Record<RoleFamilyId, readonly string[]>>
     sales: ["Account Executive", "Sales Manager"],
     customer_success: ["Customer Success Manager", "Technical Account Manager"],
     clinical: ["Registered Nurse", "Nurse"],
+    physio: ["Physical Therapist", "Physiotherapist"],
+    lab: ["Medical Laboratory Technologist", "Medical Technologist", "Clinical Laboratory Scientist"],
+    pharmacy: ["Pharmacist", "Clinical Pharmacist"],
+    clinical_research: ["Clinical Research Coordinator", "Clinical Research Assistant"],
+    public_health: ["Public Health Analyst", "Epidemiologist", "Public Health Specialist"],
     teaching: ["Teacher", "Instructional Coordinator"],
     operations: ["Operations Manager", "Program Manager"],
 };
@@ -80,7 +112,15 @@ const TITLE_FAMILY_HINTS: Readonly<Record<RoleFamilyId, ReadonlySet<string>>> = 
     marketing: new Set(["market", "growth", "brand", "content"]),
     sales: new Set(["sales", "account", "revenue", "business development", "bd"]),
     customer_success: new Set(["customer success", "client success", "account manag", "csm"]),
-    clinical: new Set(["nurse", "clinical", "patient", "bedside", "rn", "lpn"]),
+    // Nursing needs a licence, so only a nursing word counts: "Patient Services Assistant" and
+    // "Clinical Research Assistant" are not nurses. "rn"/"lpn" are whole-word patterns below:
+    // as substrings they hit "intern" and "governance".
+    clinical: new Set(["nurse", "nursing"]),
+    physio: new Set(["physio", "physical therap", "rehab", "kinesi"]),
+    lab: new Set(["laborator", "lab ", "mlt", "phlebotom"]),
+    pharmacy: new Set(["pharmac"]),
+    clinical_research: new Set(["clinical research", "research coordinator", "research assistant", "clinical trial", "study coordinator"]),
+    public_health: new Set(["public health", "epidemiolog", "health promot", "community health"]),
     teaching: new Set(["teach", "instructor", "educator", "professor", "faculty"]),
     operations: new Set(["operations", "ops", "program", "coordinator"]),
 };
@@ -108,7 +148,12 @@ const TITLE_FAMILY_PATTERNS: Readonly<Record<RoleFamilyId, readonly RegExp[]>> =
     marketing: [/marketing manager/i, /growth marketing/i, /content strategist/i],
     sales: [/account executive/i, /sales manager/i, /business development/i, /sales development/i, /sales representative/i, /inside sales/i, /\b[SB]DR\b/],
     customer_success: [/customer success/i, /client success/i, /technical account manag/i, /\baccount manager\b/i],
-    clinical: [/registered nurse/i, /\bnurse\b/i, /clinical coordinator/i],
+    clinical: [/registered nurse/i, /\bnurse\b/i, /clinical coordinator/i, /\b(?:RN|LPN|RPN)\b/],
+    physio: [/physiotherap/i, /physical therap/i],
+    lab: [/medical laborator/i, /clinical laborator/i, /medical technologist/i, /laboratory technologist/i, /\bMLT\b/],
+    pharmacy: [/\bpharmacist\b/i],
+    clinical_research: [/clinical research/i, /clinical trials?/i, /research coordinator/i, /\bCRC\b/],
+    public_health: [/public health/i, /epidemiologist/i, /health promot/i, /community health/i],
     teaching: [/\bteacher\b/i, /instructor/i, /professor/i],
     operations: [/operations manager/i, /program manager/i],
 };
@@ -200,7 +245,7 @@ function countFamilyDutySignals(
  * Infer compact role families from experience/profession titles + duty tokens.
  *
  * A family fires when:
- * - ≥2 distinct duty-signal tokens match, OR
+ * - ≥2 distinct duty-signal tokens match (not for `TITLE_REQUIRED_FAMILIES`), OR
  * - 1 duty-signal AND titles mention a related word, OR
  * - a title clearly names the family (e.g. "Product Manager", "Registered Nurse").
  */
@@ -212,7 +257,7 @@ export function inferRoleFamilies(titles: string[], dutyTokenList: string[]): Ro
             continue;
         }
         const signalCount = countFamilyDutySignals(family, dutyTokenList, titles);
-        if (signalCount >= 2) {
+        if (signalCount >= 2 && !TITLE_REQUIRED_FAMILIES.has(family)) {
             fired.push(family);
             continue;
         }
