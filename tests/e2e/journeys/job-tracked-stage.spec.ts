@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
+import { answerListSearch, isListSearch } from "./list-search";
 
 /**
  * A role you track shows where it stands on its job page — see
@@ -9,10 +10,6 @@ import { expect, test } from "./fixtures";
  */
 
 const isLocal = (baseURL: string | undefined) => /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
-
-/** A server-action response with its value swapped: keeps the real header line (it carries the
- *  build id, which a production build checks) and puts `value` on the `1:` line. */
-const withActionValue = (real: string, value: unknown) => `${real.split("\n")[0]}\n1:${JSON.stringify(value)}\n`;
 
 const GUEST_PURSUITS_KEY = "intervu.pursuits.guest";
 const SEARCH = "/jobs?q=engineer&posted=any";
@@ -55,14 +52,10 @@ async function firstRole(page: Page, local: boolean): Promise<{ id: string; titl
       async (route) => {
         const req = route.request();
         const body = req.postData() ?? "";
-        if (req.method() !== "POST" || !req.headers()["next-action"] || !(body.startsWith('[{"q"') && body.includes('"withFacets"'))) {
+        if (!isListSearch(req) || !(body.startsWith('{"q"') && body.includes('"withFacets"'))) {
           return route.continue();
         }
-        const res = await route.fetch();
-        return route.fulfill({
-          response: res,
-          body: withActionValue(await res.text(), { hits: [STUB_JOB], total: 1, backend: "meilisearch", configured: true, searchId: "journey-tracked", query: "engineer" }),
-        });
+        return answerListSearch(route, { hits: [STUB_JOB], total: 1, backend: "meilisearch", configured: true, searchId: "journey-tracked", query: "engineer" });
       },
     );
   }

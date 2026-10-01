@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
+import { isListSearch } from "./list-search";
 
 /**
  * Journeys for what a typed search reaches and in what order (2026-09-30):
@@ -34,21 +35,26 @@ const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
 
 /**
- * Every search result a Server Action returns while the page is open. Row 0
- * of an action response is the envelope; row 1 carries the return value
- * (the same shape J-JOBS-52's outage stub writes). The bodies are read through
- * the route, not from the `response` event: Chromium sometimes drops an
- * action's body before an event handler can read it ("No data found for
- * resource with given identifier"), and the poll below then waited on a result
- * it never saw.
+ * Every search result the page reads while it is open: the list's own
+ * searches go to POST /api/jobs/search as JSON (off the Server Action queue,
+ * see src/app/api/jobs/search/route.ts), and anything still read through a
+ * Server Action carries its return value in row 1 of the response (the same
+ * shape J-JOBS-52's outage stub writes). The bodies are read through the
+ * route, not from the `response` event: Chromium sometimes drops a body
+ * before an event handler can read it ("No data found for resource with given
+ * identifier"), and the poll below then waited on a result it never saw.
  */
 async function collectSearchResults(page: Page): Promise<SearchResult[]> {
   const out: SearchResult[] = [];
+  const keep = (value: unknown) => {
+    if (value && typeof value === "object" && Array.isArray((value as SearchResult).hits)) out.push(value as SearchResult);
+  };
   await page.route(
     (url) => !url.pathname.startsWith("/_next/"),
     async (route) => {
       const req = route.request();
-      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.fallback();
+      const isSearchRoute = isListSearch(req);
+      if (req.method() !== "POST" || !(isSearchRoute || req.headers()["next-action"])) return route.fallback();
       let response;
       try {
         response = await route.fetch();
@@ -57,11 +63,17 @@ async function collectSearchResults(page: Page): Promise<SearchResult[]> {
         return;
       }
       const text = await response.text().catch(() => "");
-      for (const line of text.split("\n")) {
+      if (isSearchRoute) {
+        try {
+          keep(JSON.parse(text));
+        } catch {
+          // not JSON (an error page)
+        }
+      }
+      for (const line of isSearchRoute ? [] : text.split("\n")) {
         if (!line.startsWith("1:")) continue;
         try {
-          const value = JSON.parse(line.slice(2)) as SearchResult;
-          if (value && Array.isArray(value.hits)) out.push(value);
+          keep(JSON.parse(line.slice(2)));
         } catch {
           // not a JSON row
         }

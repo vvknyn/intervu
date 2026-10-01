@@ -437,7 +437,8 @@ import { PageTitle } from "@/components/ui/heading";
  *  attributable to the latest result set the user is looking at. */
 let lastSearchId = "";
 
-/** Whatever `searchJobsActionRaw` (actions/jobs.ts) actually returns —
+/** Whatever `searchJobsActionRaw` (actions/jobs.ts, read through
+ *  /api/jobs/search) actually returns —
  *  `JobSearchResult` plus its additive fields (`searchId`, `meta`,
  *  `defaultedLocation`), derived rather than hand-copied so a new field
  *  there is visible here for free instead of needing a second widened type
@@ -3898,10 +3899,11 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // to change.
     //
     // A route handler (`/api/jobs/suggest`), not a Server Action, as of
-    // 2026-08-14: the page's main search (`searchJobsActionRaw`) is itself a
-    // Server Action, and Next serializes a client's action calls per
-    // request — a typeahead action fired on every keystroke was queuing
-    // behind whatever full search was already in flight. A plain fetch has
+    // 2026-08-14: the page's main search was then a Server Action too (it
+    // moved to /api/jobs/search on 2026-10-01 for the same reason), and Next
+    // serializes a client's action calls per request — a typeahead action
+    // fired on every keystroke was queuing behind whatever full search was
+    // already in flight. A plain fetch has
     // no such head-of-line block. Non-ok response or a network rejection
     // both degrade to empty suggestions — never surfaces as a box error.
     const suggestForBox = useCallback(async (q: string) => {
