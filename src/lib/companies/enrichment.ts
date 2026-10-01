@@ -1,4 +1,5 @@
 import type { PublicJob } from "@/lib/jobs/types";
+import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 import type {
   CompanyFundingInfo,
   CompanyIntelligence,
@@ -128,6 +129,12 @@ export function deriveCompanyTechStack(jobs: PublicJob[]): CompanyTechStackInfo 
 // 2. Workplace & Work Mode Flexibility
 // ============================================================================
 
+/**
+ * Remote by the /jobs Remote filter's own rule (`isRemoteWorkTypeValue`,
+ * `work_type` only), so the company page's remote count is the count that
+ * filter returns. It used to also match "remote" in the location or the
+ * title, which counted a "Remote Sensing Engineer" as a remote role.
+ */
 export function deriveWorkModeDistribution(jobs: PublicJob[]): CompanyWorkModesInfo | null {
   if (jobs.length === 0) return null;
 
@@ -136,13 +143,10 @@ export function deriveWorkModeDistribution(jobs: PublicJob[]): CompanyWorkModesI
   let onsite = 0;
 
   for (const job of jobs) {
-    const wt = (job.work_type || "").toLowerCase();
-    const loc = (job.location || "").toLowerCase();
-    const title = (job.title || "").toLowerCase();
-
-    if (wt.includes("remote") || loc.includes("remote") || title.includes("remote")) {
+    const wt = job.work_type || "";
+    if (isRemoteWorkTypeValue(wt)) {
       remote++;
-    } else if (wt.includes("hybrid") || loc.includes("hybrid")) {
+    } else if (/hybrid/i.test(wt)) {
       hybrid++;
     } else {
       onsite++;
@@ -154,6 +158,8 @@ export function deriveWorkModeDistribution(jobs: PublicJob[]): CompanyWorkModesI
     remotePct: Math.round((remote / total) * 100),
     hybridPct: Math.round((hybrid / total) * 100),
     onsitePct: Math.round((onsite / total) * 100),
+    remoteCount: remote,
+    total,
   };
 }
 

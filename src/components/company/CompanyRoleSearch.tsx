@@ -5,17 +5,21 @@ import Link from "next/link";
 import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
+import { KpiStat } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { SectionTitle, SubTitle } from "@/components/ui/heading";
+import type { CompanyRoleStat } from "@/lib/companies/presentation";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { decodeText, displayCompanyBrand, locationText, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
+import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { decodeText, displayCompanyBrand, locationText, postedAgeShort, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
-import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { matchBand, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
@@ -32,21 +36,63 @@ const ROLES_PREVIEW = 10;
  * level — the three fields the box searches (spec: "filter ALL loaded roles
  * case-insensitively across title, location, and experience level"). Reads
  * through the same display helpers the row itself renders with
- * (`locationText`/`prettyEnum`), so a match is always on text the visitor can
+ * (`locationText`/`levelText`), so a match is always on text the visitor can
  * actually see next to the input, not a raw field they can't. Deliberately
  * excludes salary — the row's meta line (`companyRowMetaSegments`) folds it
  * in for the caption, but the spec names only these three fields as
  * searchable. Reads the RAW `locationText`, not the meta line's cleaned-up
  * segment — a stripped postal code or clamped breadcrumb must never make an
- * otherwise-matching role searchable-but-invisible.
+ * otherwise-matching role searchable-but-invisible. The level is matched as
+ * the row says it (`levelText`, "Mid-level"). Every word of the query must
+ * appear somewhere, in any order, so "senior engineer" finds "Senior
+ * Controls Engineer".
  */
 export function jobMatchesQuery(job: PublicJob, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  const haystack = [decodeText(job.title), locationText(job), prettyEnum(job.experience_level)]
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const haystack = [decodeText(job.title), locationText(job), levelText(job.experience_level) ?? ""]
     .join(" ")
     .toLowerCase();
-  return haystack.includes(q);
+  return words.every((word) => haystack.includes(word));
+}
+
+/** A role's level as the row's meta line says it. Levels the corpus doesn't
+ *  know ("unknown", empty) say nothing. */
+const LEVEL_TEXT: Record<string, string> = {
+  entry: "Entry level",
+  mid: "Mid-level",
+  senior: "Senior",
+  lead: "Lead",
+  executive: "Executive",
+};
+
+export function levelText(level: string | null | undefined): string | null {
+  if (!level) return null;
+  return LEVEL_TEXT[level.toLowerCase()] ?? (prettyEnum(level) || null);
+}
+
+/**
+ * The résumé's figure for the stat row: strong fits only, the band a visitor
+ * can act on first and the one the row chip calls "Strong". Counted over the
+ * loaded roles, and said so when those are only the most recent ones.
+ */
+export function roleFitStat(
+  matchScores: ReadonlyMap<string, MatchScore | null> | null,
+  loadedCount: number,
+  partialWindow: boolean,
+): CompanyRoleStat | null {
+  if (!matchScores) return null;
+  const strong = [...matchScores.values()].filter((m) => m && matchBand(m.total) === "strong").length;
+  return partialWindow
+    ? { key: "fit", value: String(strong), label: `strong fits among the ${loadedCount} newest` }
+    : { key: "fit", value: `${strong} of ${loadedCount}`, label: "strong fit for your résumé" };
+}
+
+/** Best fit first once a résumé is scored; unscored roles keep their order
+ *  at the end. Without scores, the search's own order. */
+export function sortByFit(jobs: PublicJob[], matchScores: ReadonlyMap<string, MatchScore | null> | null): PublicJob[] {
+  if (!matchScores) return jobs;
+  return [...jobs].sort((a, b) => (matchScores.get(b.id)?.total ?? -1) - (matchScores.get(a.id)?.total ?? -1));
 }
 
 /** The "N of M ..." caption beside the "Open roles" heading — truthful about
@@ -81,6 +127,7 @@ export function CompanyRoleSearch({
   searchesPartialWindow,
   jobsSearchUrl,
   now,
+  stats = [],
 }: {
   jobs: PublicJob[];
   companyDomain: string;
@@ -101,6 +148,9 @@ export function CompanyRoleSearch({
    *  verdict's staleness read stays pure and testable — never Date.now()
    *  in a render body, which would also desync client and server HTML. */
   now: number;
+  /** The stat row above the list (`buildCompanyRoleStats`). The résumé fit
+   *  count joins it here because only this component holds the résumé. */
+  stats?: CompanyRoleStat[];
 }) {
   const [query, setQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
@@ -151,14 +201,20 @@ export function CompanyRoleSearch({
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;
 
+  const fitStat = roleFitStat(matchScores, jobs.length, searchesPartialWindow);
+  const allStats = fitStat ? [fitStat, ...stats] : stats;
+
   // `jobs` arrives already deduped — `getCompanyPageData` (get-company.ts)
   // runs `collapseDuplicatePostings` once, server-side, so every downstream
   // count, search, and render reads the SAME set. This component trusts that
   // contract rather than re-deriving its own view of it.
-  const matched = hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs;
+  const matched = sortByFit(hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs, matchScores);
   const displayed = matched.slice(0, ROLES_PREVIEW);
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
+  // The row that opened the sheet, so closing it puts keyboard focus back
+  // where the visitor was instead of at the top of the page.
+  const openerRef = useRef<HTMLButtonElement | null>(null);
 
   const handleOpenRelated = useCallback(
     async (jobId: string, directJob?: PublicJob) => {
@@ -193,14 +249,22 @@ export function CompanyRoleSearch({
 
   return (
     <section data-testid="company-role-search">
-      <h2 className="mb-4 flex items-baseline justify-between font-display text-xl font-semibold">
+      {allStats.length > 0 && (
+        <div data-testid="company-role-stats" className="mb-8 flex flex-wrap gap-x-8 gap-y-4">
+          {allStats.map((stat) => (
+            <KpiStat key={stat.key} value={stat.value} label={stat.label} minWidthClassName="min-w-0" />
+          ))}
+        </div>
+      )}
+      <SectionTitle className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3">
         Open roles
         {jobs.length > 0 && (
           <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
+            {matchScores ? "Best fit first · " : ""}
             {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
           </span>
         )}
-      </h2>
+      </SectionTitle>
 
       {jobs.length > 0 && (
         <div className="mb-4">
@@ -239,8 +303,8 @@ export function CompanyRoleSearch({
 
       {displayed.length === 0 ? (
         hasQuery ? (
-          <div className="rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
-            <p className="text-sm text-muted-foreground">
+          <div data-testid="company-roles-empty" className="py-8">
+            <p className="text-sm text-foreground">
               No open roles match &ldquo;{trimmedQuery}&rdquo;.
             </p>
             <Link href={jobsSearchUrl} className="mt-2 inline-block text-sm text-brand hover:underline">
@@ -253,12 +317,12 @@ export function CompanyRoleSearch({
           // the visitor into a follower, since that's the one action this
           // page can actually offer them right now. §6 empty state: one
           // next action, "Follow this company".
-          <div className="rounded-panel border border-dashed border-border bg-card px-6 py-16 text-center">
-            <p className="text-sm text-muted-foreground">
-              No open roles right now. Follow {companyName} — we&apos;ll email you when they post.
+          <div data-testid="company-roles-empty" className="py-8">
+            <p className="text-sm text-foreground">
+              No open roles right now. Follow {companyName} and we&apos;ll email you when they post.
             </p>
-            <div className="mt-4 flex justify-center">
-              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="primary" className="items-center" />
+            <div className="mt-4 flex">
+              <CompanyFollowControl domain={companyDomain} slug={companySlug} displayName={companyName} variant="primary" className="items-start" />
             </div>
           </div>
         )
@@ -276,6 +340,12 @@ export function CompanyRoleSearch({
         <ul>
           {displayed.map((job) => {
             const meta = companyRowMetaSegments(job);
+            const level = levelText(job.experience_level);
+            // The level follows the pay and comes before the location, the
+            // long part a phone cuts, so "at my level?" survives truncation.
+            const metaText = meta.map((segment) => segment.text);
+            if (level) metaText.splice(meta.filter((segment) => segment.emphasis).length, 0, level);
+            const age = postedAgeShort(derivePostedTs(job), now);
             // Exception-only status: the routine "clear, currently checked"
             // state renders no line at all (see `rowExceptionMeta`'s doc) —
             // only stale-clear/caution/likely_ghost verdicts show up here.
@@ -285,7 +355,11 @@ export function CompanyRoleSearch({
               <li key={job.id}>
                 <button
                   type="button"
-                  onClick={() => setSelectedJob(job)}
+                  data-testid="company-role-row"
+                  onClick={(e) => {
+                    openerRef.current = e.currentTarget;
+                    setSelectedJob(job);
+                  }}
                   // control-scale-allow: full-width list row — its padding is content layout, not a bar control
                   className="group grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 border-b border-border pt-4 pb-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand cursor-pointer"
                 >
@@ -296,16 +370,16 @@ export function CompanyRoleSearch({
                       </span>
                       {matchScore && <MatchChip score={matchScore} asOfDate={resumeAsOfDate} jobId={job.id} />}
                     </span>
-                    {meta.length > 0 && (
+                    {metaText.length > 0 && (
                       // Pay leads this line same as everywhere else it's
                       // sourced from `companyRowMetaSegments`, but a role row
                       // reads as one plain secondary caption here — never
                       // bolded, per the rulebook's "pay NOT bold" rule.
                       <div className="mt-1 truncate text-sm text-muted-foreground">
-                        {meta.map((segment, i) => (
+                        {metaText.map((text, i) => (
                           <span key={i}>
                             {i > 0 && <span className="mx-1" aria-hidden>·</span>}
-                            {segment.text}
+                            {text}
                           </span>
                         ))}
                       </div>
@@ -314,8 +388,9 @@ export function CompanyRoleSearch({
                       <div className="mt-1.5 text-xs text-muted-foreground">{exception.label}</div>
                     )}
                   </div>
-                  <span className="mono-data shrink-0 self-start text-xs leading-none text-muted-foreground" aria-hidden>
-                    View
+                  {/* Row anatomy's right rail (design-language §4): the posting's age. */}
+                  <span data-testid="company-role-age" className="mono-data shrink-0 self-start text-xs leading-none text-muted-foreground">
+                    {age ?? ""}
                   </span>
                 </button>
               </li>
@@ -325,11 +400,11 @@ export function CompanyRoleSearch({
       )}
 
       {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-6">
+        <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-display text-base font-semibold text-foreground">
+            <SubTitle>
               Explore all open roles at {companyName}
-            </h3>
+            </SubTitle>
             <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
               Screened for{" "}
               <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
@@ -351,6 +426,11 @@ export function CompanyRoleSearch({
         <SheetContent
           side="bottom"
           hideCloseButton
+          onCloseAutoFocus={(e) => {
+            if (!openerRef.current?.isConnected) return;
+            e.preventDefault();
+            openerRef.current.focus();
+          }}
           className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-180 -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
         >
           <div className="shrink-0 border-b border-border">

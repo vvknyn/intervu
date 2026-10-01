@@ -1,6 +1,7 @@
 /**
  * Live audit of the For-you packs: for each golden résumé (tests/fixtures),
- * open every pack tile on velai.app as a guest with that résumé, take the
+ * open every pack tile the hub shows that résumé on velai.app (the tiles of
+ * its profession's industry, industry-tiles.ts) as a guest, take the
  * roles the tile recommends, read the full posting behind each, and check it
  * (pack-audit.ts): the right country, the right level, the kind of role the
  * résumé targets, and a member of the tile. Writes audit-output/pack-audit.md
@@ -12,7 +13,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { HUB_PACK_IDS, type HubPackId } from "../../../src/lib/jobs/for-you/hub-pack-filters";
+import type { HubPackId } from "../../../src/lib/jobs/for-you/hub-pack-filters";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { buildMatchQuery } from "../../../src/lib/jobs/resume-match";
@@ -21,7 +22,14 @@ import { structureResumeText } from "../../../src/lib/resume/structure-resume-te
 import type { ResumeData } from "../../../src/types/resume";
 import { auditRecommendation, failedChecks, renderAuditMarkdown, type AuditVerdict } from "./pack-audit";
 
-const RESUMES = ["vivek-pm-resume", "vivek-okta-resume", "vivek-csm-golden-resume"];
+const RESUMES = [
+    "vivek-pm-resume",
+    "vivek-okta-resume",
+    "vivek-csm-golden-resume",
+    "health-rn-resume",
+    "health-science-grad-resume",
+    "health-physio-resume",
+];
 /** Rows per tile: a guest sees the top 3 before the fit gate. */
 const ROWS_PER_TILE = Number(process.env.AUDIT_ROWS_PER_TILE ?? 3);
 const TILE_PAUSE_MS = Number(process.env.AUDIT_TILE_PAUSE_MS ?? 20_000);
@@ -46,6 +54,25 @@ async function seedGuest(page: Page, resume: ResumeData) {
     );
 }
 
+/**
+ * The tiles the hub shows this résumé once every count is in: tiles with too
+ * few roles, or nearly all of them, drop out as the counts arrive.
+ */
+async function shownTiles(page: Page): Promise<HubPackId[]> {
+    const cards = page.locator('[data-testid="hub-pack-chips"] [data-testid^="hub-pack-card-"]');
+    await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+    await expect(async () => {
+        const counts = await page.locator('[data-testid^="hub-pack-count-"]').evaluateAll((els) =>
+            els.map((el) => ({ text: (el.textContent ?? "").trim(), matching: el.hasAttribute("data-matching") })),
+        );
+        expect(counts.some((c) => c.text === "…" || c.matching)).toBe(false);
+        // The browse set (with its apply tile) shows until the résumé's own tiles replace it.
+        await expect(page.getByTestId("hub-pack-card-apply")).toHaveCount(0);
+    }).toPass({ timeout: 120_000 });
+    const ids = await cards.evaluateAll((els) => els.map((el) => (el.getAttribute("data-testid") ?? "").replace(/^hub-pack-card-/, "")));
+    return ids.filter(Boolean) as HubPackId[];
+}
+
 /** The rows a tile shows once its own search has ranked them; [] for an empty tile. */
 async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band: string | null }[]> {
     const card = page.getByTestId(`hub-pack-card-${tile}`);
@@ -59,22 +86,28 @@ async function openTile(page: Page, tile: HubPackId): Promise<{ id: string; band
     }).toPass({ timeout: 60_000 });
     await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 60_000 });
     const settled = page.locator(
-        '[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
+        '[data-testid="for-you-deck"] [data-testid="role-stack-card"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"], [data-testid="for-you-load-failed"]',
     );
     await expect(settled.first()).toBeVisible({ timeout: 60_000 });
     if (await page.getByTestId("for-you-load-failed").isVisible()) {
         await page.waitForTimeout(RATE_LIMIT_WAIT_MS);
         await page.getByTestId("for-you-load-failed-retry").click();
-        await expect(page.locator('[data-testid="for-you-deck"] [data-testid="job-row"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"]').first()).toBeVisible({ timeout: 60_000 });
+        await expect(page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"], [data-testid="for-you-empty"], [data-testid="for-you-no-roles-there"]').first()).toBeVisible({ timeout: 60_000 });
     }
     await expect(page.getByTestId("for-you-loading")).toHaveCount(0, { timeout: 60_000 });
-    const rows = page.locator('[data-testid="for-you-deck"] [data-testid="job-row"]');
+    // The pack is a stack of role cards: read the open role, then step with Next.
+    const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
     const out: { id: string; band: string | null }[] = [];
-    for (let i = 0; i < Math.min(await rows.count(), ROWS_PER_TILE); i++) {
-        const row = rows.nth(i);
-        const chip = row.getByTestId("match-chip");
+    if ((await front.count()) === 0) return out;
+    const next = page.getByTestId("for-you-next");
+    for (let i = 0; i < ROWS_PER_TILE; i++) {
+        const id = (await front.getAttribute("data-job-id")) ?? "";
+        const chip = front.locator('[aria-label$=" match"]');
         const label = (await chip.count()) > 0 ? await chip.first().getAttribute("aria-label") : null;
-        out.push({ id: (await row.getAttribute("data-job-id")) ?? "", band: label?.replace(/ match$/, "") ?? null });
+        out.push({ id, band: label?.replace(/ match$/, "") ?? null });
+        if (!(await next.isEnabled())) break;
+        await next.click();
+        await expect(front).not.toHaveAttribute("data-job-id", id);
     }
     return out.filter((r) => r.id);
 }
@@ -127,7 +160,7 @@ for (const name of RESUMES) {
         const verdicts: AuditVerdict[] = [];
         const empty: HubPackId[] = [];
         const postings = new Map<string, PublicJob | null>();
-        for (const tile of HUB_PACK_IDS) {
+        for (const tile of await shownTiles(page)) {
             const rows = await openTile(page, tile);
             if (rows.length === 0) empty.push(tile);
             for (const [index, row] of rows.entries()) {

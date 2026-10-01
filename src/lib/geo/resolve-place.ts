@@ -66,6 +66,13 @@ import { resolveRegionPhrase, regionLabel } from "./regions";
  * combined set, not three lookups. */
 const GUARD_WORDS: Set<string> = new Set([...COMMON_WORDS, ...JOB_VOCAB, ...Object.keys(JOBS_SYNONYMS)]);
 
+/** Whether one lowercase word is on the guard set above — for a reader of
+ *  job location text (location-country.ts), where "Service Centre" or
+ *  "Office" must not name a town either. */
+export function isPlaceGuardWord(word: string): boolean {
+  return GUARD_WORDS.has(word.toLowerCase());
+}
+
 /** No 1-2 letter phrase is ever looked up as a place — "OR"/"IN"/"ME" are
  *  real corpus values (Oregon, Indiana, Maine) but collide with English
  *  words at that length. Full names ("Oregon") always clear this; a bare

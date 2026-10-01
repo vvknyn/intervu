@@ -49,11 +49,17 @@ describe("decideGuestFollowClick: a signed-out click never fakes the follow", ()
     assert.deepEqual(decideGuestFollowClick(true), { kind: "unfollow" });
   });
 
+  it("a browser with a verified email identity follows in one click, through the server", () => {
+    assert.deepEqual(decideGuestFollowClick(false, true), { kind: "follow-by-contact" });
+    assert.deepEqual(decideGuestFollowClick(true, true), { kind: "unfollow" });
+  });
+
   it("the action type has no member that starts following locally", () => {
     // Structural proof, not just a behavioral one: exhaust every reachable
-    // `kind` and confirm "following" isn't one of them.
-    const kinds = [decideGuestFollowClick(false).kind, decideGuestFollowClick(true).kind];
-    assert.deepEqual(new Set(kinds), new Set(["open-email-step", "unfollow"]));
+    // `kind` and confirm "following" isn't one of them. "follow-by-contact"
+    // is a server write the button waits on, not a local flag.
+    const kinds = [false, true].flatMap((following) => [false, true].map((contact) => decideGuestFollowClick(following, contact).kind));
+    assert.deepEqual(new Set(kinds), new Set(["open-email-step", "unfollow", "follow-by-contact"]));
   });
 });
 

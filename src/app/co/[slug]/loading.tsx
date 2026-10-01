@@ -30,9 +30,11 @@ export default function Loading() {
     return (
         <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
             {/* Real link, not a placeholder: it is the one control a waiting
-                visitor might actually want, and it costs no data to render. */}
-            <div className="border-b border-border bg-card py-3">
-                <nav className="shell-row text-xs text-muted-foreground">
+                visitor might actually want, and it costs no data to render.
+                Same bar as page.tsx (h-10, hairline bottom, 14px), so the
+                breadcrumb doesn't change height or colour on arrival. */}
+            <div className="border-b border-border">
+                <nav className="shell-row flex h-10 items-center text-sm text-muted-foreground">
                     <Link href="/jobs" className="text-brand hover:underline">
                         Find jobs
                     </Link>
@@ -43,45 +45,49 @@ export default function Loading() {
                 label="Loading company page"
                 skeleton={
                     <div className="shell-row py-8 pb-12 sm:pb-16">
-                        {/* Identity header — logo, name, one-liner, stage chip, and the
-                            Follow control's slot on the right. */}
+                        {/* Identity header — logo, name, the hiring answer, the
+                            facts row, and the Follow control's slot on the right. */}
                         <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                             <div className="flex min-w-0 gap-5">
                                 <WaitBar className="h-14 w-14 shrink-0 rounded-panel" />
                                 <div className="min-w-0 flex-1 space-y-3 pt-1">
-                                    {/* page.tsx's <h1> is text-2xl (24/32). */}
                                     <WaitBar className="h-8 w-55 max-w-full" />
                                     <WaitBar className="h-5 w-105 max-w-full" />
-                                    <div className="flex gap-2 pt-1">
-                                        <WaitBar className="h-6 w-24" />
-                                        <WaitBar className="h-6 w-20" />
-                                    </div>
+                                    <WaitBar className="h-4 w-80 max-w-full" />
                                 </div>
                             </div>
                             <WaitBar className="h-10 w-50 shrink-0 self-start" />
                         </header>
 
-                        {/* Open roles — the reason someone opened this page, so the
-                            skeleton gives them the most room here too. */}
-                        <div className="space-y-2.5">
-                            <WaitBar className="mb-4 h-4 w-40" />
-                            {[0, 1, 2, 3].map((row) => (
-                                <div key={row} className="rounded-panel border border-border bg-surface px-5 py-4 shadow-[var(--shadow-bevel-highlight)]">
-                                    <WaitBar className="h-5 w-2/3" />
-                                    <div className="mt-2.5 flex gap-2">
-                                        <WaitBar className="h-4 w-24" />
-                                        <WaitBar className="h-4 w-16" />
-                                    </div>
+                        {/* Same two columns as the page: stat row and role rows
+                            on the left, the rail's sections on the right. */}
+                        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+                            <div className="min-w-0">
+                                <div className="mb-8 flex flex-wrap gap-x-8 gap-y-4">
+                                    {[0, 1, 2].map((stat) => (
+                                        <div key={stat} className="space-y-1.5">
+                                            <WaitBar className="h-7 w-16" />
+                                            <WaitBar className="h-4 w-24" />
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-
-                        {/* Quiet secondary block, matching the real page's `mt-10`. */}
-                        <div className="mt-10 space-y-8">
-                            <div className="rounded-panel bg-chip px-5 py-4">
-                                <WaitBar className="h-4 w-28" />
-                                <WaitBar className="mt-3 h-5 w-3/4" />
-                                <WaitBar className="mt-2 h-4 w-1/2" />
+                                <WaitBar className="mb-4 h-7 w-40" />
+                                <WaitBar className="mb-4 h-11 w-full rounded-ctl" />
+                                {/* Flat rows with a hairline, like the real list. */}
+                                {[0, 1, 2, 3].map((row) => (
+                                    <div key={row} className="border-b border-border py-4">
+                                        <WaitBar className="h-5 w-2/3" />
+                                        <WaitBar className="mt-2 h-4 w-1/2" />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="space-y-8">
+                                {[0, 1].map((section) => (
+                                    <div key={section} className="border-t border-border pt-6">
+                                        <WaitBar className="h-5 w-40" />
+                                        <WaitBar className="mt-4 h-16 w-full" />
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     </div>

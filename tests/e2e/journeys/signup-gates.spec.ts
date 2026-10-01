@@ -130,11 +130,13 @@ async function browseAllMatches(page: Page) {
 }
 
 /** The fit gate after exactly the top 3 ranked rows, on whichever ranked surface is showing. */
-async function expectTopThreeThenFitGate(page: Page) {
+async function expectTopThreeThenFitGate(page: Page, surface: "list" | "stack") {
   const card = gate(page, "fit");
   await expect(card).toBeVisible({ timeout: 45_000 });
   await expect(card.getByRole("heading")).toHaveText(/^See all ([\d,]+\+? matches ranked for you|your ranked matches)$/);
-  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  // Search lists the three as rows; an opened For-you pack stacks them one role at a time.
+  if (surface === "list") await expect(page.getByTestId("job-row")).toHaveCount(3);
+  else await expect(page.getByTestId("for-you-deck-position")).toHaveText(/^Role 1 of 3$/);
   await expectDoors(page, "fit", /^\/jobs\?.*sort=fit/);
   await expect(card.getByTestId("signup-gate-dismiss")).toBeVisible();
 }
@@ -152,7 +154,7 @@ test("a guest with a résumé sees their top 3 matches, then the fit gate", { ta
   await returningVisitor(page);
   await seedGuestResume(page);
   await page.goto("/jobs?view=search&sort=fit");
-  await expectTopThreeThenFitGate(page);
+  await expectTopThreeThenFitGate(page, "list");
 });
 
 test("a guest's For-you matches list stops at the same top 3 and fit gate", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
@@ -161,7 +163,7 @@ test("a guest's For-you matches list stops at the same top 3 and fit gate", { ta
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await page.goto("/jobs?sort=fit");
   await browseAllMatches(page);
-  await expectTopThreeThenFitGate(page);
+  await expectTopThreeThenFitGate(page, "stack");
 });
 
 /** Two first-run résumés: the review shows each one's own title and location, and ranking applies them. */
@@ -234,7 +236,7 @@ for (const resume of FIRST_RUN_RESUMES) {
     await expect(page).toHaveURL(new RegExp(`country=${encodeURIComponent(resume.country).replace(/%20/g, "(\\+|%20)")}.*sort=fit|sort=fit.*country=`));
     expect(new URL(page.url()).searchParams.get("country")).toBe(resume.country);
     await browseAllMatches(page);
-    await expectTopThreeThenFitGate(page);
+    await expectTopThreeThenFitGate(page, "stack");
   });
 }
 

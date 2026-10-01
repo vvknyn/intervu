@@ -46,10 +46,10 @@ describe("for-you deck mock fixture", () => {
         assert.match(mock, /activePursuit=\{activePursuit\}/);
         assert.match(mock, /MOCK_FOR_YOU_SAVE_DELAY_MS/);
         const home = readFileSync(join(ROOT, "src/components/jobs/for-you/ForYouHome.tsx"), "utf8");
-        // 9aae8f9d swapped the deck's <JobDetail> for the <DeckRoleDetail> decision header.
-        assert.match(home, /<DeckRoleDetail/);
+        // The open role's card carries the save (stacked role cards, 2026-09-30).
+        assert.match(home, /<StackedRoleCard/);
         assert.match(home, /onGoAfter\?\.?\(/);
-        assert.match(home, /data-testid="for-you-deck-save"/);
+        assert.match(home, /"for-you-deck-save"/);
         const bookmark = readFileSync(join(ROOT, "src/components/jobs/RowBookmarkButton.tsx"), "utf8");
         assert.match(bookmark, /data-testid="job-save-trigger"/);
         assert.match(bookmark, /data-testid="job-save-optimistic"/);

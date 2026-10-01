@@ -15,6 +15,7 @@ import {
   type SecFacts,
   type WarnNoticeFacts,
 } from "../../src/lib/companies/exhaust";
+import { hiringRecordSentence, isoWeekStart } from "../../src/lib/companies/hiring-record";
 import type { Queryable } from "../../src/lib/pg/pool";
 
 const NOW = Date.parse("2026-08-27T00:00:00Z");
@@ -48,6 +49,72 @@ describe("buildWeeklyCadence", () => {
       26,
     );
     assert.ok(series.every((w) => w.newListings === 0));
+  });
+
+  it("marks only the week containing now as in progress", () => {
+    const series = buildWeeklyCadence([], NOW, 26);
+    assert.equal(series[25].inProgress, true);
+    assert.ok(series.slice(0, 25).every((w) => !w.inProgress));
+  });
+
+  it("starts at the first tracked week when tracking began inside the window, and flags it", () => {
+    // Tracking began Wednesday Aug 5; the weeks before were never watched,
+    // so they are not drawn as zeros.
+    const series = buildWeeklyCadence(
+      [
+        { weekStartIso: "2026-08-03", newListings: 40 },
+        { weekStartIso: "2026-08-17", newListings: 3 },
+      ],
+      NOW,
+      26,
+      "2026-08-05",
+    );
+    assert.deepEqual(
+      series.map((w) => [w.weekStartIso, w.newListings, w.firstTracked, w.inProgress]),
+      [
+        ["2026-08-03", 40, true, false],
+        ["2026-08-10", 0, false, false],
+        ["2026-08-17", 3, false, false],
+        ["2026-08-24", 0, false, true],
+      ],
+    );
+  });
+
+  it("keeps the full window and flags nothing when tracking began before it", () => {
+    const series = buildWeeklyCadence([], NOW, 26, "2025-06-01");
+    assert.equal(series.length, 26);
+    assert.ok(series.every((w) => !w.firstTracked));
+  });
+});
+
+describe("isoWeekStart", () => {
+  it("returns the Monday of the UTC week, including on a Sunday", () => {
+    assert.equal(isoWeekStart(Date.parse("2026-08-27T23:00:00Z")), "2026-08-24");
+    assert.equal(isoWeekStart(Date.parse("2026-08-30T12:00:00Z")), "2026-08-24");
+    assert.equal(isoWeekStart(Date.parse("2026-08-31T00:00:00Z")), "2026-08-31");
+  });
+});
+
+describe("hiringRecordSentence", () => {
+  const facts = (openedCount: number, closed: number, trackedSinceIso: string | null) => ({
+    closedReasonCounts: closed > 0 ? [{ reason: "filled", label: "Filled", count: closed }] : [],
+    openedCount,
+    trackedSinceIso,
+  });
+
+  it("states the 90-day window when tracking began before it", () => {
+    assert.equal(hiringRecordSentence(facts(12, 1, "2025-01-10"), NOW), "Last 90 days: 12 roles opened, 1 closed.");
+  });
+
+  it("names the tracking start when it falls inside the window, and says the first week is left out", () => {
+    assert.equal(
+      hiringRecordSentence(facts(1, 0, "2026-08-05T09:00:00Z"), NOW),
+      "Tracked since the week of Aug 3, 2026: 1 role opened after that first week, 0 closed.",
+    );
+  });
+
+  it("reads an unknown tracking start as the full window", () => {
+    assert.equal(hiringRecordSentence(facts(2, 3, null), NOW), "Last 90 days: 2 roles opened, 3 closed.");
   });
 });
 
@@ -176,6 +243,24 @@ describe("getCompanyExhaust — section isolation", () => {
     // not throw or return undefined.
     assert.equal(result?.profile, null);
     assert.equal(result?.cadence, null);
+  });
+
+  it("carries when tracking began into the cadence and integrity sections", async () => {
+    const pg: Queryable = {
+      query: async <R,>(text: string) => {
+        let rows: unknown[] = [];
+        if (text.includes("MIN(day)")) rows = [{ first_day: "2026-08-05" }];
+        else if (text.includes("company_posting_daily")) rows = [{ week_start: "2026-08-03", total: 40 }];
+        else if (text.includes("MIN(first_seen_at)")) rows = [{ n: 2, tracked_since: "2026-08-05" }];
+        return { rows: rows as R[] };
+      },
+    };
+    const result = await getCompanyExhaust("example.com", () => pg, NOW);
+    assert.equal(result?.cadence?.data.trackedSinceIso, "2026-08-05");
+    assert.equal(result?.cadence?.data.weeks[0].weekStartIso, "2026-08-03");
+    assert.equal(result?.cadence?.data.weeks[0].firstTracked, true);
+    assert.equal(result?.integrity?.data.openedCount, 2);
+    assert.equal(result?.integrity?.data.trackedSinceIso, "2026-08-05");
   });
 
   it("returns null outright when the pg seam itself is unavailable", async () => {

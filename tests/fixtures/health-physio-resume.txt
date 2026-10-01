@@ -1,0 +1,26 @@
+Alex Sample
+Physiotherapist
+Toronto, ON, Canada | alex.sample@example.com | (555) 010-5678
+
+SUMMARY
+Registered physiotherapist with 8 years in orthopaedic and sports rehabilitation.
+
+EXPERIENCE
+Northside Physiotherapy Clinic
+Physiotherapist
+Jan 2018 - Present
+• Assess and treat patients with musculoskeletal injuries
+• Design rehabilitation and exercise programs
+
+Lakeview Hospital
+Physiotherapy Resident
+Jan 2017 - Dec 2017
+• Inpatient rehabilitation for post-surgical patients
+
+SKILLS
+Manual therapy, Exercise prescription, Acupuncture, Concussion management
+
+EDUCATION
+Master of Science in Physical Therapy
+University of Toronto
+2017
