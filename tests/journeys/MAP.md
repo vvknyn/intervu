@@ -66,8 +66,8 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–28 · OAUTH 01–22 | 53 | 4 | 49 | 0 | 0 |
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–26 · SEO 01–09 | 34 | 1 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–10 | 10 | 5 | 5 | 0 | 0 |
-| [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19 · NAV 07–09, 14, 22–29, 33–40 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 46 | 12 | 34 | 0 | 0 |
-| **All stages** | | **654** | **178** | **476** | **0** | **0** |
+| [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19 · NAV 07–09, 14, 22–29, 33–41 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 47 | 13 | 34 | 0 | 0 |
+| **All stages** | | **655** | **179** | **476** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search

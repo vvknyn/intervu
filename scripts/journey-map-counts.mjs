@@ -46,7 +46,7 @@ const STAGES = [
   { key: "content", label: "Career hubs, comparison pages, content, SEO", areas: ["CONTENT", "SEO"], ids: [] },
   { key: "pricing", label: "Pricing and founding seat", areas: ["PRICING"], ids: [] },
   { key: "shell", label: "Header, menus, errors, layout", areas: ["ERR", "ADMIN"],
-    ids: ["NAV:7-9", "NAV:14-16", "NAV:22-29", "NAV:33-40", "MOB:4-8", "MOB:19", "MODAL:2", "MODAL:5"] },
+    ids: ["NAV:7-9", "NAV:14-16", "NAV:22-29", "NAV:33-41", "MOB:4-8", "MOB:19", "MODAL:2", "MODAL:5"] },
 ];
 
 const splitId = (id) => {

@@ -6,7 +6,8 @@ import { expect, test } from "./fixtures";
  * Journeys for the page scale (docs/design-language.md §3, §6): one page
  * container on the header's edge, one page-title step, and control rows that
  * wrap without stranding their last control. At 1440 and 390 (the two
- * projects). See tests/journeys/CATALOG.md (J-NAV-35, J-NAV-36, J-NAV-37). Read-only.
+ * projects), and 375 and 360 for the phone toolbar. See tests/journeys/CATALOG.md
+ * (J-NAV-35, J-NAV-36, J-NAV-37, J-NAV-41). Read-only.
  */
 
 const PAGE_TITLE_PX = "28px";
@@ -20,52 +21,86 @@ const returningVisitor = (page: Page) =>
  * control when its last line holds one control and the line above holds two
  * or more.
  */
-for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
-    test(`no wrapping row on ${path} strands its last control on a line of its own`, { tag: ["@J-NAV-35"] }, async ({ page }) => {
-        await returningVisitor(page);
-        await page.goto(path);
-        await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
-        // The board mounts after hydration and can land after the header's
-        // sign-in link; measuring before it did is how a stranded "?" on the
-        // phone toolbar went unseen. The "?" sits in the board's toolbar.
-        await expect(page.getByTestId("jobs-tour-replay").first()).toBeVisible({ timeout: 15_000 });
-        const stranded = await page.evaluate(() => {
-            const CONTROL = "button, a, input, select, [role=button], [role=tab]";
-            const visible = (e: Element) => {
-                const r = e.getBoundingClientRect();
-                return r.width > 1 && r.height > 1 && getComputedStyle(e).visibility !== "hidden";
-            };
-            const out: string[] = [];
-            for (const row of document.querySelectorAll("body *")) {
-                const cs = getComputedStyle(row);
-                const wraps = row.classList.contains("wrap-row") || (cs.display.includes("flex") && cs.flexDirection === "row" && cs.flexWrap === "wrap");
-                if (!wraps || !visible(row)) continue;
-                const controls = [...row.querySelectorAll(CONTROL)].filter((c) => visible(c) && !c.parentElement?.closest(CONTROL));
-                if (controls.length < 3) continue;
-                const lines: Element[][] = [];
-                const mids: number[] = [];
-                for (const c of controls) {
-                    const r = c.getBoundingClientRect();
-                    const mid = r.top + r.height / 2;
-                    const i = mids.findIndex((m) => Math.abs(m - mid) < 12);
-                    if (i >= 0) {
-                        lines[i].push(c);
-                    } else {
-                        mids.push(mid);
-                        lines.push([c]);
-                    }
-                }
-                const order = mids.map((m, i) => [m, i]).sort((a, b) => a[0] - b[0]).map(([, i]) => lines[i]);
-                const [prev, last] = order.slice(-2);
-                if (order.length >= 2 && last.length === 1 && prev.length >= 2) {
-                    const c = last[0] as HTMLElement;
-                    out.push(`${(row as HTMLElement).dataset.testid ?? row.className} :: ${c.dataset.testid ?? c.getAttribute("aria-label") ?? c.textContent?.trim()}`);
+const strandedControls = (page: Page) =>
+    page.evaluate(() => {
+        const CONTROL = "button, a, input, select, [role=button], [role=tab]";
+        const visible = (e: Element) => {
+            const r = e.getBoundingClientRect();
+            return r.width > 1 && r.height > 1 && getComputedStyle(e).visibility !== "hidden";
+        };
+        const out: string[] = [];
+        for (const row of document.querySelectorAll("body *")) {
+            const cs = getComputedStyle(row);
+            const wraps = row.classList.contains("wrap-row") || (cs.display.includes("flex") && cs.flexDirection === "row" && cs.flexWrap === "wrap");
+            if (!wraps || !visible(row)) continue;
+            const controls = [...row.querySelectorAll(CONTROL)].filter((c) => visible(c) && !c.parentElement?.closest(CONTROL));
+            if (controls.length < 3) continue;
+            const lines: Element[][] = [];
+            const mids: number[] = [];
+            for (const c of controls) {
+                const r = c.getBoundingClientRect();
+                const mid = r.top + r.height / 2;
+                const i = mids.findIndex((m) => Math.abs(m - mid) < 12);
+                if (i >= 0) {
+                    lines[i].push(c);
+                } else {
+                    mids.push(mid);
+                    lines.push([c]);
                 }
             }
-            return out;
-        });
-        expect(stranded).toEqual([]);
+            const order = mids.map((m, i) => [m, i]).sort((a, b) => a[0] - b[0]).map(([, i]) => lines[i]);
+            const [prev, last] = order.slice(-2);
+            if (order.length >= 2 && last.length === 1 && prev.length >= 2) {
+                const c = last[0] as HTMLElement;
+                out.push(`${(row as HTMLElement).dataset.testid ?? row.className} :: ${c.dataset.testid ?? c.getAttribute("aria-label") ?? c.textContent?.trim()}`);
+            }
+        }
+        return out;
     });
+
+/** Opens `path` as a returning visitor once the board (and its toolbar "?") is up. */
+async function openBoard(page: Page, path: string) {
+    await returningVisitor(page);
+    await page.goto(path);
+    await expect(page.getByTestId("topbar-signin")).toBeVisible({ timeout: 15_000 });
+    // The board mounts after hydration and can land after the header's
+    // sign-in link; measuring before it did is how a stranded "?" on the
+    // phone toolbar went unseen. The "?" sits in the board's toolbar.
+    await expect(page.getByTestId("jobs-tour-replay").first()).toBeVisible({ timeout: 15_000 });
+}
+
+for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
+    test(`no wrapping row on ${path} strands its last control on a line of its own`, { tag: ["@J-NAV-35"] }, async ({ page }) => {
+        await openBoard(page, path);
+        expect(await strandedControls(page)).toEqual([]);
+    });
+}
+
+// The mobile project is 390 wide; the common narrower phones are 375 and 360.
+// There the toolbar fits only because the posted chip drops its "Posted · "
+// (still read out by screen readers).
+for (const width of [375, 360]) {
+    for (const path of ["/jobs", "/jobs?q=engineer"]) {
+        test(`on a ${width}px phone no wrapping row on ${path} strands its last control`, { tag: ["@J-NAV-41"] }, async ({ page }, testInfo) => {
+            test.skip(testInfo.project.name !== "mobile", "a phone width");
+            await page.setViewportSize({ width, height: 800 });
+            await openBoard(page, path);
+            const posted = page.getByTestId("facet-chip-posted").first();
+            await expect(posted).toBeVisible();
+            expect(await strandedControls(page)).toEqual([]);
+            await expect(posted).toHaveAccessibleName(/^Posted · Past 3 months$/);
+            // What's on screen: text whose element is wider than sr-only's 1px.
+            const shown = await posted.evaluate((el) => {
+                const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+                let out = "";
+                for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+                    if ((n.parentElement?.getBoundingClientRect().width ?? 0) > 1) out += n.textContent;
+                }
+                return out.trim();
+            });
+            expect(shown).toBe("Past 3 months");
+        });
+    }
 }
 
 // The page's column (its `<name>-page` PageContainer) — the legal pages set

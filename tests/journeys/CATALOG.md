@@ -742,6 +742,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-NAV-38 | Every visible labelled button face takes its type from its control step at 1440 and 390: 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, on the control corner unless it names its own; the header Sign in and Create account are 32px / 14px / 500; also an open job's actions | anon | onboarding-completed flag + /jobs, /about, /trends, /jobs?q=data+analyst | signed-out | no | covered | control-scale.spec.ts |
 | J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
 | J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
+| J-NAV-41 | On a 375px or 360px phone the /jobs toolbar (Filters, the posted chip, the "?") strands no control on a line of its own: the posted chip shows just "Past 3 months", and its accessible name still reads "Posted · Past 3 months" | anon | onboarding-completed flag + /jobs, /jobs?q=engineer at 375 and 360 wide | signed-out | no | covered | page-scale.spec.ts |
 
 ## PRICING
 
