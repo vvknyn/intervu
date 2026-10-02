@@ -13,7 +13,7 @@ import {
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
-import { searchJobsAction } from "@/actions/jobs";
+import { searchJobs } from "@/lib/jobs/search-client";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { countResults, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
@@ -500,13 +500,13 @@ export function ForYouHome({
         if (!filters) return;
         let live = true;
         setPackTotal(null);
-        void countResults(filters, searchJobsAction, { locationRequired: true }).then((total) => {
+        void countResults(filters, searchJobs, { locationRequired: true }).then((total) => {
             if (live) setPackTotal(total);
         });
         return () => {
             live = false;
         };
-        // `packKey` is the identity of `filters`; `searchJobsAction` is a stable action.
+        // `packKey` is the identity of `filters`; `searchJobs` is a stable module function.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [packKey]);
     useEffect(() => {
@@ -649,7 +649,7 @@ export function ForYouHome({
                     state={filters}
                     total={packTotal}
                     ctx={{ relocation: signals?.relocation.value, locationRequired: true }}
-                    search={searchJobsAction}
+                    search={searchJobs}
                 />
             </div>
         ) : null;

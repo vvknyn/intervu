@@ -3,6 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
+import { answerListSearch, isListSearch } from "./list-search";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 /**
@@ -81,22 +82,19 @@ const LISTED = [
 ];
 
 /**
- * The list's search answers with LISTED, in the browser only: the action still runs, its answer
- * is replaced. Row 0 of the flight response is the action envelope (build id, "$@1"); row 1
- * carries the return value.
+ * The list's search answers with LISTED, in the browser only: the search still runs, its answer
+ * is replaced.
  */
 const answerResumeSearch = (page: Page, listed = LISTED) =>
   page.route("**/*", async (route) => {
     const req = route.request();
     const body = req.postData() ?? "";
     // The list's first page (a guest's ranked Search reads the newest roles and orders them on the device).
-    if (req.method() !== "POST" || !req.headers()["next-action"] || !body.includes('"withFacets":true') || !body.includes('"offset":0')) {
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) {
       return route.fallback();
     }
-    const res = await route.fetch();
-    const envelope = (await res.text()).split("\n")[0];
     const result = { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId: "journey-tam" };
-    return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(result)}\n` });
+    return answerListSearch(route, result);
   });
 
 async function openRankedSearch(page: Page, resume: object = TAM_RESUME, listed = LISTED) {

@@ -1,10 +1,10 @@
 "use client";
 
 import { Suspense, useLayoutEffect, useSyncExternalStore } from "react";
-import { searchJobsAction } from "@/actions/jobs";
 import { JobsContent, type InitialSearch } from "@/app/jobs/JobsContent";
 import { earlyFirstSearchParams, startEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { getSuppressLocationDefaultSnapshot } from "@/lib/jobs/location-default-preference";
+import { searchJobs } from "@/lib/jobs/search-client";
 import { holdDeferredLoadsUntilFirstList, releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
 
 // Runs when this module loads, before hydration: keep AuthKit's session
@@ -53,7 +53,7 @@ export default function JobsRouteGate({ initialSearch = null }: { initialSearch?
             return;
         }
         const params = earlyFirstSearchParams(window.location.search, getSuppressLocationDefaultSnapshot());
-        if (params) startEarlyFirstSearch(params, searchJobsAction);
+        if (params) startEarlyFirstSearch(params, searchJobs);
         // Mount-only, like the list's own first search; `initialSearch` never changes.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);

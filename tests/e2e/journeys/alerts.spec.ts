@@ -117,6 +117,48 @@ test("a signed-in person's Save search saves to the account, not to this browser
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
+test("a signed-in person's Save search goes out at once while the search is still loading", { tag: ["@J-ALERTS-47"] }, async ({ page, diagnostics }) => {
+  // The list search was a Server Action, and Next runs a page's actions one
+  // at a time, so a save pressed while a search loaded waited for that search
+  // (5s on a phone, 2026-10-01). Here the search answers 12s late; the save
+  // must not wait for it.
+  const saves: number[] = [];
+  await signInLikeProduction(page, (args) => {
+    if (args.length === 0) return { data: [] };
+    const input = actionObject(args[0]);
+    if (args.length === 1 && typeof input.name === "string" && typeof input.href === "string") {
+      saves.push(Date.now());
+      return { data: { id: "saved-journey", name: input.name, href: input.href } };
+    }
+    return undefined;
+  });
+  // Registered after the sign-in routes, so it sees each request first: hold
+  // the results search (the one asking for facets), whatever carries it.
+  await page.route(
+    () => true,
+    async (route) => {
+      const body = route.request().method() === "POST" ? (route.request().postData() ?? "") : "";
+      if (body.includes('"q":"engineer"') && body.includes('"withFacets":true')) {
+        await new Promise((resolve) => setTimeout(resolve, 12_000));
+      }
+      return route.fallback();
+    },
+  );
+  await page.goto("/jobs?view=search&q=engineer");
+  await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(0);
+  await page.getByTestId("save-search-trigger").first().click();
+  const pressed = Date.now();
+  await page.getByTestId("save-search-name").press("Enter");
+  await expect(page.getByTestId("save-search-name")).toHaveCount(0, { timeout: 6_000 });
+  expect(saves).toHaveLength(1);
+  expect(saves[0] - pressed).toBeLessThan(6_000);
+  // The held search still lands afterwards.
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
 test("a search-alert link that fails lands on /jobs saying so, and the flag leaves the URL", { tag: ["@J-ALERTS-11"] }, async ({ page, diagnostics }) => {
   await page.goto("/api/search-alerts/verify?token=bogus");
   const notice = page.getByTestId("landing-notice");

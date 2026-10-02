@@ -601,6 +601,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-ALERTS-44 | `/unsubscribe?token=…&forget=1` deletes the address's data ("Your data has been deleted"), and Undo on the unsubscribe page says "You're back on the list" @writes | anon | GET /unsubscribe?token=<real token>&forget=1; Undo from a plain unsubscribe | signed-out | yes | uncovered | — |
 | J-ALERTS-45 | A guest's "Get new matches by email" on the results line (`result-line-get-alerts`) opens the alert capture above the rows | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | uncovered | — |
 | J-ALERTS-46 | Signed in the way production signs in, Save search on a search saves it to the account, not to this browser's storage, where the account's list never showed it (2026-10-01, same cause as J-TRACKER-67) | signed-in | /jobs?view=search&q=engineer (session and saved-search actions answered in the browser) | signed-in | no | covered | alerts.spec.ts |
+| J-ALERTS-47 | Signed in the way production signs in, Save search pressed while the search is still loading goes out at once and the held search still lands after. The search was a Server Action, and Next runs a page's actions one at a time, so the save waited for the search (5s on a phone, 2026-10-01); it now runs over fetch (/api/jobs/search) | signed-in | /jobs?view=search&q=engineer (the results search held 12s in the browser; session and saved-search actions answered in the browser) | signed-in | no | covered | alerts.spec.ts |
 
 ## CONNECT
 

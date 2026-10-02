@@ -1,6 +1,7 @@
 import type { Page, Route } from "@playwright/test";
 import { APPLY_RETURN_STORAGE_KEY } from "../../../src/lib/jobs/apply-return";
 import { expect, test } from "./fixtures";
+import { answerListSearch, isListSearch } from "./list-search";
 
 /**
  * "Did you apply?" after coming back from the employer's site — see
@@ -56,15 +57,12 @@ async function signedInBoard(page: Page) {
     () => true,
     async (route: Route) => {
       const req = route.request();
-      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
       const body = req.postData() ?? "";
-      const res = await route.fetch();
-      if (body.startsWith('[{"q"') && body.includes('"withFacets"')) {
-        return route.fulfill({
-          response: res,
-          body: flight({ hits: [JOB], total: 1, backend: "meilisearch", configured: true, searchId: "journey-apply", query: "backend engineer" }),
-        });
+      if (isListSearch(req) && body.startsWith('{"q"') && body.includes('"withFacets"')) {
+        return answerListSearch(route, { hits: [JOB], total: 1, backend: "meilisearch", configured: true, searchId: "journey-apply", query: "backend engineer" });
       }
+      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
+      const res = await route.fetch();
       if (body.includes('"applyUrl"')) {
         markApplied.push(body);
         return route.fulfill({ response: res, body: flight({ data: { id: "pursuit-journey-1" } }) });
