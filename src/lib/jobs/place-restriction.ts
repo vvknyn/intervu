@@ -15,11 +15,43 @@
  *
  * Isomorphic and pure: the server passes a gazetteer-backed `resolveCity`.
  */
-import { placeNamed } from "./resume-location";
-import type { PlaceRestriction } from "./types";
+import { jobCountries, placeNamed, titlePlace } from "./resume-location";
+import type { PlaceRestriction, PublicJob } from "./types";
 
 /** The most rows one place-notes request reads: Today checks its first picks, not a page. */
 export const PLACE_NOTES_MAX_IDS = 24;
+
+/** How many rows ahead of the one in view a ranked list wants read before it asks again. */
+export const PLACE_CHECK_LEAD = 8;
+
+/**
+ * A row that names no place of its own (country field, place text or title)
+ * and hasn't been read yet: only its description can still say where the
+ * person must be (`/api/jobs/place-notes`).
+ */
+export function needsPlaceCheck(job: PublicJob): boolean {
+    return job.place_restriction === undefined && jobCountries(job).length === 0 && !titlePlace(job.title);
+}
+
+/**
+ * The rows of a ranked list to read next, for a person at row `from`: none
+ * while every row from there to `lead` rows on is read (`isRead`) or names a
+ * place, else up to `max` unread rows from `from` on. Reading a stretch at a
+ * time keeps it to one request per stretch of rows, not one per step.
+ */
+export function nextPlaceCheckIds(
+    jobs: readonly PublicJob[],
+    from: number,
+    isRead: (id: string) => boolean,
+    { lead = PLACE_CHECK_LEAD, max = PLACE_NOTES_MAX_IDS }: { lead?: number; max?: number } = {},
+): string[] {
+    const start = Math.max(0, from);
+    const unread = (job: PublicJob) => !isRead(job.id) && needsPlaceCheck(job);
+    if (!jobs.slice(start, start + lead).some(unread)) return [];
+    const ids: string[] = [];
+    for (let i = start; i < jobs.length && ids.length < max; i++) if (unread(jobs[i]!)) ids.push(jobs[i]!.id);
+    return ids;
+}
 
 /** A city or other place `placeNamed` doesn't know, to the canonical country it is in. */
 export type ResolvePlace = (phrase: string) => string | null;
