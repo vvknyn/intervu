@@ -237,3 +237,24 @@ test("a verified guest's follow is one click, opening pages never follows, and U
     await openCompany(page, OTHER_COMPANY);
     await expect(follow).toHaveAttribute("data-following", "false", { timeout: 30_000 });
 });
+
+/** Vivek's budget (2026-09-30): every search and list renders in under 2 s. */
+const ROLES_BUDGET_MS = 2_000;
+
+// Big employers are the slowest pages to answer: Amazon's first load took
+// 4.3 s on release 16, behind its slower side reads (box database, news,
+// recent changes), which the page no longer waits on past a budget.
+for (const path of [COMPANY, "/co/amazon--com"]) {
+    test(`${path} shows its first roles within 2 seconds`, { tag: ["@J-COMPANY-47"] }, async ({ page }) => {
+        const startedAt = Date.now();
+        await page.goto(path, { waitUntil: "commit" });
+        const role = page.getByTestId("company-role-row").first();
+        const missing = page.getByRole("heading", { name: "Page not found" });
+        await expect(role.or(missing)).toBeVisible({ timeout: 15_000 });
+        const elapsed = Date.now() - startedAt;
+        test.skip(await missing.isVisible(), `${path} has no company page here`);
+
+        test.info().annotations.push({ type: "roles-ms", description: `${path} ${elapsed}` });
+        expect(elapsed, `${path} showed its roles after ${elapsed} ms`).toBeLessThan(ROLES_BUDGET_MS);
+    });
+}
