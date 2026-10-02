@@ -8,6 +8,7 @@ import { PACK_POSTED_BUCKET } from "../../../src/lib/jobs/url-state";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 import { answerListSearch, isListSearch } from "./list-search";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
@@ -23,8 +24,9 @@ const returningVisitor = (page: Page) =>
 async function searchFor(page: Page, keyword: string) {
   await returningVisitor(page);
   await page.goto("/jobs");
-  await page.getByPlaceholder("Job title, skill, or company").fill(keyword);
-  await page.getByTestId("search-submit").click();
+  const input = page.getByPlaceholder("Job title, skill, or company");
+  await input.fill(keyword);
+  await runSearch(page, input);
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
 }
 

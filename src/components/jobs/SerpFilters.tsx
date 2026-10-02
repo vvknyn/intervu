@@ -113,9 +113,12 @@ export function SalaryCustomMinInput({
     };
 
     return (
-        <label className="mt-1 flex items-center gap-1.5 text-xs text-foreground">
+        // Wraps the field under its label when the column is narrow (a
+        // 320px phone cut the placeholder to "$ e.g."); the field takes the
+        // control corner like every other input (2026-10-02).
+        <label className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-foreground">
             <span className="shrink-0 text-muted-foreground">Custom minimum</span>
-            <span className="flex min-w-0 items-center gap-1 border border-border px-1.5 py-1">
+            <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
                 <span className="text-muted-foreground">$</span>
                 <input
                     type="number"

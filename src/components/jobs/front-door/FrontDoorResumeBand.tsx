@@ -9,8 +9,8 @@ import {
 } from "@/lib/jobs/resume-cta-copy";
 
 /**
- * The /jobs at-rest front door's résumé-upload band (requirement 2). Full-
- * bleed brand-filled block, replacing `ColdVisitorOrientation` at rest (see
+ * The /jobs at-rest front door's résumé-upload band (requirement 2). A
+ * brand-filled panel on the page column, replacing `ColdVisitorOrientation` at rest (see
  * `showColdOrientation`'s doc comment in page.tsx). Visibility is
  * `showsFrontDoorBand` (lib/jobs/front-door-state.ts) — the same rule for
  * signed-out AND signed-in visitors without a résumé on file, so both this
@@ -44,7 +44,9 @@ export function FrontDoorResumeBand({
     return (
         <section
             aria-label="Add your resume"
-            className="mt-8 w-full bg-brand px-4 py-6 text-brand-foreground sm:px-8"
+            // rounded-panel: it sits inside the page gutter, not edge to edge,
+            // so its square corners were the one unrounded panel on the page.
+            className="mt-8 w-full rounded-panel bg-brand px-4 py-6 text-brand-foreground sm:px-8"
         >
             <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
                 <div>
