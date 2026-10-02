@@ -7,6 +7,11 @@ import { extractText } from "unpdf";
 import {
   layoutResumeDocument,
   fitResumeLayout,
+  fitResumeOnOnePage,
+  bulletsToLeaveOut,
+  ONE_PAGE_MARGIN_FLOOR,
+  compressResumeStyle,
+  maxCompression,
   defaultResumeStyle,
   styleFromLayoutProfile,
   floorBodySizeFor,
@@ -346,6 +351,73 @@ describe("fitResumeLayout — the original's page count", () => {
     const fit = fitResumeLayout(long, fakeMeasurer, STYLE, { targetPages: null, floorBodySize: 8 });
     assert.equal(fit.layout.pages.length, 1);
     assert.equal(fit.targetPages, 1);
+  });
+});
+
+describe("fitResumeOnOnePage — a tailored résumé is always one page", () => {
+  const entry = (i: number, bullets: string[]) => ({ kind: "entry" as const, title: `Role ${i} | Company ${i}`, dateRight: `${2024 - 2 * i} — ${2026 - 2 * i}`, bullets });
+  const doc = (roles: number, bulletsEach: number, bullet = (r: number, b: number) => `${LONG_SENTENCE} (role ${r}, bullet ${b})`): ParsedResumeDocument => ({
+    name: "Jane Doe",
+    contactLine: "Toronto | jane@example.com",
+    sections: [
+      { heading: "SUMMARY", blocks: [{ kind: "paragraph", text: LONG_SENTENCE }] },
+      { heading: "EXPERIENCE", blocks: Array.from({ length: roles }, (_, r) => entry(r, Array.from({ length: bulletsEach }, (_, b) => bullet(r, b)))) },
+    ],
+  });
+  const floor = floorBodySizeFor(STYLE, false, true);
+  const wide = { ...STYLE, marginLeft: 72, marginRight: 72, marginTop: 72, marginBottom: 72 };
+
+  it("closes the borders in toward 0.35in before it shrinks the type, and never past the original's own", () => {
+    assert.equal(layoutResumeDocument(doc(7, 3), fakeMeasurer, wide).pages.length, 2, "fixture overflows at the original's borders");
+    const fit = fitResumeOnOnePage(doc(7, 3), fakeMeasurer, wide, { floorBodySize: floor });
+    assert.equal(fit.layout.pages.length, 1);
+    assert.deepEqual(fit.leftOut, []);
+    assert.ok(fit.style.marginLeft < 72 && fit.style.marginLeft >= ONE_PAGE_MARGIN_FLOOR - 1e-9, `left ${fit.style.marginLeft}`);
+    assert.equal(fit.style.bodySize, BODY, "the borders were enough: the type is the original's");
+    const tight = { ...STYLE, marginLeft: 20, marginRight: 20, marginTop: 20, marginBottom: 20 };
+    assert.equal(fitResumeOnOnePage(doc(10, 3), fakeMeasurer, tight, { floorBodySize: floor }).style.marginLeft, 20, "a tighter original keeps its own");
+  });
+
+  it("leaves nothing out when tightening is enough", () => {
+    const fit = fitResumeOnOnePage(SAMPLE_DOC, fakeMeasurer, STYLE, { floorBodySize: floor });
+    assert.deepEqual(fit.leftOut, []);
+    assert.deepEqual(fit.style, STYLE);
+  });
+
+  it("when even the floor runs over, leaves out the fewest bullets, older roles' later bullets first, and lists them", () => {
+    const long = doc(9, 4);
+    const fit = fitResumeOnOnePage(long, fakeMeasurer, STYLE, { floorBodySize: floor });
+    assert.equal(fit.layout.pages.length, 1);
+    assert.equal(fit.fits, true);
+    assert.ok(fit.leftOut.length > 0, "the fixture can't fit whole");
+    assert.ok(fit.style.bodySize >= floor - 1e-9);
+    // Fewest: with one fewer of the same bullets out, even the tightest style runs over.
+    const ranked = bulletsToLeaveOut(long);
+    const oneFewer = new Set(ranked.slice(0, fit.leftOut.length - 1).map((b) => b.text));
+    const trimmed: ParsedResumeDocument = { ...long, sections: long.sections.map((s) => ({ ...s, blocks: s.blocks.map((b) => (b.kind === "entry" ? { ...b, bullets: b.bullets.filter((t) => !oneFewer.has(t)) } : b)) })) };
+    const tightest = compressResumeStyle(STYLE, maxCompression(ONE_PAGE_MARGIN_FLOOR), floor, ONE_PAGE_MARGIN_FLOOR);
+    assert.equal(layoutResumeDocument(trimmed, fakeMeasurer, tightest).pages.length, 2);
+    const printed = fit.layout.pages.flatMap((p) => p.texts.map((t) => t.text)).join(" ");
+    for (const b of fit.leftOut) assert.match(b.entry, /^Role [4-8] \| Company/, `${b.entry}: older roles go first`);
+    assert.match(printed, /role 8, bullet 0/, "every role keeps its first bullet");
+    assert.ok(fit.leftOut.every((b) => !/bullet 0\)/.test(b.text)));
+  });
+
+  it("keeps a bullet that uses the role's words over one that doesn't, whatever its age", () => {
+    const long = doc(9, 4, (r, b) => (r === 8 && b === 3 ? `${LONG_SENTENCE}, inspecting bridge girders and concrete decks` : `${LONG_SENTENCE} (role ${r}, bullet ${b})`));
+    const ranked = bulletsToLeaveOut(long, ["bridge", "girders", "concrete"]);
+    assert.notEqual(ranked[0].text, long.sections[1].blocks[8].kind === "entry" ? long.sections[1].blocks[8].bullets[3] : "");
+    assert.match(ranked[ranked.length - 1].text, /bridge girders/, "the role's own words make it the last to go");
+    const fit = fitResumeOnOnePage(long, fakeMeasurer, STYLE, { floorBodySize: floor, roleTerms: ["bridge", "girders", "concrete"] });
+    assert.ok(fit.leftOut.every((b) => !/bridge/.test(b.text)));
+  });
+
+  it("leaves nothing out, and says it runs over, when even every candidate out can't make one page", () => {
+    const huge = doc(40, 1);
+    const fit = fitResumeOnOnePage(huge, fakeMeasurer, STYLE, { floorBodySize: floor });
+    assert.equal(fit.fits, false);
+    assert.deepEqual(fit.leftOut, []);
+    assert.ok(fit.layout.pages.length > 1);
   });
 });
 

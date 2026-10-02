@@ -9,6 +9,7 @@ import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { parseResumeLocally } from "@/lib/local-ai/parse-resume";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { renderResumePdf } from "@/lib/resume/render-pdf";
+import { resumePdfNote } from "@/lib/resume/export-zip-pdf";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -134,6 +135,59 @@ describe("the export reproduces the original", () => {
     const { profile, result } = await exportOf(fixture("marketing-dense-unicode"), " — rewritten for the role with the posting's own terms and a measurable outcome for each one, tested against what the hiring team asked for in the description");
     assert.equal(result.pages, 1);
     assert.ok(result.bodySize >= Math.min(profile.bodySize, Math.max(7, profile.bodySize * 0.9)) - 0.01, `body ${result.bodySize}`);
+  });
+});
+
+describe("a tailored résumé is one page in the original's look", () => {
+  async function onePageOf(name: string, roleTerms: string[] = []) {
+    const bytes = fixture(name);
+    const profile = await measure(bytes);
+    const { text } = await extractPDFTextInBrowser(bytes.slice().buffer);
+    const data = resumeDataFromPlainText(text!);
+    const result = renderResumePdf(resumeDataToParsedDocument(data), { profile, fonts: FONTS[profile.family], onePage: true, roleTerms });
+    const back = await measure(new Uint8Array(result.bytes));
+    const printed = (await extractText(new Uint8Array(result.bytes).slice(), { mergePages: true })).text.replace(/\s+/g, " ");
+    return { profile, data, result, printed, back };
+  }
+
+  it("prints a two-page original on one page by tightening alone: same paper, typeface and type size, nothing left out", async () => {
+    const { profile, result, back } = await onePageOf("nurse-serif-letter-2p");
+    assert.equal(profile.pageCount, 2);
+    assert.equal(result.pages, 1);
+    assert.deepEqual(result.leftOut, []);
+    assert.equal(resumePdfNote(result), null);
+    assert.equal(back.family, "serif");
+    near(back.pageWidth, profile.pageWidth, 0.5, "paper");
+    near(back.bodySize, profile.bodySize, 0.05, "type");
+  });
+
+  it("fits a three-page CV on one page with type held near the original's, leaving out only older roles' later bullets, and says which", async () => {
+    const { profile, result, printed, back } = await onePageOf("civil-engineer-long-3p");
+    assert.equal(profile.pageCount, 3);
+    assert.equal(result.pages, 1);
+    assert.equal(result.fits, true);
+    assert.ok(result.bodySize >= profile.bodySize * 0.85 - 0.01, `body ${result.bodySize}`);
+    assert.ok(back.marginLeft >= 25.2 - 0.5, `left ${back.marginLeft}`);
+    assert.equal(back.family, "serif");
+    assert.ok(result.leftOut.length > 0 && result.leftOut.length <= 4, `${result.leftOut.length} left out`);
+    for (const b of result.leftOut) {
+      assert.match(b.entry, /Co-op|Field Engineer|Survey Technician|Junior Engineer|culvert/, `${b.entry}: an older role or side project`);
+      assert.ok(!printed.includes(b.text.slice(0, 40)), "left out of the PDF");
+    }
+    assert.match(printed, /Lead design of a \$48M interchange rebuild/);
+    assert.match(printed, /Professional Engineer \(P\.Eng\.\), APEGA, 2014/, "certifications stay");
+    assert.match(resumePdfNote(result) ?? "", /^To keep it to one page, \d bullets? that matters? least for this role (was|were) left out: \d from .+\. Your résumé still has (it|them)\.$/);
+  });
+
+  it("keeps the bullets that use the role's words", async () => {
+    const pavement = "Logged pavement condition ratings for 300 road segments";
+    const plain = await onePageOf("civil-engineer-long-3p");
+    assert.ok(plain.result.leftOut.some((b) => b.text.startsWith(pavement)), "the oldest role's last bullet goes first");
+    // For a pavement-management role, the same bullet stays and another goes instead.
+    const forPavement = await onePageOf("civil-engineer-long-3p", ["pavement", "condition", "asset"]);
+    assert.equal(forPavement.result.pages, 1);
+    assert.ok(forPavement.printed.includes(pavement));
+    assert.equal(forPavement.result.leftOut.length, plain.result.leftOut.length);
   });
 });
 

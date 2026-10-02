@@ -30,7 +30,7 @@ import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
-import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
+import { roleTermsForJob, type TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { deckListLoading } from "@/lib/jobs/for-you/deck-list-loading";
@@ -281,7 +281,11 @@ export function ForYouHome({
                 dateIso: new Date().toISOString(),
             });
             try {
-                await exportZipResumePdfFromData(data, `${filename}.pdf`);
+                // A résumé tailored to this role is one page, keeping what matters for it.
+                await exportZipResumePdfFromData(data, `${filename}.pdf`, {
+                    onePage: true,
+                    roleTerms: roleTermsForJob(jobToTailorInput(job)),
+                });
             } catch {
                 toast.error("Failed to generate PDF");
                 throw new Error("pdf failed");

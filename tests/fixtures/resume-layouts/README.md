@@ -8,3 +8,7 @@ export tests:
   left-aligned header, no heading rules.
 - `marketing-dense-unicode.pdf`: Helvetica 8pt, 0.32in margins, one page,
   a Polish name, "→" and a Vietnamese company name.
+- `civil-engineer-long-3p.pdf`: Times 11pt, 0.9in margins, ragged, US Letter,
+  three pages: eight roles, a Projects section, "Licences & Certifications",
+  and a hyphenated name with credentials. Too long for one page even at the
+  one-page fit's tightest, so a tailored download leaves bullets out.

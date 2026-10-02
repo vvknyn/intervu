@@ -5,7 +5,7 @@ import path from "node:path";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { resumeDataToZipHtml } from "@/lib/resume/zip-html";
-import { zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
+import { resumePdfNote, zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { layoutResumeDocument, jsPdfMeasurer, defaultResumeStyle, renderResumePdf } from "@/lib/resume/render-pdf";
 import { jsPDF } from "jspdf";
@@ -24,7 +24,7 @@ describe("export-zip-pdf source contract", () => {
         const fromData = src.slice(start, next);
         assert.match(fromData, /resumeDataToParsedDocument\(data\)/);
         assert.match(fromData, /recallResumeLayout\(data\)/);
-        assert.match(fromData, /renderResumePdf\(parsed, \{ profile, fonts \}\)/);
+        assert.match(fromData, /renderResumePdf\(parsed, \{ profile, fonts, onePage: options\.onePage, roleTerms: options\.roleTerms \}\)/);
         assert.doesNotMatch(src, /\/api\/resume\/pdf['"`]/, "production has no Chromium: the server print only ever fell back");
         assert.doesNotMatch(fromData, /parseResumeContent\(/);
         assert.doesNotMatch(src, /import\s+.*html2canvas/);
@@ -38,6 +38,38 @@ describe("export-zip-pdf source contract", () => {
         assert.match(css, /@page/);
         assert.match(css, /0\.34in 0\.46in 0\.28in 0\.46in/);
         assert.match(css, /9\.2/);
+    });
+});
+
+describe("what a download tells the person", () => {
+    const base = { pages: 1, originalPages: 1, fits: true, onePage: true, leftOut: [] as Array<{ entry: string; text: string }> };
+
+    it("says nothing when the PDF came out as aimed", () => {
+        assert.equal(resumePdfNote(base), null);
+        assert.equal(resumePdfNote({ ...base, onePage: false, originalPages: null, pages: 2 }), null);
+    });
+
+    it("names each role a one-page résumé left bullets out of", () => {
+        const leftOut = [
+            { entry: "Field Engineer | Westmount", text: "a" },
+            { entry: "Field Engineer | Westmount", text: "b" },
+            { entry: "Co-op | City of Lethbridge", text: "c" },
+        ];
+        assert.equal(
+            resumePdfNote({ ...base, leftOut }),
+            "To keep it to one page, 3 bullets that matter least for this role were left out: 2 from Field Engineer | Westmount and 1 from Co-op | City of Lethbridge. Your résumé still has them.",
+        );
+        assert.equal(
+            resumePdfNote({ ...base, leftOut: leftOut.slice(2) }),
+            "To keep it to one page, 1 bullet that matters least for this role was left out: 1 from Co-op | City of Lethbridge. Your résumé still has it.",
+        );
+        const many = ["A", "B", "C", "D", "E"].map((entry) => ({ entry, text: entry }));
+        assert.match(resumePdfNote({ ...base, leftOut: many }) ?? "", /1 from A, 1 from B, 1 from C and 2 more roles\./);
+    });
+
+    it("says when it still runs over", () => {
+        assert.match(resumePdfNote({ ...base, pages: 2, fits: false }) ?? "", /runs to 2 pages even at its smallest readable size/);
+        assert.match(resumePdfNote({ ...base, onePage: false, pages: 3, originalPages: 2, fits: false }) ?? "", /runs to 3 pages; your original is 2 pages/);
     });
 });
 

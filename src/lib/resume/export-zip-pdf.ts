@@ -47,10 +47,42 @@ async function loadResumeFonts(family: "sans" | "serif"): Promise<ResumeFontFile
     }
 }
 
-/** Said when the tailored text needed more pages than the original has. */
+const pagesLabel = (n: number) => `${n} ${n === 1 ? "page" : "pages"}`;
+
+/** Said when the text needed more pages than the original has. */
 export function resumeOverflowMessage(pages: number, originalPages: number): string {
-    const unit = (n: number) => `${n} ${n === 1 ? "page" : "pages"}`;
-    return `This résumé runs to ${unit(pages)}; your original is ${unit(originalPages)}. Fitting it would have made the text too small to read, so trim a bullet or two to bring it back to ${unit(originalPages)}.`;
+    return `This résumé runs to ${pagesLabel(pages)}; your original is ${pagesLabel(originalPages)}. Fitting it would have made the text too small to read, so trim a bullet or two to bring it back to ${pagesLabel(originalPages)}.`;
+}
+
+/**
+ * What the person is told after a download, or null when the PDF came out
+ * as aimed: which bullets a one-page résumé left out (by entry), or that it
+ * still runs over.
+ */
+export function resumePdfNote(result: Pick<ResumePdfResult, "pages" | "originalPages" | "fits" | "onePage" | "leftOut">): string | null {
+    if (result.onePage && result.leftOut.length > 0) {
+        const byEntry = new Map<string, number>();
+        for (const b of result.leftOut) byEntry.set(b.entry, (byEntry.get(b.entry) ?? 0) + 1);
+        const parts = [...byEntry].map(([entry, n]) => `${n} from ${entry}`);
+        const shown = parts.length > 3 ? [...parts.slice(0, 3), `${parts.length - 3} more ${parts.length - 3 === 1 ? "role" : "roles"}`] : parts;
+        const list = shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}` : shown[0];
+        const n = result.leftOut.length;
+        return `To keep it to one page, ${n} bullet${n === 1 ? "" : "s"} that matter${n === 1 ? "s" : ""} least for this role ${n === 1 ? "was" : "were"} left out: ${list}. Your résumé still has ${n === 1 ? "it" : "them"}.`;
+    }
+    if (result.onePage && !result.fits) {
+        return `This résumé runs to ${pagesLabel(result.pages)} even at its smallest readable size. Trim a bullet or two to bring it to one page.`;
+    }
+    if (!result.onePage && result.originalPages !== null && !result.fits) {
+        return resumeOverflowMessage(result.pages, result.originalPages);
+    }
+    return null;
+}
+
+export interface ResumePdfExportOptions {
+    /** A résumé tailored to a role: always one page, keeping what matters for that role. */
+    onePage?: boolean;
+    /** The role's words (`roleTermsForJob`). */
+    roleTerms?: readonly string[];
 }
 
 /**
@@ -63,7 +95,7 @@ export function resumeOverflowMessage(pages: number, originalPages: number): str
  * used here: production has no Chromium, so every download fell back to a
  * fixed layout that ignored the original anyway.
  */
-export async function exportZipResumePdfFromData(data: ResumeData, filename: string): Promise<ResumePdfResult> {
+export async function exportZipResumePdfFromData(data: ResumeData, filename: string, options: ResumePdfExportOptions = {}): Promise<ResumePdfResult> {
     const parsed = resumeDataToParsedDocument(data);
     const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
     const profile = recallResumeLayout(data);
@@ -71,11 +103,10 @@ export async function exportZipResumePdfFromData(data: ResumeData, filename: str
     // page that merely offers a download.
     const { renderResumePdf, resumeNeedsUnicodeFont } = await import("@/lib/resume/render-pdf");
     const fonts = resumeNeedsUnicodeFont(parsed) ? await loadResumeFonts(profile?.family ?? "sans") : null;
-    const result = renderResumePdf(parsed, { profile, fonts });
+    const result = renderResumePdf(parsed, { profile, fonts, onePage: options.onePage, roleTerms: options.roleTerms });
     downloadBlob(result.bytes, outName, "application/pdf");
-    if (result.originalPages !== null && !result.fits) {
-        toast.info(resumeOverflowMessage(result.pages, result.originalPages), 9000);
-    }
+    const note = resumePdfNote(result);
+    if (note) toast.info(note, 15000);
     return result;
 }
 
@@ -83,8 +114,8 @@ export async function exportZipResumePdfFromData(data: ResumeData, filename: str
  * Free-text / pursuit snapshot path: structure the text into ResumeData first,
  * then the same FromData exporter. Does not call parseResumeContent.
  */
-export async function exportZipResumePdf(markdown: string, filename: string): Promise<ResumePdfResult> {
-    return exportZipResumePdfFromData(resumeDataFromPlainText(markdown), filename);
+export async function exportZipResumePdf(markdown: string, filename: string, options: ResumePdfExportOptions = {}): Promise<ResumePdfResult> {
+    return exportZipResumePdfFromData(resumeDataFromPlainText(markdown), filename, options);
 }
 
 /** Node/Playwright helper — same HTML document the browser exporter uses. */

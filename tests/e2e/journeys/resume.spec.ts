@@ -149,16 +149,14 @@ async function layoutOf(bytes: Uint8Array) {
   return layout!;
 }
 
-// Vivek, 2026-10-02: the tailored PDF "is not dense...no tight borders...its not 1 page". Every
-// download used one fixed layout (production has no Chromium, so the server print always fell back).
-test("A tailored résumé downloads in the layout of the PDF the guest uploaded: same paper, margins, type and page count", { tag: ["@J-RESUME-37"] }, async ({ page, diagnostics }) => {
-  // One dense page: 8pt type, 0.32in margins, a Polish name and an arrow the standard PDF fonts can't draw.
-  const original = new Uint8Array(readFileSync("tests/fixtures/resume-layouts/marketing-dense-unicode.pdf"));
+/** A guest uploads `fixture` on /resume, customizes the first engineering role with a rules draft and downloads the PDF. */
+async function tailoredDownloadOf(page: Page, fixture: string) {
+  const original = new Uint8Array(readFileSync(`tests/fixtures/resume-layouts/${fixture}.pdf`));
   await page.addInitScript(([key]) => localStorage.setItem(key, "1"), [ONBOARDING_COMPLETED_STORAGE_KEY]);
   await page.goto("/resume");
   await page.getByTestId("resume-signed-out-upload").click();
   const importer = page.getByRole("dialog");
-  await importer.locator('input[type="file"]').setInputFiles({ name: "lucja-wisniewska.pdf", mimeType: "application/pdf", buffer: Buffer.from(original) });
+  await importer.locator('input[type="file"]').setInputFiles({ name: `${fixture}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(original) });
   await importer.getByTestId("resume-import-skip-download").click();
   await importer.getByTestId("resume-import-parse-primary").click();
   await importer.getByRole("button", { name: "Apply to Resume" }).click({ timeout: 30_000 });
@@ -175,15 +173,21 @@ test("A tailored résumé downloads in the layout of the PDF the guest uploaded:
   const [download] = await Promise.all([page.waitForEvent("download"), downloadPdf.click()]);
   expect(download.suggestedFilename()).toMatch(/\.pdf$/);
   const tailored = new Uint8Array(readFileSync(await download.path()));
+  return { original, tailored, want: await layoutOf(original), got: await layoutOf(tailored) };
+}
 
-  const want = await layoutOf(original);
-  const got = await layoutOf(tailored);
-  expect(got.pageCount, "the original's page count").toBe(want.pageCount);
+// Vivek, 2026-10-02: the tailored PDF "is not dense...no tight borders...its not 1 page", and it
+// must "exactly look like" the uploaded résumé, "1 pager always". Every download used one fixed
+// layout (production has no Chromium, so the server print always fell back).
+test("A tailored résumé downloads in the layout of the PDF the guest uploaded: same paper, margins, type, one page", { tag: ["@J-RESUME-37"] }, async ({ page, diagnostics }) => {
+  // One dense page: 8pt type, 0.32in margins, a Polish name and an arrow the standard PDF fonts can't draw.
+  const { tailored, want, got } = await tailoredDownloadOf(page, "marketing-dense-unicode");
+  expect(got.pageCount, "one page").toBe(1);
   expect(Math.abs(got.pageWidth - want.pageWidth), "the original's paper").toBeLessThanOrEqual(1);
   expect(Math.abs(got.pageHeight - want.pageHeight), "the original's paper").toBeLessThanOrEqual(1);
   expect(Math.abs(got.marginLeft - want.marginLeft), `left margin ${got.marginLeft} vs ${want.marginLeft}`).toBeLessThanOrEqual(2);
   expect(Math.abs(got.marginTop - want.marginTop), `top margin ${got.marginTop} vs ${want.marginTop}`).toBeLessThanOrEqual(2);
-  // Never larger than the original's type; smaller only to keep its page count, and never below 7pt.
+  // Never larger than the original's type; smaller only to fit, and never below 7pt.
   expect(got.bodySize, "body type").toBeLessThanOrEqual(want.bodySize + 0.05);
   expect(got.bodySize, "body type").toBeGreaterThanOrEqual(7);
   expect(got.family).toBe(want.family);
@@ -191,6 +195,27 @@ test("A tailored résumé downloads in the layout of the PDF the guest uploaded:
   const { text } = await extractText(tailored.slice(), { mergePages: true });
   expect(text).toContain("Łucja Wiśniewska");
   expect(text).toContain("→");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("A tailored résumé from a three-page CV downloads as one page in its typeface, and the guest is told which bullets were left out", { tag: ["@J-RESUME-38"] }, async ({ page, diagnostics }) => {
+  // Three Times pages (11pt, 0.9in margins, eight roles): too long for one page even at its tightest.
+  const { tailored, want, got } = await tailoredDownloadOf(page, "civil-engineer-long-3p");
+  expect(want.pageCount).toBe(3);
+  expect(got.pageCount, "one page, always").toBe(1);
+  expect(got.family, "the original's typeface").toBe("serif");
+  expect(Math.abs(got.pageWidth - want.pageWidth), "the original's paper").toBeLessThanOrEqual(1);
+  // Borders close in to 0.35in at the tightest, and the type stays within 15% of the original's.
+  expect(got.marginLeft, "left border").toBeGreaterThanOrEqual(24);
+  expect(got.bodySize, "body type").toBeGreaterThanOrEqual(want.bodySize * 0.85 - 0.05);
+
+  // Said where the person is looking, naming the roles that lost a bullet.
+  const note = page.getByText(/^To keep it to one page, \d+ bullets? that matters? least for this role (was|were) left out: .+ from .+\. Your résumé still has (it|them)\.$/);
+  await expect(note).toBeVisible();
+  await expect(note).toBeInViewport();
+  const { text } = await extractText(tailored.slice(), { mergePages: true });
+  expect(text).toContain("Tomás Herrera-Lindqvist, P.Eng.");
+  expect(text, "the newest role's first bullet stays").toContain("interchange rebuild");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

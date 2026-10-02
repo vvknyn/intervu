@@ -12,6 +12,14 @@
  * when it can't fit, it takes the next page at the original's size and says
  * so in the result.
  *
+ * A résumé tailored to a role is always one page (`onePage`, Vivek
+ * 2026-10-02: "1 pager always"). That fit may also tighten the borders to
+ * 0.35in and the type a little further. When even that can't hold it, the
+ * bullets that matter least for the role come out (`fitResumeOnOnePage`):
+ * older roles' later bullets that don't use the role's words go first, and
+ * an entry's first bullet never goes. They're listed in `leftOut`, so the
+ * person is told what was left out.
+ *
  * Split in two, per the "pure decision, thin I/O" rule:
  *   - `layoutResumeDocument` / `fitResumeLayout` (pure): a
  *     `ParsedResumeDocument` and a `ResumeStyle` -> paginated draw commands.
@@ -185,19 +193,37 @@ function withSpacing(style: Omit<ResumeStyle, Spacing>): ResumeStyle {
   };
 }
 
+/** The borders a one-page fit may tighten to: 0.35in, about where a dense résumé sets them. */
+export const ONE_PAGE_MARGIN_FLOOR = 25.2;
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+/** The top of `compressResumeStyle`'s knob: 3, or 4 when the borders may move too. */
+export function maxCompression(marginFloor: number | null = null): number {
+  return marginFloor === null ? 3 : 4;
+}
+
 /**
- * One knob from "as designed" (0) to "as tight as readable" (3): spacing
- * halves over 0-1, the leading closes up over 1-2, the type shrinks toward
- * `floorBodySize` over 2-3. Margins never move: they are the original's.
+ * One knob from "as designed" (0) to "as tight as readable"
+ * (`maxCompression`): spacing halves over 0-1, the leading closes up over
+ * 1-2, then the type shrinks toward `floorBodySize` over the last step.
+ * Margins are the original's unless `marginFloor` is given (a one-page fit):
+ * then they close in toward it over 2-3, before the type moves.
  */
-export function compressResumeStyle(base: ResumeStyle, t: number, floorBodySize: number): ResumeStyle {
-  const space = 1 - 0.5 * Math.min(1, Math.max(0, t));
+export function compressResumeStyle(base: ResumeStyle, t: number, floorBodySize: number, marginFloor: number | null = null): ResumeStyle {
+  const space = 1 - 0.5 * clamp01(t);
   const leadRoom = Math.max(0, Math.min(0.12, base.lineHeight - 1.12));
-  const lineHeight = base.lineHeight - leadRoom * Math.min(1, Math.max(0, t - 1));
+  const lineHeight = base.lineHeight - leadRoom * clamp01(t - 1);
+  const borders = marginFloor === null ? 0 : clamp01(t - 2);
+  const margin = (m: number) => m - (m - Math.min(m, marginFloor ?? m)) * borders;
   const floor = Math.min(base.bodySize, floorBodySize);
-  const type = 1 - (1 - floor / base.bodySize) * Math.min(1, Math.max(0, t - 2));
+  const type = 1 - (1 - floor / base.bodySize) * clamp01(t - (maxCompression(marginFloor) - 1));
   return {
     ...base,
+    marginLeft: margin(base.marginLeft),
+    marginRight: margin(base.marginRight),
+    marginTop: margin(base.marginTop),
+    marginBottom: margin(base.marginBottom),
     lineHeight,
     nameSize: base.nameSize * type,
     contactSize: base.contactSize * type,
@@ -217,9 +243,11 @@ export function compressResumeStyle(base: ResumeStyle, t: number, floorBodySize:
 }
 
 /** Smallest body size the fit may shrink to. A measured original keeps
- *  within about a tenth of its own size; the default stops at 8pt. */
-export function floorBodySizeFor(style: ResumeStyle, measured: boolean): number {
-  return measured ? Math.min(style.bodySize, Math.max(7, style.bodySize * 0.9)) : Math.min(style.bodySize, 8);
+ *  within about a tenth of its own size (15% when it must make one page);
+ *  the default stops at 8pt. Never below 7pt. */
+export function floorBodySizeFor(style: ResumeStyle, measured: boolean, onePage = false): number {
+  if (!measured) return Math.min(style.bodySize, 8);
+  return Math.min(style.bodySize, Math.max(7, style.bodySize * (onePage ? 0.85 : 0.9)));
 }
 
 interface Token {
@@ -522,19 +550,26 @@ export interface ResumeFit {
  * reach the target, it takes the extra page with as little compression as
  * that page count needs (usually none) and reports `fits: false`.
  */
-export function fitResumeLayout(doc: ParsedResumeDocument, measure: TextMeasurer, base: ResumeStyle, opts: { targetPages?: number | null; floorBodySize: number }): ResumeFit {
+export function fitResumeLayout(
+  doc: ParsedResumeDocument,
+  measure: TextMeasurer,
+  base: ResumeStyle,
+  opts: { targetPages?: number | null; floorBodySize: number; marginFloor?: number | null },
+): ResumeFit {
+  const marginFloor = opts.marginFloor ?? null;
+  const top = maxCompression(marginFloor);
   const at = (t: number) => {
-    const style = compressResumeStyle(base, t, opts.floorBodySize);
+    const style = compressResumeStyle(base, t, opts.floorBodySize, marginFloor);
     return { style, layout: layoutResumeDocument(doc, measure, style) };
   };
   const loosest = at(0);
-  const tightest = at(3);
+  const tightest = at(top);
   const reachable = tightest.layout.pages.length;
   const wanted = opts.targetPages && opts.targetPages > 0 ? opts.targetPages : reachable;
   const goal = Math.max(wanted, reachable);
   if (loosest.layout.pages.length <= goal) return { ...loosest, targetPages: wanted, fits: loosest.layout.pages.length <= wanted };
   let lo = 0;
-  let hi = 3;
+  let hi = top;
   let best = tightest;
   for (let i = 0; i < 14; i++) {
     const mid = (lo + hi) / 2;
@@ -547,6 +582,113 @@ export function fitResumeLayout(doc: ParsedResumeDocument, measure: TextMeasurer
     }
   }
   return { ...best, targetPages: wanted, fits: best.layout.pages.length <= wanted };
+}
+
+/** A bullet a one-page fit left out, and the entry it came from as printed ("Marketing Manager | Brightline SaaS"). */
+export interface LeftOutBullet {
+  entry: string;
+  text: string;
+}
+
+export interface OnePageFit extends ResumeFit {
+  /** What was printed: `doc` less `leftOut`. */
+  doc: ParsedResumeDocument;
+  /** In document order; empty when everything fit. */
+  leftOut: LeftOutBullet[];
+}
+
+interface BulletRef {
+  section: number;
+  block: number;
+  bullet: number;
+  entry: string;
+  text: string;
+  score: number;
+}
+
+/** Lower-cased words of three letters or more, for matching a bullet against the role's words. */
+function wordsOf(text: string): string[] {
+  return text.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}+#.-]*[\p{L}\p{N}+#]|[\p{L}\p{N}]{3,}/gu)?.filter((w) => w.length >= 3) ?? [];
+}
+
+/**
+ * The bullets a one-page fit may leave out, least important first. An
+ * entry's first bullet is never a candidate (a role with no bullets reads
+ * as a mistake). Among the rest, a bullet that uses the role's words
+ * outranks one that doesn't; then newer entries outrank older ones (résumés
+ * list the newest first), and earlier bullets outrank later ones.
+ */
+export function bulletsToLeaveOut(doc: ParsedResumeDocument, roleTerms: readonly string[] = []): BulletRef[] {
+  const terms = new Set(roleTerms.map((t) => t.toLowerCase()).filter((t) => t.length >= 3));
+  const hits = (text: string) => {
+    let n = 0;
+    for (const w of new Set(wordsOf(text))) {
+      if (terms.has(w) || [...terms].some((t) => t.length >= 5 && (w.startsWith(t) || t.startsWith(w)) && Math.min(t.length, w.length) >= 5)) n++;
+    }
+    return Math.min(n, 4) / 4;
+  };
+  const refs: BulletRef[] = [];
+  doc.sections.forEach((section, s) => {
+    const entries = section.blocks.map((block, b) => ({ block, b })).filter(({ block }) => block.kind === "entry");
+    entries.forEach(({ block, b }, order) => {
+      if (block.kind !== "entry") return;
+      const age = entries.length > 1 ? order / (entries.length - 1) : 0;
+      block.bullets.forEach((text, i) => {
+        if (i === 0) return;
+        const later = block.bullets.length > 1 ? i / (block.bullets.length - 1) : 0;
+        refs.push({ section: s, block: b, bullet: i, entry: block.title, text, score: 3 * hits(text) - 1.5 * age - 0.5 * later });
+      });
+    });
+  });
+  // Least important first; on a tie, the one further down the page.
+  return refs.sort((a, b) => a.score - b.score || b.section - a.section || b.block - a.block || b.bullet - a.bullet);
+}
+
+function withoutBullets(doc: ParsedResumeDocument, out: Set<string>): ParsedResumeDocument {
+  return {
+    ...doc,
+    sections: doc.sections.map((section, s) => ({
+      ...section,
+      blocks: section.blocks.map((block, b) =>
+        block.kind === "entry" ? { ...block, bullets: block.bullets.filter((_, i) => !out.has(`${s}:${b}:${i}`)) } : block,
+      ),
+    })),
+  };
+}
+
+/**
+ * One page, whatever the original's length: the tightest fit
+ * `fitResumeLayout` can make with the borders free to close in, and when
+ * even that runs over, the fewest least-important bullets left out
+ * (`bulletsToLeaveOut`) for it to fit. If it can't fit with every
+ * candidate out, nothing is left out and it takes the pages it needs
+ * (`fits: false`): a person gets their whole résumé rather than one stripped
+ * to its first bullets.
+ */
+export function fitResumeOnOnePage(
+  doc: ParsedResumeDocument,
+  measure: TextMeasurer,
+  base: ResumeStyle,
+  opts: { floorBodySize: number; marginFloor?: number; roleTerms?: readonly string[] },
+): OnePageFit {
+  const marginFloor = opts.marginFloor ?? ONE_PAGE_MARGIN_FLOOR;
+  const fitOpts = { targetPages: 1, floorBodySize: opts.floorBodySize, marginFloor };
+  const whole = fitResumeLayout(doc, measure, base, fitOpts);
+  if (whole.fits) return { ...whole, doc, leftOut: [] };
+  const tightest = compressResumeStyle(base, maxCompression(marginFloor), opts.floorBodySize, marginFloor);
+  const candidates = bulletsToLeaveOut(doc, opts.roleTerms);
+  const out = new Set<string>();
+  for (const ref of candidates) {
+    out.add(`${ref.section}:${ref.block}:${ref.bullet}`);
+    const trimmed = withoutBullets(doc, out);
+    if (layoutResumeDocument(trimmed, measure, tightest).pages.length > 1) continue;
+    const leftOut = candidates
+      .filter((c) => out.has(`${c.section}:${c.block}:${c.bullet}`))
+      .sort((a, b) => a.section - b.section || a.block - b.block || a.bullet - b.bullet)
+      .map(({ entry, text }) => ({ entry, text }));
+    return { ...fitResumeLayout(trimmed, measure, base, fitOpts), doc: trimmed, leftOut };
+  }
+  return { ...whole, doc, leftOut: [] };
 }
 
 /* ---------------------------------- fonts ---------------------------------- */
@@ -654,6 +796,10 @@ export interface RenderResumeOptions {
   profile?: ResumeLayoutProfile | null;
   /** Unicode font files for the profile's family; needed only when `resumeNeedsUnicodeFont`. */
   fonts?: ResumeFontFiles | null;
+  /** Always one page (a résumé tailored to a role), not the original's page count. */
+  onePage?: boolean;
+  /** The role's words (title, skills, posting), so a one-page fit keeps the bullets that use them. */
+  roleTerms?: readonly string[];
 }
 
 export interface ResumePdfResult {
@@ -663,8 +809,11 @@ export interface ResumePdfResult {
   originalPages: number | null;
   /** The body type size the fit settled on. */
   bodySize: number;
-  /** Reached the original's page count (always true without an original). */
+  /** Reached the page count it aimed for: one page when `onePage`, else the original's (always true without one). */
   fits: boolean;
+  onePage: boolean;
+  /** Bullets a one-page fit left out, in document order. */
+  leftOut: LeftOutBullet[];
 }
 
 /** Thin I/O: a real jsPDF document drawing the fitted layout. Runs the same
@@ -689,10 +838,10 @@ export function renderResumePdf(content: ParsedResumeDocument, options: RenderRe
   }
 
   const measure = jsPdfMeasurer(doc, fontName);
-  const fit = fitResumeLayout(printable, measure, base, {
-    targetPages: profile?.pageCount ?? null,
-    floorBodySize: floorBodySizeFor(base, !!profile),
-  });
+  const onePage = !!options.onePage;
+  const fit: ResumeFit & { leftOut: LeftOutBullet[] } = onePage
+    ? fitResumeOnOnePage(printable, measure, base, { floorBodySize: floorBodySizeFor(base, !!profile, true), roleTerms: options.roleTerms })
+    : { ...fitResumeLayout(printable, measure, base, { targetPages: profile?.pageCount ?? null, floorBodySize: floorBodySizeFor(base, !!profile) }), leftOut: [] };
 
   fit.layout.pages.forEach((page, i) => {
     if (i > 0) doc.addPage([base.pageWidth, base.pageHeight]);
@@ -717,6 +866,8 @@ export function renderResumePdf(content: ParsedResumeDocument, options: RenderRe
     originalPages: profile?.pageCount ?? null,
     bodySize: Math.round(fit.style.bodySize * 100) / 100,
     fits: fit.fits,
+    onePage,
+    leftOut: fit.leftOut,
   };
 }
 
