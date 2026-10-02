@@ -52,6 +52,7 @@ import {
     interviewsThisWeek,
     isNewSince,
     pickToday,
+    placeCheckIds,
     readTodaySkipped,
     readTodayVisit,
     resolveTodaySince,
@@ -59,6 +60,7 @@ import {
     todaySearchFloor,
     tuneToday,
     writeTodaySkipped,
+    withPlaceNotes,
     writeTodayVisit,
     type TodayRole,
 } from "@/lib/jobs/for-you/today";
@@ -66,6 +68,8 @@ import { summarizeTuning, tuningLine, type TuningSignal } from "@/lib/jobs/for-y
 import { clearNudge, recordNudge, resetNudges, useDeckNudges } from "@/lib/jobs/for-you/tuning-store";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { fetchPlaceNotes } from "@/lib/jobs/place-notes-client";
+import { PLACE_NOTES_MAX_IDS } from "@/lib/jobs/place-restriction";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult } from "@/lib/jobs/result-state";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -100,6 +104,9 @@ export type TodayNoResume = "missing" | "unreadable" | "loading";
 
 /** The last settled picks search, repainted on a return to the hub (same rule as the hub probe's memo). */
 let todayMemo: { key: string; at: number; complete: true; search: PicksSearch } | null = null;
+
+/** How long the picks wait for their descriptions' place check before showing without it. */
+const TODAY_PLACE_NOTES_DEADLINE_MS = 1_200;
 
 /** This sitting's visit baseline, shared by the "Last here" line and Today so both read the same one. */
 type VisitMemo = { at: number; visit: ReturnType<typeof resolveTodaySince> };
@@ -240,7 +247,13 @@ export function TodayHome({
                 }
                 if (score) roles.push({ job, score });
             }
-            const ready: PicksSearch = { kind: "ready", roles };
+            // Rows that name no country may still be for people somewhere else ("must be based in India"):
+            // their descriptions are read once, within a deadline, before the picks show.
+            const checkIds = placeCheckIds(roles, PLACE_NOTES_MAX_IDS);
+            const notes = checkIds.length > 0 ? await fetchPlaceNotes(checkIds, TODAY_PLACE_NOTES_DEADLINE_MS) : null;
+            if (cancelled) return;
+            const placed = notes ? withPlaceNotes(roles, notes, (job) => scoreJobAgainstResume(resume, job, signals)) : roles;
+            const ready: PicksSearch = { kind: "ready", roles: placed };
             todayMemo = { key: memoKey, at: Date.now(), complete: true, search: ready };
             setSettled({ key: requestKey, search: ready });
         })();

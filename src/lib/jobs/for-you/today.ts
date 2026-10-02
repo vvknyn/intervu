@@ -10,7 +10,8 @@
  */
 import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import type { PublicJob } from "@/lib/jobs/types";
+import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
+import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { compareFit, matchBand, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
@@ -141,6 +142,38 @@ export function pickToday(
             seen.add(key);
             return true;
         });
+}
+
+/**
+ * Today's likely picks, best first, whose rows name no country of their own
+ * (no country field, place text or place in the title): only the description
+ * can still say where the person must be, so these are the ones to read
+ * (`/api/jobs/place-notes`). At most `max`.
+ */
+export function placeCheckIds(roles: TodayRole[], max: number): string[] {
+    return pickToday(roles, { skipped: new Set(), tracked: new Set() })
+        .filter(({ job }) => jobCountries(job).length === 0 && !titlePlace(job.title))
+        .slice(0, max)
+        .map(({ job }) => job.id);
+}
+
+/**
+ * The roles with what their descriptions say about place (`notes`), each
+ * noted role scored again so a role limited to another country reads as
+ * abroad and leaves the picks. Roles without a note are unchanged.
+ */
+export function withPlaceNotes(
+    roles: TodayRole[],
+    notes: Readonly<Record<string, PlaceRestriction | null>>,
+    rescore: (job: PublicJob) => MatchScore | null,
+): TodayRole[] {
+    return roles.flatMap((role) => {
+        const note = notes[role.job.id];
+        if (!note) return [role];
+        const job = { ...role.job, place_restriction: note };
+        const score = rescore(job);
+        return score ? [{ job, score }] : [];
+    });
 }
 
 /**
