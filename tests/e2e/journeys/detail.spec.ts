@@ -5,11 +5,12 @@ import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 
 /** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37/41/42, J-JOBS-11/53). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
-/** The one "Customize résumé" (with a résumé) or "Upload résumé to customize." (without) button. */
+/** The one "Customize résumé" (with a résumé) or "Upload résumé to customize" (without) button. */
 const CUSTOMIZE = '[data-testid="local-customize-open"]:visible, [data-testid="job-detail-upload-to-customize"]:visible';
 
 /** How far the page scrolls sideways; 0 when everything fits the screen. */
@@ -51,8 +52,9 @@ async function closeJob(page: Page) {
 async function searchFor(page: Page, keyword: string) {
   await page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
   await page.goto("/jobs");
-  await page.getByPlaceholder("Job title, skill, or company").fill(keyword);
-  await page.getByTestId("search-submit").click();
+  const input = page.getByPlaceholder("Job title, skill, or company");
+  await input.fill(keyword);
+  await runSearch(page, input);
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
 }
 
@@ -237,7 +239,7 @@ test("the job page shows its keywords and check rows on desktop, one tap away on
 test("the job page's actions fit the screen: Apply and Save in the phone bar, Upload or Customize in the page", { tag: ["@J-DETAIL-32"] }, async ({ page, diagnostics }) => {
   const [path] = await liveJobPaths(page, "product manager", 1);
   await page.goto(path!);
-  // A guest has no résumé, so this is "Upload résumé to customize.": one of them, on its own row.
+  // A guest has no résumé, so this is "Upload résumé to customize": one of them, on its own row.
   await expect(page.locator(CUSTOMIZE)).toHaveCount(1, { timeout: 20_000 });
   if (isDesktop(page)) {
     expect(await spilled(page.getByTestId("job-detail-apply-card"))).toEqual([]);

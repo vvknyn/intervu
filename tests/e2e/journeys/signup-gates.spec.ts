@@ -3,6 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LAST_JOBS_HOME_VIEW_KEY } from "../../../src/lib/jobs/for-you/last-home-view";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 
 /**
  * Journeys for the signed-out gates — see tests/journeys/CATALOG.md
@@ -21,8 +22,9 @@ const gate = (page: Page, reason: string) => page.locator(`[data-testid="signup-
 async function searchFor(page: Page, keyword: string) {
   await returningVisitor(page);
   await page.goto("/jobs");
-  await page.getByPlaceholder("Job title, skill, or company").fill(keyword);
-  await page.getByTestId("search-submit").click();
+  const input = page.getByPlaceholder("Job title, skill, or company");
+  await input.fill(keyword);
+  await runSearch(page, input);
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
 }
 
