@@ -735,19 +735,22 @@ signedInTest("three or more applications gone quiet are one Needs you line that 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+/** A remote role for the Toronto software résumé: its own kind of role at its level, placed only as `location` says. */
+const remoteRole = (id: string, title: string, location: string, extra: Record<string, unknown> = {}) => ({
+  id, title, company: `Company ${id}`, company_domain: null, location, location_city: null, location_state: null, location_country: null,
+  work_type: "remote", employment_type: "full_time", experience_level: "mid", salary_min: null, salary_max: null, salary_currency: null,
+  salary_period: null, visa_sponsorship: null, tags: ["typescript"], apply_url: "https://example.com/apply", source: "e2e",
+  posted_at: new Date().toISOString(), first_seen_at: null, updated_at: null, vacancy_status: "open", ghost_badge: null, ...extra,
+});
+
 signedInTest("Today leaves out roles for people in another country, whether the title, the place or the description says so", { tag: ["@J-JOBS-99"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await withResume(page, "Toronto, Ontario, Canada");
 
-  // This week's roles for the Toronto résumé, each its own kind of role at its level, remote, written the ways postings write a
-  // place (Vivek 2026-10-02: "I am in Canada and being referred India jobs").
-  const role = (id: string, title: string, location: string, extra: Record<string, unknown> = {}) => ({
-    id, title, company: `Company ${id}`, company_domain: null, location, location_city: null, location_state: null, location_country: null,
-    work_type: "remote", employment_type: "full_time", experience_level: "mid", salary_min: null, salary_max: null, salary_currency: null,
-    salary_period: null, visa_sponsorship: null, tags: ["typescript"], apply_url: "https://example.com/apply", source: "e2e",
-    posted_at: new Date().toISOString(), first_seen_at: null, updated_at: null, vacancy_status: "open", ghost_badge: null, ...extra,
-  });
+  // This week's roles for the Toronto résumé, remote, written the ways postings write a place
+  // (Vivek 2026-10-02: "I am in Canada and being referred India jobs").
+  const role = remoteRole;
   const week = [
     role("in-canada", "Software Engineer", "Remote, Canada"),
     role("title-india", "Software Engineer (India)", "Remote"),
@@ -777,6 +780,63 @@ signedInTest("Today leaves out roles for people in another country, whether the 
 
   // The route itself answers a malformed ask with 400 and an unknown id with no note.
   expect((await page.request.post("/api/jobs/place-notes", { data: { ids: [] } })).status()).toBe(400);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("an opened pack reads its roles' descriptions for place before it shows, so a role for people in another country is never its first card", { tag: ["@J-JOBS-101"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  // Every card the deck puts in front, in order, from its first paint on.
+  await page.addInitScript(() => {
+    const seen: string[] = [];
+    (window as unknown as { __deckFronts: string[] }).__deckFronts = seen;
+    new MutationObserver(() => {
+      const id = document.querySelector('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]')?.getAttribute("data-job-id");
+      if (id && seen[seen.length - 1] !== id) seen.push(id);
+    }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-stack-pose", "data-job-id"] });
+  });
+
+  // The pack's search lists a role whose description is for people in India first; its title and place say only "Remote".
+  const pack = [
+    remoteRole("desc-india", "Software Engineer", "Remote"),
+    remoteRole("in-canada", "Software Engineer", "Remote, Canada"),
+    remoteRole("open-anywhere", "Software Engineer", "Remote"),
+  ];
+  const ids = new Set(pack.map((p) => p.id));
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    return answerListSearch(route, { hits: pack, total: pack.length, backend: "meilisearch", configured: true, searchId: "e2e-pack" });
+  });
+  // The read answers late, as a slow server would: the deck waits for it rather than showing the India role and moving it.
+  const asked: string[][] = [];
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    const wanted = (route.request().postDataJSON() as { ids: string[] }).ids;
+    if (wanted.some((id) => ids.has(id))) asked.push(wanted);
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const notes = Object.fromEntries(wanted.map((id) => [id, id === "desc-india" ? { label: "India", countries: ["India"] } : null]));
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
+
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3");
+  // Only the rows that name no place were read, once, and the India role was never in front until it was reached, last.
+  expect(asked).toHaveLength(1);
+  expect(new Set(asked[0])).toEqual(new Set(["desc-india", "open-anywhere"]));
+  for (let step = 0; step < 2; step++) await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", "desc-india");
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 3 of 3");
+  const fronts = await page.evaluate(() => (window as unknown as { __deckFronts: string[] }).__deckFronts);
+  expect(fronts.indexOf("desc-india")).toBe(fronts.length - 1);
+  expect(fronts.slice(0, -1)).not.toContain("desc-india");
+  // Never Strong: it is for people in India.
+  await expect(front.getByTestId("match-chip").first()).not.toHaveText("Strong");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

@@ -8,6 +8,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
+import { withDescriptionPlace } from "@/lib/jobs/place-notes";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
@@ -28,7 +29,8 @@ const load = cache(async (slug: string) => {
     const id = parseJobSlug(slug);
     if (!id) return null;
     const job = await getJobById(id);
-    return job ? { job, path: jobPath(job) } : null;
+    // The fit label reads the place the description limits the role to, as the lists do.
+    return job ? { job: withDescriptionPlace(job), path: jobPath(job) } : null;
 });
 
 function displayCompanyFor(job: { company: string | null; company_domain: string | null; title: string }): string | null {

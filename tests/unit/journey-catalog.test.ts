@@ -56,3 +56,9 @@ test("summary counts every status", () => {
   const rows = catalog(row("J-A-01", "covered"), row("J-A-02", "uncovered"), row("J-A-03", "uncovered"), row("J-A-04", "known-bug"));
   assert.equal(summarizeCatalog(rows), "journeys: 4 total, 1 covered, 2 uncovered, 1 known-bug");
 });
+
+test("an area past 99 keeps counting: a three-digit ID is a row, and its tag must match one", () => {
+  assert.deepEqual(catalog(row("J-A-101", "covered")).map((r) => r.id), ["J-A-101"]);
+  assert.deepEqual(lintCatalog(catalog(row("J-A-101", "covered")), { "a.spec.ts": spec(["J-A-101"]) }), []);
+  assert.match(lintCatalog(catalog(row("J-A-01", "covered")), { "a.spec.ts": spec(["J-A-01"], ["J-A-102"]) }).join("\n"), /@J-A-102 has no catalog row/);
+});

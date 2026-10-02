@@ -236,6 +236,8 @@ const ApplyIntentDialog = dynamic(
 );
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
+import { fetchPlaceNotes } from "@/lib/jobs/place-notes-client";
+import { nextPlaceCheckIds } from "@/lib/jobs/place-restriction";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
 import {
     isUnavailableJobsResult,
@@ -304,6 +306,7 @@ import {
     type FacetKey,
     type JobSearchParams,
     type JobSortMode,
+    type PlaceRestriction,
     type PostedBucket,
     type PublicJob,
     type YearsExperienceBucket,
@@ -767,6 +770,11 @@ const PAGE = 20;
 const FOR_YOU_PAGE = 60;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
+/** How long a ranked list's read of its roles' description places may take
+ *  (`/api/jobs/place-notes`); an opened deck waits at most this long for it. */
+const RANKED_PLACE_NOTES_DEADLINE_MS = 1_000;
+/** The deck's roles while it holds them (one stable empty list). */
+const NO_PACKS: PublicJob[] = [];
 
 /** Jobs opened in a session before the résumé is offered (Screen 9). Three is
  *  the point where someone is demonstrably reading rather than glancing. */
@@ -2900,12 +2908,20 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // map — the frozen "one scoring function" rule means the chip and the
     // visible order can never disagree about a job's score. `null` (no
     // résumé) short-circuits to no map at all, not a map of nulls.
+    // A row scores with what its description says about place once that is
+    // read (`placeNotes`, below), so a role for people in another country
+    // ranks and reads as abroad here as it does on its own page.
+    const [placeNotes, setPlaceNotes] = useState<ReadonlyMap<string, PlaceRestriction | null>>(() => new Map());
     const matchScores = useMemo(() => {
         if (!resume || !signals) return null;
         const map = new Map<string, MatchScore | null>();
-        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h, signals));
+        for (const row of hits) {
+            const place = placeNotes.get(row.id);
+            const h = place ? { ...row, place_restriction: place } : row;
+            map.set(h.id, scoreJobAgainstResume(resume, h, signals));
+        }
         return map;
-    }, [resume, signals, hits]);
+    }, [resume, signals, hits, placeNotes]);
 
     // The receipt/toolbar's "against your résumé of {date}" text — formatted
     // once here (`shortDate`, presentation.ts, UTC-pinned) rather than at
@@ -2980,8 +2996,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // An opened pack lists only its own search's rows: while that search is in
     // flight the deck loads rather than showing the previous search's roles.
     const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
-    const deckLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
-    const forYouPacks = useMemo(
+    const deckRowsLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
+    const rankedPacks = useMemo(
         () =>
             deckResultStale
                 ? []
@@ -2994,8 +3010,83 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                   ),
         [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
     );
+    // Search rows arrive with what their descriptions say about place
+    // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
+    // the deck holds its roles until its first ones are read here (the effect
+    // after `useForYouDeck` below), so its first card is never one that is
+    // about to move down the pack.
+    const deckInView = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
+    const [deckPlacesReadKey, setDeckPlacesReadKey] = useState<string | null>(null);
+    const deckAwaitsPlaces = useMemo(
+        () =>
+            deckInView &&
+            matchScores !== null &&
+            deckPlacesReadKey !== searchKey &&
+            nextPlaceCheckIds(rankedPacks, 0, (id) => placeNotes.has(id)).length > 0,
+        [deckInView, matchScores, deckPlacesReadKey, searchKey, rankedPacks, placeNotes],
+    );
+    const deckLoading = deckRowsLoading || deckAwaitsPlaces;
+    const forYouPacks = deckAwaitsPlaces ? NO_PACKS : rankedPacks;
     const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
     const forYouDeck = useForYouDeck(forYouPacks, isOwnRole);
+
+    // The browser's fallback for rows the search's own place read left unread
+    // (it answers without them past a short deadline): reads what the
+    // descriptions of the ranked roles the person sees next say about place,
+    // the deck's from its open card on, or the fit-sorted list's from the top.
+    // A role whose title and place fields name no country can still be for
+    // people in one country only ("must be based in India",
+    // `readPlaceRestriction`), and it then ranks and reads as abroad. A
+    // stretch of rows at a time (`nextPlaceCheckIds`), one request in flight;
+    // only an opened deck's first stretch holds anything, up to the deadline.
+    const placeNotesInFlightRef = useRef(false);
+    useEffect(() => {
+        if (!matchScores || placeNotesInFlightRef.current) return;
+        const listInView = !showForYouHome && fitActive && !loading;
+        const rows = deckInView
+            ? deckRowsLoading
+                ? null
+                : deckAwaitsPlaces
+                  ? rankedPacks
+                  : forYouDeck.visiblePacks
+            : listInView
+              ? renderedClusters.map((c) => c.primary)
+              : null;
+        if (!rows) return;
+        const key = searchKey;
+        const firstStretch = deckInView && deckPlacesReadKey !== key;
+        const ids = nextPlaceCheckIds(rows, deckInView && !deckAwaitsPlaces ? forYouDeck.activeIndex : 0, (id) => placeNotes.has(id));
+        if (ids.length === 0) {
+            if (firstStretch) setDeckPlacesReadKey(key);
+            return;
+        }
+        placeNotesInFlightRef.current = true;
+        void fetchPlaceNotes(ids, RANKED_PLACE_NOTES_DEADLINE_MS).then((notes) => {
+            placeNotesInFlightRef.current = false;
+            setPlaceNotes((prev) => {
+                const next = new Map(prev);
+                // No limit, or a failed or late read: no note, and not asked again.
+                for (const id of ids) next.set(id, notes?.[id] ?? null);
+                return next;
+            });
+            if (firstStretch) setDeckPlacesReadKey(key);
+        });
+    }, [
+        matchScores,
+        showForYouHome,
+        fitActive,
+        loading,
+        deckInView,
+        deckRowsLoading,
+        deckAwaitsPlaces,
+        rankedPacks,
+        forYouDeck.visiblePacks,
+        forYouDeck.activeIndex,
+        renderedClusters,
+        searchKey,
+        deckPlacesReadKey,
+        placeNotes,
+    ]);
 
     useEffect(() => {
         if (!forYouOpen || firstPackRevealAttemptedRef.current) return;

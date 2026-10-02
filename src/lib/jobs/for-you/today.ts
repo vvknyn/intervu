@@ -10,7 +10,7 @@
  */
 import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
-import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
+import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { compareFit, matchBand, type MatchScore } from "@/lib/match/score";
@@ -152,7 +152,7 @@ export function pickToday(
  */
 export function placeCheckIds(roles: TodayRole[], max: number): string[] {
     return pickToday(roles, { skipped: new Set(), tracked: new Set() })
-        .filter(({ job }) => jobCountries(job).length === 0 && !titlePlace(job.title))
+        .filter(({ job }) => needsPlaceCheck(job))
         .slice(0, max)
         .map(({ job }) => job.id);
 }
