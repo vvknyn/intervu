@@ -163,6 +163,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-30 | Focusing the empty search box shows "Popular searches" and "Recent searches" groups; picking one runs it | anon | SEED-A + `/jobs` with a recent search seeded, focus the `Search` combobox | signed-out | no | uncovered | — |
 | J-SRCH-31 | A signed-out search or the no-query landing shows the visitor's country as a chip (`default-location-chip`); its × "Stop defaulting to <country>" widens the results and stays off after a reload | anon | SEED-A + `/jobs?q=engineer` | signed-out | no | uncovered | — |
 | J-SRCH-32 | Degraded-search and unmatched-place captions show over the results (`degraded-note`, `unmatched-place-note`) | anon | SEED-A + `/jobs?q=engineer` with a place the index does not know, or a degraded search answered in the browser | signed-out | no | uncovered | — |
+| J-SRCH-33 | A signed-in search for a place filters the list and nothing more: it does not write the saved preferences, so it never becomes where the candidate can work (only Settings, or their agent, sets that; every fit label reads it) | Signed-in candidate | `/jobs?view=search&q=engineer&country=United%20States`, type "software engineer" in the search box and press Enter, wait for `job-row`; no server action posts a `search` preference (signed in: E2E_STORAGE_STATE, or the dev-only hook on a local dev server) | signed-in | no | covered | jobs.spec.ts |
 
 ## FILT
 

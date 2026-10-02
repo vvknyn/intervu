@@ -622,6 +622,29 @@ signedInTest("a role Today labels Strong or Good carries the same fit word on it
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("a signed-in search for a place filters the list and leaves the saved preferences alone, so it never becomes where the candidate can work", { tag: ["@J-SRCH-33"] }, async ({ page, diagnostics }) => {
+  // Saved preferences set the candidate's location for every fit label (resolveCandidateSignals): a search
+  // that wrote them made one search for "United States" read as living there (2026-10-02).
+  const preferenceWrites: string[] = [];
+  page.on("request", (request) => {
+    const body = request.method() === "POST" && request.headers()["next-action"] ? (request.postData() ?? "") : "";
+    if (/"search":\{"(query|location)"/.test(body)) preferenceWrites.push(body);
+  });
+  await page.goto("/jobs?view=search&q=engineer&country=United%20States");
+  const input = page.locator(SEARCH_INPUT);
+  await expect(input).toBeVisible({ timeout: 30_000 });
+  await input.fill("software engineer");
+  await input.press("Enter");
+  await expect(page).toHaveURL(/[?&]q=software(\+|%20)engineer/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/[?&]country=United/);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
+  // Server actions run one at a time, so a write queued behind the page's own reads goes out late: let them drain.
+  await page.waitForLoadState("networkidle");
+  expect(preferenceWrites).toEqual([]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("signed in without a résumé, the packs home still has Today under the chips: what needs them, and where the picks would be, a way to add a résumé", { tag: ["@J-JOBS-97"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
