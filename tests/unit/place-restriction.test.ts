@@ -13,7 +13,8 @@ import { describe, it } from "node:test";
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { pickToday, placeCheckIds, todayLeftOut, withPlaceNotes, type TodayRole } from "@/lib/jobs/for-you/today";
-import { readPlaceRestriction } from "@/lib/jobs/place-restriction";
+import { MAX_LATE_PLACE_READS, SEARCH_PLACE_READ_MAX_IDS, withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { needsPlaceCheck, nextPlaceCheckIds, readPlaceRestriction } from "@/lib/jobs/place-restriction";
 import { jobCountries, placeNamed, titlePlace } from "@/lib/jobs/resume-location";
 import type { PublicJob } from "@/lib/jobs/types";
 import { scoreJobAgainstResume } from "@/lib/match/score";
@@ -160,5 +161,122 @@ describe("Today reads the descriptions of picks whose rows name no country", () 
         assert.ok(picked.includes("canada"));
         assert.ok(!picked.includes("india-desc"));
         assert.ok(!picked.includes("india-title"));
+    });
+});
+
+describe("a ranked list reads its roles' descriptions a stretch at a time", () => {
+    const rows = Array.from({ length: 40 }, (_, i) => remote("Technical Account Manager", { id: `r${i}` }));
+    rows[1] = remote("Technical Account Manager", { id: "r1", location: "Remote, Canada" });
+    rows[2] = remote("Technical Account Manager (India)", { id: "r2" });
+
+    it("reads the rows from the one in view on, skipping rows that name a place, at most a request's worth", () => {
+        const ids = nextPlaceCheckIds(rows, 0, () => false);
+        assert.equal(ids.length, 24);
+        assert.deepEqual(ids.slice(0, 3), ["r0", "r3", "r4"]);
+    });
+
+    it("asks nothing while the next rows are read, and the next stretch once they aren't", () => {
+        const read = new Set(nextPlaceCheckIds(rows, 0, () => false));
+        assert.deepEqual(nextPlaceCheckIds(rows, 5, (id) => read.has(id)), []);
+        const next = nextPlaceCheckIds(rows, 20, (id) => read.has(id));
+        assert.deepEqual(next, ["r26", "r27", "r28", "r29", "r30", "r31", "r32", "r33", "r34", "r35", "r36", "r37", "r38", "r39"]);
+    });
+
+    it("a role already read, with or without a limit, is not read again", () => {
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager", { place_restriction: null })), false);
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager")), true);
+    });
+});
+
+describe("a role's own page reads its description for place", () => {
+    const withDescription = (description: string | null) => remote("Technical Account Manager", { description } as Partial<PublicJob>);
+
+    it("reads countries, regions and cities the gazetteer knows", () => {
+        assert.deepEqual(withDescriptionPlace(withDescription("<p>Candidates must be based in India.</p>")).place_restriction?.countries, ["India"]);
+        assert.deepEqual(withDescriptionPlace(withDescription("You must be based in Bengaluru.")).place_restriction?.countries, ["India"]);
+        assert.equal(withDescriptionPlace(withDescription("We hire anywhere in the world.")).place_restriction, null);
+    });
+
+    it("the role reads as abroad on its page for Canada, as it does in the lists", () => {
+        const job = withDescriptionPlace(withDescription("This role is open to candidates located in India."));
+        assert.equal(location(TAM_TORONTO, job, REMOTE_ONLY).reason, "remote_abroad");
+    });
+
+    it("leaves a role without its description, or one already read, as it is", () => {
+        const row = remote("Technical Account Manager");
+        assert.equal(withDescriptionPlace(row), row);
+        const read = withDescription("Candidates must be based in India.");
+        const noted = { ...read, place_restriction: null };
+        assert.equal(withDescriptionPlace(noted), noted);
+    });
+});
+
+describe("every search page arrives with its rows' description places", () => {
+    const page = [
+        remote("Technical Account Manager", { id: "plain" }),
+        remote("Technical Account Manager", { id: "india-desc" }),
+        remote("Technical Account Manager (India)", { id: "india-title" }),
+        remote("Technical Account Manager", { id: "canada", location: "Remote, Canada" }),
+    ];
+    const india = { label: "India", countries: ["India"] };
+
+    it("reads only the rows that name no place, once, and marks each one read", async () => {
+        const asked: string[][] = [];
+        const rows = await withPlaceRestrictions(page, {
+            read: async (ids) => {
+                asked.push(ids);
+                return { "india-desc": india, plain: null };
+            },
+        });
+        assert.deepEqual(asked, [["plain", "india-desc"]]);
+        assert.deepEqual(
+            rows.map((r) => r.place_restriction),
+            [null, india, undefined, undefined],
+        );
+        assert.equal(location(TAM_TORONTO, rows[1]!, REMOTE_ONLY).reason, "remote_abroad");
+        assert.equal(needsPlaceCheck(rows[0]!), false);
+    });
+
+    it("a slow or failed read answers with the rows as they were, for the browser to read", async () => {
+        let finished!: Promise<Record<string, never>>;
+        const slow = await withPlaceRestrictions(page, {
+            read: () => (finished = new Promise((resolve) => setTimeout(() => resolve({}), 60))),
+            deadlineMs: 20,
+        });
+        assert.equal(slow, page);
+        await finished;
+        const failed = await withPlaceRestrictions(page, { read: () => Promise.reject(new Error("meili down")) });
+        assert.equal(failed, page);
+    });
+
+    it("a late read keeps running to fill the cache, but only a few at once; past that it is stopped", async () => {
+        const signals: AbortSignal[] = [];
+        const finish: (() => void)[] = [];
+        const read = (_ids: string[], signal: AbortSignal) =>
+            new Promise<Record<string, never>>((resolve) => {
+                signals.push(signal);
+                finish.push(() => resolve({}));
+            });
+        for (let i = 0; i <= MAX_LATE_PLACE_READS; i++) assert.equal(await withPlaceRestrictions(page, { read, deadlineMs: 5 }), page);
+        assert.deepEqual(
+            signals.map((s) => s.aborted),
+            [...Array(MAX_LATE_PLACE_READS).fill(false), true],
+        );
+        // Once the late reads finish, a slot is free again.
+        for (const done of finish) done();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await withPlaceRestrictions(page, { read, deadlineMs: 5 });
+        assert.equal(signals.at(-1)!.aborted, false);
+        finish.at(-1)!();
+    });
+
+    it("reads at most a deep page's worth, and nothing when every row names a place", async () => {
+        const deep = Array.from({ length: 200 }, (_, i) => remote("Technical Account Manager", { id: `d${i}` }));
+        let count = 0;
+        await withPlaceRestrictions(deep, { read: async (ids) => ((count = ids.length), {}) });
+        assert.equal(count, SEARCH_PLACE_READ_MAX_IDS);
+        let called = false;
+        await withPlaceRestrictions([page[2]!, page[3]!], { read: async () => ((called = true), {}) });
+        assert.equal(called, false);
     });
 });

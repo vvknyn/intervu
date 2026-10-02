@@ -31,6 +31,7 @@ import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
+import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
 import { isInternalPosting } from "@/lib/jobs/presentation";
 import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
@@ -173,7 +174,10 @@ export async function searchJobsAction(
   // to see go to Subspace's liveness verifier first. See liveness-demand.ts.
   reportShownJobs(result.hits);
 
-  return { ...result, searchId };
+  // What each row's description says about where the person must be, so a
+  // role for people in another country never reads as a fit in any list.
+  const hits = await withPlaceRestrictions(result.hits);
+  return { ...result, hits, searchId };
 }
 
 /** How many related jobs the detail panel's "More like this" shows. */
@@ -194,7 +198,7 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
     limit: RELATED_JOBS_LIMIT + 1,
     ...params,
   });
-  return result.hits.filter((h) => h.id !== jobId).slice(0, RELATED_JOBS_LIMIT);
+  return withPlaceRestrictions(result.hits.filter((h) => h.id !== jobId).slice(0, RELATED_JOBS_LIMIT));
 }
 
 /**
@@ -631,7 +635,7 @@ export async function jobsBackendStatusAction(): Promise<{
 export async function getJobByIdAction(id: string): Promise<PublicJob | null> {
   const job = await getJobById(id);
   if (job) reportOpenedJob(job.id);
-  return job;
+  return job ? withDescriptionPlace(job) : null;
 }
 
 /**

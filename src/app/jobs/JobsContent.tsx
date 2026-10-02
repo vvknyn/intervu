@@ -236,6 +236,8 @@ const ApplyIntentDialog = dynamic(
 );
 import { JobsPaginationGeneration } from "@/lib/jobs/pagination-generation";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
+import { fetchPlaceNotes } from "@/lib/jobs/place-notes-client";
+import { nextPlaceCheckIds } from "@/lib/jobs/place-restriction";
 import { isSameOpenJob } from "@/lib/jobs/is-same-open-job";
 import {
     isUnavailableJobsResult,
@@ -263,7 +265,6 @@ import {
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -303,6 +304,7 @@ import {
     type FacetKey,
     type JobSearchParams,
     type JobSortMode,
+    type PlaceRestriction,
     type PostedBucket,
     type PublicJob,
     type YearsExperienceBucket,
@@ -767,6 +769,11 @@ const PAGE = 20;
 const FOR_YOU_PAGE = 60;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
+/** How long a ranked list's read of its roles' description places may take
+ *  (`/api/jobs/place-notes`); an opened deck waits at most this long for it. */
+const RANKED_PLACE_NOTES_DEADLINE_MS = 1_000;
+/** The deck's roles while it holds them (one stable empty list). */
+const NO_PACKS: PublicJob[] = [];
 
 /** Jobs opened in a session before the résumé is offered (Screen 9). Three is
  *  the point where someone is demonstrably reading rather than glancing. */
@@ -1329,7 +1336,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         // location, the IP default filtered the results, and the header kept
         // showing the dead text (prod bug, 2026-09-22). Same field fallback
         // as `addLocation`'s free-text branch (`location_country`), same
-        // default suppression and preference write; idempotent when blur DID
+        // default suppression; idempotent when blur DID
         // commit (the folded compare no-ops).
         const draftPlace = locationDraft.trim();
         if (draftPlace) {
@@ -1342,11 +1349,6 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     ...latestState,
                     facets: { ...latestState.facets, location_country: nextValues },
                 });
-                if (user && q.trim()) {
-                    void saveAgentPreferencesAction({
-                        search: { query: q.trim(), location: nextValues[0]?.trim() || undefined },
-                    }).catch(() => {});
-                }
             }
             setLocationDraft("");
         }
@@ -1414,17 +1416,11 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         const interactions = recordOnboardingInteraction();
         setSearchInteractions(interactions);
 
+        // A search is a filter, not a statement of where someone can work or what they do: it no
+        // longer writes the saved preferences (`saveAgentPreferencesAction`). Those set the candidate's
+        // location for every fit label (`resolveCandidateSignals`), so one search for "United States"
+        // used to make every label read as if they lived there. Only Settings (and their agent) set them.
         if (user) {
-            void saveAgentPreferencesAction({
-                search: {
-                    // The saved-preference model holds ONE location, so a
-                    // multi-place search saves its first. Joining them into a
-                    // single string would write a value place resolution has
-                    // never been asked to parse back.
-                    query: q.trim() || undefined,
-                    location: chosenLocations[0]?.trim() || undefined,
-                },
-            }).catch(() => {});
             // `accountEmailState === null` means the lookup hasn't answered
             // yet — not "reachable". Treating unknown as fine is what keeps a
             // slow round trip from silently suppressing the banner forever.
@@ -2887,12 +2883,20 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // map — the frozen "one scoring function" rule means the chip and the
     // visible order can never disagree about a job's score. `null` (no
     // résumé) short-circuits to no map at all, not a map of nulls.
+    // A row scores with what its description says about place once that is
+    // read (`placeNotes`, below), so a role for people in another country
+    // ranks and reads as abroad here as it does on its own page.
+    const [placeNotes, setPlaceNotes] = useState<ReadonlyMap<string, PlaceRestriction | null>>(() => new Map());
     const matchScores = useMemo(() => {
         if (!resume || !signals) return null;
         const map = new Map<string, MatchScore | null>();
-        for (const h of hits) map.set(h.id, scoreJobAgainstResume(resume, h, signals));
+        for (const row of hits) {
+            const place = placeNotes.get(row.id);
+            const h = place ? { ...row, place_restriction: place } : row;
+            map.set(h.id, scoreJobAgainstResume(resume, h, signals));
+        }
         return map;
-    }, [resume, signals, hits]);
+    }, [resume, signals, hits, placeNotes]);
 
     // The receipt/toolbar's "against your résumé of {date}" text — formatted
     // once here (`shortDate`, presentation.ts, UTC-pinned) rather than at
@@ -2967,8 +2971,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // An opened pack lists only its own search's rows: while that search is in
     // flight the deck loads rather than showing the previous search's roles.
     const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
-    const deckLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
-    const forYouPacks = useMemo(
+    const deckRowsLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
+    const rankedPacks = useMemo(
         () =>
             deckResultStale
                 ? []
@@ -2981,8 +2985,83 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                   ),
         [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
     );
+    // Search rows arrive with what their descriptions say about place
+    // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
+    // the deck holds its roles until its first ones are read here (the effect
+    // after `useForYouDeck` below), so its first card is never one that is
+    // about to move down the pack.
+    const deckInView = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
+    const [deckPlacesReadKey, setDeckPlacesReadKey] = useState<string | null>(null);
+    const deckAwaitsPlaces = useMemo(
+        () =>
+            deckInView &&
+            matchScores !== null &&
+            deckPlacesReadKey !== searchKey &&
+            nextPlaceCheckIds(rankedPacks, 0, (id) => placeNotes.has(id)).length > 0,
+        [deckInView, matchScores, deckPlacesReadKey, searchKey, rankedPacks, placeNotes],
+    );
+    const deckLoading = deckRowsLoading || deckAwaitsPlaces;
+    const forYouPacks = deckAwaitsPlaces ? NO_PACKS : rankedPacks;
     const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
     const forYouDeck = useForYouDeck(forYouPacks, isOwnRole);
+
+    // The browser's fallback for rows the search's own place read left unread
+    // (it answers without them past a short deadline): reads what the
+    // descriptions of the ranked roles the person sees next say about place,
+    // the deck's from its open card on, or the fit-sorted list's from the top.
+    // A role whose title and place fields name no country can still be for
+    // people in one country only ("must be based in India",
+    // `readPlaceRestriction`), and it then ranks and reads as abroad. A
+    // stretch of rows at a time (`nextPlaceCheckIds`), one request in flight;
+    // only an opened deck's first stretch holds anything, up to the deadline.
+    const placeNotesInFlightRef = useRef(false);
+    useEffect(() => {
+        if (!matchScores || placeNotesInFlightRef.current) return;
+        const listInView = !showForYouHome && fitActive && !loading;
+        const rows = deckInView
+            ? deckRowsLoading
+                ? null
+                : deckAwaitsPlaces
+                  ? rankedPacks
+                  : forYouDeck.visiblePacks
+            : listInView
+              ? renderedClusters.map((c) => c.primary)
+              : null;
+        if (!rows) return;
+        const key = searchKey;
+        const firstStretch = deckInView && deckPlacesReadKey !== key;
+        const ids = nextPlaceCheckIds(rows, deckInView && !deckAwaitsPlaces ? forYouDeck.activeIndex : 0, (id) => placeNotes.has(id));
+        if (ids.length === 0) {
+            if (firstStretch) setDeckPlacesReadKey(key);
+            return;
+        }
+        placeNotesInFlightRef.current = true;
+        void fetchPlaceNotes(ids, RANKED_PLACE_NOTES_DEADLINE_MS).then((notes) => {
+            placeNotesInFlightRef.current = false;
+            setPlaceNotes((prev) => {
+                const next = new Map(prev);
+                // No limit, or a failed or late read: no note, and not asked again.
+                for (const id of ids) next.set(id, notes?.[id] ?? null);
+                return next;
+            });
+            if (firstStretch) setDeckPlacesReadKey(key);
+        });
+    }, [
+        matchScores,
+        showForYouHome,
+        fitActive,
+        loading,
+        deckInView,
+        deckRowsLoading,
+        deckAwaitsPlaces,
+        rankedPacks,
+        forYouDeck.visiblePacks,
+        forYouDeck.activeIndex,
+        renderedClusters,
+        searchKey,
+        deckPlacesReadKey,
+        placeNotes,
+    ]);
 
     useEffect(() => {
         if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
@@ -4053,12 +4132,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             ...filterState,
             facets: { ...filterState.facets, [targetKey]: next },
         });
-        if (user && query.trim()) {
-            void saveAgentPreferencesAction({
-                search: { query: query.trim(), location: next[0]?.trim() || undefined },
-            }).catch(() => {});
-        }
-    }, [filterState, user, query, applyFilterStateWithIntent, suppressLocationDefault]);
+    }, [filterState, applyFilterStateWithIntent, suppressLocationDefault]);
 
     /** Drop every chosen place — what the field's own "✕ clear location"
      *  means. Removing ONE place is the chips row's job, which already has a
@@ -4070,12 +4144,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         const nextFacets = { ...filterState.facets };
         for (const field of LOCATION_FACET_FIELDS) delete nextFacets[field];
         applyFilterStateWithIntent({ ...filterState, facets: nextFacets });
-        if (user && query.trim()) {
-            void saveAgentPreferencesAction({
-                search: { query: query.trim(), location: undefined },
-            }).catch(() => {});
-        }
-    }, [filterState, user, query, applyFilterStateWithIntent]);
+    }, [filterState, applyFilterStateWithIntent]);
 
     const handleLocationSheetContinue = useCallback(
         (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
@@ -4083,26 +4152,13 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
             const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
             const next = applyLocationSheetDraft(draft, filterState, remoteValue);
-            // Mirrors `addLocation`: the saved preference holds ONE location, so
-            // it takes the first chosen place — read off the COMMITTED result
-            // rather than re-derived from the draft's branches, so "what did we
-            // filter on" has one answer instead of two that can disagree.
-            const loc = next.facets.location_country?.[0]?.trim() ?? "";
             // The sheet writes the FACET (via `applyLocationSheetDraft`); the
             // entry box just goes back to empty rather than mirroring it.
             setLocationDraft("");
             applyFilterStateWithIntent(next);
             setLocationSheetOpen(false);
-            if (user && query.trim()) {
-                void saveAgentPreferencesAction({
-                    search: {
-                        query: query.trim(),
-                        location: loc || undefined,
-                    },
-                }).catch(() => {});
-            }
         },
-        [filterState, result?.facetDistribution, applyFilterStateWithIntent, user, query, locationDefaultSuppressed],
+        [filterState, result?.facetDistribution, applyFilterStateWithIntent, locationDefaultSuppressed],
     );
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's

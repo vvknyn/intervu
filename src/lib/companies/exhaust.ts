@@ -738,30 +738,48 @@ export async function getCompanyExhaust(
   getPg: () => Queryable | null = getExhaustPg,
   nowMs: number = Date.now(),
 ): Promise<CompanyExhaust | null> {
-  const pg = getPg();
-  if (!pg) return null;
+  return (await readCompanyExhaust(domain, getPg, nowMs)).exhaust;
+}
 
-  const [enrichment, health, cadence, integrity, changeHistory] = await Promise.allSettled([
+/**
+ * `getCompanyExhaust`, plus whether every query answered. Only a complete
+ * read is worth keeping (`exhaust-cache.ts`): one that lost a section to a
+ * failed or timed-out query would keep hiding that section after the box
+ * recovered.
+ */
+export async function readCompanyExhaust(
+  domain: string,
+  getPg: () => Queryable | null = getExhaustPg,
+  nowMs: number = Date.now(),
+): Promise<{ exhaust: CompanyExhaust | null; complete: boolean }> {
+  const pg = getPg();
+  if (!pg) return { exhaust: null, complete: false };
+
+  const settled = await Promise.allSettled([
     fetchEnrichmentRows(pg, domain),
     fetchHealthRow(pg, domain),
     fetchCadenceRows(pg, domain),
     fetchIntegrityRows(pg, domain),
     fetchChangeHistoryRows(pg, domain),
-  ]);
+  ] as const);
+  const [enrichment, health, cadence, integrity, changeHistory] = settled;
 
   const enrichmentRows = enrichment.status === "fulfilled" ? enrichment.value : new Map<string, EnrichmentRow>();
 
   return {
-    profile: buildProfileSection(enrichmentRows.get("company_profile")),
-    funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
-    secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
-    govContracts: buildGovSection(enrichmentRows.get("government_contract")),
-    h1bLca: buildH1bSection(enrichmentRows.get("h1b_lca")),
-    warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
-    techStack: buildTechSection(enrichmentRows.get("tech_profile")),
-    health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
-    cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : null, nowMs),
-    integrity: buildIntegritySection(integrity.status === "fulfilled" ? integrity.value : null, nowMs),
-    changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
+    exhaust: {
+      profile: buildProfileSection(enrichmentRows.get("company_profile")),
+      funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
+      secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
+      govContracts: buildGovSection(enrichmentRows.get("government_contract")),
+      h1bLca: buildH1bSection(enrichmentRows.get("h1b_lca")),
+      warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
+      techStack: buildTechSection(enrichmentRows.get("tech_profile")),
+      health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
+      cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : null, nowMs),
+      integrity: buildIntegritySection(integrity.status === "fulfilled" ? integrity.value : null, nowMs),
+      changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
+    },
+    complete: settled.every((r) => r.status === "fulfilled"),
   };
 }
