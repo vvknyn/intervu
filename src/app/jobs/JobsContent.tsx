@@ -264,7 +264,7 @@ import {
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
+import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -372,6 +372,7 @@ import {
     writeHubCountMemory,
 } from "@/lib/jobs/for-you/hub-count-memory";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
+import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload, urlSortToBackendSort } from "@/lib/jobs/search-payload";
@@ -1792,21 +1793,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // Saved preferences (signed-in only) + résumé → the ONE `CandidateSignals` every fit surface
     // reads: the pack filters, the chip scores, the hub probe and "Rank by fit". Explicit
     // preferences override the résumé; a signed-out visitor resolves from the résumé alone.
-    const [agentPrefs, setAgentPrefs] = useState<AgentPreferences | null>(null);
     const uid = user?.uid ?? null;
-    useEffect(() => {
-        if (!uid) {
-            setAgentPrefs(null);
-            return;
-        }
-        let live = true;
-        void fetchAgentPreferencesAction().then((res) => {
-            if (live) setAgentPrefs(res.data ?? null);
-        });
-        return () => {
-            live = false;
-        };
-    }, [uid]);
+    const { prefs: agentPrefs } = useAgentPreferences(uid);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);

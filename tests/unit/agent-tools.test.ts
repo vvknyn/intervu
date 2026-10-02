@@ -560,17 +560,20 @@ describe('toolGetJob', () => {
 
 describe('toolForYou', () => {
   it('orders hits by match.total desc (unscored last), carries fit_reasons alongside every scored hit, and tags every hit with a group', async () => {
-    // jobHigh/jobLow share the SAME title/tags/description as makeJob()'s
-    // defaults — identical relevance component — and differ ONLY in
-    // experience_level (mid vs entry), which score.ts's scoreSeniority
-    // scores 1 ("fits" MATCHING_RESUME's 6y, which the signals resolver
-    // reads as mid) vs 0.65 ("exceeds ask"). That 0.35-point gap on the seniority component (weight 0.25)
+    // jobHigh/jobLow share the SAME title/tags — identical relevance
+    // component — and differ ONLY in experience_level (mid vs entry), which
+    // score.ts's scoreSeniority scores 1 ("fits" MATCHING_RESUME's 6y, which
+    // the signals resolver reads as mid) vs 0.65 ("exceeds ask"). Three tags
+    // the résumé lacks keep relevance partial (2 of 5 terms), so both totals
+    // stay under the unverified-role cap (79) instead of tying on it. That
+    // 0.35-point gap on the seniority component (weight 0.25)
     // deterministically outweighs rounding, so jobHigh's total always beats
     // jobLow's without hand-computing either exact total. jobUnscored has an
-    // empty title/tags/description — an empty job vocabulary — so
+    // empty title/tags — an empty job vocabulary — so
     // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
-    const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid' });
-    const jobLow = makeJob({ id: 'job-low', experience_level: 'entry' });
+    const partial = { tags: ['backend', 'fortran', 'cobol', 'mainframe'] };
+    const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid', ...partial });
+    const jobLow = makeJob({ id: 'job-low', experience_level: 'entry', ...partial });
     const jobUnscored = makeJob({ id: 'job-unscored', title: '', tags: [], description: '' });
     // Seeded out of rank order on purpose — the assertion below is on
     // rankForYou's own ordering, not an accident of input order.

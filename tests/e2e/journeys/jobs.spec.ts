@@ -591,6 +591,37 @@ signedInTest("a thumbs up or down on a Today pick tunes the list on this device:
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("a role Today labels Strong or Good carries the same fit word on its own page", { tag: ["@J-JOBS-100"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-02: Expel's Technical Account Manager read Strong on Today and Stretch on its page, because the
+  // page also scored the description's opening words, which list rows don't carry, and skipped saved preferences.
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  const picks: { href: string; label: string }[] = [];
+  for (const row of (await rows.all()).slice(0, 3)) {
+    picks.push({
+      href: (await row.getByTestId("today-role-title").getAttribute("href"))!,
+      label: (await row.getByTestId("match-chip").textContent())!.trim(),
+    });
+  }
+  expect(picks.length).toBeGreaterThanOrEqual(2);
+
+  // The first from Today itself (same visit), the others as a fresh visit to the role's link.
+  await rows.first().getByTestId("today-role-title").click();
+  for (const [index, pick] of picks.entries()) {
+    if (index > 0) await page.goto(pick.href);
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).toBe(pick.href);
+    // The first chip is the one under the title (related roles further down carry their own).
+    await expect(page.getByTestId("match-chip").first(), pick.href).toHaveText(pick.label, { timeout: 30_000 });
+  }
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("signed in without a résumé, the packs home still has Today under the chips: what needs them, and where the picks would be, a way to add a résumé", { tag: ["@J-JOBS-97"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
