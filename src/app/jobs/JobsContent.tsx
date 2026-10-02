@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { SearchAutocompleteHandle } from "@/components/search/SearchAutocomplete";
 import type { SearchSuggestion } from "@/lib/search-suggestions";
-import { Sheet, SheetBody, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetBody, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { GUEST_SERP_TIP } from "@/components/marketing/openclaw-content";
@@ -259,7 +259,6 @@ import {
     unmatchedPlaceNote,
     buildZeroResultPayload,
     resolveEndOfListState,
-    shouldShowMobileSearchCta,
 } from "@/lib/jobs/result-state";
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
@@ -5282,13 +5281,6 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         [query, queryDraft],
     );
 
-    // A1 (front-door redesign): the mobile primary CTA is always "Search" and
-    // always submits — no separate "just engage the results view" tap-through
-    // for an empty draft.
-    const handleMobilePrimaryCta = () => {
-        submitSearch(queryDraft);
-    };
-
     // The one grey line under the pinned box. It states the posted-date window
     // out loud because the redesigned route offers no control that reveals it
     // — see `searchResultLine` (lib/jobs/presentation.ts) for why an unnamed
@@ -5462,6 +5454,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     onClose={onClose}
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
+                    actionBarBelow={!collapseDescription}
                     className="border-0 bg-transparent"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
@@ -5712,7 +5705,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         onClick={() => setManualAlertOpen((prev) => !prev)}
                         className={cn(
                             toolbarControlHeight,
-                            "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors px-2",
+                            // px-0 below lg: a bare word like Rank with my résumé and Sort beside it.
+                            "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors px-0 lg:px-2",
                         )}
                         title="Get email alerts for this search"
                     >
@@ -5983,17 +5977,6 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     );
 
     /**
-     * Single source of truth for whether `mobile-search-cta` (below) will
-     * actually render — the landing scroll area's bottom padding needs the
-     * exact same answer, so it's hoisted rather than re-derived at the
-     * padding site and the render site separately (the class of bug this
-     * fixes: a padding literal that quietly stops matching the chrome it was
-     * sized for).
-     */
-    const showMobileSearchCta =
-        !isLgUp && !showForYouHome && showSearchHome && !detailSheetOpen && !locationSheetOpen && !authOpen && !importOpen && shouldShowMobileSearchCta(showLandingMarketing, queryDraft, query);
-
-    /**
      * Single source of truth for whether `ColdVisitorOrientation` renders at
      * all — same visibility condition at both mount sites (A1, front-door
      * redesign): desktop keeps its position under the masthead (`lg:block`),
@@ -6044,12 +6027,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     "shell-row flex flex-col",
                     deckPanesLocked
                         ? "min-h-0 flex-1 overflow-clip pt-2 sm:pt-3"
-                        : cn(
-                            "pt-2 sm:pt-3",
-                            showSearchHome && showMobileSearchCta
-                                ? "pb-[calc(var(--mobile-tabbar-h)+var(--mobile-search-cta-h)+env(safe-area-inset-bottom,0px))] lg:pb-20"
-                                : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] lg:pb-20",
-                        ),
+                        : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] pt-2 sm:pt-3 lg:pb-20",
                 )}
             >
                 {/* Landing masthead — mounts whenever the front door is "at
@@ -6068,8 +6046,12 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         <div className={cn(atRest && "pb-1.5")}>
                             {/* No "Back to Job Packs" row here: signed in, the header's For you
                                 tab is the same way back, and a guest's packs are a sign-in card. */}
+                            {/* No rule under the title: the search box right
+                                below is the next thing, and a hairline between
+                                them read as one more divider in a stack of
+                                three on a phone (2026-10-02 polish pass). */}
                             {atRest ? (
-                            <div className="mx-auto max-w-[960px] border-b border-border py-1.5 text-center">
+                            <div className="mx-auto max-w-[960px] pb-2.5 pt-1.5 text-center">
                                 <p className="mb-0.5 text-xs font-semibold text-live">
                                     Live from employer career pages
                                 </p>
@@ -6136,8 +6118,14 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         // w-full (2026-09-17): mx-auto on a flex item suppresses
                         // cross-axis stretch (Flexbox spec) — the same defect PR
                         // #540 fixed on the toolbar section, same fix here.
+                        // Once a search runs the well stays unframed too
+                        // (2026-10-02 polish pass): it kept its raised frame
+                        // after a search, so the box jumped inward and gained a
+                        // second border the moment a query ran — the snap 1c
+                        // set out to remove. This well only renders below lg
+                        // once a search runs (the header docks it from lg).
                         // page-scale-allow: the at-rest front door is a centred 960px search column
-                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2 sm:p-2.5",
+                        atRest ? "rounded-none mx-auto w-full max-w-[960px] lg:max-w-7xl" : "w-full",
                     )}
                 >
                     {/* A3 (front-door redesign): the live count renders once,
@@ -6149,14 +6137,18 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         surfaces sitting on screen at once. Below `lg`,
                         `headerDockActive` is always false (the header dock
                         never shows there — see TopBar), so this row stays
-                        put and the sticky mobile CTA keeps owning search. */}
+                        put. */}
                     {/* sm:justify-center (on the row below): now that the section
                         above stretches to its real max-width, the pill's own
                         sm:max-w-[42rem] cap can leave room in this row unfilled —
                         center the pill+button pair in it instead of pinning them
                         to the start. */}
+                    {/* Below `sm` the row is a column: the two stacked fields,
+                        then Search across the full width under them. Beside a
+                        two-row box the button sat level with the first field
+                        only, leaving a hole beside the second (2026-10-02). */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-row items-start gap-2 sm:flex-wrap sm:gap-2.5 sm:justify-center">
+                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5">
                         {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -6178,7 +6170,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                                 // stacked surface uses. From `sm` the rows go
                                 // side-by-side and it becomes the single pill it
                                 // always was (mobile layout audit, 2026-09-18).
-                                "flex min-w-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
+                                "flex min-w-0 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] divide-y divide-border focus-within:border-foreground focus-within:ring-1 focus-within:ring-foreground sm:flex-1 sm:flex-row sm:divide-y-0 sm:divide-x sm:rounded-pill",
                                 // Mechanism: the ancestor <section> above used to
                                 // shrink-wrap (mx-auto suppressing stretch), so this
                                 // sm:flex-1 (basis 0%) had no real room to fill.
@@ -6292,7 +6284,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                                 )}
                             </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center">
                             {/* Requirement 5 (one filled action per screen at
                                 rest): the front door's only filled button is
                                 the résumé band's "Upload resume"
@@ -6309,7 +6301,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                                 onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
-                                    "w-auto shrink-0 px-4 sm:px-6 transition-colors",
+                                    "w-full shrink-0 px-4 transition-colors sm:w-auto sm:px-6",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
                                 )}
                             >
@@ -6422,10 +6414,18 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                 >
                     {/* Wrap instead of overflow-x scroll — long query chips truncate
                         with a title tooltip; controls and short chips stay whole. */}
+                    {/* At rest the strip has no fill, so its controls sit on
+                        the column's own edge with the search box above them;
+                        the list inset is for the filled band a search gets.
+                        Inset at rest, the chips started 16px right of the box
+                        and a 320px phone pushed the "?" onto a line alone. */}
                     {showJobsToolbarRow && (
                     <div
                         data-testid="jobs-toolbar-scroller"
-                        className="flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip px-[var(--list-inset)] lg:gap-3"
+                        className={cn(
+                            "flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip lg:gap-3",
+                            atRest ? "px-0" : "px-[var(--list-inset)]",
+                        )}
                     >
                         {showsFiltersToggle(facetsMountSite) && !headerDockActive && (
                         <button
@@ -6517,13 +6517,14 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
                             <SheetContent
                                 side="bottom"
-                                className="mx-auto w-full max-w-[720px] border-border p-0"
+                                hideCloseButton
+                                className="mx-auto w-full max-w-[720px] gap-0 border-border border-b-0 p-0"
                             >
-                                <SheetTitle className="sr-only">Filters</SheetTitle>
+                                <SheetBar title="Filters" />
                                 <SheetBody
                                     id="filters-panel"
                                     data-testid="filters-panel"
-                                    className="bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
+                                    className="p-4 pb-[env(safe-area-inset-bottom,16px)] text-foreground custom-scrollbar"
                                 >
                                     {renderFiltersPanel()}
                                     {/* Same reachability gap as the desktop inline panel
@@ -7420,27 +7421,6 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     />,
                     dockedHomeViewMount,
                 )}
-
-            {showMobileSearchCta && (
-                <div
-                    data-testid="mobile-search-cta"
-                    // Fixed to `--mobile-search-cta-h` (globals.css) rather
-                    // than letting padding+button height set it implicitly —
-                    // that's the same number the landing scroll area's
-                    // bottom padding (above) clears for, so the two can't
-                    // drift apart the way a padding guess and this bar's
-                    // real height already had.
-                    className="fixed inset-x-0 z-40 flex h-[var(--mobile-search-cta-h)] items-center border-t border-border bg-surface px-4 bottom-[calc(env(safe-area-inset-bottom,0px)+3.25rem)] lg:hidden"
-                >
-                    <Button
-                        type="button"
-                        onClick={handleMobilePrimaryCta}
-                        className="w-full bg-primary text-primary-foreground hover:bg-primary"
-                    >
-                        Search
-                    </Button>
-                </div>
-            )}
 
             <AuthPopover
                 open={authOpen}

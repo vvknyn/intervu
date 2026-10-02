@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 import { isListSearch } from "./list-search";
 
 /**
@@ -100,7 +101,7 @@ async function typedSearch(page: Page, q: string): Promise<SearchResult | null> 
   await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
   const before = results.length;
   await page.getByPlaceholder(SEARCH_INPUT).fill(q);
-  await page.getByTestId("search-submit").click();
+  await runSearch(page, page.getByPlaceholder(SEARCH_INPUT));
   await expect(page).toHaveURL(/[?&]q=/, { timeout: 30_000 });
   let shown: SearchResult | null = null;
   await expect

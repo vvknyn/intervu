@@ -213,7 +213,9 @@ export function ConnectClient({
 
                 {/* Instructions Box */}
                 <div className="rounded-ctl border border-border bg-surface-2 p-4 space-y-3 shadow-[var(--shadow-bevel-inset)]">
-                  <div className="flex items-center justify-between gap-2">
+                  {/* Wraps: on a 320px phone the heading squeezed to four
+                      lines beside the Open button. */}
+                  <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                     <h4 className="text-xs font-semibold text-foreground">
                       {currentInstruction.title} Setup
                     </h4>

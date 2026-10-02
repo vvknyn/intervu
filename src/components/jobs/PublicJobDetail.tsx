@@ -504,6 +504,8 @@ export function PublicJobDetail({
                         onClose={onClose}
                         onOpenRelated={handleOpenRelated}
                         collapseDescription={collapseDescription}
+                        // The panel layout always renders JobDetailActionBar below (see there).
+                        actionBarBelow
                         className={cn(detailClassName)}
                         onOpenPosting={() => handleOpenPosting(job)}
                         onGoAfter={() => handleGoAfter(job)}

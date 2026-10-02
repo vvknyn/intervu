@@ -118,12 +118,16 @@ export function PostingCheckHeader({
     return (
         <div className="@container">
             <div className="flex flex-col gap-2 @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:justify-between @min-[480px]:gap-3">
-                <div className="flex flex-wrap items-baseline gap-1 text-sm">
-                    <HeadingTag className="font-semibold text-foreground">Posting check</HeadingTag>
+                {/* Inline text, a no-break space before each "·": as flex
+                    items the counts wrapped under the heading on a phone with
+                    the dot leading the line (2026-10-02), the break
+                    DotSeparated's own seam rules out. */}
+                <div className="text-sm">
+                    <HeadingTag className="inline font-semibold text-foreground">Posting check</HeadingTag>
                     {assessedCount > 0 && (
                         <span className="text-muted-foreground">
-                            · {favorableCount}/{assessedCount} favorable
-                            {unknownCount > 0 && ` · ${unknownCount} not tracked`}
+                            {"\u00A0· "}{favorableCount}/{assessedCount} favorable
+                            {unknownCount > 0 && `\u00A0· ${unknownCount} not tracked`}
                         </span>
                     )}
                 </div>
@@ -425,6 +429,7 @@ export function JobDetail({
     onOpenRelated,
     reportJobEnabled = false,
     collapseDescription = true,
+    actionBarBelow = false,
     matchScore = null,
     matchAsOfDate = null,
     matchPending = false,
@@ -474,6 +479,12 @@ export function JobDetail({
      *  breakpoint together); a `sm:`/`xl:` class here could silently disagree
      *  with it. */
     collapseDescription?: boolean;
+    /** The caller renders `JobDetailActionBar` right below this pane (the
+     *  phone sheets), so Apply and Save are already on screen there: the
+     *  action row drops its own pair rather than show two Apply buttons in
+     *  two styles and two bookmarks (2026-10-02). Same split the job page
+     *  makes below lg (JobDetailDocument's `applyCardEl`). */
+    actionBarBelow?: boolean;
     /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
      *  no signed-in résumé or no comparable field — renders no chip, never a
      *  fabricated 0 (Rule 3, match-contract.md). Same value the SERP card and
@@ -852,7 +863,7 @@ export function JobDetail({
                             the page. Save is the secondary action: an
                             outlined control. rounded-ctl on both, same as
                             every other control in this row. */}
-                        {job.apply_url && (
+                        {job.apply_url && !actionBarBelow && (
                             <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 bg-foreground text-background transition-colors">
                                 <ArrowSquareOut size={16} />
                                 {APPLY_BUTTON_LABEL}
@@ -881,12 +892,14 @@ export function JobDetail({
                             an outline matches every other control in this
                             row (Apply, Share, Close) rather than a bespoke
                             shape. */}
-                        <RowBookmarkButton
-                            pursuit={pursuit}
-                            onGoAfter={onGoAfter}
-                            successPulse={saveSuccessPulse}
-                            className="rounded-ctl border border-border bg-surface"
-                        />
+                        {!actionBarBelow && (
+                            <RowBookmarkButton
+                                pursuit={pursuit}
+                                onGoAfter={onGoAfter}
+                                successPulse={saveSuccessPulse}
+                                className="rounded-ctl border border-border bg-surface"
+                            />
+                        )}
                         {/* ReportJobButton hardcodes its own trigger content
                             (flag icon + "Report listing" text, ReportJobButton.tsx)
                             with no prop to swap in a "···" overflow glyph — that
@@ -966,12 +979,16 @@ export function JobDetail({
                     {(employmentTypeChip || experienceLevelChip) && (
                         <div className="flex items-center gap-2 text-foreground">
                             <FACT_CHIP_ICON.employment_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
-                            <MetaLine
-                                items={[
-                                    employmentTypeChip && <span>{employmentTypeChip.label}</span>,
-                                    experienceLevelChip && <span>{experienceLevelChip.label}</span>,
-                                ]}
-                            />
+                            {/* One flex item: as the row's own items, the row's
+                                gap-2 landed after the "·" ("Part Time ·   Mid"). */}
+                            <span>
+                                <MetaLine
+                                    items={[
+                                        employmentTypeChip && <span>{employmentTypeChip.label}</span>,
+                                        experienceLevelChip && <span>{experienceLevelChip.label}</span>,
+                                    ]}
+                                />
+                            </span>
                         </div>
                     )}
                     {(postedChip || firstSeenChip) && (

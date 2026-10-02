@@ -173,6 +173,9 @@ export function SavedSearchesPanel({
             {canSave && !naming && (
                 <Popover open={gated} onOpenChange={setGated}>
                     <PopoverAnchor asChild>
+                        {/* Compact: below lg a bare word like the toolbar's
+                            other actions (Rank with my résumé, Sort), so a
+                            wrapped line's words share one left edge. */}
                         <button
                             type="button"
                             data-testid="save-search-trigger"
@@ -181,7 +184,7 @@ export function SavedSearchesPanel({
                                 compact
                                     ? cn(
                                           toolbarControlHeight,
-                                          "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-foreground transition-colors px-3 lg:px-2",
+                                          "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap text-foreground transition-colors px-0 lg:px-2",
                                       )
                                     : "inline-flex ctl-md ctl-button items-center gap-1.5 px-3 text-foreground hover:text-foreground transition-colors",
                             )}
