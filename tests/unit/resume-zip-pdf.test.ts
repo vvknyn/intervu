@@ -5,9 +5,9 @@ import path from "node:path";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { resumeDataToZipHtml } from "@/lib/resume/zip-html";
-import { zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
+import { resumePdfNote, zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { layoutResumeDocument, jsPdfMeasurer, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
+import { layoutResumeDocument, jsPdfMeasurer, defaultResumeStyle, renderResumePdf } from "@/lib/resume/render-pdf";
 import { jsPDF } from "jspdf";
 
 const CSM_GOLDEN = readFileSync(
@@ -17,15 +17,15 @@ const CSM_GOLDEN = readFileSync(
 const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
 
 describe("export-zip-pdf source contract", () => {
-    it("FromData uses Chrome/Skia API then text jsPDF fallback — never html2canvas or parseResumeContent(md)", () => {
+    it("FromData draws the PDF on the device from ResumeData in the original's remembered layout — never the server print, html2canvas or parseResumeContent(md)", () => {
         const src = readFileSync(path.join(process.cwd(), "src/lib/resume/export-zip-pdf.ts"), "utf8");
         const start = src.indexOf("export async function exportZipResumePdfFromData");
         const next = src.indexOf("export async function exportZipResumePdf(", start + 1);
         const fromData = src.slice(start, next);
         assert.match(fromData, /resumeDataToParsedDocument\(data\)/);
-        assert.match(fromData, /parsedResumeToZipHtml\(parsed\)/);
-        assert.match(fromData, /fetchChromeTextPdf\(html\)|\/api\/resume\/pdf/);
-        assert.match(fromData, /renderResumePdf\(parsed\)/);
+        assert.match(fromData, /recallResumeLayout\(data\)/);
+        assert.match(fromData, /renderResumePdf\(parsed, \{ profile, fonts, onePage: options\.onePage, roleTerms: options\.roleTerms \}\)/);
+        assert.doesNotMatch(src, /\/api\/resume\/pdf['"`]/, "production has no Chromium: the server print only ever fell back");
         assert.doesNotMatch(fromData, /parseResumeContent\(/);
         assert.doesNotMatch(src, /import\s+.*html2canvas/);
         assert.doesNotMatch(src, /from ["']jspdf["']/);
@@ -38,6 +38,38 @@ describe("export-zip-pdf source contract", () => {
         assert.match(css, /@page/);
         assert.match(css, /0\.34in 0\.46in 0\.28in 0\.46in/);
         assert.match(css, /9\.2/);
+    });
+});
+
+describe("what a download tells the person", () => {
+    const base = { pages: 1, originalPages: 1, fits: true, onePage: true, leftOut: [] as Array<{ entry: string; text: string }> };
+
+    it("says nothing when the PDF came out as aimed", () => {
+        assert.equal(resumePdfNote(base), null);
+        assert.equal(resumePdfNote({ ...base, onePage: false, originalPages: null, pages: 2 }), null);
+    });
+
+    it("names each role a one-page résumé left bullets out of", () => {
+        const leftOut = [
+            { entry: "Field Engineer | Westmount", text: "a" },
+            { entry: "Field Engineer | Westmount", text: "b" },
+            { entry: "Co-op | City of Lethbridge", text: "c" },
+        ];
+        assert.equal(
+            resumePdfNote({ ...base, leftOut }),
+            "To keep it to one page, 3 bullets that matter least for this role were left out: 2 from Field Engineer | Westmount and 1 from Co-op | City of Lethbridge. Your résumé still has them.",
+        );
+        assert.equal(
+            resumePdfNote({ ...base, leftOut: leftOut.slice(2) }),
+            "To keep it to one page, 1 bullet that matters least for this role was left out: 1 from Co-op | City of Lethbridge. Your résumé still has it.",
+        );
+        const many = ["A", "B", "C", "D", "E"].map((entry) => ({ entry, text: entry }));
+        assert.match(resumePdfNote({ ...base, leftOut: many }) ?? "", /1 from A, 1 from B, 1 from C and 2 more roles\./);
+    });
+
+    it("says when it still runs over", () => {
+        assert.match(resumePdfNote({ ...base, pages: 2, fits: false }) ?? "", /runs to 2 pages even at its smallest readable size/);
+        assert.match(resumePdfNote({ ...base, onePage: false, pages: 3, originalPages: 2, fits: false }) ?? "", /runs to 3 pages; your original is 2 pages/);
     });
 });
 
@@ -57,11 +89,12 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(html, /Richmond Hill, Ontario/);
     });
 
-    it("jsPDF fallback from ResumeData keeps three competency lines (PM fixture)", () => {
+    it("the on-device PDF from ResumeData keeps three competency lines (PM fixture)", () => {
         const data = resumeDataFromPlainText(PM_FIXTURE);
         const parsed = resumeDataToParsedDocument(data);
-        const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
-        const layout = layoutResumeDocument(parsed, jsPdfMeasurer(pdf));
+        const style = defaultResumeStyle();
+        const pdf = new jsPDF({ unit: "pt", format: [style.pageWidth, style.pageHeight] });
+        const layout = layoutResumeDocument(parsed, jsPdfMeasurer(pdf), style);
         const texts = layout.pages.flatMap((p) => p.texts).map((t) => t.text);
         const joined = texts.join("\n");
 
@@ -74,6 +107,21 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(joined, /Richmond Hill/);
         assert.doesNotMatch(joined, /University \| Buffalo/);
         assert.match(joined, /INDEPENDENT PROJECTS/);
+    });
+});
+
+describe("resume PDF on the device (golden CSM fixture)", () => {
+    it("fits one Letter page with every section and extractable, spaced text", async () => {
+        const data = resumeDataFromPlainText(CSM_GOLDEN);
+        const result = renderResumePdf(resumeDataToParsedDocument(data));
+        assert.equal(result.pages, 1, "golden CSM résumé must fit one Letter page");
+        const { extractText } = await import("unpdf");
+        const { text } = await extractText(new Uint8Array(result.bytes), { mergePages: true });
+        assert.ok(text.includes("Richmond Hill"));
+        assert.ok(/Customer Success/i.test(text));
+        assert.ok(/MITx/i.test(text));
+        assert.ok(!/University \| Buffalo/i.test(text));
+        assert.ok(!/\*\*:/.test(text));
     });
 });
 

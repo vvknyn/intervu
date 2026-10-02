@@ -21,7 +21,7 @@
 import { buildContactLine, isContactOrPlaceLine, sanitizeContactLine, sanitizeLocation } from "@/lib/resume/contact-line";
 import { descriptionToBullets, shouldAppendAsBulletContinuation } from "@/lib/resume/merge-bullet-lines";
 import { normalizeCompetencyCategories } from "@/lib/resume/structure-resume-text";
-import type { ResumeData } from "@/types/resume";
+import { getSectionOrder, type ResumeData, type ResumeSection } from "@/types/resume";
 
 export type ParsedResumeBlock =
   | { kind: "paragraph"; text: string }
@@ -302,77 +302,126 @@ export function parseResumeContent(content: string): ParsedResumeDocument {
  *  as a tailored variant's. `sectionOrder` (when present) decides section
  *  order; otherwise the fixed summary/competencies/experience/education
  *  order matches the reference design. */
+/** The heading each section prints under when the source résumé named none. */
+const DEFAULT_SECTION_HEADINGS: Record<ResumeSection, string> = {
+  summary: "PROFESSIONAL SUMMARY",
+  skills: "CORE COMPETENCIES",
+  experience: "PROFESSIONAL EXPERIENCE",
+  projects: "INDEPENDENT PROJECTS",
+  education: "EDUCATION & PROFESSIONAL DEVELOPMENT",
+};
+
+/** Order the export used before it followed the source: kept for a résumé
+ *  that carries no order of its own (one typed into the editor). */
+const LEGACY_SECTION_ORDER: ResumeSection[] = ["summary", "skills", "experience", "projects", "education"];
+
+function titleCaseHeading(heading: string): string {
+  return heading.toLowerCase().replace(/(^|[\s&/-])(\p{L})/gu, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
+}
+
+/** "Role | Company" without a stray separator when either half is blank. */
+function entryTitle(role: string, company: string): string {
+  return [role.trim(), company.trim()].filter(Boolean).join(" | ");
+}
+
 export function resumeDataToParsedDocument(data: ResumeData): ParsedResumeDocument {
-  const sections: ParsedResumeSection[] = [];
-
-  if (data.generatedSummary.trim()) {
-    sections.push({ heading: "PROFESSIONAL SUMMARY", blocks: [{ kind: "paragraph", text: data.generatedSummary.trim() }] });
-  }
   const competencies = normalizeCompetencyCategories(data.competencies);
-  if (competencies.length > 0) {
-    sections.push({
-      heading: "CORE COMPETENCIES",
-      // An uncategorized list (a plain "Skills" section parsed from text has
-      // category "") prints as a plain line, not ": Go, TypeScript".
-      blocks: competencies.map((c): ParsedResumeBlock =>
-        c.category.trim()
-          ? { kind: "competency", category: c.category, items: c.skills.join(", ") }
-          : { kind: "paragraph", text: c.skills.join(", ") },
-      ),
-    });
-  }
-  if (data.experience.length > 0) {
-    sections.push({
-      heading: "PROFESSIONAL EXPERIENCE",
-      blocks: data.experience.map((e) => ({
-        kind: "entry" as const,
-        title: `${e.role} | ${e.company}`,
-        dateRight: e.dates || null,
-        bullets: descriptionToBullets(e.description),
-      })),
-    });
-  }
-  if ((data.projects?.length ?? 0) > 0) {
-    sections.push({
-      heading: "INDEPENDENT PROJECTS",
-      blocks: (data.projects ?? []).map((e) => ({
-        kind: "entry" as const,
-        title: e.company ? `${e.role} | ${e.company}` : e.role,
-        dateRight: e.dates || null,
-        bullets: descriptionToBullets(e.description),
-      })),
-    });
-  }
-  if (data.education.length > 0) {
-    sections.push({
-      heading: "EDUCATION & PROFESSIONAL DEVELOPMENT",
-      blocks: [
-        {
-          kind: "bullets",
-          items: data.education.map((e) => {
-            const degree = e.degree.trim();
-            const institution = e.institution.trim();
-            const year = e.year?.trim() ?? "";
-            if (institution && year) return `${degree} | ${institution} | ${year}`;
-            if (institution) return `${degree} | ${institution}`;
-            if (year) return `${degree} | ${year}`;
-            return degree;
-          }),
-        },
-      ],
-    });
+  const sourceHeadings = data.sectionHeadings ?? {};
+  // A source that wrote its headings in title case gets title-case defaults
+  // for the sections it didn't name, so one page never mixes the two.
+  const named = [...Object.values(sourceHeadings), ...(data.additionalSections ?? []).map((x) => x.heading)].filter((h): h is string => !!h && /\p{L}/u.test(h));
+  const titleCase = named.length > 0 && named.every((h) => h !== h.toUpperCase());
+  const headingFor = (section: ResumeSection) => {
+    const own = sourceHeadings[section]?.trim();
+    if (own) return own;
+    return titleCase ? titleCaseHeading(DEFAULT_SECTION_HEADINGS[section]) : DEFAULT_SECTION_HEADINGS[section];
+  };
+
+  const blocksFor = (section: ResumeSection): ParsedResumeBlock[] => {
+    switch (section) {
+      case "summary":
+        return data.generatedSummary.trim() ? [{ kind: "paragraph", text: data.generatedSummary.trim() }] : [];
+      case "skills":
+        // An uncategorized list (a plain "Skills" section parsed from text has
+        // category "") prints as a plain line, not ": Go, TypeScript".
+        return competencies.map((c): ParsedResumeBlock =>
+          c.category.trim()
+            ? { kind: "competency", category: c.category, items: c.skills.join(", ") }
+            : { kind: "paragraph", text: c.skills.join(", ") },
+        );
+      case "experience":
+      case "projects":
+        return (section === "experience" ? data.experience : data.projects ?? []).map((e) => ({
+          kind: "entry" as const,
+          title: entryTitle(e.role, e.company),
+          dateRight: e.dates?.trim() || null,
+          bullets: descriptionToBullets(e.description),
+        }));
+      case "education": {
+        const items = data.education
+          .map((e) => [e.degree.trim(), e.institution.trim(), e.year?.trim() ?? ""].filter(Boolean).join(" | "))
+          .filter(Boolean);
+        return items.length > 0 ? [{ kind: "bullets", items }] : [];
+      }
+    }
+  };
+
+  // The source résumé's own section order when it has one (read from its
+  // headings, or set in the editor), so the export reads like the original.
+  const order = data.sectionOrder && data.sectionOrder.length > 0 ? getSectionOrder(data) : LEGACY_SECTION_ORDER;
+  // Sections beyond the modelled five (Certifications, Languages) print
+  // where the source had them: after the section they followed.
+  const extras = (data.additionalSections ?? []).filter((x) => x.heading.trim() && x.lines.some((l) => l.trim()));
+  const extraBlocks = (lines: string[]): ParsedResumeBlock[] => {
+    const items = lines.map((l) => l.trim()).filter(Boolean);
+    return items.length === 1 ? [{ kind: "paragraph", text: items[0] }] : [{ kind: "bullets", items }];
+  };
+  const pushExtras = (after: ResumeSection | null) => {
+    for (const extra of extras) {
+      const anchored = extra.after !== null && order.includes(extra.after) ? extra.after : null;
+      if (anchored === after) sections.push({ heading: extra.heading.trim(), blocks: extraBlocks(extra.lines) });
+    }
+  };
+  const sections: ParsedResumeSection[] = [];
+  pushExtras(null);
+  for (const section of order) {
+    const blocks = blocksFor(section);
+    if (blocks.length > 0) sections.push({ heading: headingFor(section), blocks });
+    pushExtras(section);
   }
 
-  const contactLine = buildContactLine([
+  const name = data.profile.name || data.profile.profession || null;
+  return { name: sourceNameLine(data, name) ?? name, contactLine: sourceContactLine(data) ?? builtContactLine(data), sections };
+}
+
+function builtContactLine(data: ResumeData): string | null {
+  return buildContactLine([
     sanitizeLocation(data.profile.location),
     data.profile.phone,
     data.profile.email,
     data.profile.linkedin,
     data.profile.website,
   ]);
-  return {
-    name: data.profile.name || data.profile.profession || null,
-    contactLine,
-    sections,
-  };
+}
+
+/** The name as the source printed it, credentials included ("Amara Okafor, RN"),
+ *  while it still names the same person and carries no contact details. */
+function sourceNameLine(data: ResumeData, name: string | null): string | null {
+  const line = data.sourceHeader?.nameLine?.trim();
+  if (!line || !name || !line.toLowerCase().startsWith(name.toLowerCase()) || line.length > name.length + 40) return null;
+  return /[|·•@]|\d{3}|https?:|www\./i.test(line) ? null : line;
+}
+
+/** The contact lines as the source printed them (its order, its separators),
+ *  unless the email or phone has since changed: then they're rebuilt. */
+function sourceContactLine(data: ResumeData): string | null {
+  const lines = data.sourceHeader?.contactLines?.map((l) => l.trim()).filter(Boolean) ?? [];
+  if (lines.length === 0) return null;
+  const joined = lines.join(" | ");
+  const digits = (s: string) => s.replace(/\D/g, "");
+  const email = data.profile.email?.trim().toLowerCase();
+  const phone = digits(data.profile.phone ?? "");
+  if (email && !joined.toLowerCase().includes(email)) return null;
+  if (phone && !digits(joined).includes(phone)) return null;
+  return joined;
 }

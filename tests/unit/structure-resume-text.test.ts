@@ -151,6 +151,34 @@ Salesforce`;
         assert.ok((out.profile.yearsOfExperience ?? 0) > 0);
     });
 
+    it("reads a name with capitals inside it, and keeps its credentials in the printed name line", () => {
+        for (const name of ["Mei-Ling Chen", "Siobhan McKenzie", "Liam O'Brien", "DeShawn Carter"]) {
+            const out = structureResumeText(`${name}, CPA\nVancouver, BC | someone@example.com | 604-555-0110\n\nSUMMARY\nChartered accountant with eight years in audit.\n`);
+            assert.equal(out.profile.name, name);
+            assert.equal(out.sourceHeader?.nameLine, `${name}, CPA`);
+            assert.deepEqual(out.sourceHeader?.contactLines, ["Vancouver, BC | someone@example.com | 604-555-0110"]);
+        }
+    });
+
+    it("keeps a skills line the PDF wrapped under its category, and a plain line as a list of its own", () => {
+        const out = structureResumeText([
+            "Amara Okafor",
+            "Hamilton, ON | amara@example.com | (905) 555-0142",
+            "",
+            "SKILLS",
+            "Clinical: Hemodynamic monitoring, Ventilator care, Telemetry, Triage",
+            "(CTAS)",
+            "Systems: Epic, Meditech,",
+            "Pyxis, Omnicell",
+            "Certified in Advanced Cardiac Life Support",
+        ].join("\n"));
+        assert.deepEqual(out.competencies, [
+            { category: "Clinical", skills: ["Hemodynamic monitoring", "Ventilator care", "Telemetry", "Triage (CTAS)"] },
+            { category: "Systems", skills: ["Epic", "Meditech", "Pyxis", "Omnicell"] },
+            { category: "", skills: ["Certified in Advanced Cardiac Life Support"] },
+        ]);
+    });
+
     it("fixture scores ≥ 91 overall confidence", () => {
         const out = structureResumeText(FIXTURE);
         const score = scoreLocalParseConfidence(out);

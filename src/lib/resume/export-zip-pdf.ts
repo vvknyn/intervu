@@ -1,8 +1,11 @@
 import { downloadBlob } from "@/lib/export-utils";
+import { recallResumeLayout } from "@/lib/resume/layout-profile-storage";
+import type { ResumeFontFiles, ResumePdfResult } from "@/lib/resume/render-pdf";
+import { toast } from "@/lib/toast";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
-import { buildZipResumeDocument, parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
+import { parsedResumeToZipHtml, resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import type { ResumeData } from "@/types/resume";
 
 export function zipResumeMarkdownFromData(data: ResumeData): string {
@@ -14,58 +17,105 @@ export function zipResumeHtmlFromData(data: ResumeData): string {
     return resumeDataToZipHtml(data);
 }
 
-async function fetchChromeTextPdf(html: string): Promise<ArrayBuffer> {
-    const res = await fetch("/api/resume/pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html }),
-    });
-    if (!res.ok) {
-        let detail = `HTTP ${res.status}`;
-        try {
-            const json = (await res.json()) as { error?: string };
-            if (json.error) detail = json.error;
-        } catch {
-            /* ignore */
-        }
-        throw new Error(detail);
+const FONT_FILES = {
+    sans: ["/fonts/liberation/LiberationSans-Regular.ttf", "/fonts/liberation/LiberationSans-Bold.ttf"],
+    serif: ["/fonts/liberation/LiberationSerif-Regular.ttf", "/fonts/liberation/LiberationSerif-Bold.ttf"],
+} as const;
+
+function toBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(binary);
+}
+
+/** Liberation Sans/Serif for a résumé with characters the built-in PDF fonts lack. */
+async function loadResumeFonts(family: "sans" | "serif"): Promise<ResumeFontFiles | null> {
+    try {
+        const [regular, bold] = await Promise.all(
+            FONT_FILES[family].map(async (url) => {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return toBase64(await res.arrayBuffer());
+            }),
+        );
+        return { regular, bold };
+    } catch (err) {
+        // The renderer spells the few missing symbols out instead.
+        console.warn("[resume-pdf] font load failed; printing with the built-in fonts", err);
+        return null;
     }
-    return res.arrayBuffer();
+}
+
+const pagesLabel = (n: number) => `${n} ${n === 1 ? "page" : "pages"}`;
+
+/** Said when the text needed more pages than the original has. */
+export function resumeOverflowMessage(pages: number, originalPages: number): string {
+    return `This résumé runs to ${pagesLabel(pages)}; your original is ${pagesLabel(originalPages)}. Fitting it would have made the text too small to read, so trim a bullet or two to bring it back to ${pagesLabel(originalPages)}.`;
 }
 
 /**
- * Primary Customize / For-you / Download path:
- * ResumeData → resumeDataToParsedDocument → parsedResumeToZipHtml →
- * Chromium/Skia print-to-pdf (via /api/resume/pdf).
- *
- * Fallback is text `renderResumePdf(parsed)` from the same structured doc —
- * never canvas/image raster PDF, never parseResumeContent(md).
+ * What the person is told after a download, or null when the PDF came out
+ * as aimed: which bullets a one-page résumé left out (by entry), or that it
+ * still runs over.
  */
-export async function exportZipResumePdfFromData(data: ResumeData, filename: string): Promise<void> {
-    const parsed = resumeDataToParsedDocument(data);
-    const html = buildZipResumeDocument(parsedResumeToZipHtml(parsed));
-    const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
-    try {
-        const bytes = await fetchChromeTextPdf(html);
-        downloadBlob(bytes, outName, "application/pdf");
-    } catch (err) {
-        console.error(
-            "[resume-pdf] Chrome/Skia print failed; falling back to text jsPDF layout from ResumeData (not markdown parse, not canvas raster)",
-            err,
-        );
-        // Loaded only here: jsPDF is ~135 KB gzipped and this fallback is rare,
-        // so it stays out of every page that merely offers a download.
-        const { renderResumePdf } = await import("@/lib/resume/render-pdf");
-        downloadBlob(renderResumePdf(parsed), outName, "application/pdf");
+export function resumePdfNote(result: Pick<ResumePdfResult, "pages" | "originalPages" | "fits" | "onePage" | "leftOut">): string | null {
+    if (result.onePage && result.leftOut.length > 0) {
+        const byEntry = new Map<string, number>();
+        for (const b of result.leftOut) byEntry.set(b.entry, (byEntry.get(b.entry) ?? 0) + 1);
+        const parts = [...byEntry].map(([entry, n]) => `${n} from ${entry}`);
+        const shown = parts.length > 3 ? [...parts.slice(0, 3), `${parts.length - 3} more ${parts.length - 3 === 1 ? "role" : "roles"}`] : parts;
+        const list = shown.length > 1 ? `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}` : shown[0];
+        const n = result.leftOut.length;
+        return `To keep it to one page, ${n} bullet${n === 1 ? "" : "s"} that matter${n === 1 ? "s" : ""} least for this role ${n === 1 ? "was" : "were"} left out: ${list}. Your résumé still has ${n === 1 ? "it" : "them"}.`;
     }
+    if (result.onePage && !result.fits) {
+        return `This résumé runs to ${pagesLabel(result.pages)} even at its smallest readable size. Trim a bullet or two to bring it to one page.`;
+    }
+    if (!result.onePage && result.originalPages !== null && !result.fits) {
+        return resumeOverflowMessage(result.pages, result.originalPages);
+    }
+    return null;
+}
+
+export interface ResumePdfExportOptions {
+    /** A résumé tailored to a role: always one page, keeping what matters for that role. */
+    onePage?: boolean;
+    /** The role's words (`roleTermsForJob`). */
+    roleTerms?: readonly string[];
+}
+
+/**
+ * Every résumé download: ResumeData → resumeDataToParsedDocument → a text
+ * PDF drawn on this device (`renderResumePdf`), in the layout of the
+ * person's original when this device measured it at upload
+ * (`recallResumeLayout`). Nothing is sent to a server.
+ *
+ * The server print path (/api/resume/pdf, headless Chromium) is no longer
+ * used here: production has no Chromium, so every download fell back to a
+ * fixed layout that ignored the original anyway.
+ */
+export async function exportZipResumePdfFromData(data: ResumeData, filename: string, options: ResumePdfExportOptions = {}): Promise<ResumePdfResult> {
+    const parsed = resumeDataToParsedDocument(data);
+    const outName = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+    const profile = recallResumeLayout(data);
+    // Loaded only here: jsPDF is ~135 KB gzipped, so it stays out of every
+    // page that merely offers a download.
+    const { renderResumePdf, resumeNeedsUnicodeFont } = await import("@/lib/resume/render-pdf");
+    const fonts = resumeNeedsUnicodeFont(parsed) ? await loadResumeFonts(profile?.family ?? "sans") : null;
+    const result = renderResumePdf(parsed, { profile, fonts, onePage: options.onePage, roleTerms: options.roleTerms });
+    downloadBlob(result.bytes, outName, "application/pdf");
+    const note = resumePdfNote(result);
+    if (note) toast.info(note, 15000);
+    return result;
 }
 
 /**
  * Free-text / pursuit snapshot path: structure the text into ResumeData first,
  * then the same FromData exporter. Does not call parseResumeContent.
  */
-export async function exportZipResumePdf(markdown: string, filename: string): Promise<void> {
-    await exportZipResumePdfFromData(resumeDataFromPlainText(markdown), filename);
+export async function exportZipResumePdf(markdown: string, filename: string, options: ResumePdfExportOptions = {}): Promise<ResumePdfResult> {
+    return exportZipResumePdfFromData(resumeDataFromPlainText(markdown), filename, options);
 }
 
 /** Node/Playwright helper — same HTML document the browser exporter uses. */

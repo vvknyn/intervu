@@ -117,6 +117,11 @@ function extractJdKeywords(job: TailorJobInput): string[] {
     return uniqueTokens(raw);
 }
 
+/** The role's words (title, tags, occupation, the start of the posting): what a one-page tailored PDF keeps bullets for. */
+export function roleTermsForJob(job: TailorJobInput): string[] {
+    return extractJdKeywords(job);
+}
+
 function jdKeywordsWithResumeOverlap(jdKeywords: string[], resumeTokens: Set<string>): string[] {
     const overlap: string[] = [];
     for (const kw of jdKeywords) {

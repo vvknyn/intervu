@@ -22,6 +22,7 @@ import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { WaitState } from "@/components/ui/wait-state";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
+import { roleTermsForJob } from "@/lib/local-ai/tailor-resume";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
@@ -77,12 +78,16 @@ export function LocalCustomizePanel({
         });
         void (async () => {
             try {
-                await exportZipResumePdfFromData(draft.tailored, `${filename}.pdf`);
+                // A résumé tailored to this role is one page, keeping what matters for it.
+                await exportZipResumePdfFromData(draft.tailored, `${filename}.pdf`, {
+                    onePage: true,
+                    roleTerms: roleTermsForJob(jobToTailorInput(job)),
+                });
             } catch {
                 toast.error("Failed to generate PDF");
             }
         })();
-    }, [draft]);
+    }, [draft, job]);
 
     const visible = !!resume && resumeIsUsable(resume);
 

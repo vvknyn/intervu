@@ -21,7 +21,7 @@ import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { DATE_RANGE_RE, MONTH } from "./resume-dates";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
-import type { ResumeCompetencyCategory, ResumeData, ResumeEducation, ResumeExperience, ResumeProfile } from "@/types/resume";
+import { ALL_SECTIONS, type ResumeAdditionalSection, type ResumeSourceHeader, type ResumeCompetencyCategory, type ResumeData, type ResumeEducation, type ResumeExperience, type ResumeProfile, type ResumeSection } from "@/types/resume";
 
 export interface StructuredResumeDraft {
     profile: Partial<ResumeProfile>;
@@ -30,6 +30,14 @@ export interface StructuredResumeDraft {
     competencies: ResumeCompetencyCategory[];
     education: Omit<ResumeEducation, "id">[];
     generatedSummary: string;
+    /** The sections in the order their headings appear in the source text. */
+    sectionOrder?: ResumeSection[];
+    /** Each section's heading as the source text words it ("Work History"). */
+    sectionHeadings?: Partial<Record<ResumeSection, string>>;
+    /** Sections beyond the five modelled ones, in source order. */
+    additionalSections?: ResumeAdditionalSection[];
+    /** The name and contact lines as the source printed them. */
+    sourceHeader?: ResumeSourceHeader;
 }
 
 const BULLET_RE = /^[\s]*[•\-\*●◦▪]\s+/;
@@ -110,6 +118,16 @@ function resolveSection(header: string): string {
     return key;
 }
 
+/** The section a heading line opens ("WORK HISTORY" -> experience), or null
+ *  when the line is not a heading or opens a section a résumé export has no
+ *  place for ("Certifications"). */
+export function resumeSectionOfHeading(line: string): ResumeSection | null {
+    const header = isSectionHeader(line);
+    if (!header) return null;
+    const section = resolveSection(header);
+    return (ALL_SECTIONS as readonly string[]).includes(section) ? (section as ResumeSection) : null;
+}
+
 function normalizeLines(text: string): string[] {
     return text
         .replace(/\f/g, "\n")
@@ -131,9 +149,12 @@ function looksLikeName(line: string): boolean {
     if (/^https?:\/\//i.test(line)) return false;
     const words = line.replace(/[,|].*$/, "").trim().split(/\s+/);
     if (words.length < 2 || words.length > 5) return false;
-    const capitalized = words.filter((w) => /^\p{Lu}[\p{Ll}\p{M}'.-]+$/u.test(w));
+    const capitalized = words.filter((w) => /^\p{Lu}[\p{Ll}\p{M}'.-]+$/u.test(w) || NAME_WORD_RE.test(w));
     return capitalized.length >= 2;
 }
+
+/** A capitalised name with capitals inside it: "Mei-Ling", "McKenzie", "O'Brien", "DeShawn". */
+const NAME_WORD_RE = /^\p{Lu}(?=[\p{L}\p{M}'’.-]*\p{Ll})[\p{L}\p{M}'’.-]+$/u;
 
 function looksLikeTitle(line: string): boolean {
     if (line.length < 4 || line.length > 80) return false;
@@ -190,6 +211,18 @@ function isSectionHeader(line: string): string | null {
     return null;
 }
 
+/** Headings of sections a résumé carries beyond the five the app models:
+ *  certifications, licences, awards, languages... Kept whole and printed
+ *  in place, never folded into the job above them. */
+const EXTRA_SECTION_RE = /^(?:(?:professional |relevant |selected |key )?(?:certifications?|licen[cs]es?|credentials|awards?|honou?rs?|achievements|accomplishments|publications|presentations|patents|languages?|interests|hobbies|activities|extracurricular activities|volunteering|community involvement|leadership|memberships?|affiliations|professional affiliations|training|courses|coursework|professional development|bar admissions?|admissions|references|additional information|conferences|speaking|research)(?:\s*(?:&|and|\/|,)\s*(?:certifications?|licen[cs]es?|credentials|awards?|honou?rs?|achievements|publications|languages?|interests|activities|memberships?|affiliations|training|courses|admissions|skills|development))*)$/i;
+
+/** The heading of a section beyond the five modelled ones, or null. */
+export function extraSectionHeading(line: string): string | null {
+    const trimmed = line.trim().replace(/[:;]+$/, "").trim();
+    if (!trimmed || trimmed.length > 50 || isSectionHeader(line)) return null;
+    return EXTRA_SECTION_RE.test(trimmed) ? trimmed : null;
+}
+
 /**
  * A line that starts a block of its own and never continues the line above:
  * a section heading (a known one, or a short all-caps line such as
@@ -200,7 +233,7 @@ function isSectionHeader(line: string): string | null {
 export function isResumeBoundaryLine(line: string): boolean {
     const trimmed = line.trim();
     const words = trimmed.split(/\s+/).length;
-    if (isSectionHeader(trimmed)) return true;
+    if (isSectionHeader(trimmed) || extraSectionHeading(trimmed)) return true;
     // A dated role line, not a sentence that mentions "2019 to 2021".
     if (DATE_RANGE_RE.test(trimmed) && words <= 12 && !/[.!?]$/.test(trimmed)) return true;
     return /\p{Lu}{3}/u.test(trimmed) && !/[\p{Ll},.!?;|·•]/u.test(trimmed) && words <= 4;
@@ -391,7 +424,7 @@ function collectExperienceFallbackLines(sections: Record<string, string[]>): str
     const excluded = new Set(["skills", "education", "summary"]);
     const result: string[] = [];
     for (const [key, sectionLines] of Object.entries(sections)) {
-        if (excluded.has(key)) continue;
+        if (excluded.has(key) || key.startsWith("extra:")) continue;
         for (const line of sectionLines) {
             if (isLikelyEducationLine(line)) continue;
             if (key === "header" && isContactOrIdentityLine(line)) continue;
@@ -568,9 +601,18 @@ export function normalizeCompetencyCategories(categories: ResumeCompetencyCatego
     return result;
 }
 
+/** A skills line that carries on the line above: after a trailing comma or an open bracket, or opening on "(", "&" or a lower-case word. */
+function continuesSkillLine(previous: string, line: string): boolean {
+    if (/[,(&/]\s*$/.test(previous)) return true;
+    if ((previous.match(/[([]/g)?.length ?? 0) > (previous.match(/[)\]]/g)?.length ?? 0)) return true;
+    return /^[(&/]|^\p{Ll}/u.test(line);
+}
+
 function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
     const categories: ResumeCompetencyCategory[] = [];
     const fallbackSkills: string[] = [];
+    // Each category's list as printed, so a line the PDF wrapped joins it instead of vanishing.
+    let lastList = "";
 
     for (const rawLine of lines) {
         let cleaned = stripSkillsWrapper(rawLine.replace(BULLET_RE, "").trim());
@@ -580,6 +622,20 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
             const skills = splitSkillList(categoryMatch[2]);
             if (skills.length > 0) {
                 categories.push({ category: categoryMatch[1].trim(), skills });
+                lastList = categoryMatch[2];
+            }
+            continue;
+        }
+        if (categories.length > 0) {
+            // Once the block has categories, a plain line is never dropped: it continues the
+            // category above ("Telemetry, Triage" / "(CTAS)") or is a list of its own.
+            if (continuesSkillLine(lastList, cleaned)) {
+                lastList = `${lastList} ${cleaned}`;
+                categories[categories.length - 1].skills = splitSkillList(lastList);
+            } else {
+                const skills = splitSkillList(cleaned);
+                if (skills.length > 0) categories.push({ category: "", skills });
+                lastList = cleaned;
             }
             continue;
         }
@@ -686,6 +742,10 @@ export function structuredDraftToResumeData(draft: StructuredResumeDraft): Resum
         competencies: draft.competencies,
         education: draft.education.map((e, i) => ({ ...e, id: `edu-${i}` })),
         generatedSummary: draft.generatedSummary,
+        ...(draft.sectionOrder && draft.sectionOrder.length > 0 ? { sectionOrder: draft.sectionOrder } : {}),
+        ...(draft.sectionHeadings && Object.keys(draft.sectionHeadings).length > 0 ? { sectionHeadings: draft.sectionHeadings } : {}),
+        ...(draft.additionalSections && draft.additionalSections.length > 0 ? { additionalSections: draft.additionalSections } : {}),
+        ...(draft.sourceHeader ? { sourceHeader: draft.sourceHeader } : {}),
     };
 }
 
@@ -712,7 +772,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         const line = lines[i];
         // A headline sits above the first section; past it (or on a dated line) a title-ish
         // line is a job entry, not the candidate's headline.
-        if (isSectionHeader(line) || DATE_RANGE_RE.test(line)) break;
+        if (isSectionHeader(line) || extraSectionHeading(line) || DATE_RANGE_RE.test(line)) break;
         if (!name && looksLikeName(line)) {
             name = line.replace(/[,|].*$/, "").trim();
             continue;
@@ -723,15 +783,41 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         }
     }
 
+    // The header as printed ("Amara Okafor, RN", "Calgary, AB · email · phone"),
+    // so an export can keep its wording and order instead of reassembling it.
+    const firstBoundary = lines.findIndex((l) => isSectionHeader(l) || extraSectionHeading(l) || DATE_RANGE_RE.test(l));
+    const headerLines = lines.slice(0, firstBoundary >= 0 ? firstBoundary : Math.min(lines.length, 6));
+    const nameLine = name ? headerLines.find((l) => l.startsWith(name)) : undefined;
+    const sourceContactLines = headerLines.filter((l) => l !== nameLine && l.length <= 200 && isContactOrPlaceLine(l));
+    const sourceHeader: ResumeSourceHeader | null =
+        nameLine || sourceContactLines.length > 0 ? { nameLine: nameLine ?? "", contactLines: sourceContactLines } : null;
+
     const sections: Record<string, string[]> = {};
     let currentSection = "header";
     sections[currentSection] = [];
+    // The source's own section order and heading words, so an export can
+    // follow the original instead of a fixed template order.
+    const sectionOrder: ResumeSection[] = [];
+    const sectionHeadings: Partial<Record<ResumeSection, string>> = {};
+    const extras: Array<{ key: string; heading: string; after: ResumeSection | null }> = [];
 
     for (const line of lines) {
+        const extraHeading = extraSectionHeading(line);
+        if (extraHeading) {
+            currentSection = `extra:${extras.length}`;
+            extras.push({ key: currentSection, heading: extraHeading, after: sectionOrder[sectionOrder.length - 1] ?? null });
+            sections[currentSection] = [];
+            continue;
+        }
         const header = isSectionHeader(line);
         if (header) {
             currentSection = resolveSection(header);
             sections[currentSection] = sections[currentSection] ?? [];
+            const known = resumeSectionOfHeading(line);
+            if (known && !sectionOrder.includes(known)) {
+                sectionOrder.push(known);
+                sectionHeadings[known] = line.trim().replace(/[:;]+$/, "").trim();
+            }
             continue;
         }
         sections[currentSection] = sections[currentSection] ?? [];
@@ -756,7 +842,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     const summaryLines = sections.summary ?? [];
     let generatedSummary = summaryLines.join("\n\n").trim();
     if (!generatedSummary) {
-        const headerEnd = lines.findIndex((l, idx) => idx > 2 && (isSectionHeader(l) || DATE_RANGE_RE.test(l)));
+        const headerEnd = lines.findIndex((l, idx) => idx > 2 && (isSectionHeader(l) || extraSectionHeading(l) || DATE_RANGE_RE.test(l)));
         const bodyStart = name ? 1 : 0;
         const bodyEnd = headerEnd > 0 ? headerEnd : Math.min(lines.length, 6);
         generatedSummary = lines
@@ -766,6 +852,14 @@ export function structureResumeText(text: string): StructuredResumeDraft {
             .trim();
         if (generatedSummary.length > 500) generatedSummary = generatedSummary.slice(0, 500);
     }
+
+    const additionalSections: ResumeAdditionalSection[] = extras
+        .map((extra) => ({
+            heading: extra.heading,
+            after: extra.after,
+            lines: (sections[extra.key] ?? []).map((l) => l.replace(BULLET_RE, "").trim()).filter(Boolean),
+        }))
+        .filter((extra) => extra.lines.length > 0);
 
     const computedYoE = computeYearsOfExperience(tempExperience, new Date());
     let yearsOfExperience = computedYoE !== null ? computedYoE : 0;
@@ -791,5 +885,8 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         competencies: normalizeCompetencyCategories(parseSkillsBlock(sections.skills ?? [])),
         education: parseEducationBlock(sections.education ?? []),
         generatedSummary,
+        ...(sectionOrder.length > 0 ? { sectionOrder, sectionHeadings } : {}),
+        ...(additionalSections.length > 0 ? { additionalSections } : {}),
+        ...(sourceHeader ? { sourceHeader } : {}),
     };
 }
