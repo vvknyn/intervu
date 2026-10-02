@@ -29,6 +29,12 @@ export type GhostChecked = Pick<PublicJob, "ghost_badge" | "ghost_checked_at"> &
   last_observed_alive_at?: string | null;
 };
 
+/** A place a posting is limited to: its label as written ("India", "EMEA") and the countries it covers. */
+export interface PlaceRestriction {
+  label: string;
+  countries: string[];
+}
+
 export interface PublicJob {
   id: string;
   title: string;
@@ -42,6 +48,14 @@ export interface PublicJob {
   /** e.g. "remote" | "hybrid" | "onsite" | "unknown" */
   work_type: string;
   description: string | null;
+  /**
+   * Where the description says the person must be ("must be based in India",
+   * "authorized to work in the US"), read on the server by
+   * `/api/jobs/place-notes` for rows that name no country of their own. Not on
+   * the index: only the rows a ranked list checked carry it, `null` when the
+   * description names no such place.
+   */
+  place_restriction?: PlaceRestriction | null;
   /** e.g. "full_time" | "contract" | "unknown" */
   employment_type: string;
   /** e.g. "senior" | "mid" | "entry" | "unknown" */

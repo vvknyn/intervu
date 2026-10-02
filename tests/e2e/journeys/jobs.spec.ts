@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
-import { TODAY_PICK_ROWS } from "../../../src/lib/jobs/for-you/today";
+import { TODAY_PICK_ROWS, TODAY_PICKS_FETCH_LIMIT } from "../../../src/lib/jobs/for-you/today";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "../../../src/lib/jobs/result-state";
 import { PACK_POSTED_BUCKET } from "../../../src/lib/jobs/url-state";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
@@ -733,6 +733,52 @@ signedInTest("three or more applications gone quiet are one Needs you line that 
   const board = page.getByTestId("tracker-kanban");
   await expect(board).toHaveAttribute("data-stage", "applied", { timeout: 30_000 });
   await expect(board.getByRole("region", { name: "Applied" })).toContainText("Contoso");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("Today leaves out roles for people in another country, whether the title, the place or the description says so", { tag: ["@J-JOBS-99"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+
+  // This week's roles for the Toronto résumé, each its own kind of role at its level, remote, written the ways postings write a
+  // place (Vivek 2026-10-02: "I am in Canada and being referred India jobs").
+  const role = (id: string, title: string, location: string, extra: Record<string, unknown> = {}) => ({
+    id, title, company: `Company ${id}`, company_domain: null, location, location_city: null, location_state: null, location_country: null,
+    work_type: "remote", employment_type: "full_time", experience_level: "mid", salary_min: null, salary_max: null, salary_currency: null,
+    salary_period: null, visa_sponsorship: null, tags: ["typescript"], apply_url: "https://example.com/apply", source: "e2e",
+    posted_at: new Date().toISOString(), first_seen_at: null, updated_at: null, vacancy_status: "open", ghost_badge: null, ...extra,
+  });
+  const week = [
+    role("in-canada", "Software Engineer", "Remote, Canada"),
+    role("title-india", "Software Engineer (India)", "Remote"),
+    role("place-us-only", "Software Engineer", "Remote (US only)"),
+    role("desc-india", "Software Engineer, Platform", "Remote"),
+    role("open-anywhere", "Software Engineer II", "Remote"),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today" });
+  });
+  // Only rows with no place of their own are read for what their description says; the server reads "must be based in India".
+  const asked: string[][] = [];
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    asked.push((route.request().postDataJSON() as { ids: string[] }).ids);
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes: { "desc-india": { label: "India", countries: ["India"] }, "open-anywhere": null } }) });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  const rows = today.getByTestId("today-new-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  expect(new Set(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id"))))).toEqual(new Set(["in-canada", "open-anywhere"]));
+  expect(asked).toHaveLength(1);
+  expect(new Set(asked[0])).toEqual(new Set(["desc-india", "open-anywhere"]));
+
+  // The route itself answers a malformed ask with 400 and an unknown id with no note.
+  expect((await page.request.post("/api/jobs/place-notes", { data: { ids: [] } })).status()).toBe(400);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
