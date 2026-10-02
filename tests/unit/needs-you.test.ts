@@ -7,6 +7,7 @@ import {
     buildNeedsYou,
     interviewDayLabel,
     savedRolesToCheck,
+    savedSearchLabel,
     starterSteps,
     type NeedsYouRemote,
 } from "@/lib/jobs/for-you/needs-you";
@@ -93,6 +94,15 @@ describe("buildNeedsYou", () => {
         assert.equal(items[0].title, "2 saved roles may have closed");
         assert.equal(items[0].detail, "Company a, Company b");
         assert.equal(items[0].href, "/yours");
+    });
+
+    it("quotes a saved search's name once, even when the name is a quoted query", () => {
+        const items = buildNeedsYou([], NOW, {
+            ...NO_REMOTE,
+            searches: [{ id: "s", name: '"Product Manager" OR "Technical Product Manag…', href: "/jobs?view=search", count: 2, more: false }],
+        });
+        assert.equal(items[0].title, "“Product Manager OR Technical Product Manag…” has 2 new");
+        assert.equal(savedSearchLabel("PM Toronto"), "PM Toronto");
     });
 
     it("skips searches and companies with nothing new", () => {

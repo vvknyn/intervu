@@ -250,21 +250,28 @@ const locationComponent = (reason: MatchReason, detail: string, score: number, u
  * when the role is remote). A role that is remote with no country is open to
  * anyone. When the candidate's country or the job's country is unknown the
  * component is neutral and flagged `unknown` — never guessed.
+ *
+ * A remote-only preference says how they want to work, not where they can:
+ * a remote role tied to another country is still `remote_abroad`. It used to
+ * win before the country was read, so "Technical Account Manager (India)"
+ * scored as a fit for a remote-only candidate in Canada (2026-10-02).
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
     let jobList = jobCountries(job);
     let jobPlace: string | null = null;
     if (jobList.length === 0) {
-        const named = titlePlace(job.title);
+        const named = titlePlace(job.title) ?? job.place_restriction ?? null;
         if (named) {
             jobList = named.countries;
             jobPlace = named.label;
         }
     }
-    if (remote && jobList.length === 0) return locationComponent("remote_anywhere", "remote — open to any location", 1);
-    if (signals.remotePreference.value && remote) {
-        return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
+    const wantsRemote = Boolean(signals.remotePreference.value) && remote;
+    if (remote && jobList.length === 0) {
+        return wantsRemote
+            ? locationComponent("remote_preferred", "remote — matches your remote-only preference", 1)
+            : locationComponent("remote_anywhere", "remote — open to any location", 1);
     }
 
     const own = candidateCountries(signals);
@@ -280,6 +287,7 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
         return locationComponent("country_unlisted", "this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
     }
     if (own.some((country) => jobList.includes(country))) {
+        if (wantsRemote) return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
         return remote
             ? locationComponent("remote_same_country", "remote — same country", 1)
             : locationComponent("same_country", "same country", 1);

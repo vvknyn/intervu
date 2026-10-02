@@ -176,7 +176,7 @@ export function resumeCountriesFromLocation(location: string | null | undefined)
     return deriveResumeLocationFacets(location).location_country ?? [];
 }
 
-/** Countries a job is in: its `location_country` values, else what its place text names. */
+/** Countries a job is in: its `location_country` values, else what its place text names ("Remote (US only)", "Remote - EMEA"). */
 export function jobCountries(job: PublicJob): string[] {
     const raw = job.location_country;
     const values = raw ? (Array.isArray(raw) ? raw : [raw]) : [];
@@ -186,9 +186,55 @@ export function jobCountries(job: PublicJob): string[] {
         if (country) tagged.add(country);
     }
     if (tagged.size > 0) return [...tagged];
-    return [
-        ...new Set([job.location, job.location_city, job.location_state].flatMap(resumeCountriesFromLocation)),
-    ];
+    const fields = [job.location, job.location_city, job.location_state];
+    const named = new Set(fields.flatMap(resumeCountriesFromLocation));
+    if (named.size > 0) return [...named];
+    for (const field of fields) {
+        for (const piece of (field ?? "").split(PLACE_PIECE_SEPARATOR)) {
+            for (const country of placeNamed(piece)?.countries ?? []) named.add(country);
+        }
+    }
+    return [...named];
+}
+
+/** Where a title or place field breaks into pieces: "TAM (Remote - India)", "Remote, US only", "Engineer | EMEA". */
+const PLACE_PIECE_SEPARATOR = /\s[-–—|]\s|[(),/|;]/;
+
+/** Words around a place that say how a posting relates to it, not which place it is: "Remote, US only", "anywhere in the UK". */
+const PLACE_LEAD_WORDS = new Set([
+    "remote", "remotely", "fully", "100%", "hybrid", "onsite", "on-site", "in-office", "wfh", "anywhere",
+    "based", "located", "within", "in", "across", "throughout", "the", "only", "open", "to", "candidates",
+    "applicants", "residents", "from",
+]);
+const PLACE_TRAIL_WORDS = new Set(["remote", "only", "based", "preferred", "residents", "candidates", "applicants", "hybrid", "onsite", "on-site"]);
+
+/**
+ * The one place a short phrase names once the words about working there are
+ * set aside: "US only", "India-based", "Remote India", "anywhere in the UK",
+ * "EMEA", "Ontario". `null` for anything else, including time zones ("US
+ * time zones" asks for working hours, not a country) and phrases that only
+ * contain a place among other words.
+ */
+export function placeNamed(text: string | null | undefined): { label: string; countries: string[] } | null {
+    const words = (text ?? "")
+        .replace(/[-–](based|only)\b/gi, " $1")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    if (words.some((word) => /^(?:time|timezones?|hours|tz)$/i.test(word))) return null;
+    while (words.length > 0 && PLACE_LEAD_WORDS.has(words[0]!.toLowerCase())) words.shift();
+    while (words.length > 0 && PLACE_TRAIL_WORDS.has(words[words.length - 1]!.toLowerCase())) words.pop();
+    const phrase = words.join(" ");
+    if (!phrase) return null;
+    const members = resolveRegionPhrase(phrase);
+    if (members && REGION_NAMES) {
+        const countries = [
+            ...new Set(members.map((iso2) => canonicalCountry(REGION_NAMES.of(iso2) ?? "")).filter((c): c is string => Boolean(c))),
+        ];
+        if (countries.length > 0) return { label: regionLabel(phrase) ?? phrase, countries };
+    }
+    const named = resumeCountriesFromLocation(phrase);
+    return named.length > 0 ? { label: named.join(", "), countries: named } : null;
 }
 
 /** ISO2 → English country name, for turning a region's members into canonical country names. */
@@ -204,20 +250,13 @@ const REGION_NAMES =
  */
 export function titlePlace(title: string | null | undefined): { label: string; countries: string[] } | null {
     const pieces = (title ?? "")
-        .split(/\s[-–—|]\s|[(),/|]/)
+        .split(PLACE_PIECE_SEPARATOR)
         .map((piece) => piece.trim())
         .filter(Boolean)
         .slice(1);
     for (const piece of pieces) {
-        const members = resolveRegionPhrase(piece);
-        if (members && REGION_NAMES) {
-            const countries = [
-                ...new Set(members.map((iso2) => canonicalCountry(REGION_NAMES.of(iso2) ?? "")).filter((c): c is string => Boolean(c))),
-            ];
-            if (countries.length > 0) return { label: regionLabel(piece) ?? piece, countries };
-        }
-        const named = resumeCountriesFromLocation(piece);
-        if (named.length > 0) return { label: named.join(", "), countries: named };
+        const named = placeNamed(piece);
+        if (named) return named;
     }
     return null;
 }

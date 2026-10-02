@@ -96,6 +96,15 @@ function daysWaiting(p: Pursuit, nowMs: number): number {
     return Number.isNaN(at) ? 0 : Math.max(0, Math.floor((nowMs - at) / DAY_MS));
 }
 
+/**
+ * A saved search's name inside this line's own quotes: a name that is a quoted
+ * query ("Product Manager" OR "Technical Product Manager") keeps its words and
+ * loses its quote marks, so the line never opens with two.
+ */
+export function savedSearchLabel(name: string): string {
+    return name.replace(/["“”]/g, "").replace(/\s+/g, " ").trim();
+}
+
 /** Everything that needs the visitor, most urgent first; the list shows the first `NEEDS_YOU_MAX_ITEMS`. */
 export function buildNeedsYou(pursuits: Pursuit[], nowMs: number, remote: NeedsYouRemote | null): NeedsYouItem[] {
     const items: NeedsYouItem[] = [];
@@ -176,7 +185,7 @@ export function buildNeedsYou(pursuits: Pursuit[], nowMs: number, remote: NeedsY
         items.push({
             key: `saved_search:${s.id}`,
             kind: "saved_search",
-            title: `“${s.name}” has ${countLabel(s.count, s.more)} new`,
+            title: `“${savedSearchLabel(s.name)}” has ${countLabel(s.count, s.more)} new`,
             detail: "Your saved search",
             href: s.href,
             action: "Run",
