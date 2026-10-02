@@ -20,6 +20,8 @@ import { decodeText, displayCompanyBrand, locationText, postedAgeShort, prettyEn
 import type { PublicJob } from "@/lib/jobs/types";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { matchBand, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
+import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
@@ -191,12 +193,15 @@ export function CompanyRoleSearch({
   // The one scoring function (`scoreJobAgainstResume`, lib/match/score.ts),
   // computed once per résumé/job-set, keyed by job id — same map idiom as
   // `/jobs` (SERP). `null` (no résumé) short-circuits to no map at all.
+  // With the saved preferences /jobs and the role's own page use, so a role's label is the same everywhere.
+  const { prefs: agentPrefs } = useAgentPreferences(user?.uid ?? null);
   const matchScores = useMemo(() => {
     if (!resume) return null;
+    const signals = resolveCandidateSignals(resume, agentPrefs);
     const map = new Map<string, MatchScore | null>();
-    for (const job of jobs) map.set(job.id, scoreJobAgainstResume(resume, job));
+    for (const job of jobs) map.set(job.id, scoreJobAgainstResume(resume, job, signals));
     return map;
-  }, [resume, jobs]);
+  }, [resume, jobs, agentPrefs]);
 
   const trimmedQuery = query.trim();
   const hasQuery = trimmedQuery.length > 0;

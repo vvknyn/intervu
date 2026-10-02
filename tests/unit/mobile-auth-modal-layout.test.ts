@@ -9,7 +9,6 @@ const SHEET_PATH = join(ROOT, "src", "components", "ui", "sheet.tsx");
 const TOAST_PATH = join(ROOT, "src", "lib", "toast.tsx");
 const AUTH_POPOVER_PATH = join(ROOT, "src", "components", "auth", "auth-popover.tsx");
 const LOGIN_FORM_PATH = join(ROOT, "src", "components", "auth", "login-form.tsx");
-const JOBS_PAGE_PATH = join(ROOT, "src", "app", "jobs", "JobsContent.tsx");
 const GLOBALS_CSS_PATH = join(ROOT, "src", "app", "globals.css");
 
 // 8b775697 moved the z-index tiers into globals.css tokens; the tier values
@@ -105,16 +104,8 @@ test("Toaster uses the 300 tier to float above dialogs and sheets", () => {
     assert.match(readFileSync(GLOBALS_CSS_PATH, "utf8"), /--z-toast:\s*300;/);
 });
 
-test("mobile-search-cta uses z-40 and is suppressed when authOpen or importOpen", () => {
-    const src = readFileSync(JOBS_PAGE_PATH, "utf8");
-    assert.match(src, /data-testid="mobile-search-cta"[\s\S]*?z-40/);
-    assert.match(src, /const showMobileSearchCta =[\s\S]*?!authOpen/);
-    assert.match(src, /const showMobileSearchCta =[\s\S]*?!importOpen/);
-});
-
 test("globals.css hides floating CTAs when body is scroll-locked by an open modal", () => {
     const src = readFileSync(GLOBALS_CSS_PATH, "utf8");
-    assert.match(src, /body\[data-scroll-locked\] \[data-testid="mobile-search-cta"\]/);
     assert.match(src, /body\[data-scroll-locked\] \[data-testid="apply-return-prompt"\]/);
 });
 

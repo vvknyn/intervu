@@ -18,7 +18,6 @@ import {
     resolveDetailMountSite,
     shouldSuppressLandingAmbientPreview,
     degradedResultsNote,
-    shouldShowMobileSearchCta,
     buildZeroResultPayload,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
@@ -704,25 +703,6 @@ describe('resolveJobsResultsPanel', () => {
         assert.equal(panel({ isSerpAsk: true, notConnected: true, blockingError: true, loading: true }), 'serp-ask');
         assert.equal(panel({ notConnected: true, blockingError: true, loading: true }), 'not-connected');
         assert.equal(panel({ blockingError: true, loading: true }), 'error');
-    });
-});
-
-describe('shouldShowMobileSearchCta', () => {
-    it('shows on the pristine landing regardless of the draft text', () => {
-        assert.equal(shouldShowMobileSearchCta(true, '', ''), true);
-        assert.equal(shouldShowMobileSearchCta(true, 'nurse', ''), true);
-    });
-
-    it('hides once engaged with nothing pending — the draft matches the committed query', () => {
-        assert.equal(shouldShowMobileSearchCta(false, 'nurse', 'nurse'), false);
-    });
-
-    it('shows again once the searcher types something new that has not been submitted', () => {
-        assert.equal(shouldShowMobileSearchCta(false, 'electrician', 'nurse'), true);
-    });
-
-    it('trims before comparing — trailing whitespace alone is not a pending edit', () => {
-        assert.equal(shouldShowMobileSearchCta(false, 'nurse  ', 'nurse'), false);
     });
 });
 

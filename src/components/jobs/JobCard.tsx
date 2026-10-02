@@ -32,6 +32,7 @@ import { ContextHelp } from "@/components/ui/context-help";
 import { MatchChip, MatchChipTeaser } from "@/components/jobs/MatchChip";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { DotSeparated } from "@/components/ui/dot-separated";
 import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
@@ -184,7 +185,11 @@ export function JobCard({
                         href={jobPath(job)}
                         data-testid="job-title"
                         className={cn(
-                            "text-base leading-snug line-clamp-2",
+                            // Three lines below sm: on a 320px phone the title
+                            // column is ~140px, and two lines cut "Registered
+                            // Nurse, Pediatrics - Per Diem" to "Registered
+                            // Nurse,…" (2026-10-02).
+                            "text-base leading-snug line-clamp-2 max-sm:line-clamp-3",
                             // Selected row (`active`) freezes `:hover` in some
                             // browsers because the pointer never truly leaves —
                             // so the row that's already selected must not carry
@@ -237,39 +242,42 @@ export function JobCard({
                         </span>
                     )}
                 </span>
-                <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1 text-left text-sm text-muted-foreground">
-                    {onCompany ? (
-                        <>
-                            {/* Below lg the name is plain text, so a tap anywhere on
-                                the row opens the job: as a button it filled the
-                                middle of a phone row and a tap there opened the
-                                company page instead (2026-09-30). The job's detail
-                                links the company page from its header. */}
-                            <span className="lg:hidden">{presented.company.name}</span>
-                            <button
-                                type="button"
-                                data-testid="job-row-company"
-                                className="hidden text-left hover:text-foreground hover:underline lg:inline"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCompany(job);
-                                }}
-                            >
-                                {presented.company.name}
-                            </button>
-                        </>
-                    ) : (
-                        <span>{presented.company.name}</span>
-                    )}
-                    {/* Line2 (soft-surfaces ROWS spec): "{company} · {location}",
-                        no pin icon — the identity line reads as plain text,
-                        separated by an explicit "·" like line3's facts. */}
-                    {locationKnown && (
-                        <span className="inline-flex items-center gap-1">
-                            <span aria-hidden>·</span>
-                            <span data-testid="job-location">{presented.location}</span>
-                        </span>
-                    )}
+                {/* Line2 (soft-surfaces ROWS spec): "{company} · {location}",
+                    no pin icon — the identity line reads as plain text.
+                    Inline text through `DotSeparated`, not flex items: the
+                    "·" used to lead the location, so on a phone the location
+                    wrapped to its own line starting with a stray dot, and as
+                    a flex item a company name that wrapped left the dot
+                    floating beside it (2026-10-02). */}
+                <div className="mt-1 text-left text-sm text-muted-foreground">
+                    <DotSeparated
+                        items={[
+                            onCompany ? (
+                                <>
+                                    {/* Below lg the name is plain text, so a tap anywhere on
+                                        the row opens the job: as a button it filled the
+                                        middle of a phone row and a tap there opened the
+                                        company page instead (2026-09-30). The job's detail
+                                        links the company page from its header. */}
+                                    <span className="lg:hidden">{presented.company.name}</span>
+                                    <button
+                                        type="button"
+                                        data-testid="job-row-company"
+                                        className="hidden text-left hover:text-foreground hover:underline lg:inline"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onCompany(job);
+                                        }}
+                                    >
+                                        {presented.company.name}
+                                    </button>
+                                </>
+                            ) : (
+                                <span>{presented.company.name}</span>
+                            ),
+                            locationKnown && <span data-testid="job-location">{presented.location}</span>,
+                        ]}
+                    />
                 </div>
                 {/* Facts + status, one 14/20-scale secondary line joined by
                     the shared `MetaLine` "· " seam (JobDetail.tsx) — no
