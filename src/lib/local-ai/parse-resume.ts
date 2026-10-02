@@ -111,6 +111,11 @@ export function mergeModelIntoHeuristic(
         competencies: heuristic.competencies,
         education: heuristic.education,
         generatedSummary: heuristic.generatedSummary,
+        // The model reads content; the layout is the source's own.
+        sectionOrder: heuristic.sectionOrder,
+        sectionHeadings: heuristic.sectionHeadings,
+        additionalSections: heuristic.additionalSections,
+        sourceHeader: heuristic.sourceHeader,
     };
 
     if (hasMeaningfulExperience(fromModel.experience)) {
@@ -162,6 +167,10 @@ export async function parseResumeLocally(
         competencies: heuristicDraft.competencies,
         education: heuristicDraft.education,
         generatedSummary: heuristicDraft.generatedSummary,
+        sectionOrder: heuristicDraft.sectionOrder,
+        sectionHeadings: heuristicDraft.sectionHeadings,
+        additionalSections: heuristicDraft.additionalSections,
+        sourceHeader: heuristicDraft.sourceHeader,
     };
 
     let effectiveEngine: LocalAiEngineId = "heuristic";

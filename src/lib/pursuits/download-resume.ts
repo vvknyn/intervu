@@ -1,5 +1,6 @@
 import type { ResumeVersionSnapshot } from "./types";
 import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
+import { roleTermsForJob } from "@/lib/local-ai/tailor-resume";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 
 export type ResumeDownloadFormat = "pdf" | "md";
@@ -19,10 +20,11 @@ function triggerDownload(blob: Blob, filename: string): void {
  * Client-side download of a resume-version snapshot. PDF is the default,
  * user-facing format (R4/R5, 2026-08-09 user report: "gets downloaded as a
  * .md file and not a pdf") — the original .md stays available as a
- * secondary, portable format via `format: "md"`. Renders through the zip
- * text → structured ResumeData → HTML/CSS → Chromium/Skia text PDF
- * (`exportZipResumePdf` → `exportZipResumePdfFromData` → /api/resume/pdf).
- * Fallback is text `renderResumePdf`, never canvas raster, never parseResumeContent.
+ * secondary, portable format via `format: "md"`. Renders on the device:
+ * zip text → structured ResumeData → a text PDF in the layout of the
+ * person's original (`exportZipResumePdf` → `exportZipResumePdfFromData` →
+ * `renderResumePdf`), never canvas raster, never parseResumeContent. A
+ * version saved for a role prints on one page, like every tailored résumé.
  */
 export async function downloadResumeVersion(
     version: ResumeVersionSnapshot,
@@ -39,5 +41,9 @@ export async function downloadResumeVersion(
         triggerDownload(new Blob([version.content], { type: "text/markdown" }), `${filename}.md`);
         return;
     }
-    await exportZipResumePdf(version.content, `${filename}.pdf`);
+    await exportZipResumePdf(
+        version.content,
+        `${filename}.pdf`,
+        pursuit ? { onePage: true, roleTerms: roleTermsForJob({ title: pursuit.position, company: pursuit.company_name }) } : {},
+    );
 }

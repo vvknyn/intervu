@@ -265,7 +265,6 @@ import {
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
-import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -1337,7 +1336,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         // location, the IP default filtered the results, and the header kept
         // showing the dead text (prod bug, 2026-09-22). Same field fallback
         // as `addLocation`'s free-text branch (`location_country`), same
-        // default suppression and preference write; idempotent when blur DID
+        // default suppression; idempotent when blur DID
         // commit (the folded compare no-ops).
         const draftPlace = locationDraft.trim();
         if (draftPlace) {
@@ -1350,11 +1349,6 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     ...latestState,
                     facets: { ...latestState.facets, location_country: nextValues },
                 });
-                if (user && q.trim()) {
-                    void saveAgentPreferencesAction({
-                        search: { query: q.trim(), location: nextValues[0]?.trim() || undefined },
-                    }).catch(() => {});
-                }
             }
             setLocationDraft("");
         }
@@ -1422,17 +1416,11 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         const interactions = recordOnboardingInteraction();
         setSearchInteractions(interactions);
 
+        // A search is a filter, not a statement of where someone can work or what they do: it no
+        // longer writes the saved preferences (`saveAgentPreferencesAction`). Those set the candidate's
+        // location for every fit label (`resolveCandidateSignals`), so one search for "United States"
+        // used to make every label read as if they lived there. Only Settings (and their agent) set them.
         if (user) {
-            void saveAgentPreferencesAction({
-                search: {
-                    // The saved-preference model holds ONE location, so a
-                    // multi-place search saves its first. Joining them into a
-                    // single string would write a value place resolution has
-                    // never been asked to parse back.
-                    query: q.trim() || undefined,
-                    location: chosenLocations[0]?.trim() || undefined,
-                },
-            }).catch(() => {});
             // `accountEmailState === null` means the lookup hasn't answered
             // yet — not "reachable". Treating unknown as fine is what keeps a
             // slow round trip from silently suppressing the banner forever.
@@ -4144,12 +4132,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             ...filterState,
             facets: { ...filterState.facets, [targetKey]: next },
         });
-        if (user && query.trim()) {
-            void saveAgentPreferencesAction({
-                search: { query: query.trim(), location: next[0]?.trim() || undefined },
-            }).catch(() => {});
-        }
-    }, [filterState, user, query, applyFilterStateWithIntent, suppressLocationDefault]);
+    }, [filterState, applyFilterStateWithIntent, suppressLocationDefault]);
 
     /** Drop every chosen place — what the field's own "✕ clear location"
      *  means. Removing ONE place is the chips row's job, which already has a
@@ -4161,12 +4144,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         const nextFacets = { ...filterState.facets };
         for (const field of LOCATION_FACET_FIELDS) delete nextFacets[field];
         applyFilterStateWithIntent({ ...filterState, facets: nextFacets });
-        if (user && query.trim()) {
-            void saveAgentPreferencesAction({
-                search: { query: query.trim(), location: undefined },
-            }).catch(() => {});
-        }
-    }, [filterState, user, query, applyFilterStateWithIntent]);
+    }, [filterState, applyFilterStateWithIntent]);
 
     const handleLocationSheetContinue = useCallback(
         (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
@@ -4174,26 +4152,13 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
             const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
             const next = applyLocationSheetDraft(draft, filterState, remoteValue);
-            // Mirrors `addLocation`: the saved preference holds ONE location, so
-            // it takes the first chosen place — read off the COMMITTED result
-            // rather than re-derived from the draft's branches, so "what did we
-            // filter on" has one answer instead of two that can disagree.
-            const loc = next.facets.location_country?.[0]?.trim() ?? "";
             // The sheet writes the FACET (via `applyLocationSheetDraft`); the
             // entry box just goes back to empty rather than mirroring it.
             setLocationDraft("");
             applyFilterStateWithIntent(next);
             setLocationSheetOpen(false);
-            if (user && query.trim()) {
-                void saveAgentPreferencesAction({
-                    search: {
-                        query: query.trim(),
-                        location: loc || undefined,
-                    },
-                }).catch(() => {});
-            }
         },
-        [filterState, result?.facetDistribution, applyFilterStateWithIntent, user, query, locationDefaultSuppressed],
+        [filterState, result?.facetDistribution, applyFilterStateWithIntent, locationDefaultSuppressed],
     );
 
     // `activeFilterEntries` (FilterPanel.tsx) is the single source for "what's
