@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Sheet, SheetBody, SheetClose, SheetContent, SheetDescription, SheetHandle, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetBody, SheetContent } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,22 +71,8 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                     TRACKER_SHEET_BOTTOM,
                 )}
             >
-                <div className="shrink-0 border-b border-border">
-                    <div className="flex justify-center pb-1 pt-2.5">
-                        <SheetHandle className="h-1 w-9" />
-                    </div>
-                    <div className="flex items-start gap-1 px-5 pb-3.5 pt-1">
-                        <SheetHeader className="min-w-0 flex-1 space-y-0 text-left">
-                            <SheetTitle className="truncate text-lg font-semibold">Track a role</SheetTitle>
-                            <SheetDescription className="truncate text-xs">One step. Link the posting — skip the essay.</SheetDescription>
-                        </SheetHeader>
-                        <SheetClose className="flex h-11 w-11 shrink-0 items-center justify-center text-lg leading-none text-muted-foreground transition-opacity hover:opacity-80">
-                            <span aria-hidden="true">×</span>
-                            <span className="sr-only">Close</span>
-                        </SheetClose>
-                    </div>
-                </div>
-                <SheetBody className="space-y-3 px-5 py-4 pb-7">
+                <SheetBar title="Track a role" description="One step. Link the posting — skip the essay." />
+                <SheetBody className="space-y-3 px-4 py-4 pb-7">
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
                         <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={TRACKER_FIELD_CLASS} />

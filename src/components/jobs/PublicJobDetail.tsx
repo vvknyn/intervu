@@ -29,7 +29,9 @@ import type { PublicJob } from "@/lib/jobs/types";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { classifySentinel } from "@/lib/llm/sentinels";
+import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { scoreJobAgainstResume } from "@/lib/match/score";
+import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import {
@@ -141,7 +143,9 @@ export function PublicJobDetail({
     useEffect(() => {
         if (!authReady) return;
 
-        if (!user) {
+        // The résumé parsed in this browser: a guest's, and a signed-in account's when none is saved
+        // (or it didn't load), the order /jobs and Today use, so a role Today labelled has its label here.
+        const applyLocalResume = () => {
             const stored = readLocalAiResume();
             if (stored && resumeIsUsable(stored.data)) {
                 setResume(stored.data);
@@ -151,6 +155,10 @@ export function PublicJobDetail({
                 setResume(null);
                 setResumeAsOfDate(null);
             }
+        };
+
+        if (!user) {
+            applyLocalResume();
             setResumeSettled(true);
             return;
         }
@@ -162,8 +170,7 @@ export function PublicJobDetail({
                 if (cancelled) return;
                 const data = storedResumeData(stored, text);
                 if (!data || !resumeIsUsable(data)) {
-                    setResume(null);
-                    setResumeAsOfDate(null);
+                    applyLocalResume();
                     return;
                 }
                 setResume(data);
@@ -171,10 +178,7 @@ export function PublicJobDetail({
                 setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
             })
             .catch(() => {
-                if (!cancelled) {
-                    setResume(null);
-                    setResumeAsOfDate(null);
-                }
+                if (!cancelled) applyLocalResume();
             })
             .finally(() => {
                 if (!cancelled) setResumeSettled(true);
@@ -183,9 +187,12 @@ export function PublicJobDetail({
             cancelled = true;
         };
     }, [user, authReady]);
-    const matchScore = resume ? scoreJobAgainstResume(resume, job) : null;
-    const matchScoreFor = (target: PublicJob) => (resume ? scoreJobAgainstResume(resume, target) : null);
-    const matchPending = !authReady || !resumeSettled;
+    // The saved preferences the lists and Today score with, so this page's label matches theirs.
+    const { prefs: agentPrefs, settled: prefsSettled } = useAgentPreferences(user?.uid ?? null);
+    const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
+    const matchScore = resume && signals ? scoreJobAgainstResume(resume, job, signals) : null;
+    const matchScoreFor = (target: PublicJob) => (resume && signals ? scoreJobAgainstResume(resume, target, signals) : null);
+    const matchPending = !authReady || !resumeSettled || !prefsSettled;
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {
@@ -504,6 +511,8 @@ export function PublicJobDetail({
                         onClose={onClose}
                         onOpenRelated={handleOpenRelated}
                         collapseDescription={collapseDescription}
+                        // The panel layout always renders JobDetailActionBar below (see there).
+                        actionBarBelow
                         className={cn(detailClassName)}
                         onOpenPosting={() => handleOpenPosting(job)}
                         onGoAfter={() => handleGoAfter(job)}

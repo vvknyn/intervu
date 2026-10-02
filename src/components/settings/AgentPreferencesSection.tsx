@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/lib/toast";
+import { rememberAgentPreferences } from "@/hooks/use-agent-preferences";
 import { AGENT } from "@/lib/agent/config";
 import { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS, type ExperienceLevel, type EmploymentType, type PostedWithinDays } from "@/lib/agent/facets";
 import { facetValueLabel } from "@/components/jobs/FilterPanel";
@@ -201,6 +202,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                 return;
             }
             seedFrom(res.data);
+            if (user) rememberAgentPreferences(user.uid, res.data);
             toast.success("Saved");
         } finally {
             setSaving(false);

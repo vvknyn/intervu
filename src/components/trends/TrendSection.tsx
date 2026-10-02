@@ -99,11 +99,15 @@ export function BarRow({
   href?: string;
 }) {
   const quiet = !href;
+  // Below sm the track drops to its own full-width line under the label,
+  // pct and count: on a 320px phone the row box is ~240px wide and the
+  // four-column grid needs 288px before the track gets any width, so the
+  // bars rendered 0px wide and the counts pushed the page sideways.
   const content = (
     <div
       data-testid={testId}
       className={cn(
-        "grid grid-cols-[minmax(120px,210px)_1fr_44px_88px] items-center gap-3 py-2 text-xs transition-colors",
+        "grid grid-cols-[minmax(0,1fr)_40px_64px] items-center gap-x-3 gap-y-1.5 py-2 text-xs transition-colors sm:grid-cols-[minmax(120px,210px)_1fr_44px_88px] sm:gap-y-3",
         !quiet && "border-b border-border",
         href && "hover:bg-muted",
       )}
@@ -127,7 +131,7 @@ export function BarRow({
         )}
         <span className={cn("truncate", href && "group-hover:text-brand")}>{label}</span>
       </span>
-      <span className="h-1.5 overflow-hidden rounded-pill bg-muted">
+      <span data-testid="trend-bar-track" className="order-last col-span-3 h-1.5 overflow-hidden rounded-pill bg-muted sm:order-none sm:col-span-1">
         <span
           className={cn(
             "block h-full rounded-pill transition-all",

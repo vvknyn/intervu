@@ -1,5 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
     scoreJobAgainstResume,
     MATCH_BAND_GOOD_MIN,
@@ -9,6 +11,10 @@ import {
     matchBandLabel,
 } from '../../src/lib/match/score';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
+import { JOB_LIST_ATTRIBUTES_TO_RETRIEVE } from '../../src/lib/jobs/meilisearch';
+import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
+import { stripHtmlLikeIngest } from '../fixtures/job-descriptions/ingest-strip';
+import { EXPEL_TAM_HTML } from '../fixtures/job-descriptions/postings';
 import type { ResumeData } from '../../src/types/resume';
 import type { PublicJob } from '../../src/lib/jobs/types';
 
@@ -511,5 +517,71 @@ describe('scoreJobAgainstResume', () => {
             assert.equal(location!.score, 1);
             assert.equal(location!.detail, 'remote — open to any location');
         });
+    });
+});
+
+/**
+ * Today, the For you rows, the company page and the search list score list rows; the job page
+ * scores the full posting. Whatever a list row lacks (description, occupation) must not move the
+ * score, or one role reads Strong in a list and Stretch on its own page (Vivek, 2026-10-02:
+ * Expel's "Technical Account Manager").
+ */
+describe('a role scores the same on its page as in a list', () => {
+    const fixture = (name: string) =>
+        resumeDataFromPlainText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8'));
+    const asListRow = (job: PublicJob): PublicJob =>
+        Object.fromEntries(
+            JOB_LIST_ATTRIBUTES_TO_RETRIEVE.filter((key) => key in job).map((key) => [key, job[key as keyof PublicJob]]),
+        ) as unknown as PublicJob;
+    const pages: PublicJob[] = [
+        mkJob({
+            title: 'Technical Account Manager',
+            company: 'Expel',
+            location: 'Remote',
+            experience_level: 'senior',
+            salary_min: 114000,
+            salary_max: 166000,
+            salary_currency: 'USD',
+            occupation: 'Technical Account Managers',
+            description: stripHtmlLikeIngest(EXPEL_TAM_HTML),
+        }),
+        mkJob({
+            title: 'Registered Nurse, Emergency',
+            company: 'Sunnybrook',
+            location: 'Toronto, ON',
+            location_country: 'Canada',
+            work_type: 'onsite',
+            experience_level: 'mid',
+            tags: ['nursing', 'emergency'],
+            occupation: 'Registered Nurses',
+            description: 'Join our emergency department team. You will assess patients, administer medications and coordinate care with physicians in a fast-paced trauma centre.',
+        }),
+        mkJob({
+            title: 'Senior Software Engineer',
+            company: 'Acme',
+            experience_level: 'senior',
+            tags: ['typescript', 'react'],
+            must_have_skills: ['TypeScript'],
+            occupation: 'Software Developers',
+            description: 'We build developer tools used by thousands of teams. You will design APIs, mentor engineers and own services end to end in Node.js and Postgres.',
+        }),
+    ];
+    for (const name of ['vivek-tam-resume', 'health-rn-resume', 'sample-resume']) {
+        it(`${name}: each posting's page score equals its list-row score`, () => {
+            const resume = fixture(name);
+            const signals = resolveCandidateSignals(resume);
+            for (const page of pages) {
+                assert.deepEqual(
+                    scoreJobAgainstResume(resume, page, signals),
+                    scoreJobAgainstResume(resume, asListRow(page), signals),
+                    page.title,
+                );
+            }
+        });
+    }
+    it("a Technical Account Manager's résumé reads Expel's TAM role as Strong on its page", () => {
+        const resume = fixture('vivek-tam-resume');
+        const score = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume));
+        assert.equal(matchBand(score!.total), 'strong');
     });
 });

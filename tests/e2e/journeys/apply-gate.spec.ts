@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { authCardCopy, authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 
 /**
  * A guest's Apply on a job page — see tests/journeys/CATALOG.md (J-APPLY-*).
@@ -16,8 +17,9 @@ const APPLY_TITLE = authGateTitle("apply")!;
 async function openJobPage(page: Page): Promise<string> {
   await page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
   await page.goto("/jobs");
-  await page.getByPlaceholder("Job title, skill, or company").fill("engineer");
-  await page.getByTestId("search-submit").click();
+  const input = page.getByPlaceholder("Job title, skill, or company");
+  await input.fill("engineer");
+  await runSearch(page, input);
   const href = await page.getByTestId("job-row").first().locator('a[href^="/jobs/"]').first().getAttribute("href", { timeout: 30_000 });
   const res = await page.goto(href!);
   expect(res?.status()).toBe(200);

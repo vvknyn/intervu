@@ -34,9 +34,8 @@
  * actually wants.
  *
  * `relevance` replaces both `skills` and `occupation` with one token-overlap
- * component whose denominator is the JOB's own vocabulary (title + tags +
- * occupation + hydrated description when present, rank words stripped), not
- * the résumé's. The résumé side compares skills, profession, role titles, and
+ * component whose denominator is the JOB's own vocabulary (title + tags, rank
+ * words stripped), not the résumé's. The résumé side compares skills, profession, role titles, and
  * responsibility text (experience/project bullets + summary + skills, via
  * resumeDutyTokens). That fixes both bugs
  * at once: coverage is always "how much of what this role asks for is in
@@ -160,10 +159,6 @@ export function matchBandLabel(band: MatchBand): "Stretch" | "Good" | "Strong" {
  */
 const EXPERIENCE_LEVEL_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
 
-/** SERP hits usually omit description; cap keeps detail/hydrated jobs cheap. */
-const JOB_DESCRIPTION_SLICE_CHARS = 1500;
-const JOB_DESCRIPTION_MAX_TOKENS = 32;
-
 function normalize(s: string): string {
     return s.trim().toLowerCase();
 }
@@ -181,22 +176,15 @@ function vocabHasToken(vocab: ReadonlySet<string>, token: string): boolean {
 }
 
 /**
- * A job's own topical vocabulary: title + tags + occupation, plus a bounded
- * slice of `description` when it is already present (detail / hydrated hit).
- * SERP Meili hits typically omit description — this path is a no-op for them.
+ * A job's own topical vocabulary: title + tags. Only fields every list row
+ * carries (`JOB_LIST_ATTRIBUTES_TO_RETRIEVE`), so a role scores the same in a
+ * list, on Today and on its own page. The page used to add `occupation` and the
+ * description's opening words, which list rows don't have: Expel's "Technical
+ * Account Manager" was Strong on Today (3 of 3 title terms) and Stretch on its
+ * page (8 of 29 once the description's first sentences counted).
  */
 function jobVocabulary(job: PublicJob): Set<string> {
-    const tokens = [
-        ...relevanceTokens(job.title ?? ""),
-        ...(job.tags ?? []).flatMap((tag) => relevanceTokens(tag)),
-        ...relevanceTokens(job.occupation ?? ""),
-    ];
-    const description = job.description?.trim();
-    if (description) {
-        const slice = description.slice(0, JOB_DESCRIPTION_SLICE_CHARS);
-        tokens.push(...relevanceTokens(slice).slice(0, JOB_DESCRIPTION_MAX_TOKENS));
-    }
-    return new Set(tokens);
+    return new Set([...relevanceTokens(job.title ?? ""), ...(job.tags ?? []).flatMap((tag) => relevanceTokens(tag))]);
 }
 
 /**
@@ -262,21 +250,28 @@ const locationComponent = (reason: MatchReason, detail: string, score: number, u
  * when the role is remote). A role that is remote with no country is open to
  * anyone. When the candidate's country or the job's country is unknown the
  * component is neutral and flagged `unknown` — never guessed.
+ *
+ * A remote-only preference says how they want to work, not where they can:
+ * a remote role tied to another country is still `remote_abroad`. It used to
+ * win before the country was read, so "Technical Account Manager (India)"
+ * scored as a fit for a remote-only candidate in Canada (2026-10-02).
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
     let jobList = jobCountries(job);
     let jobPlace: string | null = null;
     if (jobList.length === 0) {
-        const named = titlePlace(job.title);
+        const named = titlePlace(job.title) ?? job.place_restriction ?? null;
         if (named) {
             jobList = named.countries;
             jobPlace = named.label;
         }
     }
-    if (remote && jobList.length === 0) return locationComponent("remote_anywhere", "remote — open to any location", 1);
-    if (signals.remotePreference.value && remote) {
-        return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
+    const wantsRemote = Boolean(signals.remotePreference.value) && remote;
+    if (remote && jobList.length === 0) {
+        return wantsRemote
+            ? locationComponent("remote_preferred", "remote — matches your remote-only preference", 1)
+            : locationComponent("remote_anywhere", "remote — open to any location", 1);
     }
 
     const own = candidateCountries(signals);
@@ -292,6 +287,7 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
         return locationComponent("country_unlisted", "this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
     }
     if (own.some((country) => jobList.includes(country))) {
+        if (wantsRemote) return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
         return remote
             ? locationComponent("remote_same_country", "remote — same country", 1)
             : locationComponent("same_country", "same country", 1);

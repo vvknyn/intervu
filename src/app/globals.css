@@ -134,13 +134,6 @@
      mount (or a desktop viewport, where it's `lg:hidden`) already clears
      it — not by coincidence of each consumer restating its own escape. */
   --mobile-tabbar-h: 0px;
-  /* `mobile-search-cta` (app/jobs/page.tsx) sets its own height from this —
-     border-t (1px) + h-11 button (44px) + 10px top/bottom clearance from
-     centering inside it. The landing scroll area's bottom padding reads the
-     same token (never a restated px number) so the two can't drift apart:
-     that drift — a flat `pb-20` guess that predated this bar's real height —
-     is exactly what left the bar covering the last inch of content. */
-  --mobile-search-cta-h: 65px;
   /* The sticky header's height. TopBar SETS its own height from this, so the
      token can't drift from the bar it describes, and anything that has to
      clear the header — a scroll target's `scroll-margin-top`, an
@@ -1767,9 +1760,8 @@ select {
 }
 
 /* When any modal dialog or sheet is open (body is scroll-locked by Radix),
-   hide page-level floating overlays like mobile-search-cta and apply-return-prompt,
-   ensuring they never overlap modal forms or intercept touch events. */
-body[data-scroll-locked] [data-testid="mobile-search-cta"],
+   hide page-level floating overlays like apply-return-prompt, ensuring they
+   never overlap modal forms or intercept touch events. */
 body[data-scroll-locked] [data-testid="apply-return-prompt"] {
   display: none !important;
 }

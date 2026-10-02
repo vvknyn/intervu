@@ -44,5 +44,5 @@ export const CUSTOMIZE_READY_HEADER = "Your résumé is ready. Customize for thi
 /** Signed-out sync line inside customize panel. */
 export const SIGN_IN_TO_SYNC_LABEL = "Sign in to sync this version.";
 
-/** Job detail action when no résumé yet. */
-export const UPLOAD_TO_CUSTOMIZE_LABEL = "Upload résumé to customize.";
+/** Job detail action when no résumé yet. A button label, so no full stop. */
+export const UPLOAD_TO_CUSTOMIZE_LABEL = "Upload résumé to customize";
