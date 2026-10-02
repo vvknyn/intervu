@@ -47,8 +47,9 @@ export const FIRST_LIST_RELEASED_EVENT = "velai-first-list-released";
  * /jobs holds the deferred providers' idle mounts (AuthKit, PostHog) until
  * its first list is on screen. AuthKit's session check is a server action,
  * and server actions run one at a time, so mounting it first queued the
- * search behind it (measured on a throttled phone profile: up to ~180 ms
- * before the first row). PostHog is ~240 KB of JS whose download and parse
+ * search behind it while the search was an action too (measured on a
+ * throttled phone profile: up to ~180 ms before the first row; the search
+ * goes over fetch since 2026-10-01, see app/api/jobs/search). PostHog is ~240 KB of JS whose download and parse
  * landed while the list's own code was starting. Nothing on the page reads
  * either provider's context, and events wait for PostHog in events.ts's
  * hold, so waiting costs nothing. `releaseFirstListHold` lifts the hold.

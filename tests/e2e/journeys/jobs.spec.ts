@@ -8,6 +8,7 @@ import { PACK_POSTED_BUCKET } from "../../../src/lib/jobs/url-state";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
+import { answerListSearch, isListSearch } from "./list-search";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 // Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
@@ -831,14 +832,14 @@ signedInTest("a nurse's packs hub shows health tiles, never the tech ones, and e
 });
 
 /**
- * Every Server Action POST answers 503, in the browser only; nothing reaches
- * the origin. Returns a switch that lets actions through again (the fixture's
- * analytics block stays in place, so no unroute).
+ * Every Server Action POST and every list search answers 503, in the browser
+ * only; nothing reaches the origin. Returns a switch that lets them through
+ * again (the fixture's analytics block stays in place, so no unroute).
  */
 const failEveryAction = async (page: Page) => {
   let failing = true;
   await page.route("**/*", (route) =>
-    failing && route.request().method() === "POST" && route.request().headers()["next-action"]
+    failing && route.request().method() === "POST" && (route.request().headers()["next-action"] || isListSearch(route.request()))
       ? route.fulfill({ status: 503, contentType: "text/plain", body: "journey stub: 503" })
       : route.fallback(),
   );
@@ -1058,21 +1059,18 @@ signedInTest("when every search fails, the packs home settles on saying so: Toda
 /**
  * A pack's own search (it carries the pack's country) answers with what the server sends during a
  * search outage: no rows, `unavailable`, and the place reported as unmatched, because the place
- * check fails too. In the browser only; the action still runs, its answer is replaced. Returns a
+ * check fails too. In the browser only; the search still runs, its answer is replaced. Returns a
  * switch that lets the real answers through again.
  */
 const answerPackSearchAsOutage = async (page: Page, country: string) => {
   let failing = true;
   await page.route("**/*", async (route) => {
     const req = route.request();
-    if (!failing || req.method() !== "POST" || !req.headers()["next-action"] || !(req.postData() ?? "").includes('"location_country"')) {
+    if (!failing || !isListSearch(req) || !(req.postData() ?? "").includes('"location_country"')) {
       return route.fallback();
     }
-    const res = await route.fetch();
-    // Row 0 is the action envelope (build id, "$@1"); row 1 carries the return value.
-    const envelope = (await res.text()).split("\n")[0];
     const outage = { hits: [], total: 0, backend: "meilisearch", configured: true, unavailable: true, note: SEARCH_UNAVAILABLE_MESSAGE, searchId: "journey-outage", unmatchedPlaceMentions: [country] };
-    return route.fulfill({ response: res, body: `${envelope}\n1:${JSON.stringify(outage)}\n` });
+    return answerListSearch(route, outage);
   });
   return () => {
     failing = false;
