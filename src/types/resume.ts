@@ -157,6 +157,26 @@ export interface ResumeData {
     education: ResumeEducation[];
     generatedSummary: string;
     sectionOrder?: ResumeSection[]; // Custom section order (if user has manually reordered)
+    /** Each section's heading as the uploaded résumé words it ("Work History"), so an export keeps the original's wording. */
+    sectionHeadings?: Partial<Record<ResumeSection, string>>;
+    /** Sections beyond the five above (Certifications, Languages, Awards), kept as written so an export prints them in place. */
+    additionalSections?: ResumeAdditionalSection[];
+    /** The name and contact lines as the uploaded résumé printed them. */
+    sourceHeader?: ResumeSourceHeader;
+}
+
+export interface ResumeSourceHeader {
+    /** The line the name came from, credentials and all ("Amara Okafor, RN"); "" when none. */
+    nameLine: string;
+    contactLines: string[];
+}
+
+export interface ResumeAdditionalSection {
+    heading: string;
+    /** One entry per line or bullet of the source section. */
+    lines: string[];
+    /** The modelled section it followed in the source; null when it came before all of them. */
+    after: ResumeSection | null;
 }
 
 // Resume Parsing Types

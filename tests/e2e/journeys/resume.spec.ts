@@ -1,10 +1,12 @@
 import type { Page } from "@playwright/test";
-import { extractText } from "unpdf";
+import { readFileSync } from "node:fs";
+import { extractText, getDocumentProxy } from "unpdf";
 import { WRAPPED_RESUME, buildWrappedResumePdf } from "../../fixtures/wrapped-resume-pdf";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LEGACY_DOC_MESSAGE } from "../../../src/lib/resume/extract-file-text";
 import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/jobs/resume-privacy-copy";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { measureResumeLayout, type LayoutPage } from "../../../src/lib/resume/layout-profile";
 import { expect, test } from "./fixtures";
 
 /**
@@ -130,6 +132,66 @@ test("A PDF résumé whose lines wrap imports with its summary as one paragraph 
   expect(values, "the summary is the whole paragraph, with no break at each printed line").toContain(WRAPPED_RESUME.summary);
   expect(values.join("\n")).toContain("Large-Scale Data Pipelines");
   expect(values.join("\n")).toContain("Event Sourcing (CQRS, Outbox, Sagas)");
+});
+
+/** A PDF's paper, margins, type and page count, read the way the importer reads an upload. */
+async function layoutOf(bytes: Uint8Array) {
+  const pdf = await getDocumentProxy(bytes.slice());
+  const pages: LayoutPage[] = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const pdfPage = await pdf.getPage(n);
+    const [x0, y0, x1, y1] = pdfPage.view;
+    const content = await pdfPage.getTextContent();
+    pages.push({ width: x1 - x0, height: y1 - y0, origin: [x0, y0], items: content.items as LayoutPage["items"], styles: content.styles });
+  }
+  const layout = measureResumeLayout(pages);
+  expect(layout, "a measurable résumé PDF").not.toBeNull();
+  return layout!;
+}
+
+// Vivek, 2026-10-02: the tailored PDF "is not dense...no tight borders...its not 1 page". Every
+// download used one fixed layout (production has no Chromium, so the server print always fell back).
+test("A tailored résumé downloads in the layout of the PDF the guest uploaded: same paper, margins, type and page count", { tag: ["@J-RESUME-37"] }, async ({ page, diagnostics }) => {
+  // One dense page: 8pt type, 0.32in margins, a Polish name and an arrow the standard PDF fonts can't draw.
+  const original = new Uint8Array(readFileSync("tests/fixtures/resume-layouts/marketing-dense-unicode.pdf"));
+  await page.addInitScript(([key]) => localStorage.setItem(key, "1"), [ONBOARDING_COMPLETED_STORAGE_KEY]);
+  await page.goto("/resume");
+  await page.getByTestId("resume-signed-out-upload").click();
+  const importer = page.getByRole("dialog");
+  await importer.locator('input[type="file"]').setInputFiles({ name: "lucja-wisniewska.pdf", mimeType: "application/pdf", buffer: Buffer.from(original) });
+  await importer.getByTestId("resume-import-skip-download").click();
+  await importer.getByTestId("resume-import-parse-primary").click();
+  await importer.getByRole("button", { name: "Apply to Resume" }).click({ timeout: 30_000 });
+  await expect(page.getByText("Local résumé on this device")).toBeVisible();
+
+  await page.goto("/jobs?view=search&q=engineer");
+  await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
+  await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
+  // By name: on a phone the role itself is open in a sheet, which is a dialog too.
+  const customize = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
+  await customize.getByRole("button", { name: "Use a rules draft" }).click();
+  const downloadPdf = customize.getByRole("button", { name: "Download PDF" });
+  await expect(downloadPdf).toBeVisible({ timeout: 30_000 });
+  const [download] = await Promise.all([page.waitForEvent("download"), downloadPdf.click()]);
+  expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+  const tailored = new Uint8Array(readFileSync(await download.path()));
+
+  const want = await layoutOf(original);
+  const got = await layoutOf(tailored);
+  expect(got.pageCount, "the original's page count").toBe(want.pageCount);
+  expect(Math.abs(got.pageWidth - want.pageWidth), "the original's paper").toBeLessThanOrEqual(1);
+  expect(Math.abs(got.pageHeight - want.pageHeight), "the original's paper").toBeLessThanOrEqual(1);
+  expect(Math.abs(got.marginLeft - want.marginLeft), `left margin ${got.marginLeft} vs ${want.marginLeft}`).toBeLessThanOrEqual(2);
+  expect(Math.abs(got.marginTop - want.marginTop), `top margin ${got.marginTop} vs ${want.marginTop}`).toBeLessThanOrEqual(2);
+  // Never larger than the original's type; smaller only to keep its page count, and never below 7pt.
+  expect(got.bodySize, "body type").toBeLessThanOrEqual(want.bodySize + 0.05);
+  expect(got.bodySize, "body type").toBeGreaterThanOrEqual(7);
+  expect(got.family).toBe(want.family);
+
+  const { text } = await extractText(tailored.slice(), { mergePages: true });
+  expect(text).toContain("Łucja Wiśniewska");
+  expect(text).toContain("→");
+  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 test.describe("signed in (dev-server only)", () => {

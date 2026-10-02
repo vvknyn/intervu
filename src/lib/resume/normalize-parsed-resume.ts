@@ -40,6 +40,11 @@ export interface RawParsedResumeInput {
     generatedSummary?: string;
     summary?: string;
     professionalSummary?: string;
+    /** How the source laid itself out (local structurer only), so an export can print it the same way. */
+    sectionOrder?: ResumeData["sectionOrder"];
+    sectionHeadings?: ResumeData["sectionHeadings"];
+    additionalSections?: ResumeData["additionalSections"];
+    sourceHeader?: ResumeData["sourceHeader"];
 }
 
 export interface NormalizeParsedResumeOptions {
@@ -113,6 +118,10 @@ export function normalizeParsedResume(
         generatedSummary: (raw.generatedSummary || raw.summary || raw.professionalSummary || "")
             .replace(/\\n/g, "\n")
             .trim(),
+        ...(raw.sectionOrder?.length ? { sectionOrder: raw.sectionOrder } : {}),
+        ...(raw.sectionHeadings && Object.keys(raw.sectionHeadings).length ? { sectionHeadings: raw.sectionHeadings } : {}),
+        ...(raw.additionalSections?.length ? { additionalSections: raw.additionalSections } : {}),
+        ...(raw.sourceHeader ? { sourceHeader: raw.sourceHeader } : {}),
     };
 
     const confidence: ResumeConfidenceScores = {

@@ -2,36 +2,30 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { parseResumeContent, resumeDataToParsedDocument, type ParsedResumeDocument } from "@/lib/resume/parse-resume-content";
-import { layoutResumeDocument, deriveResumePdfFilename, DEFAULT_PAGE_METRICS, type TextMeasurer } from "@/lib/resume/render-pdf";
+import { readFileSync } from "node:fs";
+import { extractText } from "unpdf";
+import {
+  layoutResumeDocument,
+  fitResumeLayout,
+  defaultResumeStyle,
+  styleFromLayoutProfile,
+  floorBodySizeFor,
+  renderResumePdf,
+  resumeNeedsUnicodeFont,
+  deriveResumePdfFilename,
+  type TextMeasurer,
+} from "@/lib/resume/render-pdf";
+import type { ResumeLayoutProfile } from "@/lib/resume/layout-profile";
 import type { ResumeData } from "@/types/resume";
 
-/** Mirrors render-pdf.ts's internal BODY_SIZE — not exported (an internal
- *  tuning constant, not public API), so gap-math assertions here recompute
- *  expected widths against the SAME fakeMeasurer using this literal. */
-const BODY_SIZE_FOR_TESTS = 9.5;
+const STYLE = defaultResumeStyle();
+const BODY = STYLE.bodySize;
+const RIGHT_EDGE = STYLE.pageWidth - STYLE.marginRight;
 
 /** Deterministic fake measurer — monospace approximation, no jsPDF/canvas
- *  dependency, so layout tests run fast and don't depend on font-metric
- *  drift. Wraps greedily on word boundaries, same contract as jsPDF's
- *  splitTextToSize. */
+ *  dependency, so layout tests run fast and don't depend on font metrics. */
 const fakeMeasurer: TextMeasurer = {
   widthOf: (text, size) => text.length * size * 0.5,
-  wrap: (text, maxWidth, size) => {
-    const words = text.split(/\s+/).filter(Boolean);
-    const lines: string[] = [];
-    let line = "";
-    for (const word of words) {
-      const candidate = line ? `${line} ${word}` : word;
-      if (candidate.length * size * 0.5 > maxWidth && line) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = candidate;
-      }
-    }
-    if (line) lines.push(line);
-    return lines.length > 0 ? lines : [""];
-  },
 };
 
 /* --------------------------------- parseResumeContent --------------------------------- */
@@ -169,120 +163,287 @@ const SAMPLE_DOC: ParsedResumeDocument = {
   ],
 };
 
-describe("layoutResumeDocument — header centering", () => {
-  it("centers the name and contact line on the page's horizontal midpoint", () => {
-    const layout = layoutResumeDocument(SAMPLE_DOC, fakeMeasurer);
-    const nameCmd = layout.pages[0].texts.find((t) => t.text === "Vivek Narayanan");
-    assert.ok(nameCmd);
-    assert.equal(nameCmd!.align, "center");
-    assert.equal(nameCmd!.x, DEFAULT_PAGE_METRICS.pageWidth / 2);
-    const contactCmd = layout.pages[0].texts.find((t) => t.text === SAMPLE_DOC.contactLine);
-    assert.ok(contactCmd);
-    assert.equal(contactCmd!.align, "center");
+const LONG_SENTENCE = "Coordinated a cross-functional launch across four regions with engineering, support and sales, cutting time to value for new accounts by a third";
+
+function textsOf(layout: ReturnType<typeof layoutResumeDocument>) {
+  return layout.pages.flatMap((p) => p.texts);
+}
+
+/** Draw commands grouped into printed lines by baseline. */
+function linesOf(texts: ReturnType<typeof textsOf>) {
+  const byY = new Map<number, typeof texts>();
+  for (const t of texts) byY.set(t.y, [...(byY.get(t.y) ?? []), t]);
+  return [...byY.values()].map((line) => line.sort((a, b) => a.x - b.x));
+}
+
+describe("layoutResumeDocument — header and headings", () => {
+  it("centres the name and contact line between the margins", () => {
+    const texts = textsOf(layoutResumeDocument(SAMPLE_DOC, fakeMeasurer));
+    const centre = (STYLE.marginLeft + RIGHT_EDGE) / 2;
+    for (const text of ["Vivek Narayanan", "Richmond Hill | viveknyan@gmail.com"]) {
+      const cmd = texts.find((t) => t.text === text);
+      assert.ok(cmd, text);
+      assert.equal(cmd!.align, "center");
+      assert.equal(cmd!.x, centre);
+    }
   });
 
-  it("section headers are left-aligned, bold, and each pairs with a full-width rule beneath it", () => {
-    const layout = layoutResumeDocument(SAMPLE_DOC, fakeMeasurer);
-    const headingCmd = layout.pages[0].texts.find((t) => t.text === "PROFESSIONAL SUMMARY");
-    assert.ok(headingCmd);
-    assert.equal(headingCmd!.align, "left");
-    assert.equal(headingCmd!.bold, true);
-    assert.equal(layout.pages[0].rules.length, 2, "one rule per section heading (Summary + Experience)");
+  it("left-aligns the name when the original did", () => {
+    const texts = textsOf(layoutResumeDocument(SAMPLE_DOC, fakeMeasurer, { ...STYLE, centeredHeader: false }));
+    const name = texts.find((t) => t.text === "Vivek Narayanan")!;
+    assert.equal(name.align, "left");
+    assert.equal(name.x, STYLE.marginLeft);
   });
-});
 
-describe("layoutResumeDocument — section order preserved", () => {
-  it("draw commands for each section's content appear in the SAME order the parsed sections were given", () => {
+  it("draws each section heading bold at the left margin with one full-width rule below its baseline", () => {
     const layout = layoutResumeDocument(SAMPLE_DOC, fakeMeasurer);
-    const order = layout.pages
-      .flatMap((p) => p.texts)
-      .map((t) => t.text)
-      .filter((t) => t === "PROFESSIONAL SUMMARY" || t === "PROFESSIONAL EXPERIENCE" || t === "Product Manager | Acme");
+    const heading = textsOf(layout).find((t) => t.text === "PROFESSIONAL SUMMARY")!;
+    assert.equal(heading.bold, true);
+    assert.equal(heading.x, STYLE.marginLeft);
+    assert.equal(layout.pages[0].rules.length, 2);
+    const rule = layout.pages[0].rules[0];
+    assert.equal(rule.x1, STYLE.marginLeft);
+    assert.equal(rule.x2, RIGHT_EDGE);
+    assert.ok(rule.y - heading.y >= STYLE.headingSize * 0.2, "the rule sits under the heading's descenders, never through its letters");
+  });
+
+  it("keeps the sections in the order given", () => {
+    const order = textsOf(layoutResumeDocument(SAMPLE_DOC, fakeMeasurer))
+      .map((t) => t.text.trim())
+      .filter((t) => ["PROFESSIONAL SUMMARY", "PROFESSIONAL EXPERIENCE", "Product Manager | Acme"].includes(t));
     assert.deepEqual(order, ["PROFESSIONAL SUMMARY", "PROFESSIONAL EXPERIENCE", "Product Manager | Acme"]);
   });
+
+  it("puts an entry's dates at the right margin on the title's baseline, and draws none when it has no dates", () => {
+    const texts = textsOf(layoutResumeDocument(SAMPLE_DOC, fakeMeasurer));
+    const date = texts.find((t) => t.text === "September '21 — Present")!;
+    const title = texts.find((t) => t.text.startsWith("Product Manager"))!;
+    assert.equal(date.align, "right");
+    assert.equal(date.x, RIGHT_EDGE);
+    assert.equal(date.y, title.y);
+    const undated: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "X", blocks: [{ kind: "entry", title: "Volunteer", dateRight: null, bullets: [] }] }] };
+    assert.equal(textsOf(layoutResumeDocument(undated, fakeMeasurer)).filter((t) => t.align === "right").length, 0);
+  });
+
+  it("wraps a long title short of its dates instead of running under them", () => {
+    const title = "Senior Director of Customer Experience and Strategic Operations | Very Long Company Name International Holdings";
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "X", blocks: [{ kind: "entry", title, dateRight: "January 2019 — Present", bullets: [] }] }] };
+    const texts = textsOf(layoutResumeDocument(doc, fakeMeasurer));
+    const date = texts.find((t) => t.align === "right")!;
+    const dateLeft = date.x - fakeMeasurer.widthOf(date.text, date.size, false);
+    const firstLine = texts.filter((t) => t.y === date.y && t.align === "left");
+    for (const t of firstLine) assert.ok(t.x + fakeMeasurer.widthOf(t.text.trimEnd(), t.size, true) < dateLeft, `"${t.text}" overlaps the dates`);
+    assert.ok(texts.filter((t) => t.bold).length >= 2, "the title takes a second line");
+  });
 });
 
-describe("layoutResumeDocument — date right-alignment", () => {
-  it("an experience entry's date renders as its own right-aligned command at the page's right margin", () => {
-    const layout = layoutResumeDocument(SAMPLE_DOC, fakeMeasurer);
-    const dateCmd = layout.pages[0].texts.find((t) => t.text === "September '21 — Present");
-    assert.ok(dateCmd, "date must be its own draw command, not glued to the title text");
-    assert.equal(dateCmd!.align, "right");
-    assert.equal(dateCmd!.x, DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX);
+describe("layoutResumeDocument — bullets and pagination", () => {
+  it("draws a bullet as a filled circle, never as bullet text", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: ["One thing."] }] }] };
+    const layout = layoutResumeDocument(doc, fakeMeasurer);
+    assert.ok(!textsOf(layout).some((t) => /^[●•]/.test(t.text)));
+    assert.equal(layout.pages[0].dots.length, 1);
+    assert.ok(layout.pages[0].dots[0].x < STYLE.marginLeft + STYLE.bulletIndent);
   });
 
-  it("an entry with no date at all renders the title with no stray right-aligned command", () => {
-    const doc: ParsedResumeDocument = {
-      name: null,
-      contactLine: null,
-      sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "entry", title: "Volunteer | Acme", dateRight: null, bullets: [] }] }],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    assert.equal(layout.pages[0].texts.filter((t) => t.align === "right").length, 0);
-  });
-});
-
-describe("layoutResumeDocument — long-content pagination, never splits a bullet", () => {
-  it("a bullet list long enough to overflow one page spills onto additional pages, and every bullet's dot + text land entirely on ONE page", () => {
-    const manyBullets = Array.from({ length: 80 }, (_, i) => `Bullet number ${i} describing an accomplishment in enough detail to wrap across a couple of lines when rendered.`);
-    const doc: ParsedResumeDocument = {
-      name: "Long Resume",
-      contactLine: null,
-      sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: manyBullets }] }],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    assert.ok(layout.pages.length > 1, "80 wrapping bullets must overflow a single US-Letter page");
-
-    // Each bullet is one DrawDot (see DrawDot's doc — never a "●" text
-    // glyph) paired with one-or-more DrawText word commands on the SAME
-    // page, at a y computed from that same dot. Every dot on a page must
-    // have at least one word at the matching y on the SAME page — that
-    // pairing is what "never split a bullet" means structurally: both are
-    // emitted from the SAME reserve() call, so a page break can never
-    // separate a dot from its own text.
-    let totalDots = 0;
-    for (const page of layout.pages) {
-      totalDots += page.dots.length;
-      for (const dot of page.dots) {
-        const paired = page.texts.some((t) => Math.abs(t.y - (dot.y + BODY_SIZE_FOR_TESTS * 0.32)) < 0.01);
-        assert.ok(paired, `dot at y=${dot.y} must have its bullet's first line of text on the SAME page`);
-      }
-    }
-    assert.equal(totalDots, 80, "every bullet must produce exactly one dot across all pages");
-  });
-
-  it("a single entry's title+dates+bullets group never has its title stranded alone at the bottom of a page", () => {
-    const doc: ParsedResumeDocument = {
-      name: null,
-      contactLine: null,
-      sections: [
-        {
-          heading: "EXPERIENCE",
-          blocks: Array.from({ length: 20 }, (_, i) => ({
-            kind: "entry" as const,
-            title: `Role ${i} | Company ${i}`,
-            dateRight: "2020 — 2021",
-            bullets: ["One accomplishment.", "Another accomplishment."],
-          })),
-        },
-      ],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
+  it("spills long content onto more pages without splitting a bullet: each dot shares its page with its first line", () => {
+    const items = Array.from({ length: 80 }, (_, i) => `${i} ${LONG_SENTENCE}`);
+    const layout = layoutResumeDocument({ name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items }] }] }, fakeMeasurer);
     assert.ok(layout.pages.length > 1);
-    // Every "Role N | Company N" title command is immediately followed
-    // (within the same page) by its date — proves the title line itself is
-    // never split mid-render across the reserve() boundary.
+    let dots = 0;
     for (const page of layout.pages) {
-      const titleIdxs = page.texts.map((t, i) => (/^Role \d+ \| Company \d+$/.test(t.text) ? i : -1)).filter((i) => i >= 0);
-      for (const idx of titleIdxs) {
-        const next = page.texts[idx + 1];
-        assert.ok(next && /^2020/.test(next.text), "title and its date must render on the same page");
+      for (const dot of page.dots) {
+        dots++;
+        assert.ok(page.texts.some((t) => Math.abs(t.y - (dot.y + BODY * 0.3)) < 0.01), `dot at ${dot.y} has its text on the same page`);
+      }
+      for (const t of page.texts) assert.ok(t.y <= STYLE.pageHeight - STYLE.marginBottom, `"${t.text}" runs into the bottom margin`);
+    }
+    assert.equal(dots, 80);
+  });
+
+  it("never strands an entry's title at the foot of a page: its first bullet comes with it", () => {
+    const blocks = Array.from({ length: 14 }, (_, i) => ({ kind: "entry" as const, title: `Role ${i} | Company`, dateRight: `20${10 + i} — 20${11 + i}`, bullets: [LONG_SENTENCE, LONG_SENTENCE] }));
+    const layout = layoutResumeDocument({ name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks }] }, fakeMeasurer);
+    assert.ok(layout.pages.length > 1);
+    for (const page of layout.pages) {
+      const titles = page.texts.filter((t) => t.bold && t.text.startsWith("Role"));
+      for (const title of titles) {
+        assert.ok(page.texts.some((t) => t.y > title.y && !t.bold), `"${title.text}" has a bullet under it on its page`);
       }
     }
   });
 });
 
-/* --------------------------------- deriveResumePdfFilename --------------------------------- */
+describe("layoutResumeDocument — words keep their spaces (copyable, parseable text)", () => {
+  const paragraph: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: `${LONG_SENTENCE}. ${LONG_SENTENCE}. ${LONG_SENTENCE}.` }] }] };
+
+  it("stretches a justified line to the right edge with every word but the last carrying its space", () => {
+    const lines = linesOf(textsOf(layoutResumeDocument(paragraph, fakeMeasurer)).filter((t) => t.text !== "SUMMARY"));
+    assert.ok(lines.length >= 3);
+    for (const line of lines.slice(0, -1)) {
+      assert.ok(line.length > 1);
+      line.slice(0, -1).forEach((t) => assert.ok(t.text.endsWith(" "), `"${t.text}" keeps its trailing space`));
+      const last = line[line.length - 1];
+      assert.ok(Math.abs(last.x + fakeMeasurer.widthOf(last.text, BODY, false) - RIGHT_EDGE) < 0.01, "justified line reaches the right edge");
+    }
+    const lastLine = lines[lines.length - 1];
+    assert.equal(lastLine.length, 1, "the last line is one ragged string");
+    assert.ok(lastLine[0].text.includes(" "));
+  });
+
+  it("draws every line as one string with real spaces when the original was ragged", () => {
+    const lines = linesOf(textsOf(layoutResumeDocument(paragraph, fakeMeasurer, { ...STYLE, justify: false })).filter((t) => t.text !== "SUMMARY"));
+    for (const line of lines) assert.equal(line.length, 1);
+  });
+
+  it("sets a skills line's label in bold, followed by a space, then the skills", () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Technical", items: "SQL, Python, Go" }] }] };
+    const texts = textsOf(layoutResumeDocument(doc, fakeMeasurer));
+    const label = texts.find((t) => t.bold && t.text.startsWith("Technical:"))!;
+    assert.equal(label.text, "Technical: ");
+    const rest = texts.find((t) => !t.bold && t.y === label.y)!;
+    assert.equal(rest.text, "SQL, Python, Go");
+    assert.ok(rest.x >= label.x + fakeMeasurer.widthOf("Technical:", BODY, true) + fakeMeasurer.widthOf(" ", BODY, false) - 0.01);
+  });
+});
+
+describe("fitResumeLayout — the original's page count", () => {
+  const long: ParsedResumeDocument = {
+    name: "Jane Doe",
+    contactLine: "Toronto | jane@example.com",
+    sections: [
+      { heading: "SUMMARY", blocks: [{ kind: "paragraph", text: `${LONG_SENTENCE}. ${LONG_SENTENCE}.` }] },
+      { heading: "EXPERIENCE", blocks: Array.from({ length: 9 }, (_, i) => ({ kind: "entry" as const, title: `Role ${i} | Company`, dateRight: "2019 — 2021", bullets: [LONG_SENTENCE, LONG_SENTENCE, LONG_SENTENCE] })) },
+    ],
+  };
+
+  it("tightens spacing, then leading, then type until the content fits the target, never below the floor", () => {
+    const loose = layoutResumeDocument(long, fakeMeasurer, STYLE);
+    assert.equal(loose.pages.length, 2, "fixture overflows one page as designed");
+    const fit = fitResumeLayout(long, fakeMeasurer, STYLE, { targetPages: 1, floorBodySize: floorBodySizeFor(STYLE, false) });
+    assert.equal(fit.layout.pages.length, 1);
+    assert.equal(fit.fits, true);
+    assert.ok(fit.style.bodySize >= 8 - 1e-9 && fit.style.bodySize < BODY, "it had to shrink the type, within the floor");
+    assert.ok(fit.style.blockGap < STYLE.blockGap && fit.style.lineHeight < STYLE.lineHeight, "spacing and leading went first");
+    assert.equal(fit.style.marginLeft, STYLE.marginLeft, "margins are the original's and never move");
+  });
+
+  it("leaves a layout that already fits exactly as designed", () => {
+    const fit = fitResumeLayout(SAMPLE_DOC, fakeMeasurer, STYLE, { targetPages: 1, floorBodySize: 8 });
+    assert.deepEqual(fit.style, STYLE);
+  });
+
+  it("takes the next page at full size, and says so, when even the floor can't fit the target", () => {
+    const huge: ParsedResumeDocument = { ...long, sections: [...long.sections, ...long.sections, ...long.sections] };
+    const fit = fitResumeLayout(huge, fakeMeasurer, STYLE, { targetPages: 1, floorBodySize: 8 });
+    assert.equal(fit.fits, false);
+    assert.ok(fit.layout.pages.length >= 2);
+    const atFloor = fitResumeLayout(huge, fakeMeasurer, STYLE, { targetPages: fit.layout.pages.length, floorBodySize: 8 });
+    assert.equal(atFloor.fits, true);
+  });
+
+  it("without an original, aims for the fewest pages the floor allows", () => {
+    const fit = fitResumeLayout(long, fakeMeasurer, STYLE, { targetPages: null, floorBodySize: 8 });
+    assert.equal(fit.layout.pages.length, 1);
+    assert.equal(fit.targetPages, 1);
+  });
+});
+
+const PROFILE: ResumeLayoutProfile = {
+  version: 1,
+  pageWidth: 595.28,
+  pageHeight: 841.89,
+  pageCount: 1,
+  marginLeft: 23,
+  marginRight: 23,
+  marginTop: 26,
+  marginBottom: 26,
+  bodySize: 7.75,
+  lineHeight: 1.32,
+  nameSize: 14,
+  contactSize: 7.4,
+  headingSize: 8.1,
+  titleSize: 8.2,
+  dateSize: 7.4,
+  bulletIndent: 11.3,
+  family: "serif",
+  justified: true,
+  centeredHeader: true,
+};
+
+describe("styleFromLayoutProfile", () => {
+  it("prints on the original's paper, margins and type sizes", () => {
+    const style = styleFromLayoutProfile(PROFILE);
+    const texts = textsOf(layoutResumeDocument(SAMPLE_DOC, fakeMeasurer, style));
+    assert.equal(style.pageWidth, 595.28);
+    assert.equal(style.family, "serif");
+    const heading = texts.find((t) => t.text === "PROFESSIONAL SUMMARY")!;
+    assert.equal(heading.x, 23);
+    assert.equal(heading.size, 8.1);
+    const name = texts.find((t) => t.text === "Vivek Narayanan")!;
+    assert.ok(Math.abs(name.y - 14 * 0.72 - 26) < 0.01, "the name's cap height sits on the top margin");
+  });
+});
+
+/* --------------------------------- renderResumePdf (real bytes) --------------------------------- */
+
+const FONTS = {
+  regular: readFileSync("public/fonts/liberation/LiberationSans-Regular.ttf").toString("base64"),
+  bold: readFileSync("public/fonts/liberation/LiberationSans-Bold.ttf").toString("base64"),
+};
+
+const ARROWS: ParsedResumeDocument = {
+  name: "Łucja Wiśniewska",
+  contactLine: "Toronto | lucja@example.com",
+  sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "entry", title: "Growth Lead | Café Nguyễn", dateRight: "2022 — Present", bullets: ["Built the funnel: discovery → scrape → enrich → score, with results ≥ 95% confidence across every regional market we served in the year."] }] }],
+};
+
+async function pdfText(bytes: ArrayBuffer): Promise<string> {
+  const { text } = await extractText(new Uint8Array(bytes), { mergePages: true });
+  return text.replace(/\s+/g, " ");
+}
+
+describe("renderResumePdf", () => {
+  it("needs an embedded font only for characters the built-in fonts lack", () => {
+    assert.equal(resumeNeedsUnicodeFont(SAMPLE_DOC), false, "— and ' are WinAnsi");
+    assert.equal(resumeNeedsUnicodeFont(ARROWS), true);
+  });
+
+  it("prints arrows and Polish and Vietnamese letters with the embedded font, never as mojibake", async () => {
+    const result = renderResumePdf(ARROWS, { fonts: FONTS });
+    const text = await pdfText(result.bytes);
+    assert.match(text, /Łucja Wiśniewska/);
+    assert.match(text, /Café Nguyễn/);
+    assert.match(text, /discovery → scrape → enrich → score/);
+    assert.doesNotMatch(text, /!'/);
+  });
+
+  it("spells the symbols out when the font files couldn't load", async () => {
+    const text = await pdfText(renderResumePdf(ARROWS).bytes);
+    assert.match(text, /discovery -> scrape -> enrich -> score/);
+    assert.match(text, />= 95%/);
+    assert.match(text, /Lucja Wisniewska/);
+    assert.doesNotMatch(text, /!'/);
+  });
+
+  it("keeps the spaces between words on justified lines when the text is read back", async () => {
+    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: `${LONG_SENTENCE}. ${LONG_SENTENCE}. ${LONG_SENTENCE}.` }] }] };
+    const text = await pdfText(renderResumePdf(doc).bytes);
+    assert.match(text, /Coordinated a cross-functional launch across four regions with engineering, support and sales/);
+    assert.doesNotMatch(text, /launchacross|withengineering/);
+  });
+
+  it("prints in the original's typeface family and paper, and reports the page count against the original's", async () => {
+    const result = renderResumePdf(SAMPLE_DOC, { profile: PROFILE });
+    const raw = Buffer.from(result.bytes).toString("latin1");
+    assert.match(raw, /Times-Roman/);
+    assert.match(raw, /\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/);
+    assert.equal(result.pages, 1);
+    assert.equal(result.originalPages, 1);
+    assert.equal(result.fits, true);
+    assert.equal(result.bodySize, 7.75);
+  });
+});
 
 describe("deriveResumePdfFilename", () => {
   it("company + role -> <Company>-<Role>-resume-<date> (the founder's reference convention)", () => {
@@ -388,181 +549,3 @@ describe("parseResumeContent — plain-text shape produces the SAME structure (c
   });
 });
 
-describe("render-pdf — fix round: bullet glyph, rule position, competency spacing", () => {
-  it("a bullet is drawn as a filled circle (DrawDot), never as bullet TEXT — the mojibake bug ('●'/'•' have no WinAnsi codepoint in jsPDF's core fonts)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: ["One thing."] }] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const allText = layout.pages.flatMap((p) => p.texts).map((t) => t.text);
-    assert.ok(!allText.some((t) => t === "●" || t === "•"), `no draw-text command should be a bullet glyph, got ${JSON.stringify(allText)}`);
-    assert.equal(layout.pages[0].dots.length, 1, "exactly one dot per bullet item");
-  });
-
-  it("a section header's rule sits BELOW the text's full line box, never through it — the struck-through-text bug", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: "Body." }] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const headingCmd = layout.pages[0].texts.find((t) => t.text === "SUMMARY")!;
-    const rule = layout.pages[0].rules[0];
-    // headingCmd.y is the text BASELINE; a 10pt heading's full line box
-    // (lh = 10 * 1.35 = 13.5) must fully clear the baseline before the rule
-    // — i.e. the rule sits at least (lineHeight - the 0.8 baseline offset
-    // already spent) below the baseline, never within a few points of it.
-    assert.ok(rule.y - headingCmd.y >= 5, `rule (y=${rule.y}) must sit well clear of the heading text's baseline (y=${headingCmd.y}), not strike through it`);
-  });
-
-  it("a competency line's bold category label and its first content word have a real numeric gap between them — the 'Technical:SQL' missing-space bug (fix round 2: embedding the space as a trailing/leading CHARACTER on either run is unreliable in jsPDF, verified empirically; the gap must be pure x-position math)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data, Analytics & Technical", items: "SQL, Python, Go, Rust, Java, C, Kotlin" }] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const texts = layout.pages[0].texts;
-    const boldRun = texts.find((t) => t.bold && t.text.startsWith("Data, Analytics & Technical"))!;
-    assert.ok(boldRun, "expected a bold draw command for the category label");
-    assert.ok(!boldRun.text.includes(" ") || !boldRun.text.endsWith(" "), "the bold run must never end with a space character — proven unreliable, see doc comment");
-    const firstWord = texts.find((t) => !t.bold && t.text === "SQL,")!;
-    assert.ok(firstWord, "expected the first content word as its own draw command");
-    const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
-    assert.ok(firstWord.x - labelEndX >= 1, `expected a real positive gap between the label and the first word, got ${firstWord.x - labelEndX}`);
-  });
-
-  it("class test: two labels of different lengths both keep a real gap to their first word — not a single-label special case", () => {
-    const doc: ParsedResumeDocument = {
-      name: null,
-      contactLine: null,
-      sections: [
-        {
-          heading: "SKILLS",
-          blocks: [
-            { kind: "competency", category: "AI", items: "TensorFlow, PyTorch, one, two, three, four, five, six, seven, eight" },
-            { kind: "competency", category: "Data, Analytics & Technical Systems Engineering", items: "SQL, Python, one, two, three, four, five, six, seven" },
-          ],
-        },
-      ],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const texts = layout.pages[0].texts;
-    for (const label of ["AI:", "Data, Analytics & Technical Systems Engineering:"]) {
-      const boldRun = texts.find((t) => t.bold && t.text === label)!;
-      assert.ok(boldRun, `expected a bold draw command for "${label}"`);
-      const after = texts.filter((t) => !t.bold && t.y === boldRun.y && t.x > boldRun.x);
-      assert.ok(after.length > 0, `expected at least one word after "${label}" on the same line`);
-      const nextWord = after.reduce((a, b) => (a.x < b.x ? a : b));
-      const labelEndX = boldRun.x + fakeMeasurer.widthOf(boldRun.text, BODY_SIZE_FOR_TESTS, true);
-      assert.ok(nextWord.x - labelEndX >= 1, `label "${label}" -> gap of ${nextWord.x - labelEndX}, expected >= 1`);
-    }
-  });
-
-  it("a justified competency line's label-to-first-word gap matches its OTHER word-to-word gaps (uniform spacing across the whole line, not a tighter natural gap at the label boundary alone)", () => {
-    const doc: ParsedResumeDocument = {
-      name: null,
-      contactLine: null,
-      sections: [
-        {
-          heading: "SKILLS",
-          blocks: [
-            {
-              kind: "competency",
-              category: "Data",
-              items: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty twentyone twentytwo twentythree",
-            },
-          ],
-        },
-      ],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
-    assert.ok(labelCmd, "expected the category label draw command");
-    const texts = layout.pages[0].texts.filter((t) => t.y === labelCmd.y).sort((a, b) => a.x - b.x);
-    assert.ok(texts.length >= 3, "expected the label plus multiple words on the first (justified) line");
-    const gaps: number[] = [];
-    for (let i = 0; i < texts.length - 1; i++) {
-      const endX = texts[i].x + fakeMeasurer.widthOf(texts[i].text, BODY_SIZE_FOR_TESTS, texts[i].bold);
-      gaps.push(texts[i + 1].x - endX);
-    }
-    const [firstGap, ...restGaps] = gaps;
-    for (const g of restGaps) {
-      assert.ok(Math.abs(g - firstGap) < 0.5, `expected all gaps on a justified line to be uniform; label gap=${firstGap}, other gap=${g}`);
-    }
-  });
-});
-
-describe("render-pdf — fix round 2: justification (per-word numeric positioning)", () => {
-  // Reverted from jsPDF's native `align: "justify"` (see render-pdf.ts's
-  // module doc): native justify's real embedded space characters were
-  // confirmed correct at the PDF-byte level, but some text-extraction
-  // tooling read the page's justified blocks out of original document
-  // order even though the rendered page itself was fine — a worse,
-  // harder-to-reason-about failure mode than this per-word approach's own
-  // tradeoff (pixel-verified correct; occasionally under-detected as
-  // whitespace by such tooling). Every wrapped line except a block's own
-  // last is stretched to fill the content width, word by word.
-  const LONG_PARAGRAPH = { kind: "paragraph" as const, text: Array.from({ length: 40 }, (_, i) => `word${i}`).join(" ") };
-
-  it("every non-last wrapped line of a paragraph is stretched to reach the right content edge (justified)", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [LONG_PARAGRAPH] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
-    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
-    for (const t of layout.pages.flatMap((p) => p.texts)) {
-      if (!byLine.has(t.y)) byLine.set(t.y, []);
-      byLine.get(t.y)!.push(t);
-    }
-    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
-    assert.ok(lines.length >= 2, "the fixture must wrap to multiple lines");
-    const lastLine = lines[lines.length - 1];
-    const nonLastLines = lines.slice(0, -1);
-    for (const line of nonLastLines) {
-      const last = line.reduce((a, b) => (a.x > b.x ? a : b));
-      const endX = last.x + fakeMeasurer.widthOf(last.text, BODY_SIZE_FOR_TESTS, false);
-      assert.ok(Math.abs(endX - rightEdge) < 3, `non-last line must reach the right edge (justified); got endX=${endX}, rightEdge=${rightEdge}`);
-    }
-    const lastWord = lastLine.reduce((a, b) => (a.x > b.x ? a : b));
-    const lastEndX = lastWord.x + fakeMeasurer.widthOf(lastWord.text, BODY_SIZE_FOR_TESTS, false);
-    assert.ok(lastEndX < rightEdge - 5, "the LAST line must stay ragged (never stretched to the right edge)");
-  });
-
-  it("a bullet's non-last wrapped lines are ALSO justified, matching the reference PDF's own bullet treatment; its own last line stays ragged", () => {
-    const longBullet = "word0 word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25 word26 word27 word28";
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "EXPERIENCE", blocks: [{ kind: "bullets", items: [longBullet] }] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
-    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
-    for (const t of layout.pages[0].texts) {
-      if (!byLine.has(t.y)) byLine.set(t.y, []);
-      byLine.get(t.y)!.push(t);
-    }
-    const lines = [...byLine.values()].filter((l) => l.some((t) => t.text.startsWith("word")));
-    assert.ok(lines.length >= 2, "the fixture bullet must wrap to multiple lines");
-    const first = lines[0].reduce((a, b) => (a.x > b.x ? a : b));
-    const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, false);
-    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "a bullet's non-last line must be justified to the right edge, matching the reference PDF");
-  });
-
-  it("a competency block's continuation lines are ALSO justified except the block's own last line", () => {
-    const doc: ParsedResumeDocument = {
-      name: null,
-      contactLine: null,
-      sections: [{ heading: "SKILLS", blocks: [{ kind: "competency", category: "Data", items: "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty" }] }],
-    };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const rightEdge = DEFAULT_PAGE_METRICS.pageWidth - DEFAULT_PAGE_METRICS.marginX;
-    const labelCmd = layout.pages[0].texts.find((t) => t.text === "Data:")!;
-    assert.ok(labelCmd);
-    const byLine = new Map<number, typeof layout.pages[0]["texts"]>();
-    for (const t of layout.pages[0].texts) {
-      if (t.y < labelCmd.y) continue; // drop the section heading above the competency block
-      if (!byLine.has(t.y)) byLine.set(t.y, []);
-      byLine.get(t.y)!.push(t);
-    }
-    const lines = [...byLine.values()].sort((a, b) => a[0].y - b[0].y);
-    assert.ok(lines.length >= 2, "the fixture competency must wrap to multiple lines");
-    const firstLine = lines[0];
-    const first = firstLine.reduce((a, b) => (a.x > b.x ? a : b));
-    const firstEndX = first.x + fakeMeasurer.widthOf(first.text, BODY_SIZE_FOR_TESTS, first.bold);
-    assert.ok(Math.abs(firstEndX - rightEdge) < 3, "the label line (not the block's last) must be justified to the right edge");
-  });
-
-  it("a single-word line (nothing to distribute) never crashes and stays at its natural width", () => {
-    const doc: ParsedResumeDocument = { name: null, contactLine: null, sections: [{ heading: "SUMMARY", blocks: [{ kind: "paragraph", text: "Solo" }] }] };
-    const layout = layoutResumeDocument(doc, fakeMeasurer);
-    const cmd = layout.pages[0].texts.find((t) => t.text === "Solo");
-    assert.ok(cmd);
-  });
-});

@@ -1,53 +1,46 @@
 /**
- * Résumé PDF rendering (R4/R5, 2026-08-09 user report: variant downloads
- * were a bare .md; the founder then asked the design to match a reference
- * PDF exactly — see the module doc on `parse-resume-content.ts` for the
- * content model this consumes).
+ * Résumé PDF rendering, on the device: the one exporter behind every résumé
+ * download (the For you pack's Download & apply, Customize for this role,
+ * the tracker's saved versions, the résumé page and editor).
+ *
+ * It prints in the layout of the person's own résumé when this device has
+ * measured it (`layout-profile.ts`: paper, margins, type sizes, line
+ * spacing, serif or sans, justified or ragged, page count), and in a tight
+ * default otherwise. Then it fits the content to the original's page count
+ * (`fitResumeLayout`): it tightens the spacing first, then the leading, and
+ * only then the type, never below a readable floor. Content is never cut;
+ * when it can't fit, it takes the next page at the original's size and says
+ * so in the result.
  *
  * Split in two, per the "pure decision, thin I/O" rule:
- *   - `layoutResumeDocument` (pure): `ParsedResumeDocument` -> a paginated
- *     list of draw commands. Takes a `TextMeasurer` as a parameter rather
- *     than reaching for a live jsPDF instance itself, so pagination/
- *     alignment decisions (header centering, date right-alignment, never
- *     splitting a bullet across a page break) are unit-testable with a
- *     deterministic fake measurer — no PDF library, no snapshot-testing
- *     rendered bytes.
- *   - `renderResumePdf` (thin I/O): builds a real jsPDF instance (confirmed
- *     to work under plain Node — no canvas/browser dependency for
- *     text-only core-font rendering), wraps its measurement calls into a
- *     `TextMeasurer`, calls `layoutResumeDocument`, then just walks the
- *     result executing the matching jsPDF draw calls. No layout decisions
- *     live here.
+ *   - `layoutResumeDocument` / `fitResumeLayout` (pure): a
+ *     `ParsedResumeDocument` and a `ResumeStyle` -> paginated draw commands.
+ *     Measurement is injected (`TextMeasurer`), so pagination and alignment
+ *     are unit-testable with a fake measurer.
+ *   - `renderResumePdf` (thin I/O): a real jsPDF document, its measurer, and
+ *     the draw calls. Works under plain Node and in the browser.
  *
- * Justified body text draws word-by-word via pure numeric positioning
- * (`emitJustifiableSegments`), not jsPDF's native `align:"justify"` mode —
- * tried and reverted (fix round 2, 2026-08-09): native justify uses the
- * PDF word-spacing operator, which keeps real space CHARACTERS in the
- * content stream but was empirically confirmed to make some text-
- * extraction tooling read the page's content BLOCKS out of original
- * document order (own visual rendering was fine; the extracted text
- * transcript wasn't). The per-word approach's own tradeoff (a boundary
- * gap that's numerically correct but occasionally under-detected as
- * whitespace by such tooling) is the smaller, better-understood risk —
- * pixel-verified correct at 300dpi for both fixture shapes, every gap on
- * a line uniform, real PDF-byte positions confirmed via direct content-
- * stream inspection.
+ * Text stays text a reader can copy and an applicant tracking system can
+ * parse: every word keeps its real space character, including on justified
+ * lines (each word is drawn with its trailing space and placed by number,
+ * the way jsPDF itself justifies a Unicode font). An earlier version drew
+ * words with no space characters at all, and some extractors read a
+ * justified line as one run-together word ("AccountManagerandclient").
  *
- * One renderer, three call sites: the pursuit-variant download
- * (`lib/pursuits/download-resume.ts`), the base résumé's PDF button
- * (`YourResumeSection.tsx`), and the R5a MCP-chat download link (the
- * pursuit page's `?download=pdf` auto-trigger) — all three hand this
- * exactly a `ParsedResumeDocument` and get back the identical layout.
+ * Fonts: the built-in Helvetica/Times when every character has a WinAnsi
+ * code; otherwise the caller supplies Liberation Sans/Serif (metric twins of
+ * Helvetica/Times, SIL OFL, in public/fonts) and jsPDF embeds the glyphs it
+ * uses. Without them, the few symbols WinAnsi lacks are spelled out ("→"
+ * becomes "->") rather than printed as mojibake: the built-in fonts turn an
+ * unknown character into garbage ("!'") without any error.
  */
 import { jsPDF } from "jspdf";
 import type { ParsedResumeDocument, ParsedResumeBlock } from "./parse-resume-content";
+import type { ResumeLayoutProfile } from "./layout-profile";
 
 export interface TextMeasurer {
   /** Width in points of `text` set at `size`pt in the given weight. */
   widthOf(text: string, size: number, bold: boolean): number;
-  /** Greedy word-wrap of `text` to `maxWidth`pt at `size`pt — same contract
-   *  as jsPDF's `splitTextToSize`. */
-  wrap(text: string, maxWidth: number, size: number): string[];
 }
 
 export interface DrawText {
@@ -60,15 +53,12 @@ export interface DrawText {
 }
 export interface DrawRule {
   y: number;
+  x1: number;
+  x2: number;
+  width: number;
 }
-/** A bullet marker, drawn as a filled circle — never as a Unicode glyph
- *  ("●"/"•") through jsPDF's core "helvetica" font. Core fonts use
- *  WinAnsiEncoding, which has no codepoint for either character; asking
- *  jsPDF to draw one silently substitutes mojibake ("%Ï") instead of
- *  throwing, so this was invisible to any test that never rendered real
- *  bytes and read them back. `y` is the vertical CENTER of the circle
- *  (matches jsPDF's `circle(x, y, r, style)` contract), not a text
- *  baseline. */
+/** A bullet marker, drawn as a filled circle — never as a "●"/"•" glyph,
+ *  which the built-in fonts can't all print. `y` is the circle's centre. */
 export interface DrawDot {
   x: number;
   y: number;
@@ -86,357 +76,648 @@ export interface ResumeLayout {
   marginX: number;
 }
 
-export interface PageMetrics {
+/** Everything that decides how a résumé prints. Sizes and spacing in points. */
+export interface ResumeStyle {
   pageWidth: number;
   pageHeight: number;
-  marginX: number;
+  marginLeft: number;
+  marginRight: number;
+  /** Page top to the cap height of the first line. */
   marginTop: number;
+  /** Page bottom to the descenders of the last line. */
   marginBottom: number;
+  family: "sans" | "serif";
+  nameSize: number;
+  contactSize: number;
+  headingSize: number;
+  titleSize: number;
+  dateSize: number;
+  bodySize: number;
+  /** Baseline-to-baseline distance of body lines, as a multiple of the type size. */
+  lineHeight: number;
+  justify: boolean;
+  centeredHeader: boolean;
+  bulletIndent: number;
+  /** Below the contact line, before the first section. */
+  headerGap: number;
+  /** Above each later section heading. */
+  sectionGap: number;
+  /** Heading descenders to the rule. */
+  ruleGap: number;
+  /** Rule to the section's first line. */
+  afterRuleGap: number;
+  /** Between entries and paragraphs. */
+  blockGap: number;
+  /** Between bullets, and between skill lines. */
+  itemGap: number;
+  /** An entry's title line to its first bullet. */
+  titleGap: number;
 }
 
-/** US Letter, tight margins — matches the reference design (Indigo-Digital-
- *  Product-Manager-resume-2026-08-07.pdf): ~0.55in sides, ~0.5in top/bottom. */
-export const DEFAULT_PAGE_METRICS: PageMetrics = {
-  pageWidth: 612,
-  pageHeight: 792,
-  marginX: 40,
-  marginTop: 36,
-  marginBottom: 40,
-};
+/** Cap height and descender depth of Helvetica/Times, as a fraction of the type size. */
+const CAP_HEIGHT = 0.72;
+const DESCENT = 0.21;
+/** Name line pitch: display type sets tighter than body text. */
+const NAME_LINE_HEIGHT = 1.15;
+const HEADING_LINE_HEIGHT = 1.2;
 
-const NAME_SIZE = 19;
-const CONTACT_SIZE = 8.5;
-const HEADING_SIZE = 10;
-const BODY_SIZE = 9.5;
-const LINE_HEIGHT = 1.35;
-const BULLET_INDENT = 12;
-const BULLET_DOT_RADIUS = 1.5;
-/** Gap between a section heading's text baseline (accounting for descenders)
- *  and the rule drawn beneath it — sized so the rule never crosses the
- *  glyphs above it (the "struck through" bug: the rule used to be placed
- *  mid-line-height, cutting through cap-height letters). */
-const RULE_GAP_BELOW_TEXT = 3;
-const SECTION_GAP_BEFORE = 14;
-const GAP_AFTER_HEADING_RULE = 8;
-const GAP_BETWEEN_BLOCKS = 5;
-const GAP_ENTRY_TITLE_TO_BULLETS = 2;
-/** Multiplier on the natural space width for a RAGGED (non-justified,
- *  bare-minimum-gap) multi-segment line — see `emitJustifiableSegments`'s
- *  doc for why this is the one gap on the page with no built-in stretch. */
-const RAGGED_GAP_PADDING = 1.15;
+/** Tight US Letter default for a résumé whose original layout this device
+ *  hasn't seen (a paste, a .docx, an upload on another device). Spacing is
+ *  in proportion to the body size, the way a dense one-page résumé sets it. */
+export function defaultResumeStyle(): ResumeStyle {
+  return withSpacing({
+    pageWidth: 612,
+    pageHeight: 792,
+    marginLeft: 32,
+    marginRight: 32,
+    marginTop: 30,
+    marginBottom: 30,
+    family: "sans",
+    nameSize: 17,
+    contactSize: 8.75,
+    headingSize: 10,
+    titleSize: 9.75,
+    dateSize: 9,
+    bodySize: 9.5,
+    lineHeight: 1.3,
+    justify: true,
+    centeredHeader: true,
+    bulletIndent: 12,
+  });
+}
 
-function lh(size: number): number {
-  return size * LINE_HEIGHT;
+/** The style that prints like the measured original. */
+export function styleFromLayoutProfile(profile: ResumeLayoutProfile): ResumeStyle {
+  return withSpacing({
+    pageWidth: profile.pageWidth,
+    pageHeight: profile.pageHeight,
+    marginLeft: profile.marginLeft,
+    marginRight: profile.marginRight,
+    marginTop: profile.marginTop,
+    marginBottom: profile.marginBottom,
+    family: profile.family,
+    nameSize: profile.nameSize,
+    contactSize: profile.contactSize,
+    headingSize: profile.headingSize,
+    titleSize: profile.titleSize,
+    dateSize: profile.dateSize,
+    bodySize: profile.bodySize,
+    lineHeight: profile.lineHeight,
+    justify: profile.justified,
+    centeredHeader: profile.centeredHeader,
+    bulletIndent: profile.bulletIndent,
+  });
+}
+
+type Spacing = "headerGap" | "sectionGap" | "ruleGap" | "afterRuleGap" | "blockGap" | "itemGap" | "titleGap";
+
+function withSpacing(style: Omit<ResumeStyle, Spacing>): ResumeStyle {
+  const em = style.bodySize;
+  return {
+    ...style,
+    headerGap: 0.7 * em,
+    sectionGap: 0.85 * em,
+    ruleGap: 0.25 * em,
+    afterRuleGap: 0.4 * em,
+    blockGap: 0.5 * em,
+    itemGap: 0.1 * em,
+    titleGap: 0.15 * em,
+  };
+}
+
+/**
+ * One knob from "as designed" (0) to "as tight as readable" (3): spacing
+ * halves over 0-1, the leading closes up over 1-2, the type shrinks toward
+ * `floorBodySize` over 2-3. Margins never move: they are the original's.
+ */
+export function compressResumeStyle(base: ResumeStyle, t: number, floorBodySize: number): ResumeStyle {
+  const space = 1 - 0.5 * Math.min(1, Math.max(0, t));
+  const leadRoom = Math.max(0, Math.min(0.12, base.lineHeight - 1.12));
+  const lineHeight = base.lineHeight - leadRoom * Math.min(1, Math.max(0, t - 1));
+  const floor = Math.min(base.bodySize, floorBodySize);
+  const type = 1 - (1 - floor / base.bodySize) * Math.min(1, Math.max(0, t - 2));
+  return {
+    ...base,
+    lineHeight,
+    nameSize: base.nameSize * type,
+    contactSize: base.contactSize * type,
+    headingSize: base.headingSize * type,
+    titleSize: base.titleSize * type,
+    dateSize: base.dateSize * type,
+    bodySize: base.bodySize * type,
+    bulletIndent: base.bulletIndent * type,
+    headerGap: base.headerGap * space * type,
+    sectionGap: base.sectionGap * space * type,
+    ruleGap: base.ruleGap * Math.max(space, 0.8) * type,
+    afterRuleGap: base.afterRuleGap * space * type,
+    blockGap: base.blockGap * space * type,
+    itemGap: base.itemGap * space * type,
+    titleGap: base.titleGap * space * type,
+  };
+}
+
+/** Smallest body size the fit may shrink to. A measured original keeps
+ *  within about a tenth of its own size; the default stops at 8pt. */
+export function floorBodySizeFor(style: ResumeStyle, measured: boolean): number {
+  return measured ? Math.min(style.bodySize, Math.max(7, style.bodySize * 0.9)) : Math.min(style.bodySize, 8);
+}
+
+interface Token {
+  text: string;
+  bold: boolean;
+}
+
+/** Greedy word wrap over tokens of mixed weight. A word wider than the line
+ *  (a long URL) is broken across lines rather than run off the page. */
+function wrapTokens(tokens: Token[], maxWidth: number, size: number, measure: TextMeasurer): Token[][] {
+  const space = measure.widthOf(" ", size, false);
+  const lines: Token[][] = [];
+  let line: Token[] = [];
+  let width = 0;
+  const pieces: Token[] = [];
+  for (const token of tokens) {
+    if (measure.widthOf(token.text, size, token.bold) <= maxWidth) {
+      pieces.push(token);
+      continue;
+    }
+    let rest = token.text;
+    while (rest) {
+      let n = rest.length;
+      while (n > 1 && measure.widthOf(rest.slice(0, n), size, token.bold) > maxWidth) n--;
+      pieces.push({ text: rest.slice(0, n), bold: token.bold });
+      rest = rest.slice(n);
+    }
+  }
+  for (const piece of pieces) {
+    const w = measure.widthOf(piece.text, size, piece.bold);
+    if (line.length > 0 && width + space + w > maxWidth) {
+      lines.push(line);
+      line = [];
+      width = 0;
+    }
+    width += (line.length > 0 ? space : 0) + w;
+    line.push(piece);
+  }
+  if (line.length > 0) lines.push(line);
+  return lines;
+}
+
+function words(text: string, bold = false): Token[] {
+  return text
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => ({ text: w, bold }));
 }
 
 class PageCursor {
   pages: PageLayout[] = [];
   private current: PageLayout;
+  /** Top of the next line box. */
   y: number;
+  readonly left: number;
+  readonly right: number;
   readonly contentWidth: number;
-  readonly maxY: number;
+  private readonly maxY: number;
+  /** Nothing drawn on this page yet. */
+  atPageTop = true;
 
-  constructor(private metrics: PageMetrics) {
+  constructor(private style: ResumeStyle) {
     this.current = { texts: [], rules: [], dots: [] };
     this.pages.push(this.current);
-    this.y = metrics.marginTop;
-    this.contentWidth = metrics.pageWidth - metrics.marginX * 2;
-    this.maxY = metrics.pageHeight - metrics.marginBottom;
+    this.y = style.marginTop;
+    this.left = style.marginLeft;
+    this.right = style.pageWidth - style.marginRight;
+    this.contentWidth = this.right - this.left;
+    this.maxY = style.pageHeight - style.marginBottom;
   }
 
-  /** Ensures `height`pt of vertical space remains on the CURRENT page,
-   *  starting a fresh page first if it doesn't — the single chokepoint that
-   *  guarantees an atomic unit (one bullet, one entry title line, one
-   *  paragraph line) never splits across a page break: every caller measures
-   *  its whole unit's height and reserves it here BEFORE emitting any of
-   *  that unit's draw commands. */
+  /** Starts a fresh page unless `height`pt (its last line ending at its
+   *  descenders) still fits on this one. Every atomic unit (a bullet, a
+   *  heading with its first line, a title with its first bullet) reserves
+   *  its whole height here before drawing, so it never splits. */
   reserve(height: number): void {
-    if (this.y + height > this.maxY && this.y > this.metrics.marginTop) {
+    if (this.y + height > this.maxY && !this.atPageTop) {
       this.current = { texts: [], rules: [], dots: [] };
       this.pages.push(this.current);
-      this.y = this.metrics.marginTop;
+      this.y = this.style.marginTop;
+      this.atPageTop = true;
     }
   }
 
-  // `t.x ?? this.metrics.marginX` (not a spread-then-default object
-  // literal) is deliberate: a caller forwarding a possibly-`undefined`
-  // local via shorthand property syntax (`{ x, ... }`) still gives the
-  // object an OWN `x` key even when its value is `undefined` — a spread
-  // default (`{ x: marginX, ...t }`) would let that `undefined` silently
-  // CLOBBER the default instead of falling back to it, producing a NaN
-  // coordinate jsPDF's own text() then throws on ("Invalid arguments
-  // passed to jsPDF.text") — caught once by actually rendering real bytes,
-  // not just the pure layout tests.
-  text(t: Omit<DrawText, "x" | "align"> & { x?: number; align?: DrawText["align"] }): void {
-    this.current.texts.push({ ...t, x: t.x ?? this.metrics.marginX, align: t.align ?? "left" });
+  text(t: Omit<DrawText, "align"> & { align?: DrawText["align"] }): void {
+    this.current.texts.push({ ...t, align: t.align ?? "left" });
+    this.atPageTop = false;
   }
-  rule(): void {
-    this.current.rules.push({ y: this.y });
+  rule(y: number, width: number): void {
+    this.current.rules.push({ y, x1: this.left, x2: this.right, width });
   }
-  dot(centerY: number, r: number): void {
-    this.current.dots.push({ x: this.metrics.marginX + r, y: centerY, r });
+  dot(x: number, y: number, r: number): void {
+    this.current.dots.push({ x, y, r });
   }
   advance(n: number): void {
     this.y += n;
   }
-  get marginX() {
-    return this.metrics.marginX;
+  /** Space between blocks, dropped at the top of a page. */
+  gap(n: number): void {
+    if (!this.atPageTop) this.y += n;
   }
-  get pageRight() {
-    return this.metrics.pageWidth - this.metrics.marginX;
-  }
-  get pageCenterX() {
-    return this.metrics.pageWidth / 2;
-  }
-}
-
-/** Wraps `body` to `maxWidth`, with a BOLD `prefix` (e.g. "Category: ")
- *  glued onto the first line and every wrapped line after it starting flush
- *  left — the bold-label-then-prose shape the reference design's
- *  "CORE COMPETENCIES" lines use. The caller re-splits line 0 on `prefix`
- *  itself to draw it as two runs (bold label, normal continuation). */
-function wrapWithPrefix(prefix: string, body: string, maxWidth: number, size: number, measure: TextMeasurer): string[] {
-  return measure.wrap(`${prefix}${body}`, maxWidth, size);
-}
-
-interface WordSegment {
-  text: string;
-  bold: boolean;
 }
 
 /**
- * Draws one line as a sequence of word-ish segments at `x`, word-spaced to
- * fill `maxWidth` when `justify` is true and there's more than one segment
- * — the standard "ragged last line" typographic rule means only the FINAL
- * line of a paragraph/bullet/competency-continuation ever passes
- * `justify: false` (visually confirmed against the founder's reference
- * PDF: its summary paragraph, competency lists, and bullets are all
- * justified except each one's own last line).
- *
- * A "segment" is usually one word, but a competency line's bold category
- * label is ALSO one segment (its own run, own weight) participating in the
- * SAME gap computation as the ordinary words after it — treating the
- * label-to-first-word gap as a separate, always-natural-width step (an
- * earlier version of this fix did exactly that) made a justified line's
- * OWN label boundary visibly tighter than its own stretched word gaps,
- * since every other gap on that line was stretched to fill the width and
- * the label gap alone wasn't. One gap computation across every segment on
- * the line is what keeps it visually uniform.
- *
- * Every segment draws as its own `DrawText` command, positioned by pure
- * numeric accumulation (segment width + a computed gap) — never by
- * embedding a leading or trailing space CHARACTER in a drawn string.
- * Verified empirically (fix round 2, 2026-08-09): jsPDF silently drops
- * boundary whitespace from an independently-positioned `text()` call for
- * width/advance purposes even though `getTextWidth()` reports it correctly
- * — this is DEFECT #6's root cause (a bold label's trailing space collided
- * into the next run). Pixel-verified at 300dpi against the founder's
- * reference for both fixture shapes and multiple label lengths.
+ * Line geometry. A line of type `size` at `pitch` puts its cap height
+ * `CAP_HEIGHT * size` below the top of its box, plus half the extra
+ * leading, and its descenders end at `baseline + DESCENT * size`.
  */
-function emitJustifiableSegments(cursor: PageCursor, segments: WordSegment[], x: number, y: number, maxWidth: number, size: number, justify: boolean, measure: TextMeasurer): void {
-  if (segments.length === 0) return;
-  const homogeneous = segments.every((s) => s.bold === segments[0].bold);
-  // Ragged, single-weight (the common case: an ordinary paragraph/bullet's
-  // last line, or any line with no bold label at all) draws as ONE string,
-  // trusting jsPDF's own native word-spacing rather than reconstructing it
-  // — simplest and safest for the case that doesn't need per-segment
-  // positioning at all.
-  if (!justify && homogeneous) {
-    cursor.text({ text: segments.map((s) => s.text).join(" "), x, y, size, bold: segments[0].bold });
-    return;
-  }
-  if (segments.length === 1) {
-    cursor.text({ text: segments[0].text, x, y, size, bold: segments[0].bold });
-    return;
-  }
-  const widths = segments.map((s) => measure.widthOf(s.text, size, s.bold));
-  const spaceWidth = measure.widthOf(" ", size, false);
-  if (!justify) {
-    // Ragged but mixed-weight (a label + its continuation on a single-line
-    // block's own last line) — natural gaps, but still one command per
-    // segment since the weight change forces separate runs. A bare
-    // single-space-width gap is the tightest one this module ever draws
-    // (a justified line's own gaps are always wider, stretched to fill the
-    // line) — RAGGED_GAP_PADDING gives it a little headroom so it reads
-    // unambiguously as a word boundary, pixel-verified indistinguishable
-    // from normal spacing at this font size.
+function baselineIn(top: number, size: number, pitch: number): number {
+  return top + (pitch - size) / 2 + (CAP_HEIGHT + 0.06) * size;
+}
+/** From the top of the first line box to the descenders of the last. */
+function blockHeight(lines: number, size: number, pitch: number, between = 0): number {
+  if (lines <= 0) return 0;
+  return (lines - 1) * (pitch + between) + baselineIn(0, size, pitch) + DESCENT * size;
+}
+
+/**
+ * Draws one wrapped line. Justified lines stretch their word gaps to the
+ * right edge and draw each word with its own trailing space, so the space
+ * survives text extraction. The last line of a paragraph, and a line that
+ * would need gaps over three spaces wide, stay ragged.
+ */
+function drawLine(cursor: PageCursor, tokens: Token[], x: number, baseline: number, width: number, size: number, justify: boolean, measure: TextMeasurer): void {
+  if (tokens.length === 0) return;
+  const space = measure.widthOf(" ", size, false);
+  const widths = tokens.map((t) => measure.widthOf(t.text, size, t.bold));
+  const natural = widths.reduce((a, b) => a + b, 0) + space * (tokens.length - 1);
+  const stretch = tokens.length > 1 ? (width - natural) / (tokens.length - 1) : 0;
+  const stretched = justify && tokens.length > 1 && stretch > 0 && stretch <= space * 2;
+  if (!stretched) {
+    // Ragged: one run per weight, so a line reads back as one string.
     let wx = x;
-    segments.forEach((seg, i) => {
-      cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
-      wx += widths[i] + spaceWidth * RAGGED_GAP_PADDING;
-    });
+    let i = 0;
+    while (i < tokens.length) {
+      let j = i;
+      while (j + 1 < tokens.length && tokens[j + 1].bold === tokens[i].bold) j++;
+      const run = tokens.slice(i, j + 1).map((t) => t.text).join(" ");
+      cursor.text({ text: j + 1 < tokens.length ? `${run} ` : run, x: wx, y: baseline, size, bold: tokens[i].bold });
+      wx += widths.slice(i, j + 1).reduce((a, b) => a + b, 0) + space * (j - i + 1);
+      i = j + 1;
+    }
     return;
   }
-  const naturalWidth = widths.reduce((a, b) => a + b, 0) + spaceWidth * (segments.length - 1);
-  const gapWidth = spaceWidth + Math.max(0, maxWidth - naturalWidth) / (segments.length - 1);
   let wx = x;
-  segments.forEach((seg, i) => {
-    cursor.text({ text: seg.text, x: wx, y, size, bold: seg.bold });
-    wx += widths[i] + gapWidth;
+  tokens.forEach((t, i) => {
+    cursor.text({ text: i < tokens.length - 1 ? `${t.text} ` : t.text, x: wx, y: baseline, size, bold: t.bold });
+    wx += widths[i] + space + stretch;
   });
 }
 
-/** Plain (single-weight) line -> word segments — the common case every
- *  paragraph/bullet line uses; `emitJustifiableSegments` doesn't care
- *  whether a segment list came from one weight or several. */
-function emitJustifiableLine(cursor: PageCursor, text: string, x: number, y: number, maxWidth: number, size: number, bold: boolean, justify: boolean, measure: TextMeasurer): void {
-  const words = text.split(/\s+/).filter(Boolean);
-  emitJustifiableSegments(cursor, words.map((w) => ({ text: w, bold })), x, y, maxWidth, size, justify, measure);
-}
-
-function emitParagraphLines(cursor: PageCursor, lines: string[], size: number, bold: boolean, width: number, measure: TextMeasurer, x?: number): void {
-  cursor.reserve(lines.length * lh(size));
+function drawWrapped(cursor: PageCursor, lines: Token[][], x: number, width: number, size: number, pitch: number, justify: boolean, measure: TextMeasurer): void {
   lines.forEach((line, idx) => {
-    const isLast = idx === lines.length - 1;
-    emitJustifiableLine(cursor, line, x ?? cursor.marginX, cursor.y + lh(size) * 0.8, width, size, bold, !isLast, measure);
-    cursor.advance(lh(size));
+    drawLine(cursor, line, x, baselineIn(cursor.y, size, pitch), width, size, justify && idx < lines.length - 1, measure);
+    cursor.advance(pitch);
   });
 }
 
-function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, measure: TextMeasurer): void {
+function emitBullets(cursor: PageCursor, items: string[], style: ResumeStyle, measure: TextMeasurer): void {
+  const size = style.bodySize;
+  const pitch = size * style.lineHeight;
+  const textX = cursor.left + style.bulletIndent;
+  const width = cursor.contentWidth - style.bulletIndent;
+  const r = Math.max(0.6, size * 0.14);
+  items.forEach((item, idx) => {
+    const lines = wrapTokens(words(item), width, size, measure);
+    if (lines.length === 0) return;
+    if (idx > 0) cursor.gap(style.itemGap);
+    cursor.reserve(blockHeight(lines.length, size, pitch));
+    const baseline = baselineIn(cursor.y, size, pitch);
+    cursor.dot(cursor.left + Math.max(r, style.bulletIndent * 0.3), baseline - size * 0.3, r);
+    drawWrapped(cursor, lines, textX, width, size, pitch, style.justify, measure);
+  });
+}
+
+function firstLineHeight(block: ParsedResumeBlock, style: ResumeStyle): number {
+  const body = blockHeight(1, style.bodySize, style.bodySize * style.lineHeight);
+  if (block.kind !== "entry") return body;
+  const title = blockHeight(1, style.titleSize, style.titleSize * style.lineHeight);
+  return block.bullets.length > 0 ? title + style.titleGap + body : title;
+}
+
+function emitBlock(cursor: PageCursor, block: ParsedResumeBlock, style: ResumeStyle, measure: TextMeasurer): void {
+  const size = style.bodySize;
+  const pitch = size * style.lineHeight;
   const width = cursor.contentWidth;
 
   if (block.kind === "paragraph") {
-    const lines = measure.wrap(block.text, width, BODY_SIZE);
-    emitParagraphLines(cursor, lines, BODY_SIZE, false, width, measure);
-    cursor.advance(GAP_BETWEEN_BLOCKS);
+    const lines = wrapTokens(words(block.text), width, size, measure);
+    cursor.reserve(blockHeight(Math.min(lines.length, 2), size, pitch));
+    lines.forEach((line, idx) => {
+      cursor.reserve(blockHeight(1, size, pitch));
+      drawLine(cursor, line, cursor.left, baselineIn(cursor.y, size, pitch), width, size, style.justify && idx < lines.length - 1, measure);
+      cursor.advance(pitch);
+    });
     return;
   }
 
   if (block.kind === "competency") {
-    const prefix = `${block.category}: `;
-    const label = block.category + ":"; // no trailing space — the label is ONE segment in the same justify computation as the words after it, never a separately-positioned prefix (see emitJustifiableSegments' doc — DEFECT #6 + the label-gap-looked-tighter-than-its-own-line's-word-gaps follow-up)
-    const lines = wrapWithPrefix(prefix, block.items, width, BODY_SIZE, measure);
-    cursor.reserve(lines.length * lh(BODY_SIZE));
-    lines.forEach((line, idx) => {
-      const y = cursor.y + lh(BODY_SIZE) * 0.8;
-      const isLast = idx === lines.length - 1;
-      if (idx === 0 && line.startsWith(prefix)) {
-        const contentWords = line.slice(prefix.length).split(/\s+/).filter(Boolean);
-        const segments: WordSegment[] = [{ text: label, bold: true }, ...contentWords.map((w) => ({ text: w, bold: false }))];
-        emitJustifiableSegments(cursor, segments, cursor.marginX, y, width, BODY_SIZE, !isLast, measure);
-      } else {
-        emitJustifiableLine(cursor, line, cursor.marginX, y, width, BODY_SIZE, false, !isLast, measure);
-      }
-      cursor.advance(lh(BODY_SIZE));
-    });
-    cursor.advance(GAP_BETWEEN_BLOCKS);
+    const lines = wrapTokens([{ text: `${block.category}:`, bold: true }, ...words(block.items)], width, size, measure);
+    cursor.reserve(blockHeight(lines.length, size, pitch));
+    drawWrapped(cursor, lines, cursor.left, width, size, pitch, style.justify, measure);
     return;
   }
 
   if (block.kind === "bullets") {
-    for (const item of block.items) {
-      const lines = measure.wrap(item, width - BULLET_INDENT, BODY_SIZE);
-      cursor.reserve(lines.length * lh(BODY_SIZE));
-      lines.forEach((line, idx) => {
-        const y = cursor.y + lh(BODY_SIZE) * 0.8;
-        // Drawn as a filled circle, never a text glyph — see DrawDot's doc
-        // comment for why ("●"/"•" mojibake through jsPDF's core fonts).
-        if (idx === 0) cursor.dot(y - BODY_SIZE * 0.32, BULLET_DOT_RADIUS);
-        const isLast = idx === lines.length - 1;
-        emitJustifiableLine(cursor, line, cursor.marginX + BULLET_INDENT, y, width - BULLET_INDENT, BODY_SIZE, false, !isLast, measure);
-        cursor.advance(lh(BODY_SIZE));
-      });
-    }
-    cursor.advance(GAP_BETWEEN_BLOCKS);
+    emitBullets(cursor, block.items, style, measure);
     return;
   }
 
-  // entry: title/company left, date right, same line — then its bullets.
-  const titleHeight = lh(HEADING_SIZE);
-  cursor.reserve(titleHeight);
-  const y = cursor.y + titleHeight * 0.8;
-  cursor.text({ text: block.title, y, size: HEADING_SIZE, bold: true });
-  if (block.dateRight) {
-    cursor.text({ text: block.dateRight, x: cursor.pageRight, y, align: "right", size: BODY_SIZE, bold: false });
+  // Entry: title left, dates right on its first line, then its bullets. The
+  // title wraps short of the dates rather than running under them.
+  const tSize = style.titleSize;
+  const tPitch = tSize * style.lineHeight;
+  const date = block.dateRight?.trim() ?? "";
+  const dateWidth = date ? measure.widthOf(date, style.dateSize, false) : 0;
+  const titleWidth = date ? Math.max(width * 0.5, width - dateWidth - tSize) : width;
+  const titleLines = wrapTokens(words(block.title, true), titleWidth, tSize, measure);
+  const firstBullet = block.bullets[0] ? Math.min(2, wrapTokens(words(block.bullets[0]), width - style.bulletIndent, size, measure).length) : 0;
+  // Keep the title with its first bullet: never strand it at a page's foot.
+  cursor.reserve(blockHeight(titleLines.length, tSize, tPitch) + (firstBullet ? style.titleGap + blockHeight(firstBullet, size, pitch) : 0));
+  const baseline = baselineIn(cursor.y, tSize, tPitch);
+  if (date) cursor.text({ text: date, x: cursor.right, y: baseline, align: "right", size: style.dateSize, bold: false });
+  drawWrapped(cursor, titleLines, cursor.left, titleWidth, tSize, tPitch, false, measure);
+  if (block.bullets.length > 0) {
+    cursor.advance(style.titleGap);
+    emitBullets(cursor, block.bullets, style, measure);
   }
-  cursor.advance(titleHeight + GAP_ENTRY_TITLE_TO_BULLETS);
-  emitBlock(cursor, { kind: "bullets", items: block.bullets }, measure);
 }
 
-/** Pure: `ParsedResumeDocument` -> paginated draw commands. See module doc
- *  for why measurement is injected rather than reaching for jsPDF here. */
-export function layoutResumeDocument(
-  doc: ParsedResumeDocument,
-  measure: TextMeasurer,
-  metrics: PageMetrics = DEFAULT_PAGE_METRICS,
-): ResumeLayout {
-  const cursor = new PageCursor(metrics);
+/** Pure: `ParsedResumeDocument` + style -> paginated draw commands. */
+export function layoutResumeDocument(doc: ParsedResumeDocument, measure: TextMeasurer, style: ResumeStyle = defaultResumeStyle()): ResumeLayout {
+  const cursor = new PageCursor(style);
+  const centerX = (cursor.left + cursor.right) / 2;
+  const headerX = style.centeredHeader ? centerX : cursor.left;
+  const headerAlign = style.centeredHeader ? "center" : "left";
+
+  // The first line's cap height sits on the top margin.
+  const first = doc.name ? { size: style.nameSize, pitch: style.nameSize * NAME_LINE_HEIGHT } : { size: style.headingSize, pitch: style.headingSize * HEADING_LINE_HEIGHT };
+  cursor.y = style.marginTop - (baselineIn(0, first.size, first.pitch) - CAP_HEIGHT * first.size);
 
   if (doc.name) {
-    cursor.reserve(lh(NAME_SIZE));
-    cursor.text({ text: doc.name, x: cursor.pageCenterX, y: cursor.y + lh(NAME_SIZE) * 0.8, align: "center", size: NAME_SIZE, bold: true });
-    cursor.advance(lh(NAME_SIZE));
+    const pitch = style.nameSize * NAME_LINE_HEIGHT;
+    for (const line of wrapTokens(words(doc.name, true), cursor.contentWidth, style.nameSize, measure)) {
+      cursor.text({ text: line.map((t) => t.text).join(" "), x: headerX, y: baselineIn(cursor.y, style.nameSize, pitch), align: headerAlign, size: style.nameSize, bold: true });
+      cursor.advance(pitch);
+    }
   }
   if (doc.contactLine) {
-    cursor.reserve(lh(CONTACT_SIZE) + 4);
-    cursor.advance(4);
-    cursor.text({ text: doc.contactLine, x: cursor.pageCenterX, y: cursor.y + lh(CONTACT_SIZE) * 0.8, align: "center", size: CONTACT_SIZE, bold: false });
-    cursor.advance(lh(CONTACT_SIZE));
+    const pitch = style.contactSize * style.lineHeight;
+    cursor.advance(style.contactSize * 0.15);
+    for (const line of wrapTokens(words(doc.contactLine), cursor.contentWidth, style.contactSize, measure)) {
+      cursor.text({ text: line.map((t) => t.text).join(" "), x: headerX, y: baselineIn(cursor.y, style.contactSize, pitch), align: headerAlign, size: style.contactSize, bold: false });
+      cursor.advance(pitch);
+    }
   }
 
+  const hPitch = style.headingSize * HEADING_LINE_HEIGHT;
+  let firstSection = true;
   for (const section of doc.sections) {
     if (section.heading) {
-      cursor.reserve(SECTION_GAP_BEFORE + lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT + GAP_AFTER_HEADING_RULE);
-      cursor.advance(SECTION_GAP_BEFORE);
-      cursor.text({ text: section.heading, y: cursor.y + lh(HEADING_SIZE) * 0.8, size: HEADING_SIZE, bold: true });
-      // Advance past the FULL text line box (not partway through it) before
-      // placing the rule, plus a small explicit gap — the rule must sit
-      // below the text's descent, never through the glyphs.
-      cursor.advance(lh(HEADING_SIZE) + RULE_GAP_BELOW_TEXT);
-      cursor.rule();
-      cursor.advance(GAP_AFTER_HEADING_RULE);
+      const headingBlock = blockHeight(1, style.headingSize, hPitch) + style.ruleGap + style.afterRuleGap;
+      const lead = firstSection ? (doc.name || doc.contactLine ? style.headerGap : 0) : style.sectionGap;
+      cursor.reserve(lead + headingBlock + (section.blocks[0] ? firstLineHeight(section.blocks[0], style) : 0));
+      cursor.gap(lead);
+      const baseline = baselineIn(cursor.y, style.headingSize, hPitch);
+      cursor.text({ text: section.heading, x: cursor.left, y: baseline, size: style.headingSize, bold: true });
+      const ruleY = baseline + DESCENT * style.headingSize + style.ruleGap;
+      cursor.rule(ruleY, Math.max(0.5, Math.min(0.8, style.bodySize * 0.085)));
+      cursor.y = ruleY + style.afterRuleGap;
+    } else if (!firstSection) {
+      cursor.gap(style.sectionGap);
     }
-    for (const block of section.blocks) emitBlock(cursor, block, measure);
+    firstSection = false;
+    section.blocks.forEach((block, i) => {
+      if (i > 0) {
+        const tight = block.kind === "competency" && section.blocks[i - 1].kind === "competency";
+        cursor.gap(tight ? style.itemGap : style.blockGap);
+      }
+      emitBlock(cursor, block, style, measure);
+    });
   }
 
-  return { pages: cursor.pages, pageWidth: metrics.pageWidth, pageHeight: metrics.pageHeight, marginX: metrics.marginX };
+  return { pages: cursor.pages, pageWidth: style.pageWidth, pageHeight: style.pageHeight, marginX: style.marginLeft };
 }
 
-export function jsPdfMeasurer(doc: jsPDF): TextMeasurer {
+export interface ResumeFit {
+  layout: ResumeLayout;
+  style: ResumeStyle;
+  /** Pages the fit aimed for: the original's count, or the fewest the floor allows. */
+  targetPages: number;
+  /** The layout reached `targetPages`. */
+  fits: boolean;
+}
+
+/**
+ * Lays the résumé out in as few pages as `targetPages` (the original's
+ * count) allows, compressing `base` only as far as it must. With no target
+ * it aims for the fewest pages the floor allows. When even the floor can't
+ * reach the target, it takes the extra page with as little compression as
+ * that page count needs (usually none) and reports `fits: false`.
+ */
+export function fitResumeLayout(doc: ParsedResumeDocument, measure: TextMeasurer, base: ResumeStyle, opts: { targetPages?: number | null; floorBodySize: number }): ResumeFit {
+  const at = (t: number) => {
+    const style = compressResumeStyle(base, t, opts.floorBodySize);
+    return { style, layout: layoutResumeDocument(doc, measure, style) };
+  };
+  const loosest = at(0);
+  const tightest = at(3);
+  const reachable = tightest.layout.pages.length;
+  const wanted = opts.targetPages && opts.targetPages > 0 ? opts.targetPages : reachable;
+  const goal = Math.max(wanted, reachable);
+  if (loosest.layout.pages.length <= goal) return { ...loosest, targetPages: wanted, fits: loosest.layout.pages.length <= wanted };
+  let lo = 0;
+  let hi = 3;
+  let best = tightest;
+  for (let i = 0; i < 14; i++) {
+    const mid = (lo + hi) / 2;
+    const attempt = at(mid);
+    if (attempt.layout.pages.length <= goal) {
+      best = attempt;
+      hi = mid;
+    } else {
+      lo = mid;
+    }
+  }
+  return { ...best, targetPages: wanted, fits: best.layout.pages.length <= wanted };
+}
+
+/* ---------------------------------- fonts ---------------------------------- */
+
+/** Base64 TrueType files for the regular and bold weights of one family. */
+export interface ResumeFontFiles {
+  regular: string;
+  bold: string;
+}
+
+/** The characters the built-in fonts' WinAnsi encoding can print beyond Latin-1. */
+const WINANSI_EXTRA = new Set("€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ");
+
+function isWinAnsi(ch: string): boolean {
+  const code = ch.codePointAt(0) ?? 0;
+  return (code >= 0x20 && code <= 0x7e) || (code >= 0xa0 && code <= 0xff) || code === 0x09 || code === 0x0a || WINANSI_EXTRA.has(ch);
+}
+
+function documentText(doc: ParsedResumeDocument): string {
+  const parts: string[] = [doc.name ?? "", doc.contactLine ?? ""];
+  for (const section of doc.sections) {
+    parts.push(section.heading);
+    for (const block of section.blocks) {
+      if (block.kind === "paragraph") parts.push(block.text);
+      else if (block.kind === "competency") parts.push(block.category, block.items);
+      else if (block.kind === "bullets") parts.push(...block.items);
+      else parts.push(block.title, block.dateRight ?? "", ...block.bullets);
+    }
+  }
+  return parts.join("\n");
+}
+
+/** Whether printing `doc` needs an embedded Unicode font (a "→", a "ł", Cyrillic). */
+export function resumeNeedsUnicodeFont(doc: ParsedResumeDocument): boolean {
+  for (const ch of documentText(doc)) if (!isWinAnsi(ch)) return true;
+  return false;
+}
+
+const SPELLED_OUT: Record<string, string> = {
+  "→": "->", "⟶": "->", "⇒": "=>", "←": "<-", "↔": "<->", "↑": "^", "↓": "v",
+  "≥": ">=", "≤": "<=", "≠": "!=", "≈": "~", "−": "-", "‐": "-", "‑": "-", "‒": "-", "―": "—",
+  "′": "'", "″": '"', "✓": "", "✔": "", "★": "*", "☆": "*", "■": "•", "▪": "•", "●": "•", "◦": "•", "‣": "•",
+  "ł": "l", "Ł": "L", "đ": "d", "Đ": "D", "ı": "i", "ħ": "h", "Ħ": "H",
+};
+
+/** Spells a character the built-in fonts can't print as one they can, or drops it. */
+function toWinAnsi(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    if (isWinAnsi(ch)) {
+      out += ch;
+      continue;
+    }
+    if (ch in SPELLED_OUT) {
+      out += SPELLED_OUT[ch];
+      continue;
+    }
+    const stripped = ch.normalize("NFD").replace(/\p{M}+/gu, "");
+    out += [...stripped].every(isWinAnsi) ? stripped : "";
+  }
+  return out;
+}
+
+function mapDocumentText(doc: ParsedResumeDocument, fn: (s: string) => string): ParsedResumeDocument {
+  return {
+    name: doc.name === null ? null : fn(doc.name),
+    contactLine: doc.contactLine === null ? null : fn(doc.contactLine),
+    sections: doc.sections.map((section) => ({
+      heading: fn(section.heading),
+      blocks: section.blocks.map((block): ParsedResumeBlock => {
+        switch (block.kind) {
+          case "paragraph":
+            return { kind: "paragraph", text: fn(block.text) };
+          case "competency":
+            return { kind: "competency", category: fn(block.category), items: fn(block.items) };
+          case "bullets":
+            return { kind: "bullets", items: block.items.map(fn) };
+          case "entry":
+            return { kind: "entry", title: fn(block.title), dateRight: block.dateRight === null ? null : fn(block.dateRight), bullets: block.bullets.map(fn) };
+        }
+      }),
+    })),
+  };
+}
+
+export function jsPdfMeasurer(doc: jsPDF, fontName: string = "helvetica"): TextMeasurer {
+  const cache = new Map<string, number>();
   return {
     widthOf(text, size, bold) {
-      doc.setFont("helvetica", bold ? "bold" : "normal");
-      doc.setFontSize(size);
-      return doc.getTextWidth(text);
-    },
-    wrap(text, maxWidth, size) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(size);
-      return doc.splitTextToSize(text, maxWidth) as string[];
+      const key = `${bold ? 1 : 0}|${text}`;
+      let unit = cache.get(key);
+      if (unit === undefined) {
+        doc.setFont(fontName, bold ? "bold" : "normal");
+        doc.setFontSize(1000);
+        unit = doc.getTextWidth(text) / 1000;
+        cache.set(key, unit);
+      }
+      return unit * size;
     },
   };
 }
 
-/** Thin I/O: builds a real jsPDF instance and executes `layoutResumeDocument`'s
- *  draw commands against it. Returns raw PDF bytes (works identically under
- *  Node — verified, core "helvetica" font needs no canvas — and in the
- *  browser, so the SAME function backs both a server route and a client
- *  download button). */
-export function renderResumePdf(content: ParsedResumeDocument, metrics: PageMetrics = DEFAULT_PAGE_METRICS): ArrayBuffer {
-  const doc = new jsPDF({ unit: "pt", format: [metrics.pageWidth, metrics.pageHeight] });
-  const measure = jsPdfMeasurer(doc);
-  const layout = layoutResumeDocument(content, measure, metrics);
+export interface RenderResumeOptions {
+  /** The measured layout of the person's original résumé, when this device has it. */
+  profile?: ResumeLayoutProfile | null;
+  /** Unicode font files for the profile's family; needed only when `resumeNeedsUnicodeFont`. */
+  fonts?: ResumeFontFiles | null;
+}
 
-  layout.pages.forEach((page, i) => {
-    if (i > 0) doc.addPage();
+export interface ResumePdfResult {
+  bytes: ArrayBuffer;
+  pages: number;
+  /** The original's page count, when the layout came from it. */
+  originalPages: number | null;
+  /** The body type size the fit settled on. */
+  bodySize: number;
+  /** Reached the original's page count (always true without an original). */
+  fits: boolean;
+}
+
+/** Thin I/O: a real jsPDF document drawing the fitted layout. Runs the same
+ *  under Node and in the browser. */
+export function renderResumePdf(content: ParsedResumeDocument, options: RenderResumeOptions = {}): ResumePdfResult {
+  const profile = options.profile ?? null;
+  const base = profile ? styleFromLayoutProfile(profile) : defaultResumeStyle();
+  const doc = new jsPDF({ unit: "pt", format: [base.pageWidth, base.pageHeight], compress: true });
+
+  let fontName = base.family === "serif" ? "times" : "helvetica";
+  let printable = content;
+  if (resumeNeedsUnicodeFont(content)) {
+    if (options.fonts) {
+      fontName = base.family === "serif" ? "ResumeSerif" : "ResumeSans";
+      doc.addFileToVFS(`${fontName}-Regular.ttf`, options.fonts.regular);
+      doc.addFont(`${fontName}-Regular.ttf`, fontName, "normal");
+      doc.addFileToVFS(`${fontName}-Bold.ttf`, options.fonts.bold);
+      doc.addFont(`${fontName}-Bold.ttf`, fontName, "bold");
+    } else {
+      printable = mapDocumentText(content, toWinAnsi);
+    }
+  }
+
+  const measure = jsPdfMeasurer(doc, fontName);
+  const fit = fitResumeLayout(printable, measure, base, {
+    targetPages: profile?.pageCount ?? null,
+    floorBodySize: floorBodySizeFor(base, !!profile),
+  });
+
+  fit.layout.pages.forEach((page, i) => {
+    if (i > 0) doc.addPage([base.pageWidth, base.pageHeight]);
+    doc.setDrawColor(17, 17, 17);
     for (const rule of page.rules) {
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.75);
-      doc.line(metrics.marginX, rule.y, metrics.pageWidth - metrics.marginX, rule.y);
+      doc.setLineWidth(rule.width);
+      doc.line(rule.x1, rule.y, rule.x2, rule.y);
     }
-    for (const dot of page.dots) {
-      doc.setFillColor(0, 0, 0);
-      doc.circle(dot.x, dot.y, dot.r, "F");
-    }
+    doc.setFillColor(17, 17, 17);
+    for (const dot of page.dots) doc.circle(dot.x, dot.y, dot.r, "F");
+    doc.setTextColor(17, 17, 17);
     for (const t of page.texts) {
-      doc.setFont("helvetica", t.bold ? "bold" : "normal");
+      doc.setFont(fontName, t.bold ? "bold" : "normal");
       doc.setFontSize(t.size);
       doc.text(t.text, t.x, t.y, { align: t.align });
     }
   });
 
-  return doc.output("arraybuffer") as ArrayBuffer;
+  return {
+    bytes: doc.output("arraybuffer") as ArrayBuffer,
+    pages: fit.layout.pages.length,
+    originalPages: profile?.pageCount ?? null,
+    bodySize: Math.round(fit.style.bodySize * 100) / 100,
+    fits: fit.fits,
+  };
 }
 
 // Re-exported for existing importers; new code imports it from

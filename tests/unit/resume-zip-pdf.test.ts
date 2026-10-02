@@ -7,7 +7,7 @@ import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { resumeDataToZipHtml } from "@/lib/resume/zip-html";
 import { zipResumeHtmlFromData } from "@/lib/resume/export-zip-pdf";
 import { resumeDataToParsedDocument } from "@/lib/resume/parse-resume-content";
-import { layoutResumeDocument, jsPdfMeasurer, DEFAULT_PAGE_METRICS } from "@/lib/resume/render-pdf";
+import { layoutResumeDocument, jsPdfMeasurer, defaultResumeStyle, renderResumePdf } from "@/lib/resume/render-pdf";
 import { jsPDF } from "jspdf";
 
 const CSM_GOLDEN = readFileSync(
@@ -17,15 +17,15 @@ const CSM_GOLDEN = readFileSync(
 const PM_FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/vivek-pm-resume.txt"), "utf8");
 
 describe("export-zip-pdf source contract", () => {
-    it("FromData uses Chrome/Skia API then text jsPDF fallback — never html2canvas or parseResumeContent(md)", () => {
+    it("FromData draws the PDF on the device from ResumeData in the original's remembered layout — never the server print, html2canvas or parseResumeContent(md)", () => {
         const src = readFileSync(path.join(process.cwd(), "src/lib/resume/export-zip-pdf.ts"), "utf8");
         const start = src.indexOf("export async function exportZipResumePdfFromData");
         const next = src.indexOf("export async function exportZipResumePdf(", start + 1);
         const fromData = src.slice(start, next);
         assert.match(fromData, /resumeDataToParsedDocument\(data\)/);
-        assert.match(fromData, /parsedResumeToZipHtml\(parsed\)/);
-        assert.match(fromData, /fetchChromeTextPdf\(html\)|\/api\/resume\/pdf/);
-        assert.match(fromData, /renderResumePdf\(parsed\)/);
+        assert.match(fromData, /recallResumeLayout\(data\)/);
+        assert.match(fromData, /renderResumePdf\(parsed, \{ profile, fonts \}\)/);
+        assert.doesNotMatch(src, /\/api\/resume\/pdf['"`]/, "production has no Chromium: the server print only ever fell back");
         assert.doesNotMatch(fromData, /parseResumeContent\(/);
         assert.doesNotMatch(src, /import\s+.*html2canvas/);
         assert.doesNotMatch(src, /from ["']jspdf["']/);
@@ -57,11 +57,12 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(html, /Richmond Hill, Ontario/);
     });
 
-    it("jsPDF fallback from ResumeData keeps three competency lines (PM fixture)", () => {
+    it("the on-device PDF from ResumeData keeps three competency lines (PM fixture)", () => {
         const data = resumeDataFromPlainText(PM_FIXTURE);
         const parsed = resumeDataToParsedDocument(data);
-        const pdf = new jsPDF({ unit: "pt", format: [DEFAULT_PAGE_METRICS.pageWidth, DEFAULT_PAGE_METRICS.pageHeight] });
-        const layout = layoutResumeDocument(parsed, jsPdfMeasurer(pdf));
+        const style = defaultResumeStyle();
+        const pdf = new jsPDF({ unit: "pt", format: [style.pageWidth, style.pageHeight] });
+        const layout = layoutResumeDocument(parsed, jsPdfMeasurer(pdf), style);
         const texts = layout.pages.flatMap((p) => p.texts).map((t) => t.text);
         const joined = texts.join("\n");
 
@@ -74,6 +75,21 @@ describe("resume zip PDF pipeline (no browser)", () => {
         assert.match(joined, /Richmond Hill/);
         assert.doesNotMatch(joined, /University \| Buffalo/);
         assert.match(joined, /INDEPENDENT PROJECTS/);
+    });
+});
+
+describe("resume PDF on the device (golden CSM fixture)", () => {
+    it("fits one Letter page with every section and extractable, spaced text", async () => {
+        const data = resumeDataFromPlainText(CSM_GOLDEN);
+        const result = renderResumePdf(resumeDataToParsedDocument(data));
+        assert.equal(result.pages, 1, "golden CSM résumé must fit one Letter page");
+        const { extractText } = await import("unpdf");
+        const { text } = await extractText(new Uint8Array(result.bytes), { mergePages: true });
+        assert.ok(text.includes("Richmond Hill"));
+        assert.ok(/Customer Success/i.test(text));
+        assert.ok(/MITx/i.test(text));
+        assert.ok(!/University \| Buffalo/i.test(text));
+        assert.ok(!/\*\*:/.test(text));
     });
 });
 

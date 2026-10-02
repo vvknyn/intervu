@@ -1,4 +1,6 @@
 import { pdfPageText, type PdfTextItem } from "@/lib/local-ai/pdf-text-lines";
+import { measureResumeLayout, type LayoutPage, type LayoutTextItem } from "@/lib/resume/layout-profile";
+import { rememberResumeLayout } from "@/lib/resume/layout-profile-storage";
 
 /**
  * Browser-side résumé text extraction. Founder rule: résumé interpretation
@@ -18,7 +20,12 @@ import { pdfPageText, type PdfTextItem } from "@/lib/local-ai/pdf-text-lines";
  *
  * DOCX uses mammoth's own prebuilt browser bundle (`mammoth.browser.js`,
  * shipped in the package for exactly this — script-tag/bundler-agnostic
- * browser use) rather than the bare `"mammoth"` entry point. The bare entry
+ * browser use) rather than the bare `"mammoth"` entry point.
+ *
+ * A PDF's layout (paper, margins, type sizes, spacing, page count) is
+ * measured from the same text positions and remembered on this device
+ * (`layout-profile.ts`), so the résumés later downloaded from it print the
+ * way the original does. The bare entry
  * resolves to the Node build unless a bundler's `resolve.aliasFields`
  * rewrites it via the package's legacy `browser` field — a build-tool
  * behavior this module shouldn't have to depend on to run correctly in a
@@ -36,6 +43,7 @@ export async function extractPDFTextInBrowser(
         }
 
         let pages: string[];
+        const layoutPages: LayoutPage[] = [];
         try {
             // Page text with each paragraph and bullet on one line, not one
             // line per printed line (pdf-text-lines.ts).
@@ -46,6 +54,14 @@ export async function extractPDFTextInBrowser(
                 const page = await pdf.getPage(n);
                 const content = await page.getTextContent();
                 pages.push(pdfPageText(content.items as PdfTextItem[]));
+                const [x0, y0, x1, y1] = page.view;
+                layoutPages.push({
+                    width: x1 - x0,
+                    height: y1 - y0,
+                    origin: [x0, y0],
+                    items: content.items as LayoutTextItem[],
+                    styles: content.styles,
+                });
             }
         } catch (parseError: any) {
             const msg = parseError?.message || "";
@@ -69,6 +85,13 @@ export async function extractPDFTextInBrowser(
             .replace(/[ \t]+/g, " ")
             .replace(/\n{3,}/g, "\n\n")
             .trim();
+
+        try {
+            const profile = measureResumeLayout(layoutPages);
+            if (profile) rememberResumeLayout(cleanedText, profile);
+        } catch {
+            // Layout is a nicety: the text is what the upload needs.
+        }
 
         return { text: cleanedText };
     } catch (e: any) {
