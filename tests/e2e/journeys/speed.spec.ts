@@ -1,5 +1,6 @@
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 
 /**
  * Journeys for list speed — see tests/journeys/CATALOG.md (J-SPEED-01 to 04).
@@ -28,7 +29,7 @@ test("a typed search shows its first matching rows within 2 seconds of pressing 
   await input.fill("accountant");
 
   const startedAt = Date.now();
-  await page.getByTestId("search-submit").click();
+  await runSearch(page, input);
   // Rows from a list already on screen don't count: wait for a row from THIS search.
   await expect(page.getByTestId("job-row").first()).toContainText(/account/i, { timeout: 15_000 });
   const elapsed = Date.now() - startedAt;

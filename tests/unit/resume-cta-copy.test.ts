@@ -74,7 +74,7 @@ test("for-you download and empty-state copy match contract", () => {
 test("customize panel copy matches contract", () => {
     assert.equal(CUSTOMIZE_READY_HEADER, "Your résumé is ready. Customize for this role.");
     assert.equal(SIGN_IN_TO_SYNC_LABEL, "Sign in to sync this version.");
-    assert.equal(UPLOAD_TO_CUSTOMIZE_LABEL, "Upload résumé to customize.");
+    assert.equal(UPLOAD_TO_CUSTOMIZE_LABEL, "Upload résumé to customize");
 });
 
 test("resume upload promise matches contract", () => {

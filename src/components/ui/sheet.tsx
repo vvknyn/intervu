@@ -263,6 +263,48 @@ const SheetHandle = ({ className }: { className?: string }) => (
 )
 SheetHandle.displayName = "SheetHandle"
 
+/** The one bottom-sheet header: grab handle, title, an optional line under
+ *  it, the ×, and a hairline below, kept out of the sheet's scroll region so
+ *  the × never sits on top of scrolled content. The job sheets drew this by
+ *  hand; the filter and location sheets had none (a bare × floating over the
+ *  list, which scrolled under it) and the tracker sheets their own (a thinner
+ *  handle, an 18px title, a "×" glyph) — four headers for one kind of sheet
+ *  (2026-10-02). Pass `hideCloseButton` to the `SheetContent` it heads. */
+const SheetBar = ({
+    title,
+    description,
+    className,
+}: {
+    title: React.ReactNode
+    description?: React.ReactNode
+    className?: string
+}) => (
+    <div className={cn("shrink-0 border-b border-border", className)}>
+        <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
+            <SheetHandle />
+        </div>
+        <div className="flex items-center gap-2 px-4 pb-3">
+            <div className="min-w-0 flex-1">
+                <SheetPrimitive.Title className="line-clamp-2 text-base font-semibold leading-snug text-foreground">
+                    {title}
+                </SheetPrimitive.Title>
+                {description && (
+                    <SheetPrimitive.Description className="line-clamp-2 text-sm text-muted-foreground">
+                        {description}
+                    </SheetPrimitive.Description>
+                )}
+            </div>
+            <SheetPrimitive.Close
+                aria-label="Close"
+                className="ctl-md ctl-button flex ctl-square shrink-0 items-center justify-center text-faint transition-opacity hover:opacity-80"
+            >
+                <X size={16} aria-hidden />
+            </SheetPrimitive.Close>
+        </div>
+    </div>
+)
+SheetBar.displayName = "SheetBar"
+
 const sheetVariants = cva(
     "fixed z-[150] flex flex-col overflow-y-auto overscroll-contain gap-4 bg-background border border-border text-foreground p-6 transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:duration-500",
     {
@@ -395,6 +437,7 @@ SheetDescription.displayName = SheetPrimitive.Description.displayName
 
 export {
     Sheet,
+    SheetBar,
     SheetPortal,
     SheetOverlay,
     SheetTrigger,

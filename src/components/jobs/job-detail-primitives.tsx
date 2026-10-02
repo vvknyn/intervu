@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
  * Each caller supplies its own ordered, already-filtered list of nodes (or
  * `false`/`null` for an absent fact); this component drops the absent ones
  * and attaches the "·" to the END of the item that precedes it, inside that
- * item's own inline-flex span, so a wrapped line always starts with real
+ * item's own span, so a wrapped line always starts with real
  * content — never an orphaned leading "·" (the bug this replaces: three
  * separate hand-written joins, one of which didn't separate at all, another
  * of which put the dot at the START of each item and let it wrap alone). */
@@ -23,7 +23,13 @@ export function MetaLine({ items }: { items: Array<ReactNode | null | false | un
     return (
         <>
             {visible.map((node, i) => (
-                <span key={i} className="inline-flex items-baseline">
+                // Plain inline content, not `inline-flex`: as flex items the
+                // node and its dot split, so an item that wrapped onto two
+                // lines (a salary range on a 320px phone) left its dot
+                // floating beside it (2026-10-02). Inside the caller's
+                // flex-wrap row this span is the item; the dot stays glued
+                // to the item's last word.
+                <span key={i}>
                     {node}
                     {i < visible.length - 1 && (
                         // `mx-1`, not `ml-1`: the dot's own spacing must be

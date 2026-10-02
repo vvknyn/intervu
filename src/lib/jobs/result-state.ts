@@ -686,18 +686,3 @@ export function resolveEndOfListState(input: {
     if (hitsLength >= maxReachable) return "cap-reached";
     return "more-available";
 }
-
-/**
- * Item 7d (2026-08-21 front-door audit): the mobile fixed bottom CTA
- * ("Search" — A1, always-submit) used to render unconditionally
- * post-engagement, even with nothing pending — the search box's own Enter
- * key and every suggestion/category pick already submit directly, so once a
- * search has run the bar sat there duplicating an affordance nothing needed.
- * It still earns its place on the pristine landing (`showLandingMarketing`),
- * where it's the only way to leave that state without typing anything, and
- * after engagement it's only useful again once the searcher has typed
- * something NEW that hasn't been submitted yet.
- */
-export function shouldShowMobileSearchCta(showLandingMarketing: boolean, queryDraft: string, query: string): boolean {
-    return showLandingMarketing || queryDraft.trim() !== query.trim();
-}

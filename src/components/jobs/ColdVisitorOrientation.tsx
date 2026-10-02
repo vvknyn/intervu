@@ -158,7 +158,9 @@ export function ColdVisitorOrientation({
                     </div>
                 </div>
 
-                <div className="flex items-start justify-between gap-3 rounded-panel border border-border bg-muted p-3">
+                {/* Stacked on a phone: beside the button, this tile's text
+                    was squeezed to two or three words a line (2026-10-02). */}
+                <div className="flex flex-col gap-3 rounded-panel border border-border bg-muted p-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-panel bg-background text-foreground border border-border">
                             <Sparkle size={16} weight="bold" aria-hidden />
@@ -174,7 +176,7 @@ export function ColdVisitorOrientation({
                         size="sm"
                         onClick={onRankByFit}
                         data-testid="orientation-rank-by-fit"
-                        className="shrink-0"
+                        className="w-full shrink-0 sm:w-auto"
                     >
                         Rank with my résumé
                     </Button>

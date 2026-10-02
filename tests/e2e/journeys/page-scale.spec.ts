@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
  * Journeys for the page scale (docs/design-language.md §3, §6): one page
  * container on the header's edge, one page-title step, and control rows that
  * wrap without stranding their last control. At 1440 and 390 (the two
- * projects), and 375 and 360 for the phone toolbar. See tests/journeys/CATALOG.md
+ * projects), and 375, 360 and 320 for the phone toolbar. See tests/journeys/CATALOG.md
  * (J-NAV-35, J-NAV-36, J-NAV-37, J-NAV-41). Read-only.
  */
 
@@ -76,10 +76,10 @@ for (const path of ["/", "/jobs", "/jobs?q=engineer"]) {
     });
 }
 
-// The mobile project is 390 wide; the common narrower phones are 375 and 360.
-// There the toolbar fits only because the posted chip drops its "Posted · "
-// (still read out by screen readers).
-for (const width of [375, 360]) {
+// The mobile project is 390 wide; the common narrower phones are 375 and 360,
+// and 320 is the narrowest still in use. There the toolbar fits only because
+// the posted chip drops its "Posted · " (still read out by screen readers).
+for (const width of [375, 360, 320]) {
     for (const path of ["/jobs", "/jobs?q=engineer"]) {
         test(`on a ${width}px phone no wrapping row on ${path} strands its last control`, { tag: ["@J-NAV-41"] }, async ({ page }, testInfo) => {
             test.skip(testInfo.project.name !== "mobile", "a phone width");

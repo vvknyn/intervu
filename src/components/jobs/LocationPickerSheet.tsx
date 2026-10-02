@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetBody, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetBar, SheetBody, SheetContent } from "@/components/ui/sheet";
 import { Affordance } from "@/components/jobs/SerpFilters";
 import {
     POPULAR_LOCATION_COUNTRIES,
@@ -143,14 +143,12 @@ export function LocationPickerSheet({
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent
                 side="bottom"
-                className="mx-auto w-full max-w-[720px] border-border p-0"
+                hideCloseButton
+                className="mx-auto w-full max-w-[720px] gap-0 border-border border-b-0 p-0"
             >
-                <SheetTitle className="sr-only">Location</SheetTitle>
-                <SheetBody className="bg-surface p-4 pb-[env(safe-area-inset-bottom,16px)]">
-                    <h3 className="text-sm font-semibold text-foreground">Where do you want to work?</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">Pick one or more — results update when you continue.</p>
-
-                    <div className="mt-4 flex flex-col gap-2">
+                <SheetBar title="Where do you want to work?" description="Pick one or more — results update when you continue." />
+                <SheetBody className="p-4 pb-[env(safe-area-inset-bottom,16px)]">
+                    <div className="flex flex-col gap-2">
                         {locationDefaultSuppressed && !detectedOptedIn && (
                             <Affordance
                                 testId="location-sheet-restore-detected"
@@ -238,7 +236,7 @@ export function LocationPickerSheet({
                                 onChange={(e) =>
                                     setDraft((d) => ({ ...d, otherText: e.target.value, useDetected: false }))
                                 }
-                                className="ctl-lg rounded-ctl border-border bg-background text-base"
+                                className="ctl-lg rounded-ctl border-border bg-card text-base"
                             />
                         )}
                     </div>
