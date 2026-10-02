@@ -238,8 +238,14 @@ describe("every search page arrives with its rows' description places", () => {
     });
 
     it("a slow or failed read answers with the rows as they were, for the browser to read", async () => {
-        const slow = await withPlaceRestrictions(page, { read: () => new Promise((resolve) => setTimeout(() => resolve({}), 200)), deadlineMs: 20 });
+        let stopped: AbortSignal | null = null;
+        const slow = await withPlaceRestrictions(page, {
+            read: (_ids, signal) => ((stopped = signal), new Promise((resolve) => setTimeout(() => resolve({}), 200))),
+            deadlineMs: 20,
+        });
         assert.equal(slow, page);
+        // The late read is stopped, not left loading Meili.
+        assert.equal((stopped as AbortSignal | null)?.aborted, true);
         const failed = await withPlaceRestrictions(page, { read: () => Promise.reject(new Error("meili down")) });
         assert.equal(failed, page);
     });

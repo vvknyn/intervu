@@ -65,8 +65,12 @@ function keepPlace(id: string, place: PlaceRestriction | null, now: number) {
     if (placeCache.size > PLACE_CACHE_MAX) placeCache.delete(placeCache.keys().next().value!);
 }
 
-/** Each id's description place, or `null` when it states none. An id the index doesn't hold is left out. */
-export async function readDescriptionPlaces(ids: string[]): Promise<Record<string, PlaceRestriction | null>> {
+/**
+ * Each id's description place, or `null` when it states none. An id the index
+ * doesn't hold is left out. With `signal`, one attempt that stops when the
+ * signal aborts, so a read past a search's deadline stops loading Meili.
+ */
+export async function readDescriptionPlaces(ids: string[], signal?: AbortSignal): Promise<Record<string, PlaceRestriction | null>> {
     const now = Date.now();
     const notes: Record<string, PlaceRestriction | null> = {};
     const unread: string[] = [];
@@ -78,7 +82,7 @@ export async function readDescriptionPlaces(ids: string[]): Promise<Record<strin
     const h = host();
     if (unread.length === 0 || !h) return notes;
 
-    const res = await meiliFetch(buildJobSearchUrl(h), {
+    const init: RequestInit = {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
         body: JSON.stringify({
@@ -88,7 +92,9 @@ export async function readDescriptionPlaces(ids: string[]): Promise<Record<strin
             attributesToRetrieve: ["id", "description"],
         }),
         cache: "no-store",
-    });
+    };
+    const url = buildJobSearchUrl(h);
+    const res = signal ? await fetch(url, { ...init, signal }) : await meiliFetch(url, init);
     if (!res.ok) throw new Error(`meili place notes read failed: ${res.status}`);
     const body = (await res.json()) as { hits?: { id: string; description?: string | null }[] };
     for (const hit of body.hits ?? []) {
@@ -114,18 +120,19 @@ export async function withPlaceRestrictions<T extends PublicJob>(
     {
         read = readDescriptionPlaces,
         deadlineMs = SEARCH_PLACE_READ_DEADLINE_MS,
-    }: { read?: (ids: string[]) => Promise<Record<string, PlaceRestriction | null>>; deadlineMs?: number } = {},
+    }: { read?: (ids: string[], signal: AbortSignal) => Promise<Record<string, PlaceRestriction | null>>; deadlineMs?: number } = {},
 ): Promise<T[]> {
     const ids = hits
         .filter(needsPlaceCheck)
         .slice(0, SEARCH_PLACE_READ_MAX_IDS)
         .map((hit) => hit.id);
     if (ids.length === 0) return hits;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), deadlineMs);
-    });
-    const notes = await Promise.race([read(ids).catch(() => null), late]).finally(() => clearTimeout(timer));
+    // At the deadline the read is aborted, not just left behind: a slow Meili
+    // gets no more load from it.
+    const controller = new AbortController();
+    const late = new Promise<null>((resolve) => controller.signal.addEventListener("abort", () => resolve(null)));
+    const timer = setTimeout(() => controller.abort(), deadlineMs);
+    const notes = await Promise.race([read(ids, controller.signal).catch(() => null), late]).finally(() => clearTimeout(timer));
     if (!notes) return hits;
     const asked = new Set(ids);
     return hits.map((hit) => (asked.has(hit.id) ? { ...hit, place_restriction: notes[hit.id] ?? null } : hit));
