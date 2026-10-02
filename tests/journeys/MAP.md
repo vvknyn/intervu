@@ -54,20 +54,20 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Landing on /jobs with no search](#landing-on-jobs-with-no-search) | JOBS 01, 03, 21, 24–25, 29–30, 55, 58, 60, 65–66 · SRCH 01–02, 18 · MOB 01, 14, 16–18, 23 · ALERTS 21–23 · NAV 01, 06, 21 | 27 | 13 | 14 | 0 | 0 |
 | [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–33 · FILT 01–26 · MOB 02, 11–13, 21, 25–26 · SPEED 01–04 | 81 | 22 | 59 | 0 | 0 |
 | [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93 · AUTH 31–33 · RESUME 28–29 · MODAL 01 | 20 | 14 | 6 | 0 | 0 |
-| [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–99 · NAV 30–32 | 28 | 24 | 4 | 0 | 0 |
+| [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–101 · NAV 30–32 | 30 | 26 | 4 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–43 · ERR 07–08 | 55 | 21 | 34 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–33 | 33 | 8 | 25 | 0 | 0 |
 | [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–68, 70 · NAV 10 · MODAL 04 | 73 | 26 | 47 | 0 | 0 |
 | [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–29, 31–41, 43–47 | 40 | 7 | 33 | 0 | 0 |
 | [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–46 | 41 | 12 | 29 | 0 | 0 |
 | [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–53 · NAV 03–05, 17–19 | 55 | 10 | 45 | 0 | 0 |
-| [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27, 30–36 · MODAL 03, 06 | 35 | 9 | 26 | 0 | 0 |
+| [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27, 30–38 · MODAL 03, 06 | 37 | 11 | 26 | 0 | 0 |
 | [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–33 · NAV 11–13, 20 | 35 | 5 | 30 | 0 | 0 |
 | [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–28 · OAUTH 01–22 | 53 | 4 | 49 | 0 | 0 |
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–26 · SEO 01–09 | 34 | 1 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–10 | 10 | 5 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–41 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 48 | 14 | 34 | 0 | 0 |
-| **All stages** | | **668** | **195** | **473** | **0** | **0** |
+| **All stages** | | **672** | **199** | **473** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search

@@ -5,7 +5,8 @@
 // through this one parser.
 
 export const STATUSES = ["covered", "uncovered", "known-bug"];
-const ID_RE = /^J-[A-Z]+-\d{2}$/;
+// Two digits, or three once an area passes 99 (J-JOBS-101).
+const ID_RE = /^J-[A-Z]+-\d{2,3}$/;
 const TAG_ARRAY_RE = /tag:\s*\[([^\]]*)\]/g;
 const TAG_RE = /['"`]@([^'"`]+)['"`]/g;
 
