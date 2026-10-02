@@ -68,7 +68,7 @@ function keepPlace(id: string, place: PlaceRestriction | null, now: number) {
 /**
  * Each id's description place, or `null` when it states none. An id the index
  * doesn't hold is left out. With `signal`, one attempt that stops when the
- * signal aborts, so a read past a search's deadline stops loading Meili.
+ * signal aborts (`withPlaceRestrictions` stops late reads past its cap).
  */
 export async function readDescriptionPlaces(ids: string[], signal?: AbortSignal): Promise<Record<string, PlaceRestriction | null>> {
     const now = Date.now();
@@ -110,6 +110,15 @@ export function readPlaceNotes(ids: string[]): Promise<Record<string, PlaceRestr
 }
 
 /**
+ * How many reads that missed a search's deadline may keep running, server-wide.
+ * A late read still fills the cache, so the next search for those rows is
+ * warm; past this many, a late read is stopped so a slow Meili gets no more
+ * load from it.
+ */
+export const MAX_LATE_PLACE_READS = 2;
+let latePlaceReads = 0;
+
+/**
  * A search's rows, each row that names no place of its own carrying what its
  * description says (`place_restriction`: a place, or `null` for none). One
  * read for the page, bounded by `deadlineMs`: on a slow or failed read the
@@ -127,12 +136,23 @@ export async function withPlaceRestrictions<T extends PublicJob>(
         .slice(0, SEARCH_PLACE_READ_MAX_IDS)
         .map((hit) => hit.id);
     if (ids.length === 0) return hits;
-    // At the deadline the read is aborted, not just left behind: a slow Meili
-    // gets no more load from it.
     const controller = new AbortController();
-    const late = new Promise<null>((resolve) => controller.signal.addEventListener("abort", () => resolve(null)));
-    const timer = setTimeout(() => controller.abort(), deadlineMs);
-    const notes = await Promise.race([read(ids, controller.signal).catch(() => null), late]).finally(() => clearTimeout(timer));
+    const reading = read(ids, controller.signal).catch(() => null);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+            resolve(null);
+            if (latePlaceReads >= MAX_LATE_PLACE_READS) {
+                controller.abort();
+                return;
+            }
+            latePlaceReads += 1;
+            void reading.finally(() => {
+                latePlaceReads -= 1;
+            });
+        }, deadlineMs);
+    });
+    const notes = await Promise.race([reading, late]).finally(() => clearTimeout(timer));
     if (!notes) return hits;
     const asked = new Set(ids);
     return hits.map((hit) => (asked.has(hit.id) ? { ...hit, place_restriction: notes[hit.id] ?? null } : hit));

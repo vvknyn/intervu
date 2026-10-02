@@ -13,7 +13,7 @@ import { describe, it } from "node:test";
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { pickToday, placeCheckIds, todayLeftOut, withPlaceNotes, type TodayRole } from "@/lib/jobs/for-you/today";
-import { SEARCH_PLACE_READ_MAX_IDS, withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { MAX_LATE_PLACE_READS, SEARCH_PLACE_READ_MAX_IDS, withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
 import { needsPlaceCheck, nextPlaceCheckIds, readPlaceRestriction } from "@/lib/jobs/place-restriction";
 import { jobCountries, placeNamed, titlePlace } from "@/lib/jobs/resume-location";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -238,16 +238,36 @@ describe("every search page arrives with its rows' description places", () => {
     });
 
     it("a slow or failed read answers with the rows as they were, for the browser to read", async () => {
-        let stopped: AbortSignal | null = null;
+        let finished!: Promise<Record<string, never>>;
         const slow = await withPlaceRestrictions(page, {
-            read: (_ids, signal) => ((stopped = signal), new Promise((resolve) => setTimeout(() => resolve({}), 200))),
+            read: () => (finished = new Promise((resolve) => setTimeout(() => resolve({}), 60))),
             deadlineMs: 20,
         });
         assert.equal(slow, page);
-        // The late read is stopped, not left loading Meili.
-        assert.equal((stopped as AbortSignal | null)?.aborted, true);
+        await finished;
         const failed = await withPlaceRestrictions(page, { read: () => Promise.reject(new Error("meili down")) });
         assert.equal(failed, page);
+    });
+
+    it("a late read keeps running to fill the cache, but only a few at once; past that it is stopped", async () => {
+        const signals: AbortSignal[] = [];
+        const finish: (() => void)[] = [];
+        const read = (_ids: string[], signal: AbortSignal) =>
+            new Promise<Record<string, never>>((resolve) => {
+                signals.push(signal);
+                finish.push(() => resolve({}));
+            });
+        for (let i = 0; i <= MAX_LATE_PLACE_READS; i++) assert.equal(await withPlaceRestrictions(page, { read, deadlineMs: 5 }), page);
+        assert.deepEqual(
+            signals.map((s) => s.aborted),
+            [...Array(MAX_LATE_PLACE_READS).fill(false), true],
+        );
+        // Once the late reads finish, a slot is free again.
+        for (const done of finish) done();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await withPlaceRestrictions(page, { read, deadlineMs: 5 });
+        assert.equal(signals.at(-1)!.aborted, false);
+        finish.at(-1)!();
     });
 
     it("reads at most a deep page's worth, and nothing when every row names a place", async () => {
