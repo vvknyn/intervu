@@ -126,6 +126,8 @@ describe("reading where a description says the person must be", () => {
         assert.equal(places("We have offices in London, New York and Bangalore."), null);
         assert.equal(places("Our customers in Germany and Japan rely on us."), null);
         assert.equal(places("Regardless of where you live in the world, you must be based in a country where we have an entity."), null);
+        assert.equal(places("There is no need to be based in the UK."), null);
+        assert.equal(places("You will not need to reside in Canada."), null);
         assert.equal(places("Location: Remote"), null);
         assert.equal(places(null), null);
         // Open to people anywhere: no countries, so nothing weaker (the pay's currency) limits it either.
@@ -337,6 +339,9 @@ describe("roles for people in the US, written the ways US postings write it", ()
         assert.deepEqual(places("You must be eligible for SC clearance."), ["United Kingdom"]);
         assert.deepEqual(places("Requires NV1 clearance."), ["Australia"]);
         assert.deepEqual(places("Must hold Enhanced Reliability Status."), ["Canada"]);
+        assert.deepEqual(places("Applicants who are not U.S. citizens will not be considered."), ["United States"]);
+        assert.deepEqual(places("Non-U.S. citizens are not eligible for this role."), ["United States"]);
+        assert.equal(places("Applicants who are not U.S. citizens are welcome to apply."), null);
         assert.equal(places("You do not need to be a US citizen."), null);
         assert.equal(places("US citizenship is not required."), null);
         assert.equal(places("Must be a Latin American citizen."), null);

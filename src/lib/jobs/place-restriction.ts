@@ -153,6 +153,16 @@ const CITIZEN_PATTERNS: RegExp[] = [
     ),
 ];
 
+/**
+ * Citizenship said the other way round, counted only when the sentence goes on
+ * to rule people out (`STILL_REQUIRED`): "applicants who are not U.S.
+ * citizens will not be considered", "non-US citizens are not eligible".
+ */
+const NEGATED_CITIZEN_PATTERNS: RegExp[] = [
+    new RegExp(String.raw`\bnot\s+(?:an?\s+)?([A-Za-z][A-Za-z '’&-]{1,40}?)\.?\s+` + CITIZEN_WORD + String.raw`\b`, "gi"),
+    new RegExp(String.raw`\bnon[-\s]?([A-Za-z][A-Za-z '’&-]{0,40}?)\.?\s+` + CITIZEN_WORD + String.raw`\b`, "gi"),
+];
+
 /** Clearances only one country grants: holding one means being that country's citizen. */
 const CLEARANCES: Array<[RegExp, string]> = [
     [/\bTS\s*\/\s*SCI\b|\bTop\s+Secret\s*\/\s*SCI\b|\bPublic\s+Trust\s+(?:clearance|position|background)/i, "United States"],
@@ -263,11 +273,12 @@ export function readPlaceRestriction(description: string | null | undefined, res
     const text = undotAbbreviations(stripHtml(description));
     const found: PlaceRestriction[] = [];
     let open = OPEN_ANYWHERE_PATTERNS.some((pattern) => pattern.test(text));
+    // The words before a requirement and its own opening words read together, so "no need to be based in" is lifted
+    // though the requirement's match starts at "need to".
     const lifted = (match: RegExpMatchArray) => {
         const at = match.index ?? 0;
-        const before = text.slice(Math.max(0, at - 60), at);
-        const negated = LIFTED.test(before) || LIFTED.test(match[0].slice(0, match[0].length - match[1]!.length));
-        return negated && !STILL_REQUIRED.test(text.slice(at + match[0].length - match[1]!.length));
+        const lead = text.slice(Math.max(0, at - 60), at) + match[0].slice(0, match[0].length - match[1]!.length);
+        return LIFTED.test(lead) && !STILL_REQUIRED.test(text.slice(at + match[0].length - match[1]!.length));
     };
     for (const pattern of REQUIREMENT_PATTERNS) {
         pattern.lastIndex = 0;
@@ -287,6 +298,12 @@ export function readPlaceRestriction(description: string | null | undefined, res
         for (const match of text.matchAll(pattern)) {
             if (lifted(match) || /^\s*(?:is\s+|are\s+)?not\b/i.test(text.slice((match.index ?? 0) + match[0].length))) continue;
             found.push(...(/citizens?\s+of\s/i.test(match[0]) ? citizenOf(match[1]!, resolvePlace) : citizenPlace(match[1]!)));
+        }
+    }
+    for (const pattern of NEGATED_CITIZEN_PATTERNS) {
+        pattern.lastIndex = 0;
+        for (const match of text.matchAll(pattern)) {
+            if (STILL_REQUIRED.test(text.slice((match.index ?? 0) + match[0].length))) found.push(...citizenPlace(match[1]!));
         }
     }
     for (const [pattern, country] of CLEARANCES) {
