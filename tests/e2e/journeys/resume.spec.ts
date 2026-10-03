@@ -149,8 +149,8 @@ async function layoutOf(bytes: Uint8Array) {
   return layout!;
 }
 
-/** A guest uploads `fixture` on /resume, customizes the first engineering role with a rules draft and downloads the PDF. */
-async function tailoredDownloadOf(page: Page, fixture: string) {
+/** A guest uploads `fixture` (tests/fixtures/resume-layouts) on /resume and applies the parse as their local résumé. */
+async function uploadGuestPdf(page: Page, fixture: string): Promise<Uint8Array> {
   const original = new Uint8Array(readFileSync(`tests/fixtures/resume-layouts/${fixture}.pdf`));
   await page.addInitScript(([key]) => localStorage.setItem(key, "1"), [ONBOARDING_COMPLETED_STORAGE_KEY]);
   await page.goto("/resume");
@@ -161,13 +161,24 @@ async function tailoredDownloadOf(page: Page, fixture: string) {
   await importer.getByTestId("resume-import-parse-primary").click();
   await importer.getByRole("button", { name: "Apply to Resume" }).click({ timeout: 30_000 });
   await expect(page.getByText("Local résumé on this device")).toBeVisible();
+  return original;
+}
 
+/** From a guest's local résumé: open the first engineering role's Customize dialog with a rules draft ready. */
+async function customizeFirstEngineeringRole(page: Page) {
   await page.goto("/jobs?view=search&q=engineer");
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
   // By name: on a phone the role itself is open in a sheet, which is a dialog too.
   const customize = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
   await customize.getByRole("button", { name: "Use a rules draft" }).click();
+  return customize;
+}
+
+/** A guest uploads `fixture` on /resume, customizes the first engineering role with a rules draft and downloads the PDF. */
+async function tailoredDownloadOf(page: Page, fixture: string) {
+  const original = await uploadGuestPdf(page, fixture);
+  const customize = await customizeFirstEngineeringRole(page);
   const downloadPdf = customize.getByRole("button", { name: "Download PDF" });
   await expect(downloadPdf).toBeVisible({ timeout: 30_000 });
   const [download] = await Promise.all([page.waitForEvent("download"), downloadPdf.click()]);
@@ -216,6 +227,26 @@ test("A tailored résumé from a three-page CV downloads as one page in its type
   const { text } = await extractText(tailored.slice(), { mergePages: true });
   expect(text).toContain("Tomás Herrera-Lindqvist, P.Eng.");
   expect(text, "the newest role's first bullet stays").toContain("interchange rebuild");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+// Seen while fixing the PDF layout: a CV's Projects section vanished at upload (and with it a
+// role dated with a single year), and the person's email domain was taken for their website.
+test("A guest's uploaded CV keeps its Projects and a role dated with one year, and Copy never turns their email's domain into a website", { tag: ["@J-RESUME-39"] }, async ({ page, diagnostics }) => {
+  await uploadGuestPdf(page, "civil-engineer-long-3p");
+  await expect(page.getByText("Open-source culvert sizing calculator")).toBeVisible();
+  await expect(page.getByText("Bow River Pathway Bridge (volunteer design review)")).toBeVisible();
+  await expect(page.getByText("Survey Technician", { exact: false }).first()).toBeVisible();
+
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const customize = await customizeFirstEngineeringRole(page);
+  await customize.getByTestId("local-customize-copy").click();
+  await expect(customize.getByTestId("local-customize-copy")).toContainText("Copied");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  const contactLine = copied.split("\n")[1] ?? "";
+  expect(contactLine).toContain("tomas.hl@example.com");
+  expect(contactLine, "the email's domain is not a website").not.toMatch(/\|\s*example\.com\b/);
+  expect(copied).toContain("Open-source culvert sizing calculator");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
