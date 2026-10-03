@@ -57,7 +57,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–102 · NAV 30–32 | 31 | 27 | 4 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–43 · ERR 07–08 | 55 | 21 | 34 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–33 | 33 | 8 | 25 | 0 | 0 |
-| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–68, 70 · NAV 10 · MODAL 04 | 73 | 26 | 47 | 0 | 0 |
+| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–72 · NAV 10 · MODAL 04 | 76 | 29 | 47 | 0 | 0 |
 | [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–29, 31–41, 43–47 | 40 | 7 | 33 | 0 | 0 |
 | [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–48 | 43 | 14 | 29 | 0 | 0 |
 | [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–53 · NAV 03–05, 17–19 | 55 | 10 | 45 | 0 | 0 |
@@ -67,7 +67,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–26 · SEO 01–09 | 34 | 1 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–11 | 11 | 6 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–41 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 48 | 14 | 34 | 0 | 0 |
-| **All stages** | | **681** | **209** | **472** | **0** | **0** |
+| **All stages** | | **684** | **212** | **472** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search

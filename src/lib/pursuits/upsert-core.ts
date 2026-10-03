@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { validate, upsertPursuitSchema } from "@/lib/validation";
 import { appliedAtForTransition } from "@/lib/pursuits/applied-at";
 import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
+import { appliedResumeFor, withoutAppliedResumeText } from "@/lib/pursuits/resume-on-apply";
+import { accountResumeText } from "@/lib/pursuits/applied-resume";
 
 /**
  * Recursively drop `undefined` values from plain objects and arrays — the
@@ -66,18 +68,25 @@ export async function findPursuitByJobId(uid: string, jobId: string): Promise<Pu
  * `uid` directly, so bearer-token callers (MCP tools) and cookie-session
  * callers (`upsertPursuitForJob` in actions/application.ts) share this exact
  * logic without either depending on the other's auth mechanism.
+ *
+ * `attachResume` copies the account's résumé onto a role this moves into
+ * Applied (`./resume-on-apply.ts`); only the web's "I applied" sets it.
  */
 export async function upsertPursuitCore(
     uid: string,
     job: JobSnapshot & { job_id: string },
     stage: PursuitStage,
+    opts: { attachResume?: boolean } = {},
 ): Promise<{ data?: Pursuit; error?: string }> {
     try {
         const parsed = validate(upsertPursuitSchema, { ...job, stage });
         if (!parsed.ok) return { error: parsed.error };
 
         const db = getAdminDb();
-        const existing = await findPursuitByJobId(uid, parsed.data.job_id);
+        const [existing, resumeText] = await Promise.all([
+            findPursuitByJobId(uid, parsed.data.job_id),
+            opts.attachResume && parsed.data.stage === "applied" ? accountResumeText(uid) : Promise.resolve(null),
+        ]);
 
         const now = new Date().toISOString();
         const snapshot: JobSnapshot = {
@@ -95,16 +104,25 @@ export async function upsertPursuitCore(
                 job_snapshot: snapshot,
             });
             const appliedAt = appliedAtForTransition(existing, merged.status, now);
+            const appliedResume = appliedResumeFor(existing, merged.status, resumeText, now);
             await db.collection("applications").doc(existing.id).update(
                 stripUndefinedDeep({
                     status: merged.status,
                     job_snapshot: merged.job_snapshot ?? null,
                     updated_at: now,
                     applied_at: appliedAt,
+                    applied_resume: appliedResume,
                 }),
             );
             revalidatePath("/yours");
-            return { data: { ...merged, ...(appliedAt ? { applied_at: appliedAt } : {}), updated_at: now } };
+            return {
+                data: withoutAppliedResumeText({
+                    ...merged,
+                    ...(appliedAt ? { applied_at: appliedAt } : {}),
+                    ...(appliedResume ? { applied_resume: appliedResume } : {}),
+                    updated_at: now,
+                }),
+            };
         }
 
         const docData = {
@@ -116,6 +134,7 @@ export async function upsertPursuitCore(
             job_id: parsed.data.job_id,
             job_snapshot: snapshot,
             applied_at: appliedAtForTransition(null, parsed.data.stage, now),
+            applied_resume: appliedResumeFor(null, parsed.data.stage, resumeText, now),
             created_at: now,
             updated_at: now,
         };
@@ -124,7 +143,7 @@ export async function upsertPursuitCore(
 
         const docRef = await db.collection("applications").add(clean);
         revalidatePath("/yours");
-        return { data: { id: docRef.id, ...clean } as Pursuit };
+        return { data: withoutAppliedResumeText({ id: docRef.id, ...clean } as Pursuit) };
     } catch (error) {
         console.error("Error upserting pursuit:", error);
         return { error: error instanceof Error ? error.message : "Failed to save pursuit" };

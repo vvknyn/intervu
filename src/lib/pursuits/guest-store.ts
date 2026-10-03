@@ -9,9 +9,11 @@
  * via `syncGuestPursuitsToServer` (`use-pursuits.ts`).
  */
 
-import type { Pursuit, PursuitStage } from "./types";
+import type { AppliedResume, Pursuit, PursuitStage } from "./types";
 import { mergeGuestPursuit, buildJobSnapshot, buildManualPursuitSnapshot } from "./types";
+import { appliedResumeFor, attachesResumeOnApply, resumeTextOnFile } from "./resume-on-apply";
 import type { PublicJob } from "@/lib/jobs/types";
+import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 
 const STORAGE_KEY = "intervu.pursuits.guest";
 
@@ -50,6 +52,19 @@ function write(list: Pursuit[]): void {
            in memory for this tab; non-critical. */
     }
     notify();
+}
+
+/** A guest's role marked Applied keeps a copy of the résumé on this device
+ *  (`./resume-on-apply.ts`); it never leaves the device until sign-in carries
+ *  the role into the account. */
+function deviceResumeOnApply(
+    previous: Pick<Pursuit, "status" | "applied_resume" | "resume_versions"> | null,
+    next: PursuitStage | undefined,
+    nowIso: string,
+): AppliedResume | undefined {
+    if (!attachesResumeOnApply(previous, next)) return undefined;
+    const stored = readLocalAiResume();
+    return appliedResumeFor(previous, next, stored ? resumeTextOnFile({ resume_data: stored.data }) : null, nowIso);
 }
 
 function newGuestId(jobId: string): string {
@@ -105,16 +120,18 @@ export function addManualGuestPursuit(
     extras?: { status?: PursuitStage; job_url?: string; note?: string },
 ): Pursuit {
     const now = new Date().toISOString();
+    const status = extras?.status ?? "interviewing";
     const pursuit: Pursuit = {
         id: newGuestId("manual"),
         user_id: "guest",
         company_name: company,
         position,
-        status: extras?.status ?? "interviewing",
+        status,
         job_id: null,
         job_snapshot: buildManualPursuitSnapshot(company, position),
         job_url: extras?.job_url,
         note: extras?.note,
+        applied_resume: deviceResumeOnApply(null, status, now),
         created_at: now,
         updated_at: now,
     };
@@ -127,9 +144,30 @@ export function updateGuestPursuit(id: string, patch: Partial<Pursuit>): Pursuit
     const list = read();
     const i = list.findIndex((p) => p.id === id);
     if (i === -1) return null;
-    const updated: Pursuit = { ...list[i], ...patch, updated_at: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const appliedResume = deviceResumeOnApply(list[i], patch.status, now);
+    const updated: Pursuit = { ...list[i], ...patch, ...(appliedResume ? { applied_resume: appliedResume } : {}), updated_at: now };
     write(list.map((p, idx) => (idx === i ? updated : p)));
     return updated;
+}
+
+/** Removes the résumé copy a role kept when it was marked Applied. */
+export function removeGuestAppliedResume(id: string): Pursuit | null {
+    return updateGuestPursuit(id, { applied_resume: undefined });
+}
+
+/** Removing the résumé from this device removes the copies its roles kept. */
+export function removeGuestAppliedResumes(): void {
+    const list = read();
+    if (!list.some((p) => p.applied_resume)) return;
+    write(
+        list.map((p) => {
+            if (!p.applied_resume) return p;
+            const rest = { ...p };
+            delete rest.applied_resume;
+            return rest;
+        }),
+    );
 }
 
 export function removeGuestPursuit(id: string): void {

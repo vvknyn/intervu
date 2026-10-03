@@ -36,6 +36,7 @@ import {
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
 import { TrackRoleSheet, type TrackRoleDraft } from "@/components/tracker/TrackRoleSheet";
 import { PursuitDetailSheet } from "@/components/tracker/PursuitDetailSheet";
+import { removeAppliedResumeFromRole } from "@/lib/pursuits/applied-resume-client";
 import { downloadTrackerExport } from "@/lib/pursuits/export-tracker";
 import { AUTH_CTA_LABEL, formatAuthGateValueLine, guestKeepLine } from "@/lib/auth/auth-gate-copy";
 import { TrackerTabs } from "@/components/tracker/TrackerTabs";
@@ -454,6 +455,7 @@ function YoursContent() {
                     const removed = await handleRemove(selected.id);
                     if (removed && jobId) captureEvent("job_unsaved", { job_id: jobId });
                 }}
+                onRemoveAppliedResume={async () => (selected ? removeAppliedResumeFromRole(selected.id) : false)}
             />
 
             <AuthPopover

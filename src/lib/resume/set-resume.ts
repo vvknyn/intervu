@@ -34,6 +34,7 @@ import { AGENT } from "@/lib/agent/config";
 import { ALL_SECTIONS, type ResumeData } from "@/types/resume";
 import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";
 import { canonicalizeBaseResume, getBaseResumeForUser, type BaseResume } from "@/lib/resume/base-resume";
+import { removeAppliedResumesForUser } from "@/lib/pursuits/applied-resume";
 import { z } from "zod";
 
 /** One length cap for every free-text field in `ResumeData` that isn't a
@@ -279,12 +280,14 @@ async function deleteResumeHistoryForUser(uid: string): Promise<void> {
 
 /**
  * Clears the caller's base résumé — `resume_text`, `resume_data`, and
- * `resume_last_updated` on the profile — and every `resume_history` document
- * for that user. Settings "delete résumé" uses this.
+ * `resume_last_updated` on the profile — every `resume_history` document
+ * for that user, and the copy each role kept when it was marked Applied
+ * (`AppliedResume`). Settings "delete résumé" uses this.
  */
 export async function clearBaseResumeForUser(uid: string): Promise<void> {
     const db = getAdminDb();
     await deleteResumeHistoryForUser(uid);
+    await removeAppliedResumesForUser(uid);
     await db.collection("profiles").doc(uid).set(
         {
             resume_text: FieldValue.delete(),
