@@ -50,6 +50,7 @@ import {
     type CandidateSignals,
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { payPlace, type PayPlace } from "@/lib/jobs/pay-place";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
@@ -92,6 +93,7 @@ export type MatchReason =
     | "remote_same_country"
     | "relocation_country"
     | "remote_abroad"
+    | "remote_pay_abroad"
     | "abroad";
 
 export interface MatchScore {
@@ -255,6 +257,11 @@ const locationComponent = (reason: MatchReason, detail: string, score: number, u
  * a remote role tied to another country is still `remote_abroad`. It used to
  * win before the country was read, so "Technical Account Manager (India)"
  * scored as a fit for a remote-only candidate in Canada (2026-10-02).
+ *
+ * A remote role that names no country anywhere but pays in another
+ * country's money ("USD 114k–166k/yr" for a résumé in Canada) is
+ * `remote_pay_abroad`: likely for people there, scored and capped like
+ * `remote_abroad`, with the currency named as the reason (2026-10-03).
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
@@ -269,6 +276,15 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
     }
     const wantsRemote = Boolean(signals.remotePreference.value) && remote;
     if (remote && jobList.length === 0) {
+        // A description that says "anywhere" (`place_restriction` with no countries) outweighs the pay.
+        const pay = job.place_restriction ? null : payAbroad(signals, job);
+        if (pay) {
+            return locationComponent(
+                "remote_pay_abroad",
+                `remote with no country listed, paid in ${pay.currency} — likely for people in ${pay.label}`,
+                0.65,
+            );
+        }
         return wantsRemote
             ? locationComponent("remote_preferred", "remote — matches your remote-only preference", 1)
             : locationComponent("remote_anywhere", "remote — open to any location", 1);
@@ -299,6 +315,24 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
     return remote
         ? locationComponent("remote_abroad", `remote — based in ${jobPlace ?? jobList.join(", ")}`, 0.65)
         : locationComponent("abroad", "different country", 0.35);
+}
+
+/**
+ * The pay's country (`payPlace`) for a remote role that names none, when it
+ * isn't the candidate's: "USD" for a résumé in Canada. `null` when the pay is
+ * in their own country's money, their country is unknown, they said they'd
+ * move there, or the posting gives no amount (a currency alone can be a
+ * default, not a posted range).
+ */
+function payAbroad(signals: CandidateSignals, job: PublicJob): PayPlace | null {
+    if (job.salary_min == null && job.salary_max == null) return null;
+    const pay = payPlace(job.salary_currency);
+    if (!pay) return null;
+    const own = candidateCountries(signals);
+    if (own.length === 0 || own.some((country) => pay.countries.includes(country))) return null;
+    const relocation = signals.relocation.value;
+    if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => pay.countries.includes(c)))) return null;
+    return pay;
 }
 
 const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
@@ -515,7 +549,7 @@ export function scoreJobAgainstResume(
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
-    const abroad = components.some((c) => c.reason === "abroad" || c.reason === "remote_abroad");
+    const abroad = components.some((c) => c.reason === "abroad" || c.reason === "remote_abroad" || c.reason === "remote_pay_abroad");
 
     const rank = familyRank(resume, job, role);
     if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole, familyRank: rank };

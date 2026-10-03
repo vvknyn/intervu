@@ -14,9 +14,10 @@ import type { AgentPreferences } from "@/lib/agent/preferences";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { pickToday, placeCheckIds, todayLeftOut, withPlaceNotes, type TodayRole } from "@/lib/jobs/for-you/today";
 import { MAX_LATE_PLACE_READS, SEARCH_PLACE_READ_MAX_IDS, withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
-import { needsPlaceCheck, nextPlaceCheckIds, readPlaceRestriction } from "@/lib/jobs/place-restriction";
+import { needsPlaceCheck, nextPlaceCheckIds, OPEN_ANYWHERE, readPlaceRestriction } from "@/lib/jobs/place-restriction";
 import { jobCountries, placeNamed, titlePlace } from "@/lib/jobs/resume-location";
 import type { PublicJob } from "@/lib/jobs/types";
+import { explainMatch } from "@/lib/match/explain";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { resumeDataFromPlainText, structureResumeText } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
@@ -124,11 +125,12 @@ describe("reading where a description says the person must be", () => {
     it("never reads offices, customers, lifted limits or anywhere as a requirement", () => {
         assert.equal(places("We have offices in London, New York and Bangalore."), null);
         assert.equal(places("Our customers in Germany and Japan rely on us."), null);
-        assert.equal(places("You don't need to be based in the US; we hire everywhere."), null);
         assert.equal(places("Regardless of where you live in the world, you must be based in a country where we have an entity."), null);
-        assert.equal(places("You can be based anywhere in the world."), null);
         assert.equal(places("Location: Remote"), null);
         assert.equal(places(null), null);
+        // Open to people anywhere: no countries, so nothing weaker (the pay's currency) limits it either.
+        assert.deepEqual(readPlaceRestriction("You don't need to be based in the US; we hire everywhere."), OPEN_ANYWHERE);
+        assert.deepEqual(readPlaceRestriction("You can be based anywhere in the world."), OPEN_ANYWHERE);
     });
 
     it("a remote role whose description limits it to India is abroad for Canada and own-country for India", () => {
@@ -194,7 +196,8 @@ describe("a role's own page reads its description for place", () => {
     it("reads countries, regions and cities the gazetteer knows", () => {
         assert.deepEqual(withDescriptionPlace(withDescription("<p>Candidates must be based in India.</p>")).place_restriction?.countries, ["India"]);
         assert.deepEqual(withDescriptionPlace(withDescription("You must be based in Bengaluru.")).place_restriction?.countries, ["India"]);
-        assert.equal(withDescriptionPlace(withDescription("We hire anywhere in the world.")).place_restriction, null);
+        assert.deepEqual(withDescriptionPlace(withDescription("We hire anywhere in the world.")).place_restriction, OPEN_ANYWHERE);
+        assert.equal(withDescriptionPlace(withDescription("We build tools for finance teams.")).place_restriction, null);
     });
 
     it("the role reads as abroad on its page for Canada, as it does in the lists", () => {
@@ -278,5 +281,117 @@ describe("every search page arrives with its rows' description places", () => {
         let called = false;
         await withPlaceRestrictions([page[2]!, page[3]!], { read: async () => ((called = true), {}) });
         assert.equal(called, false);
+    });
+});
+
+/**
+ * 2026-10-03, a résumé in Canada: "Technical Account Manager - U.S. Federal"
+ * (Island, Remote) and "Technical Account Manager" (Expel, Remote, USD
+ * 114k–166k/yr) were Good Today picks. The title's "U.S. Federal" wasn't read
+ * as a place, a description's "the U.S." ended at "U", and a role that names
+ * no place but pays in another country's money read as open to anyone.
+ */
+describe("roles for people in the US, written the ways US postings write it", () => {
+    const AUSTIN = at(resumeDataFromPlainText(fixture("vivek-tam-resume")), "Austin, Texas, United States");
+    const usd = { salary_min: 114_000, salary_max: 166_000, salary_currency: "USD", salary_period: "year" } as const;
+
+    it("reads a place before territory words in a title, never the territory words alone", () => {
+        assert.deepEqual(titlePlace("Technical Account Manager - U.S. Federal")?.countries, ["United States"]);
+        assert.deepEqual(titlePlace("Solutions Engineer, US Public Sector")?.countries, ["United States"]);
+        assert.deepEqual(titlePlace("Account Executive - UK Public Sector")?.countries, ["United Kingdom"]);
+        assert.deepEqual(titlePlace("Account Executive - DACH Mid-Market")?.countries, ["Germany", "Austria", "Switzerland"]);
+        assert.deepEqual(titlePlace("Account Executive, Canada Federal")?.countries, ["Canada"]);
+        assert.equal(titlePlace("Sales Engineer - Public Sector"), null);
+        assert.equal(titlePlace("Technical Account Manager - Federal"), null);
+        assert.equal(titlePlace("Account Executive - Japanese Speaking"), null);
+    });
+
+    it("the Island role is abroad for a résumé in Canada and no Today pick; it stays a fit in the US", () => {
+        const island = remote("Technical Account Manager - U.S. Federal");
+        const { score, reason, detail } = location(TAM_TORONTO, island);
+        assert.equal(reason, "remote_abroad");
+        assert.match(detail, /United States/);
+        assert.equal(todayLeftOut(score), "abroad");
+        assert.equal(location(AUSTIN, island).reason, "remote_same_country");
+    });
+
+    it("reads a dotted country as the country, at a sentence's end too", () => {
+        const places = (text: string) => readPlaceRestriction(text)?.countries ?? null;
+        assert.deepEqual(places("You must be authorized to work in the U.S."), ["United States"]);
+        assert.deepEqual(places("You must be authorized to work in the U.S. We offer great benefits."), ["United States"]);
+        assert.deepEqual(places("Candidates must reside in the U.S. or Canada."), ["United States", "Canada"]);
+        assert.deepEqual(places("This role is remote within the U.K."), ["United Kingdom"]);
+        assert.deepEqual(places("Applicants not authorized to work in the U.S. will not be considered."), ["United States"]);
+        assert.equal(places("We are proud of our U.S. heritage. We have offices in the U.K. and India."), null);
+    });
+
+    it("reads citizenship and clearance requirements for any country, never a lifted one", () => {
+        const places = (text: string) => readPlaceRestriction(text)?.countries ?? null;
+        assert.deepEqual(places("Must be a U.S. citizen."), ["United States"]);
+        assert.deepEqual(places("U.S. Citizenship is required for this role."), ["United States"]);
+        assert.deepEqual(places("Visa sponsorship is not available; candidates must be US citizens or green card holders."), ["United States"]);
+        assert.deepEqual(places("Must be a Canadian citizen or permanent resident."), ["Canada"]);
+        assert.deepEqual(places("Open only to UK nationals."), ["United Kingdom"]);
+        assert.deepEqual(places("Must be a citizen of India."), ["India"]);
+        assert.deepEqual(places("This role requires an active TS/SCI clearance."), ["United States"]);
+        assert.deepEqual(places("You must be eligible for SC clearance."), ["United Kingdom"]);
+        assert.deepEqual(places("Requires NV1 clearance."), ["Australia"]);
+        assert.deepEqual(places("Must hold Enhanced Reliability Status."), ["Canada"]);
+        assert.equal(places("You do not need to be a US citizen."), null);
+        assert.equal(places("US citizenship is not required."), null);
+        assert.equal(places("Must be a Latin American citizen."), null);
+        assert.equal(places("We need a people person: must be a people person."), null);
+    });
+
+    it("reads a description that opens the role to people anywhere, but not 'anywhere in the US'", () => {
+        assert.deepEqual(readPlaceRestriction("Work from anywhere in the world."), OPEN_ANYWHERE);
+        assert.deepEqual(readPlaceRestriction("This role is open to candidates located anywhere."), OPEN_ANYWHERE);
+        assert.deepEqual(readPlaceRestriction("Location: Remote (Anywhere in the US)")?.countries, ["United States"]);
+        assert.notDeepEqual(readPlaceRestriction("Work from anywhere (in the US)"), OPEN_ANYWHERE);
+        // A stated limit outweighs a line about hiring globally.
+        assert.deepEqual(readPlaceRestriction("We hire globally. This role must be based in Canada.")?.countries, ["Canada"]);
+    });
+
+    it("the Expel role, remote with no place and paid in USD, is likely for people in the US: no Today pick for Canada, and the label says why", () => {
+        const expel = remote("Technical Account Manager", usd);
+        for (const prefs of [null, REMOTE_ONLY]) {
+            const { score, reason, detail } = location(TAM_TORONTO, expel, prefs);
+            assert.equal(reason, "remote_pay_abroad");
+            assert.match(detail, /USD.*the United States/);
+            assert.equal(todayLeftOut(score), "abroad");
+            assert.ok(score.total < 80, "never Strong");
+            assert.match(explainMatch(score), /pays in USD, so it's likely for people in the United States/);
+        }
+        assert.equal(location(AUSTIN, expel).reason, "remote_anywhere");
+    });
+
+    it("the pay counts for any country and currency, only when nothing else names a place", () => {
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "CAD" })).reason, "remote_anywhere");
+        assert.equal(location(SWE_LONDON, remote("Software Engineer", { ...usd, salary_currency: "GBP" })).reason, "remote_anywhere");
+        assert.match(location(SWE_LONDON, remote("Software Engineer", { ...usd, salary_currency: "EUR" })).detail, /the euro area/);
+        assert.match(location(SWE_BENGALURU, remote("Software Engineer", { ...usd, salary_currency: "USD" })).detail, /the United States/);
+        assert.equal(location(SWE_BENGALURU, remote("Software Engineer", { ...usd, salary_currency: "INR" })).reason, "remote_anywhere");
+        // The place, the title or the description outrank the pay.
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, location: "Remote, Canada" })).reason, "remote_same_country");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, place_restriction: OPEN_ANYWHERE })).reason, "remote_anywhere");
+        assert.equal(
+            location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, place_restriction: { label: "United States or Canada", countries: ["United States", "Canada"] } })).reason,
+            "remote_same_country",
+        );
+        // A currency with no amount, an unknown currency, or a candidate who'd move there: no guess.
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { salary_currency: "USD" })).reason, "remote_anywhere");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "XYZ" })).reason, "remote_anywhere");
+        const moving = { configured: true, search: {}, answers: { relocation: "Yes, to the United States" } } as unknown as AgentPreferences;
+        assert.notEqual(location(TAM_TORONTO, remote("Technical Account Manager", usd), moving).reason, "remote_pay_abroad");
+    });
+
+    it("Today still reads the description of a role left out only for its pay, so 'anywhere' can bring it back", () => {
+        const signals = resolveCandidateSignals(TAM_TORONTO, null);
+        const role = (job: PublicJob): TodayRole => ({ job, score: scoreJobAgainstResume(TAM_TORONTO, job, signals)! });
+        const roles = [role({ ...remote("Technical Account Manager", usd), id: "pays-usd" })];
+        assert.deepEqual(pickToday(roles, { skipped: new Set(), tracked: new Set() }), []);
+        assert.deepEqual(placeCheckIds(roles, 24), ["pays-usd"]);
+        const noted = withPlaceNotes(roles, { "pays-usd": OPEN_ANYWHERE }, (job) => scoreJobAgainstResume(TAM_TORONTO, job, signals));
+        assert.deepEqual(pickToday(noted, { skipped: new Set(), tracked: new Set() }).map((r) => r.job.id), ["pays-usd"]);
     });
 });
