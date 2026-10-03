@@ -179,6 +179,54 @@ Salesforce`;
         ]);
     });
 
+    it("takes the website from the person's own site, never from their email address", () => {
+        assert.equal(structureResumeText(FIXTURE).profile.website ?? "", "", "jane.doe@example.com is not a website");
+        const own = structureResumeText(
+            "Lucja Wiśniewska\nGdańsk, Poland | lucja.w@example.com | lucja.design\n\nSUMMARY\nBrand marketer.\n",
+        );
+        assert.equal(own.profile.email, "lucja.w@example.com");
+        assert.equal(own.profile.website, "lucja.design");
+    });
+
+    it("keeps roles and projects dated with a single year", () => {
+        const out = structureResumeText([
+            "Dana Moreau",
+            "Calgary, AB | dana@example.com",
+            "",
+            "EXPERIENCE",
+            "Junior Engineer | Red Deer Regional Water Commission 2009 – 2010",
+            "Inspected reservoir liners and logged repairs.",
+            "Employee of the Month 2010",
+            "Survey Technician | Alberta Geomatics 2009",
+            "Ran total-station surveys for road widening.",
+            "",
+            "PROJECTS",
+            "Bow River Pathway Bridge (volunteer design review) 2022",
+            "Reviewed the bridge's foundation design for a community group.",
+            "Open-source culvert sizing calculator 2019",
+            "Wrote a small web tool that sizes culverts from rainfall.",
+            "",
+            "SKILLS",
+            "AutoCAD, Civil 3D",
+        ].join("\n"));
+        // "Employee of the Month 2010" doesn't read as a role, so it is not a job of its own.
+        assert.deepEqual(
+            out.experience.map((e) => [e.role, e.company, e.dates]),
+            [
+                ["Junior Engineer", "Red Deer Regional Water Commission", "2009 – 2010"],
+                ["Survey Technician", "Alberta Geomatics", "2009"],
+            ],
+        );
+        assert.deepEqual(
+            out.projects?.map((p) => [p.role, p.dates]),
+            [
+                ["Bow River Pathway Bridge (volunteer design review)", "2022"],
+                ["Open-source culvert sizing calculator", "2019"],
+            ],
+        );
+        assert.match(out.projects![1].description, /culverts from rainfall/);
+    });
+
     it("fixture scores ≥ 91 overall confidence", () => {
         const out = structureResumeText(FIXTURE);
         const score = scoreLocalParseConfidence(out);
