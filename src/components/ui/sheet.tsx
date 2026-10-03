@@ -65,19 +65,23 @@ interface BottomDragState {
     scrollContainer: HTMLElement | null
 }
 
-function useBottomSheetSwipeDismiss(
-    enabled: boolean,
-    dismiss: () => void,
-    contentRef: React.RefObject<HTMLElement | null>,
-) {
+/**
+ * Swipe down to close a bottom sheet. Takes the content element itself, not
+ * a ref: `SheetContent` mounts while its sheet is still closed, when Radix
+ * hasn't rendered the content node yet, so an effect that read a ref once at
+ * mount found nothing and never ran again. Every sheet that opens after the
+ * page loads (all of them but a shared job link's) had no swipe in a
+ * production build; dev StrictMode's second effect run hid it (2026-10-03).
+ */
+function useBottomSheetSwipeDismiss(enabled: boolean, dismiss: () => void, el: HTMLElement | null) {
     const dragRef = React.useRef<BottomDragState | null>(null)
     const dismissRef = React.useRef(dismiss)
-    dismissRef.current = dismiss
+    React.useEffect(() => {
+        dismissRef.current = dismiss
+    })
 
     React.useEffect(() => {
-        if (!enabled) return
-        const el = contentRef.current
-        if (!el) return
+        if (!enabled || !el) return
 
         const resetDrag = () => {
             dragRef.current = null
@@ -217,7 +221,7 @@ function useBottomSheetSwipeDismiss(
             resetDrag()
             clearDragOffset(el)
         }
-    }, [enabled, contentRef])
+    }, [enabled, el])
 }
 
 const Sheet = ({ onOpenChange, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) => {
@@ -336,10 +340,12 @@ const SheetContent = React.forwardRef<
     React.ElementRef<typeof SheetPrimitive.Content>,
     SheetContentProps
 >(({ side = "right", className, children, hideCloseButton = false, overlayClassName, onDismiss, onFocusCapture, ...props }, ref) => {
-    const contentRef = React.useRef<React.ElementRef<typeof SheetPrimitive.Content> | null>(null)
+    // State, not a ref: the node arrives when the sheet opens and leaves when
+    // it closes, and the swipe hook has to re-attach each time.
+    const [contentEl, setContentEl] = React.useState<React.ElementRef<typeof SheetPrimitive.Content> | null>(null)
     const setContentRef = React.useCallback(
         (node: React.ElementRef<typeof SheetPrimitive.Content> | null) => {
-            contentRef.current = node
+            setContentEl(node)
             if (typeof ref === "function") ref(node)
             else if (ref) ref.current = node
         },
@@ -348,7 +354,7 @@ const SheetContent = React.forwardRef<
 
     const contextDismiss = React.useContext(SheetDismissContext)
     const dismiss = onDismiss ?? contextDismiss ?? (() => {})
-    useBottomSheetSwipeDismiss(side === "bottom", dismiss, contentRef)
+    useBottomSheetSwipeDismiss(side === "bottom", dismiss, contentEl)
 
     return (
         <SheetPortal>
