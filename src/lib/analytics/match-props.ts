@@ -16,5 +16,7 @@ export function matchAnalyticsProps(
     match_label: matchBandLabel(band),
     match_score: score.total,
     match_band: band,
+    // The chip named the place instead of a fit word (`MatchScore.outside`); the band is the capped one.
+    ...(score.outside ? { match_outside: true as const } : {}),
   };
 }

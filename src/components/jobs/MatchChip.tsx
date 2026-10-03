@@ -4,8 +4,9 @@
  * "The Match Receipt" — the chip + disclosure for `scoreJobAgainstResume`'s
  * output (lib/match/score.ts). One component, three call sites: the SERP
  * card's meta column, the job-detail header, and (later, /co — Leg D) the
- * company page. All three render the SAME `MatchScore` through `matchBand`,
- * so they show the same Strong / Good / Stretch label for the same pair.
+ * company page. All three render the SAME `MatchScore` through `matchLabel`,
+ * so they show the same Strong / Good / Stretch label for the same pair, or
+ * the same "Outside Canada" for a role outside where the candidate can work.
  *
  * Disclosure reuses `ContextHelp` (components/ui/context-help.tsx) — the
  * repo's existing tooltip-on-desktop / tap-to-expand-on-mobile primitive,
@@ -16,7 +17,7 @@ import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { explainMatch } from "@/lib/match/explain";
-import { matchBand, matchBandLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 
@@ -25,7 +26,13 @@ import { matchAnalyticsProps } from "@/lib/analytics/match-props";
  *  that pay was not weighed. */
 const NOT_COUNTED_DETAIL = "salary — your call to weigh";
 
-function bandChipClass(band: MatchBand): string {
+/** A fit band, or `outside`: the role is outside every country the candidate can work in (`MatchScore.outside`). */
+type MatchTone = MatchBand | "outside";
+
+function bandChipClass(band: MatchTone): string {
+    if (band === "outside") {
+        return "border-border bg-chip text-muted-foreground";
+    }
     if (band === "strong") {
         return "border-live-tint-border bg-live-tint-bg text-verdict-live";
     }
@@ -36,7 +43,8 @@ function bandChipClass(band: MatchBand): string {
 }
 
 /** The band's colour alone, for the `text` variant that sits in a row's meta line. */
-function bandTextClass(band: MatchBand): string {
+function bandTextClass(band: MatchTone): string {
+    if (band === "outside") return "text-muted-foreground";
     return band === "strong" ? "text-verdict-live" : band === "good" ? "text-verdict-good" : "text-verdict-caution";
 }
 
@@ -84,8 +92,8 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
 }
 
 export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip", variant = "chip" }: MatchChipProps) {
-    const band = matchBand(score.total);
-    const label = matchBandLabel(band);
+    const band: MatchTone = score.outside ? "outside" : matchBand(score.total);
+    const label = matchLabel(score);
     return (
         <ContextHelp
             side="bottom"
@@ -101,7 +109,7 @@ export function MatchChip({ score, asOfDate, className, jobId, testId = "match-c
         >
             <span
                 data-testid={testId ?? undefined}
-                aria-label={`${label} match`}
+                aria-label={score.outside ? label : `${label} match`}
                 className={cn(
                     variant === "text"
                         ? cn("font-semibold", bandTextClass(band))
@@ -127,7 +135,7 @@ function MatchReceipt({
     return (
         <div className="min-w-[220px] max-w-xs">
             <div className="mb-1 text-xs font-semibold text-muted-foreground">
-                Why {label}
+                Why {score.outside ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
             <p data-testid="match-reason" className="mb-2 text-sm leading-snug">

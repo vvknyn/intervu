@@ -624,6 +624,42 @@ signedInTest("a role Today labels Strong or Good carries the same fit word on it
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("a role outside where the candidate can work names their country instead of a fit word, in the list, on its page and in the reason", { tag: ["@J-JOBS-103"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-03, in Toronto: Island's "Technical Account Manager - U.S. Federal" read Good on its page. It holds
+  // for any country; here a résumé in Austin meets roles in Canada.
+  await returningVisitor(page);
+  await withResume(page, "Austin, Texas, United States");
+  await page.goto("/jobs?view=search&q=software%20engineer&country=Canada");
+
+  const rows = page.getByTestId("job-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  const outside = rows.filter({ has: page.getByTestId("match-chip").filter({ hasText: /^Outside US$/ }) });
+  await expect(outside.first()).toBeVisible({ timeout: 30_000 });
+  const href = (await outside.first().getByTestId("job-title").getAttribute("href"))!;
+  expect(href).toMatch(/^\/jobs\//);
+
+  await page.goto(href);
+  // The first chip is the one under the title (related roles further down carry their own).
+  const chip = page.getByTestId("match-chip").first();
+  await expect(chip, href).toHaveText("Outside US", { timeout: 30_000 });
+  // Hover on desktop; a phone has no hover, a tap opens the reason.
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("outside the United States, where your résumé places you.");
+  await expect(reason).toContainText("If you can work there, add it under Relocation in Settings");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("a signed-in search for a place filters the list and leaves the saved preferences alone, so it never becomes where the candidate can work", { tag: ["@J-SRCH-33"] }, async ({ page, diagnostics }) => {
   // Saved preferences set the candidate's location for every fit label (resolveCandidateSignals): a search
   // that wrote them made one search for "United States" read as living there (2026-10-02).
