@@ -227,6 +227,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-MOB-24 | On a 320px phone an opened job shows Apply and Save once each, in the bar under the sheet (`job-detail-action-bar`), and no line in the sheet starts with a "·". The pane above the bar had its own Apply and Save in other styles, "Part Time ·   Mid" and a "· 1/2 favorable" wrapped under "Posting check" (2026-10-02) | anon | SEED-A + `/jobs?q=engineer` at 320, tap the first `job-row` | signed-out | no | covered | phone.spec.ts |
 | J-MOB-25 | On a phone every bottom sheet (Filters, the location picker, Track a role, a tracked role) opens under the same bar: grab handle, title, and a Close above its content that shuts it. Filters had no title and its × floated over the content; the others each drew their own header (2026-10-02) | anon | SEED-A + a guest pursuit in localStorage; `/jobs?q=engineer` tap `filters-toggle`; `/jobs` tap `location-picker-trigger`; `/yours` tap `tracker-track-role-cta`, then a `pursuit-row` | signed-out | no | covered | phone.spec.ts |
 | J-MOB-26 | On a phone no line of a result row starts with a "·": a location too long for the company's line wraps without it, and a company name that wraps keeps its dot at its end. It read "· Toronto, ON, Canada" (2026-10-02) | anon | SEED-A + `/jobs?q=engineer` at 390 and 320 | signed-out | no | covered | phone.spec.ts |
+| J-MOB-27 | On a phone a swipe down on a bottom sheet's bar closes it (Filters, the location picker, Track a role, a tracked role, an opened job, which also leaves `?job=`), and a short pull lets go and settles back open. Only a shared job link's sheet, open as the page loaded, closed this way; every sheet opened later ignored the swipe in a production build (2026-10-03) | anon | SEED-A + a guest pursuit in localStorage; touch-drag 40px then 240px from the handle row of each sheet opened as in J-MOB-25, then the first `job-row` on `/jobs?q=engineer` | signed-out | no | covered | phone.spec.ts |
 
 ## DETAIL
 
@@ -361,6 +362,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-45 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
 | J-COMPANY-46 | Signed in the way production signs in (the session check names the account; no dev-only hook), Follow on a company page follows from the account in one click with no email step. It took the guest path and asked for an email (2026-10-01, same cause as J-TRACKER-67) | signed-in | /co/anthropic--com (session and follow actions answered in the browser) | signed-in | no | covered | company-page.spec.ts |
 | J-COMPANY-47 | A big employer's company page (/co/anthropic--com, /co/amazon--com) shows its first roles within 2 seconds of opening it. The roles never wait on the page's slower side reads (box database, news, recent changes): one still out after 1 s is left off that load, and the next visit has it. Amazon's first load took 4.3 s on release 16 | anon | /co/anthropic--com, /co/amazon--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-48 | A company logo whose image fails before the page has hydrated (a blocked or unreachable favicon host) shows the letter tile, never a broken image with its alt text | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
 ## AUTH
 
@@ -642,7 +644,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-17 | Copy the one-line Mac install command in the OpenClaw column | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-18 | Join the Windows/Linux waitlist with an email @writes | anon | /connect | signed-out | yes | uncovered | — |
-| J-CONNECT-19 | See the waitlist error when the server action rejects | anon | /connect | signed-out | no | uncovered | — |
+| J-CONNECT-19 | The OpenClaw waitlist on /connect refuses a malformed email ("name@host") with "Enter a full email address, like you@example.com." right under Notify me and in view, on every press; nothing is written | anon | /connect | signed-out | no | covered | email-form-refusals.spec.ts |
 | J-CONNECT-20 | Land on /connect from /agents and /mcp legacy URLs | anon | /agents | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-001: /agents redirects to /connect) |
 | J-CONNECT-21 | Open /connect/help and jump to a section anchor | anon | /connect/help#gateway | signed-out | no | uncovered | — |
 | J-CONNECT-22 | See the loading skeleton while /connect streams | anon | /connect (slow network) | signed-out | no | uncovered | — |
@@ -778,9 +780,10 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-PRICING-05 | Follow the Data API call to action to the contact form | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
 | J-PRICING-07 | Reserve a founding seat with an email while the Stripe link is unset: the confirmation shows, one row lands in `founding_waitlist` (kept on resubmission), one confirmation email goes out, and /admin's Waitlist group counts it | anon | /pricing | signed-out | yes | uncovered | — |
-| J-PRICING-08 | Founding-seat reservation with a bad email or a failed Turnstile shows `pricing-founding-error` | anon | /pricing (Stripe link unset) | signed-out | no | uncovered | — |
+| J-PRICING-08 | Founding-seat reservation with a malformed email ("name@host", which the browser lets through) says "Enter a full email address, like you@example.com." right under the button and in view, on every press; nothing is written (a refused Turnstile: J-PRICING-11) | anon | /pricing (Stripe link unset) | signed-out | no | covered | email-form-refusals.spec.ts |
 | J-PRICING-09 | Signed-out Free column "Create free account" goes to /auth/start?mode=signup and returns to /jobs?resume=gate | anon | /pricing | signed-out | no | uncovered | — |
 | J-PRICING-10 | Open a pricing Questions item and read its answer | anon | /pricing | signed-out | no | uncovered | — |
+| J-PRICING-11 | Founding-seat reservation whose security check is refused (spent or missing token) says what to do, and the next press gets a fresh check | anon | /pricing (Stripe link unset, Turnstile keys set) | signed-out | no | uncovered | — |
 
 ## ERR
 
