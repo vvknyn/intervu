@@ -308,12 +308,52 @@ function isLikelyEducationLine(line: string): boolean {
     return /\b(19|20)\d{2}\b/.test(line) && !DATE_RANGE_RE.test(line);
 }
 
-function collectDescriptionLines(lines: string[], startIndex: number): { descLines: string[]; nextIndex: number } {
+/** A lone year, month-year or season-year closing a line ("… 2019", "… Summer 2018"). */
+const SINGLE_DATE_TAIL_RE = new RegExp(
+    String.raw`(?:^|[\s|,·–—(-])\(?((?:(?:${MONTH}\.?|Spring|Summer|Fall|Autumn|Winter)\s+)?(?:19|20)\d{2})\)?\s*$`,
+    "i",
+);
+/** What starts a sentence about the work, not the name of a role or project. */
+const ACHIEVEMENT_VERB_RE =
+    /^(?:awarded|promoted|received|won|named|recognized|recognised|selected|earned|completed|achieved|wrote|ran|reviewed|presented|published|joined|graduated|started|moved|returned)\b/i;
+/** A line that stops mid-phrase ("… completed in 2021") is a sentence, not an entry. */
+const TRAILING_LINK_WORD_RE = /\b(?:in|on|at|by|since|from|of|the|a|an|to|until|during|for|and|or|with)$/i;
+/** "Role | Company", "Role — Company", "Role at Company", "Role, Company". */
+const ROLE_COMPANY_SPLIT_RE = /\S\s*(?:\||\s[—–-]\s|\s(?:at|@)\s|,\s)\s*\S/i;
+
+/**
+ * A role or project dated with a single year on its own line: "Survey
+ * Technician | Alberta Geomatics 2009", "Open-source culvert sizing
+ * calculator 2019". Returns the date, or "" when the line is a sentence
+ * that happens to end in a year. In Experience the rest of the line must
+ * read as a role ("Role | Company" or a title), so an unbulleted "Employee
+ * of the Month 2021" stays with its job; in Projects (`anyName`) any name
+ * will do.
+ */
+function singleDateEntryDate(line: string, anyName: boolean): string {
+    if (BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) return "";
+    const match = line.match(SINGLE_DATE_TAIL_RE);
+    if (!match) return "";
+    const head = trimEdgePunctuation(line.slice(0, match.index).replace(/\(\s*$/, ""));
+    if (head.length < 3 || head.length > 80 || !/^[\p{Lu}\d]/u.test(head)) return "";
+    if (head.split(/\s+/).length > 10 || /[.!?;:]$/.test(head)) return "";
+    if (/\b(?:19|20)\d{2}\b/.test(head) || isSectionHeader(head)) return "";
+    if (ACHIEVEMENT_VERB_RE.test(head) || BULLET_VERB_RE.test(head) || TRAILING_LINK_WORD_RE.test(head)) return "";
+    if (!anyName && !ROLE_COMPANY_SPLIT_RE.test(head) && !looksLikeTitle(head)) return "";
+    return match[1];
+}
+
+function collectDescriptionLines(
+    lines: string[],
+    startIndex: number,
+    anyName = false,
+): { descLines: string[]; nextIndex: number } {
     const descLines: string[] = [];
     let i = startIndex;
     while (i < lines.length) {
         const next = lines[i];
         if (DATE_RANGE_RE.test(next) && !BULLET_RE.test(next)) break;
+        if (singleDateEntryDate(next, anyName)) break;
         const section = isSectionHeader(next);
         if (section) break;
         descLines.push(next);
@@ -341,7 +381,8 @@ function pushExperienceEntry(
     });
 }
 
-function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
+/** `anyName`: a Projects block, where an entry needn't be named like a role. */
+function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExperience, "id">[] {
     const entries: Omit<ResumeExperience, "id">[] = [];
     let i = 0;
 
@@ -355,7 +396,7 @@ function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
 
             if (role && !company && i + 1 < lines.length && looksLikeNextLineCompany(lines[i + 1])) {
                 company = lines[i + 1].trim();
-                const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2);
+                const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
                 pushExperienceEntry(entries, company, role, dates, descLines);
                 i = nextIndex;
                 continue;
@@ -376,8 +417,17 @@ function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
                 }
             }
 
-            const { descLines, nextIndex } = collectDescriptionLines(lines, i + 1);
+            const { descLines, nextIndex } = collectDescriptionLines(lines, i + 1, anyName);
             pushExperienceEntry(entries, company, role, dates, descLines);
+            i = nextIndex;
+            continue;
+        }
+
+        const singleDate = singleDateEntryDate(line, anyName);
+        if (singleDate) {
+            const { role, company } = parseRoleCompanyFromLine(line, singleDate);
+            const { descLines, nextIndex } = collectDescriptionLines(lines, i + 1, anyName);
+            pushExperienceEntry(entries, company, role, singleDate, descLines);
             i = nextIndex;
             continue;
         }
@@ -392,7 +442,7 @@ function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
                 if (!company && !looksLikeTitle(line) && !DATE_RANGE_RE.test(line)) company = line;
                 if (!role && !company) role = line;
 
-                const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2);
+                const { descLines, nextIndex } = collectDescriptionLines(lines, i + 2, anyName);
                 pushExperienceEntry(entries, company, role, dates, descLines);
                 i = nextIndex;
                 continue;
@@ -403,7 +453,7 @@ function parseExperienceBlock(lines: string[]): Omit<ResumeExperience, "id">[] {
             const company = lines[i];
             const role = lines[i + 1];
             const dates = lines[i + 2].match(DATE_RANGE_RE)?.[0] ?? lines[i + 2];
-            const { descLines, nextIndex } = collectDescriptionLines(lines, i + 3);
+            const { descLines, nextIndex } = collectDescriptionLines(lines, i + 3, anyName);
             pushExperienceEntry(entries, company, role, dates, descLines);
             i = nextIndex;
             continue;
@@ -899,7 +949,7 @@ export function structureResumeText(text: string): StructuredResumeDraft {
         experience = parseExperienceBlock(collectExperienceFallbackLines(sections));
     }
 
-    const projects = parseExperienceBlock(sections.projects ?? []);
+    const projects = parseExperienceBlock(sections.projects ?? [], true);
 
     if (!profession && experience.length > 0) {
         profession = cleanRoleTitle(experience[0].role) || profession;

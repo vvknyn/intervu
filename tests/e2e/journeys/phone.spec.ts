@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 /**
  * Journeys for the phone layout: the search box, the toolbar, the rows and
  * the bottom sheets, at the mobile project's 390 and at 320, the narrowest
- * phone still in use. See tests/journeys/CATALOG.md (J-MOB-01/02/17/22-26).
+ * phone still in use. See tests/journeys/CATALOG.md (J-MOB-01/02/17/22-27).
  * Read-only.
  */
 
@@ -256,3 +256,102 @@ for (const width of [390, 320]) {
         expect(await leadingDots(page.getByTestId("job-row"))).toEqual([]);
     });
 }
+
+/**
+ * A finger on the phone's screen: down at (x, y), `dy` px straight down in
+ * eight moves, then up. CDP touches, not the mouse, so the browser's own touch
+ * handling (panning, touch-action) runs as it does on a phone.
+ */
+async function fingerDrag(page: Page, x: number, y: number, dy: number) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+    for (let i = 1; i <= 8; i++) {
+        await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (dy * i) / 8 }] });
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+}
+
+/**
+ * Pulls the open sheet down by its bar: a short pull lets go and it settles
+ * back, open; a long one closes it.
+ */
+async function expectSwipeCloses(sheet: Locator) {
+    await expect(sheet).toBeVisible({ timeout: 15_000 });
+    // Its top where it rests: done sliding up, and done growing as its content
+    // loads (the job sheet opens short, then fills).
+    await expect.poll(() => sheet.evaluate((el) => el.getAnimations().length), { timeout: 10_000 }).toBe(0);
+    let lastY = NaN;
+    await expect
+        .poll(
+            async () => {
+                const y = Math.round((await box(sheet)).y);
+                const still = y === lastY;
+                lastY = y;
+                return still;
+            },
+            { intervals: [300], timeout: 15_000 },
+        )
+        .toBe(true);
+    const open = await box(sheet);
+    // The handle's row, mid-width: clear of the Close at the bar's right end.
+    const [x, y] = [open.x + open.width / 2, open.y + 10];
+
+    await fingerDrag(sheet.page(), x, y, 40);
+    await expect.poll(async () => Math.round((await box(sheet)).y - open.y)).toBe(0);
+    await expect(sheet).toBeVisible();
+
+    // Only a shared job link's sheet, open as the page loaded, closed this way;
+    // every sheet opened later ignored the swipe in a production build (2026-10-03).
+    await fingerDrag(sheet.page(), x, y, 240);
+    await expect(sheet).toBeHidden();
+}
+
+test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets it settle back open (filters, location, tracker, job)", { tag: ["@J-MOB-27"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    const now = new Date().toISOString();
+    await page.addInitScript(
+        (seed) => localStorage.setItem("intervu.pursuits.guest", JSON.stringify([seed])),
+        {
+            id: "guest-journey-swipe",
+            user_id: "guest",
+            company_name: "Acme Corp",
+            position: "Staff Engineer",
+            status: "applied",
+            job_id: "job-journey-swipe",
+            job_snapshot: { title: "Staff Engineer", company: "Acme Corp", location: "Remote", description: "Build things.", apply_url: "https://example.com/jobs/1" },
+            created_at: now,
+            updated_at: now,
+        },
+    );
+
+    await page.goto("/jobs?q=engineer");
+    await page.getByTestId("filters-toggle").click();
+    await expectSwipeCloses(page.getByRole("dialog", { name: "Filters" }));
+
+    await page.goto("/jobs");
+    await page.getByTestId("location-picker-trigger").click();
+    await expectSwipeCloses(page.getByRole("dialog", { name: "Where do you want to work?" }));
+
+    await page.goto("/yours");
+    await page.getByTestId("tracker-track-role-cta").first().click();
+    await expectSwipeCloses(page.getByRole("dialog", { name: "Track a role" }));
+
+    await page.goto("/yours");
+    await page.getByTestId("pursuit-row").first().click();
+    await expectSwipeCloses(page.getByRole("dialog", { name: "Staff Engineer" }));
+
+    await page.goto("/jobs?q=engineer");
+    if (await rowsIfAny(page)) {
+        await page.getByTestId("job-row").first().click();
+        await expect(page).toHaveURL(/[?&]job=/, { timeout: 15_000 });
+        const sheet = page.getByRole("dialog");
+        await expect(sheet.getByTestId("mobile-detail-scroller")).toBeVisible({ timeout: 15_000 });
+        await expectSwipeCloses(sheet);
+        await expect(page).not.toHaveURL(/[?&]job=/);
+    } else {
+        test.info().annotations.push({ type: "skipped-part", description: "this server lists no jobs (no search backend), so there is no job sheet to swipe" });
+    }
+    expect(diagnostics.pageErrors).toEqual([]);
+});

@@ -1,5 +1,5 @@
 import type { Instrumentation } from "next";
-import { logServer, requestErrorRecord } from "@/lib/observability/posthog-logs";
+import { logServer, requestErrorLevel, requestErrorRecord } from "@/lib/observability/posthog-logs";
 
 /**
  * Server start. A production server opens one phone search link itself once
@@ -30,5 +30,5 @@ export async function register() {
  */
 export const onRequestError: Instrumentation.onRequestError = (error, request, context) => {
   const { body, attrs } = requestErrorRecord(error, request, context);
-  logServer("error", body, attrs);
+  logServer(requestErrorLevel(error), body, attrs);
 };

@@ -134,21 +134,37 @@ export function clearRateLimitStateForTests(): void {
 export const allowSearchRequest = createIpRateLimiter(RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
 
 /**
- * Per-IP sliding-window rate limit for the /connect waitlist chokepoint
- * (`joinConnectWaitlist`). Deliberately its own store, not `allowSearchRequest`'s
- * above — sharing that store would mix two unrelated counters (search volume
- * vs. waitlist signups) under one meaning. Stricter than search's 40/60s: a
- * real visitor signs up once, maybe retries a typo'd email a couple times —
- * 5 per 10 minutes is generous for that and tight against a submit-loop.
+ * Per-IP limits for the two one-shot email forms: the /connect and /openclaw
+ * waitlist (`joinConnectWaitlist`) and the founding-seat reservation on
+ * /pricing (`reserveFoundingSeat`). Each form has its own stores, never
+ * `allowSearchRequest`'s above, so unrelated counters don't share a meaning.
+ *
+ * Split the way `signUp`'s budget is (below): until 2026-10-03 each form had
+ * one 5-per-600s limit counted on every submit before Turnstile, so a person
+ * whose first tries were refused for another reason could spend it and then
+ * read "Too many attempts".
+ *
+ * - SUBMIT (30 per 600s): every submit with a well-formed email, counted
+ *   before Turnstile — a flood guard for the siteverify call, sized so a
+ *   person retrying, or several people behind one carrier NAT, never meets it.
+ * - REQUEST (5 per 600s): only submits that passed Turnstile and are about to
+ *   write a row and maybe send a confirmation email. A person makes one.
  */
+export const EMAIL_FORM_SUBMIT_WINDOW_MS = 600_000;
+export const EMAIL_FORM_SUBMIT_MAX_REQUESTS = 30;
 export const CONNECT_WAITLIST_WINDOW_MS = 600_000;
 export const CONNECT_WAITLIST_MAX_REQUESTS = 5;
 
-/** Thin I/O wrapper: `checkRateLimitWindow` wired to the waitlist's own store. */
+/** The waitlist's flood guard (before Turnstile). */
+export const allowConnectWaitlistSubmit = createIpRateLimiter(EMAIL_FORM_SUBMIT_WINDOW_MS, EMAIL_FORM_SUBMIT_MAX_REQUESTS);
+
+/** The waitlist's write budget (after Turnstile). */
 export const allowConnectWaitlistRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
 
-/** The founding-seat reservation on /pricing (`reserveFoundingSeat`): the
- *  waitlist's budget, in its own store so the two counters stay separate. */
+/** The founding-seat reservation's flood guard (before Turnstile). */
+export const allowFoundingReserveSubmit = createIpRateLimiter(EMAIL_FORM_SUBMIT_WINDOW_MS, EMAIL_FORM_SUBMIT_MAX_REQUESTS);
+
+/** The founding-seat reservation's write budget (after Turnstile): the waitlist's size, its own store. */
 export const allowFoundingReserveRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
 
 /**
