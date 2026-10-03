@@ -7,7 +7,7 @@ import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 
-/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37/41/42, J-JOBS-11/53). Read-only. */
+/** Journeys for a job's detail — the job page and the board's pane — and opening and closing it from a row. See tests/journeys/CATALOG.md (J-DETAIL-11/29-33/37/41/42, J-JOBS-11/53/104). Read-only. */
 
 const DETAIL = '[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible';
 /** The one "Customize résumé" (with a résumé) or "Upload résumé to customize" (without) button. */
@@ -32,19 +32,24 @@ function isDesktop(page: Page) {
   return page.viewportSize()!.width >= 1024;
 }
 
-/** Clicks the open job's × (the split pane's own at 1440, the sheet's header at 390) once it holds still: the sheet grows as the job loads, which moves it. */
-async function closeJob(page: Page) {
-  const surface = page.viewportSize()!.width >= 1280 ? page.getByTestId("detail-pane") : page.getByRole("dialog");
-  const close = surface.getByRole("button", { name: "Close", exact: true }).first();
+/** Waits until `target` holds still: the sheet grows as the job loads, which moves it. */
+async function untilStill(target: Locator) {
   let last = "";
   await expect
     .poll(async () => {
-      const now = JSON.stringify(await close.boundingBox());
+      const now = JSON.stringify(await target.boundingBox());
       const still = now === last && now !== "null";
       last = now;
       return still;
     }, { intervals: [400], timeout: 20_000 })
     .toBe(true);
+}
+
+/** Clicks the open job's × (the split pane's own at 1440, the sheet's header at 390) once it holds still. */
+async function closeJob(page: Page) {
+  const surface = page.viewportSize()!.width >= 1280 ? page.getByTestId("detail-pane") : page.getByRole("dialog");
+  const close = surface.getByRole("button", { name: "Close", exact: true }).first();
+  await untilStill(close);
   await close.click();
 }
 
@@ -318,6 +323,31 @@ test("on a phone a tap anywhere on a job row opens that job, and the job links i
   const sheet = page.getByTestId("mobile-detail-scroller");
   await expect(sheet).toBeVisible();
   await expect(sheet.locator('a[href^="/co/"]').first()).toBeVisible({ timeout: 20_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on a phone a tap on a link in a job's sheet that drifts a few pixels down still follows the link", { tag: ["@J-JOBS-104"] }, async ({ page, diagnostics }, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch, "a finger's drift needs a touch screen");
+  await searchFor(page, "data analyst");
+  // A row whose company has a page, so the open job holds a link to tap.
+  const row = page.getByTestId("job-row").filter({ has: page.getByTestId("job-row-company") }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.getByTestId("job-title").click();
+  await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
+  await untilStill(page.getByRole("dialog"));
+  const company = page.getByTestId("mobile-detail-scroller").locator('a[href^="/co/"]').first();
+  await expect(company).toBeVisible({ timeout: 20_000 });
+
+  // Swipe-to-close took the pointer on any downward move, so a tap that drifted
+  // a pixel or two landed on the sheet and the link never opened (2026-10-03).
+  const link = (await company.boundingBox())!;
+  const [x, y] = [link.x + link.width / 2, link.y + link.height / 2];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 2 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 4 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await expect(page).toHaveURL(/\/co\//, { timeout: 20_000 });
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
