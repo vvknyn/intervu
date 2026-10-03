@@ -13,6 +13,8 @@ const GRAB_ZONE_PX = 48
 const DISMISS_THRESHOLD_PX = 80
 const DISMISS_THRESHOLD_RATIO = 0.25
 const DISMISS_VELOCITY_PX_MS = 0.5
+/** A press that moves less than this is a tap, and stays with what it landed on. */
+const TAP_SLOP_PX = 8
 
 const SheetDismissContext = React.createContext<(() => void) | null>(null)
 
@@ -59,25 +61,30 @@ type BottomDragPhase = "grab-zone" | "scroll-pending" | "dragging"
 
 interface BottomDragState {
     phase: BottomDragPhase
+    startX: number
     startY: number
     lastY: number
     lastT: number
     scrollContainer: HTMLElement | null
 }
 
+/**
+ * Swipe down to close. Takes the sheet's element itself, not a ref to it:
+ * a sheet that starts closed has no element when it mounts, and an effect
+ * keyed on the ref never ran again once it opened, so no phone sheet could
+ * be swiped away in production (2026-10-03).
+ */
 function useBottomSheetSwipeDismiss(
     enabled: boolean,
     dismiss: () => void,
-    contentRef: React.RefObject<HTMLElement | null>,
+    el: HTMLElement | null,
 ) {
     const dragRef = React.useRef<BottomDragState | null>(null)
     const dismissRef = React.useRef(dismiss)
     dismissRef.current = dismiss
 
     React.useEffect(() => {
-        if (!enabled) return
-        const el = contentRef.current
-        if (!el) return
+        if (!enabled || !el) return
 
         const resetDrag = () => {
             dragRef.current = null
@@ -106,19 +113,19 @@ function useBottomSheetSwipeDismiss(
                 if (event.target instanceof Element && event.target.closest("button, a, [role=button]")) return
                 dragRef.current = {
                     phase: "grab-zone",
+                    startX: event.clientX,
                     startY: event.clientY,
                     lastY: event.clientY,
                     lastT: event.timeStamp,
                     scrollContainer,
                 }
-                el.setPointerCapture(event.pointerId)
-                el.style.transition = "none"
                 return
             }
 
             if (scrollContainer && scrollContainer.scrollTop <= 0) {
                 dragRef.current = {
                     phase: "scroll-pending",
+                    startX: event.clientX,
                     startY: event.clientY,
                     lastY: event.clientY,
                     lastT: event.timeStamp,
@@ -131,22 +138,27 @@ function useBottomSheetSwipeDismiss(
             const drag = dragRef.current
             if (!drag) return
 
-            const deltaY = event.clientY - drag.startY
-
-            if (drag.phase === "scroll-pending") {
-                if (deltaY <= 0) return
-                if (drag.scrollContainer && drag.scrollContainer.scrollTop > 0) {
+            if (drag.phase !== "dragging") {
+                // The pointer is captured only once the press is clearly a drag
+                // down: captured, a tap's release lands on the sheet, so a link or
+                // button that a finger nudged a pixel never got its click.
+                const deltaY = event.clientY - drag.startY
+                if (deltaY < TAP_SLOP_PX) return
+                if (Math.abs(event.clientX - drag.startX) > deltaY) {
+                    resetDrag()
+                    return
+                }
+                if (drag.phase === "scroll-pending" && drag.scrollContainer && drag.scrollContainer.scrollTop > 0) {
                     resetDrag()
                     return
                 }
                 drag.phase = "dragging"
+                drag.startY += TAP_SLOP_PX
                 el.setPointerCapture(event.pointerId)
                 el.style.transition = "none"
             }
 
-            if (drag.phase !== "grab-zone" && drag.phase !== "dragging") return
-
-            applyDragOffset(el, Math.max(0, deltaY))
+            applyDragOffset(el, Math.max(0, event.clientY - drag.startY))
             drag.lastY = event.clientY
             drag.lastT = event.timeStamp
         }
@@ -159,7 +171,7 @@ function useBottomSheetSwipeDismiss(
                 el.releasePointerCapture(event.pointerId)
             }
 
-            if (drag.phase !== "grab-zone" && drag.phase !== "dragging") {
+            if (drag.phase !== "dragging") {
                 resetDrag()
                 return
             }
@@ -185,12 +197,13 @@ function useBottomSheetSwipeDismiss(
         }
 
         const onPointerCancel = (event: PointerEvent) => {
-            if (!dragRef.current) return
+            const drag = dragRef.current
+            if (!drag) return
             if (el.hasPointerCapture(event.pointerId)) {
                 el.releasePointerCapture(event.pointerId)
             }
             resetDrag()
-            snapBack()
+            if (drag.phase === "dragging") snapBack()
         }
 
         const onStateChange = () => {
@@ -217,7 +230,7 @@ function useBottomSheetSwipeDismiss(
             resetDrag()
             clearDragOffset(el)
         }
-    }, [enabled, contentRef])
+    }, [enabled, el])
 }
 
 const Sheet = ({ onOpenChange, ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) => {
@@ -336,10 +349,10 @@ const SheetContent = React.forwardRef<
     React.ElementRef<typeof SheetPrimitive.Content>,
     SheetContentProps
 >(({ side = "right", className, children, hideCloseButton = false, overlayClassName, onDismiss, onFocusCapture, ...props }, ref) => {
-    const contentRef = React.useRef<React.ElementRef<typeof SheetPrimitive.Content> | null>(null)
+    const [contentEl, setContentEl] = React.useState<React.ElementRef<typeof SheetPrimitive.Content> | null>(null)
     const setContentRef = React.useCallback(
         (node: React.ElementRef<typeof SheetPrimitive.Content> | null) => {
-            contentRef.current = node
+            setContentEl(node)
             if (typeof ref === "function") ref(node)
             else if (ref) ref.current = node
         },
@@ -348,7 +361,7 @@ const SheetContent = React.forwardRef<
 
     const contextDismiss = React.useContext(SheetDismissContext)
     const dismiss = onDismiss ?? contextDismiss ?? (() => {})
-    useBottomSheetSwipeDismiss(side === "bottom", dismiss, contentRef)
+    useBottomSheetSwipeDismiss(side === "bottom", dismiss, contentEl)
 
     return (
         <SheetPortal>
