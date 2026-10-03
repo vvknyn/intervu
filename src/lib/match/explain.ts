@@ -25,6 +25,7 @@ const PLACE: Partial<Record<MatchReason, string>> = {
     remote_preferred: "it's remote, as your preferences ask",
     relocation_country: "it's in a country you said you'd move to",
     remote_abroad: "it's remote but based in another country",
+    remote_pay_abroad: "it's remote with no country listed, but its pay is in another country's money",
     abroad: "it's in another country",
     country_unlisted: "the posting doesn't say where it's based",
     no_resume_place: "your résumé gives no location to compare",
@@ -37,6 +38,7 @@ const WEAK: ReadonlySet<MatchReason> = new Set([
     "level_unlisted",
     "no_years",
     "remote_abroad",
+    "remote_pay_abroad",
     "abroad",
     "country_unlisted",
     "no_resume_place",
@@ -49,8 +51,13 @@ function component(score: MatchScore, key: MatchComponent["key"]): MatchComponen
 
 /** "remote — based in Europe" names where; say it rather than "another country". */
 function placeText(score: MatchScore, reason: MatchReason): string | null {
+    const detail = component(score, "location")?.detail ?? "";
+    if (reason === "remote_pay_abroad") {
+        const paid = detail.match(/paid in (\S+) — likely for people in (.+)$/);
+        return paid ? `it's remote with no country listed, but it pays in ${paid[1]}, so it's likely for people in ${paid[2]}` : null;
+    }
     if (reason !== "remote_abroad") return null;
-    const where = component(score, "location")?.detail.match(/based in (.+)$/)?.[1];
+    const where = detail.match(/based in (.+)$/)?.[1];
     return where ? `it's remote but based in ${/^(united|netherlands|philippines)\b/i.test(where) ? "the " : ""}${where}` : null;
 }
 

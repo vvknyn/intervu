@@ -579,9 +579,13 @@ describe('a role scores the same on its page as in a list', () => {
             }
         });
     }
-    it("a Technical Account Manager's résumé reads Expel's TAM role as Strong on its page", () => {
+    it("a Technical Account Manager's résumé reads Expel's TAM role as Strong on its page in the US, and as likely for people in the US in Canada", () => {
+        // Remote, no country in its title, place or description, paid in USD (Vivek, 2026-10-03, in Canada: "this is a US job").
         const resume = fixture('vivek-tam-resume');
-        const score = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume));
-        assert.equal(matchBand(score!.total), 'strong');
+        const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
+        assert.equal(matchBand(inCanada.total), 'good');
+        assert.equal(inCanada.components.find((c) => c.key === 'location')!.reason, 'remote_pay_abroad');
+        const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
+        assert.equal(matchBand(scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!.total), 'strong');
     });
 });

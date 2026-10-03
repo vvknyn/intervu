@@ -53,7 +53,8 @@ export interface PublicJob {
    * "authorized to work in the US"), read on the server by
    * `/api/jobs/place-notes` for rows that name no country of their own. Not on
    * the index: only the rows a ranked list checked carry it, `null` when the
-   * description names no such place.
+   * description names no such place, no `countries` when it says the role is
+   * open to people anywhere (`OPEN_ANYWHERE`).
    */
   place_restriction?: PlaceRestriction | null;
   /** e.g. "full_time" | "contract" | "unknown" */

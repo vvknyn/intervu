@@ -102,7 +102,7 @@ export type TodayRole = { job: PublicJob; score: MatchScore };
  *    résumé names, or a different kind of job). Packs still list these;
  *  - `level`: the role asks for more seniority than the résumé shows;
  *  - `abroad`: the role is in, or remote from, a country the candidate
- *    can't work in.
+ *    can't work in, or names none and pays in another country's money.
  */
 export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad";
 
@@ -111,7 +111,7 @@ export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
     if (score.role !== "own" && score.role !== "family") return "other-role";
     const reasons = new Set(score.components.map((c) => c.reason));
     if (reasons.has("level_below_ask")) return "level";
-    if (reasons.has("abroad") || reasons.has("remote_abroad")) return "abroad";
+    if (reasons.has("abroad") || reasons.has("remote_abroad") || reasons.has("remote_pay_abroad")) return "abroad";
     return null;
 }
 
@@ -148,10 +148,23 @@ export function pickToday(
  * Today's likely picks, best first, whose rows name no country of their own
  * (no country field, place text or place in the title): only the description
  * can still say where the person must be, so these are the ones to read
- * (`/api/jobs/place-notes`). At most `max`.
+ * (`/api/jobs/place-notes`). A role left out only for its pay's currency
+ * counts as a likely pick here, since its description may open it to people
+ * anywhere. At most `max`.
  */
 export function placeCheckIds(roles: TodayRole[], max: number): string[] {
-    return pickToday(roles, { skipped: new Set(), tracked: new Set() })
+    const payUnread = roles.map((role) =>
+        role.score.components.some((c) => c.reason === "remote_pay_abroad")
+            ? {
+                  ...role,
+                  score: {
+                      ...role.score,
+                      components: role.score.components.map((c) => (c.reason === "remote_pay_abroad" ? { ...c, reason: "remote_anywhere" as const } : c)),
+                  },
+              }
+            : role,
+    );
+    return pickToday(payUnread, { skipped: new Set(), tracked: new Set() })
         .filter(({ job }) => needsPlaceCheck(job))
         .slice(0, max)
         .map(({ job }) => job.id);

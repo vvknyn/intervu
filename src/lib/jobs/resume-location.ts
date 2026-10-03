@@ -255,7 +255,33 @@ export function titlePlace(title: string | null | undefined): { label: string; c
         .filter(Boolean)
         .slice(1);
     for (const piece of pieces) {
-        const named = placeNamed(piece);
+        const named = placeNamed(piece) ?? territoryPlace(piece);
+        if (named) return named;
+    }
+    return null;
+}
+
+/**
+ * Words that name a sales or service territory's segment after its place:
+ * "U.S. Federal", "UK Public Sector", "Canada Enterprise", "DACH Mid-Market",
+ * "US East". The place still says where the work is.
+ */
+const TERRITORY_WORDS = new Set(
+    (
+        "federal public sector government gov govt sled state local defense defence dod civilian intelligence " +
+        "enterprise commercial corporate mid-market midmarket mid market markets smb sme strategic majors major named key " +
+        "accounts territory region regional east west north south central northeast northwest southeast southwest " +
+        "emerging growth startups startup channel partners partner"
+    ).split(" "),
+);
+
+/** The place a title piece names before territory words only: "U.S. Federal" → US; "Federal" or "Japanese Speaking" → none. */
+function territoryPlace(piece: string): { label: string; countries: string[] } | null {
+    const words = piece.split(/\s+/).filter(Boolean);
+    for (let n = Math.min(3, words.length - 1); n >= 1; n--) {
+        const rest = words.slice(n).map((word) => word.toLowerCase().replace(/[^a-z-]/g, ""));
+        if (!rest.every((word) => TERRITORY_WORDS.has(word))) continue;
+        const named = placeNamed(words.slice(0, n).join(" "));
         if (named) return named;
     }
     return null;
