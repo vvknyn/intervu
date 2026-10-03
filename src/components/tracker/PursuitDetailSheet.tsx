@@ -16,6 +16,8 @@ import {
     isStalePursuit,
 } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
+import { downloadAppliedResume } from "@/lib/pursuits/applied-resume-client";
+import { APPLIED_RESUME_LABEL } from "@/lib/pursuits/resume-on-apply";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
 import { PursuitStatusPicker } from "@/components/tracker/PursuitStatusPicker";
@@ -29,6 +31,8 @@ interface PursuitDetailSheetProps {
     onNoteSave: (note: string) => Promise<void>;
     onInterviewDateSave: (interviewDate: string) => Promise<void>;
     onRemove: () => Promise<void>;
+    /** Takes the résumé copied on at Applied off the role; true once it's gone. */
+    onRemoveAppliedResume: () => Promise<boolean>;
     saving?: boolean;
 }
 
@@ -40,6 +44,7 @@ export function PursuitDetailSheet({
     onNoteSave,
     onInterviewDateSave,
     onRemove,
+    onRemoveAppliedResume,
     saving,
 }: PursuitDetailSheetProps) {
     if (!pursuit) return null;
@@ -63,6 +68,7 @@ export function PursuitDetailSheet({
                     onNoteSave={onNoteSave}
                     onInterviewDateSave={onInterviewDateSave}
                     onRemove={onRemove}
+                    onRemoveAppliedResume={onRemoveAppliedResume}
                     saving={saving}
                 />
             </SheetContent>
@@ -76,6 +82,7 @@ function PursuitDetailBody({
     onNoteSave,
     onInterviewDateSave,
     onRemove,
+    onRemoveAppliedResume,
     saving,
 }: {
     pursuit: Pursuit;
@@ -83,18 +90,24 @@ function PursuitDetailBody({
     onNoteSave: (note: string) => Promise<void>;
     onInterviewDateSave: (interviewDate: string) => Promise<void>;
     onRemove: () => Promise<void>;
+    onRemoveAppliedResume: () => Promise<boolean>;
     saving?: boolean;
 }) {
     const [interviewDate, setInterviewDate] = useState(() =>
         pursuit.interview_date ? pursuit.interview_date.slice(0, 10) : "",
     );
     const latestResume = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? [])[0];
-    const resumeLabel = latestResume?.label ?? pursuit.resume_version?.version_name;
+    // A version filed for the role (by an agent) is what went out; otherwise
+    // the résumé copied on when it was marked Applied.
+    const appliedResume = latestResume ? undefined : pursuit.applied_resume;
+    const resumeLabel = latestResume?.label ?? (appliedResume ? APPLIED_RESUME_LABEL : pursuit.resume_version?.version_name);
     const days = daysInTracker(pursuit);
     const stale = isStalePursuit(pursuit);
 
     const [confirmingRemove, setConfirmingRemove] = useState(false);
     const [removing, setRemoving] = useState(false);
+    const [confirmingResumeRemove, setConfirmingResumeRemove] = useState(false);
+    const [removingResume, setRemovingResume] = useState(false);
 
     // Two-step inline confirm — the same shared shape `YourResumeSection`'s
     // delete-resume flow already uses, rather than a third destructive-action
@@ -106,6 +119,15 @@ function PursuitDetailBody({
         } finally {
             setRemoving(false);
             setConfirmingRemove(false);
+        }
+    };
+
+    const handleResumeRemove = async () => {
+        setRemovingResume(true);
+        try {
+            if (await onRemoveAppliedResume()) setConfirmingResumeRemove(false);
+        } finally {
+            setRemovingResume(false);
         }
     };
 
@@ -124,13 +146,25 @@ function PursuitDetailBody({
                         <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">In tracker</dt>
                         <dd className="text-xl font-semibold tabular-nums">{days}d</dd>
                     </div>
-                    {/* Only the MCP tools file a résumé against a pursuit; a web
-                        user saw "none linked" and a dead Download button on every
-                        role (journey audit 2026-09-30), so both show only with one. */}
+                    {/* A web user saw "none linked" and a dead Download button on
+                        every role (journey audit 2026-09-30), so both show only
+                        with a résumé: one an agent filed, or the copy taken when
+                        the role was marked Applied. */}
                     {resumeLabel && (
                         <div>
                             <dt className="mb-1 whitespace-nowrap text-xs text-muted-foreground">Resume</dt>
-                            <dd className="text-meta">{resumeLabel}</dd>
+                            <dd className="text-meta">
+                                {resumeLabel}
+                                {appliedResume && !confirmingResumeRemove && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setConfirmingResumeRemove(true)}
+                                        className="mt-1 block text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                                    >
+                                        Remove résumé
+                                    </button>
+                                )}
+                            </dd>
                         </div>
                     )}
                     {stale && (
@@ -140,6 +174,16 @@ function PursuitDetailBody({
                         </div>
                     )}
                 </dl>
+                {confirmingResumeRemove && (
+                    <InlineConfirm
+                        prompt="Remove this copy from the role? Your résumé itself stays."
+                        confirmLabel="Remove résumé"
+                        busyLabel="Removing…"
+                        busy={removingResume}
+                        onConfirm={() => void handleResumeRemove()}
+                        onCancel={() => setConfirmingResumeRemove(false)}
+                    />
+                )}
 
                 {/* Notes used to be lost on close; the field flushes on unmount (spec B1). */}
                 <PursuitNoteField initialNote={pursuit.note ?? ""} onSave={onNoteSave} />
@@ -174,11 +218,15 @@ function PursuitDetailBody({
                             </a>
                         </Button>
                     )}
-                    {latestResume && (
+                    {latestResume ? (
                         <Button variant="outline" onClick={() => void downloadResumeVersion(latestResume, pursuit)}>
                             Download resume
                         </Button>
-                    )}
+                    ) : appliedResume ? (
+                        <Button variant="outline" onClick={() => void downloadAppliedResume(pursuit)}>
+                            Download resume
+                        </Button>
+                    ) : null}
                     {!confirmingRemove && (
                         <Button
                             variant="outline"

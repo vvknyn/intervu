@@ -75,6 +75,21 @@ export interface ResumeVersionSnapshot {
     saved_at: string;
 }
 
+/**
+ * The résumé on file when the role was marked Applied, copied onto the role
+ * (`lib/pursuits/resume-on-apply.ts`) so "Resume used" can say what went out
+ * even after the résumé changes. Plain text in an uploaded résumé's layout.
+ * Kept apart from `resume_versions` (what the person or an agent filed by
+ * hand): it is removable from the role, and deleting the résumé deletes it.
+ */
+export interface AppliedResume {
+    saved_at: string;
+    /** Left out of the account's tracker list, which every page's header
+     *  reads (`withoutAppliedResumeText`); Download reads it on demand.
+     *  Always present on a guest's own copy. */
+    content?: string;
+}
+
 /** Lift the fields a pursuit needs to remember out of a live search result. */
 export function buildJobSnapshot(job: PublicJob & { url?: string | null }): JobSnapshot {
     return {
@@ -131,6 +146,8 @@ export interface Pursuit {
      *  resume is on file, which the tracker shows as an explicit empty
      *  state rather than fabricating one. */
     resume_versions?: ResumeVersionSnapshot[];
+    /** The résumé copied onto the role when it was marked Applied. */
+    applied_resume?: AppliedResume;
     /** Free-form tracker note (manual add / detail sheet). */
     note?: string;
 }

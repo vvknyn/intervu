@@ -49,7 +49,7 @@ export const FIRESTORE_STORAGE_CATEGORIES: readonly {
     collections: ["profiles", "users", "savedSearches", "followedCompanies"],
   },
   {
-    label: "Applications you track, daily apply counters, and jobs you have opened before",
+    label: "Applications you track (with a copy of the résumé on file when you mark one applied), daily apply counters, and jobs you have opened before",
     collections: ["applications", "apply_counters", "job_views"],
   },
   {

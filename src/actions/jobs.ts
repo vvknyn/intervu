@@ -669,6 +669,8 @@ export async function markJobAppliedAction(input: {
         apply_url: parsed.data.applyUrl ?? "",
       },
       "applied",
+      // Marking a role Applied copies the résumé on file onto it.
+      { attachResume: true },
     );
     if (res.error) return { error: res.error };
     return { data: { id: res.data!.id } };

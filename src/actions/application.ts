@@ -11,6 +11,8 @@ import {
     type PursuitStage,
 } from "@/lib/pursuits/types";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
+import { appliedResumeFor, withoutAppliedResumeText } from "@/lib/pursuits/resume-on-apply";
+import { accountResumeText } from "@/lib/pursuits/applied-resume";
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
@@ -58,7 +60,9 @@ export async function getApplications() {
             .orderBy("created_at", "desc")
             .get();
 
-        const applications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Application[];
+        // Every page's header reads this list (the Tracker tab's count), so a
+        // role's résumé copy comes without its text; Download reads it.
+        const applications = snapshot.docs.map((doc) => withoutAppliedResumeText({ id: doc.id, ...doc.data() } as Application));
 
         // Fetch resume version names for applications that have resume_version_id
         const resumeVersionIds = applications
@@ -111,15 +115,22 @@ export async function createApplication(application: CreateApplicationData) {
 
         const db = getAdminDb();
         const now = new Date().toISOString();
+        // A role tracked as already applied keeps the résumé on file, as one
+        // marked Applied later does (`updateApplication`).
+        const appliedResume =
+            application.status === "applied"
+                ? appliedResumeFor(null, application.status, await accountResumeText(user.uid), now)
+                : undefined;
         const docData = {
             ...application,
+            ...(appliedResume ? { applied_resume: appliedResume } : {}),
             user_id: user.uid,
             created_at: now,
             updated_at: now,
         };
 
         const docRef = await db.collection("applications").add(docData);
-        const data = { id: docRef.id, ...docData };
+        const data = withoutAppliedResumeText({ id: docRef.id, ...docData });
 
         revalidatePath('/yours');
         return { data };
@@ -143,7 +154,12 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
 
         const db = getAdminDb();
         const docRef = db.collection("applications").doc(id);
-        const doc = await docRef.get();
+        // Marking a role Applied copies the résumé on file onto it; the
+        // résumé is read alongside the role, so the write waits on neither.
+        const [doc, resumeText] = await Promise.all([
+            docRef.get(),
+            parsed.data.status === "applied" ? accountResumeText(user.uid) : Promise.resolve(null),
+        ]);
 
         if (!doc.exists || doc.data()?.user_id !== user.uid) {
             return { error: "Application not found" };
@@ -152,15 +168,18 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
         // The Admin SDK rejects `undefined` field values (ignoreUndefinedProperties
         // is off), and the schema normalizes cleared optionals to undefined — strip
         // them so update() only carries fields the client actually supplied.
-        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
+        const now = new Date().toISOString();
+        const updateData: Record<string, unknown> = { updated_at: now };
         for (const [k, v] of Object.entries(parsed.data)) {
             if (v !== undefined) updateData[k] = v;
         }
+        const appliedResume = appliedResumeFor(doc.data() as Application, parsed.data.status, resumeText, now);
+        if (appliedResume) updateData.applied_resume = appliedResume;
 
         await docRef.update(updateData);
 
         const updated = await docRef.get();
-        const data = { id: updated.id, ...updated.data() };
+        const data = withoutAppliedResumeText({ id: updated.id, ...updated.data() } as Application);
 
         revalidatePath('/yours');
         return { data };
@@ -182,14 +201,20 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
  * advanced stage" rule the guest→auth merge uses — so a re-click (or a
  * stale mark-applied firing after the user already tailored/interviewed)
  * can never regress an already-advanced pursuit.
+ *
+ * `attachResume` copies the résumé on file onto a role this moves into
+ * Applied: the job page's "I applied" (`markJobAppliedAction`) sets it. The
+ * guest sync at sign-in doesn't: the account's résumé then is not what the
+ * guest applied with, and a guest's role carries its own copy.
  */
 export async function upsertPursuitForJob(
     job: JobSnapshot & { job_id: string },
     stage: PursuitStage,
+    opts?: { attachResume?: boolean },
 ): Promise<{ data?: Application; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "User not authenticated" };
-    return upsertPursuitCore(user.uid, job, stage);
+    return upsertPursuitCore(user.uid, job, stage, { attachResume: opts?.attachResume === true });
 }
 
 /** "Go after this job" (spec §3) — the single verb on every job page.

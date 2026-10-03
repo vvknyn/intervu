@@ -145,6 +145,16 @@ export const createManualPursuitSchema = z.object({
   note: optionalString(2000),
 });
 
+/** A guest's résumé copy (`AppliedResume`) carried onto the account's role
+ *  at sign-in (`keepGuestAppliedResumeAction`). The text cap is a résumé
+ *  upload's (`AGENT.RESUME_TEXT_MAX_CHARS`). */
+export const guestAppliedResumeSchema = z
+  .object({
+    saved_at: nonEmptyString(64).refine((v) => !Number.isNaN(Date.parse(v)), "must be a date"),
+    content: nonEmptyString(50_000),
+  })
+  .strict();
+
 /** feedback create (feedback.ts submitFeedback). */
 export const submitFeedbackSchema = z.object({
   type: z.enum(["bug", "feedback", "other"]),

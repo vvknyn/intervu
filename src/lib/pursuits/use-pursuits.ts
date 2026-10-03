@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import { createServerListCache } from "@/lib/server-list-cache";
 import { getApplications, upsertPursuitForJob, createManualPursuit } from "@/actions/application";
+import { keepGuestAppliedResumeAction } from "@/actions/applications";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { listGuestPursuits, clearGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
@@ -39,14 +40,17 @@ export function invalidatePursuitsCache(): void {
  * goes through `createManualPursuit` instead, carrying the guest's current
  * `status` through rather than resetting to "interviewing" (a job_id-less
  * guest pursuit used to be silently dropped here entirely).
+ *
+ * A guest role marked Applied carries the résumé copy it took then
+ * (`AppliedResume`) onto the account's role, dated when it was taken.
  */
 /** @returns true when there was nothing to sync or every guest row landed. */
 export async function syncGuestPursuitsToServer(): Promise<boolean> {
     const guests = listGuestPursuits();
     if (guests.length === 0) return true;
     const results = await Promise.all(
-        guests.map((g) =>
-            g.job_id
+        guests.map(async (g) => {
+            const res = await (g.job_id
                 ? upsertPursuitForJob(
                       {
                           job_id: g.job_id,
@@ -64,8 +68,15 @@ export async function syncGuestPursuitsToServer(): Promise<boolean> {
                       status: g.status,
                       job_url: g.job_url,
                       note: g.note,
-                  }),
-        ),
+                  }));
+            // Best effort: a copy the account refuses (over the upload cap)
+            // must not hold every guest row in this browser for a retry.
+            const copy = g.applied_resume;
+            if (!res?.error && res?.data?.id && copy?.content) {
+                await keepGuestAppliedResumeAction(res.data.id, { saved_at: copy.saved_at, content: copy.content });
+            }
+            return res;
+        }),
     );
     // Server actions return {error} rather than throwing, so Promise.all never
     // rejects — clearing unconditionally here would delete the guest's pursuits

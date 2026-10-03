@@ -61,7 +61,7 @@ import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from 
 import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
-import { listGuestPursuits, addGuestPursuit } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, addGuestPursuit, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
@@ -5094,6 +5094,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // résumé: the visitor lands on the front door with nothing ranked.
     const removeGuestResume = () => {
         clearLocalAiResume();
+        removeGuestAppliedResumes();
         window.location.replace("/jobs");
     };
 
