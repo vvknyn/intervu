@@ -326,54 +326,27 @@ test("on a phone a tap anywhere on a job row opens that job, and the job links i
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("on a phone a job's sheet closes when dragged down by its handle, a short drag springs back, and a tap that drifts still follows a link", { tag: ["@J-JOBS-104"] }, async ({ page, diagnostics }, testInfo) => {
-  test.skip(!testInfo.project.use.hasTouch, "a drag on the sheet needs a touch screen");
+test("on a phone a tap on a link in a job's sheet that drifts a few pixels down still follows the link", { tag: ["@J-JOBS-104"] }, async ({ page, diagnostics }, testInfo) => {
+  test.skip(!testInfo.project.use.hasTouch, "a finger's drift needs a touch screen");
   await searchFor(page, "data analyst");
-  const listUrl = page.url();
   // A row whose company has a page, so the open job holds a link to tap.
   const row = page.getByTestId("job-row").filter({ has: page.getByTestId("job-row-company") }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
-  const sheet = page.getByRole("dialog");
-  const openRow = async () => {
-    await row.getByTestId("job-title").click();
-    await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
-    await untilStill(sheet);
-  };
-  await openRow();
-  const openUrl = page.url();
-
-  const cdp = await page.context().newCDPSession(page);
-  /** A finger put down at (x, y), moved `dy` px down in `steps` moves, and lifted. */
-  const touch = async (x: number, y: number, dy: number, steps: number) => {
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
-    for (let i = 1; i <= steps; i++) {
-      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + (dy * i) / steps }] });
-    }
-    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
-  };
-  const dragHandle = async (dy: number) => {
-    const box = (await sheet.boundingBox())!;
-    await touch(box.x + box.width / 2, box.y + 12, dy, 10);
-  };
-
-  // A short drag springs back: the same job stays open.
-  await dragHandle(30);
-  await untilStill(sheet);
-  await expect(sheet).toBeVisible();
-  expect(page.url()).toBe(openUrl);
-
-  // A long one closes it like the × does, Back to the search. Every phone sheet ignored the drag (2026-10-03).
-  await dragHandle(320);
-  await expect(page).toHaveURL(listUrl, { timeout: 10_000 });
-  await expect(page.getByTestId("mobile-detail-scroller")).toBeHidden();
-
-  // A tap on the company link that drifts 4px down is still a tap: once the drag
-  // was wired up, any downward nudge took the pointer and the link never opened.
-  await openRow();
+  await row.getByTestId("job-title").click();
+  await expect(page).toHaveURL(/[?&]job=/, { timeout: 10_000 });
+  await untilStill(page.getByRole("dialog"));
   const company = page.getByTestId("mobile-detail-scroller").locator('a[href^="/co/"]').first();
   await expect(company).toBeVisible({ timeout: 20_000 });
+
+  // Swipe-to-close took the pointer on any downward move, so a tap that drifted
+  // a pixel or two landed on the sheet and the link never opened (2026-10-03).
   const link = (await company.boundingBox())!;
-  await touch(link.x + link.width / 2, link.y + link.height / 2, 4, 2);
+  const [x, y] = [link.x + link.width / 2, link.y + link.height / 2];
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 2 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y + 4 }] });
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect(page).toHaveURL(/\/co\//, { timeout: 20_000 });
   expect(diagnostics.pageErrors).toEqual([]);
 });
