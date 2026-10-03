@@ -6,6 +6,7 @@ import {
   buildOtlpPayload,
   levelPasses,
   logServer,
+  requestErrorLevel,
   requestErrorRecord,
   resolveLogsConfig,
   scrubMessage,
@@ -87,6 +88,16 @@ test("request error record uses the route pattern, never the raw path, and no PI
   // A different case: a non-Error throw value is still recorded, not fabricated.
   const other = requestErrorRecord("plain string", { method: "GET" }, { routerKind: "App Router", routePath: "/jobs", routeType: "render" });
   assert.equal(other.attrs["error.type"], "string");
+});
+
+test("a render the visitor abandoned mid-stream logs under the warn floor; other request errors stay errors", () => {
+  // React's cancel reason when the response closes before the stream ends (journey runs navigating away, 2026-10-02).
+  assert.equal(requestErrorLevel(new Error("The destination stream closed early.")), "info");
+  assert.equal(levelPasses(requestErrorLevel(new Error("The destination stream closed early.")), "warn"), false);
+  assert.equal(requestErrorLevel(new Error("The destination stream errored while writing data.")), "error");
+  assert.equal(requestErrorLevel(new Error("Cannot read properties of undefined")), "error");
+  assert.equal(requestErrorLevel("plain string"), "error");
+  assert.equal(requestErrorLevel(undefined), "error");
 });
 
 test("logServer is a true no-op when unset: no fetch, no throw", () => {

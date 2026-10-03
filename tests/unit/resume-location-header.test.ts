@@ -111,3 +111,56 @@ describe("sanitizeLocation", () => {
         });
     }
 });
+
+/**
+ * Résumé PDF thread finding (2026-10-02): "Amara Okafor, RN" above
+ * "Hamilton, ON | email" parsed as the location "Amara Okafor, RN", because
+ * "RN" reads like a state code and the longest place won. The location drives
+ * ranking and the abroad picks.
+ */
+describe("a name line with credentials is never the location", () => {
+    const BODY_LINES = ["EXPERIENCE", "Registered Nurse | Hamilton Health | 2019 – Present", "- Cared for patients"];
+    const parse = (header: string[]) => structureResumeText([...header, ...BODY_LINES].join("\n")).profile;
+    const location = (header: string[]) => locationFromResumePlainText([...header, ...BODY_LINES].join("\n"));
+
+    it("RN after the name, place on the next line", () => {
+        const profile = parse(["Amara Okafor, RN", "Hamilton, ON | amara@example.com | (905) 555-0100"]);
+        assert.equal(profile.location, "Hamilton, ON");
+        assert.equal(profile.name, "Amara Okafor");
+    });
+
+    it("name, credentials and place on one contact row", () => {
+        assert.equal(location(["Amara Okafor, RN | Hamilton, ON | amara@example.com"]), "Hamilton, ON");
+    });
+
+    it("credentials and no place leave the location empty", () => {
+        assert.equal(location(["Priya Shah, PhD, MD", "priya@example.com"]), "");
+        assert.equal(location(["Amara Okafor, RN, BSN | amara@example.com"]), "");
+    });
+
+    it("a degree that is also a state code after an honorific", () => {
+        assert.equal(location(["Dr. Ana Lima, MD", "São Paulo, SP | ana@example.com"]), "São Paulo, SP");
+    });
+
+    it("a place whose country is known beats a longer one whose isn't", () => {
+        assert.equal(location(["Christopher Johnson, MD | chris@example.com", "Austin, TX"]), "Austin, TX");
+    });
+
+    it("credentials before a place on the name line", () => {
+        assert.equal(location(["Priya Shah, PhD, MD | Toronto, ON"]), "Toronto, ON");
+    });
+
+    it("a name before a dash keeps the place after it, and the name stops at the dash", () => {
+        const profile = parse(["Jane Doe — Calgary, Alberta", "jane@example.com"]);
+        assert.equal(profile.location, "Calgary, Alberta");
+        assert.equal(profile.name, "Jane Doe");
+    });
+
+    // A name in capitals isn't name-shaped, so a two-word place below it can be
+    // taken for the name line; its region code must still read as a place.
+    for (const place of ["San Francisco, CA", "Richmond Hill, Ontario", "Greater Noida, UP", "Kansas City, MO"]) {
+        it(`a name-shaped place stays the location: ${place}`, () => {
+            assert.equal(location(["JANE DOE", place, "jane@example.com"]), place);
+        });
+    }
+});

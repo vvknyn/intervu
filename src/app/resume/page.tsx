@@ -11,6 +11,7 @@ import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { ResumeImportModal } from "@/components/resume-builder/ResumeImportModal";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
 import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import Link from "next/link";
@@ -140,6 +141,7 @@ function ResumeContent() {
 
     const removeLocalResume = () => {
         clearLocalAiResume();
+        removeGuestAppliedResumes();
         setLocalResume(null);
         setConfirmingRemove(false);
     };

@@ -108,6 +108,7 @@ export function mergeModelIntoHeuristic(
     const raw: RawParsedResumeInput = {
         profile: mergedProfile,
         experience: heuristic.experience,
+        projects: heuristic.projects,
         competencies: heuristic.competencies,
         education: heuristic.education,
         generatedSummary: heuristic.generatedSummary,
@@ -164,6 +165,7 @@ export async function parseResumeLocally(
     let raw: RawParsedResumeInput = {
         profile: heuristicDraft.profile,
         experience: heuristicDraft.experience,
+        projects: heuristicDraft.projects,
         competencies: heuristicDraft.competencies,
         education: heuristicDraft.education,
         generatedSummary: heuristicDraft.generatedSummary,

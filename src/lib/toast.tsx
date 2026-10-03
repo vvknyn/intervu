@@ -22,11 +22,18 @@ import { CheckCircle, WarningCircle, Info, X } from "@phosphor-icons/react";
 
 type ToastVariant = "success" | "error" | "info";
 
+/** One button on a toast, such as "Try again". Pressing it also dismisses the toast. */
+export interface ToastAction {
+    label: string;
+    onClick: () => void;
+}
+
 interface ToastItem {
     id: number;
     message: string;
     variant: ToastVariant;
     duration: number;
+    action?: ToastAction;
 }
 
 export interface ConfirmOptions {
@@ -61,9 +68,9 @@ function subscribe(cb: () => void) {
     };
 }
 
-function pushToast(message: string, variant: ToastVariant, duration: number): number {
+function pushToast(message: string, variant: ToastVariant, duration: number, action?: ToastAction): number {
     const id = ++seq;
-    toastItems = [...toastItems, { id, message, variant, duration }];
+    toastItems = [...toastItems, { id, message, variant, duration, action }];
     emit();
     if (duration > 0 && typeof window !== "undefined") {
         window.setTimeout(() => dismissToast(id), duration);
@@ -79,7 +86,7 @@ function dismissToast(id: number) {
 /** Fire a non-blocking toast. */
 export const toast = {
     success: (message: string, duration = 3500) => pushToast(message, "success", duration),
-    error: (message: string, duration = 5000) => pushToast(message, "error", duration),
+    error: (message: string, duration = 5000, action?: ToastAction) => pushToast(message, "error", duration, action),
     info: (message: string, duration = 3500) => pushToast(message, "info", duration),
 };
 
@@ -155,6 +162,18 @@ export function Toaster() {
                         >
                             {meta.icon}
                             <span className="flex-1 leading-snug text-foreground">{t.message}</span>
+                            {t.action && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        dismissToast(t.id);
+                                        t.action?.onClick();
+                                    }}
+                                    className="designed-focus shrink-0 rounded-ctl font-medium text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:border-foreground"
+                                >
+                                    {t.action.label}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => dismissToast(t.id)}

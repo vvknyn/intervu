@@ -1,5 +1,8 @@
-import type { Page } from "@playwright/test";
+import type { Download, Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { extractText } from "unpdf";
 import { authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
+import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { actionObject, PRODUCTION_SIGN_IN_ACCOUNT, signInLikeProduction } from "./signed-in";
 
@@ -60,6 +63,42 @@ async function seed(page: Page, pursuits: ReturnType<typeof guestPursuit>[]) {
 }
 
 const HYDRATION = /hydrat|#418|#423|#425/i;
+
+/** A guest's résumé on this device (`velai.localAi.resume`), as the importer stores it. */
+const DEVICE_RESUME = {
+    profile: { name: "Ada Lovelace", profession: "Solutions Engineer", yearsOfExperience: 8, location: "Toronto, ON", email: "ada@example.com", phone: "(555) 010-2345" },
+    experience: [
+        {
+            id: "exp-1",
+            company: "Analytical Engines",
+            role: "Solutions Engineer",
+            dates: "Jan 2020 - Present",
+            description: "• Led technical discovery for 40 enterprise accounts\n• Built the demo every deal used",
+        },
+    ],
+    projects: [],
+    competencies: [{ category: "", skills: ["Technical discovery", "APIs", "SQL"] }],
+    education: [{ id: "edu-1", degree: "BSc Mathematics", institution: "University of London", year: "2015" }],
+    generatedSummary: "Solutions engineer who turns product depth into customer wins.",
+};
+
+async function seedDeviceResume(page: Page) {
+    await page.addInitScript(
+        ([key, data]) => {
+            if (sessionStorage.getItem("journey-resume-seeded")) return;
+            localStorage.setItem(key as string, JSON.stringify({ data, updatedAt: "2026-10-01T12:00:00.000Z" }));
+            sessionStorage.setItem("journey-resume-seeded", "1");
+        },
+        [LOCAL_AI_RESUME_KEY, DEVICE_RESUME] as const,
+    );
+}
+
+/** The downloaded PDF's text. */
+async function pdfText(download: Download) {
+    expect(download.suggestedFilename()).toMatch(/\.pdf$/);
+    const { text } = await extractText(new Uint8Array(readFileSync((await download.path())!)), { mergePages: true });
+    return text;
+}
 
 const statusRow = (page: Page) => page.getByRole("group", { name: "Status" });
 const statusButton = (page: Page, name: string) => statusRow(page).getByRole("button", { name, exact: true });
@@ -224,6 +263,8 @@ test("Applied on a saved role's page stamps the day and offers the interview dat
     await expectPressed(page, "Applied");
     await expect(page.getByTestId("pursuit-dates")).toContainText("Applied");
     await expect(page.getByLabel("Interview date")).toBeVisible();
+    // A visible label, not only an accessible name: the field was a bare date box (journey audit).
+    await expect(page.getByText("Interview date", { exact: true })).toBeVisible();
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -457,6 +498,42 @@ test("a guest's Open posting on a tracked role's page asks to sign in to apply, 
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
+test("marking a saved role Applied keeps the résumé on this device on it, to download or remove", { tag: ["@J-TRACKER-69"] }, async ({ page, diagnostics }) => {
+    await seedDeviceResume(page);
+    await seed(page, [guestPursuit("guest-journey-copy", "interested")]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/yours/guest-journey-copy");
+
+    await expectPressed(page, "Saved");
+    await expect(page.getByText("Resume used")).toHaveCount(0);
+    await statusButton(page, "Applied").click();
+    await expectPressed(page, "Applied");
+
+    // "Resume used" could only ever be filled by the MCP tools (journey audit 2026-09-30).
+    const copy = page.getByTestId("applied-resume");
+    await expect(copy).toContainText("Your résumé");
+    await expect(copy).toContainText("copied when you marked it Applied");
+    const [download] = await Promise.all([page.waitForEvent("download"), copy.getByRole("button", { name: "Download", exact: true }).click()]);
+    const text = await pdfText(download);
+    expect(text).toContain("Ada Lovelace");
+    expect(text).toContain("Analytical Engines");
+    expect(text).not.toContain("#");
+
+    // It stays on the role; Remove asks first and leaves the role Applied.
+    await page.reload();
+    await expect(page.getByTestId("applied-resume")).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Remove résumé" }).click();
+    await expect(page.getByText("Remove this copy from the role? Your résumé itself stays.")).toBeVisible();
+    await page.getByRole("button", { name: "Remove résumé" }).click();
+    await expect(page.getByText("Résumé removed from this role")).toBeVisible();
+    await expect(page.getByText("Resume used")).toHaveCount(0);
+    await expectPressed(page, "Applied");
+    await page.reload();
+    await expectPressed(page, "Applied");
+    await expect(page.getByText("Resume used")).toHaveCount(0);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test.describe("signed in the way production signs in", () => {
     // The tracker's writes branched on `getCurrentUser()`, which only the
     // dev-only sign-in hook answers; see `signInLikeProduction`.
@@ -552,6 +629,96 @@ test.describe("signed in the way production signs in", () => {
         await expect(page.getByTestId("pursuit-row")).toHaveCount(0);
         expect(writes).toEqual([{ id: "app-journey-sheet", patch: expect.objectContaining({ status: "rejected" }) }, { id: "app-journey-sheet" }]);
         await expect(page.getByText("Could not find this pursuit.")).toHaveCount(0);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+
+    // The account's list sends a role's résumé copy without its text; Download reads it.
+    const COPIED_AT = "2026-10-03T15:00:00.000Z";
+    const ACCOUNT_RESUME_TEXT = [
+        "Ada Lovelace",
+        "Toronto, ON | ada@example.com | (555) 010-2345",
+        "",
+        "EXPERIENCE",
+        "Solutions Engineer | Analytical Engines Jan 2020 - Present",
+        "• Led technical discovery for 40 enterprise accounts",
+    ].join("\n");
+
+    test("marking a role Applied in the board's sheet shows the résumé the account copied on, which downloads and comes off", { tag: ["@J-TRACKER-71"] }, async ({ page, diagnostics }) => {
+        const row: Record<string, unknown> = accountPursuit("app-journey-copy", "interested");
+        const calls: unknown[][] = [];
+        // Download and Remove each send just the role's id; the test says which is next.
+        let answerById: () => unknown = () => undefined;
+        await signInLikeProduction(page, (args) => {
+            if (args.length === 0) return { data: [row] };
+            if (args[0] !== row.id) return undefined;
+            calls.push(args);
+            if (args.length === 2) {
+                const patch = actionObject(args[1]);
+                Object.assign(row, patch);
+                // What the server does on the move into Applied: copy the résumé on file.
+                if (patch.status === "applied") row.applied_resume = { saved_at: COPIED_AT };
+                return { data: row };
+            }
+            return answerById();
+        });
+        await page.setViewportSize({ width: 1024, height: 768 });
+        await page.goto("/yours");
+
+        await page.getByTestId("pursuit-row").first().click();
+        const dialog = page.getByRole("dialog");
+        await expect(dialog).toBeVisible({ timeout: 10_000 });
+        await expect(dialog.getByRole("button", { name: "Download resume" })).toHaveCount(0);
+        await dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: "Applied", exact: true }).click();
+        await expect(page.getByText("Marked applied")).toBeVisible();
+        await expect(dialog.getByText("Your résumé")).toBeVisible({ timeout: 10_000 });
+
+        answerById = () => ({ data: { saved_at: COPIED_AT, content: ACCOUNT_RESUME_TEXT } });
+        const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Download resume" }).click()]);
+        expect(await pdfText(download)).toContain("Analytical Engines");
+
+        answerById = () => {
+            delete row.applied_resume;
+            return {};
+        };
+        await dialog.getByRole("button", { name: "Remove résumé" }).click();
+        await dialog.getByRole("button", { name: "Remove résumé" }).click();
+        await expect(page.getByText("Résumé removed from this role")).toBeVisible();
+        await expect(dialog.getByText("Your résumé")).toHaveCount(0);
+        await expect(dialog.getByRole("button", { name: "Download resume" })).toHaveCount(0);
+        expect(calls).toEqual([
+            [row.id, expect.objectContaining({ status: "applied" })],
+            [row.id],
+            [row.id],
+        ]);
+        expect(diagnostics.pageErrors).toEqual([]);
+    });
+
+    test("signing in carries a guest role's résumé copy onto the account's role, dated when it was taken", { tag: ["@J-TRACKER-72"] }, async ({ page, diagnostics }) => {
+        await seed(page, [guestPursuit("guest-journey-carry", "applied", { applied_resume: { saved_at: COPIED_AT, content: ACCOUNT_RESUME_TEXT } })]);
+        const rows: Record<string, unknown>[] = [];
+        const kept: unknown[] = [];
+        await signInLikeProduction(page, (args) => {
+            if (args.length === 0) return { data: rows };
+            const [first, second] = args;
+            // upsertPursuitForJob(job, stage): the guest role lands on the account.
+            if (first && typeof first === "object" && "job_id" in first && typeof second === "string") {
+                const created = accountPursuit("app-journey-carry", second as Status);
+                rows.push(created);
+                return { data: created };
+            }
+            // Then its copy follows it.
+            if (first === "app-journey-carry" && second && typeof second === "object") {
+                kept.push(actionObject(second));
+                return {};
+            }
+            return undefined;
+        });
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto("/yours");
+
+        await expect(page.getByText("Synced 1 guest role")).toBeVisible({ timeout: 15_000 });
+        expect(kept).toEqual([{ saved_at: COPIED_AT, content: ACCOUNT_RESUME_TEXT }]);
+        expect(await page.evaluate((key) => localStorage.getItem(key), GUEST_PURSUITS_KEY)).toBe("[]");
         expect(diagnostics.pageErrors).toEqual([]);
     });
 });

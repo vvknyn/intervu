@@ -37,59 +37,121 @@ import { invalidatePursuitsCache, usePursuits } from "@/lib/pursuits/use-pursuit
 import {
     nextAction,
     orderResumeVersionsLatestFirst,
+    type AppliedResume,
     type Pursuit,
     type PursuitStage,
     type ResumeVersionSnapshot,
 } from "@/lib/pursuits/types";
 import { pursuitDateFacts, trackerStatusLabel, trackerStatusPatch } from "@/lib/pursuits/tracker-display";
 import { downloadResumeVersion } from "@/lib/pursuits/download-resume";
+import { downloadAppliedResume, removeAppliedResumeFromRole } from "@/lib/pursuits/applied-resume-client";
+import { APPLIED_RESUME_LABEL } from "@/lib/pursuits/resume-on-apply";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
-/** Resume used row (spec: "label, saved date (mono), Download button").
- *  Only the MCP `save_resume_variant` tool files a version against a pursuit,
- *  so the card renders only when one exists: an empty "No resume version on
- *  file" card was all a web user ever saw (journey audit 2026-09-30). Lists
- *  every version, latest first, so re-filing a resume never hides earlier
- *  ones. */
-function ResumeUsedCard({ versions, pursuit }: { versions: ResumeVersionSnapshot[]; pursuit: Pursuit }) {
+const savedDay = (iso: string) =>
+    new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+
+/** The résumé copied onto the role when it was marked Applied: Download, and
+ *  Remove (asks first) for anyone who didn't want it kept. */
+function AppliedResumeRow({ pursuit, copy, onRemove }: { pursuit: Pursuit; copy: AppliedResume; onRemove: () => Promise<boolean> }) {
+    const [confirming, setConfirming] = useState(false);
+    const [removing, setRemoving] = useState(false);
+    const remove = async () => {
+        setRemoving(true);
+        try {
+            if (await onRemove()) setConfirming(false);
+        } finally {
+            setRemoving(false);
+        }
+    };
+    return (
+        <div data-testid="applied-resume" className="space-y-2.5 py-2.5 first:pt-0 last:pb-0">
+            <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="truncate text-sm text-foreground">{APPLIED_RESUME_LABEL}</p>
+                    <p className="text-xs text-muted-foreground">
+                        {savedDay(copy.saved_at)} · copied when you marked it Applied
+                    </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                    <Button variant="ghost" size="sm" onClick={() => void downloadAppliedResume(pursuit)}>
+                        Download
+                    </Button>
+                    {!confirming && (
+                        <button
+                            type="button"
+                            onClick={() => setConfirming(true)}
+                            className="text-xs text-muted-foreground underline underline-offset-2 hover:text-destructive"
+                        >
+                            Remove résumé
+                        </button>
+                    )}
+                </div>
+            </div>
+            {confirming && (
+                <InlineConfirm
+                    prompt="Remove this copy from the role? Your résumé itself stays."
+                    confirmLabel="Remove résumé"
+                    busyLabel="Removing…"
+                    busy={removing}
+                    onConfirm={() => void remove()}
+                    onCancel={() => setConfirming(false)}
+                />
+            )}
+        </div>
+    );
+}
+
+/** Resume used (spec: "label, saved date (mono), Download button"): the
+ *  résumé copied onto the role when it was marked Applied, and every version
+ *  filed for it by an agent, latest first, so re-filing never hides earlier
+ *  ones. Renders only with one: an empty "No resume version on file" card was
+ *  all a web user ever saw (journey audit 2026-09-30). */
+function ResumeUsedCard({
+    versions,
+    pursuit,
+    onRemoveApplied,
+}: {
+    versions: ResumeVersionSnapshot[];
+    pursuit: Pursuit;
+    onRemoveApplied: () => Promise<boolean>;
+}) {
+    const applied = pursuit.applied_resume;
+    // The copy sits among the filed versions by date.
+    const appliedAt = applied ? versions.findIndex((v) => Date.parse(v.saved_at) < Date.parse(applied.saved_at)) : -1;
+    const appliedIndex = appliedAt === -1 ? versions.length : appliedAt;
+    const rows = versions.map((version, i) => (
+        <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+            <div className="min-w-0">
+                <p className="truncate text-sm text-foreground">{version.label}</p>
+                <p className="text-xs text-muted-foreground">{savedDay(version.saved_at)}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
+                >
+                    Download
+                </Button>
+                {/* .md stays available as a secondary, portable format
+                    (R4/R5) — PDF is the default per the user report. */}
+                <button
+                    type="button"
+                    onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
+                    className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                >
+                    .md
+                </button>
+            </div>
+        </div>
+    ));
+    if (applied) rows.splice(appliedIndex, 0, <AppliedResumeRow key="applied" pursuit={pursuit} copy={applied} onRemove={onRemoveApplied} />);
     return (
         <div className="rounded-panel border border-border bg-surface p-6 shadow-[var(--shadow-bevel-highlight)]">
             <div className="mb-3 text-xs text-muted-foreground">Resume used</div>
-            <div className="divide-y divide-border">
-                {versions.map((version, i) => (
-                    <div key={`${version.saved_at}-${i}`} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                        <div className="min-w-0">
-                            <p className="truncate text-sm text-foreground">{version.label}</p>
-                            <p className="text-xs text-muted-foreground">
-                                {new Date(version.saved_at).toLocaleDateString(undefined, {
-                                    year: "numeric",
-                                    month: "short",
-                                    day: "numeric",
-                                })}
-                            </p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position })}
-                            >
-                                Download
-                            </Button>
-                            {/* .md stays available as a secondary, portable format
-                                (R4/R5) — PDF is the default per the user report. */}
-                            <button
-                                type="button"
-                                onClick={() => void downloadResumeVersion(version, { company_name: pursuit.company_name, position: pursuit.position }, "md")}
-                                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                            >
-                                .md
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <div className="divide-y divide-border">{rows}</div>
         </div>
     );
 }
@@ -540,7 +602,9 @@ export default function PursuitDetailPage() {
                 {action.kind === "tailor" && <McpHandoffNote />}
                 {action.kind === "prep" && <McpHandoffNote variant="prep" />}
 
-                {resumeVersions.length > 0 && <ResumeUsedCard versions={resumeVersions} pursuit={pursuit} />}
+                {(resumeVersions.length > 0 || pursuit.applied_resume) && (
+                    <ResumeUsedCard versions={resumeVersions} pursuit={pursuit} onRemoveApplied={() => removeAppliedResumeFromRole(id)} />
+                )}
 
                 {descriptionBlocks.length > 0 && (
                     <section
