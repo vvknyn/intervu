@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
@@ -29,6 +29,13 @@ export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingR
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ error?: string; success?: true } | null>(null);
+  // A new id per answer: a repeat of the same refusal re-reveals, and every
+  // refusal is scrolled into view, so it is never left below the fold.
+  const [answerId, setAnswerId] = useState(0);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (answerId) errorRef.current?.scrollIntoView({ block: "nearest" });
+  }, [answerId]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -36,6 +43,7 @@ export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingR
     startTransition(async () => {
       const res = await reserveFoundingSeat({ email, turnstileToken: turnstileToken ?? undefined });
       setResult(res);
+      setAnswerId((id) => id + 1);
       if (res.success) captureEvent("founding_seat_reserved", { signed_in: signedIn });
       else setTurnstileResetKey((key) => key + 1);
     });
@@ -68,12 +76,19 @@ export function FoundingReserveForm({ email: initialEmail, signedIn }: FoundingR
       <Button type="submit" data-testid="pricing-founding-cta" className="mt-2 w-full" disabled={pending}>
         {pending ? "Reserving…" : "Reserve a founding seat"}
       </Button>
-      <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
+      {/* Under the button, above the security check: where the eye already is. */}
       {outcome?.kind === "error" ? (
-        <p data-testid="pricing-founding-error" className="mt-2 text-sm text-destructive">
+        <p
+          key={answerId}
+          ref={errorRef}
+          role="alert"
+          data-testid="pricing-founding-error"
+          className="enter-reveal mt-2 text-sm text-destructive"
+        >
           {outcome.message}
         </p>
       ) : null}
+      <TurnstileWidget surface="waitlist" onVerify={setTurnstileToken} resetKey={turnstileResetKey} />
     </form>
   );
 }
