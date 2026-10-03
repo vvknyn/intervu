@@ -481,6 +481,52 @@ test("a role with no résumé filed shows no empty résumé card or dead Downloa
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
+test("a résumé the person's agent filed in markdown downloads as a formatted PDF, not with its # and ** marks", { tag: ["@J-TRACKER-73"] }, async ({ page, diagnostics }) => {
+    // The shape an agent files through the MCP tools (and resumeDataToZipMarkdown writes).
+    const content = [
+        "# Ada Lovelace",
+        "London, UK | ada@example.com | [LinkedIn](https://linkedin.com/in/ada-lovelace)",
+        "",
+        "## Professional Summary",
+        "",
+        "Analyst of **computing engines** and their programs.",
+        "",
+        "## Core Competencies",
+        "",
+        "**Mathematics:** Analysis, Bernoulli numbers",
+        "",
+        "## Professional Experience",
+        "",
+        "### Analyst | Analytical Engines",
+        "Jan 1842 - Present",
+        "",
+        "- Wrote the first published program for the *Analytical Engine*",
+        "",
+        "### Translator | Scientific Memoirs",
+        "Jan 1840 - Dec 1842",
+        "",
+        "- Translated and annotated Menabrea's paper",
+    ].join("\n");
+    const filed = { content, label: "Tailored for 1Password", saved_at: "2026-10-03T12:00:00.000Z" };
+    await seed(page, [guestPursuit("guest-journey-resume-markdown", "applied", { position: "Staff Engineer", resume_versions: [filed] })]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/yours/guest-journey-resume-markdown");
+    await expect(page.getByText("Resume used")).toBeVisible({ timeout: 15_000 });
+
+    const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Download", exact: true }).click()]);
+    const text = (await pdfText(download)).replace(/\s+/g, " ");
+    // It printed "# Ada Lovelace", "## Professional Summary" and "**Mathematics:**".
+    expect(text).toContain("Ada Lovelace");
+    expect(text).toContain("Professional Summary");
+    expect(text).toContain("Analyst of computing engines and their programs.");
+    expect(text).toContain("Mathematics: Analysis, Bernoulli numbers");
+    expect(text).toContain("linkedin.com/in/ada-lovelace");
+    expect(text).not.toMatch(/#|\*\*|\]\(/);
+    // The second role's header is its own entry, not the end of the first role's bullet.
+    expect(text).not.toMatch(/Analytical Engine Translator/);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("a guest's Open posting on a tracked role's page asks to sign in to apply, and opens no employer tab", { tag: ["@J-TRACKER-61"] }, async ({ page, diagnostics }) => {
     // A role tracked by hand: a posting link but no Velai job, so the page offers Open posting.
     await seed(page, [guestPursuit("guest-journey-open-posting", "applied", { job_id: null, job_snapshot: null })]);
