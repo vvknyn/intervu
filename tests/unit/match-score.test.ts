@@ -9,7 +9,11 @@ import {
     MATCH_CHIP_BRAND_THRESHOLD,
     matchBand,
     matchBandLabel,
+    matchLabel,
+    compareFit,
+    outsideLabel,
 } from '../../src/lib/match/score';
+import { explainMatch } from '../../src/lib/match/explain';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { JOB_LIST_ATTRIBUTES_TO_RETRIEVE } from '../../src/lib/jobs/meilisearch';
 import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
@@ -17,6 +21,7 @@ import { stripHtmlLikeIngest } from '../fixtures/job-descriptions/ingest-strip';
 import { EXPEL_TAM_HTML } from '../fixtures/job-descriptions/postings';
 import type { ResumeData } from '../../src/types/resume';
 import type { PublicJob } from '../../src/lib/jobs/types';
+import type { AgentPreferences } from '../../src/lib/agent/preferences';
 
 // Minimal ResumeData factory — mirrors resume-match.test.ts's `mk` so the two
 // suites stay consistent about what a "parse" looks like.
@@ -583,9 +588,131 @@ describe('a role scores the same on its page as in a list', () => {
         // Remote, no country in its title, place or description, paid in USD (Vivek, 2026-10-03, in Canada: "this is a US job").
         const resume = fixture('vivek-tam-resume');
         const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
-        assert.equal(matchBand(inCanada.total), 'good');
+        assert.equal(matchLabel(inCanada), 'Outside Canada');
+        assert.equal(matchBand(inCanada.total), 'stretch');
+        assert.equal(matchBand(inCanada.outside!.total), 'good');
         assert.equal(inCanada.components.find((c) => c.key === 'location')!.reason, 'remote_pay_abroad');
+        assert.equal(
+            explainMatch(inCanada).split('. ')[0],
+            "It's remote with no country listed, but it pays in USD, so it's likely for people in the United States, outside Canada, where your résumé places you",
+        );
         const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
         assert.equal(matchBand(scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!.total), 'strong');
+    });
+});
+
+/**
+ * A role outside every country the candidate can work in reads the same way on every surface, for
+ * any country: its label names where they are ("Outside Canada"), never a fit word, and it ranks
+ * after the roles they can take. A fit word on such a role read as a fit: Island's "Technical
+ * Account Manager - U.S. Federal" said Good to a résumé in Toronto (Vivek, 2026-10-03).
+ */
+describe('a role outside where the candidate can work', () => {
+    const fixture = (name: string) =>
+        resumeDataFromPlainText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8'));
+    const livingIn = (resume: ResumeData, location: string): ResumeData => ({ ...resume, profile: { ...resume.profile, location } });
+    const prefs = (search: AgentPreferences['search'], answers: Partial<AgentPreferences['answers']> = {}): AgentPreferences => ({
+        configured: true,
+        search,
+        answers: { custom: {}, ...answers },
+    });
+    const FIT_WORDS = ['Strong', 'Good', 'Stretch'];
+    const homes: Array<{ place: string; country: string; label: string }> = [
+        { place: 'Toronto, Ontario, Canada', country: 'Canada', label: 'Outside Canada' },
+        { place: 'Austin, Texas, United States', country: 'United States', label: 'Outside US' },
+        { place: 'Manchester, United Kingdom', country: 'United Kingdom', label: 'Outside UK' },
+        { place: 'Bengaluru, India', country: 'India', label: 'Outside India' },
+        { place: 'Berlin, Germany', country: 'Germany', label: 'Outside Germany' },
+        { place: 'Sydney, Australia', country: 'Australia', label: 'Outside Australia' },
+        { place: 'São Paulo, Brazil', country: 'Brazil', label: 'Outside Brazil' },
+    ];
+    const roles: Array<{ resume: string; title: string; level: string }> = [
+        { resume: 'vivek-tam-resume', title: 'Technical Account Manager', level: 'senior' },
+        { resume: 'health-rn-resume', title: 'Registered Nurse', level: 'mid' },
+        { resume: 'sample-resume', title: 'Senior Software Engineer', level: 'senior' },
+    ];
+
+    for (const role of roles) {
+        it(`${role.resume}: a ${role.title} role in another country names it, in every country, on site or remote`, () => {
+            for (const home of homes) {
+                const resume = livingIn(fixture(role.resume), home.place);
+                const signals = resolveCandidateSignals(resume);
+                for (const there of homes) {
+                    for (const workType of ['onsite', 'remote']) {
+                        const job = mkJob({ title: role.title, experience_level: role.level, work_type: workType, location_country: there.country });
+                        const score = scoreJobAgainstResume(resume, job, signals)!;
+                        const at = `${home.country} résumé, ${workType} role in ${there.country}`;
+                        assert.ok(score, at);
+                        if (there.country === home.country) {
+                            assert.equal(score.outside, undefined, at);
+                            assert.ok(FIT_WORDS.includes(matchLabel(score)), at);
+                            continue;
+                        }
+                        assert.equal(matchLabel(score), home.label, at);
+                        assert.ok(score.total < MATCH_BAND_GOOD_MIN, at);
+                        assert.deepEqual(score.outside!.home, [home.country], at);
+                        assert.equal(score.outside!.where, there.country, at);
+                        assert.match(explainMatch(score), new RegExp(`outside (the )?${home.country}, where your résumé places you`), at);
+                    }
+                }
+            }
+        });
+    }
+
+    it("Island's U.S. Federal TAM role reads Outside Canada for a résumé in Toronto, and a fit word in Austin", () => {
+        const island = mkJob({ title: 'Technical Account Manager - U.S. Federal', company: 'Island', location: 'Remote', work_type: 'remote', experience_level: 'senior' });
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
+        const score = scoreJobAgainstResume(resume, island, resolveCandidateSignals(resume))!;
+        assert.equal(matchLabel(score), 'Outside Canada');
+        assert.equal(
+            explainMatch(score),
+            "It's remote but based in the United States, outside Canada, where your résumé places you. " +
+                "It's your own role: the title matches Technical Account Manager on your résumé. " +
+                'If you can work there, add it under Relocation in Settings to see how well it fits.',
+        );
+        const inAustin = livingIn(resume, 'Austin, Texas, United States');
+        const there = scoreJobAgainstResume(inAustin, island, resolveCandidateSignals(inAustin))!;
+        assert.equal(there.outside, undefined);
+        assert.ok(FIT_WORDS.includes(matchLabel(there)));
+    });
+
+    it('a country they said they would move to, or Settings placing them there, gives the role a fit word again', () => {
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
+        const job = mkJob({ title: 'Technical Account Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'United States' });
+        const moving = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs({}, { relocation: 'Open to relocating to the US' })))!;
+        assert.equal(moving.outside, undefined);
+        assert.equal(matchLabel(moving), 'Strong');
+        const anywhere = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs({}, { relocation: 'yes, anywhere' })))!;
+        assert.equal(anywhere.outside, undefined);
+        const settingsInUs = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs({ location: 'Seattle, WA' })))!;
+        assert.equal(settingsInUs.outside, undefined);
+    });
+
+    it('says what the country was read from: Settings over the résumé', () => {
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Austin, Texas, United States');
+        const job = mkJob({ title: 'Technical Account Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'United States' });
+        const score = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs({ location: 'Vancouver, BC' })))!;
+        assert.equal(matchLabel(score), 'Outside Canada');
+        assert.equal(score.outside!.from, 'settings');
+        assert.match(explainMatch(score), /outside Canada, where your Settings place you\./);
+    });
+
+    it('ranks after every role they can take, in the same order among its own kind', () => {
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
+        const signals = resolveCandidateSignals(resume);
+        const ownAbroad = scoreJobAgainstResume(resume, mkJob({ title: 'Technical Account Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'United States' }), signals)!;
+        const familyHome = scoreJobAgainstResume(resume, mkJob({ title: 'Customer Success Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'Canada' }), signals)!;
+        assert.equal(ownAbroad.role, 'own');
+        assert.equal(familyHome.outside, undefined);
+        assert.ok(compareFit(familyHome, ownAbroad) < 0);
+        assert.ok(compareFit(ownAbroad, null) < 0, 'an unscored role still sorts last');
+    });
+
+    it('shortens long country names, and reads "Abroad" for several countries or a name too long for a chip', () => {
+        assert.equal(outsideLabel(['United States']), 'Outside US');
+        assert.equal(outsideLabel(['United Arab Emirates']), 'Outside UAE');
+        assert.equal(outsideLabel(['Netherlands']), 'Outside Netherlands');
+        assert.equal(outsideLabel(['Canada', 'United States']), 'Abroad');
+        assert.equal(outsideLabel(['Bosnia and Herzegovina']), 'Abroad');
     });
 });

@@ -75,6 +75,8 @@ export interface MatchComponent {
     reason?: MatchReason;
     /** Relevance only: how many of the posting's terms the résumé has, of how many. */
     terms?: { matched: number; of: number };
+    /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
+    place?: { where: string; currency?: string };
 }
 
 /** The verdict behind a seniority or location component's `detail`. */
@@ -106,6 +108,28 @@ export interface MatchScore {
     yourRole?: string | null;
     /** Which of the résumé's role families the title belongs to, strongest first (`familyRank`). */
     familyRank?: number;
+    /** Set when the role is outside every country the candidate can work in (`MatchOutside`). */
+    outside?: MatchOutside;
+}
+
+/**
+ * A role outside every country the candidate can work in: theirs, or one they
+ * said they'd move to (`OUTSIDE_REASONS`). Its label names that
+ * (`matchLabel`: "Outside Canada") instead of a fit word, on every surface,
+ * and its total sits under Good, so lists rank it after the roles they can
+ * take, counts never call it a fit and Today leaves it out.
+ */
+export interface MatchOutside {
+    /** The candidate's countries. */
+    home: string[];
+    /** Where the role is, as named: "United States", "Europe". */
+    where: string;
+    /** The pay's currency, when only the pay says where (`remote_pay_abroad`). */
+    currency?: string;
+    /** Where the candidate's country was read: their Settings, or their résumé. */
+    from: "settings" | "resume";
+    /** The total before the cap under Good, for a reader that checks whether the place still holds (Today's `placeCheckIds`). */
+    total: number;
 }
 
 /**
@@ -150,6 +174,36 @@ export function matchBandLabel(band: MatchBand): "Stretch" | "Good" | "Strong" {
     if (band === "strong") return "Strong";
     if (band === "good") return "Good";
     return "Stretch";
+}
+
+/** Location verdicts that put a role outside every country the candidate can work in. */
+export const OUTSIDE_REASONS: ReadonlySet<MatchReason> = new Set(["abroad", "remote_abroad", "remote_pay_abroad"]);
+
+/** Country names a chip shortens. */
+const SHORT_COUNTRY: Readonly<Record<string, string>> = {
+    "United States": "US",
+    "United Kingdom": "UK",
+    "United Arab Emirates": "UAE",
+};
+
+/** Longer country names, and more than one country, read "Abroad" so the label fits where a fit word does. */
+const OUTSIDE_LABEL_MAX_NAME = 14;
+
+/** "Outside Canada", "Outside US"; "Abroad" for a candidate with several countries or a long name. */
+export function outsideLabel(home: readonly string[]): string {
+    const name = home.length === 1 ? (SHORT_COUNTRY[home[0]!] ?? home[0]!) : null;
+    return name && name.length <= OUTSIDE_LABEL_MAX_NAME ? `Outside ${name}` : "Abroad";
+}
+
+/**
+ * The label a role shows the candidate, the same on every surface: Strong,
+ * Good or Stretch for how well it fits, or where it is when it's outside
+ * every country they can work in. A fit word on a role they can't take read
+ * as a fit: Island's "Technical Account Manager - U.S. Federal" said Good to
+ * a résumé in Toronto (2026-10-03).
+ */
+export function matchLabel(score: MatchScore): string {
+    return score.outside ? outsideLabel(score.outside.home) : matchBandLabel(matchBand(score.total));
 }
 
 /**
@@ -237,13 +291,20 @@ function isRemoteWorkType(workType: string | null | undefined): boolean {
     return /remote/i.test(workType ?? "");
 }
 
-const locationComponent = (reason: MatchReason, detail: string, score: number, unknown?: boolean): MatchComponent => ({
+const locationComponent = (
+    reason: MatchReason,
+    detail: string,
+    score: number,
+    unknown?: boolean,
+    place?: MatchComponent["place"],
+): MatchComponent => ({
     key: "location",
     label: "Location",
     detail,
     score,
     reason,
     ...(unknown ? { unknown } : {}),
+    ...(place ? { place } : {}),
 });
 
 /**
@@ -283,6 +344,8 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
                 "remote_pay_abroad",
                 `remote with no country listed, paid in ${pay.currency} — likely for people in ${pay.label}`,
                 0.65,
+                false,
+                { where: pay.label, currency: pay.currency },
             );
         }
         return wantsRemote
@@ -312,9 +375,10 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
     if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => jobList.includes(c)))) {
         return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
     }
+    const where = jobPlace ?? jobList.join(", ");
     return remote
-        ? locationComponent("remote_abroad", `remote — based in ${jobPlace ?? jobList.join(", ")}`, 0.65)
-        : locationComponent("abroad", "different country", 0.35);
+        ? locationComponent("remote_abroad", `remote — based in ${where}`, 0.65, false, { where })
+        : locationComponent("abroad", `different country — ${where}`, 0.35, false, { where });
 }
 
 /**
@@ -487,16 +551,21 @@ const ROLE_TIERS: readonly RoleAffinity[] = ["own", "family", "adjacent", "unver
 /** After every scored posting, whatever its family rank. */
 const UNSCORED_TIER = 10_000;
 
+/** A role outside the candidate's countries (`MatchOutside`) ranks after every role they can take, in the same order among its own kind. */
+const OUTSIDE_TIER = 1_000;
+
 /**
  * Sort key for a ranked list, before the band and the score: the résumé's
  * leading family first (`familyRank`), and inside a family the candidate's own
- * role, then the same kind of role, then neighbours, then the rest. A score
- * without a role (built before roles were scored) sits with the neighbours; no
- * score at all sorts last.
+ * role, then the same kind of role, then neighbours, then the rest. A role
+ * outside the candidate's countries comes after all of those, in the same
+ * order. A score without a role (built before roles were scored) sits with the
+ * neighbours; no score at all sorts last.
  */
 export function roleTier(score: MatchScore | null | undefined): number {
     if (!score) return UNSCORED_TIER;
-    return (score.familyRank ?? 0) * ROLE_TIERS.length + ROLE_TIERS.indexOf(score.role ?? "adjacent");
+    const tier = (score.familyRank ?? 0) * ROLE_TIERS.length + ROLE_TIERS.indexOf(score.role ?? "adjacent");
+    return score.outside ? OUTSIDE_TIER + tier : tier;
 }
 
 /** Ranked-list order: role tier, then the higher total. Stable sorts keep the incoming order on a tie. */
@@ -524,7 +593,9 @@ export function roleOffTarget(resume: ResumeData, job: PublicJob): boolean {
  * never derived, for a candidate whose level is known — `levelUnverified` —
  * and a job whose title can't be tied to the résumé's target role —
  * `roleFit` "unverified"). A job for a different kind of role than the
- * résumé targets (`roleFit` "off-target") is capped under Good.
+ * résumé targets (`roleFit` "off-target") is capped under Good, and so is one
+ * outside every country the candidate can work in, which also carries
+ * `outside` so its label says so (`matchLabel`).
  *
  * `signals` defaults to the résumé-only resolution; callers that hold the
  * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
@@ -548,12 +619,26 @@ export function scoreJobAgainstResume(
     const components = [relevance, scoreSeniority(signals, job), scoreLocation(signals, job)];
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
-    const locationUnknown = components.some((c) => c.key === "location" && c.unknown);
-    const abroad = components.some((c) => c.reason === "abroad" || c.reason === "remote_abroad" || c.reason === "remote_pay_abroad");
+    const location = components[2]!;
+    const abroad = location.reason != null && OUTSIDE_REASONS.has(location.reason);
 
     const rank = familyRank(resume, job, role);
-    if (offTarget) return { total: Math.min(total, MATCH_BAND_GOOD_MIN - 1), components, role, yourRole, familyRank: rank };
-    const capped =
-        locationUnknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent";
-    return { total: capped ? Math.min(total, MATCH_BAND_STRONG_MIN - 1) : total, components, role, yourRole, familyRank: rank };
+    const capped = offTarget
+        ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
+        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
+          ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
+          : total;
+    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank };
+    if (!abroad || !location.place) return score;
+    return {
+        ...score,
+        total: Math.min(capped, MATCH_BAND_GOOD_MIN - 1),
+        outside: {
+            home: candidateCountries(signals),
+            where: location.place.where,
+            ...(location.place.currency ? { currency: location.place.currency } : {}),
+            from: signals.location.source === "explicit" ? "settings" : "resume",
+            total: capped,
+        },
+    };
 }

@@ -13,7 +13,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
-import { compareFit, matchBand, type MatchScore } from "@/lib/match/score";
+import { compareFit, matchBand, OUTSIDE_REASONS, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -107,11 +107,11 @@ export type TodayRole = { job: PublicJob; score: MatchScore };
 export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad";
 
 export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
+    // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
+    if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
     if (matchBand(score.total) === "stretch") return "stretch";
     if (score.role !== "own" && score.role !== "family") return "other-role";
-    const reasons = new Set(score.components.map((c) => c.reason));
-    if (reasons.has("level_below_ask")) return "level";
-    if (reasons.has("abroad") || reasons.has("remote_abroad") || reasons.has("remote_pay_abroad")) return "abroad";
+    if (score.components.some((c) => c.reason === "level_below_ask")) return "level";
     return null;
 }
 
@@ -153,17 +153,19 @@ export function pickToday(
  * anywhere. At most `max`.
  */
 export function placeCheckIds(roles: TodayRole[], max: number): string[] {
-    const payUnread = roles.map((role) =>
-        role.score.components.some((c) => c.reason === "remote_pay_abroad")
-            ? {
-                  ...role,
-                  score: {
-                      ...role.score,
-                      components: role.score.components.map((c) => (c.reason === "remote_pay_abroad" ? { ...c, reason: "remote_anywhere" as const } : c)),
-                  },
-              }
-            : role,
-    );
+    const payUnread = roles.map((role) => {
+        if (!role.score.components.some((c) => c.reason === "remote_pay_abroad")) return role;
+        // As it would score if the pay said nothing: its total from before the cap for being outside.
+        const { outside, ...score } = role.score;
+        return {
+            ...role,
+            score: {
+                ...score,
+                total: outside?.total ?? score.total,
+                components: score.components.map((c) => (c.reason === "remote_pay_abroad" ? { ...c, reason: "remote_anywhere" as const } : c)),
+            },
+        };
+    });
     return pickToday(payUnread, { skipped: new Set(), tracked: new Set() })
         .filter(({ job }) => needsPlaceCheck(job))
         .slice(0, max)

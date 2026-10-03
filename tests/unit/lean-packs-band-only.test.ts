@@ -25,6 +25,7 @@ describe("lean packs surfaces — band only, no Canada claims in hub mock", () =
         const src = readFileSync(PACK, "utf8");
         assert.doesNotMatch(src, /import.*MatchChip|<MatchChip/);
         assert.match(src, /function FitReadout/);
-        assert.match(src, /matchBandLabel/);
+        // `matchLabel`: the band word, or "Outside Canada" for a role outside where the candidate can work.
+        assert.match(src, /matchLabel\(/);
     });
 });

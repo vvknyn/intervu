@@ -6,7 +6,15 @@
  *
  * Pure, no I/O — same isomorphic convention as score.ts.
  */
-import { MATCH_BAND_STRONG_MIN, matchBand, matchBandLabel, type MatchComponent, type MatchReason, type MatchScore } from "@/lib/match/score";
+import {
+    MATCH_BAND_STRONG_MIN,
+    matchBand,
+    matchBandLabel,
+    type MatchComponent,
+    type MatchOutside,
+    type MatchReason,
+    type MatchScore,
+} from "@/lib/match/score";
 
 /** Seniority verdicts as a clause: "its level fits your experience". */
 const LEVEL: Partial<Record<MatchReason, string>> = {
@@ -49,16 +57,47 @@ function component(score: MatchScore, key: MatchComponent["key"]): MatchComponen
     return score.components.find((c) => c.key === key);
 }
 
+/** "the United States", "the Netherlands"; other places as they are. */
+function placeName(place: string): string {
+    return /^(united|netherlands|philippines)\b/i.test(place) ? `the ${place}` : place;
+}
+
 /** "remote — based in Europe" names where; say it rather than "another country". */
 function placeText(score: MatchScore, reason: MatchReason): string | null {
     const detail = component(score, "location")?.detail ?? "";
     if (reason === "remote_pay_abroad") {
         const paid = detail.match(/paid in (\S+) — likely for people in (.+)$/);
-        return paid ? `it's remote with no country listed, but it pays in ${paid[1]}, so it's likely for people in ${paid[2]}` : null;
+        return paid ? `it's remote with no country listed, but it pays in ${paid[1]}, so it's likely for people in ${placeName(paid[2]!)}` : null;
     }
     if (reason !== "remote_abroad") return null;
     const where = detail.match(/based in (.+)$/)?.[1];
-    return where ? `it's remote but based in ${/^(united|netherlands|philippines)\b/i.test(where) ? "the " : ""}${where}` : null;
+    return where ? `it's remote but based in ${placeName(where)}` : null;
+}
+
+function listed(items: string[]): string {
+    return items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : (items[0] ?? "");
+}
+
+/**
+ * A role outside every country the candidate can work in: where it is, where
+ * they are and what that was read from, and how to count it if they can work
+ * there. No fit clauses: its label names the place, not a fit.
+ */
+function outsideExplanation(score: MatchScore, outside: MatchOutside): string {
+    const reason = component(score, "location")?.reason;
+    const where = placeName(outside.where);
+    const home = `outside ${listed(outside.home.map(placeName))}, where your ${outside.from === "settings" ? "Settings place" : "résumé places"} you`;
+    const place =
+        reason === "remote_pay_abroad" && outside.currency
+            ? `It's remote with no country listed, but it pays in ${outside.currency}, so it's likely for people in ${where}, ${home}.`
+            : reason === "remote_abroad"
+              ? `It's remote but based in ${where}, ${home}.`
+              : `It's in ${where}, ${home}.`;
+    // Only what the role is to them; the other role sentences say which fit word it is capped at.
+    const role = score.role === "own" || score.role === "family" ? roleSentence(score) : null;
+    return [place, role, "If you can work there, add it under Relocation in Settings to see how well it fits."]
+        .filter(Boolean)
+        .join(" ");
 }
 
 function roleSentence(score: MatchScore): string | null {
@@ -102,9 +141,11 @@ const sentence = (clauses: string[]): string => {
 
 /**
  * One short paragraph: how the title relates to the candidate's own role, what
- * supports the label, and — when it is below Strong — what holds it there.
+ * supports the label, and — when it is below Strong — what holds it there. A
+ * role outside the candidate's countries says where it is instead.
  */
 export function explainMatch(score: MatchScore): string {
+    if (score.outside) return outsideExplanation(score, score.outside);
     const level = component(score, "seniority")?.reason;
     const place = component(score, "location")?.reason;
     const clauses = [level, place]
