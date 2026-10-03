@@ -22,7 +22,7 @@ import {
 } from "@/lib/jobs/related-jobs";
 import { relatedCountryIso2 } from "@/lib/jobs/related-country";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
-import { resolveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
+import { resolveCorpusCount, resolveLiveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
   fetchAllHubPackCorpusCounts,
   type HubPackCorpusCounts,
@@ -487,7 +487,8 @@ const getCachedBoardCountNew = unstable_cache(
       { postedSinceMs: Date.parse(bucketedCursorIso), places, limit: 1, withFacets: false },
       {},
     );
-    return resolveCorpusCount(result);
+    // Throws on an outage, so a failed search isn't cached as "0 new roles".
+    return resolveLiveCorpusCount(result);
   },
   ["jobs-count-new-board"],
   { revalidate: 900 },
@@ -553,7 +554,8 @@ const getCachedFrontDoorWeekCount = unstable_cache(
       { postedBucket: "7d", hideGhosts: true, places, limit: 1, withFacets: false },
       {},
     );
-    return resolveCorpusCount(result);
+    // Throws on an outage, so a failed search isn't cached as a zero week.
+    return resolveLiveCorpusCount(result);
   },
   ["jobs-front-door-week-count"],
   { revalidate: 900 },

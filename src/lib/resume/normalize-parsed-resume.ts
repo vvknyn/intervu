@@ -26,9 +26,18 @@ export interface RawParsedResumeInput {
         email?: string;
         phone?: string;
         linkedin?: string;
+        website?: string;
         unconfirmedPlaces?: string[];
     };
     experience?: Array<{
+        id?: string;
+        company?: string;
+        role?: string;
+        dates?: string;
+        description?: string;
+    }>;
+    /** Side projects, open source, portfolio pieces: the same shape as an experience entry. */
+    projects?: Array<{
         id?: string;
         company?: string;
         role?: string;
@@ -98,9 +107,21 @@ export function normalizeParsedResume(
             email: raw.profile?.email || "",
             phone: raw.profile?.phone || "",
             linkedin: raw.profile?.linkedin || "",
+            ...(raw.profile?.website ? { website: raw.profile.website } : {}),
             ...(raw.profile?.unconfirmedPlaces?.length ? { unconfirmedPlaces: raw.profile.unconfirmedPlaces } : {}),
         },
         experience,
+        ...(Array.isArray(raw.projects) && raw.projects.length > 0
+            ? {
+                  projects: raw.projects.map((p, idx) => ({
+                      id: p.id || `proj-${idx + 1}`,
+                      company: p.company || "",
+                      role: p.role || "",
+                      dates: p.dates || "",
+                      description: normalizeDescription(p.description || ""),
+                  })),
+              }
+            : {}),
         competencies: Array.isArray(raw.competencies)
             ? raw.competencies.map((comp) => ({
                   category: comp.category || "Skills",

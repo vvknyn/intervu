@@ -12,7 +12,7 @@ export const PHONE_RE =
 export const LINKEDIN_RE = /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/[\w-]+/i;
 /** Personal site / portfolio domains (excludes linkedin and common email hosts). */
 export const WEBSITE_RE =
-    /\b(?:https?:\/\/)?(?:www\.)?(?!linkedin\.com)(?!gmail\.com)(?!yahoo\.com)(?!hotmail\.com)(?!outlook\.com)([a-z0-9][-a-z0-9.]*\.(?:xyz|dev|io|me|app|co|com|net|org|ca))\b/i;
+    /\b(?:https?:\/\/)?(?:www\.)?(?!linkedin\.com)(?!gmail\.com)(?!yahoo\.com)(?!hotmail\.com)(?!outlook\.com)([a-z0-9][-a-z0-9.]*\.(?:xyz|dev|io|me|app|co|com|net|org|ca|ai|design|studio|site|page|tech|info|art|blog|online|portfolio|uk|us))\b/i;
 
 const PREPOSITION_START_RE =
     /^(into|across|while|shipping|with|for|from|through|during|after|before|by|as|and|or|the|a|an)\b/i;
@@ -147,13 +147,20 @@ export function sanitizeLocation(location: string | undefined | null): string {
     return parsePlaceSegment(location).parts.join(", ");
 }
 
+/**
+ * The person's own site ("lucja.design", "janedoe.dev"), never a piece of
+ * their email address: "lucja.w@example.com" used to give "example.com".
+ */
 export function extractWebsite(text: string): string {
+    const emails = [...text.matchAll(new RegExp(EMAIL_RE.source, "g"))].map((m) => [m.index, m.index + m[0].length]);
     const re = new RegExp(WEBSITE_RE.source, "gi");
-    const matches = [...text.matchAll(re)];
-    for (const m of matches) {
+    for (const m of text.matchAll(re)) {
         const raw = m[0];
         const lower = raw.toLowerCase();
         if (lower.includes("linkedin.com")) continue;
+        const start = m.index;
+        const end = start + raw.length;
+        if (emails.some(([a, b]) => start < b && end > a)) continue;
         return raw.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
     }
     return "";
