@@ -17,7 +17,8 @@ test("ForYouPack tip no longer mounts FitBreakdown bars (band labels only)", () 
     assert.doesNotMatch(source, /["'`]Fit breakdown["'`]/);
     assert.doesNotMatch(source, />Fit breakdown</);
     assert.match(source, /function FitReadout/);
-    assert.match(source, /matchBandLabel/);
+    // `matchLabel`: the band word, or "Outside Canada" for a role outside where the candidate can work.
+    assert.match(source, /matchLabel\(/);
 });
 
 test("ProgressBar with radius=\"ctl\" and partial progress uses rounded-ctl on track and fill", () => {
