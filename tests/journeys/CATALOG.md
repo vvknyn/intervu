@@ -361,6 +361,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-45 | "Search jobs mentioning <name>" on a name-keyed company page lands on /jobs?q=<name> with results | anon | /companies/<name of a domainless company with roles> | signed-out | no | uncovered | — |
 | J-COMPANY-46 | Signed in the way production signs in (the session check names the account; no dev-only hook), Follow on a company page follows from the account in one click with no email step. It took the guest path and asked for an email (2026-10-01, same cause as J-TRACKER-67) | signed-in | /co/anthropic--com (session and follow actions answered in the browser) | signed-in | no | covered | company-page.spec.ts |
 | J-COMPANY-47 | A big employer's company page (/co/anthropic--com, /co/amazon--com) shows its first roles within 2 seconds of opening it. The roles never wait on the page's slower side reads (box database, news, recent changes): one still out after 1 s is left off that load, and the next visit has it. Amazon's first load took 4.3 s on release 16 | anon | /co/anthropic--com, /co/amazon--com | signed-out | no | covered | company-page.spec.ts |
+| J-COMPANY-48 | A company logo whose image fails before the page has hydrated (a blocked or unreachable favicon host) shows the letter tile, never a broken image with its alt text | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
 ## AUTH
 

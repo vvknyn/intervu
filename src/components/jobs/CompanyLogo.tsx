@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { companyLogoUrl, shouldShowFavicon } from "@/lib/companies/logo";
 import { cn } from "@/lib/utils";
 // The shared chokepoint (lib/jobs/presentation.ts) — this file used to carry
@@ -37,6 +37,7 @@ export function CompanyInitialTile({ name, className }: { name: string | null; c
     const variant = TILE_VARIANT_CLASS[hashString(clean || "?") % TILE_VARIANT_CLASS.length];
     return (
         <div
+            data-testid="company-logo-tile"
             className={cn(
                 "flex shrink-0 items-center justify-center rounded-panel text-lg font-semibold",
                 variant,
@@ -72,8 +73,23 @@ export function CompanyLogo({
     name: string | null;
     size: "xs" | "sm" | "md" | "lg";
 }) {
-    const [errored, setErrored] = useState(false);
-    const showImage = shouldShowFavicon(domain, errored);
+    const src = domain ? companyLogoUrl(domain) : null;
+    // Kept with the logo it belongs to, so a row that swaps companies tries
+    // the new one's logo instead of keeping the last one's letter tile.
+    const [failedSrc, setFailedSrc] = useState<string | null>(null);
+    const showImage = shouldShowFavicon(domain, src !== null && failedSrc === src);
+
+    // React's onError only hears failures after hydration. A logo that failed
+    // in the server-rendered page before then (a blocked or unreachable
+    // favicon host) would stay a broken image with its alt text, so the
+    // element is checked once it is attached. A lazy image the browser hasn't
+    // asked for yet has no currentSrc, so it is never mistaken for a failure.
+    const checkFailedBeforeHydration = useCallback(
+        (img: HTMLImageElement | null) => {
+            if (img && src && img.complete && img.naturalWidth === 0 && img.currentSrc) setFailedSrc(src);
+        },
+        [src],
+    );
 
     const sizeCls = SIZE_CLS[size];
     // The index carries the ATS-stated raw name (intervu owns display-time
@@ -100,11 +116,12 @@ export function CompanyLogo({
         >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-                src={companyLogoUrl(domain as string)}
+                ref={checkFailedBeforeHydration}
+                src={src as string}
                 alt={`${cleanedName || "Company"} logo`}
                 loading="lazy"
                 referrerPolicy="no-referrer"
-                onError={() => setErrored(true)}
+                onError={() => setFailedSrc(src)}
                 className="h-full w-full object-contain p-1"
             />
         </div>

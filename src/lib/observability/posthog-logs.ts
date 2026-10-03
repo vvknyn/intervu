@@ -174,6 +174,23 @@ export function logServer(level: LogLevel, body: string, attrs: LogAttrs = {}): 
   });
 }
 
+/**
+ * React's reason when the response closed before a streamed render finished:
+ * the visitor navigated away or dropped the connection (react-dom server
+ * `createCancelHandler` on the destination's "close"). Not a page fault.
+ */
+export const CLIENT_CLOSED_STREAM_MESSAGE = "The destination stream closed early.";
+
+/**
+ * Pure: the level for a Next.js `onRequestError` record. A render the visitor
+ * abandoned mid-stream logs at info, under the warn floor, so it doesn't
+ * crowd real errors out of PostHog Logs; everything else is an error.
+ */
+export function requestErrorLevel(error: unknown): LogLevel {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return message === CLIENT_CLOSED_STREAM_MESSAGE ? "info" : "error";
+}
+
 export type RequestErrorContext = {
   routerKind: string;
   routePath: string;
