@@ -6,7 +6,10 @@ import {
     LOCAL_PARSE_ACCEPT_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
-import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
+import { resumeDataFromPlainText, structureResumeText } from "../../src/lib/resume/structure-resume-text";
+import { markdownResumeToPlainText } from "../../src/lib/resume/markdown-text";
+import { resumeDataToZipMarkdown } from "../../src/lib/resume/to-zip-markdown";
+import { resumeDataToParsedDocument } from "../../src/lib/resume/parse-resume-content";
 
 const FIXTURE = readFileSync(path.join(process.cwd(), "tests/fixtures/sample-resume.txt"), "utf8");
 
@@ -225,6 +228,75 @@ Salesforce`;
             ],
         );
         assert.match(out.projects![1].description, /culverts from rainfall/);
+    });
+
+    it("reads a résumé an agent filed in markdown as its words, not its marks", () => {
+        const md = [
+            "# Jane Doe",
+            "Senior Software Engineer",
+            "Toronto, ON | jane@example.com | [LinkedIn](https://linkedin.com/in/janedoe)",
+            "",
+            "## Professional Summary",
+            "",
+            "Backend engineer with **8 years** building payments systems.",
+            "",
+            "## Skills",
+            "",
+            "**Languages:** Go, TypeScript",
+            "",
+            "---",
+            "",
+            "## Experience",
+            "",
+            "### Senior Software Engineer | Stripe | 2021 – Present",
+            "- Led the ledger migration to *Postgres*",
+            "",
+            "**Software Engineer** — Shopify — 2018 – 2021",
+            "* Shipped checkout extensibility APIs",
+            "",
+            "## Education",
+            "",
+            "**BSc Computer Science**, University of Waterloo, 2016",
+        ].join("\n");
+        const data = resumeDataFromPlainText(md);
+        assert.equal(data.profile.name, "Jane Doe");
+        assert.equal(data.profile.profession, "Senior Software Engineer");
+        assert.match(data.profile.linkedin ?? "", /linkedin\.com\/in\/janedoe/);
+        assert.equal(data.generatedSummary, "Backend engineer with 8 years building payments systems.");
+        assert.deepEqual(data.competencies, [{ category: "Languages", skills: ["Go", "TypeScript"] }]);
+        assert.deepEqual(
+            data.experience.map((e) => [e.role, e.company, e.dates, e.description]),
+            [
+                ["Senior Software Engineer", "Stripe", "2021 – Present", "• Led the ledger migration to Postgres"],
+                ["Software Engineer", "Shopify", "2018 – 2021", "• Shipped checkout extensibility APIs"],
+            ],
+        );
+        assert.equal(data.education[0].degree, "BSc Computer Science");
+        const printed = resumeDataToParsedDocument(data);
+        assert.equal(printed.name, "Jane Doe");
+        assert.deepEqual(printed.sections.map((x) => x.heading), ["Professional Summary", "Skills", "Experience", "Education"]);
+        assert.doesNotMatch(JSON.stringify(printed), /#|\*\*|\]\(/);
+    });
+
+    it("parses its own zip markdown (Role | Company over the dates) like the résumé it came from", () => {
+        const plain = resumeDataFromPlainText(FIXTURE);
+        const back = resumeDataFromPlainText(resumeDataToZipMarkdown(plain));
+        assert.equal(back.profile.name, plain.profile.name);
+        assert.equal(back.profile.profession, plain.profile.profession);
+        assert.deepEqual(back.experience, plain.experience);
+        assert.deepEqual(back.competencies, plain.competencies);
+        assert.deepEqual(back.education, plain.education);
+    });
+
+    it("starts a new entry at a company / title / dates header instead of gluing it to the bullet above", () => {
+        const out = structureResumeText(FIXTURE);
+        assert.equal(out.experience[0].description.split("\n").at(-1), "• Reduced API latency by 40%");
+        assert.deepEqual([out.experience[1].role, out.experience[1].company], ["Software Engineer", "Beta Systems"]);
+    });
+
+    it("leaves plain text alone, even with a # or * in it", () => {
+        const plain = "Ranked #1 of 40 reps\nC# developer, 5* rated\n* Built the pipeline";
+        assert.equal(markdownResumeToPlainText(plain), plain);
     });
 
     it("fixture scores ≥ 91 overall confidence", () => {

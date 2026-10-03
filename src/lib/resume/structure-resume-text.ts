@@ -14,8 +14,10 @@ import {
     extractWebsite,
     isContactOrPlaceLine,
     isLikelyPlaceSegment,
+    looksLikeRealPlaceSegment,
     sanitizeLocation,
 } from "@/lib/resume/contact-line";
+import { markdownResumeToPlainText } from "@/lib/resume/markdown-text";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
 import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
@@ -343,6 +345,44 @@ function singleDateEntryDate(line: string, anyName: boolean): string {
     return match[1];
 }
 
+/** A line holding only a date range, maybe with a place ("Jan 2020 – Present", "Toronto, ON | 2019 – 2021"). */
+function isDateOnlyLine(line: string): boolean {
+    const match = line.match(DATE_RANGE_RE);
+    if (!match || BULLET_RE.test(line)) return false;
+    const rest = trimEdgePunctuation(line.replace(match[0], ""));
+    return !rest || looksLikeRealPlaceSegment(rest);
+}
+
+/**
+ * "Software Engineer | Beta Systems" over a line that holds only its dates:
+ * the next entry's header, not the last line of this one's description.
+ */
+function isRoleLineOverDates(lines: string[], i: number): boolean {
+    const line = lines[i];
+    if (BULLET_RE.test(line) || DATE_RANGE_RE.test(line) || i + 1 >= lines.length) return false;
+    if (line.split(/\s+/).length > 12 || /[.!?;:]$/.test(line) || !ROLE_COMPANY_SPLIT_RE.test(line)) return false;
+    return isDateOnlyLine(lines[i + 1]);
+}
+
+const HEADER_SMALL_WORD_RE = /^(?:of|and|the|for|in|at|de|du|la|le|&|-|–|—)$/i;
+
+/** Short, capitalised like a name ("Beta Systems", "City of Lethbridge"), not a line about the work. */
+function looksLikeHeaderText(line: string): boolean {
+    const words = line.trim().split(/\s+/);
+    if (words.length > 8 || /[.!?;:%]$/.test(line) || /\d+%/.test(line)) return false;
+    if (looksLikeDescriptionLine(line) || ACHIEVEMENT_VERB_RE.test(line.trim()) || DATE_RANGE_RE.test(line)) return false;
+    const counted = words.filter((w) => !HEADER_SMALL_WORD_RE.test(w));
+    return counted.length > 0 && counted.filter((w) => /^[\p{Lu}\d]/u.test(w)).length * 2 >= counted.length;
+}
+
+/** "Beta Systems" / "Software Engineer" / "Mar 2016 – Dec 2019": the next entry's three-line header. */
+function isHeaderBlockOverDates(lines: string[], i: number): boolean {
+    if (i + 2 >= lines.length || !isDateOnlyLine(lines[i + 2])) return false;
+    const [a, b] = [lines[i], lines[i + 1]];
+    if (!looksLikeHeaderText(a) || !looksLikeHeaderText(b)) return false;
+    return looksLikeTitle(a) || looksLikeTitle(b);
+}
+
 function collectDescriptionLines(
     lines: string[],
     startIndex: number,
@@ -353,7 +393,7 @@ function collectDescriptionLines(
     while (i < lines.length) {
         const next = lines[i];
         if (DATE_RANGE_RE.test(next) && !BULLET_RE.test(next)) break;
-        if (singleDateEntryDate(next, anyName)) break;
+        if (singleDateEntryDate(next, anyName) || isRoleLineOverDates(lines, i) || isHeaderBlockOverDates(lines, i)) break;
         const section = isSectionHeader(next);
         if (section) break;
         descLines.push(next);
@@ -438,6 +478,11 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
             if (nextDateMatch && !BULLET_RE.test(nextLine)) {
                 const dates = nextDateMatch[0];
                 let { role, company } = parseRoleCompanyFromLine(nextLine, dates);
+                if (!role && !company) {
+                    // "Software Engineer | Beta Systems" names both.
+                    const own = parseRoleCompanyFromLine(line, "");
+                    if (own.role && own.company) ({ role, company } = own);
+                }
                 if (!role && looksLikeTitle(line)) role = line;
                 if (!company && !looksLikeTitle(line) && !DATE_RANGE_RE.test(line)) company = line;
                 if (!role && !company) role = line;
@@ -450,8 +495,11 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
         }
 
         if (i + 2 < lines.length && DATE_RANGE_RE.test(lines[i + 2])) {
-            const company = lines[i];
-            const role = lines[i + 1];
+            // Company over title is the usual order; title over company when the lines say so.
+            const [first, second] = [lines[i], lines[i + 1]];
+            const titleFirst =
+                (looksLikeTitle(first) && !looksLikeTitle(second)) || (looksLikeCompany(second) && !looksLikeCompany(first));
+            const [role, company] = titleFirst ? [first, second] : [second, first];
             const dates = lines[i + 2].match(DATE_RANGE_RE)?.[0] ?? lines[i + 2];
             const { descLines, nextIndex } = collectDescriptionLines(lines, i + 3, anyName);
             pushExperienceEntry(entries, company, role, dates, descLines);
@@ -880,7 +928,8 @@ export function structureResumeText(text: string): StructuredResumeDraft {
     // A PDF uploaded before extraction rejoined wrapped lines is stored one
     // printed line per line; rejoin them here so the summary and skills read
     // like the file (unwrap-lines.ts). Headings and dated role lines stay put.
-    const lines = unwrapHardWrappedLines(normalizeLines(text), isResumeBoundaryLine);
+    // A version an agent filed in markdown reads as its words, not its marks ("# Jane Doe").
+    const lines = unwrapHardWrappedLines(normalizeLines(markdownResumeToPlainText(text)), isResumeBoundaryLine);
     const contact = extractContact(lines);
     const location = sanitizeLocation(extractLocation(lines));
     const unconfirmedPlaces = location ? [] : barePlacesFromHeader(lines);
