@@ -840,6 +840,42 @@ signedInTest("Today leaves out roles for people in another country, whether the 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("Today leaves out a US-only role for a résumé in Canada when its title says U.S. Federal or it names no place and pays in USD", { tag: ["@J-JOBS-102"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+
+  // Vivek 2026-10-03, in Canada: "Technical Account Manager - U.S. Federal" (Remote) and a Remote TAM role paying USD 114k-166k were Good Today picks.
+  const pay = (currency: string) => ({ salary_min: 114_000, salary_max: 166_000, salary_currency: currency, salary_period: "year" });
+  const week = [
+    remoteRole("us-federal", "Software Engineer - U.S. Federal", "Remote"),
+    remoteRole("pays-usd", "Software Engineer", "Remote", pay("USD")),
+    remoteRole("pays-cad", "Software Engineer II", "Remote", pay("CAD")),
+    remoteRole("usd-anywhere", "Software Engineer, Platform", "Remote", pay("USD")),
+    remoteRole("usd-in-canada", "Software Engineer, Payments", "Remote, Canada", pay("USD")),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-pay" });
+  });
+  // The rows that name no place are read, the USD one too: its description may open it to anyone ("work from anywhere in the world").
+  const asked: string[][] = [];
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    asked.push((route.request().postDataJSON() as { ids: string[] }).ids);
+    const notes = { "pays-usd": null, "pays-cad": null, "usd-anywhere": { label: "anywhere", countries: [] } };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["pays-cad", "usd-anywhere", "usd-in-canada"]);
+  expect(new Set(asked.flat())).toEqual(new Set(["pays-usd", "pays-cad", "usd-anywhere"]));
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("an opened pack reads its roles' descriptions for place before it shows, so a role for people in another country is never its first card", { tag: ["@J-JOBS-101"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
