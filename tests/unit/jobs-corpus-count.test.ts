@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCorpusCount, formatCorpusCount, formatCompactCorpusCount, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
+import { resolveCorpusCount, resolveLiveCorpusCount, formatCorpusCount, formatCompactCorpusCount, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
 
 // Whole-branch review finding: the app must never present a Meilisearch
 // maxTotalHits-capped `total` as an exact fact. `resolveCorpusCount` is the
@@ -74,5 +74,27 @@ describe('formatCompactCorpusCount', () => {
 
     it('floor keeps trailing plus', () => {
         assert.equal(formatCompactCorpusCount({ kind: 'floor', value: CORPUS_COUNT_CAP }), '~100k+');
+    });
+});
+
+// Gate thread finding (2026-10-01): a search-index outage came back as zero
+// hits, the board's "new since your last visit" count cached it as an exact
+// 0 for 15 minutes, and nobody in that country saw the line until it expired.
+describe('resolveLiveCorpusCount (counts that get cached)', () => {
+    it('a failed search throws, so unstable_cache keeps nothing', () => {
+        assert.throws(() => resolveLiveCorpusCount({ total: 0, unavailable: true }), /unavailable/);
+    });
+
+    it('a search that is not set up throws too', () => {
+        assert.throws(() => resolveLiveCorpusCount({ total: 0, configured: false }), /unavailable/);
+    });
+
+    it('a real zero is still an exact zero', () => {
+        assert.deepEqual(resolveLiveCorpusCount({ total: 0, configured: true }), { kind: 'exact', value: 0 });
+    });
+
+    it('a working search resolves like resolveCorpusCount', () => {
+        assert.deepEqual(resolveLiveCorpusCount({ total: 1_234 }), { kind: 'exact', value: 1_234 });
+        assert.deepEqual(resolveLiveCorpusCount({ total: CORPUS_COUNT_CAP }), { kind: 'floor', value: CORPUS_COUNT_CAP });
     });
 });

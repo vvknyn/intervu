@@ -18,6 +18,7 @@ import {
 } from "@/lib/resume/contact-line";
 import { mergeResumeBulletLines } from "@/lib/resume/merge-bullet-lines";
 import { unwrapHardWrappedLines } from "@/lib/resume/unwrap-lines";
+import { resumeCountriesFromLocation } from "@/lib/jobs/resume-location";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { DATE_RANGE_RE, MONTH } from "./resume-dates";
 import { TITLE_WORD_RE, cleanRoleTitle } from "./title-text";
@@ -504,6 +505,71 @@ function placeSegments(line: string): string[] {
         .split(/[·|•]/);
 }
 
+/** A credential printed after a name: "RN", "MD", "PhD", "P.Eng", "SHRM-CP", "Jr." */
+const CREDENTIAL_RE = /^(?:[A-Z]{2,6}(?:-[A-Z]{1,4})?|[A-Z](?:\.[A-Z])+|Ph\.?\s?D|Pharm\.?\s?D|Psy\.?\s?D|[BM]\.?\s?Sc|M\.?\s?Ed|Ed\.?\s?D|[DM]\.?\s?Phil|[MP]\.?\s?Eng|Esq|Jr|Sr)\.?$/u;
+
+/**
+ * Credentials that are no place's code. "MD", "PA", "PE", "CA" and "QLD" are
+ * credentials and also states or provinces, so they only count as credentials
+ * beside one of these: "Priya Shah, PhD, MD" is a name, "Baltimore, MD" a place.
+ */
+const PLAIN_CREDENTIALS = new Set(
+    ("RN BSN MSN DNP LPN CNA CRNA APRN FNP FNP-BC RN-BC CCRN CPA CFA CMA ACCA CIMA FRM CAIA PMP CSM CISSP CISM CISA " +
+        "MBA PHD MSC BSC MPH MPA MSW LCSW LMFT LPC PSYD JD LLM ESQ PENG MENG DDS DMD DVM PHARMD DPT OTR RD RDN FACP FACS " +
+        "SHRM-CP SHRM-SCP PHR SPHR MFA MED EDD JR SR").split(" "),
+);
+const plainCredential = (part: string) => PLAIN_CREDENTIALS.has(part.replace(/[.\s]/g, "").toUpperCase());
+
+/**
+ * How many leading comma parts of `parts` are credentials: a run of
+ * credential-shaped parts with at least one that is no place's code, or 0.
+ */
+function credentialRun(parts: string[], person = false): number {
+    let run = 0;
+    while (run < parts.length && CREDENTIAL_RE.test(parts[run].trim())) run++;
+    return person || parts.slice(0, run).some(plainCredential) ? run : 0;
+}
+
+/** "Dr. Ana Lima": a title only a person carries, so "MD" after it is a degree. */
+const HONORIFIC_RE = /^(?:Dr|Mr|Mrs|Ms|Mx|Prof)\.?\s/i;
+
+/** The candidate's name as printed on their name line: "Amara Okafor, RN" → "Amara Okafor". */
+function nameOfLine(line: string): string {
+    return line.replace(/\s[—–]\s.*$|[,|·•].*$/u, "").trim();
+}
+
+/** Index of the name line: the first name-shaped line above any section or dated line, or -1. */
+function nameLineIndex(lines: string[]): number {
+    for (let i = 0; i < Math.min(lines.length, 8); i++) {
+        const line = lines[i];
+        if (isSectionHeader(line) || extraSectionHeading(line) || DATE_RANGE_RE.test(line)) return -1;
+        if (looksLikeName(line)) return i;
+    }
+    return -1;
+}
+
+/**
+ * The name line without the name and the credentials after it, so they are
+ * never read as a place: "Amara Okafor, RN" → "" (RN is no state code),
+ * "Dr. Ana Lima, MD" → "" and "Priya Shah, PhD, MD | Toronto, ON" →
+ * "| Toronto, ON". A line with no credentials stays whole: a name-shaped
+ * place ("Richmond Hill, Ontario") can be taken for the name when the real
+ * one is printed in capitals.
+ */
+function placeTextOfNameLine(line: string): string {
+    const [first, ...others] = line.split(/(?=[·|•])/u);
+    const parts = first.split(",");
+    const run = credentialRun(parts.slice(1), HONORIFIC_RE.test(parts[0].trim()));
+    if (run === 0 || !looksLikeName(parts[0])) return line;
+    return [parts.slice(1 + run).join(","), ...others].join("");
+}
+
+/** "Amara Okafor, RN": a name and its credentials, not a city and its region. */
+function isNameWithCredentials(place: string): boolean {
+    const parts = place.split(",").map((p) => p.trim());
+    return parts.length >= 2 && credentialRun(parts.slice(1)) === parts.length - 1;
+}
+
 function placeCandidatesFromLines(lines: string[]): string[] {
     const candidates: string[] = [];
     for (const line of lines) {
@@ -515,15 +581,17 @@ function placeCandidatesFromLines(lines: string[]): string[] {
         // name to it ("Jane Doe — Calgary, Alberta"): the whole segment first.
         for (const seg of placeSegments(line)) {
             const place = [seg, ...seg.split(/\s[—–]\s/)].find((part) => isLikelyPlaceSegment(part));
-            if (place) candidates.push(sanitizeLocation(place));
+            if (place && !isNameWithCredentials(place)) candidates.push(sanitizeLocation(place));
         }
     }
     return candidates;
 }
 
+/** A place whose country we can name beats one we can't, then the longer one wins. */
 function longestPlace(candidates: string[]): string {
     if (candidates.length === 0) return "";
-    return candidates.sort((a, b) => b.length - a.length)[0];
+    const known = (place: string) => (resumeCountriesFromLocation(place).length > 0 ? 1 : 0);
+    return candidates.sort((a, b) => known(b) - known(a) || b.length - a.length)[0];
 }
 
 /**
@@ -537,7 +605,8 @@ function longestPlace(candidates: string[]): string {
  * not places.
  */
 function extractLocation(lines: string[]): string {
-    const header = headerLinesOf(lines);
+    const nameAt = nameLineIndex(lines);
+    const header = headerLinesOf(lines).map((line, i) => (i === nameAt ? placeTextOfNameLine(line) : line));
     return (
         longestPlace(placeCandidatesFromLines(header)) ||
         longestPlace(placeCandidatesFromLines(lines.slice(header.length)))
@@ -818,13 +887,14 @@ export function structureResumeText(text: string): StructuredResumeDraft {
 
     let name = "";
     let profession = "";
+    const nameAt = nameLineIndex(lines);
     for (let i = 0; i < Math.min(lines.length, 8); i++) {
         const line = lines[i];
         // A headline sits above the first section; past it (or on a dated line) a title-ish
         // line is a job entry, not the candidate's headline.
         if (isSectionHeader(line) || extraSectionHeading(line) || DATE_RANGE_RE.test(line)) break;
-        if (!name && looksLikeName(line)) {
-            name = line.replace(/[,|].*$/, "").trim();
+        if (i === nameAt) {
+            name = nameOfLine(line);
             continue;
         }
         if (name && !profession && looksLikeTitle(line)) {

@@ -58,7 +58,7 @@ export const withoutMockSignInHydration = (pageErrors: string[]) =>
 export const PRODUCTION_SIGN_IN_ACCOUNT = { uid: "journey-account", email: "ada@example.com", displayName: "Ada Lovelace" };
 
 /** Swaps a server action's return value, keeping the response's own header line (the build id differs per build). */
-function withActionResult(flight: string, value: unknown) {
+export function withActionResult(flight: string, value: unknown) {
   const lines = flight.trimEnd().split("\n");
   let at = lines.length - 1;
   while (at > 0 && !(lines[at].startsWith("1:") && !lines[at].startsWith("1:D"))) at--;
