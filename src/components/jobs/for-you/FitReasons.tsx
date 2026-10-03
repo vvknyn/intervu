@@ -53,7 +53,8 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
     return (
         <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-surface px-4 py-3.5" open>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                <span className="text-sm font-semibold text-foreground">Why this fits</span>
+                {/* A role outside where they can work carries no fit word (`matchLabel`), so the heading doesn't claim one. */}
+                <span className="text-sm font-semibold text-foreground">{score.outside ? "How this compares" : "Why this fits"}</span>
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
                     <CaretDown

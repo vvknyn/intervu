@@ -258,3 +258,33 @@ for (const path of [COMPANY, "/co/amazon--com"]) {
         expect(elapsed, `${path} showed its roles after ${elapsed} ms`).toBeLessThan(ROLES_BUDGET_MS);
     });
 }
+
+// A logo whose image fails before the page's code has run (a blocked or
+// unreachable favicon host) used to stay a broken image with its alt text:
+// React's onError only hears failures after hydration.
+test("a logo that fails before the page is interactive shows the letter tile, not a broken image", { tag: ["@J-COMPANY-48"] }, async ({ page }) => {
+    let logoFailed = () => {};
+    const failed = new Promise<void>((resolve) => (logoFailed = resolve));
+    await page.route(/google\.com\/s2\/favicons/, async (route) => {
+        await route.abort();
+        logoFailed();
+    });
+    // The page's code waits until the logo has failed, so the failure lands
+    // before hydration (capped, in case a page asks for no logo at all).
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?.*)?$/, async (route) => {
+        await Promise.race([failed.then(() => page.waitForTimeout(300)), page.waitForTimeout(5_000)]);
+        await route.continue().catch(() => {});
+    });
+
+    await openCompany(page);
+    const header = page.getByTestId("company-page").locator("header").first();
+    await expect(header).toBeVisible({ timeout: 30_000 });
+    // React has attached to the server-rendered header, so the check after
+    // hydration has had its chance.
+    await expect
+        .poll(() => header.evaluate((el) => Object.keys(el).some((key) => key.startsWith("__reactFiber"))), { timeout: 15_000 })
+        .toBe(true);
+
+    await expect(header.getByTestId("company-logo-tile")).toBeVisible();
+    await expect(header.getByRole("img", { name: /logo$/ })).toHaveCount(0);
+});

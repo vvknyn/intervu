@@ -23,7 +23,7 @@ import {
 } from "@/lib/local-ai/format-job-description";
 import { descriptionNeedsFill } from "@/lib/jobs/fill-description";
 import { formatDescription } from "@/lib/jobs/format-description";
-import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchLabel, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -83,12 +83,13 @@ export const DERIVED_CHIP_CLASS = cn(
 
 /**
  * The card's headline fit label — Strong / Good / Stretch, brand tone for
- * Strong (same band the SERP row's MatchChip uses). Lives in the header only;
+ * Strong, or "Outside Canada" for a role outside where the candidate can work
+ * (`matchLabel`, the same label the SERP row's MatchChip shows). Lives in the header only;
  * pack tip surfaces do not show per-component Fit breakdown bars or MatchChip
  * numbers (band label only).
  */
 function FitReadout({ score, strong }: { score: MatchScore; strong: boolean }) {
-    const label = matchBandLabel(matchBand(score.total));
+    const label = matchLabel(score);
     return (
         <div className="shrink-0 text-right">
             <p className={SECTION_LABEL}>Fit</p>

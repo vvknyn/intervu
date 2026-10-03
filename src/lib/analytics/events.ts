@@ -48,6 +48,8 @@ export type MatchQualityAnalyticsProps = {
   match_label: "Strong" | "Good" | "Stretch";
   match_score: number;
   match_band: "strong" | "good" | "stretch";
+  /** Present when the role is outside every country the candidate can work in: the chip said "Outside Canada", not `match_label`. */
+  match_outside?: true;
 };
 
 export interface EventPayloads {

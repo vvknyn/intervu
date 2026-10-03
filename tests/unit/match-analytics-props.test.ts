@@ -55,3 +55,16 @@ test("matchAnalyticsProps uses UI band boundaries (59 Stretch, 60 Good, 79 Good,
     match_band: "strong",
   });
 });
+
+test("matchAnalyticsProps flags a role outside the candidate's countries, whose chip names the place", () => {
+  const outside: MatchScore = {
+    ...mkScore(59),
+    outside: { home: ["Canada"], where: "United States", from: "resume", total: 78 },
+  };
+  assert.deepEqual(matchAnalyticsProps(outside), {
+    match_label: "Stretch",
+    match_score: 59,
+    match_band: "stretch",
+    match_outside: true,
+  });
+});

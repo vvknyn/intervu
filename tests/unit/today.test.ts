@@ -10,6 +10,7 @@ import {
     interviewsThisWeek,
     isNewSince,
     pickToday,
+    placeCheckIds,
     resolveTodaySince,
     sincePhrase,
     todayLeftOut,
@@ -115,6 +116,30 @@ describe("todayLeftOut", () => {
         assert.equal(todayLeftOut(score(75, "own", ["level_below_ask"])), "level");
         assert.equal(todayLeftOut(score(75, "own", ["abroad"])), "abroad");
         assert.equal(todayLeftOut(score(75, "own", ["remote_abroad"])), "abroad");
+    });
+
+    it("leaves a role outside the candidate's countries out for its place, not as a Stretch", () => {
+        // Its total sits under Good for the place alone (`MatchScore.outside`).
+        const outside = {
+            ...score(59, "own", ["remote_pay_abroad"]),
+            outside: { home: ["Canada"], where: "United States", currency: "USD", from: "resume" as const, total: 78 },
+        };
+        assert.equal(todayLeftOut(outside), "abroad");
+    });
+});
+
+describe("placeCheckIds", () => {
+    it("still reads the description of an own-role pick left out only for its pay's currency", () => {
+        const remote = (id: string): PublicJob => ({ ...job(id, HOUR), location_city: null, location_state: null, location_country: null, work_type: "remote" });
+        const paidAbroad: TodayRole = {
+            job: remote("usd"),
+            score: {
+                ...score(59, "own", ["level_fits", "remote_pay_abroad"]),
+                outside: { home: ["Canada"], where: "United States", currency: "USD", from: "resume", total: 78 },
+            },
+        };
+        const stretch: TodayRole = { job: remote("weak"), score: score(45, "own", ["level_fits", "remote_anywhere"]) };
+        assert.deepEqual(placeCheckIds([stretch, paidAbroad], 8), ["usd"]);
     });
 });
 

@@ -131,6 +131,21 @@ describe("the export reproduces the original", () => {
     assert.ok(data.parsed.sectionHeadings && Object.keys(data.parsed.sectionHeadings).length, "section headings");
   });
 
+  it("the importer's parse keeps the Projects section and the person's own website, not their email's domain", async () => {
+    const civil = await extractPDFTextInBrowser(fixture("civil-engineer-long-3p").slice().buffer);
+    const { data } = await parseResumeLocally(civil.text!, { skipDownload: true });
+    assert.deepEqual(data.parsed.projects?.map((p) => [p.role, p.dates]), [
+      ["Bow River Pathway Bridge (volunteer design review)", "2022"],
+      ["Open-source culvert sizing calculator", "2019"],
+    ]);
+    assert.ok(data.parsed.experience.some((e) => e.role === "Survey Technician" && e.dates === "2009"), "a role dated with one year");
+    assert.equal(data.parsed.profile.website, undefined, "no site on this résumé; its email domain is not one");
+
+    const marketing = await extractPDFTextInBrowser(fixture("marketing-dense-unicode").slice().buffer);
+    const own = await parseResumeLocally(marketing.text!, { skipDownload: true });
+    assert.equal(own.data.parsed.profile.website, "lucja.design");
+  });
+
   it("fits a longer tailored text onto the original's one page by tightening, with the type held near the original's", async () => {
     const { profile, result } = await exportOf(fixture("marketing-dense-unicode"), " — rewritten for the role with the posting's own terms and a measurable outcome for each one, tested against what the hiring team asked for in the description");
     assert.equal(result.pages, 1);
@@ -169,14 +184,15 @@ describe("a tailored résumé is one page in the original's look", () => {
     assert.ok(result.bodySize >= profile.bodySize * 0.85 - 0.01, `body ${result.bodySize}`);
     assert.ok(back.marginLeft >= 25.2 - 0.5, `left ${back.marginLeft}`);
     assert.equal(back.family, "serif");
-    assert.ok(result.leftOut.length > 0 && result.leftOut.length <= 4, `${result.leftOut.length} left out`);
+    // Eight roles and two side projects on three pages: about a quarter of the bullets can't stay.
+    assert.ok(result.leftOut.length > 0 && result.leftOut.length <= 12, `${result.leftOut.length} left out`);
     for (const b of result.leftOut) {
       assert.match(b.entry, /Co-op|Field Engineer|Survey Technician|Junior Engineer|culvert/, `${b.entry}: an older role or side project`);
       assert.ok(!printed.includes(b.text.slice(0, 40)), "left out of the PDF");
     }
     assert.match(printed, /Lead design of a \$48M interchange rebuild/);
     assert.match(printed, /Professional Engineer \(P\.Eng\.\), APEGA, 2014/, "certifications stay");
-    assert.match(resumePdfNote(result) ?? "", /^To keep it to one page, \d bullets? that matters? least for this role (was|were) left out: \d from .+\. Your résumé still has (it|them)\.$/);
+    assert.match(resumePdfNote(result) ?? "", /^To keep it to one page, \d+ bullets? that matters? least for this role (was|were) left out: \d+ from .+\. Your résumé still has (it|them)\.$/);
   });
 
   it("keeps the bullets that use the role's words", async () => {

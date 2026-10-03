@@ -62,6 +62,23 @@ export function resolveCorpusCount(
 }
 
 /**
+ * `resolveCorpusCount` for a count that gets cached (`unstable_cache` in
+ * actions/jobs.ts). A search that failed (`unavailable`: the index is down)
+ * or isn't set up comes back as zero hits, and resolving that would cache an
+ * exact 0 for everyone in that country until the entry expires. This throws
+ * instead, so nothing is cached and the next request asks the index again.
+ */
+export function resolveLiveCorpusCount(
+    result: Pick<JobSearchResult, "total" | "facetDistribution" | "unavailable"> & { configured?: boolean },
+    cap: number = CORPUS_COUNT_CAP,
+): CorpusCount {
+    if (result.unavailable === true || result.configured === false) {
+        throw new Error("search unavailable: no count to cache");
+    }
+    return resolveCorpusCount(result, cap);
+}
+
+/**
  * Render a `CorpusCount` as bare number text — "1,704,771" for an exact
  * count, "100,000+" for a floor (true either way: at least this many).
  * Callers compose this into their own sentence + pluralization, which
