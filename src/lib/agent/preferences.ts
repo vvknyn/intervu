@@ -43,6 +43,12 @@ export interface AgentPreferences {
     search: SearchPreferences;
     answers: AnswerPreferences;
     updated_at?: string;
+    /**
+     * The country `search.location` sits in when its words don't say
+     * ("Toronto" → Canada), read with the gazetteer on the server
+     * (`withPlaceCountries`). Derived on every read, never stored.
+     */
+    placeCountries?: string[];
 }
 
 export interface AgentPreferencesPatch {

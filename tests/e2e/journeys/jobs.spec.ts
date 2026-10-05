@@ -10,7 +10,7 @@ import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 import { answerListSearch, isListSearch } from "./list-search";
-import { signedInTest, withoutMockSignInHydration } from "./signed-in";
+import { signedInTest, withActionResult, withoutMockSignInHydration } from "./signed-in";
 
 // Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
@@ -908,6 +908,53 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when its 
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["pays-cad", "usd-anywhere", "usd-in-canada"]);
   expect(new Set(asked.flat())).toEqual(new Set(["pays-usd", "pays-cad", "usd-anywhere"]));
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("Today leaves out a US-only role for a résumé in Canada when Settings names a bare city, or when the title narrows a wider country tag", { tag: ["@J-JOBS-105"] }, async ({ page, diagnostics }) => {
+  test.skip(Boolean(process.env.E2E_STORAGE_STATE), "reads its own saved Settings place, not a real account's");
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+
+  // Vivek 2026-10-05, in Canada: Island's "Technical Account Manager - U.S. Federal" and "(NY/NJ)" (Remote) were Good Today picks again.
+  // Settings › Location reads "Toronto", as a /jobs search used to save it: a city alone names no country, so the résumé's still counts.
+  // The two zero-argument reads that refuse this browser as "Unauthorized" are the saved preferences and the account's email state;
+  // one answer suits both.
+  const saved = { configured: true, search: { location: "Toronto" }, answers: { custom: {} }, state: "reachable", email: null, pendingEmail: null };
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"] || req.postData() !== "[]") return route.fallback();
+      const res = await route.fetch();
+      const text = await res.text();
+      if (!text.includes('"Unauthorized"')) return route.fulfill({ response: res, body: text });
+      return route.fulfill({ response: res, body: withActionResult(text, { data: saved }) });
+    },
+  );
+  const northAmerica = { location_country: ["United States", "Canada"] };
+  const week = [
+    remoteRole("us-federal", "Software Engineer - U.S. Federal", "Remote", northAmerica),
+    remoteRole("ny-nj", "Software Engineer (NY/NJ)", "Remote - North America"),
+    remoteRole("us-only", "Software Engineer", "Remote (US only)"),
+    remoteRole("canada-enterprise", "Software Engineer - Canada Enterprise", "Remote", northAmerica),
+    remoteRole("in-canada", "Software Engineer II", "Remote, Canada"),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-territory" });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["canada-enterprise", "in-canada"]);
+  for (const id of ["canada-enterprise", "in-canada"]) {
+    await expect(rows.and(page.locator(`[data-job-id="${id}"]`)).getByTestId("match-chip").first()).not.toHaveText(/Outside/);
+  }
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

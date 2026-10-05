@@ -111,10 +111,24 @@ function locationOf(place: string): CandidateLocation {
     return { countries: countriesOfPlace(place), place };
 }
 
+/**
+ * Settings' place wins when it names a country, by its own words or by the
+ * server's gazetteer read of a city (`placeCountries`: "Toronto" → Canada).
+ * A place that names none still leaves the résumé's country in charge: a
+ * Settings "Toronto" over a Toronto, ON résumé made the person's country
+ * unknown, so US-only roles read Good instead of "Outside Canada" (2026-10-05).
+ */
 function resolveLocation(resume: LocationResume | null, prefs: AgentPreferences | null): Signal<CandidateLocation> {
     const explicit = sanitizeLocation(prefs?.search.location);
-    if (explicit) return signal(locationOf(explicit), "explicit");
     const fromResume = candidateLocationFromResume(resume);
+    if (explicit) {
+        const own = locationOf(explicit);
+        const countries = own.countries.length > 0 ? own.countries : (prefs?.placeCountries ?? []);
+        if (countries.length > 0) return signal({ countries, place: explicit }, "explicit");
+        const resumePlace = fromResume ? locationOf(fromResume) : null;
+        if (resumePlace && resumePlace.countries.length > 0) return signal(resumePlace, "resume");
+        return signal(own, "explicit");
+    }
     return fromResume ? signal(locationOf(fromResume), "resume") : unknown();
 }
 

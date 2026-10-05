@@ -328,11 +328,21 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
     const remote = isRemoteWorkType(job.work_type);
     let jobList = jobCountries(job);
     let jobPlace: string | null = null;
+    const titled = titlePlace(job.title);
     if (jobList.length === 0) {
-        const named = titlePlace(job.title) ?? job.place_restriction ?? null;
+        const named = titled ?? job.place_restriction ?? null;
         if (named) {
             jobList = named.countries;
             jobPlace = named.label;
+        }
+    } else if (titled) {
+        // A title's territory narrows a wider tag: "TAM - U.S. Federal" tagged
+        // United States and Canada is a US role. Tags the title doesn't
+        // overlap stay as they are.
+        const narrowed = jobList.filter((country) => titled.countries.includes(country));
+        if (narrowed.length > 0 && narrowed.length < jobList.length) {
+            jobList = narrowed;
+            jobPlace = titled.label;
         }
     }
     const wantsRemote = Boolean(signals.remotePreference.value) && remote;

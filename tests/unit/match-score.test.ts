@@ -676,6 +676,39 @@ describe('a role outside where the candidate can work', () => {
         assert.ok(FIT_WORDS.includes(matchLabel(there)));
     });
 
+    it("a title's territory narrows a wider country tag: U.S. Federal and NY/NJ tagged for North America read Outside Canada", () => {
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
+        const signals = resolveCandidateSignals(resume);
+        const federal = mkJob({ title: 'Technical Account Manager - U.S. Federal', location: 'Remote', work_type: 'remote', experience_level: 'senior', location_country: ['United States', 'Canada'] });
+        const federalScore = scoreJobAgainstResume(resume, federal, signals)!;
+        assert.equal(matchLabel(federalScore), 'Outside Canada');
+        assert.equal(federalScore.outside!.where, 'United States');
+        const nynj = mkJob({ title: 'Technical Account Manager (NY/NJ)', location: 'Remote - North America', work_type: 'remote', experience_level: 'senior' });
+        assert.equal(matchLabel(scoreJobAgainstResume(resume, nynj, signals)!), 'Outside Canada');
+        // The title's own country keeps its fit word, and a tag the title doesn't overlap stays.
+        const canadaSide = mkJob({ title: 'Technical Account Manager - Canada Enterprise', work_type: 'remote', experience_level: 'senior', location_country: ['United States', 'Canada'] });
+        assert.ok(FIT_WORDS.includes(matchLabel(scoreJobAgainstResume(resume, canadaSide, signals)!)));
+        const inAustin = livingIn(resume, 'Austin, Texas, United States');
+        assert.equal(matchLabel(scoreJobAgainstResume(inAustin, canadaSide, resolveCandidateSignals(inAustin))!), 'Outside US');
+        const taggedCanada = mkJob({ title: 'Technical Account Manager - U.S. Federal', work_type: 'remote', experience_level: 'senior', location_country: 'Canada' });
+        assert.ok(FIT_WORDS.includes(matchLabel(scoreJobAgainstResume(resume, taggedCanada, signals)!)));
+    });
+
+    it('a Settings place that names no country (an old "Toronto" search) leaves the résumé country in charge', () => {
+        const island = mkJob({ title: 'Technical Account Manager - U.S. Federal', company: 'Island', location: 'Remote', work_type: 'remote', experience_level: 'senior' });
+        const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
+        for (const location of ['Toronto', 'Anywhere']) {
+            const score = scoreJobAgainstResume(resume, island, resolveCandidateSignals(resume, prefs({ location })))!;
+            assert.equal(matchLabel(score), 'Outside Canada', location);
+            assert.equal(score.outside!.from, 'resume', location);
+        }
+        // The server's gazetteer read of the Settings city names the country when the résumé has none.
+        const noPlace = livingIn(resume, '');
+        const read = scoreJobAgainstResume(noPlace, island, resolveCandidateSignals(noPlace, { ...prefs({ location: 'Toronto' }), placeCountries: ['Canada'] }))!;
+        assert.equal(matchLabel(read), 'Outside Canada');
+        assert.equal(read.outside!.from, 'settings');
+    });
+
     it('a country they said they would move to, or Settings placing them there, gives the role a fit word again', () => {
         const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
         const job = mkJob({ title: 'Technical Account Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'United States' });
