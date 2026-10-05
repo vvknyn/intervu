@@ -35,16 +35,22 @@ export type CallbackFailureClass = "direct_hit" | "exchange_failed";
 
 /**
  * One redirect builder for every failure class, so a class can't drop
- * `next` while another keeps it. `next` is only ever what the *failing*
- * request itself already carried — WorkOS's callback URL doesn't include
- * the app's return-to (that lives in the encrypted PKCE state, which is
- * exactly what a failed exchange can't be trusted to decode), so most
- * classes forward nothing and `/auth/start` falls back to its own default.
+ * `next` while another keeps it. WorkOS's callback URL doesn't carry the
+ * app's return-to as a plain param: it lives in the sealed `state`, which
+ * `onError` reads back with `returnPathFromAuthState` (authkit-state.ts) and
+ * passes here as `stateNext`, so Start again returns to the job the person
+ * was on. A direct hit has no `state`, so only a `next` the failing request
+ * itself carried can apply, and with neither `/auth/start` falls back to its
+ * own default.
  */
-export function buildCallbackRetryRedirect(request: NextRequest, failureClass: CallbackFailureClass): NextResponse {
+export function buildCallbackRetryRedirect(
+    request: NextRequest,
+    failureClass: CallbackFailureClass,
+    stateNext?: string | null,
+): NextResponse {
     const url = new URL("/auth/retry", getSiteUrl());
     url.searchParams.set("reason", failureClass);
-    const next = validateNextParam(request.nextUrl.searchParams.get("next"));
+    const next = validateNextParam(stateNext) ?? validateNextParam(request.nextUrl.searchParams.get("next"));
     if (next) url.searchParams.set("next", next);
     return NextResponse.redirect(url, 307);
 }
