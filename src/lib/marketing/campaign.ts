@@ -7,9 +7,9 @@
  * exist for the product's other emails: the Outlook-safe table shell +
  * wordmark (`renderEmailShellHtml`/`renderEmailShellText`,
  * `src/lib/email/templates/base.ts`) and the design-token copies
- * (`palette.ts`). The only genuinely new piece is the CAN-SPAM/CASL sender
- * identity block a one-off broadcast needs that a transactional/digest
- * email does not.
+ * (`palette.ts`). The only genuinely new piece is the footer a one-off
+ * broadcast carries: the sender's name and address when configured, and
+ * why the person got it.
  *
  * `renderCampaign` is a pure function — no `fs`, no `process.env`, no
  * crypto — so it is directly unit-testable. `loadCampaign` is the one bit
@@ -171,19 +171,26 @@ function markdownToText(markdown: string, siteUrl: string): string {
     .trim();
 }
 
+/** The sender's name and postal address, each only when set: Vivek chose to
+ *  send without them (2026-10-05), so an unset one is left out, never shown
+ *  as a placeholder. The reason line always shows. */
+function senderLines(sender: CampaignSender): string[] {
+  return [sender.name?.trim(), sender.postalAddress?.trim()].filter((line): line is string => Boolean(line));
+}
+
+const WHY_YOU_GOT_THIS = "Why you got this: you have a Velai account.";
+
 function senderIdentityHtml(sender: CampaignSender): string {
-  const name = sender.name?.trim() || "[sender name not configured]";
-  const address = sender.postalAddress?.trim() || "[sender address not configured]";
+  const lines = senderLines(sender);
+  const identity = lines.length ? `<p style="margin:0 0 4px;">${lines.map(escapeHtml).join("<br />")}</p>\n    ` : "";
   return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid ${C.line};font-family:${EMAIL_FONT_SANS};font-size:12px;line-height:1.6;color:${C.muted};">
-    <p style="margin:0 0 4px;">${escapeHtml(name)}<br />${escapeHtml(address)}</p>
-    <p style="margin:0;color:${C.faint};">Why you got this: you have a Velai account.</p>
+    ${identity}<p style="margin:0;color:${C.faint};">${WHY_YOU_GOT_THIS}</p>
   </div>`;
 }
 
 function senderIdentityText(sender: CampaignSender): string {
-  const name = sender.name?.trim() || "[sender name not configured]";
-  const address = sender.postalAddress?.trim() || "[sender address not configured]";
-  return [name, address, "", "Why you got this: you have a Velai account."].join("\n");
+  const lines = senderLines(sender);
+  return [...lines, ...(lines.length ? [""] : []), WHY_YOU_GOT_THIS].join("\n");
 }
 
 export function renderCampaign(

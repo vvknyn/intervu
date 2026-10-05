@@ -14,10 +14,11 @@ generic `/unsubscribe` route + HMAC token, WorkOS `listIntervuUsers`.
 - `MAIL_TRANSPORT` — `dry-run` (default) or `resend`.
 - `MARKETING_SEND_ENABLED=1` — second half of the live-send lock; `--live`
   alone refuses without it.
-- `MARKETING_SENDER_NAME`, `MARKETING_SENDER_POSTAL_ADDRESS` — CAN-SPAM
-  footer identity. `--live` refuses if either is unset (no silent
-  placeholder in a real send). No `.env.example` exists in this repo; these
-  are documented here instead.
+- `MARKETING_SENDER_NAME`, `MARKETING_SENDER_POSTAL_ADDRESS` — optional
+  footer identity, printed above "Why you got this" when set and left out
+  (no placeholder) when not. Vivek chose to send the October 2026 update
+  without them. No `.env.example` exists in this repo; these are documented
+  here instead.
 - `MARKETING_REPLY_TO` — the inbox replies go to. The sending domain has no
   inbox, so a reply to the From address bounces; `--live` refuses without it.
 - Already-set, reused: `ENCRYPTION_KEY` (tokens), `RESEND_API_KEY` /

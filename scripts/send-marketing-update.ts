@@ -24,9 +24,8 @@
  *   # line (a CSV row is refused). Still minus suppressed/sent/unverified.
  *   ... --only=tmp/whats-new-recipients.txt
  *
- * A live send also needs MARKETING_SENDER_NAME, MARKETING_SENDER_POSTAL_ADDRESS
- * (the footer CASL and CAN-SPAM require) and MARKETING_REPLY_TO (the sending
- * domain has no inbox, so a reply to the From address bounces).
+ * MARKETING_SENDER_NAME and MARKETING_SENDER_POSTAL_ADDRESS print in the
+ * footer when set; Vivek chose to send without them (2026-10-05).
  *
  * Dry run renders through the exact same `renderCampaign` path (and, when
  * --to is given, the exact same recipient-selection code) a live send would
@@ -179,14 +178,6 @@ async function main() {
     name: process.env.MARKETING_SENDER_NAME ?? null,
     postalAddress: process.env.MARKETING_SENDER_POSTAL_ADDRESS ?? null,
   };
-  if (live && (!sender.name || !sender.postalAddress)) {
-    // A live send with no visible sender identity is a CAN-SPAM violation,
-    // not a degraded-but-OK send — fail loudly instead of rendering the
-    // "[sender name not configured]" placeholder into a real outbound email.
-    throw new Error(
-      "MARKETING_SENDER_NAME and MARKETING_SENDER_POSTAL_ADDRESS must both be set in the environment for a --live send.",
-    );
-  }
 
   // The sending domain has no inbox: without a Reply-To, a reply bounces.
   const replyTo = process.env.MARKETING_REPLY_TO?.trim() || undefined;

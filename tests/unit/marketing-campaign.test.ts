@@ -81,13 +81,14 @@ describe("renderCampaign", () => {
     assert.ok(!result.html.includes("not configured"));
   });
 
-  it("renders a visible placeholder instead of silently omitting a missing sender identity", () => {
+  it("leaves the sender block out when no name or address is configured, and keeps the reason line", () => {
     const noSender: CampaignSender = { name: null, postalAddress: null };
     const result = renderCampaign(campaign, RECIPIENT, noSender, SITE_URL);
-    assert.ok(result.html.includes("[sender name not configured]"));
-    assert.ok(result.html.includes("[sender address not configured]"));
-    assert.ok(result.text.includes("[sender name not configured]"));
-    assert.ok(result.text.includes("[sender address not configured]"));
+    assert.ok(!result.html.includes("not configured"));
+    assert.ok(!result.text.includes("not configured"));
+    assert.ok(result.html.includes("Why you got this: you have a Velai account."));
+    assert.ok(result.text.includes("Why you got this: you have a Velai account."));
+    assert.doesNotMatch(result.html, /<p style="margin:0 0 4px;"><\/p>/);
   });
 });
 
