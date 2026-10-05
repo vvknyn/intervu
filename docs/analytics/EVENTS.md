@@ -108,6 +108,19 @@ Not in `ANALYTICS_EVENTS` — it is PostHog's reserved MCP-analytics event name,
 | `home_action_clicked` | `{ kind, job_id?, step?, match_* }` — `kind` is one of `new_role_open`, `new_role_apply`, `new_role_skip`, `see_more`, `stat_new`, `stat_applied`, `stat_follow_ups`, `stat_interviews`; from "Needs you" (`NeedsYou.tsx`) `needs_interview`, `needs_follow_up`, `needs_closed`, `needs_saved_search`, `needs_follow`, `needs_more` (Show N more), `needs_tracker` (Open tracker on the empty list), and `starter_step` with `step` = `apply`\|`save_search`\|`follow` | same file, on each row action, stat link and "Needs you" button. | which part of the home gets used. |
 | `pack_opened` | `{ pack, source: tile\|browse_all\|today }` | `src/app/jobs/JobsContent.tsx`, `openHubPack` (tiles, "Browse all matches", and the Today header's "See more"). | pack tile use (before this, only autocapture saw it). |
 
+## New-account setup
+
+Setup is offered only to accounts whose sign-up claim wrote `profiles/<uid>.onboarding` (`claimSignupEvent`, `src/lib/auth/signup-event.ts`), so every event below comes from an account made after setup shipped. The store that fires most of them is `src/hooks/use-onboarding.ts`.
+
+| Event | Payload | Seam | Feeds |
+|---|---|---|---|
+| `saved_search_created` | `{ surface: toolbar\|after_sign_in\|setup, signed_in }` | `src/components/jobs/SavedSearchesPanel.tsx` (toolbar Save search; `signed_in: false` for a guest search kept in this browser), `src/lib/jobs/use-saved-searches.ts` `savePendingSearchAfterSignIn` (a gated Save search finished after sign-in), and setup step 3 (`src/components/onboarding/SetupSteps.tsx`). Fires once the save succeeds. | saved searches per account, the weekly email's only way in. |
+| `onboarding_strip_shown` | `{ day }` | `markStripDay`, from the welcome strip (`WelcomeStrip.tsx`) and the /jobs setup panel (`SetupPanel.tsx`), once per local visit day. `day` is 1 to 3. | how many new accounts come back on a second and third day. |
+| `onboarding_setup_opened` | `{ surface: strip\|menu\|jobs_page\|email }` | `openSetupSheet` (strip button, account menu "Finish setup", the welcome email's `/jobs?setup=open` link via `OnboardingRoot.tsx`) and `SetupPanel.tsx` mount (`jobs_page`). | which door into setup gets used. |
+| `onboarding_step_answered` | `{ step: resume\|place\|email, outcome: done\|skipped, via? }` | `answerStep`. `via` says how a done step was answered: `resume`, `roles`, `place`, `remote` or `saved_search`. | per-step completion and skip rates. |
+| `onboarding_later` | `{ answered }` | `putSetupOff`: the strip's Later, the panel's Later, or the sheet closed before its last step. | where people put setup off. |
+| `onboarding_finished` | `{ done, skipped }` | `answerStep` when the last step is answered, and `finishIfAllHeld` when everything the account already holds answers every step. Once per account. | setup completion. |
+
 ## Reading the funnel
 
 North-star for Velai cold traffic:

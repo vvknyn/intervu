@@ -13,6 +13,7 @@ import { clearSavedSearches } from "@/lib/jobs/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { invalidateFollowsCache } from "@/lib/follows/use-follows";
 import { invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
+import { forgetOnboarding } from "@/hooks/use-onboarding";
 
 function clearStorageKey(key: string): void {
     if (typeof window === "undefined") return;
@@ -31,4 +32,5 @@ export function clearSessionClientStores(): void {
     clearSavedSearches();
     clearLocalAiResume();
     clearStorageKey(LAST_JOBS_HOME_VIEW_KEY);
+    forgetOnboarding();
 }

@@ -20,7 +20,9 @@ import { cn } from "@/lib/utils";
  * gate) — never a number made up for effect. `onDismiss` adds a "Not now"
  * button; omit it only for a hard wall (the depth cap). `children` sit
  * between the body and the doors, for what the account opens on this page
- * (the company page's real per-band counts).
+ * (the company page's real per-band counts). `onEngage` runs when either door
+ * is taken, before the navigation, so the caller can keep what the visitor
+ * was doing for after sign-in (the 2nd Save search).
  *
  * `autoShown` reports the card as a passive prompt (`auth_nudge_shown`,
  * trigger "auto") once per mount. Pass it only for cards the product puts in
@@ -34,6 +36,7 @@ export function SignupGate({
     originSurface,
     count,
     onDismiss,
+    onEngage,
     autoShown,
     className,
     children,
@@ -44,6 +47,7 @@ export function SignupGate({
     originSurface: OriginSurface;
     count?: CorpusCount | null;
     onDismiss?: () => void;
+    onEngage?: () => void;
     autoShown?: { hasResume: boolean };
     className?: string;
     children?: ReactNode;
@@ -67,8 +71,10 @@ export function SignupGate({
     const hrefs = signupGateHrefs(returnTo);
     // Either door is a user-opened gate: record it so the signup that follows
     // carries this reason (same continuity every dialog gate records).
-    const onEngage = () =>
+    const engage = () => {
         recordAuthGateOpen({ storage: window.sessionStorage, reason, trigger: "user", originSurface, returnTo });
+        onEngage?.();
+    };
     return (
         <section
             data-testid="signup-gate"
@@ -80,12 +86,12 @@ export function SignupGate({
             {children}
             <div className="mt-4 flex flex-wrap items-center gap-3">
                 <Button asChild>
-                    <a data-testid="signup-gate-create" href={hrefs.create} onClick={onEngage}>
+                    <a data-testid="signup-gate-create" href={hrefs.create} onClick={engage}>
                         {copy.createLabel}
                     </a>
                 </Button>
                 <Button asChild variant="outline">
-                    <a data-testid="signup-gate-signin" href={hrefs.signIn} onClick={onEngage}>
+                    <a data-testid="signup-gate-signin" href={hrefs.signIn} onClick={engage}>
                         {copy.signInLabel}
                     </a>
                 </Button>

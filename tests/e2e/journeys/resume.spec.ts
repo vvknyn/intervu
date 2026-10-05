@@ -341,8 +341,8 @@ test("A signed-in import that doesn't reach the account says so, keeps the résu
     },
   );
   await page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
-  // Where sign-in lands a person with no résumé on file: the importer opens.
-  await page.goto("/jobs?resume=gate");
+  // Setup's "Add your résumé" link for a person with no résumé on file: the importer opens.
+  await page.goto("/jobs?resume=setup");
   const dialog = page.getByRole("dialog");
   await dialog.locator('input[type="file"]').setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: Buffer.from(SAVE_RESUME) }, { timeout: 60_000 });
   await dialog.getByTestId("resume-import-skip-download").click();

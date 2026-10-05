@@ -11,16 +11,21 @@ import {
 const ROOT = join(__dirname, "..", "..");
 
 const ONBOARDING_PROSE_FILES = [
-    "src/components/onboarding/FirstTimeOnboardingModal.tsx",
-    "src/components/onboarding/LandingOnboardingView.tsx",
-    "src/components/onboarding/onboarding-step-label.tsx",
+    "src/components/onboarding/WelcomeStrip.tsx",
+    "src/components/onboarding/SetupSheet.tsx",
+    "src/components/onboarding/SetupPanel.tsx",
+    "src/components/onboarding/SetupSteps.tsx",
+    "src/lib/onboarding/steps.ts",
+    "src/lib/onboarding/copy.ts",
 ];
 
 /** Standalone lowercase product name — not velai.app URLs or code identifiers. */
 const STANDALONE_LOWERCASE_VELAI = /(?<![@./a-z0-9-])\bvelai\b(?![a-z0-9.-])/;
 
+// Code, not prose: the setup step's id ("resume"), its test ids and element
+// ids (setup-add-resume), and property reads (input.resume).
 const CODE_RESUME_MARKERS =
-    /parseResume|ResumeData|parsedResume|initialParsedResume|resume-privacy|types\/resume|\bresume:/;
+    /parseResume|ResumeData|parsedResume|initialParsedResume|resume-privacy|types\/resume|\bresume:|["']resume["']|[-.]resume\b|\bresume-|resumeOnFile/;
 
 function read(rel: string): string {
     return readFileSync(join(ROOT, rel), "utf8");
@@ -48,19 +53,6 @@ describe("Phase 2 — voice onboarding batch", () => {
         const mock = read("src/components/mock/EmptyStatesMock.tsx");
         assert.match(mock, /HISTORY_EMPTY_TITLE/);
         assert.match(mock, /HISTORY_EMPTY_DESCRIPTION/);
-    });
-
-    it("P2-10 onboarding step label reads Step N of M on every step", () => {
-        const label = read("src/components/onboarding/onboarding-step-label.tsx");
-        assert.match(label, /Step <span className="font-semibold tabular-nums">\{step\}<\/span> of \{total\}/);
-
-        // a0d7e59b: the landing sign-in step dropped step chrome; the label now counts only
-        // the post-account résumé steps, so it passes its own step + total.
-        const landing = read("src/components/onboarding/LandingOnboardingView.tsx");
-        assert.match(landing, /<OnboardingStepLabel step=\{resumeOnboardingStep\} total=\{2\} \/>/);
-
-        const modal = read("src/components/onboarding/FirstTimeOnboardingModal.tsx");
-        assert.match(modal, /<OnboardingStepLabel step=\{step\} \/>/);
     });
 
     it("onboarding user-visible copy uses Velai casing and résumé spelling", () => {

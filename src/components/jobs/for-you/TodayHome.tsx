@@ -80,6 +80,7 @@ import { presentJob } from "@/lib/presentation";
 import { DEFAULT_DAILY_APPLY_GOAL, countAppliedToday } from "@/lib/pursuits/daily-apply-plan";
 import type { Pursuit } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import type { ResumeData } from "@/types/resume";
 
 /** The packs Today can open: everything, or this week's. */
@@ -296,7 +297,12 @@ export function TodayHome({
         auth === "signed-out" ? { kind: "none" } : auth === "pending" ? { kind: "loading" } : needsRemote.state;
     const remoteData = remote.kind === "ready" ? remote.data : null;
     const needs = useMemo(() => buildNeedsYou(pursuits, nowMs, remoteData), [pursuits, nowMs, remoteData]);
-    const steps = useMemo(() => (remoteData ? starterSteps(pursuits, remoteData) : null), [pursuits, remoteData]);
+    // Setup's weekly-email step already asked about saving a search (hooks/use-onboarding.ts).
+    const emailAnswered = useOnboarding().outcomes?.email != null;
+    const steps = useMemo(
+        () => (remoteData ? starterSteps(pursuits, remoteData, { emailAnswered }) : null),
+        [pursuits, remoteData, emailAnswered],
+    );
 
     const status: TodayStatus = matching ? search.kind : `no-resume-${noResume}`;
 

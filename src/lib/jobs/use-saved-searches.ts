@@ -15,7 +15,10 @@
 
 import { useEffect, useState } from "react";
 import { createServerListCache } from "@/lib/server-list-cache";
-import { listSavedSearchesAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
+import { listSavedSearchesAction, saveSavedSearchAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
+import { takePendingSavedSearch } from "@/lib/jobs/pending-saved-search";
+import { captureEvent } from "@/lib/analytics/events";
+import { noteSetupFacts } from "@/hooks/use-onboarding";
 import {
     loadSavedSearches,
     clearSavedSearches,
@@ -42,6 +45,23 @@ export async function syncGuestSavedSearchesToServer(): Promise<boolean> {
         return true;
     }
     return false;
+}
+
+/**
+ * Saves the search a guest signed in to save (pending-saved-search.ts).
+ * @returns its name once saved, or null when there was none or the save failed.
+ */
+export async function savePendingSearchAfterSignIn(): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+    const pending = takePendingSavedSearch(window.sessionStorage);
+    if (!pending) return null;
+    const result = await saveSavedSearchAction(pending).catch(() => ({ error: "Failed to save search" }));
+    if (result.error) return null;
+    invalidateSavedSearchesCache();
+    captureEvent("saved_search_created", { surface: "after_sign_in", signed_in: true });
+    // A saved search is what setup's weekly-email step asks for.
+    noteSetupFacts({ savedSearches: 1 });
+    return pending.name;
 }
 
 export interface UseSavedSearchesResult {

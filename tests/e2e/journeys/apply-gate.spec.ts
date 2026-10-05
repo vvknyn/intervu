@@ -93,7 +93,8 @@ test("Create account from the Apply dialog comes back to the job page, not the r
   const params = authStart()!.searchParams;
   expect(params.get("mode")).toBe("signup");
   expect(params.get("next")).toBe(jobPath);
-  expect(params.get("pending")).toBe("1");
+  // Every sign-up keeps its page now, so nothing has to flag the queued Apply.
+  expect(params.get("pending")).toBeNull();
 });
 
 test("Continue with Google from the Apply dialog signs in back to the job page", { tag: ["@J-APPLY-03"] }, async ({ page }) => {

@@ -70,10 +70,6 @@ async function main() {
             process.exitCode = 1;
         }
 
-        await page.goto(`${BASE}/mock/onboarding`, { waitUntil: "networkidle", timeout: 120_000 });
-        await page.getByRole("button", { name: "Step 2" }).click();
-        await shot(page, `onboarding-step2-${tag}.png`);
-
         await page.close();
     }
 

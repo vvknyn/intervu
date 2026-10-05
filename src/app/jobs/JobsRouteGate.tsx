@@ -22,8 +22,8 @@ const subscribeNever = () => () => {};
  * /jobs is board-first for everyone: the search box and job rows straight
  * away, with no poster or step flow ahead of them, signed in or out. Sign-up
  * is asked for at persist actions (save, alert, apply); an account without a
- * résumé gets the résumé band on the board, and the importer over it right
- * after sign-up (`?resume=gate`, handled inside JobsContent).
+ * résumé gets the résumé band on the board, and a new account its setup in
+ * place of the band (components/onboarding/).
  *
  * JobsContent is browser-only (it reads storage and the viewport while it
  * renders), so it mounts after hydration. It is imported statically, not

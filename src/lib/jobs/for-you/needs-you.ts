@@ -218,11 +218,18 @@ export interface StarterStep {
 }
 
 /**
- * A new account with nothing to act on yet gets three first steps instead of
+ * A new account with nothing to act on yet gets its first steps instead of
  * an empty list; they tick off as the tracker, saved searches and follows
- * fill. `null` once all three are done (the list is simply empty then).
+ * fill. `null` once all are done (the list is simply empty then).
+ *
+ * `emailAnswered`: setup already asked about new roles by email (yes or no
+ * thanks), so the saved-search line would only ask again.
  */
-export function starterSteps(pursuits: Pursuit[], remote: NeedsYouRemote): StarterStep[] | null {
+export function starterSteps(
+    pursuits: Pursuit[],
+    remote: NeedsYouRemote,
+    opts: { emailAnswered?: boolean } = {},
+): StarterStep[] | null {
     const applied = pursuits.filter((p) => hasReachedStage(p, "applied")).length;
     const steps: StarterStep[] = [
         { key: "apply", label: "Apply to 3 Strong matches", done: applied >= 3, href: "#today-new", action: "See matches" },
@@ -235,5 +242,6 @@ export function starterSteps(pursuits: Pursuit[], remote: NeedsYouRemote): Start
         },
         { key: "follow", label: "Follow 3 companies you'd work for", done: remote.followCount >= 3, href: "/companies", action: "Browse" },
     ];
-    return steps.every((s) => s.done) ? null : steps;
+    const shown = opts.emailAnswered ? steps.filter((s) => s.key !== "save_search") : steps;
+    return shown.every((s) => s.done) ? null : shown;
 }

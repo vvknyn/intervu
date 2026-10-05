@@ -39,6 +39,7 @@ const STAGES = [
   { key: "company", label: "Company pages", areas: ["COMPANY"], ids: [] },
   { key: "auth", label: "Sign in and create account", areas: ["AUTH"],
     ids: ["NAV:3-5", "NAV:17-19", "JOBS:79"] },
+  { key: "onboard", label: "New-account setup", areas: ["ONBOARD"], ids: [] },
   { key: "resume", label: "Résumé page and Customize", areas: ["RESUME"], ids: ["MODAL:3", "MODAL:6"] },
   { key: "settings", label: "Settings and account", areas: ["SETTINGS"], ids: ["NAV:11-13", "NAV:20"] },
   { key: "connect", label: "AI agents: Connect, OAuth, MCP", areas: ["CONNECT", "OAUTH"],
