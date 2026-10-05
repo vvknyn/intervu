@@ -27,6 +27,8 @@ export interface MailMessage {
    *  List-Unsubscribe-bearing kind (see `types.ts`'s `marketing_update`
    *  policy) — there is no marketing send without one. */
   unsubscribeUrl: string;
+  /** Where replies go (`MARKETING_REPLY_TO`); the sending domain has no inbox. */
+  replyTo?: string;
 }
 
 export interface MailTransport {
@@ -64,6 +66,7 @@ export class ResendMarketingTransport implements MailTransport {
       text: msg.text,
       kind: "marketing_update",
       unsubscribeUrl: msg.unsubscribeUrl,
+      replyTo: msg.replyTo,
     });
     if (!result.sent) {
       throw new Error(`marketing send refused for kind=marketing_update: ${result.reason}`);

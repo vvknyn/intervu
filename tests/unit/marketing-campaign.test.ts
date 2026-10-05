@@ -81,12 +81,74 @@ describe("renderCampaign", () => {
     assert.ok(!result.html.includes("not configured"));
   });
 
-  it("renders a visible placeholder instead of silently omitting a missing sender identity", () => {
+  it("leaves the sender block out when no name or address is configured, and keeps the reason line", () => {
     const noSender: CampaignSender = { name: null, postalAddress: null };
     const result = renderCampaign(campaign, RECIPIENT, noSender, SITE_URL);
-    assert.ok(result.html.includes("[sender name not configured]"));
-    assert.ok(result.html.includes("[sender address not configured]"));
-    assert.ok(result.text.includes("[sender name not configured]"));
-    assert.ok(result.text.includes("[sender address not configured]"));
+    assert.ok(!result.html.includes("not configured"));
+    assert.ok(!result.text.includes("not configured"));
+    assert.ok(result.html.includes("Why you got this: you have a Velai account."));
+    assert.ok(result.text.includes("Why you got this: you have a Velai account."));
+    assert.doesNotMatch(result.html, /<p style="margin:0 0 4px;"><\/p>/);
+    // No rule above a lone reason line; the footer's own rule follows it.
+    assert.match(result.html, /<div style="margin-top:24px;font-family:/);
+  });
+});
+
+describe("renderCampaign: pictures, links and the button", () => {
+  const campaign = {
+    name: "test",
+    subject: "Hi",
+    preheader: "Pre",
+    bodyMarkdown: [
+      "Read [the post](/blog/a?x=1&y=2).",
+      "",
+      "![Three roles marked Strong, Good and Outside](/blog/a/shot.png)",
+      "",
+      '[Set up your matches](/jobs?setup=open "button")',
+      "",
+      "Vivek\\",
+      "Founder, Velai",
+    ].join("\n"),
+  };
+
+  it("resolves site paths against the site and styles links in the brand colour", () => {
+    const { html, text } = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.ok(html.includes(`href="${SITE_URL}/blog/a?x=1&amp;y=2" style="color:`));
+    assert.ok(text.includes(`the post (${SITE_URL}/blog/a?x=1&y=2)`));
+  });
+
+  it("draws a picture full width with its alt text, and leaves it out of the plain text", () => {
+    const { html, text } = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.match(html, /<img src="https:\/\/velai\.app\/blog\/a\/shot\.png" alt="Three roles marked Strong, Good and Outside" width="536" style="[^"]*max-width:536px;height:auto/);
+    assert.ok(!text.includes("shot.png"));
+    assert.ok(!text.includes("!["));
+  });
+
+  it("turns a paragraph that is one link titled button into the brand button", () => {
+    const { html, text } = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.match(html, /<td bgcolor="#0E9F4E"[^>]*>\s*<a href="https:\/\/velai\.app\/jobs\?setup=open"[^>]*>Set up your matches<\/a>/);
+    assert.ok(!html.includes('title="button"'));
+    assert.ok(text.includes(`Set up your matches (${SITE_URL}/jobs?setup=open)`));
+  });
+
+  it("keeps a backslash line break as a <br> and a plain line break in text", () => {
+    const { html, text } = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.ok(html.includes("Vivek<br>\nFounder, Velai"));
+    assert.ok(text.includes("Vivek\nFounder, Velai"));
+  });
+});
+
+describe("the 2026-10-whats-new campaign", () => {
+  it("loads, and every picture it shows is in public/", async () => {
+    const { existsSync } = await import("node:fs");
+    const path = await import("node:path");
+    const campaign = loadCampaign("2026-10-whats-new");
+    const pictures = [...campaign.bodyMarkdown.matchAll(/!\[[^\]]+\]\((\/[^)\s]+)\)/g)].map((m) => m[1]);
+    assert.equal(pictures.length, 3);
+    for (const src of pictures) assert.ok(existsSync(path.join(process.cwd(), "public", src)), src);
+    const { html } = renderCampaign(campaign, RECIPIENT, SENDER, SITE_URL);
+    assert.ok(html.includes(">Set up your matches</a>"));
+    assert.ok(html.includes("utm_campaign=2026-10-whats-new"));
+    assert.ok(!html.includes("{{"));
   });
 });
