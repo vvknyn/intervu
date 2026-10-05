@@ -23,6 +23,7 @@ import {
 } from "@/lib/auth/email-code-copy";
 import { captureServerEvent } from "@/lib/analytics/server-capture";
 import { logServer } from "@/lib/observability/posthog-logs";
+import { reportAuthStep } from "@/lib/auth/auth-timing";
 import { getSiteUrl } from "@/lib/seo/constants";
 
 export type EmailCodeState = { error: string; expired?: false } | { expired: true } | null;
@@ -54,6 +55,7 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
         return { error: emailCodeRateLimitMessage(allowAuthEmailCodeRequest.retryAfterMs(ip)) };
     }
 
+    const started = Date.now();
     let auth: AuthenticationResponse;
     try {
         const userManagement = await getWorkosUserManagement();
@@ -83,5 +85,6 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
         console.error("[auth] email-code sign-in follow-up failed:", err),
     );
     captureServerEvent("auth_email_code_submitted", toServerUser(auth.user).uid, { outcome: "signed_in" });
+    reportAuthStep("email_code", Date.now() - started);
     redirect(pending.next ?? buildPostAuthResumeGatePath());
 }

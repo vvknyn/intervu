@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { AuthenticationMethod, User } from "@workos-inc/node";
 import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
 import { claimSignupEvent } from "@/lib/auth/signup-event";
+import { reportAuthStep } from "@/lib/auth/auth-timing";
 import {
     mapAuthKitSignupMethod,
     SIGNUP_SIGNAL_COOKIE_NAME,
@@ -42,7 +43,11 @@ import {
  */
 export async function completeAuthKitSignIn(user: User, authenticationMethod: AuthenticationMethod | undefined): Promise<void> {
     const method = mapAuthKitSignupMethod(authenticationMethod);
-    if ((await claimSignupEvent(user)) && method) {
+    // The one Firestore round trip a sign-in waits on (new accounts only).
+    const claimStarted = Date.now();
+    const claimed = await claimSignupEvent(user);
+    reportAuthStep("signup_claim", Date.now() - claimStarted, { claimed });
+    if (claimed && method) {
         const cookieStore = await cookies();
         cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, method, signupSignalCookieOptions()); // signup-once: cookie only after claimSignupEvent won
     }
