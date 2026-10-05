@@ -5,6 +5,7 @@ import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-rou
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
 import { FIRST_ROWS_PATH, shouldServeFirstRows } from "@/lib/jobs/server-first-rows";
+import { FRONT_DOOR_PATH, shouldServeFrontDoor } from "@/lib/jobs/server-front-door";
 import {
     JOBS_VISITOR_COOKIE,
     JOBS_VISITOR_COOKIE_MAX_AGE,
@@ -80,6 +81,22 @@ export async function middleware(request: NextRequest) {
     if (isJobRoute) {
         response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
     }
+
+    // A signed-out visitor opening bare /jobs gets the front door drawn on
+    // the server (lib/jobs/server-front-door.ts). Same rewrite, and the same
+    // direct-visit rule as the first rows below.
+    const isFrontDoorPath = pathname === FRONT_DOOR_PATH;
+    const frontDoor = shouldServeFrontDoor({
+        method: request.method,
+        pathname: isFrontDoorPath ? "/jobs" : pathname,
+        searchParams: request.nextUrl.searchParams,
+        headers: request.headers,
+        signedIn: !!session.user,
+    });
+    if (isFrontDoorPath) {
+        return frontDoor ? response : handleAuthkitHeaders(request, headers, { redirect: jobsUrl(request), redirectStatus: 308 });
+    }
+    if (frontDoor) return asRewrite(response, request, FRONT_DOOR_PATH);
 
     // A signed-out phone opening a search link gets the list's first rows in
     // the page itself (lib/jobs/server-first-rows.ts): rewritten to the
