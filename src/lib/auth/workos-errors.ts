@@ -21,10 +21,11 @@
  *
  * `AuthenticationException` covers every WorkOS-flagged auth condition that
  * isn't a plain wrong password (email_verification_required, MFA, radar
- * challenges, ...) — spec decision §2: this app requires no verification
- * today, so all of those collapse to the same generic fallback rather than
- * telling someone to "verify your email" for a requirement that doesn't
- * exist.
+ * challenges, ...) — spec decision §2: the password form has no step for
+ * any of them, so all of those collapse to the same generic fallback here.
+ * WorkOS does hold some Google sign-ins for an emailed code; /auth/callback
+ * sends those to /auth/verify-email (email-code-pending.ts), not through
+ * this mapping.
  */
 
 export const WORKOS_INVALID_CREDENTIALS_MESSAGE = "Invalid email or password";
