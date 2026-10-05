@@ -69,6 +69,7 @@
     "framer-motion": "^12.31.0",
     "groq-sdk": "^0.37.0",
     "html2canvas": "^1.4.1",
+    "iron-session": "^8.0.4",
     "jspdf": "^4.0.0",
     "lucide-react": "^1.48.0",
     "mailchecker": "^6.0.21",

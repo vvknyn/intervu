@@ -12,6 +12,7 @@ export const ANALYTICS_EVENTS = {
   auth_method_selected: "auth_method_selected",
   signup_completed: "signup_completed",
   auth_callback_failed: "auth_callback_failed",
+  auth_email_code_submitted: "auth_email_code_submitted",
   turnstile_error: "turnstile_error",
 
   job_viewed: "job_viewed",
