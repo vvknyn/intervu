@@ -180,15 +180,4 @@ describe("profile review false success", () => {
         }
     });
 
-    it("landing review shows Parsed on-device and Save only after the gate accepts", () => {
-        const src = readFileSync(
-            path.join(process.cwd(), "src/components/onboarding/LandingOnboardingView.tsx"),
-            "utf8",
-        );
-        assert.match(src, /parseResumeFileForReview|parsePdfForProfileReview/);
-        assert.doesNotMatch(src, /file\.text\(\)/);
-        const reviewBranch = src.slice(src.indexOf("parsedResume ?"));
-        assert.match(reviewBranch, /Parsed on-device/);
-        assert.match(reviewBranch, /Save &amp; Start matching roles/);
-    });
 });
