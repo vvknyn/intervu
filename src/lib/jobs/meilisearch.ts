@@ -1092,6 +1092,10 @@ async function searchWithDomainPostFilter(
  * there is no engine-decided order to verify. Explicit sorts verify the
  * whole page with `isPageSorted`.
  */
+function sumDefined(a: number | undefined, b: number | undefined): number | undefined {
+  return a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
+}
+
 async function applySortIntegrityGuard(
   result: JobSearchResult,
   p: JobSearchParams,
@@ -1102,7 +1106,13 @@ async function applySortIntegrityGuard(
   const verifiable = (hits: PublicJob[]) => sortVerifiableHits(hits, mode, p.q);
   if (isPageSorted(verifiable(result.hits), mode)) return result;
 
-  const retry = await runSearch();
+  // The retry is a second engine request: its time is counted with the first.
+  const retried = await runSearch();
+  const retry = {
+    ...retried,
+    engineMs: sumDefined(result.engineMs, retried.engineMs),
+    engineCalls: sumDefined(result.engineCalls, retried.engineCalls),
+  };
   if (isPageSorted(verifiable(retry.hits), mode)) return retry;
 
   console.warn("[jobs-search] sort-integrity: engine returned unsorted page, re-sorted locally", {
@@ -1300,6 +1310,7 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
           estimatedTotalHits?: number;
           totalHits?: number;
           facetDistribution?: Record<string, Record<string, number>>;
+          processingTimeMs?: number;
         };
         return {
           hits: normalizePublicJobs(body.hits ?? []),
@@ -1307,6 +1318,8 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
           backend: "meilisearch",
           configured: true,
           facetDistribution: body.facetDistribution as FacetDistribution | undefined,
+          engineMs: body.processingTimeMs,
+          engineCalls: 1,
         };
       };
 
