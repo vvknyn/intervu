@@ -330,6 +330,8 @@ export type HomeActionKind =
   | "tuning_reset"
   // "Add your résumé" / "Replace résumé" where the picks would be.
   | "add_resume"
+  // "Set where you can work" when neither Settings nor the résumé names a country.
+  | "set_location"
   | "see_more"
   | "stat_new"
   | "stat_applied"

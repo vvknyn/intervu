@@ -36,12 +36,15 @@ export const PLACE_NOTES_MAX_IDS = 24;
 export const PLACE_CHECK_LEAD = 8;
 
 /**
- * A row that names no place of its own (country field, place text or title)
- * and hasn't been read yet: only its description can still say where the
- * person must be (`/api/jobs/place-notes`).
+ * A row its description can still place, not read yet: one that names no
+ * place of its own (country field, place text or title), or several
+ * countries its title doesn't narrow ("Remote - North America", tagged
+ * United States and Canada), where "must reside in the US" says which one
+ * (`/api/jobs/place-notes`).
  */
 export function needsPlaceCheck(job: PublicJob): boolean {
-    return job.place_restriction === undefined && jobCountries(job).length === 0 && !titlePlace(job.title);
+    if (job.place_restriction !== undefined || titlePlace(job.title)) return false;
+    return jobCountries(job).length !== 1;
 }
 
 /**

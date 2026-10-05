@@ -29,7 +29,9 @@ const LEVEL: Partial<Record<MatchReason, string>> = {
 const PLACE: Partial<Record<MatchReason, string>> = {
     same_country: "it's in your country",
     remote_same_country: "it's remote in your country",
-    remote_anywhere: "it's remote with no country listed",
+    remote_anywhere: "it's remote and open to people anywhere",
+    remote_unplaced: "it's remote but doesn't say which countries it hires in",
+    remote_pay_home: "it's remote with no country listed, and it pays in your country's money",
     remote_preferred: "it's remote, as your preferences ask",
     relocation_country: "it's in a country you said you'd move to",
     remote_abroad: "it's remote but based in another country",
@@ -49,6 +51,7 @@ const WEAK: ReadonlySet<MatchReason> = new Set([
     "remote_pay_abroad",
     "abroad",
     "country_unlisted",
+    "remote_unplaced",
     "no_resume_place",
     "resume_place_unmatched",
 ]);

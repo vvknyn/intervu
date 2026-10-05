@@ -50,7 +50,7 @@ import {
     type CandidateSignals,
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
-import { payPlace, type PayPlace } from "@/lib/jobs/pay-place";
+import { payPlace } from "@/lib/jobs/pay-place";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
@@ -87,6 +87,8 @@ export type MatchReason =
     | "level_unlisted"
     | "no_years"
     | "remote_anywhere"
+    | "remote_unplaced"
+    | "remote_pay_home"
     | "remote_preferred"
     | "no_resume_place"
     | "resume_place_unmatched"
@@ -308,59 +310,52 @@ const locationComponent = (
 });
 
 /**
- * Candidate location vs job location. Same country is 1; a country the
- * candidate said they would relocate to is 0.8; another country is 0.35 (0.65
- * when the role is remote). A role that is remote with no country is open to
- * anyone. When the candidate's country or the job's country is unknown the
- * component is neutral and flagged `unknown` — never guessed.
+ * Candidate location vs job location. One rule, for every country and role: a
+ * role is open to the candidate only on positive evidence, and anything else
+ * is either outside where they can work or unknown, never assumed open.
+ *
+ * Where the role is: its tags or place text, narrowed by the territory its
+ * title names ("TAM - U.S. Federal" tagged United States and Canada is a US
+ * role) and then by what its description requires ("must reside in the
+ * US"). A narrower reading that shares no country with the wider one leaves
+ * the wider one as it is.
+ *
+ * Open (a fit word): their country, or one they said they'd move to (0.8), is
+ * among the role's; a remote role says it is open anywhere; or a remote role
+ * that names no country pays in their own country's money. Outside (capped
+ * under Good, labelled "Outside Canada"): the role's countries are known and
+ * none is theirs (0.35, 0.65 remote), or a remote role that names no country
+ * pays in another country's money (`remote_pay_abroad`). Unknown (neutral,
+ * flagged, never Strong, never a Today pick): their country can't be read,
+ * or the role says nowhere where it hires (`remote_unplaced`,
+ * `country_unlisted`). Remote with no country used to count as open to
+ * anyone, so US-only roles posted as "Remote" read as fits in Canada.
  *
  * A remote-only preference says how they want to work, not where they can:
- * a remote role tied to another country is still `remote_abroad`. It used to
- * win before the country was read, so "Technical Account Manager (India)"
- * scored as a fit for a remote-only candidate in Canada (2026-10-02).
- *
- * A remote role that names no country anywhere but pays in another
- * country's money ("USD 114k–166k/yr" for a résumé in Canada) is
- * `remote_pay_abroad`: likely for people there, scored and capped like
- * `remote_abroad`, with the currency named as the reason (2026-10-03).
+ * a remote role tied to another country is still `remote_abroad`.
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
     let jobList = jobCountries(job);
     let jobPlace: string | null = null;
-    const titled = titlePlace(job.title);
-    if (jobList.length === 0) {
-        const named = titled ?? job.place_restriction ?? null;
-        if (named) {
+    for (const named of [titlePlace(job.title), job.place_restriction ?? null]) {
+        if (!named || named.countries.length === 0) continue;
+        if (jobList.length === 0) {
             jobList = named.countries;
             jobPlace = named.label;
+            continue;
         }
-    } else if (titled) {
-        // A title's territory narrows a wider tag: "TAM - U.S. Federal" tagged
-        // United States and Canada is a US role. Tags the title doesn't
-        // overlap stay as they are.
-        const narrowed = jobList.filter((country) => titled.countries.includes(country));
+        const narrowed = jobList.filter((country) => named.countries.includes(country));
         if (narrowed.length > 0 && narrowed.length < jobList.length) {
             jobList = narrowed;
-            jobPlace = titled.label;
+            jobPlace = named.label;
         }
     }
     const wantsRemote = Boolean(signals.remotePreference.value) && remote;
-    if (remote && jobList.length === 0) {
-        // A description that says "anywhere" (`place_restriction` with no countries) outweighs the pay.
-        const pay = job.place_restriction ? null : payAbroad(signals, job);
-        if (pay) {
-            return locationComponent(
-                "remote_pay_abroad",
-                `remote with no country listed, paid in ${pay.currency} — likely for people in ${pay.label}`,
-                0.65,
-                false,
-                { where: pay.label, currency: pay.currency },
-            );
-        }
+    if (remote && jobList.length === 0 && opensAnywhere(job)) {
         return wantsRemote
             ? locationComponent("remote_preferred", "remote — matches your remote-only preference", 1)
-            : locationComponent("remote_anywhere", "remote — open to any location", 1);
+            : locationComponent("remote_anywhere", "remote — open to people anywhere", 1);
     }
 
     const own = candidateCountries(signals);
@@ -373,7 +368,21 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
         );
     }
     if (jobList.length === 0) {
-        return locationComponent("country_unlisted", "this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
+        if (!remote) return locationComponent("country_unlisted", "this role's country isn't listed", UNKNOWN_COMPONENT_SCORE, true);
+        // A currency alone can be a default, not a posted range: only a stated amount counts.
+        const pay = job.salary_min == null && job.salary_max == null ? null : payPlace(job.salary_currency);
+        if (!pay) return locationComponent("remote_unplaced", "remote — doesn't say which countries it hires in", UNKNOWN_COMPONENT_SCORE, true);
+        if (own.some((country) => pay.countries.includes(country))) {
+            return locationComponent("remote_pay_home", `remote with no country listed, paid in ${pay.currency} — your country's money`, 1);
+        }
+        if (relocatesTo(signals, pay.countries)) return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
+        return locationComponent(
+            "remote_pay_abroad",
+            `remote with no country listed, paid in ${pay.currency} — likely for people in ${pay.label}`,
+            0.65,
+            false,
+            { where: pay.label, currency: pay.currency },
+        );
     }
     if (own.some((country) => jobList.includes(country))) {
         if (wantsRemote) return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
@@ -381,32 +390,26 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
             ? locationComponent("remote_same_country", "remote — same country", 1)
             : locationComponent("same_country", "same country", 1);
     }
-    const relocation = signals.relocation.value;
-    if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => jobList.includes(c)))) {
-        return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
-    }
+    if (relocatesTo(signals, jobList)) return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
     const where = jobPlace ?? jobList.join(", ");
     return remote
         ? locationComponent("remote_abroad", `remote — based in ${where}`, 0.65, false, { where })
         : locationComponent("abroad", `different country — ${where}`, 0.35, false, { where });
 }
 
-/**
- * The pay's country (`payPlace`) for a remote role that names none, when it
- * isn't the candidate's: "USD" for a résumé in Canada. `null` when the pay is
- * in their own country's money, their country is unknown, they said they'd
- * move there, or the posting gives no amount (a currency alone can be a
- * default, not a posted range).
- */
-function payAbroad(signals: CandidateSignals, job: PublicJob): PayPlace | null {
-    if (job.salary_min == null && job.salary_max == null) return null;
-    const pay = payPlace(job.salary_currency);
-    if (!pay) return null;
-    const own = candidateCountries(signals);
-    if (own.length === 0 || own.some((country) => pay.countries.includes(country))) return null;
+/** Place text that opens a role to everyone: "Remote - Anywhere", "Worldwide", "Global". */
+const ANYWHERE_PLACE = /\b(?:anywhere|worldwide|world-wide|global|globally|any location|all locations|international)\b/i;
+
+/** A role that says it hires anywhere: in its description (`place_restriction` with no countries) or its place text. */
+function opensAnywhere(job: PublicJob): boolean {
+    if (job.place_restriction && job.place_restriction.countries.length === 0) return true;
+    return [job.location, job.location_city, job.location_state].some((text) => ANYWHERE_PLACE.test(text ?? ""));
+}
+
+/** They said they'd move to one of `countries`, or anywhere. */
+function relocatesTo(signals: CandidateSignals, countries: readonly string[]): boolean {
     const relocation = signals.relocation.value;
-    if (relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => pay.countries.includes(c)))) return null;
-    return pay;
+    return Boolean(relocation?.open && (relocation.countries.length === 0 || relocation.countries.some((c) => countries.includes(c))));
 }
 
 const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
@@ -564,6 +567,14 @@ const UNSCORED_TIER = 10_000;
 /** A role outside the candidate's countries (`MatchOutside`) ranks after every role they can take, in the same order among its own kind. */
 const OUTSIDE_TIER = 1_000;
 
+/** A role whose place can't be checked against theirs (`placeUnknown`) ranks after the roles they can take and before the ones outside. */
+const PLACE_UNKNOWN_TIER = 500;
+
+/** Their country, or where the role hires, is unknown: no evidence either way that they can take it. */
+export function placeUnknown(score: MatchScore): boolean {
+    return score.components.some((c) => c.key === "location" && c.unknown === true);
+}
+
 /**
  * Sort key for a ranked list, before the band and the score: the résumé's
  * leading family first (`familyRank`), and inside a family the candidate's own
@@ -575,7 +586,8 @@ const OUTSIDE_TIER = 1_000;
 export function roleTier(score: MatchScore | null | undefined): number {
     if (!score) return UNSCORED_TIER;
     const tier = (score.familyRank ?? 0) * ROLE_TIERS.length + ROLE_TIERS.indexOf(score.role ?? "adjacent");
-    return score.outside ? OUTSIDE_TIER + tier : tier;
+    if (score.outside) return OUTSIDE_TIER + tier;
+    return placeUnknown(score) ? PLACE_UNKNOWN_TIER + tier : tier;
 }
 
 /** Ranked-list order: role tier, then the higher total. Stable sorts keep the incoming order on a tie. */

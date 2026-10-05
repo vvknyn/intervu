@@ -1,6 +1,7 @@
 /**
  * Where postings' descriptions say the person must be (`readPlaceRestriction`),
- * for rows whose title and place fields name no country of their own.
+ * for rows whose title and place fields name no country of their own, or
+ * several the title does not narrow (`needsPlaceCheck`).
  * Server-only: it reads descriptions the list rows don't carry
  * (`JOB_LIST_ATTRIBUTES_TO_RETRIEVE` leaves them out for speed) and resolves
  * cities with the gazetteer, then sends back only the place, never the text.

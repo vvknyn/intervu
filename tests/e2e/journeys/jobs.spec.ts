@@ -912,7 +912,7 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when its 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("Today leaves out a US-only role for a résumé in Canada when Settings names a bare city, or when the title narrows a wider country tag", { tag: ["@J-JOBS-105"] }, async ({ page, diagnostics }) => {
+signedInTest("Today picks a role only on evidence the candidate can take it: a bare-city Settings place, a wider country tag, a role that names nowhere", { tag: ["@J-JOBS-105"] }, async ({ page, diagnostics }) => {
   test.skip(Boolean(process.env.E2E_STORAGE_STATE), "reads its own saved Settings place, not a real account's");
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
@@ -941,20 +941,64 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when Sett
     remoteRole("us-only", "Software Engineer", "Remote (US only)"),
     remoteRole("canada-enterprise", "Software Engineer - Canada Enterprise", "Remote", northAmerica),
     remoteRole("in-canada", "Software Engineer II", "Remote, Canada"),
+    // Tagged for both countries: its description says which ("must reside in the U.S."), or nothing, and the tag stands.
+    remoteRole("wide-us", "Software Engineer, Platform", "Remote", northAmerica),
+    remoteRole("wide-open", "Software Engineer, Data", "Remote", northAmerica),
+    // "Remote" and nothing else says where it hires: no evidence they can take it.
+    remoteRole("nowhere", "Software Engineer III", "Remote"),
   ];
   await page.route("**/api/jobs/search", async (route) => {
     const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
     if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
     return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-territory" });
   });
+  const asked: string[][] = [];
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    asked.push((route.request().postDataJSON() as { ids: string[] }).ids);
+    const notes = { "wide-us": { label: "United States", countries: ["United States"] }, "wide-open": null, nowhere: null };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
   await page.goto("/jobs?view=for-you");
 
   const rows = page.getByTestId("today-home").getByTestId("today-new-row");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["canada-enterprise", "in-canada"]);
-  for (const id of ["canada-enterprise", "in-canada"]) {
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["canada-enterprise", "in-canada", "wide-open"]);
+  expect(new Set(asked.flat())).toEqual(new Set(["wide-us", "wide-open", "nowhere"]));
+  for (const id of ["canada-enterprise", "in-canada", "wide-open"]) {
     await expect(rows.and(page.locator(`[data-job-id="${id}"]`)).getByTestId("match-chip").first()).not.toHaveText(/Outside/);
   }
+  await expect(page.getByTestId("today-where-unknown")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("Today asks where the candidate can work when neither the résumé nor Settings names a country, and shows only roles open to anyone", { tag: ["@J-JOBS-106"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "");
+
+  const week = [
+    remoteRole("in-canada", "Software Engineer", "Remote, Canada"),
+    remoteRole("us-only", "Software Engineer II", "Remote (US only)"),
+    remoteRole("nowhere", "Software Engineer III", "Remote"),
+    remoteRole("open-anywhere", "Software Engineer, Platform", "Remote"),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-nowhere" });
+  });
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    const notes = { nowhere: null, "open-anywhere": { label: "anywhere", countries: [] } };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const ask = page.getByTestId("today-where-unknown");
+  await expect(ask).toBeVisible({ timeout: 60_000 });
+  await expect(ask.getByTestId("today-where-unknown-action")).toHaveAttribute("href", "/settings?tab=prefs");
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["open-anywhere"]);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
