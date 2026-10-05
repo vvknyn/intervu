@@ -27,12 +27,11 @@ type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
 export const COMPANY_JOBS_FETCH_LIMIT = 200;
 
 /**
- * How long a company page waits for its side reads before rendering without
- * the ones still out (see `getCompanyPageData`). Leaves room inside the 2s
- * budget for rendering 200 roles and the trip to the visitor; a warm load
- * took 0.5 to 1.1s in all on release 16.
+ * A company page's roles search slower than this is logged (see
+ * `getCompanyPageData`): it leaves too little of the 2s budget for rendering
+ * 200 roles and the trip to the visitor. Nothing waits on it.
  */
-export const SIDE_READ_BUDGET_MS = 1_000;
+export const SEARCH_BUDGET_MS = 1_000;
 
 /** The page's reads other than the search, injectable for tests (same
  *  shape as the `search: SearchFn` parameter). */
@@ -40,6 +39,7 @@ export interface CompanySideReads {
   news: (domain: string) => Promise<CompanyNewsArticle[]>;
   events: (domain: string) => Promise<CompanyChangeEvent[]>;
   exhaust: (domain: string) => Promise<CompanyExhaust | null>;
+  /** A search slower than this is logged. */
   budgetMs: number;
   log: (level: "warn", body: string, attrs: LogAttrs) => void;
 }
@@ -48,7 +48,7 @@ const SIDE_READS: CompanySideReads = {
   news: fetchCompanyNews,
   events: fetchCompanyEvents,
   exhaust: getSharedCompanyExhaust,
-  budgetMs: SIDE_READ_BUDGET_MS,
+  budgetMs: SEARCH_BUDGET_MS,
   log: logServer,
 };
 
@@ -86,14 +86,16 @@ export async function getCompanyPageData(
 
   // The roles come from the search; news, recent changes and the box
   // database's record (hiring record, posting chart, profile) are side
-  // reads. All four start together. The page waits for the search, and for
-  // each side read only until `budgetMs` (or until the search answers, if
-  // that is later): a side read still out by then is left off this render,
-  // as if it had nothing, instead of holding the roles back. Each side read
-  // already fails soft on its own, and a late one still finishes into its
-  // cache (Next's fetch cache for news and events, `exhaust-cache.ts` for
-  // the box), so the next visit has it. The first visit to a big employer
-  // took 4.3s on release 16, against a 2s budget for every list.
+  // reads. All four start together, and the page waits for the search
+  // alone: a side read still out when the search answers is left off this
+  // render, as if it had nothing, instead of holding the roles back. Each
+  // side read already fails soft on its own, and a late one still finishes
+  // into its cache (Next's fetch cache for news and events,
+  // `exhaust-cache.ts` for the box), so the next visit has it. The first
+  // visit to a big employer took 4.3s on release 16, against a 2s budget for
+  // every list; release 20 let side reads hold the roles for up to 1s, and
+  // on release 23 a cold box read for Amazon (1.4s) still cost its first
+  // visitor that whole second.
   const reads = { ...SIDE_READS, ...deps };
   const startedAt = Date.now();
   const searchRead = timed(
@@ -109,13 +111,8 @@ export async function getCompanyPageData(
     events: timed(reads.events(domain).catch((): CompanyChangeEvent[] => []), startedAt),
     box: timed(reads.exhaust(domain).catch(() => null), startedAt),
   };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const budgetSpent = new Promise<void>((resolve) => {
-    timer = setTimeout(resolve, reads.budgetMs);
-  });
   const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise]);
-  void allSideReads.then(() => clearTimeout(timer));
-  const deadline = Promise.all([budgetSpent, searchRead.promise.catch(() => undefined)]);
+  const deadline = searchRead.promise.catch(() => undefined);
 
   const [result, news, changeEvents, exhaust] = await Promise.all([
     searchRead.promise,
@@ -138,6 +135,10 @@ export async function getCompanyPageData(
         "news.ms": sideReads.news.ms() ?? undefined,
         "events.ms": sideReads.events.ms() ?? undefined,
         "box.ms": sideReads.box.ms() ?? undefined,
+        // How much of search.ms the search engine itself spent, and in how
+        // many requests: the rest is the trip between the boxes.
+        "search.engine.ms": result.engineMs,
+        "search.calls": result.engineCalls,
         "left.off": late.join(",") || undefined,
       }),
     );

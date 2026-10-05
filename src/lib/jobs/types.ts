@@ -487,6 +487,11 @@ export interface JobSearchResult {
   widened?: boolean;
   /** Per-facet value→count for the active result set, when `withFacets` was requested. */
   facetDistribution?: FacetDistribution;
+  /** Time the search engine reported spending on this result (Meilisearch's
+   *  `processingTimeMs`, summed over `engineCalls` requests). Set on the plain
+   *  search path only; the rest of a caller's wait is the trip to the engine. */
+  engineMs?: number;
+  engineCalls?: number;
   /**
    * The query text actually searched, after query understanding stripped
    * work-mode/place tokens out of the raw typed query (see
