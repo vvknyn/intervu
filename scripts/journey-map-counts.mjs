@@ -23,7 +23,7 @@ const END = "<!-- stage-table:end -->";
 // --check fails until it has one.
 const STAGES = [
   { key: "landing", label: "Landing on /jobs with no search",
-    ids: ["JOBS:1", "JOBS:3", "JOBS:21", "JOBS:24-25", "JOBS:29-30", "JOBS:55", "JOBS:58", "JOBS:60", "JOBS:65-66", "MOB:1", "MOB:14-18", "MOB:23", "SRCH:1-2", "SRCH:18", "NAV:1-2", "NAV:6", "NAV:21", "ALERTS:21-23", "SPEED:5-6"] },
+    ids: ["JOBS:1", "JOBS:3", "JOBS:21", "JOBS:24-25", "JOBS:29-30", "JOBS:55", "JOBS:58", "JOBS:60", "JOBS:65-66", "MOB:1", "MOB:14-18", "MOB:23", "SRCH:1-2", "SRCH:18", "NAV:1-2", "NAV:6", "NAV:21", "ALERTS:21-23", "SPEED:5-8"] },
   { key: "search", label: "Search, filters and results", areas: ["SRCH", "FILT", "SPEED"],
     ids: ["JOBS:4-8", "JOBS:14-18", "JOBS:26", "JOBS:28", "JOBS:67-74", "MOB:2", "MOB:11-13", "MOB:20-21", "MOB:25-27"] },
   { key: "upload", label: "Résumé upload and top matches",

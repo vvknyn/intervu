@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
@@ -67,6 +67,9 @@ interface LocationComboboxProps {
     /** Accessible name for the underlying `<input>` — it has no visible
      *  `<label>`, only a placeholder that changes once a place is chosen. */
     ariaLabel?: string;
+    /** The field's name in a surrounding `<form>`, which submits it before
+     *  the page's code has run (the server-drawn /jobs front door). */
+    name?: string;
 }
 
 /** Flatten groups to the flat list keyboard navigation moves through — the
@@ -123,6 +126,7 @@ export function LocationCombobox({
     containerClassName,
     "data-testid": testId = "location-input",
     ariaLabel = "Location",
+    name,
 }: LocationComboboxProps) {
     const [groups, setGroups] = useState<LocationSuggestGroup[]>([]);
     const [fetching, setFetching] = useState(false);
@@ -137,9 +141,20 @@ export function LocationCombobox({
      *  the click's field-scoped commit runs (standard combobox guard). */
     const pickingRef = useRef(false);
     const anchorRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const hasSuggestions = groups.some((g) => g.items.length > 0);
     const showLoading = isOpen && value.trim().length > 0 && fetching;
     const overlayRect = useAnchoredOverlayRect(anchorRef, isOpen && (hasSuggestions || showLoading));
+
+    // A place typed into the server-drawn field before the page's code ran:
+    // keep it as the value rather than letting the next render clear it
+    // (same as SearchAutocomplete).
+    useLayoutEffect(() => {
+        const typed = inputRef.current?.value;
+        if (typed && typed !== value) onChange(typed);
+        // Mount only: afterwards the field and `value` move together.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         const q = value.trim();
@@ -276,10 +291,12 @@ export function LocationCombobox({
     return (
         <div ref={anchorRef} className={cn("relative flex min-w-0 flex-1", containerClassName)}>
             <Input
+                ref={inputRef}
                 data-testid={testId}
                 type="text"
                 role="combobox"
                 aria-label={ariaLabel}
+                name={name}
                 aria-expanded={open}
                 aria-autocomplete="list"
                 // Only reference the listbox while it is actually mounted —
