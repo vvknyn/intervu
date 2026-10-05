@@ -18,6 +18,7 @@ import { createServerListCache } from "@/lib/server-list-cache";
 import { listSavedSearchesAction, saveSavedSearchAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
 import { takePendingSavedSearch } from "@/lib/jobs/pending-saved-search";
 import { captureEvent } from "@/lib/analytics/events";
+import { noteSetupFacts } from "@/hooks/use-onboarding";
 import {
     loadSavedSearches,
     clearSavedSearches,
@@ -58,6 +59,8 @@ export async function savePendingSearchAfterSignIn(): Promise<string | null> {
     if (result.error) return null;
     invalidateSavedSearchesCache();
     captureEvent("saved_search_created", { surface: "after_sign_in", signed_in: true });
+    // A saved search is what setup's weekly-email step asks for.
+    noteSetupFacts({ savedSearches: 1 });
     return pending.name;
 }
 

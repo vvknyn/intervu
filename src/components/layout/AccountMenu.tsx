@@ -66,7 +66,7 @@ export interface AccountMenuProps {
 export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
     // Feedback opens after the menu closes: menus sit a layer above dialogs, so a menu left open would cover it.
     const [feedbackOpen, setFeedbackOpen] = useState(false);
-    // A new account's setup, once the welcome strip has stopped showing (or was put off).
+    // A new account's setup while it has a step left; after the strip's three visit days, the only way back to it.
     const onboarding = useOnboarding();
     const setupLeft = onboarding.open ? SETUP_STEPS.length - onboarding.answered : 0;
     return (
