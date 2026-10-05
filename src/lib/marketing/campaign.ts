@@ -183,7 +183,9 @@ const WHY_YOU_GOT_THIS = "Why you got this: you have a Velai account.";
 function senderIdentityHtml(sender: CampaignSender): string {
   const lines = senderLines(sender);
   const identity = lines.length ? `<p style="margin:0 0 4px;">${lines.map(escapeHtml).join("<br />")}</p>\n    ` : "";
-  return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid ${C.line};font-family:${EMAIL_FONT_SANS};font-size:12px;line-height:1.6;color:${C.muted};">
+  // Alone, the reason line needs no rule of its own: the shell's footer rule follows it.
+  const rule = lines.length ? `padding-top:16px;border-top:1px solid ${C.line};` : "";
+  return `<div style="margin-top:24px;${rule}font-family:${EMAIL_FONT_SANS};font-size:12px;line-height:1.6;color:${C.muted};">
     ${identity}<p style="margin:0;color:${C.faint};">${WHY_YOU_GOT_THIS}</p>
   </div>`;
 }

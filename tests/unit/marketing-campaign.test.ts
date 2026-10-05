@@ -89,6 +89,8 @@ describe("renderCampaign", () => {
     assert.ok(result.html.includes("Why you got this: you have a Velai account."));
     assert.ok(result.text.includes("Why you got this: you have a Velai account."));
     assert.doesNotMatch(result.html, /<p style="margin:0 0 4px;"><\/p>/);
+    // No rule above a lone reason line; the footer's own rule follows it.
+    assert.match(result.html, /<div style="margin-top:24px;font-family:/);
   });
 });
 
