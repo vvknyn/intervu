@@ -1,9 +1,11 @@
 /**
  * A company page waits for its roles, not for its side reads: news, recent
  * changes and the box database's record (hiring record, posting chart,
- * profile) get a budget, and one still out by then is left off that render
- * instead of holding the page (the first Amazon visit took 4.3s on release
- * 16). A late box read lands in a per-employer cache so the next visit has it.
+ * profile) that are still out when the search answers are left off that
+ * render instead of holding the page (the first Amazon visit took 4.3s on
+ * release 16, and a cold box read still held release 23's first Amazon visit
+ * for a second). A late box read lands in a per-employer cache so the next
+ * visit has it.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -51,9 +53,9 @@ function after<T>(ms: number, value: T): Promise<T> {
 }
 
 const searchIn =
-    (ms: number): ((p: JobSearchParams) => Promise<JobSearchResult>) =>
+    (ms: number, extra: Partial<JobSearchResult> = {}): ((p: JobSearchParams) => Promise<JobSearchResult>) =>
     () =>
-        after(ms, { hits: [job("1"), job("2")], total: 2, backend: "meilisearch", configured: true });
+        after(ms, { hits: [job("1"), job("2")], total: 2, backend: "meilisearch", configured: true, ...extra });
 
 const BOX = { profile: null, cadence: null, integrity: null } as unknown as CompanyExhaust;
 const NEWS = [{ title: "Acme raises" }] as unknown as CompanyNewsArticle[];
@@ -72,7 +74,7 @@ function reads(times: { news?: number; events?: number; box?: number }, logged: 
 }
 
 describe("getCompanyPageData — side reads never hold the roles back", () => {
-    it("renders the roles without a box read that is still out at the budget", async () => {
+    it("renders the roles without a box read that is still out when the search answers", async () => {
         const started = Date.now();
         const data = await getCompanyPageData("acme--com", searchIn(5), reads({ box: 400 }));
         const elapsed = Date.now() - started;
@@ -84,6 +86,16 @@ describe("getCompanyPageData — side reads never hold the roles back", () => {
         assert.ok(elapsed < 300, `the page waited ${elapsed} ms for a 400 ms read`);
     });
 
+    it("waits no longer than the search, even for a read inside the old 1 s budget", async () => {
+        const started = Date.now();
+        const data = await getCompanyPageData("acme--com", searchIn(5), reads({ box: 150 }));
+        const elapsed = Date.now() - started;
+
+        assert.ok(data);
+        assert.equal(data.exhaust, null);
+        assert.ok(elapsed < 100, `the page waited ${elapsed} ms for a 150 ms read after a 5 ms search`);
+    });
+
     it("leaves off late news and recent changes the same way", async () => {
         const data = await getCompanyPageData("acme--com", searchIn(5), reads({ news: 400, events: 400 }));
         assert.ok(data);
@@ -91,14 +103,14 @@ describe("getCompanyPageData — side reads never hold the roles back", () => {
         assert.equal(data.exhaust, BOX);
     });
 
-    it("keeps every side read that answers within the budget", async () => {
-        const data = await getCompanyPageData("acme--com", searchIn(5), reads({ news: 10, events: 10, box: 20 }));
+    it("keeps every side read that answers before the search", async () => {
+        const data = await getCompanyPageData("acme--com", searchIn(50), reads({ news: 10, events: 10, box: 20 }));
         assert.ok(data);
         assert.equal(data.exhaust, BOX);
         assert.deepEqual(data.changeEvents, EVENTS);
     });
 
-    it("keeps a side read that answers after the budget but before a slower search", async () => {
+    it("keeps a slow side read when the search is slower still", async () => {
         const data = await getCompanyPageData("acme--com", searchIn(200), reads({ box: 120 }));
         assert.ok(data);
         assert.equal(data.exhaust, BOX, "the page was waiting for the search anyway");
@@ -124,18 +136,20 @@ describe("getCompanyPageData — a read over budget is logged with all four time
         }
     });
 
-    it("logs a slow search too, with nothing left off", async () => {
+    it("logs a slow search too, with nothing left off and the engine's own share of it", async () => {
         const logged: Logged[] = [];
-        await getCompanyPageData("acme--com", searchIn(100), reads({}, logged));
+        await getCompanyPageData("acme--com", searchIn(100, { engineMs: 12, engineCalls: 2 }), reads({}, logged));
         await wait(20);
         assert.equal(logged.length, 1);
         assert.equal(logged[0].attrs["left.off"], undefined);
         assert.ok(Number(logged[0].attrs["search.ms"]) >= 100);
+        assert.equal(logged[0].attrs["search.engine.ms"], 12);
+        assert.equal(logged[0].attrs["search.calls"], 2);
     });
 
-    it("logs nothing when every read is inside the budget", async () => {
+    it("logs nothing when the search is inside the budget and every read beat it", async () => {
         const logged: Logged[] = [];
-        await getCompanyPageData("acme--com", searchIn(5), reads({ news: 5, events: 5, box: 5 }, logged));
+        await getCompanyPageData("acme--com", searchIn(30), reads({ news: 5, events: 5, box: 5 }, logged));
         await wait(100);
         assert.equal(logged.length, 0);
     });
