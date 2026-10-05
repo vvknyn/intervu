@@ -289,6 +289,19 @@ export const AUTH_RESET_REQUEST_MAX_REQUESTS = 5;
 export const allowAuthResetRequest = createIpRateLimiter(AUTH_RESET_REQUEST_WINDOW_MS, AUTH_RESET_REQUEST_MAX_REQUESTS);
 
 /**
+ * Per-IP sliding-window rate limit for the emailed-code step that finishes a
+ * held Google sign-in (`actions/auth-email-code.ts`) — its own store. Each hit
+ * is a WorkOS `authenticateWithEmailVerification` call against a six-digit
+ * code, so this caps guessing from one network; 10 per 10 minutes still
+ * leaves a real person room to mistype the code several times.
+ */
+export const AUTH_EMAIL_CODE_WINDOW_MS = 600_000;
+export const AUTH_EMAIL_CODE_MAX_REQUESTS = 10;
+
+/** Thin I/O wrapper: `checkRateLimitWindow` wired to the email-code step's own store. */
+export const allowAuthEmailCodeRequest = createIpRateLimiter(AUTH_EMAIL_CODE_WINDOW_MS, AUTH_EMAIL_CODE_MAX_REQUESTS);
+
+/**
  * Per-IP sliding-window rate limit for POST /api/search-alerts — its own
  * store. Same budget as connect-waitlist: a real visitor submits once, maybe
  * retries a typo — 5 per 10 minutes is generous for that and tight against a

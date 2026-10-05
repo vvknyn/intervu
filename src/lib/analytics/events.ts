@@ -95,6 +95,8 @@ export interface EventPayloads {
   };
   /** Server-side only (src/app/auth/callback/route.ts). `code` is the CallbackError code, never a credential. */
   auth_callback_failed: { code: string };
+  /** Server-side only (src/actions/auth-email-code.ts): a code sent to finish a Google sign-in WorkOS held for email verification. */
+  auth_email_code_submitted: { outcome: "signed_in" | "refused" | "expired" };
   /** Client-side, from the one Turnstile wrapper (components/ui/turnstile-widget.tsx). `code` is Cloudflare's numeric error code (e.g. "110200") or "script_load_failed" — never user input. */
   turnstile_error: { code: string; surface: TurnstileSurface };
 

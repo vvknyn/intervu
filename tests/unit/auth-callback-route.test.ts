@@ -107,6 +107,26 @@ test("buildCallbackRetryRedirect: preserves a valid next param, for either failu
     }
 });
 
+test("buildCallbackRetryRedirect: carries the return path read from state, so Start again goes back to the job", () => {
+    const response = buildCallbackRetryRedirect(
+        new NextRequest("https://velai.app/auth/callback?code=abc&state=xyz"),
+        "exchange_failed",
+        "/jobs?company=diaverum.com&job=be51670d",
+    );
+    const location = new URL(response.headers.get("location")!);
+    assert.equal(location.searchParams.get("next"), "/jobs?company=diaverum.com&job=be51670d");
+});
+
+test("buildCallbackRetryRedirect: an unsafe return path from state is dropped, never forwarded", () => {
+    const response = buildCallbackRetryRedirect(
+        new NextRequest("https://velai.app/auth/callback?code=abc&state=xyz"),
+        "exchange_failed",
+        "//evil.example.com",
+    );
+    const location = new URL(response.headers.get("location")!);
+    assert.equal(location.searchParams.has("next"), false);
+});
+
 test("buildCallbackRetryRedirect: drops an unsafe (open-redirect) next param", () => {
     const response = buildCallbackRetryRedirect(
         new NextRequest("https://velai.app/auth/callback?next=https://evil.example.com"),

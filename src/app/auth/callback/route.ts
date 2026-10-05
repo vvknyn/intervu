@@ -1,8 +1,6 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
-import { after, NextResponse } from "next/server";
-import { cookies } from "next/headers";
+import { NextResponse, type NextRequest } from "next/server";
 import { getSiteUrl } from "@/lib/seo/constants";
-import { provisionAppAccess, realProvisioningDeps } from "@/lib/auth/provisioning";
 import { captureServerEvent } from "@/lib/analytics/server-capture";
 import { getServerUser } from "@/lib/auth/server-user";
 import {
@@ -12,12 +10,16 @@ import {
     decideCallbackFailureLanding,
     withDirectHitGuard,
 } from "@/lib/auth/callback-guard";
-import { claimSignupEvent } from "@/lib/auth/signup-event";
+import { completeAuthKitSignIn } from "@/lib/auth/authkit-sign-in-complete";
+import { returnPathFromAuthState } from "@/lib/auth/authkit-state";
+import { reportAuthStep } from "@/lib/auth/auth-timing";
 import {
-    mapAuthKitSignupMethod,
-    SIGNUP_SIGNAL_COOKIE_NAME,
-    signupSignalCookieOptions,
-} from "@/lib/auth/authkit-signup-signal";
+    EMAIL_CODE_COOKIE_NAME,
+    EMAIL_CODE_PATH,
+    emailCodeCookieOptions,
+    pendingEmailCodeFromError,
+    sealPendingEmailCode,
+} from "@/lib/auth/email-code-pending";
 
 /**
  * WorkOS AuthKit OAuth callback route.
@@ -37,32 +39,10 @@ import {
  * domain — so a missing var fails loudly at startup instead of silently
  * redirecting users somewhere unreachable.
  *
- * `onSuccess` is this route's provisioning hook — the class fix for spec §4.
- * Google/passkey/magic-auth sign-in never touches `actions/auth.ts`'s
- * `signIn`/`signUp`, so without a hook here those users got no welcome email
- * and no "Intervu" org membership. Deferred via `after()`,
- * same reasoning as `signIn`/`signUp`'s own provisioning calls: it must never
- * turn a successful WorkOS exchange into a redirect error, and a person
- * finishing sign-in should not wait on Resend or Firestore to land on the app.
- *
- * `authenticationMethod` comes straight off the session WorkOS just handed
- * back (`"GoogleOAuth"`, `"Passkey"`, `"MagicAuth"`, ...) — free to read, so
- * `provisionAppAccess`'s telemetry gets the real method instead of a
- * one-size-fits-all `"oauth"` that would mislabel a passkey or magic-link
- * sign-in. It's typed optional upstream; `"ExternalAuth"` (WorkOS's own
- * catch-all member of the same union) covers the rare case it's absent
- * rather than inventing a new label.
- *
- * AuthKit signups emit `signup_completed` via a short-lived
- * `intervu_signup_completed` cookie set here (`cookies().set()`, the same
- * API WorkOS `saveSession` already uses on this route — wrapping
- * handleAuth's Response to append Set-Cookie would risk dropping the
- * session cookie) and consumed client-side in `PostHogProvider` after
- * `posthog.identify(uid)`. The cookie is set only when `claimSignupEvent`
- * (src/lib/auth/signup-event.ts) wins: a fresh WorkOS `createdAt` plus a
- * durable once-per-uid claim — never the `metadata.apps` tag, which is only
- * written later by the `after()` below. Username/password signups never hit
- * this route; `signUp` claims through the same function.
+ * `onSuccess` hands the fresh session to `completeAuthKitSignIn`
+ * (src/lib/auth/authkit-sign-in-complete.ts): provisioning and the
+ * once-per-account `signup_completed` cookie, shared with the emailed-code
+ * step so a held sign-in finishes exactly like this one.
  *
  * `withDirectHitGuard` (src/lib/auth/callback-guard.ts) redirects a request
  * that carries neither `code` nor `error` straight to /auth/retry instead
@@ -72,12 +52,23 @@ import {
  * PKCE, state mismatch, a denied authorization, `authenticateWithCode`
  * throwing) — handleAuth catches all of them internally and would
  * otherwise answer with a raw 500 JSON body (`{"error":{"message":"Something
- * went wrong"}}`) that a visitor just sees as a broken page. The real error
+ * went wrong"}}`) that a visitor just sees as a broken page. The real
  * error's code is logged and captured here (server-side only, never in the
  * response), and a visitor who already holds a valid session is sent on to
  * the app instead of the error page — see `decideCallbackFailureLanding`.
+ *
+ * One "failure" is not a failure: WorkOS answers `email_verification_required`
+ * when it wants the person to type a code it just emailed before the Google
+ * sign-in counts. That goes to the code step (email-code-pending.ts) with the
+ * held sign-in sealed in a cookie, not to "We couldn't finish signing you in",
+ * where Start again only sent another code and failed again. Every branch
+ * keeps where the person was headed, read back out of `state`.
+ *
+ * `GET` times the whole exchange and logs it when slow (auth-timing.ts): the
+ * landing after a Google sign-in paints 1.4 to 3.3 s after the redirects
+ * start, and until this nothing said how much of that was this route.
  */
-export const GET = withDirectHitGuard(
+const callback = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
         onError: async ({ error, request }) => {
@@ -85,25 +76,50 @@ export const GET = withDirectHitGuard(
             const code = callbackErrorCode(error);
             console.error(callbackFailureLogLine(code, user !== null));
             captureServerEvent("auth_callback_failed", user?.uid ?? crypto.randomUUID(), { code });
+            const returnPath = await returnPathFromAuthState(request.nextUrl.searchParams.get("state"));
             const landing = decideCallbackFailureLanding({
                 hasSession: user !== null,
-                rawNext: request.nextUrl.searchParams.get("next"),
+                rawNext: returnPath ?? request.nextUrl.searchParams.get("next"),
             });
-            return landing.kind === "redirect"
-                ? NextResponse.redirect(new URL(landing.path, getSiteUrl()), 307)
-                : buildCallbackRetryRedirect(request, "exchange_failed");
+            if (landing.kind === "redirect") return NextResponse.redirect(new URL(landing.path, getSiteUrl()), 307);
+
+            const pending = pendingEmailCodeFromError(error);
+            if (pending) {
+                try {
+                    const sealed = await sealPendingEmailCode({ ...pending, next: returnPath });
+                    const response = NextResponse.redirect(new URL(EMAIL_CODE_PATH, getSiteUrl()), 307);
+                    response.cookies.set(EMAIL_CODE_COOKIE_NAME, sealed, emailCodeCookieOptions());
+                    return response;
+                } catch (sealError) {
+                    console.error("[auth] could not hold the sign-in for its email code:", sealError);
+                }
+            }
+            return buildCallbackRetryRedirect(request, "exchange_failed", returnPath);
         },
         onSuccess: async ({ user, authenticationMethod }) => {
-            const method = mapAuthKitSignupMethod(authenticationMethod);
-            if ((await claimSignupEvent(user)) && method) {
-                const cookieStore = await cookies();
-                cookieStore.set(SIGNUP_SIGNAL_COOKIE_NAME, method, signupSignalCookieOptions()); // signup-once: cookie only after claimSignupEvent won
-            }
-            after(() =>
-                realProvisioningDeps()
-                    .then((deps) => provisionAppAccess(deps, user, authenticationMethod ?? "ExternalAuth"))
-                    .catch((err) => console.error("[Auth] callback provisioning failed:", err)),
-            );
+            await completeAuthKitSignIn(user, authenticationMethod);
         },
     }),
 );
+
+export async function GET(request: NextRequest): Promise<Response> {
+    const started = Date.now();
+    const response = await callback(request);
+    reportAuthStep("sign_in_callback", Date.now() - started, { outcome: callbackOutcome(response) });
+    return response;
+}
+
+/** Which way the callback sent the browser, by path only (the query can name a job). Never throws. */
+function callbackOutcome(response: Response): string {
+    const location = response.headers.get("location");
+    if (!location) return `status_${response.status}`;
+    let path: string;
+    try {
+        path = new URL(location, getSiteUrl()).pathname;
+    } catch {
+        return "unknown";
+    }
+    if (path === EMAIL_CODE_PATH) return "email_code";
+    if (path === "/auth/retry") return "retry";
+    return "signed_in";
+}
