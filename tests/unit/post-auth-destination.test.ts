@@ -2,22 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     authGateReasonToFunnelReason,
-    buildPostAuthResumeGatePath,
-    hasPostAuthResumeGateParam,
     isBareJobsDefault,
-    isMidTaskReturn,
     resolveAuthKitReturnTo,
     resolvePostAuthDestination,
-    shouldOpenResumeGateAfterInlineAuth,
+    resumeImporterHref,
+    resumeImporterValue,
+    signupGateHrefs,
 } from "../../src/lib/auth/post-auth-destination";
 
-test("buildPostAuthResumeGatePath returns the /jobs gate query", () => {
-    assert.equal(buildPostAuthResumeGatePath(), "/jobs?resume=gate");
-    assert.equal(hasPostAuthResumeGateParam("/jobs?resume=gate"), true);
-    assert.equal(hasPostAuthResumeGateParam("/jobs"), false);
+test("the importer link is /jobs?resume=setup, and the old sign-up value still reads", () => {
+    assert.equal(resumeImporterHref(), "/jobs?resume=setup");
+    assert.equal(resumeImporterValue("/jobs?resume=setup"), "setup");
+    assert.equal(resumeImporterValue("/jobs?resume=gate"), "gate");
+    assert.equal(resumeImporterValue("/jobs?q=nurse&resume=gate"), "gate");
+    assert.equal(resumeImporterValue("/jobs"), null);
+    assert.equal(resumeImporterValue("/jobs?resume=other"), null);
+    assert.equal(resumeImporterValue("/co/acme?resume=gate"), null);
 });
 
-test("isBareJobsDefault treats bare /jobs and the gate URL as anonymous defaults", () => {
+test("isBareJobsDefault treats bare /jobs and the importer links as anonymous defaults", () => {
     assert.equal(isBareJobsDefault(null), true);
     assert.equal(isBareJobsDefault("/jobs"), true);
     assert.equal(isBareJobsDefault("/jobs?resume=gate"), true);
@@ -25,63 +28,38 @@ test("isBareJobsDefault treats bare /jobs and the gate URL as anonymous defaults
     assert.equal(isBareJobsDefault("/settings"), false);
 });
 
-test("resolvePostAuthDestination keeps returnTo when user has a résumé", () => {
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/jobs?q=design",
-            hasResume: true,
-            hasPendingAction: false,
-        }),
-        "/jobs?q=design",
-    );
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: null,
-            hasResume: true,
-            hasPendingAction: false,
-        }),
-        "/jobs",
-    );
-});
-
-test("resolvePostAuthDestination honors pending actions without forcing the gate URL", () => {
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/jobs",
-            hasResume: false,
-            hasPendingAction: true,
-        }),
-        "/jobs",
-    );
-    assert.equal(
-        resolvePostAuthDestination({
-            validatedNext: "/co/acme",
-            hasResume: false,
-            hasPendingAction: true,
-        }),
+test("every sign-in and sign-up comes back to the page it started on, résumé or not", () => {
+    const pages = [
         "/co/acme",
-    );
+        "/jobs?q=nurse&country=Canada",
+        "/jobs/backend-engineer-acme-1",
+        "/jobs?job=abc",
+        "/settings",
+        "/connect",
+        "/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&code_challenge=x&code_challenge_method=S256&response_type=code",
+    ];
+    for (const next of pages) {
+        assert.equal(resolvePostAuthDestination(next), next);
+        assert.equal(resolveAuthKitReturnTo(next), next);
+        assert.equal(resolveAuthKitReturnTo(`  ${next} `), next);
+    }
 });
 
-test("resolvePostAuthDestination routes every other résumeless no-pending landing to the gate", () => {
-    const gate = "/jobs?resume=gate";
-    // /connect and /oauth/authorize return to themselves (see below).
-    for (const validatedNext of [
-        null,
-        "/jobs",
-        "/jobs?q=engineer",
-        "/co/outerboxdesign--com",
-        "/settings",
-    ]) {
-        assert.equal(
-            resolvePostAuthDestination({
-                validatedNext,
-                hasResume: false,
-                hasPendingAction: false,
-            }),
-            gate,
-        );
-    }
+test("nowhere to return to lands on /jobs, never on the résumé importer", () => {
+    assert.equal(resolvePostAuthDestination(null), "/jobs");
+    assert.equal(resolvePostAuthDestination("/jobs"), "/jobs");
+    // An old sign-up link that still carries the importer flag.
+    assert.equal(resolvePostAuthDestination("/jobs?resume=gate"), "/jobs");
+    assert.equal(resolveAuthKitReturnTo("/jobs?resume=gate"), "/jobs");
+    assert.equal(resolveAuthKitReturnTo(null), null);
+    assert.equal(resolveAuthKitReturnTo("   "), null);
+});
+
+test("a sign-in card's doors both carry the page it sits on", () => {
+    assert.deepEqual(signupGateHrefs("/co/acme"), {
+        create: "/auth/start?mode=signup&next=%2Fco%2Facme",
+        signIn: "/login?next=%2Fco%2Facme",
+    });
 });
 
 test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () => {
@@ -90,79 +68,4 @@ test("authGateReasonToFunnelReason maps gate continuity to funnel reasons", () =
     assert.equal(authGateReasonToFunnelReason("apply"), "tracker");
     assert.equal(authGateReasonToFunnelReason("topbar"), "fit");
     assert.equal(authGateReasonToFunnelReason(undefined), "fit");
-});
-
-test("resolveAuthKitReturnTo sends every signup with nothing queued to the gate path", () => {
-    const gate = "/jobs?resume=gate";
-    for (const rawNext of [
-        null,
-        "/jobs",
-        "/jobs/",
-        "/jobs?resume=gate",
-        "/jobs?q=engineer",
-        "/settings",
-        "/co/acme",
-        "/co/outerboxdesign--com",
-    ]) {
-        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext }), gate);
-        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext, hasPendingAction: false }), gate);
-    }
-});
-
-test("resolveAuthKitReturnTo keeps a signup's page when an action is queued there", () => {
-    // Create account from the Apply dialog: the Apply replays on the job page.
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs/backend-engineer-acme-1", hasPendingAction: true }), "/jobs/backend-engineer-acme-1");
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/jobs?job=abc", hasPendingAction: true }), "/jobs?job=abc");
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme", hasPendingAction: true }), "/co/acme");
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: null, hasPendingAction: true }), "/jobs?resume=gate");
-});
-
-test("resolveAuthKitReturnTo does not rewrite sign-in return targets", () => {
-    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: "/jobs" }), "/jobs");
-    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: "/co/acme" }), "/co/acme");
-    assert.equal(resolveAuthKitReturnTo({ mode: "login", rawNext: null }), null);
-});
-
-test("shouldOpenResumeGateAfterInlineAuth opens only when clear and résumeless", () => {
-    const base = {
-        pendingActionKind: null as string | null,
-        alreadyHandled: false,
-        importAlreadyOpen: false,
-        hasResume: false,
-    };
-    assert.equal(shouldOpenResumeGateAfterInlineAuth(base), true);
-    assert.equal(
-        shouldOpenResumeGateAfterInlineAuth({ ...base, pendingActionKind: "upload" }),
-        false,
-    );
-    assert.equal(
-        shouldOpenResumeGateAfterInlineAuth({ ...base, alreadyHandled: true }),
-        false,
-    );
-    assert.equal(
-        shouldOpenResumeGateAfterInlineAuth({ ...base, importAlreadyOpen: true }),
-        false,
-    );
-    assert.equal(
-        shouldOpenResumeGateAfterInlineAuth({ ...base, hasResume: true }),
-        false,
-    );
-});
-
-test("connecting or approving an AI survives sign-in and signup without a résumé", () => {
-    const authorize = "/oauth/authorize?client_id=abc&redirect_uri=https%3A%2F%2Fclaude.ai%2Fcb&code_challenge=x&code_challenge_method=S256&response_type=code";
-    assert.equal(isMidTaskReturn("/connect"), true);
-    assert.equal(isMidTaskReturn("/connect?client=claude"), true);
-    assert.equal(isMidTaskReturn(authorize), true);
-    assert.equal(isMidTaskReturn("/connect/help"), false);
-    assert.equal(isMidTaskReturn("/jobs"), false);
-    assert.equal(isMidTaskReturn(null), false);
-
-    for (const next of ["/connect", authorize]) {
-        assert.equal(resolvePostAuthDestination({ validatedNext: next, hasResume: false, hasPendingAction: false }), next);
-        assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: next }), next);
-    }
-    // Everything else résumeless still opens the résumé gate.
-    assert.equal(resolvePostAuthDestination({ validatedNext: "/co/acme", hasResume: false, hasPendingAction: false }), "/jobs?resume=gate");
-    assert.equal(resolveAuthKitReturnTo({ mode: "signup", rawNext: "/co/acme" }), "/jobs?resume=gate");
 });

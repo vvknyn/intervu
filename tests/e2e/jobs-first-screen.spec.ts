@@ -393,10 +393,8 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(filters.getByRole("radio", { name: /Hide likely ghosts/i })).toBeVisible();
     });
 
-    // `ResumeUpsellCard` (components/jobs/ResumeUpsellCard.tsx) is unused
-    // dead code — nothing in page.tsx imports or renders it (grep confirms
-    // no call site; last wired up in #24, long before this file's "Task 8"
-    // annotation was written). The "upsell card shows once and dismissal
+    // `ResumeUpsellCard` was dead code with no call site since #24, and was
+    // deleted with the new-account setup (2026-10-05). The "upsell card shows once and dismissal
     // survives reload" test that used to live here asserted a card that
     // cannot render, so it's removed rather than left red — the résumé nudge
     // surface on this page today is the later, still-live "résumé moment"

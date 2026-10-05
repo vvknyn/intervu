@@ -309,7 +309,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-APPLY-27 | On a phone, "Not yet" in the job sheet closes the question without saving, and it doesn't come back on the next focus or after closing the sheet (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 390x844, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
 | J-APPLY-28 | At 1440 wide the role opens beside the list (no sheet) and "Did you apply?" floats over the page; Yes saves the role with its posting URL (dev-server only: signed-in mock) | signed-in | `/jobs?q=backend%20engineer&posted=any` at 1440x900, open a role, seeded velai.applyReturn + focus | signed-in | no | covered | apply-return.spec.ts |
 | J-APPLY-29 | A closed Apply sign-in dialog stays closed when the session is checked again (back/forward cache return), and Apply still opens it | anon | JOB_PATH, Apply, Escape, `pageshow` | signed-out | no | covered | apply-gate.spec.ts |
-| J-APPLY-30 | Create account from the Apply sign-in dialog returns to the job page (`/auth/start?mode=signup&next=<job>&pending=1`), not the résumé upload at /jobs?resume=gate | anon | JOB_PATH, Apply, Create account, Continue with Google | signed-out | no | covered | apply-gate.spec.ts |
+| J-APPLY-30 | Create account from the Apply sign-in dialog returns to the job page (`/auth/start?mode=signup&next=<job>`), not the résumé upload at /jobs?resume=gate | anon | JOB_PATH, Apply, Create account, Continue with Google | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-31 | Apply on a known-dead posting URL says "This posting link looks expired. Try Skip or another pack role." and opens no tab | signed-in | `/jobs` board or pack, a role whose posting URL is known dead, Apply | signed-in | no | uncovered | — |
 | J-APPLY-32 | A guest's "Open posting" behaves the same on /yours/[id] and in the /yours detail sheet (today /yours/[id] gates it behind sign-in and the sheet's is a plain link) | anon | /yours/guest-e2e-1 (seeded) and /yours (1024x768, seeded), "Open posting" on each | signed-out | no | uncovered | — |
 | J-APPLY-33 | Signed-out Apply from a role sheet on a company page opens the sign-in dialog, not the employer site | anon | /co/anthropic--com, open a role row, Apply | signed-out | no | uncovered | — |
@@ -365,6 +365,23 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-47 | A big employer's company page (/co/anthropic--com, /co/amazon--com) shows its first roles within 2 seconds of opening it. The roles wait for nothing but their own search: a slower side read (box database, news, recent changes) still out when the search answers is left off that load, and the next visit has it. Amazon's first load took 4.3 s on release 16 | anon | /co/anthropic--com, /co/amazon--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-48 | A company logo whose image fails before the page has hydrated (a blocked or unreachable favicon host) shows the letter tile, never a broken image with its alt text | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
+## ONBOARD
+
+A new account's setup (`src/components/onboarding/`): the account is marked at sign-up (`profiles/<uid>.onboarding`, written with the sign-up claim), lands on the page it signed in on, and gets three skippable steps beside it. The specs answer the account's setup, Settings › Preferences writes and saved searches themselves, so none writes anything.
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|----|---------|---------|-------|------|--------|--------|------|
+| J-ONBOARD-01 | A new account on the company page it signed in on gets that page, a one-line welcome strip under the header and no dialog; Set up opens the three steps in a sheet over the page | new account | /co/shopify--com | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-02 | A new account that landed on bare /jobs gets setup as the page itself ("Set up your search" in place of the résumé band), no strip on top, and "Add your résumé" opens the importer right there | new account | /jobs | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-03 | Skipping all three steps says "Setup done. Change any of it in Settings › Preferences.", removes setup for good, writes nothing to Preferences or saved searches, and the account menu stops offering Finish setup | new account | /jobs, Skip ×3 | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-04 | Later hides the strip for the rest of the day and the account menu offers "Finish setup (3 steps left)", which opens the steps; a setup whose strip already showed on three earlier days shows no strip, only the menu line | new account | /co/shopify--com, Later | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-05 | A résumé already in this browser answers step 1 and fills step 2's place from it, labelled "From your résumé." | new account with a guest résumé | /co/shopify--com, Set up | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-06 | Step 2 starts from the connection's country, labelled as such, saves the typed place, remote choice and relocation answer to Settings › Preferences, and says beside the button when "Yes, to…" has no place | new account | /co/shopify--com, Set up, Skip | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-07 | Step 3 shows the search it would save ("Registered nurse in Toronto, ON") with how many roles were posted in the last 7 days, says the email is weekly, and saves the search only on the tap | new account with roles and a place | /co/shopify--com, Set up | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-08 | On a phone the welcome strip is one line, and a swipe down on the setup sheet closes it as Later | new account | /co/shopify--com at 390x844 | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-09 | An account made before setup existed sees no strip, no setup on /jobs and no Finish setup in the account menu | existing account | /co/shopify--com, /jobs | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-10 | The welcome email's Finish setup link (`/jobs?setup=open`) opens the steps over /jobs and leaves a plain /jobs address; signed out it is plain /jobs | new account, then guest | /jobs?setup=open | signed-in | no | covered | onboarding.spec.ts |
+
 ## AUTH
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
@@ -384,7 +401,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-13 | Reject empty signup submit with client message | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
 | J-AUTH-14 | Reject a username under 3 characters on signup | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
 | J-AUTH-15 | Reject a malformed email on signup | signing-up | /login (Create account tab) | signed-out | no | uncovered | — |
-| J-AUTH-16 | @writes Create an account with username+password and land on the résumé gate | signing-up | /login (Create account tab) | signed-out | yes | uncovered | — (legacy: account-resume.spec.ts › signed-in flow: upload a resume, see it, replace it, delete it) |
+| J-AUTH-16 | @writes Create an account with username+password and stay on the page it started from, with no résumé dialog | signing-up | /login (Create account tab) | signed-out | yes | uncovered | — (legacy: account-resume.spec.ts › signed-in flow: upload a resume, see it, replace it, delete it) |
 | J-AUTH-17 | @writes Receive the welcome email exactly once per account | signing-up | /login (Create account tab) then inbox | signed-out | yes | uncovered | — |
 | J-AUTH-18 | Reject empty sign-in submit | anon | /login | signed-out | no | uncovered | — |
 | J-AUTH-19 | Reject a wrong password on sign-in | anon | /login | signed-out | no | uncovered | — |
@@ -399,9 +416,9 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-AUTH-28 | Reject a protocol-relative next= at /auth/start | anon | /auth/start?next=//evil.com | signed-out | no | uncovered | — |
 | J-AUTH-29 | Ignore an external next= when an already-signed-in user opens /login | signed-in | /login?next=https://evil.com | signed-in | no | uncovered | — |
 | J-AUTH-30 | Honor a safe next= when an already-signed-in user with a résumé opens /login | signed-in | /login?next=%2Fsettings%3Ftab%3Daccount | signed-in | no | uncovered | — |
-| J-AUTH-31 | Open the résumé importer and strip ?resume=gate after signup with no résumé | signing-up | /jobs?resume=gate | signed-in | no | uncovered | — |
-| J-AUTH-32 | Strip ?resume=gate without a dialog when a résumé is on file | signed-in | /jobs?resume=gate | signed-in | no | uncovered | — |
-| J-AUTH-33 | Keep ?resume=gate untouched while signed out | anon | /jobs?resume=gate | signed-out | no | uncovered | — |
+| J-AUTH-31 | Signed in with no résumé, setup's importer link (`/jobs?resume=setup`, or `?resume=gate` from a sign-up started before the change) opens the importer and strips the param | signed-in | /jobs?resume=setup | signed-in | no | uncovered | — |
+| J-AUTH-32 | Strip ?resume=setup (or ?resume=gate) without a dialog when a résumé is on file | signed-in | /jobs?resume=gate | signed-in | no | uncovered | — |
+| J-AUTH-33 | Keep ?resume=setup (or ?resume=gate) untouched while signed out | anon | /jobs?resume=gate | signed-out | no | uncovered | — |
 | J-AUTH-34 | Refuse GET on /auth/signout | anon | GET /auth/signout | signed-out | no | uncovered | — |
 | J-AUTH-35 | Return {user:null} with no-store from /api/auth/session when signed out | anon | GET /api/auth/session | signed-out | no | uncovered | — |
 | J-AUTH-36 | Drop an expired/cleared session and bounce /settings to login | signed-in | /settings (after clearing wos-session cookie) | signed-in | no | uncovered | — |
@@ -467,7 +484,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-RESUME-38 | A guest who uploaded a three-page CV (Times 11pt, 0.9in margins) customizes a role and downloads the draft: always one page, still serif on the original's paper, borders no tighter than 0.35in, type within 15% of the original's; the bullets that didn't fit are named on screen ("To keep it to one page, N bullets … were left out: … from <role>") and the newest role's first bullet stays | anon | `/resume`, Upload résumé (tests/fixtures/resume-layouts/civil-engineer-long-3p.pdf), then `/jobs?view=search&q=engineer`, open a role, `local-customize-open`, Use a rules draft, Download PDF | signed-out | no | covered | resume.spec.ts |
 | J-RESUME-39 | A guest who uploads a CV with a Projects section and a role dated with a single year ("Survey Technician … 2009") sees both projects and that role in the local résumé; Customize's Copy keeps the projects and its contact line never adds the email's domain ("example.com") as a website | anon | `/resume`, Upload résumé (tests/fixtures/resume-layouts/civil-engineer-long-3p.pdf), then `/jobs?view=search&q=engineer`, open a role, `local-customize-open`, Use a rules draft, Copy | signed-out | no | covered | resume.spec.ts |
 | J-RESUME-40 | A résumé whose name line carries credentials ("Amara Okafor, RN") imports with the name as the name and the place on the contact line ("Hamilton, ON") as the location, never the name line | anon | `/resume`, Upload résumé, `amara.txt` | signed-out | no | covered | resume.spec.ts |
-| J-RESUME-41 | A signed-in résumé import on /jobs whose save to the account fails (session expired, server error) says "Your résumé didn't save to your account, so it's only in this browser for now." until the person acts, keeps the résumé in this browser, and Try again sends it again; a save that lands says so and clears the browser copy | signed-in | `/jobs?resume=gate`, upload, confirm | signed-in | no | covered | resume.spec.ts |
+| J-RESUME-41 | A signed-in résumé import on /jobs whose save to the account fails (session expired, server error) says "Your résumé didn't save to your account, so it's only in this browser for now." until the person acts, keeps the résumé in this browser, and Try again sends it again; a save that lands says so and clears the browser copy | signed-in | `/jobs?resume=setup`, upload, confirm | signed-in | no | covered | resume.spec.ts |
 
 ## SETTINGS
 
@@ -789,7 +806,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
 | J-PRICING-07 | Reserve a founding seat with an email while the Stripe link is unset: the confirmation shows, one row lands in `founding_waitlist` (kept on resubmission), one confirmation email goes out, and /admin's Waitlist group counts it | anon | /pricing | signed-out | yes | uncovered | — |
 | J-PRICING-08 | Founding-seat reservation with a malformed email ("name@host", which the browser lets through) says "Enter a full email address, like you@example.com." right under the button and in view, on every press; nothing is written (a refused Turnstile: J-PRICING-11) | anon | /pricing (Stripe link unset) | signed-out | no | covered | email-form-refusals.spec.ts |
-| J-PRICING-09 | Signed-out Free column "Create free account" goes to /auth/start?mode=signup and returns to /jobs?resume=gate | anon | /pricing | signed-out | no | uncovered | — |
+| J-PRICING-09 | Signed-out Free column "Create free account" goes to /auth/start?mode=signup&next=/jobs and returns to /jobs, where a new account's setup is the page | anon | /pricing | signed-out | no | uncovered | — |
 | J-PRICING-10 | Open a pricing Questions item and read its answer | anon | /pricing | signed-out | no | uncovered | — |
 | J-PRICING-11 | Founding-seat reservation whose security check is refused (spent or missing token) says what to do, and the next press gets a fresh check | anon | /pricing (Stripe link unset, Turnstile keys set) | signed-out | no | uncovered | — |
 

@@ -23,6 +23,7 @@
  */
 import type { Firestore } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { newOnboardingRecord } from "@/lib/onboarding/state";
 
 /** Generous on purpose: magic-auth/passkey creation and callback can be minutes apart. */
 export const SIGNUP_FRESHNESS_MS = 60 * 60 * 1000;
@@ -34,11 +35,18 @@ export function isNewAccount(createdAt: string, now: number): boolean {
   return Number.isFinite(created) && now - created <= SIGNUP_FRESHNESS_MS;
 }
 
+/** Where a new account's setup state lives (lib/onboarding/). */
+export const ONBOARDING_FIELD = "onboarding";
+
 /**
  * Atomically claim the single `signup_completed` for `uid`. Resolves false when
  * already claimed. An UNKNOWN error also resolves false, loudly logged: of the
  * two ways to be wrong, a missed signup event is recoverable and a duplicate
  * inflates the north-star metric with no way to tell.
+ *
+ * The same write marks the account new for setup (`ONBOARDING_FIELD`), so the
+ * door that made it, Create account or a Google sign-in that turned out to be
+ * new, never decides whether it gets setup.
  */
 export async function claimSignupOnProfile(db: Firestore, uid: string): Promise<boolean> {
   const ref = db.collection("profiles").doc(uid);
@@ -46,7 +54,8 @@ export async function claimSignupOnProfile(db: Firestore, uid: string): Promise<
     return await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (snap.get(SIGNUP_CLAIM_FIELD)) return false;
-      tx.set(ref, { [SIGNUP_CLAIM_FIELD]: new Date().toISOString() }, { merge: true });
+      const now = new Date().toISOString();
+      tx.set(ref, { [SIGNUP_CLAIM_FIELD]: now, [ONBOARDING_FIELD]: newOnboardingRecord(now) }, { merge: true });
       return true;
     });
   } catch (err) {

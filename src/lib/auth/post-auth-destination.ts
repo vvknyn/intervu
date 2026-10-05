@@ -1,30 +1,42 @@
 /**
- * Post-auth landing paths — route signed-in users without a usable résumé
- * into the existing /jobs résumé gate (`/jobs?resume=gate`) so one-shot
- * upload can open. Signups and résumeless password/login landings use the
- * gate unless a pending apply/upload/report owns the next step.
+ * Post-auth landing paths. Sign-in and sign-up both return to the page the
+ * person was on, so what they signed in for is there when they land: the
+ * company page, the job, the full search, the queued Apply. Bare /jobs stays
+ * /jobs, where a new account's setup is the page itself (components/onboarding/).
+ *
+ * Sign-up used to land every résumé-less account on the résumé importer
+ * (`/jobs?resume=gate`) instead. Both new accounts in a month that got it
+ * closed it, and one lost the company page they signed up on (onboarding map,
+ * 2026-10-05), so nothing routes a sign-in there any more.
  */
 
 import type { AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 
-/** Query flag consumed by /jobs to auto-open ResumeImportModal once. */
-export const POST_AUTH_RESUME_GATE_PARAM = "resume";
-export const POST_AUTH_RESUME_GATE_VALUE = "gate";
+/**
+ * `/jobs?resume=gate` opens the résumé importer for a signed-in account with
+ * no résumé: setup's "Add your résumé" from another page. The value stays
+ * "gate" so a sign-up already in flight when this shipped still opens it.
+ * `resume=setup` is the same link, counted as setup in the résumé funnel.
+ */
+export const RESUME_IMPORTER_PARAM = "resume";
+export const RESUME_IMPORTER_VALUES = ["gate", "setup"] as const;
+export type ResumeImporterValue = (typeof RESUME_IMPORTER_VALUES)[number];
 
-export function buildPostAuthResumeGatePath(): string {
-    return `/jobs?${POST_AUTH_RESUME_GATE_PARAM}=${POST_AUTH_RESUME_GATE_VALUE}`;
+export function resumeImporterHref(value: ResumeImporterValue = "setup"): string {
+    return `/jobs?${RESUME_IMPORTER_PARAM}=${value}`;
 }
 
-export function hasPostAuthResumeGateParam(path: string): boolean {
+/** Which importer link `path` is, if any. */
+export function resumeImporterValue(path: string): ResumeImporterValue | null {
     try {
         const url = new URL(path, "http://localhost");
-        return (
-            url.pathname === "/jobs" &&
-            url.searchParams.get(POST_AUTH_RESUME_GATE_PARAM) === POST_AUTH_RESUME_GATE_VALUE
-        );
+        const value = url.searchParams.get(RESUME_IMPORTER_PARAM);
+        return url.pathname === "/jobs" && (RESUME_IMPORTER_VALUES as readonly string[]).includes(value ?? "")
+            ? (value as ResumeImporterValue)
+            : null;
     } catch {
-        return false;
+        return null;
     }
 }
 
@@ -33,7 +45,7 @@ export function isBareJobsDefault(next: string | null | undefined): boolean {
     if (!next) return true;
     const trimmed = next.trim();
     if (trimmed === "/jobs" || trimmed === "/jobs/") return true;
-    return hasPostAuthResumeGateParam(trimmed);
+    return resumeImporterValue(trimmed) !== null;
 }
 
 const AUTH_TO_FUNNEL: Partial<Record<AuthGateReason, ResumeFunnelReason>> = {
@@ -51,73 +63,23 @@ export function authGateReasonToFunnelReason(reason?: AuthGateReason | null): Re
 }
 
 /**
- * Pages a visitor is part-way through when they stop to sign in: connecting an
- * AI (/connect) and approving it (/oauth/authorize). Sign-in and signup return
- * there even without a résumé; the résumé gate would lose the approval.
+ * Where a sign-in or sign-up lands: the page it started from. An old importer
+ * link (`/jobs?resume=gate`, still in the odd bookmark or in-flight sign-up)
+ * lands on /jobs itself, so a new account meets setup there rather than a
+ * dialog over it.
  */
-export function isMidTaskReturn(next: string | null | undefined): boolean {
-    if (!next) return false;
-    const path = next.trim().split(/[?#]/)[0];
-    return path === "/connect" || path === "/oauth/authorize";
-}
-
-export function resolvePostAuthDestination(input: {
-    validatedNext: string | null;
-    hasResume: boolean;
-    hasPendingAction: boolean;
-}): string {
-    const { validatedNext, hasResume, hasPendingAction } = input;
-
-    if (hasResume) {
-        return validatedNext ?? "/jobs";
-    }
-
-    // Pending apply/upload/report replay owns the next step on returnTo.
-    if (hasPendingAction) {
-        return validatedNext ?? "/jobs";
-    }
-
-    // Connecting or approving an AI finishes first.
-    if (validatedNext && isMidTaskReturn(validatedNext)) {
-        return validatedNext;
-    }
-
-    // Résumeless with nothing queued: open the upload gate — including
-    // returns from /co/…, Search queries or Settings. #585 only covered bare
-    // /jobs; company-page signups were skipping the modal.
-    return buildPostAuthResumeGatePath();
+export function resolvePostAuthDestination(validatedNext: string | null): string {
+    if (!validatedNext || isBareJobsDefault(validatedNext)) return "/jobs";
+    return validatedNext;
 }
 
 /**
- * Rewrite AuthKit `next` for a signup so WorkOS returns to the résumé gate —
- * unless a gated action is queued (Apply, upload, report), where the action
- * replays, or `next` is connecting or approving an AI (`isMidTaskReturn`).
+ * AuthKit's `returnTo` for a sign-in or sign-up: the same page, by the same
+ * rule as `resolvePostAuthDestination`. Null when there is nothing to return to.
  */
-export function resolveAuthKitReturnTo(input: {
-    mode: "login" | "signup";
-    rawNext: string | null | undefined;
-    hasPendingAction?: boolean;
-}): string | null {
-    const next = input.rawNext?.trim() ? input.rawNext.trim() : null;
-    if (input.mode === "signup") {
-        return next && (input.hasPendingAction || isMidTaskReturn(next)) ? next : buildPostAuthResumeGatePath();
-    }
-    return next;
-}
-
-/** `/auth/start` flag: the signup carries a queued action, so keep its `next`. */
-export const AUTH_START_PENDING_PARAM = "pending";
-
-/** Whether inline signup on /jobs should open the post-auth résumé gate. */
-export function shouldOpenResumeGateAfterInlineAuth(input: {
-    pendingActionKind: string | null;
-    alreadyHandled: boolean;
-    importAlreadyOpen: boolean;
-    hasResume: boolean;
-}): boolean {
-    if (input.pendingActionKind) return false;
-    if (input.alreadyHandled || input.importAlreadyOpen) return false;
-    return input.hasResume === false;
+export function resolveAuthKitReturnTo(rawNext: string | null | undefined): string | null {
+    const next = rawNext?.trim() ? rawNext.trim() : null;
+    return next ? resolvePostAuthDestination(next) : null;
 }
 
 /** A same-site path. A bare query string (`?q=…`) is not one: `next` would land off `/jobs`. */
@@ -125,8 +87,8 @@ export type SitePath = `/${string}`;
 
 /**
  * Hrefs for the two doors a signed-out gate offers — real links, so the gate
- * needs no client state. Both carry the page the visitor was on; `/auth/start`
- * itself rewrites a signup `next` to the résumé gate (`resolveAuthKitReturnTo`).
+ * needs no client state. Both carry the page the visitor was on, and both
+ * come back to it.
  */
 export function signupGateHrefs(returnTo: SitePath): { create: string; signIn: string } {
     const next = encodeURIComponent(returnTo);

@@ -59,13 +59,13 @@ test("setImportOpen(true) is called in exactly 2 places: beginResumeUpload, and 
     const opens = SOURCE.match(/setImportOpen\(true\);/g) ?? [];
     // The replay case (`maybeReplay`'s "upload" branch) is legitimate: it
     // re-opens a modal `beginResumeUpload` already queued the continuation
-    // for, before the auth popover interrupted it. Post-auth `?resume=gate`
-    // routes through `beginResumeUpload()` — not a third direct open.
+    // for, before the auth popover interrupted it. The importer link
+    // (`?resume=setup`) routes through `beginResumeUpload()` — not a third direct open.
     assert.equal(opens.length, 2, `expected 2 setImportOpen(true) call sites, found ${opens.length}`);
 });
 
-test("post-auth resume gate routes through beginResumeUpload and ResumeImportModal funnel context", () => {
-    assert.match(SOURCE, /POST_AUTH_RESUME_GATE_PARAM/);
+test("the importer link routes through beginResumeUpload and ResumeImportModal funnel context", () => {
+    assert.match(SOURCE, /RESUME_IMPORTER_PARAM/);
     assert.match(SOURCE, /authGateReasonToFunnelReason\(attempt\?\.lastGateReason\)/);
     assert.match(SOURCE, /beginResumeUpload\(\{ postSignup: true \}\)/);
     assert.match(SOURCE, /funnelContext=\{\{ \.\.\.importFunnelContext, signed_in: Boolean\(user\) \}\}/);

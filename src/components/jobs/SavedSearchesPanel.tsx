@@ -8,6 +8,9 @@ import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
+import { stashPendingSavedSearch, type PendingSavedSearch } from "@/lib/jobs/pending-saved-search";
+import { captureEvent } from "@/lib/analytics/events";
+import { noteSetupFacts } from "@/hooks/use-onboarding";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -73,12 +76,13 @@ export function SavedSearchesPanel({
     const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
-    // A guest past their free save sees the signup gate instead of a name field.
-    const [gated, setGated] = useState(false);
+    // A guest past their free save sees the signup gate instead of a name
+    // field; the search they meant to save is saved once they sign in.
+    const [gated, setGated] = useState<PendingSavedSearch | null>(null);
 
     const startSave = () => {
         if (!getSignedInUser() && guestSaveGateReached()) {
-            setGated(true);
+            setGated({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) });
             return;
         }
         setNameDraft(suggestSavedSearchName(urlState));
@@ -93,15 +97,21 @@ export function SavedSearchesPanel({
             const href = hrefFromJobsUrlState(urlState);
             if (getSignedInUser()) {
                 const res = await saveSavedSearchAction({ name, href });
-                if (!res.error) invalidateSavedSearchesCache();
+                if (!res.error) {
+                    invalidateSavedSearchesCache();
+                    captureEvent("saved_search_created", { surface: "toolbar", signed_in: true });
+                    // A saved search is what setup's weekly-email step asks for.
+                    noteSetupFacts({ savedSearches: 1 });
+                }
             } else {
                 if (onBeforeGuestSave?.() === "block") {
                     setNaming(false);
                     setNameDraft("");
-                    setGated(true);
+                    setGated({ name, href });
                     return;
                 }
                 persistSavedSearch({ name, href });
+                captureEvent("saved_search_created", { surface: "toolbar", signed_in: false });
             }
             setNaming(false);
             setNameDraft("");
@@ -171,7 +181,7 @@ export function SavedSearchesPanel({
             )}
         >
             {canSave && !naming && (
-                <Popover open={gated} onOpenChange={setGated}>
+                <Popover open={gated !== null} onOpenChange={(open) => !open && setGated(null)}>
                     <PopoverAnchor asChild>
                         {/* Compact: below lg a bare word like the toolbar's
                             other actions (Rank with my résumé, Sort), so a
@@ -198,6 +208,7 @@ export function SavedSearchesPanel({
                             reason="alert"
                             originSurface="jobs_banner"
                             returnTo={`/jobs${hrefFromJobsUrlState(urlState)}`}
+                            onEngage={() => gated && stashPendingSavedSearch(window.sessionStorage, gated)}
                             className="border-0"
                         />
                     </PopoverContent>

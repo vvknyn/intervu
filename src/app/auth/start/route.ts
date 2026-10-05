@@ -1,9 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import {
-    AUTH_START_PENDING_PARAM,
-    buildPostAuthResumeGatePath,
-    resolveAuthKitReturnTo,
-} from "@/lib/auth/post-auth-destination";
+import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { withAuthProvider } from "@/lib/auth/authkit-url";
 
@@ -11,11 +7,9 @@ import { withAuthProvider } from "@/lib/auth/authkit-url";
  * Hand off to WorkOS AuthKit for the sign-in methods our own form cannot host.
  *
  *   /auth/start?next=/jobs                        → sign-in screen
- *   /auth/start?next=/jobs&mode=signup            → sign-up screen (`next`
- *                                                   rewrites to /jobs?resume=gate)
- *   /auth/start?next=/co/acme&mode=signup&pending=1 → sign-up screen that returns
- *                                                   to `next`, where a queued
- *                                                   action (Apply) replays
+ *   /auth/start?next=/co/acme&mode=signup         → sign-up screen; both come
+ *                                                   back to `next`, where a
+ *                                                   queued action (Apply) replays
  *   /auth/start?next=/jobs&provider=GoogleOAuth   → straight to that provider
  *
  * Passkeys are the reason this exists. WebAuthn needs challenge issuance,
@@ -42,14 +36,8 @@ export async function GET(request: NextRequest) {
     // Validated, never passed through raw: an unchecked `next` is an open
     // redirect, and this one survives a round trip through an external host.
     const validatedNext = validateNextParam(params.get("next"));
-    const isSignup = params.get("mode") === "signup";
-    const returnTo = isSignup
-        ? (resolveAuthKitReturnTo({
-              mode: "signup",
-              rawNext: validatedNext,
-              hasPendingAction: params.get(AUTH_START_PENDING_PARAM) === "1",
-          }) ?? buildPostAuthResumeGatePath())
-        : (validatedNext ?? buildPostAuthResumeGatePath());
+    // Sign-up and sign-in alike come back to the page they started on.
+    const returnTo = resolvePostAuthDestination(validatedNext);
 
     const url =
         params.get("mode") === "signup"

@@ -8,7 +8,7 @@ import { allowAuthEmailCodeRequest } from "@/lib/shield/rate-limit";
 import { getWorkosUserManagement, requireWorkosClientId } from "@/lib/auth/workos-runtime";
 import { workosErrorCodes } from "@/lib/auth/workos-errors";
 import { completeAuthKitSignIn } from "@/lib/auth/authkit-sign-in-complete";
-import { buildPostAuthResumeGatePath } from "@/lib/auth/post-auth-destination";
+import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { toServerUser } from "@/lib/auth/workos-identity";
 import {
     EMAIL_CODE_COOKIE_NAME,
@@ -86,5 +86,6 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
     );
     captureServerEvent("auth_email_code_submitted", toServerUser(auth.user).uid, { outcome: "signed_in" });
     reportAuthStep("email_code", Date.now() - started);
-    redirect(pending.next ?? buildPostAuthResumeGatePath());
+    // Back to the page they started on, as every other sign-in does; bare /jobs when there was none.
+    redirect(resolvePostAuthDestination(pending.next));
 }
