@@ -40,8 +40,20 @@ const subscribeNever = () => () => {};
  * renders what a first visit on a phone sees, which is what the list's
  * storage and viewport reads return while hydrating; it updates from the
  * real values right after. Its first search takes `initialSearch`.
+ *
+ * A signed-out visitor opening bare /jobs gets the same treatment from
+ * /jobs/front-door (`signedOut`, server-front-door.ts): the front door
+ * renders on the server with sign-in state already settled, so the masthead
+ * and the résumé band paint with the HTML instead of after the page's code
+ * and a session check.
  */
-export default function JobsRouteGate({ initialSearch = null }: { initialSearch?: InitialSearch | null }) {
+export default function JobsRouteGate({
+    initialSearch = null,
+    signedOut = false,
+}: {
+    initialSearch?: InitialSearch | null;
+    signedOut?: boolean;
+}) {
     // False while hydrating, true after.
     const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
 
@@ -58,10 +70,16 @@ export default function JobsRouteGate({ initialSearch = null }: { initialSearch?
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    if (!mounted && !initialSearch) return null;
-    return (
-        <Suspense fallback={null}>
-            <JobsContent initialSearch={initialSearch} />
-        </Suspense>
-    );
+    const renderedOnServer = initialSearch != null || signedOut;
+    if (!mounted && !renderedOnServer) return null;
+    const content = <JobsContent initialSearch={initialSearch} signedOutOnServer={signedOut} />;
+    // The prerendered page needs the boundary (the list reads the address,
+    // which a prerender leaves to the browser). The pages that render the
+    // list on the server are dynamic and go without: React streams a
+    // finished boundary over ~12.8 KB apart from the page and shows it on
+    // the next animation frame, which on a busy phone came after the page's
+    // scripts had run, so the list painted no sooner than it does in the
+    // browser.
+    if (renderedOnServer) return content;
+    return <Suspense fallback={null}>{content}</Suspense>;
 }

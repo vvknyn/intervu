@@ -1086,7 +1086,14 @@ function saveResumeToAccount(
         });
 }
 
-export function JobsContent({ initialSearch = null }: { initialSearch?: InitialSearch | null } = {}) {
+export function JobsContent({
+    initialSearch = null,
+    signedOutOnServer = false,
+}: {
+    initialSearch?: InitialSearch | null;
+    /** The middleware found no session for this page load (/jobs/front-door). */
+    signedOutOnServer?: boolean;
+} = {}) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -1684,7 +1691,9 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // Session cookie is httpOnly — first paint is "not yet known", not signed
     // out. Holding this false keeps résumé presence on `null` so /jobs does
     // not flash Search chrome for a returning user with a résumé on file.
-    const [authReady, setAuthReady] = useState(false);
+    // A front door the server rendered for a request with no session starts
+    // signed out, as its HTML does; the session check below still runs.
+    const [authReady, setAuthReady] = useState(signedOutOnServer);
     // The signed-in email nudge: an account whose only address is a minted
     // <username>@intervu.cc can't receive anything we send. Value lives in
     // localStorage and is read post-mount, so it starts at the SUPPRESSED
@@ -5809,6 +5818,13 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             </>
         ) : null;
 
+    // The landing shows it from lg up by CSS rather than `isLgUp`: a front
+    // door rendered on the server reads as a phone until it hydrates, and the
+    // button would pop in on a desktop afterwards.
+    const savedSearchMountElInToolbar = showLandingMarketing
+        ? savedSearchMountEl && <span className="hidden lg:contents">{savedSearchMountEl}</span>
+        : savedSearchMountEl;
+
     // E3 (save-this-search, 2026-09-17): a second, compact save/alert entry
     // point mounted at the results-count line — the highest-visibility real
     // estate on the page, directly above the first result row — because
@@ -6568,7 +6584,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                             line by itself on a 390px phone (J-NAV-35). */}
                         {!headerDockActive && (
                             <div data-testid="jobs-toolbar-actions" className="wrap-row ml-auto min-w-0 max-w-full">
-                                {showToolbarFilters && savedSearchMountEl}
+                                {savedSearchMountElInToolbar}
                                 {sortEl}
                                 {tourReplayEl}
                                 {asOfEl}
