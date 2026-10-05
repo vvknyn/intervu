@@ -3,6 +3,7 @@ import { fetchIndexableCompanyDomains } from "@/lib/companies/indexable";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { getSiteUrl } from "@/lib/seo/constants";
+import { BLOG_PATH, BLOG_POSTS, blogPostPath } from "@/lib/blog/posts";
 
 /**
  * /sitemap.xml — the public, indexable entry points. Authed app surfaces
@@ -71,6 +72,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // SUBSET of what the page considers indexable, never a superset.
   // Under-listing a page that a crawler can still reach through `/jobs` is
   // recoverable; over-listing empty pages is the thing #171 fixed.
+  // One entry per blog post, dated by when it was published.
+  const blogEntries: MetadataRoute.Sitemap = BLOG_POSTS.map((post) => ({
+    url: `${siteUrl}${blogPostPath(post.slug)}`,
+    lastModified: new Date(`${post.datePublished}T00:00:00Z`),
+    changeFrequency: "monthly",
+    priority: 0.5,
+  }));
+
   const indexableDomains = await fetchIndexableCompanyDomains();
   const companyEntries: MetadataRoute.Sitemap = indexableDomains.map(({ domain, computedAt }) => ({
     url: `${siteUrl}${companyBoardPath(domain)}`,
@@ -131,6 +140,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.6,
     },
+    {
+      url: `${siteUrl}${BLOG_PATH}`,
+      changeFrequency: "weekly",
+      priority: 0.5,
+    },
+    ...blogEntries,
     {
       url: `${siteUrl}/about`,
       changeFrequency: "monthly",

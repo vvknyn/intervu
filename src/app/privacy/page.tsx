@@ -238,12 +238,16 @@ export default function PrivacyPage() {
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
-          email you&apos;ve been sent (a waitlist confirmation, the weekly digest) and its delivery status (sent,
-          bounced, or marked as spam) — not the content of what we send you.
+          email you&apos;ve been sent (a waitlist confirmation, the weekly digest, a product update) and its delivery
+          status (sent, bounced, or marked as spam) — not the content of what we send you.
+        </p>
+        <p>
+          If you have an account, we may also email you now and then about changes to Velai, such as a new feature
+          or a fix to something that wasn&apos;t working.
         </p>
         <p>
           Every email that isn&apos;t a direct response to something you just did — the weekly digest, a waitlist
-          confirmation — includes an unsubscribe link that works without signing in and takes effect immediately.
+          confirmation, a product update — includes an unsubscribe link that works without signing in and takes effect immediately.
           If an email to your address bounces, or you mark one as spam, we stop sending to that address
           automatically. You can also turn the weekly digest on or off directly from{" "}
           <Link href="/settings">account settings</Link>.

@@ -28,6 +28,9 @@ export interface SendEmailInput {
    *  waitlist confirmation) builds it via `unsubscribe-token.ts` + the
    *  `/unsubscribe` route. */
   unsubscribeUrl?: string;
+  /** Where a reply goes. The sending domain has no inbox, so an email that
+   *  invites a reply must name one. */
+  replyTo?: string;
 }
 
 export type SendSkipReason = "no-api-key" | "no-mailbox" | "missing-from-address" | "missing-unsubscribe-url";
@@ -131,6 +134,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       ...(input.react ? { react: input.react } : {}),
       ...(input.html ? { html: input.html } : {}),
       text: input.text,
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
       headers,
     });
 

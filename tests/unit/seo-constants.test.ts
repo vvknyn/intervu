@@ -4,6 +4,7 @@ import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
 import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { CAREER_HUBS } from "@/lib/seo/career-hubs";
+import { BLOG_POSTS } from "@/lib/blog/posts";
 
 /**
  * `getSiteUrl()` re-reads `process.env.NEXT_PUBLIC_SITE_URL` on every call —
@@ -81,7 +82,7 @@ describe("seo/constants — getSiteUrl() env seam", () => {
     const coEntries = result.filter((e) => e.url.includes("/co/"));
     assert.equal(coEntries.length, FAKE_DIRECTORY_DOMAINS.length);
     // The static, always-indexable pages are unaffected by the directory's contents.
-    assert.equal(result.length - coEntries.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length);
+    assert.equal(result.length - coEntries.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
   });
 
   it("sitemap.ts FAILS rather than silently publishing an empty /co/ section on a Meilisearch HTTP error", async () => {
@@ -112,13 +113,13 @@ describe("seo/constants — getSiteUrl() env seam", () => {
 /** Domains the fake `company_directory` reply below publishes. */
 const FAKE_DIRECTORY_DOMAINS = ["acme.com", "beta.io", "gamma.dev"];
 
-/** Every literal entry in `sitemap.ts`'s return list (the `/co/` section and
- *  the CAREER_HUBS spread — #458 f6701df2 — are counted separately). Pinned as
+/** Every literal entry in `sitemap.ts`'s return list (the `/co/` section, the
+ *  CAREER_HUBS spread — #458 f6701df2 — and the blog posts are counted separately). Pinned as
  *  a count so this file fails loudly if a static entry is added/removed there
  *  without this file being updated to match, rather than the assertion below
  *  quietly passing for the wrong reason. 11 since #464 (49691ace) added
- *  /eluta-alternative. */
-const STATIC_SITEMAP_ENTRY_COUNT = 12;
+ *  /eluta-alternative; 13 with /blog. */
+const STATIC_SITEMAP_ENTRY_COUNT = 13;
 
 /** `company_directory` `/search` reply publishing every fake domain with
  *  enough open roles to clear the gate. */

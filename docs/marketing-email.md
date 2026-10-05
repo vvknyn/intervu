@@ -18,6 +18,8 @@ generic `/unsubscribe` route + HMAC token, WorkOS `listIntervuUsers`.
   footer identity. `--live` refuses if either is unset (no silent
   placeholder in a real send). No `.env.example` exists in this repo; these
   are documented here instead.
+- `MARKETING_REPLY_TO` — the inbox replies go to. The sending domain has no
+  inbox, so a reply to the From address bounces; `--live` refuses without it.
 - Already-set, reused: `ENCRYPTION_KEY` (tokens), `RESEND_API_KEY` /
   `RESEND_FROM` (transport), `INTERVU_PG_URL` (send log, required for
   `--live`), `WORKOS_*` (recipient list).
@@ -37,4 +39,22 @@ MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=resend \
 ```
 
 `--limit=N` caps sends per run. Idempotent: re-running a campaign skips
-anyone `intervu.marketing_sends` already has a row for.
+anyone `intervu.marketing_sends` already has a row for. Addresses WorkOS says
+were never verified are always left out.
+
+`--only=<file>` sends only to the addresses in a reviewed list: one address
+per line, `#` for comments. A line with anything else on it (a CSV row, a
+name) stops the run, so a spreadsheet with a "don't send" column can't be
+passed by mistake.
+
+## Writing a campaign
+
+Front matter takes `subject` and `preheader`; `{{firstName}}` works in all
+three parts. The body is markdown, plus:
+
+- A picture: `![what it shows](/blog/<post>/<file>.png)`, kept under
+  `public/`. It shows full width (536px), so export at 1072px wide. The alt
+  text is what someone with pictures off reads.
+- The button: a paragraph that is only `[Label](/path "button")`.
+- Site paths (`/jobs`, `/blog/...`) become full velai.app links.
+- A line break inside a paragraph: end the line with `\`.

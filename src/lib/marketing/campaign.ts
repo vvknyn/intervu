@@ -20,7 +20,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import MarkdownIt from "markdown-it";
-import { escapeHtml, renderEmailShellHtml, renderEmailShellText } from "@/lib/email/templates/base";
+import type Token from "markdown-it/lib/token.mjs";
+import { ctaButton, escapeHtml, renderEmailShellHtml, renderEmailShellText } from "@/lib/email/templates/base";
 import { EMAIL_COLORS as C, EMAIL_FONT_SANS } from "@/lib/email/templates/palette";
 
 export interface Campaign {
@@ -83,11 +84,70 @@ function applyTemplate(text: string, recipient: CampaignRecipient): string {
   return text.replace(/\{\{firstName\}\}/g, recipient.firstName?.trim() || "there");
 }
 
+/** The shell's card is 600px with 32px either side, so a picture is at most this wide. */
+export const CAMPAIGN_IMAGE_WIDTH = 536;
+
+/** The link title that turns a paragraph holding only that link into the brand button: `[Label](/path "button")`. */
+const BUTTON_TITLE = "button";
+
+/** A site path (`/blog/...`) resolved against the site; a full URL as written. */
+export function absoluteUrl(href: string, siteUrl: string): string {
+  return href.startsWith("/") ? `${siteUrl.replace(/\/$/, "")}${href}` : href;
+}
+
 const md = new MarkdownIt({ html: false, linkify: false, breaks: false });
+
+interface RenderEnv {
+  siteUrl: string;
+}
+
+// Mail clients ignore <head> styles, so each element carries its own: the
+// shell's 15px body type with even paragraph spacing, links in the brand
+// colour, and pictures that shrink to fit a phone.
+md.renderer.rules.paragraph_open = (tokens, idx) => (tokens[idx].hidden ? "" : `<p style="margin:0 0 16px;">`);
+md.renderer.rules.link_open = (tokens, idx, _options, env: RenderEnv) => {
+  const href = absoluteUrl(tokens[idx].attrGet("href") ?? "", env.siteUrl);
+  return `<a href="${escapeHtml(href)}" style="color:${C.link};text-decoration:underline;">`;
+};
+md.renderer.rules.image = (tokens, idx, _options, env: RenderEnv) => {
+  const token = tokens[idx];
+  const src = absoluteUrl(token.attrGet("src") ?? "", env.siteUrl);
+  const alt = token.children?.map((t) => t.content).join("") ?? token.content;
+  return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" width="${CAMPAIGN_IMAGE_WIDTH}" style="display:block;width:100%;max-width:${CAMPAIGN_IMAGE_WIDTH}px;height:auto;border:0;border-radius:10px;" />`;
+};
+
+/** A paragraph that is one link titled "button" becomes `ctaButton`, the same pill every Velai email uses. */
+md.core.ruler.push("campaign_button", (state) => {
+  const out: Token[] = [];
+  const t = state.tokens;
+  for (let i = 0; i < t.length; i++) {
+    const inline = t[i + 1];
+    const kids = inline?.children ?? [];
+    const isButton =
+      t[i].type === "paragraph_open" &&
+      inline?.type === "inline" &&
+      t[i + 2]?.type === "paragraph_close" &&
+      kids.length === 3 &&
+      kids[0].type === "link_open" &&
+      kids[0].attrGet("title") === BUTTON_TITLE &&
+      kids[1].type === "text" &&
+      kids[2].type === "link_close";
+    if (!isButton) {
+      out.push(t[i]);
+      continue;
+    }
+    const block = new state.Token("html_block", "", 0);
+    const env = state.env as RenderEnv;
+    block.content = ctaButton(escapeHtml(absoluteUrl(kids[0].attrGet("href") ?? "", env.siteUrl)), escapeHtml(kids[1].content));
+    out.push(block);
+    i += 2;
+  }
+  state.tokens = out;
+});
 
 /** Plain-text counterpart of the markdown → HTML pass, from the same
  *  source, so the two can't drift apart into different content. */
-function markdownToText(markdown: string): string {
+function markdownToText(markdown: string, siteUrl: string): string {
   const withHeadingsAndBullets = markdown
     .split("\n")
     .map((line) => {
@@ -100,7 +160,11 @@ function markdownToText(markdown: string): string {
     .join("\n");
 
   return withHeadingsAndBullets
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1 ($2)")
+    // Pictures say nothing a plain-text reader needs; the words around them carry it.
+    .replace(/^!\[[^\]]*\]\([^)]*\)\s*$/gm, "")
+    // A trailing backslash is markdown's line break; plain text breaks the line already.
+    .replace(/\\$/gm, "")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_m, label: string, href: string) => `${label} (${absoluteUrl(href, siteUrl)})`)
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1")
     .replace(/\n{3,}/g, "\n\n")
@@ -112,14 +176,14 @@ function senderIdentityHtml(sender: CampaignSender): string {
   const address = sender.postalAddress?.trim() || "[sender address not configured]";
   return `<div style="margin-top:24px;padding-top:16px;border-top:1px solid ${C.line};font-family:${EMAIL_FONT_SANS};font-size:12px;line-height:1.6;color:${C.muted};">
     <p style="margin:0 0 4px;">${escapeHtml(name)}<br />${escapeHtml(address)}</p>
-    <p style="margin:0;color:${C.faint};">Why you got this: you have a velai account.</p>
+    <p style="margin:0;color:${C.faint};">Why you got this: you have a Velai account.</p>
   </div>`;
 }
 
 function senderIdentityText(sender: CampaignSender): string {
   const name = sender.name?.trim() || "[sender name not configured]";
   const address = sender.postalAddress?.trim() || "[sender address not configured]";
-  return [name, address, "", "Why you got this: you have a velai account."].join("\n");
+  return [name, address, "", "Why you got this: you have a Velai account."].join("\n");
 }
 
 export function renderCampaign(
@@ -132,8 +196,9 @@ export function renderCampaign(
   const preheader = applyTemplate(campaign.preheader, recipient);
   const bodyMarkdown = applyTemplate(campaign.bodyMarkdown, recipient);
 
-  const bodyHtml = md.render(bodyMarkdown) + senderIdentityHtml(sender);
-  const bodyText = [markdownToText(bodyMarkdown), "", senderIdentityText(sender)].join("\n");
+  const env: RenderEnv = { siteUrl };
+  const bodyHtml = md.render(bodyMarkdown, env) + senderIdentityHtml(sender);
+  const bodyText = [markdownToText(bodyMarkdown, siteUrl), "", senderIdentityText(sender)].join("\n");
 
   const html = renderEmailShellHtml({
     siteUrl,

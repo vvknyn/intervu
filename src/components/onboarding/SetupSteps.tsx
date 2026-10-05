@@ -27,7 +27,7 @@ import { rememberAgentPreferences } from "@/hooks/use-agent-preferences";
 import { answerStep, noteSetupFacts, useOnboarding, type StepVia } from "@/hooks/use-onboarding";
 import { captureEvent } from "@/lib/analytics/events";
 import { resumeImporterHref } from "@/lib/auth/post-auth-destination";
-import { isMintedLoginEmail } from "@/lib/auth/username-email";
+import { isMintedLoginEmail } from "@/lib/auth/minted-email";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
