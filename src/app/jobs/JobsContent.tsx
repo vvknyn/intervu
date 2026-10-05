@@ -66,7 +66,7 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData, hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
+import { fetchResumeData, saveResumeData } from "@/actions/resume";
 import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
@@ -99,7 +99,7 @@ import {
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
 import { jobsUrlStateFromSavedHref, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
-import { useSavedSearches, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
+import { useSavedSearches, savePendingSearchAfterSignIn, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
     getSuppressLocationDefaultSnapshot,
@@ -285,13 +285,11 @@ import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/
 import { readGateAttempt } from "@/lib/auth/gate-attempt";
 import {
     authGateReasonToFunnelReason,
-    POST_AUTH_RESUME_GATE_PARAM,
-    POST_AUTH_RESUME_GATE_VALUE,
-    shouldOpenResumeGateAfterInlineAuth,
+    RESUME_IMPORTER_PARAM,
+    resumeImporterValue,
     type SitePath,
 } from "@/lib/auth/post-auth-destination";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
-import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
 import {
     POST_SIGNUP_RESUME_GATE_TITLE,
     RANK_SECONDARY_COPY,
@@ -1984,7 +1982,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     const deepLinkedSession = Boolean(
         query.trim() ||
             searchParams.get("job") ||
-            searchParams.get(POST_AUTH_RESUME_GATE_PARAM) === POST_AUTH_RESUME_GATE_VALUE,
+            searchParams.has(RESUME_IMPORTER_PARAM),
     );
     useEffect(() => {
         if (!deepLinkedSession) return;
@@ -2273,8 +2271,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
     // /jobs is board-first: the Search home (search box, filters, job rows) is
     // what every visitor lands on, signed in or out. A signed-in account with
     // no résumé used to get a full-page onboarding card here instead; it now
-    // gets the same board, with the résumé band after the feed and the
-    // importer opening over it straight after sign-up (`?resume=gate`).
+    // gets the same board, with the résumé band after the feed (or, for a
+    // new account, its setup in place of the band: components/onboarding/).
     // At rest the Search home shows no job rows: a list needs a reason (a
     // résumé, the visitor's own search or filters, or the job they came
     // for). The newest-in-your-country feed that used to fill it was opened
@@ -4658,6 +4656,9 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                             );
                         }
                     }
+                    // The search a guest signed in to save (the 2nd Save search's card).
+                    const pendingSearch = await savePendingSearchAfterSignIn();
+                    if (pendingSearch) toast.success(`Saved “${pendingSearch}”`);
                 } finally {
                     guestSyncInFlightRef.current = false;
                 }
@@ -5136,33 +5137,35 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
         fitActive,
     });
 
-    const postAuthResumeGateHandledRef = useRef(false);
+    const importerLinkHandledRef = useRef(false);
 
-    // OAuth and /login default land here with `?resume=gate` when the user
-    // has no résumé on file. Strip the param once presence is known; open the
-    // importer only for confirmed résumeless users (returning users with a
-    // résumé just lose the flag). Pending upload replay via useAuthGate owns
-    // its own open — this path is for topbar/login defaults only.
+    // `/jobs?resume=setup` (setup's "Add your résumé" from another page) opens
+    // the importer. Strip the param once presence is known; open the importer
+    // only for a confirmed résumé-less account (one with a résumé just loses
+    // the flag). Sign-in no longer lands here: it returns to the page it
+    // started on (post-auth-destination.ts), and `?resume=gate` from a sign-up
+    // already in flight opens it the same way.
     useEffect(() => {
-        if (searchParams.get(POST_AUTH_RESUME_GATE_PARAM) !== POST_AUTH_RESUME_GATE_VALUE) return;
+        const link = resumeImporterValue(`${pathname}?${searchParams.toString()}`);
+        if (!link) return;
         if (!authReady || !user) return;
         if (resumeOnFile === null) return;
 
         const params = new URLSearchParams(searchParams.toString());
-        params.delete(POST_AUTH_RESUME_GATE_PARAM);
+        params.delete(RESUME_IMPORTER_PARAM);
         const qs = params.toString();
         router.replace(qs ? `${pathname}?${qs}` : pathname);
 
         // A résumé parsed as a guest is carried into the account by the adoption
         // effect above; asking for it again would contradict the gate's promise.
         if (resumeOnFile !== false || readUsableLocalResume()) return;
-        if (postAuthResumeGateHandledRef.current || importOpen) return;
-        postAuthResumeGateHandledRef.current = true;
+        if (importerLinkHandledRef.current || importOpen) return;
+        importerLinkHandledRef.current = true;
 
         const attempt = readGateAttempt(window.sessionStorage);
         setImportFunnelContext({
-            reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
-            surface: attempt?.originSurface ?? "post_signup",
+            reason: link === "setup" ? "resume" : authGateReasonToFunnelReason(attempt?.lastGateReason),
+            surface: link === "setup" ? "setup" : (attempt?.originSurface ?? "post_signup"),
             signed_in: true,
         });
         beginResumeUpload({ postSignup: true });
@@ -7533,33 +7536,11 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     setAuthOpen(open);
                 }}
                 onAuthed={() => {
+                    // Back on this page with the gated action replayed; a new
+                    // account's setup waits in the welcome strip, never in a
+                    // dialog over the page (components/onboarding/).
                     justAuthedRef.current = true;
-                    const pendingActionKind = peekPendingActionKind(window.sessionStorage);
                     onAuthed();
-                    if (
-                        !shouldOpenResumeGateAfterInlineAuth({
-                            pendingActionKind,
-                            alreadyHandled: postAuthResumeGateHandledRef.current,
-                            importAlreadyOpen: importOpenRef.current,
-                            hasResume: false,
-                        })
-                    ) {
-                        return;
-                    }
-                    postAuthResumeGateHandledRef.current = true;
-                    void hasUsableResumeOnFile()
-                        .then(({ hasResume }) => {
-                            if (hasResume || readUsableLocalResume()) return;
-                            if (importOpenRef.current) return;
-                            const attempt = readGateAttempt(window.sessionStorage);
-                            setImportFunnelContext({
-                                reason: authGateReasonToFunnelReason(attempt?.lastGateReason),
-                                surface: "post_signup",
-                                signed_in: true,
-                            });
-                            beginResumeUpload({ postSignup: true });
-                        })
-                        .catch(() => {});
                 }}
                 showTrigger={false}
                 trigger={authTrigger}

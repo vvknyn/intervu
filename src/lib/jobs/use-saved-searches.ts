@@ -15,7 +15,8 @@
 
 import { useEffect, useState } from "react";
 import { createServerListCache } from "@/lib/server-list-cache";
-import { listSavedSearchesAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
+import { listSavedSearchesAction, saveSavedSearchAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
+import { takePendingSavedSearch } from "@/lib/jobs/pending-saved-search";
 import {
     loadSavedSearches,
     clearSavedSearches,
@@ -42,6 +43,20 @@ export async function syncGuestSavedSearchesToServer(): Promise<boolean> {
         return true;
     }
     return false;
+}
+
+/**
+ * Saves the search a guest signed in to save (pending-saved-search.ts).
+ * @returns its name once saved, or null when there was none or the save failed.
+ */
+export async function savePendingSearchAfterSignIn(): Promise<string | null> {
+    if (typeof window === "undefined") return null;
+    const pending = takePendingSavedSearch(window.sessionStorage);
+    if (!pending) return null;
+    const result = await saveSavedSearchAction(pending).catch(() => ({ error: "Failed to save search" }));
+    if (result.error) return null;
+    invalidateSavedSearchesCache();
+    return pending.name;
 }
 
 export interface UseSavedSearchesResult {
