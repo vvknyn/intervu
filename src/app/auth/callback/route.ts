@@ -1,5 +1,5 @@
 import { handleAuth } from "@workos-inc/authkit-nextjs";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { captureServerEvent } from "@/lib/analytics/server-capture";
 import { getServerUser } from "@/lib/auth/server-user";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/callback-guard";
 import { completeAuthKitSignIn } from "@/lib/auth/authkit-sign-in-complete";
 import { returnPathFromAuthState } from "@/lib/auth/authkit-state";
+import { reportAuthStep } from "@/lib/auth/auth-timing";
 import {
     EMAIL_CODE_COOKIE_NAME,
     EMAIL_CODE_PATH,
@@ -62,8 +63,12 @@ import {
  * held sign-in sealed in a cookie, not to "We couldn't finish signing you in",
  * where Start again only sent another code and failed again. Every branch
  * keeps where the person was headed, read back out of `state`.
+ *
+ * `GET` times the whole exchange and logs it when slow (auth-timing.ts): the
+ * landing after a Google sign-in paints 1.4 to 3.3 s after the redirects
+ * start, and until this nothing said how much of that was this route.
  */
-export const GET = withDirectHitGuard(
+const callback = withDirectHitGuard(
     handleAuth({
         baseURL: getSiteUrl(),
         onError: async ({ error, request }) => {
@@ -96,3 +101,25 @@ export const GET = withDirectHitGuard(
         },
     }),
 );
+
+export async function GET(request: NextRequest): Promise<Response> {
+    const started = Date.now();
+    const response = await callback(request);
+    reportAuthStep("sign_in_callback", Date.now() - started, { outcome: callbackOutcome(response) });
+    return response;
+}
+
+/** Which way the callback sent the browser, by path only (the query can name a job). Never throws. */
+function callbackOutcome(response: Response): string {
+    const location = response.headers.get("location");
+    if (!location) return `status_${response.status}`;
+    let path: string;
+    try {
+        path = new URL(location, getSiteUrl()).pathname;
+    } catch {
+        return "unknown";
+    }
+    if (path === EMAIL_CODE_PATH) return "email_code";
+    if (path === "/auth/retry") return "retry";
+    return "signed_in";
+}

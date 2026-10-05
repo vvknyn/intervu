@@ -127,6 +127,36 @@ describe("searchMeili sort-integrity guard — newest (the incident)", () => {
     });
 });
 
+describe("searchMeili reports the engine's own time, the retry included", () => {
+    it("sums the engine time and requests of the first pass and its retry", async () => {
+        let calls = 0;
+        mock.method(globalThis, "fetch", async () => {
+            calls++;
+            return calls === 1
+                ? jsonResponse(200, { hits: NEWEST_UNSORTED, totalHits: 3, processingTimeMs: 400 })
+                : jsonResponse(200, { hits: NEWEST_SORTED, totalHits: 3, processingTimeMs: 300 });
+        });
+
+        const result = await searchMeili({ sort: "newest" });
+
+        assert.equal(result.engineMs, 700);
+        assert.equal(result.engineCalls, 2);
+        mock.reset();
+    });
+
+    it("reports one request when the first page is already in order", async () => {
+        mock.method(globalThis, "fetch", async () =>
+            jsonResponse(200, { hits: NEWEST_SORTED, totalHits: 3, processingTimeMs: 25 }),
+        );
+
+        const result = await searchMeili({ sort: "newest" });
+
+        assert.equal(result.engineMs, 25);
+        assert.equal(result.engineCalls, 1);
+        mock.reset();
+    });
+});
+
 describe("searchMeili sort-integrity guard — relevance mode is never touched", () => {
     it("does not check or retry an unsorted-looking page under relevance", async () => {
         // Pre-warm the company-intent cache so `resolveCompanyIntent`'s own

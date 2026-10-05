@@ -20,6 +20,13 @@
  *   MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=resend \
  *     npx tsx scripts/send-marketing-update.ts --campaign=2026-09-updates --live
  *
+ *   # Only the addresses someone reviewed: one per line, nothing else on the
+ *   # line (a CSV row is refused). Still minus suppressed/sent/unverified.
+ *   ... --only=tmp/whats-new-recipients.txt
+ *
+ * MARKETING_SENDER_NAME and MARKETING_SENDER_POSTAL_ADDRESS print in the
+ * footer when set; Vivek chose to send without them (2026-10-05).
+ *
  * Dry run renders through the exact same `renderCampaign` path (and, when
  * --to is given, the exact same recipient-selection code) a live send would
  * use — see `DryRunTransport` (src/lib/marketing/transport.ts) — so a
@@ -27,7 +34,8 @@
  *
  * Recipient universe: every WorkOS user tagged for this app, minus
  * minted/unreachable addresses, minus anyone suppressed for
- * "marketing_update" (Firestore `email_suppressions`), minus anyone
+ * "marketing_update" (Firestore `email_suppressions`), minus addresses
+ * WorkOS says were never verified, minus anyone
  * `intervu.marketing_sends` already has a row for THIS campaign — see
  * `selectCampaignRecipients` (src/lib/marketing/recipients.ts), the pure
  * decision this script just supplies I/O for.
@@ -49,6 +57,7 @@
  */
 import { config } from "dotenv";
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@/lib/auth/workos-sync";
@@ -64,7 +73,7 @@ import { loadCampaign, renderCampaign, type CampaignSender } from "@/lib/marketi
 import { createTransport, DryRunTransport, ResendMarketingTransport } from "@/lib/marketing/transport";
 import { listSentUserIds, claimMarketingSend, releaseMarketingSend } from "@/lib/marketing/send-log";
 import { deliverOne } from "@/lib/marketing/deliver";
-import { selectCampaignRecipients, type CampaignCandidate } from "@/lib/marketing/recipients";
+import { parseOnlyList, selectCampaignRecipients, type CampaignCandidate } from "@/lib/marketing/recipients";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 config({ path: `${ROOT}/.env.local`, quiet: true });
@@ -89,6 +98,7 @@ interface WorkosRestUser {
   email?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  email_verified?: boolean | null;
   metadata?: Record<string, string> | null;
   profile_picture_url?: string | null;
 }
@@ -120,7 +130,12 @@ async function listIntervuCandidates(apiKey: string): Promise<CampaignCandidate[
         profilePictureUrl: u.profile_picture_url,
       };
       const server = toServerUser(identity);
-      return { userId: server.uid, email: server.email ?? "", firstName: u.first_name ?? null };
+      return {
+        userId: server.uid,
+        email: server.email ?? "",
+        firstName: u.first_name ?? null,
+        emailVerified: u.email_verified ?? undefined,
+      };
     })
     .filter((candidate) => isReachableEmail(candidate.email));
 }
@@ -136,10 +151,12 @@ async function main() {
   const limit = limitArg === undefined ? undefined : Number(limitArg);
   const toArg = argValue("--to");
   const toFilter = toArg ? normalizeEmail(toArg) : undefined;
+  const onlyArg = argValue("--only");
+  const onlyEmails = onlyArg ? parseOnlyList(readFileSync(resolve(onlyArg), "utf8")) : undefined;
 
   if (!campaignName) {
     console.error(
-      "Usage: npx tsx scripts/send-marketing-update.ts --campaign=<name> [--live] [--limit=N] [--to=<email>]",
+      "Usage: npx tsx scripts/send-marketing-update.ts --campaign=<name> [--live] [--limit=N] [--to=<email>] [--only=<file>]",
     );
     process.exit(1);
   }
@@ -161,13 +178,11 @@ async function main() {
     name: process.env.MARKETING_SENDER_NAME ?? null,
     postalAddress: process.env.MARKETING_SENDER_POSTAL_ADDRESS ?? null,
   };
-  if (live && (!sender.name || !sender.postalAddress)) {
-    // A live send with no visible sender identity is a CAN-SPAM violation,
-    // not a degraded-but-OK send — fail loudly instead of rendering the
-    // "[sender name not configured]" placeholder into a real outbound email.
-    throw new Error(
-      "MARKETING_SENDER_NAME and MARKETING_SENDER_POSTAL_ADDRESS must both be set in the environment for a --live send.",
-    );
+
+  // The sending domain has no inbox: without a Reply-To, a reply bounces.
+  const replyTo = process.env.MARKETING_REPLY_TO?.trim() || undefined;
+  if (live && !replyTo) {
+    throw new Error("MARKETING_REPLY_TO must be set for a --live send; replies to the sending address bounce.");
   }
 
   // Built before any WorkOS/Firestore I/O so a misconfigured --live fails
@@ -196,7 +211,7 @@ async function main() {
   );
   const suppressedEmails = new Set(suppressionResults.filter((e): e is string => e !== null));
 
-  let recipients = selectCampaignRecipients(candidates, { suppressedEmails, alreadySentUserIds });
+  let recipients = selectCampaignRecipients(candidates, { suppressedEmails, alreadySentUserIds, onlyEmails });
   if (toFilter) {
     recipients = recipients.filter((r) => normalizeEmail(r.email) === toFilter);
     if (recipients.length === 0) {
@@ -210,7 +225,8 @@ async function main() {
   console.log(
     `[marketing] campaign=${campaignName} mode=${live ? "LIVE" : "dry-run"} ` +
       `candidates=${candidates.length} already_sent=${alreadySentUserIds.size} ` +
-      `suppressed=${suppressedEmails.size} selected=${recipients.length}`,
+      `suppressed=${suppressedEmails.size} unverified=${candidates.filter((c) => c.emailVerified === false).length} ` +
+      `only=${onlyEmails ? onlyEmails.size : "all"} selected=${recipients.length}`,
   );
 
   const siteUrl = getSiteUrl();
@@ -250,6 +266,7 @@ async function main() {
             html: rendered.html,
             text: rendered.text,
             unsubscribeUrl,
+            replyTo,
           });
         },
         release: live

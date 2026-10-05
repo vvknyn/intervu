@@ -4,10 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoginForm } from "@/components/auth/login-form";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
-import { hasUsableResumeOnFile } from "@/actions/resume";
 import { resolvePostAuthDestination } from "@/lib/auth/post-auth-destination";
 import { validateNextParam } from "@/lib/auth/product-routes";
-import { peekPendingActionKind } from "@/lib/jobs/pending-actions";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import {
     beginGateAttempt,
@@ -38,20 +36,13 @@ export function LoginClient() {
         });
     }, [searchParams]);
 
-    const redirectAfterAuth = useCallback(async () => {
-        const validatedNext = validateNextParam(searchParams.get("next"));
-        const hasPendingAction = peekPendingActionKind(window.sessionStorage) !== null;
-        const { hasResume } = await hasUsableResumeOnFile();
-        const destination = resolvePostAuthDestination({
-            validatedNext,
-            hasResume,
-            hasPendingAction,
-        });
-        router.replace(destination);
+    // Back to the page that sent them here; no résumé check stands in between.
+    const redirectAfterAuth = useCallback(() => {
+        router.replace(resolvePostAuthDestination(validateNextParam(searchParams.get("next"))));
     }, [router, searchParams]);
 
     useEffect(() => {
-        if (user) void redirectAfterAuth();
+        if (user) redirectAfterAuth();
     }, [user, redirectAfterAuth]);
 
     return (

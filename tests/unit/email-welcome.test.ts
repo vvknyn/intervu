@@ -5,6 +5,7 @@ import { resolveWelcomeEligibility } from "@/lib/email/welcome";
 import { buildWelcomeEmail } from "@/lib/email/templates/welcome";
 import { usernameEmail, isMintedLoginEmail, USERNAME_EMAIL_DOMAIN } from "@/lib/auth/username-email";
 import { emailKindPolicy } from "@/lib/email/types";
+import { SETUP_LINK_PATH } from "@/lib/onboarding/links";
 
 const SITE = "https://intervuhq.com";
 const UNSUB = "https://intervuhq.com/unsubscribe?token=abc";
@@ -101,13 +102,23 @@ describe("buildWelcomeEmail", () => {
 
     it("builds every link from the passed site url — no hardcoded domain", () => {
         assert.doesNotMatch(email.html.replace(new RegExp(SITE, "g"), ""), /https?:\/\/(?!intervuhq\.com\/unsubscribe)/);
-        for (const path of ["/jobs", "/yours", "/connect"]) {
+        for (const path of [SETUP_LINK_PATH, "/settings?tab=prefs", "/contact"]) {
             assert.ok(email.text.includes(`${SITE}${path}`), path);
+            assert.ok(email.html.includes(`${SITE}${path}`), path);
         }
     });
 
-    it("names the two things that bring someone back — a saved search and the tracker", () => {
-        assert.match(email.text, /save a search/i);
-        assert.match(email.text, /track/i);
+    // Sent the moment the account exists, so all three setup steps are left:
+    // the email is that list and one button into setup, not a feature tour.
+    it("lists the three setup steps in the setup sheet's order, with one button into setup", () => {
+        const order = ["What you're after", "Where you can work", "New roles by email"].map((label) => email.text.indexOf(label));
+        assert.ok(order.every((at) => at !== -1), "every step named");
+        assert.deepEqual([...order].sort((a, b) => a - b), order);
+        assert.match(email.html, />Finish setup</);
+        assert.match(email.text, /Finish setup: https:\/\/intervuhq\.com\/jobs\?setup=open/);
+    });
+
+    it("promises no email the reader did not turn on", () => {
+        assert.match(email.text, /Nothing is sent unless you turn it on/);
     });
 });

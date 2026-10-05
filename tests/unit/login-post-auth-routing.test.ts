@@ -3,33 +3,32 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const SOURCE = readFileSync(join(__dirname, "../../src/app/login/login-client.tsx"), "utf8");
+const read = (path: string) => readFileSync(join(__dirname, "../..", path), "utf8");
 
-test("LoginClient resolves post-auth destination from résumé presence and pending actions", () => {
-    assert.match(SOURCE, /hasUsableResumeOnFile/);
-    assert.match(SOURCE, /resolvePostAuthDestination/);
-    assert.match(SOURCE, /peekPendingActionKind/);
-    assert.doesNotMatch(SOURCE, /validateNextParam\(searchParams\.get\("next"\)\) \?\? "\/jobs"/);
+test("LoginClient returns to its validated next without a résumé check in between", () => {
+    const source = read("src/app/login/login-client.tsx");
+    assert.match(source, /resolvePostAuthDestination\(validateNextParam\(searchParams\.get\("next"\)\)\)/);
+    assert.doesNotMatch(source, /hasUsableResumeOnFile/);
 });
 
-test("auth/start defaults OAuth returnTo to the résumé gate path", () => {
-    const start = readFileSync(join(__dirname, "../../src/app/auth/start/route.ts"), "utf8");
-    assert.match(start, /buildPostAuthResumeGatePath\(\)/);
-    assert.match(start, /resolveAuthKitReturnTo/);
-    assert.match(start, /hasPendingAction: params\.get\(AUTH_START_PENDING_PARAM\) === "1"/);
-    assert.doesNotMatch(start, /validateNextParam\(params\.get\("next"\)\) \?\? "\/jobs"/);
+test("auth/start sends sign-up and sign-in back to the same page", () => {
+    const start = read("src/app/auth/start/route.ts");
+    assert.match(start, /const returnTo = resolvePostAuthDestination\(validatedNext\);/);
+    assert.doesNotMatch(start, /resume=gate|ResumeGate|pending/i);
 });
 
-test("login-form and jobs page wire AuthKit and inline signup résumé gate helpers", () => {
-    const loginForm = readFileSync(join(__dirname, "../../src/components/auth/login-form.tsx"), "utf8");
-    assert.match(loginForm, /resolveAuthKitReturnTo/);
+test("login-form keeps the page for AuthKit and password sign-up alike", () => {
+    const loginForm = read("src/components/auth/login-form.tsx");
+    assert.match(loginForm, /resolveAuthKitReturnTo\(rawNext\)/);
     assert.match(loginForm, /buildReturnTo/);
-    assert.match(loginForm, /resolveAuthKitReturnTo\(\{\s*mode: "signup",\s*rawNext: returnTarget,\s*hasPendingAction: peekPendingActionKind\(window\.sessionStorage\) !== null,/);
-    assert.match(loginForm, /AUTH_START_PENDING_PARAM/);
+    assert.match(loginForm, /resolveAuthKitReturnTo\(returnTarget\)/);
     // Password signup on /login returns to its validated `next` (e.g. /connect), not /login itself.
     assert.match(loginForm, /validateNextParam\(new URLSearchParams\(window\.location\.search\)\.get\("next"\)\) \?\? landed/);
+});
 
-    const jobsPage = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
-    assert.match(jobsPage, /shouldOpenResumeGateAfterInlineAuth/);
-    assert.match(jobsPage, /hasUsableResumeOnFile/);
+test("signing in on /jobs never opens the résumé importer by itself", () => {
+    const jobsPage = read("src/app/jobs/JobsContent.tsx");
+    assert.doesNotMatch(jobsPage, /shouldOpenResumeGateAfterInlineAuth|hasUsableResumeOnFile/);
+    const onAuthed = jobsPage.slice(jobsPage.indexOf("onAuthed={() => {"), jobsPage.indexOf("showTrigger={false}"));
+    assert.doesNotMatch(onAuthed, /beginResumeUpload|setImportOpen/);
 });

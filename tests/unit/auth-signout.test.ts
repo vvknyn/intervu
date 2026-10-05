@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
     isAuthSignOutRequest,
+    isWorkOsLogoutUrl,
+    SIGN_OUT_LANDING_PATH,
     signOutBrowserLocation,
     signOutRedirectTarget,
     workOsLogoutSessionId,
@@ -34,26 +36,44 @@ describe("workOsLogoutSessionId", () => {
     });
 });
 
+describe("isWorkOsLogoutUrl", () => {
+    it("also knows the API host this server is pointed at", () => {
+        assert.equal(isWorkOsLogoutUrl("http://127.0.0.1:7701/user_management/sessions/logout?session_id=s", "127.0.0.1"), true);
+        assert.equal(isWorkOsLogoutUrl("https://auth.example.com/user_management/sessions/logout", "auth.example.com"), true);
+    });
+
+    it("refuses every other host, scheme and path", () => {
+        assert.equal(isWorkOsLogoutUrl("http://127.0.0.1:7701/user_management/sessions/logout", undefined), false);
+        assert.equal(isWorkOsLogoutUrl("http://api.workos.com/user_management/sessions/logout", undefined), false);
+        assert.equal(isWorkOsLogoutUrl("https://evil.example/user_management/sessions/logout", "127.0.0.1"), false);
+        assert.equal(isWorkOsLogoutUrl("javascript://127.0.0.1/sessions/logout", "127.0.0.1"), false);
+        assert.equal(isWorkOsLogoutUrl("http://127.0.0.1:7701/jobs", "127.0.0.1"), false);
+    });
+});
+
 describe("signOutBrowserLocation", () => {
-    it("maps WorkOS logout URLs to / instead of forwarding api.workos.com", () => {
+    it("maps WorkOS logout URLs to /jobs instead of forwarding api.workos.com", () => {
         assert.equal(
             signOutBrowserLocation("https://api.workos.com/user_management/sessions/logout?session_id=session_1"),
-            "/",
+            SIGN_OUT_LANDING_PATH,
         );
         assert.equal(
             signOutBrowserLocation("https://api.workos.com/user_management/sessions/logout"),
-            "/",
+            SIGN_OUT_LANDING_PATH,
         );
     });
 
-    it("preserves AuthKit relative fallbacks", () => {
-        assert.equal(signOutBrowserLocation("/"), "/");
+    // "/" only redirects to /jobs, so landing there cost every sign-out a second round trip.
+    it("lands on the job board in one hop, never via /", () => {
+        assert.equal(SIGN_OUT_LANDING_PATH, "/jobs");
+        assert.equal(signOutBrowserLocation("/"), "/jobs");
+        assert.equal(signOutBrowserLocation("/jobs"), "/jobs");
     });
 });
 
 describe("signOutRedirectTarget", () => {
     it("keeps AuthKit's relative fallback relative", () => {
-        assert.deepEqual(signOutRedirectTarget("/"), { status: 303, location: "/", relative: true });
+        assert.deepEqual(signOutRedirectTarget("/jobs"), { status: 303, location: "/jobs", relative: true });
     });
 
     it("refuses a protocol-relative redirect", () => {
@@ -71,10 +91,14 @@ test("middleware skips authkit on the sign-out POST", () => {
     assert.match(src, /if \(isAuthSignOutRequest\(pathname, request\.method\)\)/);
 });
 
-test("signout route revokes WorkOS server-side and 303s to same-origin /", () => {
+test("signout route 303s to same-origin /jobs and revokes WorkOS after answering", () => {
     const src = readFileSync(new URL("../../src/app/auth/signout/route.ts", import.meta.url), "utf8");
     assert.match(src, /from "@workos-inc\/authkit-nextjs"/);
-    assert.match(src, /signOut\(\)/);
+    assert.match(src, /signOut\(\{ returnTo: SIGN_OUT_LANDING_PATH \}\)/);
+    // Awaited, WorkOS's API (retries, 60 s timeout) held every sign-out: 5 s on 2026-09-23.
+    assert.match(src, /after\(\(\) => revokeWorkOsSession\(sessionId\)\)/);
+    const post = src.slice(src.indexOf("export async function POST"));
+    assert.doesNotMatch(post, /await getWorkOS\(\)/, "POST must not wait on WorkOS before answering");
     assert.match(src, /NEXT_REDIRECT;/);
     assert.match(src, /workOsLogoutSessionId/);
     assert.match(src, /revokeSession/);
@@ -111,4 +135,22 @@ test("signOut callers do not navigate after signOut", () => {
             `${rel} must not router.push after signOut`,
         );
     }
+});
+
+/**
+ * A tab opened before a release asks for lazily loaded files that are gone.
+ * Sign-out awaited one before sending its POST (2026-10-05: a ChunkLoadError
+ * on the founder's tab right before a slow sign-out), so the POST must go out
+ * first and the store clearing must not be able to stop it.
+ */
+test("the sign-out POST goes out before the lazily loaded store clearing", () => {
+    const src = readFileSync(new URL("../../src/lib/firebase/client-auth.ts", import.meta.url), "utf8");
+    const fn = src.slice(src.indexOf("export async function signOut()"));
+    const submit = fn.indexOf("submitSignOutForm();");
+    const awaitStores = fn.indexOf("await stores");
+    assert.ok(submit >= 0, "signOut must submit the sign-out form");
+    assert.ok(awaitStores >= 0, "signOut must still clear the session stores");
+    assert.ok(submit < awaitStores, "the POST must not wait on the store-clearing file");
+    assert.doesNotMatch(fn.slice(0, submit), /await /, "nothing may be awaited before the POST");
+    assert.match(fn, /try \{\s*\(await stores\)\.clearSessionClientStores\(\);\s*\} catch/);
 });

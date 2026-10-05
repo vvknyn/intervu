@@ -6,6 +6,7 @@ import {
     claimSignupEvent,
     claimSignupOnProfile,
     isNewAccount,
+    ONBOARDING_FIELD,
     SIGNUP_CLAIM_FIELD,
     SIGNUP_FRESHNESS_MS,
     type SignupEventDeps,
@@ -57,6 +58,26 @@ describe("claimSignupEvent — at most one signup_completed per user id, ever", 
         const { db, docs } = fakeDb();
         assert.equal(await claimSignupEvent(newUser, depsOn(db)), true);
         assert.ok(docs.get("profiles/user_new")?.[SIGNUP_CLAIM_FIELD]);
+    });
+
+    it("the claim marks the account new for setup in the same write", async () => {
+        const { db, docs } = fakeDb();
+        assert.equal(await claimSignupEvent(newUser, depsOn(db)), true);
+        const profile = docs.get("profiles/user_new");
+        assert.deepEqual(profile?.[ONBOARDING_FIELD], {
+            state: "open",
+            started_at: profile?.[SIGNUP_CLAIM_FIELD],
+            steps: {},
+            strip_days: [],
+            hidden_day: null,
+        });
+    });
+
+    it("a returning account is never marked for setup", async () => {
+        const { db, docs } = fakeDb();
+        const returning = { id: "user_old", externalId: null, createdAt: iso(30 * 24 * 3_600_000) };
+        await claimSignupEvent(returning, depsOn(db));
+        assert.equal(docs.get("profiles/user_old")?.[ONBOARDING_FIELD], undefined);
     });
 
     it("returning user (old createdAt) → 0, without touching the store", async () => {

@@ -1,9 +1,10 @@
+import { JOBS_USP } from "../../../src/lib/jobs/jobs-usp-copy";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 
 /**
- * Journeys for list speed — see tests/journeys/CATALOG.md (J-SPEED-01 to 04).
+ * Journeys for list speed — see tests/journeys/CATALOG.md (J-SPEED-01 to 06).
  * Vivek's budget (2026-09-30): every search and list renders in under 2 s.
  * Read-only.
  */
@@ -101,5 +102,52 @@ test.describe("a phone opening a search link", () => {
     await rows.first().click();
     await expect(page).toHaveURL(/\/jobs\?.*job=/);
     await expect(page.getByRole("dialog")).toBeVisible();
+  });
+});
+
+/** The front door's résumé invite (FrontDoorResumeBand). */
+const RESUME_BAND = 'section[aria-label="Add your resume"]';
+const HEADLINE = JOBS_USP.mastheadTitle;
+
+test.describe("a signed-out visitor opening velai.app", () => {
+  test("sees the front door from the page's own HTML, before any of its code runs", { tag: ["@J-SPEED-05"] }, async ({ page }) => {
+    // None of the page's code runs: what shows came in the HTML.
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?.*)?$/, (route) => route.abort());
+
+    const response = await page.goto("/");
+    expect(response, "document response").not.toBeNull();
+    expect(new URL(response!.url()).pathname, "velai.app still opens /jobs").toBe("/jobs");
+    const html = await response!.text();
+    expect(html).toContain(HEADLINE);
+    expect(html).toContain('aria-label="Add your resume"');
+
+    await expect(page.getByRole("heading", { level: 1, name: HEADLINE })).toBeVisible();
+    await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible();
+    await expect(page.locator(RESUME_BAND).getByRole("button", { name: "Upload résumé" })).toBeVisible();
+  });
+
+  test("gets a front door that hydrates cleanly and searches and uploads as before", { tag: ["@J-SPEED-06"] }, async ({ page, diagnostics }) => {
+    await page.goto("/");
+    await expect(page.getByRole("heading", { level: 1, name: HEADLINE })).toBeVisible();
+    // Interact once the page's code has run (a click before hydration does nothing).
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(/\/jobs$/);
+    // A server render the browser disagreed with would show as React's hydration errors.
+    expect(diagnostics.consoleErrors.filter((e) => /hydrat|#418|#423|#425/i.test(e)), "hydration errors").toEqual([]);
+    expect(diagnostics.pageErrors).toEqual([]);
+
+    await page.locator(RESUME_BAND).getByRole("button", { name: "Upload résumé" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByTestId("resume-import-parse-primary")).toBeVisible({ timeout: 15_000 });
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+
+    const input = page.getByPlaceholder("Job title, skill, or company").first();
+    await input.fill("accountant");
+    await runSearch(page, input);
+    await expect(page.getByTestId("job-row").first()).toContainText(/account/i, { timeout: 15_000 });
+    // The server-drawn copy is never shown in the address bar.
+    await expect(page).toHaveURL(/\/jobs\?(.+&)?q=accountant(&|$)/);
+    expect(diagnostics.serverErrors).toEqual([]);
   });
 });

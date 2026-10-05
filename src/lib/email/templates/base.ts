@@ -195,7 +195,7 @@ export function renderEmailShellHtml(input: EmailShellInput): string {
     ) +
     headerBand(input.siteUrl) +
     `<tr>
-              <td bgcolor="${C.card}" style="padding:0 32px 8px;background-color:${C.card};">
+              <td bgcolor="${C.card}" style="padding:28px 32px 8px;background-color:${C.card};">
                 <h1 style="margin:0;${FONT}font-size:26px;line-height:1.25;font-weight:600;letter-spacing:-0.02em;color:${C.ink};">${escapeHtml(input.heading)}</h1>
               </td>
             </tr>
