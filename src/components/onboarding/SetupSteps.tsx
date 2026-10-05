@@ -106,9 +106,11 @@ export function SetupSteps({ variant, onUploadResume, currentSearchHref = null, 
                         >
                             {outcomes[s] === "done" ? <Check /> : i + 1}
                         </span>
-                        {STEP_TITLE[s]}
-                        {outcomes[s] === "skipped" ? <span className="text-muted-foreground"> (skipped)</span> : null}
-                        {outcomes[s] === "done" ? <span className="sr-only"> (done)</span> : null}
+                        <span>
+                            {STEP_TITLE[s]}
+                            {outcomes[s] === "skipped" ? <span className="text-muted-foreground"> (skipped)</span> : null}
+                            {outcomes[s] === "done" ? <span className="sr-only"> (done)</span> : null}
+                        </span>
                     </li>
                 ))}
             </ol>
