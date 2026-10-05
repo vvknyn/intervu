@@ -281,8 +281,15 @@ function submitSignOutForm(): void {
  * unconditionally, since the route is harmless with no session and asking
  * first would mean trusting the same client-side view that might be wrong.
  *
- * Navigation is a document POST so Set-Cookie deletions apply and the 303
- * to WorkOS logout revokes the refresh token. Callers must not redirect after.
+ * Navigation is a document POST so Set-Cookie deletions apply; the route
+ * revokes the WorkOS session after answering. Callers must not redirect after.
+ *
+ * The POST goes out before anything that can wait on the network. The store
+ * clearing below is a lazily loaded file, and a tab opened before a release
+ * asks the server for a file that no longer exists (a ChunkLoadError, seen on
+ * the founder's tab right before a slow sign-out on 2026-10-05). Awaited
+ * first, that failure meant no sign-out at all; now it runs while the POST is
+ * in flight and can only leave this browser's caches uncleared.
  */
 export async function signOut() {
     applyingSignOut = true;
@@ -291,15 +298,19 @@ export async function signOut() {
     resolvedEpoch = null;
 
     const signOutEpoch = sessionEpoch;
-    const { clearSessionClientStores } = await import("@/lib/auth/session-client-stores");
-    clearSessionClientStores();
-    commitSessionUser(signOutEpoch, null);
+    const stores = import("@/lib/auth/session-client-stores");
 
-    if (typeof document === "undefined") {
-        applyingSignOut = false;
-        return;
+    if (typeof document !== "undefined") {
+        setSignedOutMarker();
+        submitSignOutForm();
     }
 
-    setSignedOutMarker();
-    submitSignOutForm();
+    try {
+        (await stores).clearSessionClientStores();
+    } catch (err) {
+        console.warn("[auth] could not clear this browser's signed-in stores:", err);
+    }
+    commitSessionUser(signOutEpoch, null);
+
+    if (typeof document === "undefined") applyingSignOut = false;
 }
