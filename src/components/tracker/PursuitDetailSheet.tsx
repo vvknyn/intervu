@@ -135,7 +135,10 @@ function PursuitDetailBody({
         <>
             <SheetBar title={pursuit.position} description={pursuit.company_name} />
             <SheetBody className="space-y-4 px-4 py-4 pb-7">
-                <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(stage) => void onStatusChange(stage)} />
+                <div>
+                    <p className="mb-1.5 text-xs text-muted-foreground">Status</p>
+                    <PursuitStatusPicker status={pursuit.status} disabled={saving} onChange={(stage) => void onStatusChange(stage)} />
+                </div>
 
                 {/* The pay-when-you-land moment (strategy decision 7): only once
                     the pursuit sits in the Offer lane. */}

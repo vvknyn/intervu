@@ -1,4 +1,4 @@
-import type { Download, Page } from "@playwright/test";
+import type { Download, Locator, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { extractText } from "unpdf";
 import { authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
@@ -100,12 +100,18 @@ async function pdfText(download: Download) {
     return text;
 }
 
-const statusRow = (page: Page) => page.getByRole("group", { name: "Status" });
-const statusButton = (page: Page, name: string) => statusRow(page).getByRole("button", { name, exact: true });
+/** The status dropdown. It was a row of six tabs, which read as navigation (founder 2026-10-05: "it should be a dropdown"). */
+const statusPicker = (scope: Page | Locator) => scope.getByRole("combobox", { name: "Status" });
+const STATUS_OPTIONS = ["Saved", "Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"];
 
-async function expectPressed(page: Page, name: string) {
-    await expect(statusButton(page, name)).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
-    await expect(statusRow(page).locator('[aria-pressed="true"]')).toHaveCount(1);
+/** Opens the dropdown and picks `name`; its options are portaled to the page, above any sheet. */
+async function pickStatus(page: Page, name: string, scope: Page | Locator = page) {
+    await statusPicker(scope).click();
+    await page.getByRole("option", { name, exact: true }).click();
+}
+
+async function expectStatus(scope: Page | Locator, name: string) {
+    await expect(statusPicker(scope)).toHaveText(name, { timeout: 15_000 });
 }
 
 test("the full pursuit page moves an applied role to Rejected, and it stays Rejected", { tag: ["@J-TRACKER-51"] }, async ({ page, diagnostics }) => {
@@ -113,14 +119,15 @@ test("the full pursuit page moves an applied role to Rejected, and it stays Reje
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-status");
 
-    await expectPressed(page, "Applied");
-    await expect(statusRow(page).getByRole("button")).toHaveText(["Saved", "Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]);
-    await statusButton(page, "Rejected").click();
-    await expectPressed(page, "Rejected");
+    await expectStatus(page, "Applied");
+    await statusPicker(page).click();
+    await expect(page.getByRole("option")).toHaveText(STATUS_OPTIONS);
+    await page.getByRole("option", { name: "Rejected", exact: true }).click();
+    await expectStatus(page, "Rejected");
     await expect(page.getByText("Marked rejected")).toBeVisible();
 
     await page.reload();
-    await expectPressed(page, "Rejected");
+    await expectStatus(page, "Rejected");
 
     // The board files it under Closed, labelled Rejected.
     await page.goto("/yours");
@@ -137,7 +144,7 @@ test("the full pursuit page names the role once and renders the posting's Markdo
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-once");
 
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     // One h1: the role. The company and location are its subline, not a second card header.
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(["Manager, Solutions Engineering, MM"]);
     await expect(page.getByText("1password · Remote (United States | Canada)")).toBeVisible();
@@ -152,19 +159,20 @@ test("the full pursuit page names the role once and renders the posting's Markdo
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("the pursuit page's status row fits a phone and sets Withdrawn", { tag: ["@J-TRACKER-53"] }, async ({ page, diagnostics }) => {
+test("the pursuit page's status dropdown fits a phone and sets Withdrawn", { tag: ["@J-TRACKER-53"] }, async ({ page, diagnostics }) => {
     await seed(page, [guestPursuit("guest-journey-phone", "interviewing")]);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/yours/guest-journey-phone");
 
-    await expectPressed(page, "Interviewing");
-    for (const name of ["Saved", "Applied", "Interviewing", "Offer", "Rejected", "Withdrawn"]) {
-        await expect(statusButton(page, name)).toBeInViewport();
-    }
+    await expectStatus(page, "Interviewing");
+    await expect(statusPicker(page)).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-
-    await statusButton(page, "Withdrawn").click();
-    await expectPressed(page, "Withdrawn");
+    await statusPicker(page).click();
+    for (const name of STATUS_OPTIONS) {
+        await expect(page.getByRole("option", { name, exact: true })).toBeInViewport();
+    }
+    await page.getByRole("option", { name: "Withdrawn", exact: true }).click();
+    await expectStatus(page, "Withdrawn");
     await expect(page.getByText("Marked withdrawn")).toBeVisible();
     expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -174,7 +182,7 @@ test("a note typed on the pursuit page saves itself and is there after a reload"
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-note");
 
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await page.getByLabel("Note").fill("Recruiter: Dana");
     await expect(page.getByTestId("pursuit-note-status")).toHaveText("saved", { timeout: 10_000 });
     await page.reload();
@@ -221,7 +229,7 @@ test("Remove on the pursuit page asks first; Cancel keeps the role, Remove retur
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-remove");
 
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await page.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(page.getByText("Remove Manager, Solutions Engineering, MM at 1password?")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
@@ -244,9 +252,9 @@ test("a deep link to a tracked role loads it without a not-found flash or a hydr
     expect(html).not.toContain("couldn't find that pursuit");
 
     await page.goto("/yours/guest-journey-deep");
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await page.reload();
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     expect(diagnostics.consoleErrors.filter((e) => HYDRATION.test(e))).toEqual([]);
     expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -256,11 +264,11 @@ test("Applied on a saved role's page stamps the day and offers the interview dat
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-saved");
 
-    await expectPressed(page, "Saved");
+    await expectStatus(page, "Saved");
     await expect(page.getByTestId("pursuit-dates")).toContainText("Saved");
     await expect(page.getByLabel("Interview date")).toHaveCount(0);
-    await statusButton(page, "Applied").click();
-    await expectPressed(page, "Applied");
+    await pickStatus(page, "Applied");
+    await expectStatus(page, "Applied");
     await expect(page.getByTestId("pursuit-dates")).toContainText("Applied");
     await expect(page.getByLabel("Interview date")).toBeVisible();
     // A visible label, not only an accessible name: the field was a bare date box (journey audit).
@@ -273,10 +281,10 @@ test("setting an interview date on the page moves the role to Interviewing on th
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-interview");
 
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await page.getByLabel("Interview date").fill("2026-11-03");
     await page.getByRole("button", { name: "Set interview date" }).click();
-    await expectPressed(page, "Interviewing");
+    await expectStatus(page, "Interviewing");
     await expect(page.getByText("Interview date saved")).toBeVisible();
     await expect(page.getByTestId("pursuit-dates")).toContainText("Interview Nov 3");
     await expect(page.getByLabel("Interview date")).toHaveValue("2026-11-03");
@@ -292,7 +300,7 @@ test.describe("west of UTC", () => {
         await seed(page, [guestPursuit("guest-journey-tz", "interviewing", { interview_date: "2026-11-03T00:00:00.000Z" })]);
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto("/yours/guest-journey-tz");
-        await expectPressed(page, "Interviewing");
+        await expectStatus(page, "Interviewing");
         await expect(page.getByTestId("pursuit-dates")).toContainText("Interview Nov 3");
         await expect(page.getByLabel("Interview date")).toHaveValue("2026-11-03");
         expect(diagnostics.pageErrors).toEqual([]);
@@ -326,9 +334,8 @@ test.describe("detail sheet below xl", () => {
         await page.getByTestId("pursuit-row").first().click();
         const dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible({ timeout: 10_000 });
-        const rejected = dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: "Rejected", exact: true });
-        await rejected.click();
-        await expect(rejected).toHaveAttribute("aria-pressed", "true");
+        await pickStatus(page, "Rejected", dialog);
+        await expectStatus(dialog, "Rejected");
         await expect(page.getByText("Marked rejected")).toBeVisible();
         expect(diagnostics.pageErrors).toEqual([]);
     });
@@ -346,9 +353,8 @@ test.describe("detail sheet below xl", () => {
             await page.getByTestId("pursuit-row").filter({ hasText: role }).click();
             const dialog = page.getByRole("dialog");
             await expect(dialog).toBeVisible({ timeout: 10_000 });
-            const button = dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: status, exact: true });
-            await button.click();
-            await expect(button).toHaveAttribute("aria-pressed", "true");
+            await pickStatus(page, status, dialog);
+            await expectStatus(dialog, status);
             await page.keyboard.press("Escape");
             await expect(dialog).toBeHidden();
             // Read the board once the modal is closed; it hides the page from the accessibility tree.
@@ -453,12 +459,12 @@ test("a role with no résumé filed shows no empty résumé card or dead Downloa
     // Only the MCP tools file a résumé against a role, so a web user's page
     // used to end in "No resume version on file" on every role.
     await page.goto("/yours/guest-journey-resume-none");
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await expect(page.getByText("Resume used")).toHaveCount(0);
     await expect(page.getByText(/No resume version on file/)).toHaveCount(0);
 
     await page.goto("/yours/guest-journey-resume-filed");
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await expect(page.getByText("Resume used")).toBeVisible();
     await expect(page.getByText("Tailored for 1Password")).toBeVisible();
     await expect(page.getByRole("button", { name: "Download", exact: true })).toBeVisible();
@@ -532,7 +538,7 @@ test("a guest's Open posting on a tracked role's page asks to sign in to apply, 
     await seed(page, [guestPursuit("guest-journey-open-posting", "applied", { job_id: null, job_snapshot: null })]);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-open-posting");
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
 
     let popups = 0;
     page.on("popup", () => popups++);
@@ -550,10 +556,10 @@ test("marking a saved role Applied keeps the résumé on this device on it, to d
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/yours/guest-journey-copy");
 
-    await expectPressed(page, "Saved");
+    await expectStatus(page, "Saved");
     await expect(page.getByText("Resume used")).toHaveCount(0);
-    await statusButton(page, "Applied").click();
-    await expectPressed(page, "Applied");
+    await pickStatus(page, "Applied");
+    await expectStatus(page, "Applied");
 
     // "Resume used" could only ever be filled by the MCP tools (journey audit 2026-09-30).
     const copy = page.getByTestId("applied-resume");
@@ -573,9 +579,9 @@ test("marking a saved role Applied keeps the résumé on this device on it, to d
     await page.getByRole("button", { name: "Remove résumé" }).click();
     await expect(page.getByText("Résumé removed from this role")).toBeVisible();
     await expect(page.getByText("Resume used")).toHaveCount(0);
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await page.reload();
-    await expectPressed(page, "Applied");
+    await expectStatus(page, "Applied");
     await expect(page.getByText("Resume used")).toHaveCount(0);
     expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -638,16 +644,16 @@ test.describe("signed in the way production signs in", () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.goto("/yours/app-journey-status");
 
-        await expectPressed(page, "Applied");
-        await statusButton(page, "Rejected").click();
+        await expectStatus(page, "Applied");
+        await pickStatus(page, "Rejected");
         await expect(page.getByText("Marked rejected")).toBeVisible();
-        await expectPressed(page, "Rejected");
+        await expectStatus(page, "Rejected");
         await expect(page.getByText("Could not find this pursuit.")).toHaveCount(0);
         expect(writes).toEqual([{ id: "app-journey-status", patch: expect.objectContaining({ status: "rejected" }) }]);
 
         // The account's copy is what a reload reads back.
         await page.reload();
-        await expectPressed(page, "Rejected");
+        await expectStatus(page, "Rejected");
         expect(await flashed(page)).toBe(false);
         expect(diagnostics.pageErrors).toEqual([]);
     });
@@ -661,10 +667,9 @@ test.describe("signed in the way production signs in", () => {
         await page.getByTestId("pursuit-row").first().click();
         const dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible({ timeout: 10_000 });
-        const rejected = dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: "Rejected", exact: true });
-        await rejected.click();
+        await pickStatus(page, "Rejected", dialog);
         await expect(page.getByText("Marked rejected")).toBeVisible();
-        await expect(rejected).toHaveAttribute("aria-pressed", "true");
+        await expectStatus(dialog, "Rejected");
         expect(writes).toEqual([{ id: "app-journey-sheet", patch: expect.objectContaining({ status: "rejected" }) }]);
         expect(await flashed(page)).toBe(false);
 
@@ -714,7 +719,7 @@ test.describe("signed in the way production signs in", () => {
         const dialog = page.getByRole("dialog");
         await expect(dialog).toBeVisible({ timeout: 10_000 });
         await expect(dialog.getByRole("button", { name: "Download resume" })).toHaveCount(0);
-        await dialog.getByRole("group", { name: "Status" }).getByRole("button", { name: "Applied", exact: true }).click();
+        await pickStatus(page, "Applied", dialog);
         await expect(page.getByText("Marked applied")).toBeVisible();
         await expect(dialog.getByText("Your résumé")).toBeVisible({ timeout: 10_000 });
 
