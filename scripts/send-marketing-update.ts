@@ -20,12 +20,6 @@
  *   MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=resend \
  *     npx tsx scripts/send-marketing-update.ts --campaign=2026-09-updates --live
  *
- *   # Send from a personal mailbox instead: Proton Mail Bridge running on
- *   # this machine (see docs/marketing-email.md, "Sending from Proton Mail").
- *   MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=smtp SMTP_USER=... SMTP_PASS=... \
- *     MARKETING_FROM="Vivek from Velai <you@proton.me>" \
- *     npx tsx scripts/send-marketing-update.ts --campaign=2026-10-whats-new --live --to=you@example.com
- *
  *   # Only the addresses someone reviewed: one per line, nothing else on the
  *   # line (a CSV row is refused). Still minus suppressed/sent/unverified.
  *   ... --only=tmp/whats-new-recipients.txt
@@ -76,7 +70,7 @@ import { normalizeEmail } from "@/lib/email/normalize-email";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { loadCampaign, renderCampaign, type CampaignSender } from "@/lib/marketing/campaign";
-import { createTransport, DryRunTransport, ResendMarketingTransport, SmtpMarketingTransport } from "@/lib/marketing/transport";
+import { createTransport, DryRunTransport, ResendMarketingTransport } from "@/lib/marketing/transport";
 import { listSentUserIds, claimMarketingSend, releaseMarketingSend } from "@/lib/marketing/send-log";
 import { deliverOne } from "@/lib/marketing/deliver";
 import { parseOnlyList, selectCampaignRecipients, type CampaignCandidate } from "@/lib/marketing/recipients";
@@ -147,11 +141,8 @@ async function listIntervuCandidates(apiKey: string): Promise<CampaignCandidate[
 }
 
 // Fixed floor between live sends rather than a batch sleep, so 5/s holds
-// even when an individual send is slow. A personal mailbox goes slower: a
-// burst from one Proton address reads as bulk mail to Proton and to the
-// receiving side.
+// even when an individual send is slow.
 const MIN_LIVE_INTERVAL_MS = 200;
-const MIN_LIVE_INTERVAL_SMTP_MS = 2000;
 
 async function main() {
   const campaignName = argValue("--campaign");
@@ -188,29 +179,22 @@ async function main() {
     postalAddress: process.env.MARKETING_SENDER_POSTAL_ADDRESS ?? null,
   };
 
+  // The sending domain has no inbox: without a Reply-To, a reply bounces.
+  const replyTo = process.env.MARKETING_REPLY_TO?.trim() || undefined;
+  if (live && !replyTo) {
+    throw new Error("MARKETING_REPLY_TO must be set for a --live send; replies to the sending address bounce.");
+  }
+
   // Built before any WorkOS/Firestore I/O so a misconfigured --live fails
   // fast. Checked against the transport createTransport() actually
   // produced (not a re-parse of MAIL_TRANSPORT) so this can't drift from
   // that module's own default-is-dry-run rule.
   const transport = live ? createTransport(process.env) : new DryRunTransport();
-  if (live && !(transport instanceof ResendMarketingTransport) && !(transport instanceof SmtpMarketingTransport)) {
+  if (live && !(transport instanceof ResendMarketingTransport)) {
     throw new Error(
-      `--live requires MAIL_TRANSPORT=resend or smtp (got "${process.env.MAIL_TRANSPORT || "unset"}", which resolves to a non-sending transport). Refusing to send.`,
+      `--live requires MAIL_TRANSPORT=resend (got "${process.env.MAIL_TRANSPORT || "unset"}", which resolves to a non-sending transport). Refusing to send.`,
     );
   }
-
-  // Resend's sending domain has no inbox: without a Reply-To, a reply
-  // bounces. A personal mailbox (smtp) takes its own replies.
-  const replyTo = process.env.MARKETING_REPLY_TO?.trim() || undefined;
-  if (live && transport instanceof ResendMarketingTransport && !replyTo) {
-    throw new Error("MARKETING_REPLY_TO must be set for a --live send; replies to the sending address bounce.");
-  }
-  if (transport instanceof SmtpMarketingTransport) {
-    // A wrong Bridge password fails here, before anyone is picked or claimed.
-    await transport.verify();
-    console.log(`[marketing] smtp ${transport.config.host}:${transport.config.port} signed in, from=${transport.config.from}`);
-  }
-  const minInterval = transport instanceof SmtpMarketingTransport ? MIN_LIVE_INTERVAL_SMTP_MS : MIN_LIVE_INTERVAL_MS;
 
   const workosApiKey = process.env.WORKOS_API_KEY;
   if (!workosApiKey) throw new Error("WORKOS_API_KEY is not set — cannot enumerate recipients.");
@@ -304,7 +288,7 @@ async function main() {
 
     if (live) {
       const elapsed = Date.now() - started;
-      if (elapsed < minInterval) await new Promise((r) => setTimeout(r, minInterval - elapsed));
+      if (elapsed < MIN_LIVE_INTERVAL_MS) await new Promise((r) => setTimeout(r, MIN_LIVE_INTERVAL_MS - elapsed));
     }
   }
 
