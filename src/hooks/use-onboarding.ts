@@ -141,6 +141,19 @@ export function loadOnboarding(uid: string | null) {
     if (cached !== null && cached?.record.state !== "finished") void read(uid);
 }
 
+/** Sign-out: forget the account's setup in this browser (lib/auth/session-client-stores.ts). */
+export function forgetOnboarding() {
+    const { uid } = snapshot;
+    if (uid) {
+        try {
+            localStorage.removeItem(CACHE_PREFIX + uid);
+        } catch {
+            // Private mode: nothing was kept.
+        }
+    }
+    set({ uid: null, view: undefined, sheet: null, localResume: false });
+}
+
 /** Re-read when a tab comes back to the page after a while. */
 export function refreshOnboardingIfStale() {
     const { uid, view } = snapshot;
