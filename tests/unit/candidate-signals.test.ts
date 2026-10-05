@@ -62,6 +62,24 @@ describe('resolveCandidateSignals: explicit preferences override the resume', ()
         assert.deepEqual(candidateCountries(signals), ['Germany']);
     });
 
+    it('a Settings place whose country only the gazetteer knows still wins: Berlin over Toronto', () => {
+        const signals = resolveCandidateSignals(mkResume({ location: 'Toronto, Canada' }), { ...prefs({ location: 'Berlin' }), placeCountries: ['Germany'] });
+        assert.deepEqual(signals.location, { value: { countries: ['Germany'], place: 'Berlin' }, source: 'explicit' });
+    });
+
+    it('a Settings place that names no country leaves the résumé country in charge', () => {
+        for (const location of ['Toronto', 'Anywhere', 'Head Office']) {
+            const signals = resolveCandidateSignals(mkResume({ location: 'Toronto, ON' }), prefs({ location }));
+            assert.equal(signals.location.source, 'resume', location);
+            assert.deepEqual(candidateCountries(signals), ['Canada'], location);
+        }
+    });
+
+    it('a Settings place that names no country, over a résumé that names none either, stays unknown', () => {
+        const signals = resolveCandidateSignals(mkResume({ location: '' }), prefs({ location: 'Anywhere' }));
+        assert.deepEqual(signals.location, { value: { countries: [], place: 'Anywhere' }, source: 'explicit' });
+    });
+
     it('explicit experience level beats years on the resume', () => {
         const signals = resolveCandidateSignals(mkResume({ yearsOfExperience: 1 }), prefs({ experienceLevel: 'lead' }));
         assert.deepEqual(signals.seniority, { value: 'senior', source: 'explicit' });
