@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
+import { Fragment, useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,9 @@ interface SearchAutocompleteProps {
      *  instead. Defaults to the query-search case; a non-search mount would
      *  pass its own. */
     ariaLabel?: string;
+    /** The field's name in a surrounding `<form>`, which submits it before
+     *  the page's code has run (the server-drawn /jobs front door). */
+    name?: string;
     /**
      * Optional async suggestion source (e.g. title/company from a live search
      * index). When provided, it REPLACES the local `getSuggestions` + history
@@ -115,7 +118,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     leadingIcon,
     suggest,
     seeds,
-    ariaLabel = "Search jobs"
+    ariaLabel = "Search jobs",
+    name,
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
@@ -189,6 +193,16 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         }),
         [],
     );
+
+    // A server-drawn box can be typed in before the page's code runs. That
+    // text is still in the field when it hydrates; take it as the value, or
+    // the next render would write the old value over it.
+    useLayoutEffect(() => {
+        const typed = inputRef.current?.value;
+        if (typed && typed !== value) onChange(typed);
+        // Mount only: afterwards the field and `value` move together.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Update suggestions
     useEffect(() => {
@@ -270,6 +284,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 e.preventDefault();
                 handleSelect(suggestions[activeIndex].text);
             } else {
+                // `onSearch` is the search; a surrounding form must not
+                // submit it a second time.
+                e.preventDefault();
                 setIsOpen(false);
                 onSearchRef.current();
             }
@@ -323,6 +340,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     }
                     aria-autocomplete="list"
                     aria-label={ariaLabel}
+                    name={name}
                     placeholder={placeholder}
                     className={cn(
                         "relative z-20 overflow-hidden text-ellipsis transition-all",

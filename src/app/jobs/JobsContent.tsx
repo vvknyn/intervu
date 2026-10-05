@@ -1331,6 +1331,16 @@ export function JobsContent({
         else window.history.replaceState(null, "", target);
     };
 
+    // A search sent by the search row's plain form before the page's code
+    // ran carries its place field even when nothing was typed there
+    // (`country=`); take the empty one out of the address.
+    useEffect(() => {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get("country") !== "") return;
+        url.searchParams.delete("country");
+        window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    }, []);
+
     const searchAutocompleteRef = useRef<SearchAutocompleteHandle>(null);
 
     // --- docked search ---------------------------------------------------
@@ -6260,8 +6270,22 @@ export function JobsContent({
                         then Search across the full width under them. Beside a
                         two-row box the button sat level with the first field
                         only, leaving a hole beside the second (2026-10-02). */}
+                    {/* A form, so the server-drawn front door's search works
+                        before the page's code has run: Enter or Search sends
+                        a plain GET to /jobs?q=… (and the place, as
+                        `country`, the field a typed place commits to). Once
+                        the code runs, the submit is the in-page search. */}
                     {!headerDockActive && (
-                    <div data-search-line className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5">
+                    <form
+                        data-search-line
+                        action="/jobs"
+                        method="get"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            submitSearch(queryDraft);
+                        }}
+                        className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-center sm:gap-2.5"
+                    >
                         {/* `bg-surface`, not `bg-background`: inside the raised well
                             the field has to be the brightest thing on the page,
                             which is the only direction contrast can go on a
@@ -6315,6 +6339,7 @@ export function JobsContent({
                                     seeds={searchSeeds}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     ariaLabel="Search"
+                                    name="q"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
                                     className={cn(
                                         // The whole search row shares the control scale's lg step.
@@ -6360,6 +6385,7 @@ export function JobsContent({
                                     onCommit={addLocation}
                                     selected={chosenLocations}
                                     onFocus={() => searchAutocompleteRef.current?.close()}
+                                    name="country"
                                     containerClassName="hidden lg:flex"
                                     className={cn(
                                         "ctl-lg",
@@ -6409,9 +6435,8 @@ export function JobsContent({
                             <Button
                                 // control-type-allow: the one 44px button — Search shares the [data-search-line] row with the 44px query and location fields (J-JOBS-29)
                                 size="lg"
-                                type="button"
+                                type="submit"
                                 data-testid="search-submit"
-                                onClick={() => submitSearch(queryDraft)}
                                 variant={atRest ? "outline" : "default"}
                                 className={cn(
                                     "w-full shrink-0 px-4 transition-colors sm:w-auto sm:px-6",
@@ -6421,7 +6446,7 @@ export function JobsContent({
                                 Search
                             </Button>
                         </div>
-                    </div>
+                    </form>
                     )}
 
                     {/* Category & Filter Dropdowns. Item 7b (2026-08-21
