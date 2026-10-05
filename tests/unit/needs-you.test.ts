@@ -187,4 +187,12 @@ describe("starterSteps", () => {
         const applied = ["a", "b", "c"].map((id) => pursuit(id, "applied", DAY));
         assert.equal(starterSteps(applied, { ...NO_REMOTE, savedSearchCount: 1, followCount: 3 }), null);
     });
+
+    it("drops the saved-search line once setup asked about the weekly email, yes or no thanks", () => {
+        const steps = starterSteps([], NO_REMOTE, { emailAnswered: true });
+        assert.deepEqual(steps?.map((s) => s.key), ["apply", "follow"]);
+        const applied = ["a", "b", "c"].map((id) => pursuit(id, "applied", DAY));
+        // No saved search (they said no thanks), yet nothing is left to do.
+        assert.equal(starterSteps(applied, { ...NO_REMOTE, followCount: 3 }, { emailAnswered: true }), null);
+    });
 });

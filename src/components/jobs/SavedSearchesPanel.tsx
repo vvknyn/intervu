@@ -9,6 +9,8 @@ import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { stashPendingSavedSearch, type PendingSavedSearch } from "@/lib/jobs/pending-saved-search";
+import { captureEvent } from "@/lib/analytics/events";
+import { noteSetupFacts } from "@/hooks/use-onboarding";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -95,7 +97,12 @@ export function SavedSearchesPanel({
             const href = hrefFromJobsUrlState(urlState);
             if (getSignedInUser()) {
                 const res = await saveSavedSearchAction({ name, href });
-                if (!res.error) invalidateSavedSearchesCache();
+                if (!res.error) {
+                    invalidateSavedSearchesCache();
+                    captureEvent("saved_search_created", { surface: "toolbar", signed_in: true });
+                    // A saved search is what setup's weekly-email step asks for.
+                    noteSetupFacts({ savedSearches: 1 });
+                }
             } else {
                 if (onBeforeGuestSave?.() === "block") {
                     setNaming(false);
@@ -104,6 +111,7 @@ export function SavedSearchesPanel({
                     return;
                 }
                 persistSavedSearch({ name, href });
+                captureEvent("saved_search_created", { surface: "toolbar", signed_in: false });
             }
             setNaming(false);
             setNameDraft("");

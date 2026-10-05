@@ -284,6 +284,35 @@ export interface EventPayloads {
     pack: string;
     source: "tile" | "browse_all" | "today";
   };
+  /** A search saved to the account or this browser (the weekly email reads the account's). */
+  saved_search_created: {
+    /** The Save search control, the search a guest signed in to save, or setup's weekly-email step. */
+    surface: "toolbar" | "after_sign_in" | "setup";
+    signed_in: boolean;
+  };
+  /** The new-account welcome strip showed on one of its visit days (1 to 3). */
+  onboarding_strip_shown: {
+    day: number;
+  };
+  /** Setup opened from the strip, the account menu, as /jobs itself, or from the welcome email's link. */
+  onboarding_setup_opened: {
+    surface: "strip" | "menu" | "jobs_page" | "email";
+  };
+  /** One setup step answered or skipped; `via` says how a done step was answered. */
+  onboarding_step_answered: {
+    step: "resume" | "place" | "email";
+    outcome: "done" | "skipped";
+    via?: "resume" | "roles" | "place" | "remote" | "saved_search";
+  };
+  /** "Later", or setup closed before its last step. */
+  onboarding_later: {
+    answered: number;
+  };
+  /** Every step answered (done or skipped): setup is over for this account. */
+  onboarding_finished: {
+    done: number;
+    skipped: number;
+  };
 }
 
 export type UpgradePlan = "pro_founding" | "data_api";

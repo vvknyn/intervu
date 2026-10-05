@@ -18,6 +18,9 @@ import { GHOST_JOB_RESEARCH_TITLE } from "@/lib/seo/ghost-job-term";
 import { useShareControl } from "@/components/ui/share-action";
 import { withShareRef } from "@/lib/share/share-decision";
 import { getSiteUrl, SHARE_APP_TEXT, SITE_NAME } from "@/lib/seo/constants";
+import { openSetupSheet, useOnboarding } from "@/hooks/use-onboarding";
+import { setupStepsLeftLabel } from "@/lib/onboarding/copy";
+import { SETUP_STEPS } from "@/lib/onboarding/state";
 
 /** "Share Velai" account-menu entry — same share control as JobDetail's
  *  ShareAction (native sheet, clipboard fallback, honest failure), rendered
@@ -63,6 +66,9 @@ export interface AccountMenuProps {
 export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
     // Feedback opens after the menu closes: menus sit a layer above dialogs, so a menu left open would cover it.
     const [feedbackOpen, setFeedbackOpen] = useState(false);
+    // A new account's setup, once the welcome strip has stopped showing (or was put off).
+    const onboarding = useOnboarding();
+    const setupLeft = onboarding.open ? SETUP_STEPS.length - onboarding.answered : 0;
     return (
         <>
             <DropdownMenu>
@@ -82,6 +88,14 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 border-border bg-surface-2 shadow-[var(--shadow-overlay)]">
+                    {setupLeft > 0 ? (
+                        <>
+                            <DropdownMenuItem data-testid="account-menu-finish-setup" onSelect={() => openSetupSheet("menu")}>
+                                Finish setup ({setupStepsLeftLabel(setupLeft)})
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    ) : null}
                     <DropdownMenuItem asChild>
                         <Link href="/settings">Account</Link>
                     </DropdownMenuItem>

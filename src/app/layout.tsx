@@ -4,6 +4,7 @@ import { Libre_Franklin, Source_Sans_3, JetBrains_Mono } from "next/font/google"
 import "./globals.css";
 import { MobileTabBar } from "@/components/layout/MobileTabBar";
 import { TopBar } from "@/components/layout/TopBar";
+import { OnboardingRoot } from "@/components/onboarding/OnboardingRoot";
 import { SearchDockProvider } from "@/components/layout/SearchDockContext";
 import { Footer } from "@/components/layout/Footer";
 import { IconDefaultsProvider } from "@/components/providers/IconDefaultsProvider";
@@ -210,6 +211,9 @@ export default function RootLayout({
                   renders it. Siblings can't share state without this. */}
               <SearchDockProvider>
               <TopBar />
+              {/* A new account's one-line welcome strip and its setup sheet;
+                  nothing for anyone else (components/onboarding/). */}
+              <OnboardingRoot />
               {/* The one <main> landmark per page (standard-pattern rule) —
                   every page used to own its own <main>, so a page with a
                   selected job (two h1-bearing regions) rendered two, and ~19

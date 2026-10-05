@@ -175,6 +175,9 @@ import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
+import { SetupPanel } from "@/components/onboarding/SetupPanel";
+import { SETUP_DONE_MESSAGE } from "@/components/onboarding/SetupSheet";
+import { noteResumeOnFile, useOnboarding } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
@@ -5222,6 +5225,8 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
             // so it still ranks here and the next visit can carry it into the
             // account (the adoption effect above); a later save clears it.
             let keptHere = false;
+            // Setup's first step reads answered from here on (hooks/use-onboarding.ts).
+            noteResumeOnFile();
             saveResumeToAccount(data, source, confidence, {
                 onSaved: () => {
                     if (keptHere) clearLocalAiResume();
@@ -6078,6 +6083,11 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
      */
     const showColdOrientation = !user && resumeOnFile !== true && !hasUsableResume;
     const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
+    // A new account that landed on bare /jobs gets setup as the page itself,
+    // in place of the résumé band (components/onboarding/SetupPanel.tsx).
+    const onboarding = useOnboarding();
+    // Steps aside while the sheet is open over the page (the welcome email's link).
+    const setupPanelVisible = frontDoorAtRest && signedIn && onboarding.strip.show && onboarding.sheet === null;
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -6648,6 +6658,15 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                     the week's live count, the visitor's last search, and
                     for a résumé on file, the way back to their matches.
                     Visitors with no résumé get FrontDoorResumeBand below. */}
+                {setupPanelVisible && (
+                    <SetupPanel
+                        onUploadResume={handleUploadClick}
+                        onFinished={() => {
+                            toast.success(SETUP_DONE_MESSAGE);
+                            selectJobsHome("for-you");
+                        }}
+                    />
+                )}
                 {frontDoorAtRest && (
                     <>
                         <FrontDoorWeekCount
@@ -7475,7 +7494,7 @@ export function JobsContent({ initialSearch = null }: { initialSearch?: InitialS
                 {/* Closing pitch after the live feed — one mount, same
                     `showsFrontDoorBand` gate as before. Source order is the
                     first-viewport contract: jobs, then the résumé invite. */}
-                {frontDoorBandVisible && (
+                {frontDoorBandVisible && !setupPanelVisible && (
                     <FrontDoorResumeBand
                         signedIn={Boolean(user)}
                         onUploadClick={handleUploadClick}

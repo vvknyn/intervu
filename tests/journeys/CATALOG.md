@@ -365,6 +365,23 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-COMPANY-47 | A big employer's company page (/co/anthropic--com, /co/amazon--com) shows its first roles within 2 seconds of opening it. The roles never wait on the page's slower side reads (box database, news, recent changes): one still out after 1 s is left off that load, and the next visit has it. Amazon's first load took 4.3 s on release 16 | anon | /co/anthropic--com, /co/amazon--com | signed-out | no | covered | company-page.spec.ts |
 | J-COMPANY-48 | A company logo whose image fails before the page has hydrated (a blocked or unreachable favicon host) shows the letter tile, never a broken image with its alt text | anon | /co/anthropic--com | signed-out | no | covered | company-page.spec.ts |
 
+## ONBOARD
+
+A new account's setup (`src/components/onboarding/`): the account is marked at sign-up (`profiles/<uid>.onboarding`, written with the sign-up claim), lands on the page it signed in on, and gets three skippable steps beside it. The specs answer the account's setup, Settings › Preferences writes and saved searches themselves, so none writes anything.
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|----|---------|---------|-------|------|--------|--------|------|
+| J-ONBOARD-01 | A new account on the company page it signed in on gets that page, a one-line welcome strip under the header and no dialog; Set up opens the three steps in a sheet over the page | new account | /co/shopify--com | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-02 | A new account that landed on bare /jobs gets setup as the page itself ("Set up your search" in place of the résumé band), no strip on top, and "Add your résumé" opens the importer right there | new account | /jobs | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-03 | Skipping all three steps says "Setup done. Change any of it in Settings › Preferences.", removes setup for good, writes nothing to Preferences or saved searches, and the account menu stops offering Finish setup | new account | /jobs, Skip ×3 | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-04 | Later hides the strip for the rest of the day and the account menu offers "Finish setup (3 steps left)", which opens the steps; a setup whose strip already showed on three earlier days shows no strip, only the menu line | new account | /co/shopify--com, Later | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-05 | A résumé already in this browser answers step 1 and fills step 2's place from it, labelled "From your résumé." | new account with a guest résumé | /co/shopify--com, Set up | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-06 | Step 2 starts from the connection's country, labelled as such, saves the typed place, remote choice and relocation answer to Settings › Preferences, and says beside the button when "Yes, to…" has no place | new account | /co/shopify--com, Set up, Skip | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-07 | Step 3 shows the search it would save ("Registered nurse in Toronto, ON") with how many roles were posted in the last 7 days, says the email is weekly, and saves the search only on the tap | new account with roles and a place | /co/shopify--com, Set up | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-08 | On a phone the welcome strip is one line, and a swipe down on the setup sheet closes it as Later | new account | /co/shopify--com at 390x844 | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-09 | An account made before setup existed sees no strip, no setup on /jobs and no Finish setup in the account menu | existing account | /co/shopify--com, /jobs | signed-in | no | covered | onboarding.spec.ts |
+| J-ONBOARD-10 | The welcome email's Finish setup link (`/jobs?setup=open`) opens the steps over /jobs and leaves a plain /jobs address; signed out it is plain /jobs | new account, then guest | /jobs?setup=open | signed-in | no | covered | onboarding.spec.ts |
+
 ## AUTH
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |

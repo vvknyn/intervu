@@ -56,6 +56,14 @@ export const ANALYTICS_EVENTS = {
   home_viewed: "home_viewed",
   home_action_clicked: "home_action_clicked",
   pack_opened: "pack_opened",
+
+  saved_search_created: "saved_search_created",
+
+  onboarding_strip_shown: "onboarding_strip_shown",
+  onboarding_setup_opened: "onboarding_setup_opened",
+  onboarding_step_answered: "onboarding_step_answered",
+  onboarding_later: "onboarding_later",
+  onboarding_finished: "onboarding_finished",
 } as const;
 
 export type AnalyticsEventKey = keyof typeof ANALYTICS_EVENTS;

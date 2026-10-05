@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { createServerListCache } from "@/lib/server-list-cache";
 import { listSavedSearchesAction, saveSavedSearchAction, syncGuestSavedSearchesAction } from "@/actions/saved-searches";
 import { takePendingSavedSearch } from "@/lib/jobs/pending-saved-search";
+import { captureEvent } from "@/lib/analytics/events";
 import {
     loadSavedSearches,
     clearSavedSearches,
@@ -56,6 +57,7 @@ export async function savePendingSearchAfterSignIn(): Promise<string | null> {
     const result = await saveSavedSearchAction(pending).catch(() => ({ error: "Failed to save search" }));
     if (result.error) return null;
     invalidateSavedSearchesCache();
+    captureEvent("saved_search_created", { surface: "after_sign_in", signed_in: true });
     return pending.name;
 }
 
