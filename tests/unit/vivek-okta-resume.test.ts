@@ -98,7 +98,8 @@ describe("Vivek Okta résumé fixture", () => {
             countCappedTitlePhrases(q) <= 4,
             `expected ≤4 capped title phrases, got ${countCappedTitlePhrases(q)}: ${q}`,
         );
-        assert.deepEqual(facets.experience_level, ["mid", "senior"]);
+        // 5 years as a client-facing PM after 8 in engineering: mid-level in that line (resumeSeniority).
+        assert.deepEqual(facets.experience_level, ["mid"]);
     });
 
     it("parses PROFESSIONAL EXPERIENCE with Title | Company and Month ’YY — Present", () => {

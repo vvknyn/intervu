@@ -840,6 +840,37 @@ signedInTest("three or more applications gone quiet are one Needs you line that 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("Today's applied count says how many are in the Applied stage when that isn't the day's count, and opens that stage showing as many", { tag: ["@J-JOBS-109"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "clicking the 0 of 12 applied open a tracker with 11 jobs already applied...what is happening".
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // A guest tracker: one application today, two from earlier days, one interview.
+  await page.addInitScript((key) => {
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    const row = (id: string, company: string, status: string, appliedDaysAgo: number) => ({
+      id, user_id: "guest", company_name: company, position: "Backend Engineer", status,
+      created_at: at(appliedDaysAgo + 1), updated_at: at(appliedDaysAgo), applied_at: at(appliedDaysAgo),
+    });
+    localStorage.setItem(key, JSON.stringify([
+      row("applied-today", "Contoso", "applied", 0),
+      row("applied-earlier-1", "Fabrikam", "applied", 2),
+      row("applied-earlier-2", "Tailspin", "applied", 3),
+      row("interviewing", "Northwind", "interviewing", 5),
+    ]));
+  }, "intervu.pursuits.guest");
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const applied = page.getByTestId("today-home").getByTestId("today-stat-applied");
+  await expect(applied).toHaveText("1 of 12 applied today (3 in Applied)", { timeout: 30_000 });
+  await applied.click();
+  await expect(page).toHaveURL(/\/yours\?stage=applied$/, { timeout: 30_000 });
+  const lane = page.getByTestId("tracker-kanban").getByRole("region", { name: "Applied" });
+  await expect(lane.getByRole("heading")).toHaveText(/^Applied\s*3$/, { timeout: 30_000 });
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /** A remote role for the Toronto software résumé: its own kind of role at its level, placed only as `location` says. */
 const remoteRole = (id: string, title: string, location: string, extra: Record<string, unknown> = {}) => ({
   id, title, company: `Company ${id}`, company_domain: null, location, location_city: null, location_state: null, location_country: null,
@@ -1051,6 +1082,49 @@ signedInTest("a role that doesn't say which countries it hires in reads Country 
   }
   await expect(reason).toContainText("It's remote but doesn't say which countries it hires in");
   await expect(reason).toContainText("Check where it hires before you apply.");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("Today reads a career changer's level from the years in the role they hold now, so senior roles in that role aren't picks, whether the listing or only the title says senior", { tag: ["@J-JOBS-110"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "All the roles that are showing up are all senior roles ... ALL MY RECOMMENDATIONS SUCK".
+  // A fabricated résumé of the same shape: 13 years in all, the last 5 as a Technical Account Manager after 8 in engineering.
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Alex Morgan", profession: "Technical Account Manager", yearsOfExperience: 13, location: "Toronto, Ontario, Canada", email: "alex.morgan@example.com", phone: "", linkedin: "", website: "" },
+      experience: [
+        { id: "e1", company: "Northwind", role: "Technical Account Manager", dates: "September 2021 - Present", description: "Own enterprise accounts, SLAs, escalations and renewals." },
+        { id: "e2", company: "Contoso", role: "Senior Software Engineer", dates: "February 2013 - April 2018", description: "Built backend services." },
+      ],
+      competencies: [{ category: "Account management", skills: ["Enterprise SaaS", "SLA governance", "Escalations"] }],
+      education: [{ id: "ed1", degree: "B.Tech", institution: "State University", year: "2012" }],
+      generatedSummary: "Technical Account Manager owning enterprise SaaS accounts.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  const week = [
+    remoteRole("tam", "Technical Account Manager", "Remote, Canada", { tags: [] }),
+    remoteRole("tam-senior", "Senior Technical Account Manager", "Remote, Canada", { tags: [], experience_level: "senior" }),
+    remoteRole("tam-senior-title", "Senior Technical Account Manager, Enterprise", "Remote, Canada", { tags: [], experience_level: "unknown" }),
+  ];
+  const asked: string[] = [];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    asked.push(JSON.stringify(body));
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-level" });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect(rows.first()).toBeVisible({ timeout: 60_000 });
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["tam"]);
+  // Today asks search for roles at their level, not senior ones too.
+  expect(asked.at(-1)).toMatch(/\bmid\b/);
+  expect(asked.at(-1)).not.toMatch(/\bsenior\b/i);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

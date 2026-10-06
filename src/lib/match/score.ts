@@ -439,10 +439,29 @@ function relocatesTo(signals: CandidateSignals, countries: readonly string[]): b
 
 const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
 
-/** Candidate seniority vs a job's `experience_level`. Unknown on either side is neutral and flagged. */
+/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate" read entry. */
+const TITLE_SENIOR = /\b(?:senior(?!s|\s+(?:care|living|home|homes|centre|center|services|citizens?)\b)|sr|lead(?!\s+gen)|principal|director|head of|vice president|vp|chief)\b/i;
+const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice)\b/i;
+
+/**
+ * A role's level: the one its listing names, else the rank word in its title.
+ * A "Senior Technical Account Manager" whose level was never listed read as
+ * unknown, so it was a pick for a mid-level TAM (2026-10-06).
+ */
+export function jobLevel(job: Pick<PublicJob, "experience_level" | "title">): Seniority | null {
+    const listed = normalize(job.experience_level ?? "") as Seniority;
+    if (EXPERIENCE_LEVEL_ORDER.includes(listed)) return listed;
+    const title = job.title ?? "";
+    if (TITLE_SENIOR.test(title)) return "senior";
+    if (TITLE_ENTRY.test(title)) return "entry";
+    return null;
+}
+
+/** Candidate seniority vs the role's level (`jobLevel`). Unknown on either side is neutral and flagged. */
 function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const own = signals.seniority.value;
-    const jobIndex = EXPERIENCE_LEVEL_ORDER.indexOf(normalize(job.experience_level ?? "") as Seniority);
+    const level = jobLevel(job);
+    const jobIndex = level ? EXPERIENCE_LEVEL_ORDER.indexOf(level) : -1;
     const unknown = (reason: MatchReason, detail: string): MatchComponent => ({
         key: "seniority",
         label: "Seniority",

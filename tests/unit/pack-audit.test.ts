@@ -15,8 +15,8 @@ const audit = (tile: Parameters<typeof auditRecommendation>[0]['tile'], job: Ret
     auditRecommendation({ resume: PM, tile, position: 1, job, shownBand: 'Good', nowMs: NOW });
 
 describe('pack audit checks', () => {
-    it('a senior product role in Canada passes every check under All', () => {
-        const v = audit('all', mkJob('pm', { title: 'Senior Product Manager', location_country: 'Canada', experience_level: 'senior', tags: ['roadmap'] }));
+    it('a product role in Canada at their level passes every check under All', () => {
+        const v = audit('all', mkJob('pm', { title: 'Product Manager', location_country: 'Canada', experience_level: 'mid', tags: ['roadmap'] }));
         assert.deepEqual(v.checks, { place: 'pass', level: 'pass', role: 'pass', pack: 'pass' });
         assert.deepEqual(failedChecks(v), []);
     });
