@@ -549,8 +549,8 @@ describe('scoreJobAgainstResume', () => {
                 mkJob({ ...J1_FULL_MATCH, location: 'Remote', place_restriction: { label: 'anywhere', countries: [] } }),
             ]) {
                 const score = scoreJobAgainstResume(ONTARIO_RESUME, settled)!;
-                assert.ok(['Strong', 'Good', 'Stretch'].includes(matchLabel(score)), settled.location);
-                assert.equal(labelNamesPlace(score), false, settled.location);
+                assert.ok(['Strong', 'Good', 'Stretch'].includes(matchLabel(score)), String(settled.location));
+                assert.equal(labelNamesPlace(score), false, String(settled.location));
             }
         });
 
