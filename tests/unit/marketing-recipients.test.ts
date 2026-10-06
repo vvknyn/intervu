@@ -79,3 +79,44 @@ describe("unverified addresses and the --only list", () => {
     assert.throws(() => parseOnlyList("# nothing here\n"), /no addresses/);
   });
 });
+
+describe("selectCampaignRecipients: listed addresses outside the usual filters", () => {
+  const unverified: CampaignCandidate = { userId: "u-unverified", email: "unverified@example.com", firstName: null, emailVerified: false };
+  const untagged: CampaignCandidate = { userId: "u-untagged", email: "untagged@example.com", firstName: null, velaiAccount: false };
+  const tagged: CampaignCandidate = { userId: "u-tagged", email: "tagged@example.com", firstName: null, velaiAccount: true };
+  const base = { suppressedEmails: new Set<string>(), alreadySentUserIds: new Set<string>() };
+
+  it("leaves out never-verified and untagged accounts by default, even when listed", () => {
+    const onlyEmails = new Set(["unverified@example.com", "untagged@example.com", "tagged@example.com"]);
+    const picked = selectCampaignRecipients([unverified, untagged, tagged], { ...base, onlyEmails });
+    assert.deepEqual(picked.map((c) => c.userId), ["u-tagged"]);
+  });
+
+  it("sends to them when the list names them and the include flags are set", () => {
+    const onlyEmails = new Set(["unverified@example.com", "untagged@example.com"]);
+    const picked = selectCampaignRecipients([unverified, untagged, tagged], {
+      ...base,
+      onlyEmails,
+      includeUnverified: true,
+      includeUntagged: true,
+    });
+    assert.deepEqual(picked.map((c) => c.userId), ["u-unverified", "u-untagged"]);
+  });
+
+  it("still skips a listed address that unsubscribed or already got it", () => {
+    const onlyEmails = new Set(["unverified@example.com", "untagged@example.com"]);
+    const picked = selectCampaignRecipients([unverified, untagged], {
+      suppressedEmails: new Set(["unverified@example.com"]),
+      alreadySentUserIds: new Set(["u-untagged"]),
+      onlyEmails,
+      includeUnverified: true,
+      includeUntagged: true,
+    });
+    assert.deepEqual(picked, []);
+  });
+
+  it("refuses the include flags without an --only list, so they can't widen a whole-list send", () => {
+    assert.throws(() => selectCampaignRecipients([unverified], { ...base, includeUnverified: true }), /need an --only list/);
+    assert.throws(() => selectCampaignRecipients([untagged], { ...base, includeUntagged: true }), /need an --only list/);
+  });
+});

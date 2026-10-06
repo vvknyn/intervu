@@ -48,6 +48,12 @@ per line, `#` for comments. A line with anything else on it (a CSV row, a
 name) stops the run, so a spreadsheet with a "don't send" column can't be
 passed by mistake.
 
+`--include-unverified` and `--include-untagged` (only with `--only`) also
+send to listed addresses WorkOS has as never verified, or not tagged for
+Velai, such as a sign-up that never finished on Velai's side. They exist for
+addresses someone looked at one by one; without `--only` the script refuses
+them, so they can never widen a whole-list send.
+
 ## Writing a campaign
 
 Front matter takes `subject` and `preheader`; `{{firstName}}` works in all
