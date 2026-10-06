@@ -27,7 +27,7 @@ It takes about a minute: your résumé or the roles you want, and where you can 
 
 Also fixed: if "Continue with Google" kept sending you back to the start, it now finishes.
 
-The longer version, with more pictures, is [on our blog](/blog/whats-new-october-2026?utm_source=email&utm_medium=email&utm_campaign=2026-10-whats-new).
+[Read the full update on our blog](/blog/whats-new-october-2026?utm_source=email&utm_medium=email&utm_campaign=2026-10-whats-new).
 
 Something broken or missing? Reply to this email; it comes to me.
 

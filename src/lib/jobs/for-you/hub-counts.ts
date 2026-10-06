@@ -3,7 +3,7 @@
  * Prefer live `result.total` and Strong/Good band splits when scored hits exist.
  * Packs without a live query yet omit the count (or show loading), never mock "24 jobs".
  */
-import { matchBand, type MatchScore } from "@/lib/match/score";
+import { labelNamesPlace, matchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -91,7 +91,11 @@ export function formatHubCorpusLine(pool: number | null | undefined, probing: bo
     return probing ? `${base} · Matching…` : base;
 }
 
-/** Count Strong / Good bands from a score map over known job ids. */
+/**
+ * Count Strong / Good bands from a score map over known job ids. A role whose
+ * label names its place instead of a fit ("Outside Canada", "Country
+ * unclear") counts with Stretch, so a tile never says Good for it.
+ */
 export function countFitBands(
     scores: Iterable<MatchScore | null | undefined>,
 ): { strong: number; good: number; stretch: number; unscored: number } {
@@ -104,7 +108,7 @@ export function countFitBands(
             unscored++;
             continue;
         }
-        const band = matchBand(score.total);
+        const band = labelNamesPlace(score) ? "stretch" : matchBand(score.total);
         if (band === "strong") strong++;
         else if (band === "good") good++;
         else stretch++;

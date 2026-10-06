@@ -1,10 +1,11 @@
+import type { Page } from "@playwright/test";
 import { JOBS_USP } from "../../../src/lib/jobs/jobs-usp-copy";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 
 /**
- * Journeys for list speed — see tests/journeys/CATALOG.md (J-SPEED-01 to 06).
+ * Journeys for list speed — see tests/journeys/CATALOG.md (J-SPEED-01 to 08).
  * Vivek's budget (2026-09-30): every search and list renders in under 2 s.
  * Read-only.
  */
@@ -148,6 +149,61 @@ test.describe("a signed-out visitor opening velai.app", () => {
     await expect(page.getByTestId("job-row").first()).toContainText(/account/i, { timeout: 15_000 });
     // The server-drawn copy is never shown in the address bar.
     await expect(page).toHaveURL(/\/jobs\?(.+&)?q=accountant(&|$)/);
+    expect(diagnostics.serverErrors).toEqual([]);
+  });
+
+  /**
+   * Holds the page's scripts until the returned release is called, so a spec
+   * can act on the server-drawn page before any of its code runs.
+   */
+  async function holdScripts(page: Page) {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route(/\/_next\/static\/chunks\/.+\.js(\?.*)?$/, async (route) => {
+      await held;
+      await route.continue().catch(() => {});
+    });
+    return release;
+  }
+
+  test("can search before the page's code has run: Enter sends the typed search to /jobs?q=", { tag: ["@J-SPEED-07"] }, async ({ page, diagnostics }) => {
+    const release = await holdScripts(page);
+    await page.goto("/", { waitUntil: "commit" });
+    const input = page.getByPlaceholder("Job title, skill, or company").first();
+    await expect(input).toBeVisible();
+    await input.fill("nurse");
+    // A plain form submit: the page's code hasn't run, so nothing else could send it.
+    await input.press("Enter");
+    await page.waitForURL(/\/jobs\?(.+&)?q=nurse(&|$)/, { waitUntil: "commit" });
+    release();
+    await expect(page.getByTestId("job-row").first()).toContainText(/nurs/i, { timeout: 15_000 });
+    await expect(page.getByPlaceholder("Job title, skill, or company").first()).toHaveValue("nurse");
+    // The empty place field the form sent along is not left in the address.
+    await expect(page).toHaveURL(/\/jobs\?q=nurse$/);
+    expect(diagnostics.serverErrors).toEqual([]);
+  });
+
+  test("keeps what was typed before the page's code ran once it runs, and Search then runs it", { tag: ["@J-SPEED-08"] }, async ({ page, diagnostics }) => {
+    const release = await holdScripts(page);
+    await page.goto("/", { waitUntil: "commit" });
+    const input = page.getByPlaceholder("Job title, skill, or company").first();
+    await expect(input).toBeVisible();
+    await input.fill("nurse");
+    // The place field is a text field from lg up; below that it is a button that opens a sheet.
+    const place = page.getByTestId("location-input");
+    const typedPlace = await place.isVisible();
+    if (typedPlace) await place.fill("Toronto");
+
+    release();
+    await page.waitForLoadState("networkidle");
+    await expect(input).toHaveValue("nurse");
+    if (typedPlace) await expect(place).toHaveValue("Toronto");
+    expect(diagnostics.consoleErrors.filter((e) => /hydrat|#418|#423|#425/i.test(e)), "hydration errors").toEqual([]);
+
+    if (typedPlace) await place.fill("");
+    await runSearch(page, input);
+    await expect(page).toHaveURL(/\/jobs\?(.+&)?q=nurse(&|$)/);
+    await expect(page.getByTestId("job-row").first()).toContainText(/nurs/i, { timeout: 15_000 });
     expect(diagnostics.serverErrors).toEqual([]);
   });
 });

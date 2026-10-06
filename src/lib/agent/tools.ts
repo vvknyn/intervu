@@ -36,6 +36,7 @@ import type { BaseResume } from "../resume/base-resume";
 import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
+import { withPlaceCountries } from "./place-countries";
 import { jobShareUrl } from "../jobs/share-url";
 import { displayCompanyBrand } from "../jobs/presentation";
 import { getSiteUrl } from "../seo/constants";
@@ -637,7 +638,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const resume = structuredResume(base);
   if (!resume || !resumeIsUsable(resume)) return { error: NO_RESUME_ERROR };
 
-  const signals = resolveCandidateSignals(resume, await deps.getPreferences(deps.uid));
+  const signals = resolveCandidateSignals(resume, withPlaceCountries(await deps.getPreferences(deps.uid)));
   const ranked = await rankForYou({ resume, signals, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
   if (ranked.unavailable) {
     return {

@@ -13,7 +13,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
-import { compareFit, matchBand, OUTSIDE_REASONS, type MatchScore } from "@/lib/match/score";
+import { compareFit, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -102,13 +102,19 @@ export type TodayRole = { job: PublicJob; score: MatchScore };
  *    résumé names, or a different kind of job). Packs still list these;
  *  - `level`: the role asks for more seniority than the résumé shows;
  *  - `abroad`: the role is in, or remote from, a country the candidate
- *    can't work in, or names none and pays in another country's money.
+ *    can't work in, or names none and pays in another country's money;
+ *  - `unplaced`: nothing says the candidate can take it from where they
+ *    are: their own country can't be read, or the role names nowhere it
+ *    hires (`placeUnknown`). A pick needs evidence, not the absence of a
+ *    limit: "Remote" alone was read as open to anyone, so US-only roles
+ *    were picks for people in Canada (2026-10-05).
  */
-export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad";
+export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad" | "unplaced";
 
 export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
     // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
     if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
+    if (placeUnknown(score)) return "unplaced";
     if (matchBand(score.total) === "stretch") return "stretch";
     if (score.role !== "own" && score.role !== "family") return "other-role";
     if (score.components.some((c) => c.reason === "level_below_ask")) return "level";
@@ -144,29 +150,36 @@ export function pickToday(
         });
 }
 
+/** A place verdict a description can still change: unknown (it may name their country, or anyone), or only the pay's currency. */
+const descriptionCanSettle = (c: MatchComponent): boolean => c.key === "location" && (c.unknown === true || c.reason === "remote_pay_abroad");
+
 /**
- * Today's likely picks, best first, whose rows name no country of their own
- * (no country field, place text or place in the title): only the description
- * can still say where the person must be, so these are the ones to read
- * (`/api/jobs/place-notes`). A role left out only for its pay's currency
- * counts as a likely pick here, since its description may open it to people
- * anywhere. At most `max`.
+ * Today's likely picks, best first, whose rows a description can still place
+ * (`needsPlaceCheck`: no country of their own, or several the title doesn't
+ * narrow): only the description can say where the person must be, so these
+ * are the ones to read (`/api/jobs/place-notes`). A role left out only
+ * because its place is unknown (its row names none, or the candidate's own
+ * country can't be read), or only for its pay's currency, counts as a likely
+ * pick here, since its description may place it in their country or open it
+ * to people anywhere. At most `max`.
  */
 export function placeCheckIds(roles: TodayRole[], max: number): string[] {
-    const payUnread = roles.map((role) => {
-        if (!role.score.components.some((c) => c.reason === "remote_pay_abroad")) return role;
-        // As it would score if the pay said nothing: its total from before the cap for being outside.
+    const unread = roles.map((role) => {
+        if (!role.score.components.some(descriptionCanSettle)) return role;
+        // As it would score if the description opened it to them: its total from before the cap for being outside.
         const { outside, ...score } = role.score;
         return {
             ...role,
             score: {
                 ...score,
                 total: outside?.total ?? score.total,
-                components: score.components.map((c) => (c.reason === "remote_pay_abroad" ? { ...c, reason: "remote_anywhere" as const } : c)),
+                components: score.components.map((c) =>
+                    descriptionCanSettle(c) ? { ...c, reason: "remote_anywhere" as const, unknown: false } : c,
+                ),
             },
         };
     });
-    return pickToday(payUnread, { skipped: new Set(), tracked: new Set() })
+    return pickToday(unread, { skipped: new Set(), tracked: new Set() })
         .filter(({ job }) => needsPlaceCheck(job))
         .slice(0, max)
         .map(({ job }) => job.id);

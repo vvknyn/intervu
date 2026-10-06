@@ -1,4 +1,4 @@
-import { matchBand, matchBandLabel, type MatchScore } from "@/lib/match/score";
+import { matchBand, matchBandLabel, placeUnclear, type MatchScore } from "@/lib/match/score";
 import type { MatchQualityAnalyticsProps } from "@/lib/analytics/events";
 
 /**
@@ -18,5 +18,6 @@ export function matchAnalyticsProps(
     match_band: band,
     // The chip named the place instead of a fit word (`MatchScore.outside`); the band is the capped one.
     ...(score.outside ? { match_outside: true as const } : {}),
+    ...(placeUnclear(score) ? { match_place_unclear: true as const } : {}),
   };
 }

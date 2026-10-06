@@ -38,7 +38,7 @@ import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
-import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { candidateCountries, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
 import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
 import { packSearchParams } from "@/lib/jobs/for-you/pack-filters";
@@ -305,6 +305,8 @@ export function TodayHome({
     );
 
     const status: TodayStatus = matching ? search.kind : `no-resume-${noResume}`;
+    // Picks need to know where they can work: with no country to check against, Today asks rather than guesses.
+    const whereUnknown = matching != null && candidateCountries(matching.signals).length === 0;
 
     // Once per load, when the list has settled: what Today showed.
     const viewedRef = useRef(false);
@@ -349,6 +351,7 @@ export function TodayHome({
     return (
         <TodayHomeView
             status={status}
+            whereUnknown={whereUnknown}
             since={sincePhrase(visit.sinceMs, nowMs)}
             firstVisit={visit.sinceMs == null}
             sinceMs={visit.sinceMs}
@@ -446,6 +449,7 @@ const SUMMARY_LINK =
 
 export function TodayHomeView({
     status,
+    whereUnknown = false,
     since,
     firstVisit,
     sinceMs,
@@ -471,6 +475,12 @@ export function TodayHomeView({
     needsYou = null,
 }: {
     status: TodayStatus;
+    /**
+     * Neither Settings nor the résumé names a country we can read, so no role
+     * can be checked against where they can work: the list asks for it
+     * (only roles that say they're open to anyone can still show).
+     */
+    whereUnknown?: boolean;
     /** What "new" covers: "since Tuesday", "today", "this week". */
     since: string;
     firstVisit: boolean;
@@ -509,6 +519,19 @@ export function TodayHomeView({
     const ranking = matched || status === "no-resume-loading";
     const shown = roles.slice(0, rowLimit);
     const gated = gate != null && roles.length > rowLimit;
+    const whereAsk = whereUnknown ? (
+        <div data-testid="today-where-unknown" className="space-y-3 poster-list-inset-x py-6 text-left">
+            <p className="text-sm text-foreground">
+                Today only lists roles you can take from where you live, and neither your résumé nor your Settings says which country that
+                is.
+            </p>
+            <Button asChild variant="outline">
+                <Link href="/settings?tab=prefs" data-testid="today-where-unknown-action" onClick={() => onTrack?.("set_location")}>
+                    Set where you can work
+                </Link>
+            </Button>
+        </div>
+    ) : null;
 
     return (
         <HubPanel
@@ -634,21 +657,24 @@ export function TodayHomeView({
                             </div>
                         </div>
                     ) : shown.length === 0 ? (
-                        <div data-testid="today-new-empty" className="space-y-3 poster-list-inset-x py-8 text-left">
-                            <p className="text-sm text-foreground">
-                                No role posted this week fits your own line of work, level and place yet. Your packs list the near ones.
-                            </p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                data-testid="today-new-empty-action"
-                                onClick={() => onOpenPack("all")}
-                            >
-                                Browse all matches
-                            </Button>
-                        </div>
+                        (whereAsk ?? (
+                            <div data-testid="today-new-empty" className="space-y-3 poster-list-inset-x py-8 text-left">
+                                <p className="text-sm text-foreground">
+                                    No role posted this week fits your own line of work, level and place yet. Your packs list the near ones.
+                                </p>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    data-testid="today-new-empty-action"
+                                    onClick={() => onOpenPack("all")}
+                                >
+                                    Browse all matches
+                                </Button>
+                            </div>
+                        ))
                     ) : (
                         <>
+                            {whereAsk}
                             <ul aria-label="Roles to look at">
                                 {shown.map((role) => (
                                     <TodayRow

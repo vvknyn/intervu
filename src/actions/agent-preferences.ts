@@ -6,6 +6,7 @@ import {
     type AgentPreferences,
     type AgentPreferencesPatch,
 } from "@/lib/agent/preferences";
+import { withPlaceCountries } from "@/lib/agent/place-countries";
 import { getServerUser } from "@/lib/auth/server-user";
 
 export type { AgentPreferences, AgentPreferencesPatch } from "@/lib/agent/preferences";
@@ -21,7 +22,7 @@ export type { AgentPreferences, AgentPreferencesPatch } from "@/lib/agent/prefer
 export async function fetchAgentPreferencesAction(): Promise<{ data?: AgentPreferences; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
-    return { data: await getAgentPreferences(user.uid) };
+    return { data: withPlaceCountries(await getAgentPreferences(user.uid)) };
 }
 
 export async function saveAgentPreferencesAction(
@@ -29,5 +30,5 @@ export async function saveAgentPreferencesAction(
 ): Promise<{ data?: AgentPreferences; error?: string }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
-    return { data: await setAgentPreferences(user.uid, patch) };
+    return { data: withPlaceCountries(await setAgentPreferences(user.uid, patch)) };
 }

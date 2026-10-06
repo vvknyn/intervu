@@ -134,6 +134,12 @@ describe("countFitBands", () => {
         const bands = countFitBands([score(80), score(60), score(59), null, undefined]);
         assert.deepEqual(bands, { strong: 1, good: 1, stretch: 1, unscored: 2 });
     });
+
+    it("never counts a role labelled by its place as Strong or Good", () => {
+        const unclear = { ...score(75), components: [{ key: "location" as const, label: "Location", detail: "", score: 0.5, unknown: true, reason: "remote_unplaced" as const }] };
+        const outside = { ...score(55), outside: { home: ["Canada"], where: "United States", from: "resume" as const, total: 85 } };
+        assert.deepEqual(countFitBands([unclear, outside, score(75)]), { strong: 0, good: 1, stretch: 2, unscored: 0 });
+    });
 });
 
 describe("jobMatchesHubPack", () => {
