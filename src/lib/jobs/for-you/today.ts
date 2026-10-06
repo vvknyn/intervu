@@ -231,6 +231,19 @@ export function isNewSince(job: PublicJob, sinceMs: number | null): boolean {
     return posted != null && posted >= sinceMs;
 }
 
+/**
+ * A pick is new when this device hadn't listed it before this sitting
+ * (`seenBefore`, `readTodaySeen`). Roles reach search hours after they're
+ * posted, so "posted since the last visit" never counted one posted just
+ * before a visit and listed just after it, and Today said "0 new picks today"
+ * while new roles kept arriving (2026-10-06). A device that has kept no list
+ * yet falls back to the posting date; on a first visit every pick is new.
+ */
+export function isNewPick(job: PublicJob, seenBefore: ReadonlySet<string> | null, sinceMs: number | null): boolean {
+    if (seenBefore) return !seenBefore.has(job.id);
+    return sinceMs == null || isNewSince(job, sinceMs);
+}
+
 /** What the visit store holds: when this device last opened the home, and the sitting's baseline. */
 export type TodayVisit = { lastSeenAt: string | null; since: string | null };
 
@@ -284,7 +297,31 @@ export function sincePhrase(sinceMs: number | null, nowMs: number): string {
 
 const SKIPPED_KEY = "intervu.today.skipped";
 const VISIT_KEY = "intervu.today.visit";
+const SEEN_KEY = "intervu.today.seen";
 const SKIPPED_CAP = 300;
+const SEEN_CAP = 600;
+
+/** The picks this device has listed (`isNewPick`), or `null` when it has kept no list yet. */
+export function readTodaySeen(): Set<string> | null {
+    if (typeof window === "undefined") return null;
+    try {
+        const raw = JSON.parse(localStorage.getItem(SEEN_KEY) ?? "null");
+        return Array.isArray(raw) ? new Set(raw.filter((id): id is string => typeof id === "string")) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Add the picks just listed; the oldest drop off past `SEEN_CAP`. */
+export function writeTodaySeen(ids: readonly string[]): void {
+    if (typeof window === "undefined") return;
+    try {
+        const kept = [...(readTodaySeen() ?? [])].filter((id) => !ids.includes(id));
+        localStorage.setItem(SEEN_KEY, JSON.stringify([...kept, ...ids].slice(-SEEN_CAP)));
+    } catch {
+        /* private mode / quota */
+    }
+}
 
 export function readTodaySkipped(): Set<string> {
     if (typeof window === "undefined") return new Set();
