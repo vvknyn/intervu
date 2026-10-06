@@ -81,7 +81,7 @@ import { retryDelayMs } from "@/lib/load-result";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import { DEFAULT_DAILY_APPLY_GOAL, countAppliedToday } from "@/lib/pursuits/daily-apply-plan";
-import type { Pursuit } from "@/lib/pursuits/types";
+import { boardColumn, type Pursuit } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import type { ResumeData } from "@/types/resume";
@@ -293,6 +293,7 @@ export function TodayHome({
         if (search.kind === "ready" && picks.length > 0) writeTodaySeen(picks.map((r) => r.job.id));
     }, [search.kind, picks]);
     const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
+    const appliedWaiting = useMemo(() => pursuits.filter((p) => boardColumn(p) === "applied").length, [pursuits]);
     const followUps = useMemo(() => followUpsDue(pursuits, nowMs).length, [pursuits, nowMs]);
     const interviews = useMemo(() => interviewsThisWeek(pursuits, nowMs).length, [pursuits, nowMs]);
 
@@ -372,6 +373,7 @@ export function TodayHome({
             roles={picks}
             newCount={newCount}
             appliedToday={appliedToday}
+            appliedWaiting={appliedWaiting}
             nowMs={nowMs}
             likedIds={liked}
             tuning={tuning ? tuningLine(tuning) : null}
@@ -471,6 +473,7 @@ export function TodayHomeView({
     roles,
     newCount,
     appliedToday,
+    appliedWaiting,
     goal = DEFAULT_DAILY_APPLY_GOAL,
     nowMs,
     likedIds,
@@ -508,6 +511,12 @@ export function TodayHomeView({
     /** Picks posted since the last visit. */
     newCount: number;
     appliedToday: number;
+    /**
+     * Applications in the tracker's Applied stage, the page the applied number
+     * opens. Said beside the day's count when they differ, so "0 of 12 applied
+     * today" doesn't open a page of 11 applications from earlier days.
+     */
+    appliedWaiting?: number;
     goal?: number;
     nowMs: number;
     /** Picks given a thumbs up. */
@@ -598,6 +607,12 @@ export function TodayHomeView({
                             onClick={() => onTrack?.("stat_applied")}
                         >
                             <span className="font-semibold tabular-nums">{appliedToday}</span> of {goal} applied today
+                            {appliedWaiting != null && appliedWaiting !== appliedToday ? (
+                                <span className="text-muted-foreground" data-testid="today-stat-applied-waiting">
+                                    {" "}
+                                    ({appliedWaiting} in Applied)
+                                </span>
+                            ) : null}
                         </Link>
                     </p>
                     {matched && tuning ? (

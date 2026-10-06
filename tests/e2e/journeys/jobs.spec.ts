@@ -840,6 +840,37 @@ signedInTest("three or more applications gone quiet are one Needs you line that 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("Today's applied count says how many are in the Applied stage when that isn't the day's count, and opens that stage showing as many", { tag: ["@J-JOBS-109"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "clicking the 0 of 12 applied open a tracker with 11 jobs already applied...what is happening".
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  // A guest tracker: one application today, two from earlier days, one interview.
+  await page.addInitScript((key) => {
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    const row = (id: string, company: string, status: string, appliedDaysAgo: number) => ({
+      id, user_id: "guest", company_name: company, position: "Backend Engineer", status,
+      created_at: at(appliedDaysAgo + 1), updated_at: at(appliedDaysAgo), applied_at: at(appliedDaysAgo),
+    });
+    localStorage.setItem(key, JSON.stringify([
+      row("applied-today", "Contoso", "applied", 0),
+      row("applied-earlier-1", "Fabrikam", "applied", 2),
+      row("applied-earlier-2", "Tailspin", "applied", 3),
+      row("interviewing", "Northwind", "interviewing", 5),
+    ]));
+  }, "intervu.pursuits.guest");
+  await withResume(page, "Toronto, Ontario, Canada");
+  await page.goto("/jobs?view=for-you");
+
+  const applied = page.getByTestId("today-home").getByTestId("today-stat-applied");
+  await expect(applied).toHaveText("1 of 12 applied today (3 in Applied)", { timeout: 30_000 });
+  await applied.click();
+  await expect(page).toHaveURL(/\/yours\?stage=applied$/, { timeout: 30_000 });
+  const lane = page.getByTestId("tracker-kanban").getByRole("region", { name: "Applied" });
+  await expect(lane.getByRole("heading")).toHaveText(/^Applied\s*3$/, { timeout: 30_000 });
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /** A remote role for the Toronto software résumé: its own kind of role at its level, placed only as `location` says. */
 const remoteRole = (id: string, title: string, location: string, extra: Record<string, unknown> = {}) => ({
   id, title, company: `Company ${id}`, company_domain: null, location, location_city: null, location_state: null, location_country: null,
