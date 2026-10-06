@@ -50,15 +50,18 @@ import {
     followUpsDue,
     formatLastHere,
     interviewsThisWeek,
+    isNewPick,
     isNewSince,
     pickToday,
     placeCheckIds,
+    readTodaySeen,
     readTodaySkipped,
     readTodayVisit,
     resolveTodaySince,
     sincePhrase,
     todaySearchFloor,
     tuneToday,
+    writeTodaySeen,
     writeTodaySkipped,
     withPlaceNotes,
     writeTodayVisit,
@@ -109,8 +112,8 @@ let todayMemo: { key: string; at: number; complete: true; search: PicksSearch } 
 /** How long the picks wait for their descriptions' place check before showing without it. */
 const TODAY_PLACE_NOTES_DEADLINE_MS = 1_200;
 
-/** This sitting's visit baseline, shared by the "Last here" line and Today so both read the same one. */
-type VisitMemo = { at: number; visit: ReturnType<typeof resolveTodaySince> };
+/** This sitting's visit baseline, shared by the "Last here" line and Today so both read the same one, and the picks listed before it. */
+type VisitMemo = { at: number; visit: ReturnType<typeof resolveTodaySince>; seenBefore: ReadonlySet<string> | null };
 let visitMemo: VisitMemo | null = null;
 
 const subscribeNever = () => () => {};
@@ -119,7 +122,7 @@ const subscribeNever = () => () => {};
 function visitSnapshot(): VisitMemo {
     const nowMs = Date.now();
     if (!visitMemo || nowMs - visitMemo.at >= TODAY_SESSION_GAP_MS) {
-        visitMemo = { at: nowMs, visit: resolveTodaySince(readTodayVisit(), nowMs) };
+        visitMemo = { at: nowMs, visit: resolveTodaySince(readTodayVisit(), nowMs), seenBefore: readTodaySeen() };
     }
     return visitMemo;
 }
@@ -129,12 +132,12 @@ function visitSnapshot(): VisitMemo {
  * once per sitting and recorded for the next visit. Client-only: the server
  * render has no device store, so it reports nothing until hydrated.
  */
-export function useTodayVisit(): { hydrated: boolean; sinceMs: number | null; nowMs: number } {
+export function useTodayVisit(): { hydrated: boolean; sinceMs: number | null; nowMs: number; seenBefore: ReadonlySet<string> | null } {
     const memo = useSyncExternalStore(subscribeNever, visitSnapshot, () => null);
     useEffect(() => {
         if (memo) writeTodayVisit(memo.visit.next);
     }, [memo]);
-    return { hydrated: memo != null, sinceMs: memo?.visit.sinceMs ?? null, nowMs: memo?.at ?? 0 };
+    return { hydrated: memo != null, sinceMs: memo?.visit.sinceMs ?? null, nowMs: memo?.at ?? 0, seenBefore: memo?.seenBefore ?? null };
 }
 
 /** "Last here Friday" for the welcome panel; nothing on a first visit. */
@@ -278,7 +281,17 @@ export function TodayHome({
     const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
 
-    const newCount = useMemo(() => picks.filter((r) => isNewSince(r.job, visit.sinceMs)).length, [picks, visit.sinceMs]);
+    const newPicks = useMemo(
+        () => picks.filter((r) => isNewPick(r.job, visit.seenBefore, visit.sinceMs)),
+        [picks, visit.seenBefore, visit.sinceMs],
+    );
+    const newCount = newPicks.length;
+    // A first visit counts every pick as this week's without marking each one New.
+    const newIds = useMemo(() => new Set(visit.sinceMs == null ? [] : newPicks.map((r) => r.job.id)), [newPicks, visit.sinceMs]);
+    // What this sitting listed is no longer new next time.
+    useEffect(() => {
+        if (search.kind === "ready" && picks.length > 0) writeTodaySeen(picks.map((r) => r.job.id));
+    }, [search.kind, picks]);
     const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
     const followUps = useMemo(() => followUpsDue(pursuits, nowMs).length, [pursuits, nowMs]);
     const interviews = useMemo(() => interviewsThisWeek(pursuits, nowMs).length, [pursuits, nowMs]);
@@ -355,6 +368,7 @@ export function TodayHome({
             since={sincePhrase(visit.sinceMs, nowMs)}
             firstVisit={visit.sinceMs == null}
             sinceMs={visit.sinceMs}
+            newIds={newIds}
             roles={picks}
             newCount={newCount}
             appliedToday={appliedToday}
@@ -453,6 +467,7 @@ export function TodayHomeView({
     since,
     firstVisit,
     sinceMs,
+    newIds,
     roles,
     newCount,
     appliedToday,
@@ -486,6 +501,8 @@ export function TodayHomeView({
     firstVisit: boolean;
     /** The last visit, for each row's "New"; `null` on a first visit. */
     sinceMs: number | null;
+    /** The picks to mark New (`isNewPick`); without it, those posted since `sinceMs`. */
+    newIds?: ReadonlySet<string>;
     /** The picks, best first after ratings; the list shows the first `rowLimit`. */
     roles: TodayRole[];
     /** Picks posted since the last visit. */
@@ -681,7 +698,7 @@ export function TodayHomeView({
                                         key={role.job.id}
                                         role={role}
                                         nowMs={nowMs}
-                                        isNew={isNewSince(role.job, sinceMs)}
+                                        isNew={newIds ? newIds.has(role.job.id) : isNewSince(role.job, sinceMs)}
                                         liked={likedIds.has(role.job.id)}
                                         onOpen={() => onOpen?.(role)}
                                         onApply={() => onApply(role)}
