@@ -56,8 +56,13 @@ describe("a remote-only preference says how, not where", () => {
         assert.equal(location(TAM_TORONTO, india).reason, "remote_abroad");
     });
 
+    it("a remote role that names nowhere is unknown, not a match for the preference", () => {
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager"), REMOTE_ONLY).reason, "remote_unplaced");
+    });
+
     it("a remote role open anywhere, or in the candidate's own country, still meets the preference", () => {
-        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager"), REMOTE_ONLY).reason, "remote_preferred");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { location: "Remote - Anywhere" }), REMOTE_ONLY).reason, "remote_preferred");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { place_restriction: OPEN_ANYWHERE }), REMOTE_ONLY).reason, "remote_preferred");
         assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { location: "Remote, Canada" }), REMOTE_ONLY).reason, "remote_preferred");
     });
 
@@ -156,8 +161,8 @@ describe("Today reads the descriptions of picks whose rows name no country", () 
         assert.deepEqual(new Set(placeCheckIds(roles, 24)), new Set(["plain", "india-desc"]));
     });
 
-    it("a pick whose description is for people in India leaves; one with no limit stays", () => {
-        const noted = withPlaceNotes(roles, { plain: null, "india-desc": { label: "India", countries: ["India"] } }, (job) =>
+    it("a pick whose description is for people in India leaves; one that opens it to anyone stays", () => {
+        const noted = withPlaceNotes(roles, { plain: OPEN_ANYWHERE, "india-desc": { label: "India", countries: ["India"] } }, (job) =>
             scoreJobAgainstResume(TAM_TORONTO, job, signals),
         );
         const picked = pickToday(noted, { skipped: new Set(), tracked: new Set() }).map((r) => r.job.id);
@@ -165,6 +170,13 @@ describe("Today reads the descriptions of picks whose rows name no country", () 
         assert.ok(picked.includes("canada"));
         assert.ok(!picked.includes("india-desc"));
         assert.ok(!picked.includes("india-title"));
+    });
+
+    it("a pick whose description says nowhere stays out: no evidence they can take it", () => {
+        const noted = withPlaceNotes(roles, { plain: null, "india-desc": null }, (job) => scoreJobAgainstResume(TAM_TORONTO, job, signals));
+        const picked = pickToday(noted, { skipped: new Set(), tracked: new Set() }).map((r) => r.job.id);
+        assert.deepEqual(picked, ["canada"]);
+        assert.equal(todayLeftOut(noted.find((r) => r.job.id === "plain")!.score), "unplaced");
     });
 });
 
@@ -367,15 +379,15 @@ describe("roles for people in the US, written the ways US postings write it", ()
             assert.ok(score.total < 80, "never Strong");
             assert.match(explainMatch(score), /pays in USD, so it's likely for people in the United States/);
         }
-        assert.equal(location(AUSTIN, expel).reason, "remote_anywhere");
+        assert.equal(location(AUSTIN, expel).reason, "remote_pay_home");
     });
 
     it("the pay counts for any country and currency, only when nothing else names a place", () => {
-        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "CAD" })).reason, "remote_anywhere");
-        assert.equal(location(SWE_LONDON, remote("Software Engineer", { ...usd, salary_currency: "GBP" })).reason, "remote_anywhere");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "CAD" })).reason, "remote_pay_home");
+        assert.equal(location(SWE_LONDON, remote("Software Engineer", { ...usd, salary_currency: "GBP" })).reason, "remote_pay_home");
         assert.match(location(SWE_LONDON, remote("Software Engineer", { ...usd, salary_currency: "EUR" })).detail, /the euro area/);
         assert.match(location(SWE_BENGALURU, remote("Software Engineer", { ...usd, salary_currency: "USD" })).detail, /the United States/);
-        assert.equal(location(SWE_BENGALURU, remote("Software Engineer", { ...usd, salary_currency: "INR" })).reason, "remote_anywhere");
+        assert.equal(location(SWE_BENGALURU, remote("Software Engineer", { ...usd, salary_currency: "INR" })).reason, "remote_pay_home");
         // The place, the title or the description outrank the pay.
         assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, location: "Remote, Canada" })).reason, "remote_same_country");
         assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, place_restriction: OPEN_ANYWHERE })).reason, "remote_anywhere");
@@ -383,9 +395,9 @@ describe("roles for people in the US, written the ways US postings write it", ()
             location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, place_restriction: { label: "United States or Canada", countries: ["United States", "Canada"] } })).reason,
             "remote_same_country",
         );
-        // A currency with no amount, an unknown currency, or a candidate who'd move there: no guess.
-        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { salary_currency: "USD" })).reason, "remote_anywhere");
-        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "XYZ" })).reason, "remote_anywhere");
+        // A currency with no amount or an unknown currency says nothing: the role stays unknown, never assumed open.
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { salary_currency: "USD" })).reason, "remote_unplaced");
+        assert.equal(location(TAM_TORONTO, remote("Technical Account Manager", { ...usd, salary_currency: "XYZ" })).reason, "remote_unplaced");
         const moving = { configured: true, search: {}, answers: { relocation: "Yes, to the United States" } } as unknown as AgentPreferences;
         assert.notEqual(location(TAM_TORONTO, remote("Technical Account Manager", usd), moving).reason, "remote_pay_abroad");
     });
@@ -398,5 +410,84 @@ describe("roles for people in the US, written the ways US postings write it", ()
         assert.deepEqual(placeCheckIds(roles, 24), ["pays-usd"]);
         const noted = withPlaceNotes(roles, { "pays-usd": OPEN_ANYWHERE }, (job) => scoreJobAgainstResume(TAM_TORONTO, job, signals));
         assert.deepEqual(pickToday(noted, { skipped: new Set(), tracked: new Set() }).map((r) => r.job.id), ["pays-usd"]);
+    });
+});
+
+/**
+ * One rule for every country and kind of role: Today picks a role only on evidence the candidate can
+ * take it from where they are. "Remote" alone, a country tag wider than the role, or a candidate whose
+ * country can't be read used to pass as open, so US-only roles were Good picks in Canada (2026-10-05).
+ */
+describe("a pick needs evidence the candidate can take it", () => {
+    const today = (resume: ResumeData, jobs: PublicJob[], prefs: AgentPreferences | null = null) => {
+        const signals = resolveCandidateSignals(resume, prefs);
+        const roles = jobs.map((job) => ({ job, score: scoreJobAgainstResume(resume, job, signals)! }));
+        return pickToday(roles, { skipped: new Set(), tracked: new Set() }).map((r) => r.job.id);
+    };
+    const usAndCanada = { location_country: ["United States", "Canada"] };
+
+    it("a description narrows a wider country tag, for any country", () => {
+        const usOnly = { label: "United States", countries: ["United States"] };
+        const tagged = remote("Technical Account Manager", { ...usAndCanada, place_restriction: usOnly });
+        assert.equal(location(TAM_TORONTO, tagged).reason, "remote_abroad");
+        const austin = at(TAM_TORONTO, "Austin, Texas, United States");
+        assert.equal(location(austin, tagged).reason, "remote_same_country");
+        const emea = remote("Software Engineer", {
+            location_country: ["United Kingdom", "Germany", "India"],
+            place_restriction: { label: "India", countries: ["India"] },
+        });
+        assert.equal(location(SWE_LONDON, emea).reason, "remote_abroad");
+        assert.equal(location(SWE_BENGALURU, emea).reason, "remote_same_country");
+        // A requirement that shares no country with the tags leaves the tags as they are.
+        const disjoint = remote("Technical Account Manager", { location_country: "Canada", place_restriction: usOnly });
+        assert.equal(location(TAM_TORONTO, disjoint).reason, "remote_same_country");
+    });
+
+    it("rows tagged for several countries, with no place in the title, are read; a single tag or a placed title is not", () => {
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager", usAndCanada)), true);
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager", { location: "Remote - North America" })), true);
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager - U.S. Federal", usAndCanada)), false);
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager", { location_country: "Canada" })), false);
+        assert.equal(needsPlaceCheck(remote("Technical Account Manager", { ...usAndCanada, place_restriction: null })), false);
+    });
+
+    it("Today reads the descriptions of picks tagged for several countries and of roles that name nowhere", () => {
+        const signals = resolveCandidateSignals(TAM_TORONTO, null);
+        const role = (job: PublicJob): TodayRole => ({ job, score: scoreJobAgainstResume(TAM_TORONTO, job, signals)! });
+        const roles = [
+            role(remote("Technical Account Manager", { id: "wide", company: "Island", ...usAndCanada })),
+            role(remote("Technical Account Manager", { id: "nowhere", company: "Expel" })),
+            role(remote("Technical Account Manager", { id: "canada", company: "Spellbook", location: "Remote, Canada" })),
+        ];
+        assert.deepEqual(new Set(placeCheckIds(roles, 24)), new Set(["wide", "nowhere"]));
+    });
+
+    it("roles that name nowhere are never picks, for any country or kind of work; their own country's roles are", () => {
+        const homes: Array<[ResumeData, string]> = [
+            [TAM_TORONTO, "Remote, Canada"],
+            [RN_TORONTO, "Remote within Canada"],
+            [SWE_LONDON, "Remote, United Kingdom"],
+            [SWE_BENGALURU, "Remote, India"],
+        ];
+        for (const [resume, home] of homes) {
+            const title = resume === RN_TORONTO ? "Registered Nurse - Telehealth" : resume === TAM_TORONTO ? "Technical Account Manager" : "Software Engineer";
+            const picked = today(resume, [
+                remote(title, { id: "nowhere", company: "A" }),
+                remote(title, { id: "home", company: "B", location: home }),
+                remote(title, { id: "anywhere", company: "C", location: "Remote - Anywhere" }),
+            ]);
+            assert.deepEqual(picked.sort(), ["anywhere", "home"], home);
+        }
+    });
+
+    it("a candidate whose country can't be read gets only roles open to anyone", () => {
+        const nowhere = at(TAM_TORONTO, "");
+        const picked = today(nowhere, [
+            remote("Technical Account Manager", { id: "nowhere", company: "A" }),
+            remote("Technical Account Manager", { id: "canada", company: "B", location: "Remote, Canada" }),
+            remote("Technical Account Manager - U.S. Federal", { id: "us", company: "C" }),
+            remote("Technical Account Manager", { id: "anywhere", company: "D", place_restriction: OPEN_ANYWHERE }),
+        ]);
+        assert.deepEqual(picked, ["anywhere"]);
     });
 });

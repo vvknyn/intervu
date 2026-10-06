@@ -555,6 +555,19 @@ signedInTest("a thumbs up or down on a Today pick tunes the list on this device:
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await withResume(page, "Toronto, Ontario, Canada");
+  // A fixed week of roles in Canada, each sharing its company or its team with another, so a thumbs up or down always has a word to name.
+  const inCanada = (id: string, title: string, company: string) => remoteRole(id, title, "Remote, Canada", { company });
+  const week = [
+    inCanada("tune-1", "Software Engineer", "Contoso"),
+    inCanada("tune-2", "Software Engineer", "Fabrikam"),
+    inCanada("tune-3", "Software Engineer, Payments", "Contoso"),
+    inCanada("tune-4", "Software Engineer, Payments", "Fabrikam"),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-tune" });
+  });
   await page.goto("/jobs?view=for-you");
 
   const today = page.getByTestId("today-home");
@@ -849,17 +862,20 @@ signedInTest("Today leaves out roles for people in another country, whether the 
     role("place-us-only", "Software Engineer", "Remote (US only)"),
     role("desc-india", "Software Engineer, Platform", "Remote"),
     role("open-anywhere", "Software Engineer II", "Remote"),
+    role("says-nothing", "Software Engineer, Tools", "Remote"),
   ];
   await page.route("**/api/jobs/search", async (route) => {
     const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
     if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
     return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today" });
   });
-  // Only rows with no place of their own are read for what their description says; the server reads "must be based in India".
+  // Only rows with no place of their own are read for what their description says; the server reads "must be based in India"
+  // for one and "hire anywhere" for another. A "Remote" role whose description names nowhere is not a pick: no evidence it's open to Canada.
   const asked: string[][] = [];
   await page.route("**/api/jobs/place-notes", async (route) => {
     asked.push((route.request().postDataJSON() as { ids: string[] }).ids);
-    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes: { "desc-india": { label: "India", countries: ["India"] }, "open-anywhere": null } }) });
+    const notes = { "desc-india": { label: "India", countries: ["India"] }, "open-anywhere": { label: "anywhere", countries: [] }, "says-nothing": null };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
   });
   await page.goto("/jobs?view=for-you");
 
@@ -868,7 +884,7 @@ signedInTest("Today leaves out roles for people in another country, whether the 
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
   expect(new Set(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id"))))).toEqual(new Set(["in-canada", "open-anywhere"]));
   expect(asked).toHaveLength(1);
-  expect(new Set(asked[0])).toEqual(new Set(["desc-india", "open-anywhere"]));
+  expect(new Set(asked[0])).toEqual(new Set(["desc-india", "open-anywhere", "says-nothing"]));
 
   // The route itself answers a malformed ask with 400 and an unknown id with no note.
   expect((await page.request.post("/api/jobs/place-notes", { data: { ids: [] } })).status()).toBe(400);
@@ -912,7 +928,7 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when its 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("Today leaves out a US-only role for a résumé in Canada when Settings names a bare city, or when the title narrows a wider country tag", { tag: ["@J-JOBS-105"] }, async ({ page, diagnostics }) => {
+signedInTest("Today picks a role only on evidence the candidate can take it: a bare-city Settings place, a wider country tag, a role that names nowhere", { tag: ["@J-JOBS-105"] }, async ({ page, diagnostics }) => {
   test.skip(Boolean(process.env.E2E_STORAGE_STATE), "reads its own saved Settings place, not a real account's");
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
@@ -928,7 +944,9 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when Sett
     async (route) => {
       const req = route.request();
       if (req.method() !== "POST" || !req.headers()["next-action"] || req.postData() !== "[]") return route.fallback();
-      const res = await route.fetch();
+      // A read still in flight when the test ends finds the page closed: nothing is left to answer.
+      const res = await route.fetch().catch(() => null);
+      if (!res) return;
       const text = await res.text();
       if (!text.includes('"Unauthorized"')) return route.fulfill({ response: res, body: text });
       return route.fulfill({ response: res, body: withActionResult(text, { data: saved }) });
@@ -941,20 +959,98 @@ signedInTest("Today leaves out a US-only role for a résumé in Canada when Sett
     remoteRole("us-only", "Software Engineer", "Remote (US only)"),
     remoteRole("canada-enterprise", "Software Engineer - Canada Enterprise", "Remote", northAmerica),
     remoteRole("in-canada", "Software Engineer II", "Remote, Canada"),
+    // Tagged for both countries: its description says which ("must reside in the U.S."), or nothing, and the tag stands.
+    remoteRole("wide-us", "Software Engineer, Platform", "Remote", northAmerica),
+    remoteRole("wide-open", "Software Engineer, Data", "Remote", northAmerica),
+    // "Remote" and nothing else says where it hires: no evidence they can take it.
+    remoteRole("nowhere", "Software Engineer III", "Remote"),
   ];
   await page.route("**/api/jobs/search", async (route) => {
     const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
     if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
     return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-territory" });
   });
+  const asked: string[][] = [];
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    asked.push((route.request().postDataJSON() as { ids: string[] }).ids);
+    const notes = { "wide-us": { label: "United States", countries: ["United States"] }, "wide-open": null, nowhere: null };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
   await page.goto("/jobs?view=for-you");
 
   const rows = page.getByTestId("today-home").getByTestId("today-new-row");
   await expect(rows.first()).toBeVisible({ timeout: 60_000 });
-  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["canada-enterprise", "in-canada"]);
-  for (const id of ["canada-enterprise", "in-canada"]) {
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")).sort())).toEqual(["canada-enterprise", "in-canada", "wide-open"]);
+  expect(new Set(asked.flat())).toEqual(new Set(["wide-us", "wide-open", "nowhere"]));
+  for (const id of ["canada-enterprise", "in-canada", "wide-open"]) {
     await expect(rows.and(page.locator(`[data-job-id="${id}"]`)).getByTestId("match-chip").first()).not.toHaveText(/Outside/);
   }
+  await expect(page.getByTestId("today-where-unknown")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("Today asks where the candidate can work when neither the résumé nor Settings names a country, and shows only roles open to anyone", { tag: ["@J-JOBS-106"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "");
+
+  const week = [
+    remoteRole("in-canada", "Software Engineer", "Remote, Canada"),
+    remoteRole("us-only", "Software Engineer II", "Remote (US only)"),
+    remoteRole("nowhere", "Software Engineer III", "Remote"),
+    remoteRole("open-anywhere", "Software Engineer, Platform", "Remote"),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-nowhere" });
+  });
+  await page.route("**/api/jobs/place-notes", async (route) => {
+    const notes = { nowhere: null, "open-anywhere": { label: "anywhere", countries: [] } };
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({ notes }) });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const ask = page.getByTestId("today-where-unknown");
+  await expect(ask).toBeVisible({ timeout: 60_000 });
+  await expect(ask.getByTestId("today-where-unknown-action")).toHaveAttribute("href", "/settings?tab=prefs");
+  const rows = page.getByTestId("today-home").getByTestId("today-new-row");
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["open-anywhere"]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a role that doesn't say which countries it hires in reads Country unclear in the list, not a fit word, and its reason says why", { tag: ["@J-JOBS-107"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-05, in Canada: "Remote" roles that turned out to be US-only read Good. With no evidence either way the label says so.
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  const hits = [
+    remoteRole("in-canada", "Software Engineer", "Remote, Canada"),
+    remoteRole("nowhere", "Software Engineer III", "Remote"),
+  ];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-unclear" }));
+  await page.goto("/jobs?view=search&q=software%20engineer");
+
+  const rows = page.getByTestId("job-row");
+  const row = (title: string) => rows.filter({ has: page.getByTestId("job-title").getByText(title, { exact: true }) });
+  await expect(row("Software Engineer III").getByTestId("match-chip")).toHaveText("Country unclear", { timeout: 60_000 });
+  await expect(row("Software Engineer").getByTestId("match-chip")).toHaveText(/^(Strong|Good|Stretch)$/);
+
+  const chip = row("Software Engineer III").getByTestId("match-chip");
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("It's remote but doesn't say which countries it hires in");
+  await expect(reason).toContainText("Check where it hires before you apply.");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

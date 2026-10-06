@@ -50,6 +50,8 @@ export type MatchQualityAnalyticsProps = {
   match_band: "strong" | "good" | "stretch";
   /** Present when the role is outside every country the candidate can work in: the chip said "Outside Canada", not `match_label`. */
   match_outside?: true;
+  /** The chip read "Country unclear": the role doesn't say which countries it hires in. */
+  match_place_unclear?: true;
 };
 
 export interface EventPayloads {
@@ -330,6 +332,8 @@ export type HomeActionKind =
   | "tuning_reset"
   // "Add your résumé" / "Replace résumé" where the picks would be.
   | "add_resume"
+  // "Set where you can work" when neither Settings nor the résumé names a country.
+  | "set_location"
   | "see_more"
   | "stat_new"
   | "stat_applied"
