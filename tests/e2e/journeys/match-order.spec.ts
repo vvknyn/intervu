@@ -152,7 +152,8 @@ test("pointing at a match label says in plain English why it is Strong, Good or 
   }
   if (phone) expect(new URL(page.url()).searchParams.get("job")).toBeNull();
   await expect(reason).toContainText("It's your own role: the title matches Technical Account Manager on your résumé.");
-  await expect(reason).toContainText(/its level fits your experience/i);
+  // The level says what the résumé's level was read from (Vivek, 2026-10-06: "with why those results were returned").
+  await expect(reason).toContainText(/which matches the \w+ level of your \d+ years/i);
   // Readable on the tooltip's own (inverted) background: it once rendered white on white.
   const [ink, paper] = await reason.evaluate((el) => [getComputedStyle(el).color, getComputedStyle(el.closest("[data-side]") ?? document.body).backgroundColor]);
   expect(ink).not.toBe(paper);

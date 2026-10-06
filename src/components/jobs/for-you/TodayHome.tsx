@@ -140,6 +140,15 @@ export function useTodayVisit(): { hydrated: boolean; sinceMs: number | null; no
     return { hydrated: memo != null, sinceMs: memo?.visit.sinceMs ?? null, nowMs: memo?.at ?? 0, seenBefore: memo?.seenBefore ?? null };
 }
 
+/**
+ * The roles this device had listed before this sitting (`readTodaySeen`), the
+ * snapshot Today orders by, for other ranked lists to order the same way
+ * (`compareFitUnseenFirst`). Reads without recording a visit. Client-only.
+ */
+export function useSeenBefore(): ReadonlySet<string> | null {
+    return useSyncExternalStore(subscribeNever, visitSnapshot, () => null)?.seenBefore ?? null;
+}
+
 /** "Last here Friday" for the welcome panel; nothing on a first visit. */
 export function TodayLastHere({ className }: { className?: string }) {
     const { hydrated, sinceMs, nowMs } = useTodayVisit();
@@ -271,8 +280,8 @@ export function TodayHome({
         [pursuits],
     );
     const ranked = useMemo(
-        () => (search.kind === "ready" ? pickToday(search.roles, { skipped, tracked }) : []),
-        [search, skipped, tracked],
+        () => (search.kind === "ready" ? pickToday(search.roles, { skipped, tracked, seenBefore: visit.seenBefore }) : []),
+        [search, skipped, tracked, visit.seenBefore],
     );
     // Ratings reorder the picks the visitor hasn't reached; the rows down to the one they rated stay put.
     const nudges = useDeckNudges();
@@ -288,10 +297,11 @@ export function TodayHome({
     const newCount = newPicks.length;
     // A first visit counts every pick as this week's without marking each one New.
     const newIds = useMemo(() => new Set(visit.sinceMs == null ? [] : newPicks.map((r) => r.job.id)), [newPicks, visit.sinceMs]);
-    // What this sitting listed is no longer new next time.
+    const rowLimit = auth === "signed-in" ? TODAY_PICK_ROWS : FIT_GUEST_PREVIEW_ROWS;
+    // What this sitting showed is no longer new next time, and comes after what it didn't show (`pickToday`).
     useEffect(() => {
-        if (search.kind === "ready" && picks.length > 0) writeTodaySeen(picks.map((r) => r.job.id));
-    }, [search.kind, picks]);
+        if (search.kind === "ready" && picks.length > 0) writeTodaySeen(picks.slice(0, rowLimit).map((r) => r.job.id));
+    }, [search.kind, picks, rowLimit]);
     const appliedToday = useMemo(() => countAppliedToday(pursuits, nowMs), [pursuits, nowMs]);
     const appliedWaiting = useMemo(() => pursuits.filter((p) => boardColumn(p) === "applied").length, [pursuits]);
     const followUps = useMemo(() => followUpsDue(pursuits, nowMs).length, [pursuits, nowMs]);
@@ -342,7 +352,6 @@ export function TodayHome({
             ...(role ? { job_id: role.job.id, ...matchAnalyticsProps(role.score) } : {}),
         });
 
-    const rowLimit = auth === "signed-in" ? TODAY_PICK_ROWS : FIT_GUEST_PREVIEW_ROWS;
     const shownIds = picks.slice(0, rowLimit).map((r) => r.job.id);
     const deck = picks.map((r) => r.job);
     /** Hold the shown rows down to `index` (inclusive or not) where they are. */

@@ -15,7 +15,9 @@ import {
     type MatchOutside,
     type MatchReason,
     type MatchScore,
+    type SeniorityRead,
 } from "@/lib/match/score";
+import type { Seniority } from "@/lib/jobs/resume-match";
 
 /** Seniority verdicts as a clause: "its level fits your experience". */
 const LEVEL: Partial<Record<MatchReason, string>> = {
@@ -25,6 +27,35 @@ const LEVEL: Partial<Record<MatchReason, string>> = {
     level_unlisted: "the posting doesn't say what level it is",
     no_years: "your résumé doesn't show your years of experience",
 };
+
+const ROLE_AT: Record<Seniority, string> = { entry: "an entry-level role", mid: "a mid-level role", senior: "a senior role" };
+const LEVEL_NOUN: Record<Seniority, string> = { entry: "entry", mid: "mid", senior: "senior" };
+
+/** Where the candidate's level came from: "the mid level of your 5 years as a Technical Account Manager", "the mid level you set in Settings". */
+function yourLevel(read: SeniorityRead): string {
+    const level = `the ${LEVEL_NOUN[read.own]} level`;
+    if (read.ownFrom === "settings") return `${level} you set in Settings`;
+    if (read.years == null) return `${level} of your experience`;
+    const years = `${read.years} ${read.years === 1 ? "year" : "years"}`;
+    if (!read.role) return `${level} of your ${years} of experience`;
+    return `${level} of your ${years} as ${/^[aeiou]/i.test(read.role) ? "an" : "a"} ${read.role}`;
+}
+
+/**
+ * The level verdict with what each side was read from, so a reader can check
+ * it: "it's a senior role, above the mid level of your 5 years as a Technical
+ * Account Manager" (Vivek, 2026-10-06: "users should be able to trust our
+ * results with why those results were returned").
+ */
+function levelText(c: MatchComponent): string | null {
+    const read = c.level;
+    if (!read) return null;
+    const role = read.jobFrom === "title" ? `its title makes it ${ROLE_AT[read.job]}` : `it's ${ROLE_AT[read.job]}`;
+    if (c.reason === "level_fits") return `${role}, which matches ${yourLevel(read)}`;
+    if (c.reason === "level_below_ask") return `${role}, above ${yourLevel(read)}`;
+    if (c.reason === "level_above_ask") return `${role}, below ${yourLevel(read)}`;
+    return null;
+}
 
 /** Location verdicts as a clause: "it's in your country". */
 const PLACE: Partial<Record<MatchReason, string>> = {
@@ -56,6 +87,12 @@ const WEAK: ReadonlySet<MatchReason> = new Set([
     "no_resume_place",
     "resume_place_unmatched",
 ]);
+
+/** The level clause with its basis, when the reason is the seniority component's. */
+function levelOf(score: MatchScore, reason: MatchReason): string | null {
+    const c = component(score, "seniority");
+    return c?.reason === reason ? levelText(c) : null;
+}
 
 function component(score: MatchScore, key: MatchComponent["key"]): MatchComponent | undefined {
     return score.components.find((c) => c.key === key);
@@ -175,9 +212,9 @@ export function explainMatch(score: MatchScore): string {
     if (placeUnclear(score)) return unclearExplanation(score);
     const level = component(score, "seniority")?.reason;
     const place = component(score, "location")?.reason;
-    const clauses = [level, place]
+    const clauses = [place, level]
         .filter((reason): reason is MatchReason => Boolean(reason))
-        .map((reason) => ({ reason, text: placeText(score, reason) ?? LEVEL[reason] ?? PLACE[reason] ?? "" }))
+        .map((reason) => ({ reason, text: placeText(score, reason) ?? levelOf(score, reason) ?? LEVEL[reason] ?? PLACE[reason] ?? "" }))
         .filter((c) => c.text);
     const terms = termsClause(score);
 

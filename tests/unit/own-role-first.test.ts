@@ -177,12 +177,21 @@ describe('the plain-English reason behind the label', () => {
     it('says a PM posting is next to the TAM role, not the same job', () => {
         const text = explainMatch(score(TAM, canada('Product Manager', 'mid'))!);
         assert.match(text, /role next to yours \(Technical Account Manager\)/);
-        assert.match(text, /its level fits your experience/i);
+        // The level says what it was read from: 5 years as a TAM, not the whole 13-year career.
+        assert.match(text, /it's a mid-level role, which matches the mid level of your 5 years as a Technical Account Manager/i);
     });
 
     it('names the region a remote role is based in', () => {
         const text = explainMatch(score(TAM, mkJob('eu', { title: 'Technical Account Manager - Europe', experience_level: 'senior', work_type: 'remote', location_country: null, tags: [] }))!);
         assert.match(text, /remote but based in Europe/);
+    });
+
+    it('says when a role is above their level, and what each level was read from; such a role is never Strong', () => {
+        const listed = score(TAM, canada('Senior Technical Account Manager', 'senior'))!;
+        assert.match(explainMatch(listed), /it's a senior role, above the mid level of your 5 years as a Technical Account Manager/i);
+        assert.notEqual(matchBand(listed.total), 'strong');
+        const titled = score(TAM, canada('Senior Technical Account Manager, Enterprise', 'unknown'))!;
+        assert.match(explainMatch(titled), /its title makes it a senior role, above the mid level of your 5 years as a Technical Account Manager/i);
     });
 
     it('says an off-target role is a Stretch at most', () => {
@@ -219,7 +228,7 @@ describe('the whole résumé decides which of its roles leads', () => {
     });
 
     it('its Product Manager postings are still its own role and can still read Strong', () => {
-        const pm = score(CSM, canada('Senior Product Manager', 'senior'))!;
+        const pm = score(CSM, canada('Product Manager', 'mid'))!;
         assert.equal(pm.role, 'own');
         assert.equal(matchBand(pm.total), 'strong');
     });

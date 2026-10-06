@@ -13,7 +13,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
-import { compareFit, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
+import { compareFitUnseenFirst, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -130,18 +130,25 @@ function sameRoleKey(job: PublicJob): string {
 /**
  * Today's picks, best first: the roles `todayLeftOut` keeps that weren't
  * skipped here and aren't in the tracker, ordered as every ranked list is
- * (`compareFit`: the candidate's own role first, then the higher score),
- * newest first on a tie, each opening once. The visitor's ratings
+ * (`compareFitUnseenFirst`: the candidate's own role first, then the fit
+ * band, then the ones this device hadn't listed before this sitting
+ * (`seenBefore`), then the higher score), newest first on a tie, each
+ * opening once. The visitor's ratings
  * reorder these afterwards (`tuneDeck`).
  */
 export function pickToday(
     roles: TodayRole[],
-    opts: { skipped: ReadonlySet<string>; tracked: ReadonlySet<string> },
+    opts: { skipped: ReadonlySet<string>; tracked: ReadonlySet<string>; seenBefore?: ReadonlySet<string> | null },
 ): TodayRole[] {
     const seen = new Set<string>();
+    const listed = (r: TodayRole) => opts.seenBefore?.has(r.job.id) ?? false;
     return roles
         .filter((r) => !opts.skipped.has(r.job.id) && !opts.tracked.has(r.job.id) && todayLeftOut(r.score) == null)
-        .sort((a, b) => compareFit(a.score, b.score) || (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0))
+        .sort(
+            (a, b) =>
+                compareFitUnseenFirst(a.score, b.score, listed(a), listed(b)) ||
+                (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0),
+        )
         .filter((r) => {
             const key = sameRoleKey(r.job);
             if (seen.has(key)) return false;
@@ -301,7 +308,7 @@ const SEEN_KEY = "intervu.today.seen";
 const SKIPPED_CAP = 300;
 const SEEN_CAP = 600;
 
-/** The picks this device has listed (`isNewPick`), or `null` when it has kept no list yet. */
+/** The roles this device has shown in Today or at the top of a fit-ranked list (`isNewPick`, `compareFitUnseenFirst`), or `null` when it has kept no list yet. */
 export function readTodaySeen(): Set<string> | null {
     if (typeof window === "undefined") return null;
     try {

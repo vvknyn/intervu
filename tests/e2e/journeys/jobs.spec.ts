@@ -1129,6 +1129,47 @@ signedInTest("Today reads a career changer's level from the years in the role th
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("a fit-ranked list opened again leads with roles this device hasn't shown before, inside the same fit, and a role's reason says what the résumé's level was read from", { tag: ["@J-JOBS-111"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "I keep seeing the same fucking result" and "users should be able to trust our results with why those results were returned".
+  await returningVisitor(page);
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("e2e-seen-seeded")) return;
+    sessionStorage.setItem("e2e-seen-seeded", "1");
+    localStorage.setItem("intervu.today.seen", JSON.stringify(["shown-before"]));
+  });
+  await withResume(page, "Toronto, Ontario, Canada");
+  // Same title, place and level: the same fit. The one shown before is the newer, so by score and date alone it led.
+  const hits = [
+    remoteRole("shown-before", "Software Engineer", "Remote, Canada"),
+    remoteRole("not-shown", "Software Engineer", "Remote, Canada", { company: "Company other", posted_at: new Date(Date.now() - 2 * 86_400_000).toISOString() }),
+  ];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-unseen-first" }));
+  await page.goto("/jobs?view=search&q=software%20engineer&sort=fit");
+
+  const rows = page.getByTestId("job-row");
+  await expect(rows).toHaveCount(2, { timeout: 60_000 });
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["not-shown", "shown-before"]);
+  // Both are now shown on this device.
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("intervu.today.seen") ?? "[]"))).toEqual(expect.arrayContaining(["shown-before", "not-shown"]));
+
+  const chip = rows.first().getByTestId("match-chip");
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  // The fabricated résumé: 4 years in all, as a software engineer.
+  await expect(reason).toContainText("a mid-level role, which matches the mid level of your 4 years of experience");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 /** This week's picks for the Toronto résumé: one listed on an earlier visit, one that reached search after it but was posted before it. */
 const weekOfTwo = async (page: Page) => {
   const week = [
