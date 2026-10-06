@@ -28,6 +28,7 @@ import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
 import { isRoleTitlePhrase } from "@/lib/resume/title-text";
 import { formatQuotedOrQuery } from "./fit-phrases";
 import { resumeIndustry, type IndustryId } from "./resume-industry";
+import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 
 export interface DerivedQuery {
     q: string;
@@ -45,6 +46,32 @@ export function seniorityFromYears(years: number): Seniority | null {
     if (years <= 2) return "entry";
     if (years <= 6) return "mid";
     return "senior";
+}
+
+const SENIORITY_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
+
+/**
+ * The candidate's level in their own line of work: the years in roles of the
+ * same kind as the one they hold now (their headline and latest role, by
+ * `familiesNamedBy`), never above what their whole career reads. Employers
+ * ask for years in the role, so 13 years of which 5 are as a Technical
+ * Account Manager after 8 in engineering is a mid-level TAM, and senior TAM
+ * roles are above them; counting all 13 read them as senior and filled their
+ * picks with senior roles (2026-10-06). The same for any change of line: a
+ * nurse who became a teacher, an engineer who became a product manager.
+ * When the latest role names no kind we know, or its dates can't be read,
+ * the whole career decides, as before.
+ */
+export function resumeSeniority(resume: ResumeData | null | undefined, now: Date = new Date()): Seniority | null {
+    const overall = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
+    const experience = resume?.experience ?? [];
+    const line = familiesNamedBy([resume?.profile?.profession ?? "", experience[0]?.role ?? ""].filter(Boolean));
+    if (!overall || line.length === 0) return overall;
+    const inLine = experience.filter((entry) => familiesNamedBy([entry.role ?? ""]).some((family) => line.includes(family)));
+    const years = computeYearsOfExperience(inLine, now);
+    if (years == null) return overall;
+    const own = seniorityFromYears(Math.max(years, 1))!;
+    return SENIORITY_ORDER.indexOf(own) < SENIORITY_ORDER.indexOf(overall) ? own : overall;
 }
 
 /**
@@ -245,7 +272,7 @@ export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date()
 
     const q = formatQuotedOrQuery(terms);
     const facets: Partial<Record<FacetKey, string[]>> = {};
-    const levels = experienceLevelFacet(seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0));
+    const levels = experienceLevelFacet(resumeSeniority(resume));
     if (levels) facets.experience_level = levels;
     return { q, facets, phrases: terms };
 }

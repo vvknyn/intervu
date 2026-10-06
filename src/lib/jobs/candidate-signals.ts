@@ -14,7 +14,7 @@
  */
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
-import { seniorityFromYears, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { resumeSeniority, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { locationFromResumePlainText } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
@@ -152,7 +152,7 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
 function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): Signal<Seniority> {
     const stated = SENIORITY_FROM_PREFERENCE[(prefs?.search.experienceLevel ?? "").trim().toLowerCase()];
     if (stated) return signal(stated, "explicit");
-    const fromYears = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
+    const fromYears = resumeSeniority(resume);
     return fromYears ? signal(fromYears, "resume") : unknown();
 }
 

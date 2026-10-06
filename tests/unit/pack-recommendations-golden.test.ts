@@ -55,11 +55,11 @@ describe('what each golden résumé pack searches for', () => {
         assert.ok(lower(phrases(SWE)).includes('software engineer'));
     });
 
-    it('every Vivek résumé pack is Canada, mid-to-senior', () => {
+    it('every Vivek résumé pack is Canada, mid-level: 5 years in the role he holds now, not his 13-year career', () => {
         for (const resume of [PM, OKTA, CSM]) {
             const filters = packFilters(resume, resolveCandidateSignals(resume, null));
             assert.deepEqual(filters.facets.location_country, ['Canada']);
-            assert.deepEqual(filters.facets.experience_level, ['mid', 'senior']);
+            assert.deepEqual(filters.facets.experience_level, ['mid']);
         }
     });
 });

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     seniorityFromYears,
+    resumeSeniority,
     buildMatchQuery,
     topSkills,
     capExploreTerms,
@@ -9,7 +10,7 @@ import {
     mergeFacets,
 } from '../../src/lib/jobs/resume-match';
 import { parseQuotedOrPhrases } from '../../src/lib/jobs/fit-phrases';
-import { scoreJobAgainstResume } from '../../src/lib/match/score';
+import { jobLevel, scoreJobAgainstResume } from '../../src/lib/match/score';
 import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
 
@@ -43,6 +44,57 @@ function mk(
         generatedSummary: '',
     };
 }
+
+describe('resumeSeniority', () => {
+    const NOW = new Date(2026, 9, 6);
+    const resume = (years: number, roles: [string, string][], profession = ''): ResumeData =>
+        ({
+            profile: { name: 'T', profession, yearsOfExperience: years, location: '', email: '', phone: '', linkedin: '', website: '' },
+            experience: roles.map(([role, dates], i) => ({ id: `e${i}`, company: 'Co', role, dates, description: '' })),
+            competencies: [],
+            education: [],
+            generatedSummary: '',
+        }) as unknown as ResumeData;
+
+    it('reads the years in the line of work held now, not the whole career, for a career changer', () => {
+        // 13 years in all, 5 of them as a TAM after 8 in engineering: a mid-level TAM.
+        const tam = resume(13, [
+            ['Technical Account Manager', 'September 2021 - Present'],
+            ['Senior Software Engineer', 'February 2013 - April 2018'],
+        ]);
+        assert.equal(resumeSeniority(tam, NOW), 'mid');
+        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid']);
+    });
+    it('counts every role of the same kind, so a promotion path stays senior', () => {
+        const swe = resume(10, [
+            ['Senior Software Engineer', 'Jan 2020 - Present'],
+            ['Software Engineer', 'Jan 2016 - Dec 2019'],
+        ]);
+        assert.equal(resumeSeniority(swe, NOW), 'senior');
+    });
+    it('never reads higher than the whole career, and falls back to it when the role names no kind', () => {
+        assert.equal(resumeSeniority(resume(2, [['Registered Nurse', '2015 - Present']]), NOW), 'entry');
+        assert.equal(resumeSeniority(resume(9, [['Shift Supervisor', '2024 - Present']]), NOW), 'senior');
+        assert.equal(resumeSeniority(resume(9, [['Registered Nurse', 'sometime']]), NOW), 'senior');
+    });
+});
+
+describe('jobLevel', () => {
+    const job = (title: string, experience_level: string | null) => ({ title, experience_level: experience_level as string });
+    it('takes the listed level first', () => {
+        assert.equal(jobLevel(job('Senior Technical Account Manager', 'mid')), 'mid');
+    });
+    it('reads the title when no level is listed', () => {
+        assert.equal(jobLevel(job('Senior Technical Account Manager', null)), 'senior');
+        assert.equal(jobLevel(job('Director, Customer Success', 'unknown')), 'senior');
+        assert.equal(jobLevel(job('Junior Accountant', null)), 'entry');
+        assert.equal(jobLevel(job('Technical Account Manager', null)), null);
+    });
+    it("doesn't read care for seniors or lead generation as a rank", () => {
+        assert.equal(jobLevel(job('Senior Care Aide', null)), null);
+        assert.equal(jobLevel(job('Lead Generation Specialist', null)), null);
+    });
+});
 
 describe('seniorityFromYears', () => {
     it('maps 0 / negative / NaN to null (no facet)', () => {
