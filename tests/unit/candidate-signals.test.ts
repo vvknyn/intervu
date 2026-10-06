@@ -86,9 +86,11 @@ describe('resolveCandidateSignals: explicit preferences override the resume', ()
     });
 
     it('seniority falls back to years on the resume', () => {
-        assert.deepEqual(resolveCandidateSignals(mkResume({ yearsOfExperience: 1 })).seniority, { value: 'entry', source: 'resume' });
-        assert.deepEqual(resolveCandidateSignals(mkResume({ yearsOfExperience: 6 })).seniority, { value: 'mid', source: 'resume' });
-        assert.deepEqual(resolveCandidateSignals(mkResume({ yearsOfExperience: 12 })).seniority, { value: 'senior', source: 'resume' });
+        // With what it was read from, for the reason a role shows: the whole career here (no role of a known kind).
+        const read = (years: number) => resolveCandidateSignals(mkResume({ yearsOfExperience: years })).seniority;
+        assert.deepEqual(read(1), { value: 'entry', source: 'resume', basis: { level: 'entry', years: 1, role: null } });
+        assert.deepEqual(read(6), { value: 'mid', source: 'resume', basis: { level: 'mid', years: 6, role: null } });
+        assert.deepEqual(read(12), { value: 'senior', source: 'resume', basis: { level: 'senior', years: 12, role: null } });
     });
 
     it('remote-only is a statement only when true; false is not one', () => {

@@ -165,6 +165,20 @@ describe("pickToday", () => {
         );
     });
 
+    it("puts picks this device hasn't shown before ahead of ones it has, inside the same fit band only", () => {
+        // "I keep seeing the same result" (2026-10-06): score order alone led every visit with the same roles.
+        const roles = [
+            role("strong-seen", 90, HOUR, { title: "A" }),
+            role("good-seen", 79, HOUR, { title: "B" }),
+            role("good-new", 74, HOUR, { title: "C" }),
+            role("strong-new", 86, HOUR, { title: "D" }),
+        ];
+        const order = (seenBefore: ReadonlySet<string> | null) =>
+            pickToday(roles, { skipped: new Set(), tracked: new Set(), seenBefore }).map((r) => r.job.id);
+        assert.deepEqual(order(null), ["strong-seen", "strong-new", "good-seen", "good-new"]);
+        assert.deepEqual(order(new Set(["strong-seen", "good-seen"])), ["strong-new", "strong-seen", "good-new", "good-seen"]);
+    });
+
     it("drops roles skipped here or already in the tracker", () => {
         const picks = pickToday([role("a", 85, HOUR), role("b", 85, HOUR, { title: "B" }), role("c", 85, HOUR, { title: "C" })], {
             skipped: new Set(["a"]),

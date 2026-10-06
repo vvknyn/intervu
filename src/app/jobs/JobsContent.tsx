@@ -84,7 +84,8 @@ import {
     tieredSeamIndex,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { compareFit, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { compareFitUnseenFirst, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { writeTodaySeen } from "@/lib/jobs/for-you/today";
 import {
     subscribeRecentSearches,
     getRecentSearchesSnapshot,
@@ -113,7 +114,7 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { TodayHome, TodayLastHere, type TodayNoResume } from "@/components/jobs/for-you/TodayHome";
+import { TodayHome, TodayLastHere, useSeenBefore, type TodayNoResume } from "@/components/jobs/for-you/TodayHome";
 import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
 import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
@@ -1085,6 +1086,9 @@ function saveResumeToAccount(
             });
         });
 }
+
+/** A fit-ranked list's first rows, the ones a visitor sees on opening it: these count as listed (`writeTodaySeen`). */
+const LISTED_ROWS = 10;
 
 export function JobsContent({
     initialSearch = null,
@@ -2980,15 +2984,21 @@ export function JobsContent({
     const openHubTileId =
         forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
     const rowTileOpen = openHubTileId !== undefined && !isHubFilterTile(openHubTileId);
+    // Inside each fit band, roles this device hasn't listed before come first (`compareFitUnseenFirst`), so a
+    // pack opened again leads with what's new to them, not the same top roles as last time.
+    const seenBefore = useSeenBefore();
     const rankedClusters = useMemo(() => {
+        const listed = (id: string) => seenBefore?.has(id) ?? false;
         const ranked =
             !fitActive || !matchScores
                 ? clusters
-                : [...clusters].sort((a, b) => compareFit(matchScores.get(a.primary.id), matchScores.get(b.primary.id)));
+                : [...clusters].sort((a, b) =>
+                      compareFitUnseenFirst(matchScores.get(a.primary.id), matchScores.get(b.primary.id), listed(a.primary.id), listed(b.primary.id)),
+                  );
         if (!rowTileOpen) return ranked;
         const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
         return ranked.filter((c) => keep.has(c.primary.id));
-    }, [clusters, fitActive, matchScores, rowTileOpen, openHubTileId, nowMs]);
+    }, [clusters, fitActive, matchScores, seenBefore, rowTileOpen, openHubTileId, nowMs]);
 
     // Honest display count for THIS search's result total (result-count
     // toolbar text + the end-of-list line below) — distinct from `total`
@@ -3012,6 +3022,11 @@ export function JobsContent({
         [fitActive, matchScores, signedOut, rankedClusters, gateTotal.value, gateTotal.kind], // eslint-disable-line react-hooks/exhaustive-deps
     );
     const renderedClusters = fitGate.visible;
+    // The first rows of a fit-ranked list count as listed, so the next sitting puts what they haven't seen first.
+    useEffect(() => {
+        if (!fitActive || !matchScores || loading || renderedClusters.length === 0) return;
+        writeTodaySeen(renderedClusters.slice(0, LISTED_ROWS).map((c) => c.primary.id));
+    }, [fitActive, matchScores, loading, renderedClusters]);
 
     // Not gated on `showForYouHome`: deck progress is owned by `useForYouDeck`
     // below, which is called unconditionally so it survives the Search <->

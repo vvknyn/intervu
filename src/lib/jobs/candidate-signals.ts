@@ -14,7 +14,7 @@
  */
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
-import { resumeSeniority, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { resumeSeniorityBasis, topSkills, type Seniority, type SeniorityBasis } from "@/lib/jobs/resume-match";
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { locationFromResumePlainText } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
@@ -45,7 +45,8 @@ export interface CandidateSignals {
     remotePreference: Signal<"remote_only">;
     /** Only ever `explicit`: a résumé does not state willingness to relocate. */
     relocation: Signal<CandidateRelocation>;
-    seniority: Signal<Seniority>;
+    /** With what the résumé's level was read from (`resumeSeniorityBasis`), when it was. */
+    seniority: Signal<Seniority> & { basis?: SeniorityBasis };
     roleFamily: Signal<string>;
     skills: Signal<string[]>;
 }
@@ -149,11 +150,11 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
     return countries.length > 0 ? signal({ open: true, countries }, "explicit") : unknown();
 }
 
-function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): Signal<Seniority> {
+function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
     const stated = SENIORITY_FROM_PREFERENCE[(prefs?.search.experienceLevel ?? "").trim().toLowerCase()];
     if (stated) return signal(stated, "explicit");
-    const fromYears = resumeSeniority(resume);
-    return fromYears ? signal(fromYears, "resume") : unknown();
+    const basis = resumeSeniorityBasis(resume);
+    return basis ? { ...signal(basis.level, "resume"), basis } : unknown();
 }
 
 function resolveRoleFamily(resume: ResumeData | null, prefs: AgentPreferences | null): Signal<string> {
