@@ -41,12 +41,18 @@ MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=resend \
 
 `--limit=N` caps sends per run. Idempotent: re-running a campaign skips
 anyone `intervu.marketing_sends` already has a row for. Addresses WorkOS says
-were never verified are always left out.
+were never verified are left out unless `--include-unverified` names them.
 
 `--only=<file>` sends only to the addresses in a reviewed list: one address
 per line, `#` for comments. A line with anything else on it (a CSV row, a
 name) stops the run, so a spreadsheet with a "don't send" column can't be
 passed by mistake.
+
+`--include-unverified` and `--include-untagged` (only with `--only`) also
+send to listed addresses WorkOS has as never verified, or not tagged for
+Velai, such as a sign-up that never finished on Velai's side. They exist for
+addresses someone looked at one by one; without `--only` the script refuses
+them, so they can never widen a whole-list send.
 
 ## Writing a campaign
 
