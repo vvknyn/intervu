@@ -8,6 +8,7 @@ import {
     formatLastHere,
     interviewDayMs,
     interviewsThisWeek,
+    isNewPick,
     isNewSince,
     pickToday,
     placeCheckIds,
@@ -229,6 +230,21 @@ describe("isNewSince", () => {
         assert.equal(isNewSince(job("b", 2 * DAY), NOW - DAY), false);
         assert.equal(isNewSince(job("c", null), NOW - DAY), false);
         assert.equal(isNewSince(job("d", HOUR), null), false);
+    });
+});
+
+describe("isNewPick", () => {
+    it("is new when this device hadn't listed it, whatever its posting date", () => {
+        // Posted two days ago but reached search after the last visit: new. Posted an hour ago but already listed: not.
+        const seen = new Set(["listed"]);
+        assert.equal(isNewPick(job("late", 2 * DAY), seen, NOW - DAY), true);
+        assert.equal(isNewPick(job("listed", HOUR), seen, NOW - DAY), false);
+    });
+
+    it("falls back to the posting date until the device keeps a list, and counts every pick on a first visit", () => {
+        assert.equal(isNewPick(job("a", HOUR), null, NOW - DAY), true);
+        assert.equal(isNewPick(job("b", 2 * DAY), null, NOW - DAY), false);
+        assert.equal(isNewPick(job("c", 2 * DAY), null, null), true);
     });
 });
 

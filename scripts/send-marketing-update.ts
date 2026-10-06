@@ -24,6 +24,10 @@
  *   # line (a CSV row is refused). Still minus suppressed/sent/unverified.
  *   ... --only=tmp/whats-new-recipients.txt
  *
+ *   # Also send to listed addresses WorkOS has as never verified, or not
+ *   # tagged for Velai (a sign-up that never finished). Only with --only.
+ *   ... --only=tmp/extra.txt --include-unverified --include-untagged
+ *
  * MARKETING_SENDER_NAME and MARKETING_SENDER_POSTAL_ADDRESS print in the
  * footer when set; Vivek chose to send without them (2026-10-05).
  *
@@ -103,10 +107,12 @@ interface WorkosRestUser {
   profile_picture_url?: string | null;
 }
 
-/** Every WorkOS user tagged for this app, auto-paginated — same filter
- *  `listIntervuUsers` (src/lib/auth/workos-runtime.ts) applies, over the
- *  raw-fetch client instead of the SDK (see this file's header comment). */
-async function listIntervuCandidates(apiKey: string): Promise<CampaignCandidate[]> {
+/** Every WorkOS user, auto-paginated, marked with whether it is tagged for
+ *  this app — the same `hasApp` test `listIntervuUsers`
+ *  (src/lib/auth/workos-runtime.ts) filters on, over the raw-fetch client
+ *  instead of the SDK (see this file's header comment). Untagged users are
+ *  left out by `selectCampaignRecipients` unless `--include-untagged`. */
+async function listWorkosCandidates(apiKey: string): Promise<CampaignCandidate[]> {
   const client = createClient(apiKey);
   const users: WorkosRestUser[] = [];
   let after: string | undefined;
@@ -118,7 +124,6 @@ async function listIntervuCandidates(apiKey: string): Promise<CampaignCandidate[
   } while (after);
 
   return users
-    .filter((u) => hasApp(u.metadata?.apps, APP_INTERVU))
     .map((u): CampaignCandidate => {
       const identity: WorkosIdentity = {
         id: u.id,
@@ -135,6 +140,7 @@ async function listIntervuCandidates(apiKey: string): Promise<CampaignCandidate[
         email: server.email ?? "",
         firstName: u.first_name ?? null,
         emailVerified: u.email_verified ?? undefined,
+        velaiAccount: hasApp(u.metadata?.apps, APP_INTERVU),
       };
     })
     .filter((candidate) => isReachableEmail(candidate.email));
@@ -153,10 +159,12 @@ async function main() {
   const toFilter = toArg ? normalizeEmail(toArg) : undefined;
   const onlyArg = argValue("--only");
   const onlyEmails = onlyArg ? parseOnlyList(readFileSync(resolve(onlyArg), "utf8")) : undefined;
+  const includeUnverified = process.argv.includes("--include-unverified");
+  const includeUntagged = process.argv.includes("--include-untagged");
 
   if (!campaignName) {
     console.error(
-      "Usage: npx tsx scripts/send-marketing-update.ts --campaign=<name> [--live] [--limit=N] [--to=<email>] [--only=<file>]",
+      "Usage: npx tsx scripts/send-marketing-update.ts --campaign=<name> [--live] [--limit=N] [--to=<email>] [--only=<file> [--include-unverified] [--include-untagged]]",
     );
     process.exit(1);
   }
@@ -198,7 +206,11 @@ async function main() {
 
   const workosApiKey = process.env.WORKOS_API_KEY;
   if (!workosApiKey) throw new Error("WORKOS_API_KEY is not set — cannot enumerate recipients.");
-  const candidates = await listIntervuCandidates(workosApiKey);
+  // Untagged users only count when --include-untagged and --only name them,
+  // so the default run looks up exactly the Velai accounts it always did.
+  const candidates = (await listWorkosCandidates(workosApiKey)).filter(
+    (c) => c.velaiAccount !== false || (includeUntagged && onlyEmails?.has(normalizeEmail(c.email)) === true),
+  );
 
   const pg = getIntervuPg();
   if (live && !pg) {
@@ -211,7 +223,13 @@ async function main() {
   );
   const suppressedEmails = new Set(suppressionResults.filter((e): e is string => e !== null));
 
-  let recipients = selectCampaignRecipients(candidates, { suppressedEmails, alreadySentUserIds, onlyEmails });
+  let recipients = selectCampaignRecipients(candidates, {
+    suppressedEmails,
+    alreadySentUserIds,
+    onlyEmails,
+    includeUnverified,
+    includeUntagged,
+  });
   if (toFilter) {
     recipients = recipients.filter((r) => normalizeEmail(r.email) === toFilter);
     if (recipients.length === 0) {
@@ -224,7 +242,8 @@ async function main() {
 
   console.log(
     `[marketing] campaign=${campaignName} mode=${live ? "LIVE" : "dry-run"} ` +
-      `candidates=${candidates.length} already_sent=${alreadySentUserIds.size} ` +
+      `candidates=${candidates.length} untagged_listed=${candidates.filter((c) => c.velaiAccount === false).length} ` +
+      `already_sent=${alreadySentUserIds.size} ` +
       `suppressed=${suppressedEmails.size} unverified=${candidates.filter((c) => c.emailVerified === false).length} ` +
       `only=${onlyEmails ? onlyEmails.size : "all"} selected=${recipients.length}`,
   );

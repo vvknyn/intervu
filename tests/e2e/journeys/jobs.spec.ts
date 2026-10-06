@@ -1055,6 +1055,57 @@ signedInTest("a role that doesn't say which countries it hires in reads Country 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+/** This week's picks for the Toronto résumé: one listed on an earlier visit, one that reached search after it but was posted before it. */
+const weekOfTwo = async (page: Page) => {
+  const week = [
+    remoteRole("listed-before", "Software Engineer", "Remote, Canada"),
+    remoteRole("reached-late", "Software Engineer II", "Remote, Canada", { posted_at: new Date(Date.now() - 3 * 86_400_000).toISOString() }),
+  ];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-new" });
+  });
+};
+
+signedInTest("Today counts a pick as new when this device hadn't listed it before, even when it was posted before the last visit and reached search after it", { tag: ["@J-JOBS-108"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "0 new picks today" while new roles kept arriving. Roles reach search hours after their posting date.
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await page.addInitScript(() => {
+    if (localStorage.getItem("intervu.today.visit")) return;
+    localStorage.setItem("intervu.today.visit", JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null }));
+    localStorage.setItem("intervu.today.seen", JSON.stringify(["listed-before"]));
+  });
+  await withResume(page, "Toronto, Ontario, Canada");
+  await weekOfTwo(page);
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  const rows = today.getByTestId("today-new-row");
+  await expect(rows).toHaveCount(2, { timeout: 60_000 });
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^1 new pick since \w+/);
+  await expect(rows.and(page.locator('[data-job-id="reached-late"]')).getByTestId("today-new-badge")).toHaveCount(1);
+  await expect(rows.and(page.locator('[data-job-id="listed-before"]')).getByTestId("today-new-badge")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("on a first visit Today counts every pick as this week's and marks none New", { tag: ["@J-JOBS-108"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await weekOfTwo(page);
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  await expect(today.getByTestId("today-new-row")).toHaveCount(2, { timeout: 60_000 });
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^2 picks this week/);
+  await expect(today.getByTestId("today-new-badge")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("an opened pack reads its roles' descriptions for place before it shows, so a role for people in another country is never its first card", { tag: ["@J-JOBS-101"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
