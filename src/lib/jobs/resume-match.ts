@@ -63,15 +63,32 @@ const SENIORITY_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
  * the whole career decides, as before.
  */
 export function resumeSeniority(resume: ResumeData | null | undefined, now: Date = new Date()): Seniority | null {
-    const overall = seniorityFromYears(resume?.profile?.yearsOfExperience ?? 0);
+    return resumeSeniorityBasis(resume, now)?.level ?? null;
+}
+
+/** What `resumeSeniority` read the level from, for the reason a role shows: "your 5 years as a Technical Account Manager". */
+export interface SeniorityBasis {
+    level: Seniority;
+    /** The years the level comes from. */
+    years: number;
+    /** The role held now, when the years are those in that line of work; `null` when they are the whole career. */
+    role: string | null;
+}
+
+export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now: Date = new Date()): SeniorityBasis | null {
+    const careerYears = resume?.profile?.yearsOfExperience ?? 0;
+    const overall = seniorityFromYears(careerYears);
+    if (!overall) return null;
+    const career: SeniorityBasis = { level: overall, years: careerYears, role: null };
     const experience = resume?.experience ?? [];
     const line = familiesNamedBy([resume?.profile?.profession ?? "", experience[0]?.role ?? ""].filter(Boolean));
-    if (!overall || line.length === 0) return overall;
+    if (line.length === 0) return career;
     const inLine = experience.filter((entry) => familiesNamedBy([entry.role ?? ""]).some((family) => line.includes(family)));
     const years = computeYearsOfExperience(inLine, now);
-    if (years == null) return overall;
+    if (years == null) return career;
     const own = seniorityFromYears(Math.max(years, 1))!;
-    return SENIORITY_ORDER.indexOf(own) < SENIORITY_ORDER.indexOf(overall) ? own : overall;
+    if (SENIORITY_ORDER.indexOf(own) >= SENIORITY_ORDER.indexOf(overall)) return career;
+    return { level: own, years, role: (inLine[0]?.role ?? "").trim() || null };
 }
 
 /**

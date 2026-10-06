@@ -633,7 +633,7 @@ describe('a role scores the same on its page as in a list', () => {
             }
         });
     }
-    it("a Technical Account Manager's résumé reads Expel's TAM role as Strong on its page in the US, and as likely for people in the US in Canada", () => {
+    it("a Technical Account Manager's résumé reads Expel's TAM role as a fit on its page in the US, and as likely for people in the US in Canada", () => {
         // Remote, no country in its title, place or description, paid in USD (Vivek, 2026-10-03, in Canada: "this is a US job").
         const resume = fixture('vivek-tam-resume');
         const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
@@ -646,7 +646,10 @@ describe('a role scores the same on its page as in a list', () => {
             "It's remote with no country listed, but it pays in USD, so it's likely for people in the United States, outside Canada, where your résumé places you",
         );
         const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
-        assert.equal(matchBand(scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!.total), 'strong');
+        // Good, not Strong: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level.
+        const usScore = scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!;
+        assert.equal(usScore.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask');
+        assert.equal(matchBand(usScore.total), 'good');
     });
 });
 
@@ -760,7 +763,7 @@ describe('a role outside where the candidate can work', () => {
 
     it('a country they said they would move to, or Settings placing them there, gives the role a fit word again', () => {
         const resume = livingIn(fixture('vivek-tam-resume'), 'Toronto, Ontario, Canada');
-        const job = mkJob({ title: 'Technical Account Manager', experience_level: 'senior', work_type: 'onsite', location_country: 'United States' });
+        const job = mkJob({ title: 'Technical Account Manager', experience_level: 'mid', work_type: 'onsite', location_country: 'United States' });
         const moving = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs({}, { relocation: 'Open to relocating to the US' })))!;
         assert.equal(moving.outside, undefined);
         assert.equal(matchLabel(moving), 'Strong');

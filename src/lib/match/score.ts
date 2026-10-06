@@ -77,6 +77,23 @@ export interface MatchComponent {
     terms?: { matched: number; of: number };
     /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
     place?: { where: string; currency?: string };
+    /** Seniority only, when both levels are known: what each was read from, for the reason a role shows (match/explain.ts). */
+    level?: SeniorityRead;
+}
+
+/**
+ * The two levels a seniority verdict compares and where each came from: the
+ * role's from its listing or its title (`jobLevelRead`), the candidate's from
+ * Settings or from years on the résumé (`resumeSeniorityBasis`), with the role
+ * they hold now when only those years counted.
+ */
+export interface SeniorityRead {
+    own: Seniority;
+    job: Seniority;
+    jobFrom: "listing" | "title";
+    ownFrom: "settings" | "resume";
+    years?: number;
+    role?: string | null;
 }
 
 /** The verdict behind a seniority or location component's `detail`. */
@@ -449,19 +466,24 @@ const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|gr
  * unknown, so it was a pick for a mid-level TAM (2026-10-06).
  */
 export function jobLevel(job: Pick<PublicJob, "experience_level" | "title">): Seniority | null {
+    return jobLevelRead(job)?.level ?? null;
+}
+
+/** `jobLevel`, with whether the listing or the title said it. */
+export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title">): { level: Seniority; from: "listing" | "title" } | null {
     const listed = normalize(job.experience_level ?? "") as Seniority;
-    if (EXPERIENCE_LEVEL_ORDER.includes(listed)) return listed;
+    if (EXPERIENCE_LEVEL_ORDER.includes(listed)) return { level: listed, from: "listing" };
     const title = job.title ?? "";
-    if (TITLE_SENIOR.test(title)) return "senior";
-    if (TITLE_ENTRY.test(title)) return "entry";
+    if (TITLE_SENIOR.test(title)) return { level: "senior", from: "title" };
+    if (TITLE_ENTRY.test(title)) return { level: "entry", from: "title" };
     return null;
 }
 
 /** Candidate seniority vs the role's level (`jobLevel`). Unknown on either side is neutral and flagged. */
 function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const own = signals.seniority.value;
-    const level = jobLevel(job);
-    const jobIndex = level ? EXPERIENCE_LEVEL_ORDER.indexOf(level) : -1;
+    const read = jobLevelRead(job);
+    const jobIndex = read ? EXPERIENCE_LEVEL_ORDER.indexOf(read.level) : -1;
     const unknown = (reason: MatchReason, detail: string): MatchComponent => ({
         key: "seniority",
         label: "Seniority",
@@ -477,7 +499,15 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
     const verdict = diff === 0 ? "fits" : diff > 0 ? "exceeds ask" : "below ask";
     const reason: MatchReason = diff === 0 ? "level_fits" : diff > 0 ? "level_above_ask" : "level_below_ask";
-    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score, reason };
+    const basis = signals.seniority.basis;
+    const level: SeniorityRead = {
+        own,
+        job: read!.level,
+        jobFrom: read!.from,
+        ownFrom: signals.seniority.source === "explicit" ? "settings" : "resume",
+        ...(basis && signals.seniority.source !== "explicit" ? { years: basis.years, role: basis.role } : {}),
+    };
+    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score, reason, level };
 }
 
 /**
@@ -639,6 +669,30 @@ export function compareFit(a: MatchScore | null | undefined, b: MatchScore | nul
     return roleTier(a) - roleTier(b) || (b?.total ?? -1) - (a?.total ?? -1);
 }
 
+const BAND_RANK: Record<MatchBand, number> = { strong: 0, good: 1, stretch: 2 };
+
+/**
+ * `compareFit` with the roles this device has already listed after the ones
+ * it hasn't, inside the same role tier and fit band: a new Good role comes
+ * before a Good one shown on earlier visits, never before a Strong one. In
+ * score order alone the same top roles led every visit until they aged out
+ * of the window ("I keep seeing the same result", 2026-10-06). With nothing
+ * seen it is `compareFit`.
+ */
+export function compareFitUnseenFirst(
+    a: MatchScore | null | undefined,
+    b: MatchScore | null | undefined,
+    aSeen: boolean,
+    bSeen: boolean,
+): number {
+    return (
+        roleTier(a) - roleTier(b) ||
+        BAND_RANK[matchBand(a?.total ?? -1)] - BAND_RANK[matchBand(b?.total ?? -1)] ||
+        Number(aSeen) - Number(bSeen) ||
+        (b?.total ?? -1) - (a?.total ?? -1)
+    );
+}
+
 /**
  * A posting for a different kind of role than the résumé targets is at most a
  * Stretch, however many words it shares with the résumé: "API" and "incident"
@@ -657,8 +711,8 @@ export function roleOffTarget(resume: ResumeData, job: PublicJob): boolean {
  * location cannot be verified for this candidate never reads as Strong: the
  * total is capped just under the Strong band (so is a job whose level was
  * never derived, for a candidate whose level is known — `levelUnverified` —
- * and a job whose title can't be tied to the résumé's target role —
- * `roleFit` "unverified"). A job for a different kind of role than the
+ * a job above the candidate's level, and a job whose title can't be tied to
+ * the résumé's target role — `roleFit` "unverified"). A job for a different kind of role than the
  * résumé targets (`roleFit` "off-target") is capped under Good, and so is one
  * outside every country the candidate can work in, which also carries
  * `outside` so its label says so (`matchLabel`).
@@ -689,9 +743,11 @@ export function scoreJobAgainstResume(
     const abroad = location.reason != null && OUTSIDE_REASONS.has(location.reason);
 
     const rank = familyRank(resume, job, role);
+    // A role above the candidate's level can't read Strong: the label would say they can take what its reason says they can't.
+    const aboveLevel = components[1]!.reason === "level_below_ask";
     const capped = offTarget
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
+        : location.unknown || abroad || levelUnverified(signals, job) || aboveLevel || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
     const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank };
