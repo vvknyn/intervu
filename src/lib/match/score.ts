@@ -181,6 +181,29 @@ export function matchBandLabel(band: MatchBand): "Stretch" | "Good" | "Strong" {
 /** Location verdicts that put a role outside every country the candidate can work in. */
 export const OUTSIDE_REASONS: ReadonlySet<MatchReason> = new Set(["abroad", "remote_abroad", "remote_pay_abroad"]);
 
+/** Location verdicts for a role that doesn't say which countries it hires in, read against a candidate whose country is known. */
+export const UNPLACED_REASONS: ReadonlySet<MatchReason> = new Set(["remote_unplaced", "country_unlisted"]);
+
+/** The label of a role that doesn't say which countries it hires in (`placeUnclear`). */
+export const PLACE_UNCLEAR_LABEL = "Country unclear";
+
+/**
+ * The role doesn't say which countries it hires in, so there's no telling
+ * whether the candidate can take it: its label says that instead of a fit
+ * word. "Good · Remote" on a role that turned out to be US-only read as a
+ * recommendation (2026-10-05). A candidate whose own country is unknown is a
+ * different case: every role is unknown to them, and Today asks where they
+ * can work instead.
+ */
+export function placeUnclear(score: MatchScore): boolean {
+    return !score.outside && score.components.some((c) => c.key === "location" && c.reason != null && UNPLACED_REASONS.has(c.reason));
+}
+
+/** The label names where the role is (`outside`) or that it doesn't say (`placeUnclear`), not how well it fits. */
+export function labelNamesPlace(score: MatchScore): boolean {
+    return score.outside != null || placeUnclear(score);
+}
+
 /** Country names a chip shortens. */
 const SHORT_COUNTRY: Readonly<Record<string, string>> = {
     "United States": "US",
@@ -199,13 +222,15 @@ export function outsideLabel(home: readonly string[]): string {
 
 /**
  * The label a role shows the candidate, the same on every surface: Strong,
- * Good or Stretch for how well it fits, or where it is when it's outside
- * every country they can work in. A fit word on a role they can't take read
- * as a fit: Island's "Technical Account Manager - U.S. Federal" said Good to
- * a résumé in Toronto (2026-10-03).
+ * Good or Stretch for how well it fits, where it is when it's outside every
+ * country they can work in, or "Country unclear" when it doesn't say where it
+ * hires. A fit word on a role they can't take read as a fit: Island's
+ * "Technical Account Manager - U.S. Federal" said Good to a résumé in Toronto
+ * (2026-10-03).
  */
 export function matchLabel(score: MatchScore): string {
-    return score.outside ? outsideLabel(score.outside.home) : matchBandLabel(matchBand(score.total));
+    if (score.outside) return outsideLabel(score.outside.home);
+    return placeUnclear(score) ? PLACE_UNCLEAR_LABEL : matchBandLabel(matchBand(score.total));
 }
 
 /**

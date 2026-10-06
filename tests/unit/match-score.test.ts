@@ -12,6 +12,8 @@ import {
     matchLabel,
     compareFit,
     outsideLabel,
+    placeUnclear,
+    labelNamesPlace,
 } from '../../src/lib/match/score';
 import { explainMatch } from '../../src/lib/match/explain';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
@@ -529,6 +531,34 @@ describe('scoreJobAgainstResume', () => {
             }
             const unplaced = scoreJobAgainstResume(ONTARIO_RESUME, mkJob({ ...J1_FULL_MATCH, location: 'Remote', location_country: null }))!;
             assert.equal(unplaced.components.find((c) => c.key === 'location')!.reason, 'remote_unplaced');
+        });
+
+        it('a role that doesn\'t say where it hires reads "Country unclear", not a fit word, and says why', () => {
+            const remote = scoreJobAgainstResume(ONTARIO_RESUME, mkJob({ ...J1_FULL_MATCH, location: 'Remote', location_country: null }))!;
+            assert.equal(matchLabel(remote), 'Country unclear');
+            assert.ok(placeUnclear(remote) && labelNamesPlace(remote));
+            assert.match(explainMatch(remote), /^It's remote but doesn't say which countries it hires in, so there's no telling yet whether you can take it from where you live\./);
+            assert.match(explainMatch(remote), /On your résumé alone it would be (Good|Stretch)\. Check where it hires before you apply\.$/);
+            const nowhere = scoreJobAgainstResume(ONTARIO_RESUME, mkJob({ ...J1_FULL_MATCH, work_type: 'onsite', location: 'Head Office', location_country: null }))!;
+            assert.equal(nowhere.components.find((c) => c.key === 'location')!.reason, 'country_unlisted');
+            assert.equal(matchLabel(nowhere), 'Country unclear');
+            assert.match(explainMatch(nowhere), /^The posting doesn't say which country it's in/);
+            // Evidence settles it: the same role in Canada, or open anywhere, carries its fit word again.
+            for (const settled of [
+                mkJob({ ...J1_FULL_MATCH, location: 'Remote, Canada', location_country: ['Canada'] }),
+                mkJob({ ...J1_FULL_MATCH, location: 'Remote', place_restriction: { label: 'anywhere', countries: [] } }),
+            ]) {
+                const score = scoreJobAgainstResume(ONTARIO_RESUME, settled)!;
+                assert.ok(['Strong', 'Good', 'Stretch'].includes(matchLabel(score)), settled.location);
+                assert.equal(labelNamesPlace(score), false, settled.location);
+            }
+        });
+
+        it('a candidate whose own country is unknown keeps fit words: the gap is theirs to fill, not the role\'s', () => {
+            const score = scoreJobAgainstResume(SWE_RESUME, mkJob({ ...J1_FULL_MATCH, location: 'Remote', location_country: null }))!;
+            assert.equal(score.components.find((c) => c.key === 'location')!.reason, 'no_resume_place');
+            assert.equal(placeUnclear(score), false);
+            assert.ok(['Good', 'Stretch'].includes(matchLabel(score)));
         });
 
         it('a remote job that names no country but pays in the candidate\'s own money counts as theirs, for any country', () => {

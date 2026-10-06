@@ -17,7 +17,7 @@ import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { explainMatch } from "@/lib/match/explain";
-import { matchBand, matchLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { labelNamesPlace, matchBand, matchLabel, type MatchBand, type MatchScore } from "@/lib/match/score";
 import { captureEvent } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 
@@ -26,7 +26,7 @@ import { matchAnalyticsProps } from "@/lib/analytics/match-props";
  *  that pay was not weighed. */
 const NOT_COUNTED_DETAIL = "salary — your call to weigh";
 
-/** A fit band, or `outside`: the role is outside every country the candidate can work in (`MatchScore.outside`). */
+/** A fit band, or `outside`: the label names the place, not a fit (`labelNamesPlace`: outside where the candidate can work, or not saying where it hires). */
 type MatchTone = MatchBand | "outside";
 
 function bandChipClass(band: MatchTone): string {
@@ -92,7 +92,8 @@ export function MatchChipTeaser({ onClick, className }: { onClick: () => void; c
 }
 
 export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip", variant = "chip" }: MatchChipProps) {
-    const band: MatchTone = score.outside ? "outside" : matchBand(score.total);
+    const namesPlace = labelNamesPlace(score);
+    const band: MatchTone = namesPlace ? "outside" : matchBand(score.total);
     const label = matchLabel(score);
     return (
         <ContextHelp
@@ -109,7 +110,7 @@ export function MatchChip({ score, asOfDate, className, jobId, testId = "match-c
         >
             <span
                 data-testid={testId ?? undefined}
-                aria-label={score.outside ? label : `${label} match`}
+                aria-label={namesPlace ? label : `${label} match`}
                 className={cn(
                     variant === "text"
                         ? cn("font-semibold", bandTextClass(band))
@@ -135,7 +136,7 @@ function MatchReceipt({
     return (
         <div className="min-w-[220px] max-w-xs">
             <div className="mb-1 text-xs font-semibold text-muted-foreground">
-                Why {score.outside ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label}
+                Why {labelNamesPlace(score) ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label}
                 {asOfDate ? ` — against your résumé of ${asOfDate}` : ""}
             </div>
             <p data-testid="match-reason" className="mb-2 text-sm leading-snug">

@@ -10,6 +10,7 @@ import {
     MATCH_BAND_STRONG_MIN,
     matchBand,
     matchBandLabel,
+    placeUnclear,
     type MatchComponent,
     type MatchOutside,
     type MatchReason,
@@ -103,6 +104,27 @@ function outsideExplanation(score: MatchScore, outside: MatchOutside): string {
         .join(" ");
 }
 
+/**
+ * A role that doesn't say which countries it hires in (`placeUnclear`): that
+ * first, since it's why the label isn't a fit word, then what the fit alone
+ * would be, so the person can still judge it.
+ */
+function unclearExplanation(score: MatchScore): string {
+    const reason = component(score, "location")?.reason;
+    const place =
+        reason === "remote_unplaced"
+            ? "It's remote but doesn't say which countries it hires in"
+            : "The posting doesn't say which country it's in";
+    const role = score.role === "own" || score.role === "family" ? roleSentence(score) : null;
+    return [
+        `${place}, so there's no telling yet whether you can take it from where you live.`,
+        role,
+        `On your résumé alone it would be ${matchBandLabel(matchBand(score.total))}. Check where it hires before you apply.`,
+    ]
+        .filter(Boolean)
+        .join(" ");
+}
+
 function roleSentence(score: MatchScore): string | null {
     const yours = score.yourRole?.trim();
     switch (score.role) {
@@ -145,10 +167,12 @@ const sentence = (clauses: string[]): string => {
 /**
  * One short paragraph: how the title relates to the candidate's own role, what
  * supports the label, and — when it is below Strong — what holds it there. A
- * role outside the candidate's countries says where it is instead.
+ * role outside the candidate's countries says where it is instead, and one
+ * that doesn't say where it hires says that.
  */
 export function explainMatch(score: MatchScore): string {
     if (score.outside) return outsideExplanation(score, score.outside);
+    if (placeUnclear(score)) return unclearExplanation(score);
     const level = component(score, "seniority")?.reason;
     const place = component(score, "location")?.reason;
     const clauses = [level, place]

@@ -50,6 +50,8 @@ export type MatchQualityAnalyticsProps = {
   match_band: "strong" | "good" | "stretch";
   /** Present when the role is outside every country the candidate can work in: the chip said "Outside Canada", not `match_label`. */
   match_outside?: true;
+  /** The chip read "Country unclear": the role doesn't say which countries it hires in. */
+  match_place_unclear?: true;
 };
 
 export interface EventPayloads {

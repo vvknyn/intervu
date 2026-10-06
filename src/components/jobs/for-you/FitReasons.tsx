@@ -6,7 +6,7 @@ import { MatchChip } from "@/components/jobs/MatchChip";
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
 import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
-import type { MatchScore } from "@/lib/match/score";
+import { labelNamesPlace, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -53,8 +53,8 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
     return (
         <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-surface px-4 py-3.5" open>
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                {/* A role outside where they can work carries no fit word (`matchLabel`), so the heading doesn't claim one. */}
-                <span className="text-sm font-semibold text-foreground">{score.outside ? "How this compares" : "Why this fits"}</span>
+                {/* A role outside where they can work, or one that doesn't say where it hires, carries no fit word (`matchLabel`), so the heading doesn't claim one. */}
+                <span className="text-sm font-semibold text-foreground">{labelNamesPlace(score) ? "How this compares" : "Why this fits"}</span>
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
                     <CaretDown
