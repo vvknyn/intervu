@@ -175,7 +175,7 @@ describe('the plain-English reason behind the label', () => {
     });
 
     it('says a PM posting is next to the TAM role, not the same job', () => {
-        const text = explainMatch(score(TAM, canada('Senior Product Manager', 'senior'))!);
+        const text = explainMatch(score(TAM, canada('Product Manager', 'mid'))!);
         assert.match(text, /role next to yours \(Technical Account Manager\)/);
         assert.match(text, /its level fits your experience/i);
     });

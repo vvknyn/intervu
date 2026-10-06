@@ -35,7 +35,7 @@ const SWE_BENGALURU = at(golden("sample-resume"), "Bengaluru, India");
 const REMOTE_ONLY = { configured: true, search: { remoteOnly: true }, answers: {} } as unknown as AgentPreferences;
 
 const remote = (title: string, extra: Partial<PublicJob> = {}) =>
-    mkJob(title, { title, experience_level: "senior", work_type: "remote", location: "Remote", location_country: null, tags: [], ...extra });
+    mkJob(title, { title, experience_level: "mid", work_type: "remote", location: "Remote", location_country: null, tags: [], ...extra });
 
 function location(resume: ResumeData, job: PublicJob, prefs: AgentPreferences | null = null) {
     const score = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs))!;
