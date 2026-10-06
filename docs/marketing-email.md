@@ -41,7 +41,7 @@ MARKETING_SEND_ENABLED=1 MAIL_TRANSPORT=resend \
 
 `--limit=N` caps sends per run. Idempotent: re-running a campaign skips
 anyone `intervu.marketing_sends` already has a row for. Addresses WorkOS says
-were never verified are always left out.
+were never verified are left out unless `--include-unverified` names them.
 
 `--only=<file>` sends only to the addresses in a reviewed list: one address
 per line, `#` for comments. A line with anything else on it (a CSV row, a
