@@ -97,7 +97,7 @@ function startPool(n) {
         probe();
     }
 
-    const server = http.createServer((req, res) => {
+    function forward(req, res, retried) {
         const idx = pickWorker({ url: req.url, key: clientKey(req.headers, req.socket.remoteAddress), ready: workers.map((w) => w.ready) });
         if (idx < 0) {
             res.writeHead(503, { "content-type": "text/plain", "retry-after": "2" });
@@ -115,23 +115,32 @@ function startPool(n) {
         );
         upstream.on("error", (err) => {
             // Refused means that server is down: take it out until it listens again.
-            if (err.code === "ECONNREFUSED" && w.ready) {
+            const refused = err.code === "ECONNREFUSED";
+            if (refused && w.ready) {
                 w.ready = false;
                 waitUntilListening(w);
             }
-            if (!res.headersSent) {
-                res.writeHead(502, { "content-type": "text/plain" });
-                res.end("Bad gateway");
-            } else {
+            if (res.headersSent) {
                 res.destroy();
+                return;
             }
+            // Nothing reached that server, and a read has no body to replay: the next server answers it.
+            if (refused && !retried && (req.method === "GET" || req.method === "HEAD")) {
+                forward(req, res, true);
+                return;
+            }
+            res.writeHead(502, { "content-type": "text/plain" });
+            res.end("Bad gateway");
         });
         // The visitor left: stop the work on their behalf.
         res.on("close", () => {
             if (!res.writableFinished) upstream.destroy();
         });
-        req.pipe(upstream);
-    });
+        if (req.method === "GET" || req.method === "HEAD") upstream.end();
+        else req.pipe(upstream);
+    }
+
+    const server = http.createServer((req, res) => forward(req, res, false));
     // Longer than the reverse proxy in front keeps idle connections, so it
     // never sends a request down a connection this side just closed.
     server.keepAliveTimeout = 130_000;
