@@ -43,6 +43,8 @@ const memoryBytes = Math.min(parseMemoryMax(readOr("/sys/fs/cgroup/memory.max"))
 const count = resolveWorkerCount({ requested: process.env.WEB_CONCURRENCY, cpus, memoryBytes });
 
 if (count === 1) {
+    // Said either way, so a deploy shows whether the container's limits held it to one.
+    console.log(`[start-web] 1 server (cpus ${cpus}, memory ${Math.round(memoryBytes / 2 ** 20)} MB, requested ${process.env.WEB_CONCURRENCY ?? "unset"})`);
     await import(serverJs);
 } else {
     startPool(count);
