@@ -9,8 +9,8 @@
  * fed static fixtures.
  *
  * `?state=first | empty | loading | failed | guest | no-resume | unreadable | tuned`;
- * anything else is filled (last here Friday, 7 picks with 3 new, 2 of 12
- * applied, 3 follow-ups, 1 interview). `guest` is a signed-out visitor: the
+ * anything else is filled (last here Friday, 7 picks with 3 new, 2 applied
+ * today and 6 waiting in Applied, 3 follow-ups, 1 interview). `guest` is a signed-out visitor: the
  * fit preview and the gate. `no-resume` and `unreadable` are a signed-in
  * visitor without a usable résumé. `tuned` has a thumbs up given and the
  * tuning line with Reset.
@@ -173,6 +173,7 @@ function TodayMockBody() {
                                 roles={roles}
                                 newCount={newCount}
                                 appliedToday={first ? 0 : 2}
+                                appliedWaiting={first ? 0 : 6}
                                 nowMs={MOCK_NOW}
                                 likedIds={state === "tuned" ? new Set(["mock-today-2"]) : new Set()}
                                 tuning={state === "tuned" ? "Tuned toward Payments, away from Growth." : null}
