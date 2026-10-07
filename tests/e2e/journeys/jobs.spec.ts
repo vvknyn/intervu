@@ -466,7 +466,7 @@ signedInTest("going back to the packs hub keeps the tile counts it had, without 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, tracker, history; Today has one summary line that links and this week's picks, each with its fit, Apply and thumbs up/down (on hover with a mouse)", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }, testInfo) => {
+signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, tracker, history; Today has one summary line with the next step and this week's picks, each with its fit, Apply and thumbs up/down (thumbs on hover with a mouse)", { tag: ["@J-JOBS-43"] }, async ({ page, diagnostics }, testInfo) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   // Last here two days ago (seeded once, so the reload below is the same sitting and keeps that baseline).
@@ -504,12 +504,12 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
   // Today says what its picks are based on.
   await expect(today.getByTestId("today-basis")).toContainText("in your line of work, at your level, where you can work");
 
-  // The day's numbers are one line of links, not a row of tiles ("too much happening here", Vivek 2026-10-01):
-  // new picks since the last visit, and applied today of the goal. Follow-ups and interviews are Needs you's rows.
+  // The day's numbers are one plain line, not a row of tiles ("too much happening here", Vivek 2026-10-01), each saying
+  // what it counts, with the next thing to do; no daily goal ("0/12...so much confusion", Vivek 2026-10-07, J-JOBS-112).
+  // Follow-ups and interviews are Needs you's rows.
   const summary = today.getByTestId("today-summary");
   await expect(today.getByTestId("today-stats")).toHaveCount(0);
-  await expect(summary.getByTestId("today-stat-applied")).toContainText("0 of 12 applied today");
-  await expect(summary.getByTestId("today-stat-applied")).toHaveAttribute("href", "/yours?stage=applied");
+  await expect(today).not.toContainText("of 12 applied");
 
   // The list settles on picks or on one way on, never both. Signed in: up to TODAY_PICK_ROWS picks, each Strong or Good
   // with Apply and the thumbs (a thumbs down is the way to drop one; there is no separate Skip); "All of this week"
@@ -522,27 +522,29 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
     await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
   } else {
     expect(await rows.count()).toBeLessThanOrEqual(TODAY_PICK_ROWS);
-    await expect(summary.getByTestId("today-stat-new")).toContainText(/new picks? since \w+/);
-    await expect(summary.getByTestId("today-stat-new")).toHaveAttribute("href", "#today-new");
+    await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(No new roles fit you|\d+ new roles? fits? you) since \w+\.$/);
+    await expect(summary.getByTestId("today-next-step")).toHaveText(/^Next: /);
     for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
     await expect(rows.first().getByTestId("today-apply")).toBeVisible();
     await expect(rows.first().getByTestId("role-more-like-this")).toBeVisible();
     await expect(rows.first().getByTestId("role-fewer-like-this")).toBeVisible();
     await expect(today.getByTestId("today-skip")).toHaveCount(0);
-    // With a mouse the row's Apply and thumbs wait for hover or keyboard focus ("maybe some of these actions can be on
-    // hover", Vivek 2026-10-01); on touch there is no hover, so they always show.
+    // Apply, the next thing to do, always shows (Vivek 2026-10-07). With a mouse the thumbs wait for hover or keyboard
+    // focus ("maybe some of these actions can be on hover", Vivek 2026-10-01); on touch there is no hover, so they show.
     const actions = rows.first().getByTestId("today-row-actions");
+    const thumbs = rows.first().getByTestId("today-row-tuning");
+    await page.mouse.move(0, 0);
+    await expect(actions).toHaveCSS("opacity", "1");
     if (testInfo.project.use.hasTouch) {
-      await expect(actions).toHaveCSS("opacity", "1");
+      await expect(thumbs).toHaveCSS("opacity", "1");
     } else {
-      await page.mouse.move(0, 0);
-      await expect(actions).toHaveCSS("opacity", "0");
+      await expect(thumbs).toHaveCSS("opacity", "0");
       await rows.first().hover();
-      await expect(actions).toHaveCSS("opacity", "1");
+      await expect(thumbs).toHaveCSS("opacity", "1");
       await page.mouse.move(0, 0);
-      await expect(actions).toHaveCSS("opacity", "0");
-      await rows.first().getByTestId("today-apply").focus();
-      await expect(actions).toHaveCSS("opacity", "1");
+      await expect(thumbs).toHaveCSS("opacity", "0");
+      await rows.first().getByTestId("role-more-like-this").focus();
+      await expect(thumbs).toHaveCSS("opacity", "1");
     }
     await expect(today.getByTestId("today-see-more")).toHaveText("All of this week");
     await expect(today.getByTestId("signup-gate")).toHaveCount(0);
@@ -709,10 +711,12 @@ signedInTest("signed in without a résumé, the packs home still has Today under
   await expect(prompt).toHaveAttribute("data-reason", "missing");
   await expect(prompt).toContainText("Picks need your résumé");
   await expect(today.getByTestId("today-new-row")).toHaveCount(0);
-  // No picks, so no picks count and no "All of this week"; the tracker numbers and "Needs you" stay.
+  // No picks, so no picks count, next step or "All of this week"; with no applications, no line about them either.
+  // "Needs you" stays.
   await expect(today.getByTestId("today-stat-new")).toHaveCount(0);
+  await expect(today.getByTestId("today-next-step")).toHaveCount(0);
   await expect(today.getByTestId("today-see-more")).toHaveCount(0);
-  await expect(today.getByTestId("today-stat-applied")).toBeVisible();
+  await expect(today.getByTestId("today-stat-applied")).toHaveCount(0);
   await expect(today.getByTestId("today-needs-you")).toBeVisible();
   // The welcome panel names no résumé it doesn't have.
   await expect(page.getByTestId("today-resume-in-use")).toHaveCount(0);
@@ -840,7 +844,7 @@ signedInTest("three or more applications gone quiet are one Needs you line that 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("Today's applied count says how many are in the Applied stage when that isn't the day's count, and opens that stage showing as many", { tag: ["@J-JOBS-109"] }, async ({ page, diagnostics }) => {
+signedInTest("Today says how many it applied to today and how many applications wait in Applied, and the waiting count opens that stage showing as many", { tag: ["@J-JOBS-109"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-06: "clicking the 0 of 12 applied open a tracker with 11 jobs already applied...what is happening".
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
@@ -862,11 +866,57 @@ signedInTest("Today's applied count says how many are in the Applied stage when 
   await page.goto("/jobs?view=for-you");
 
   const applied = page.getByTestId("today-home").getByTestId("today-stat-applied");
-  await expect(applied).toHaveText("1 of 12 applied today (3 in Applied)", { timeout: 30_000 });
+  await expect(applied).toHaveText("3 applications are waiting on a reply", { timeout: 30_000 });
+  await expect(page.getByTestId("today-home").getByTestId("today-stat-applied-today")).toHaveText("You applied to 1 role today.");
   await applied.click();
   await expect(page).toHaveURL(/\/yours\?stage=applied$/, { timeout: 30_000 });
   const lane = page.getByTestId("tracker-kanban").getByRole("region", { name: "Applied" });
   await expect(lane.getByRole("heading")).toHaveText(/^Applied\s*3$/, { timeout: 30_000 });
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("with nothing new since the last visit, Today says so, names the next step for the role it still lists, and counts the applications waiting in Applied instead of a daily goal", { tag: ["@J-JOBS-112"] }, async ({ page, diagnostics }, testInfo) => {
+  // Vivek, 2026-10-07: "0/12, 0 picks...but 11 applied...and 1 role to look at....so much confusion...the UI needs to
+  // almost nidge the user to do the next natural thing".
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await page.addInitScript(() => {
+    if (localStorage.getItem("intervu.today.visit")) return;
+    localStorage.setItem("intervu.today.visit", JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null }));
+    localStorage.setItem("intervu.today.seen", JSON.stringify(["listed-before"]));
+  });
+  // Three applications from earlier days, none today.
+  await page.addInitScript((key) => {
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000).toISOString();
+    const row = (id: string, company: string, appliedDaysAgo: number) => ({
+      id, user_id: "guest", company_name: company, position: "Backend Engineer", status: "applied",
+      created_at: at(appliedDaysAgo + 1), updated_at: at(appliedDaysAgo), applied_at: at(appliedDaysAgo),
+    });
+    localStorage.setItem(key, JSON.stringify([row("a1", "Contoso", 2), row("a2", "Fabrikam", 3), row("a3", "Tailspin", 4)]));
+  }, "intervu.pursuits.guest");
+  await withResume(page, "Toronto, Ontario, Canada");
+  const week = [remoteRole("listed-before", "Software Engineer", "Remote, Canada")];
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.continue();
+    return answerListSearch(route, { hits: week, total: week.length, backend: "meilisearch", configured: true, searchId: "e2e-today-seen" });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  const rows = today.getByTestId("today-new-row");
+  await expect(rows).toHaveCount(1, { timeout: 60_000 });
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^No new roles fit you since \w+\.$/);
+  await expect(today.getByTestId("today-next-step")).toHaveText("Next: Apply to the role below, or give it a thumbs down so it stops showing.");
+  await expect(today.getByTestId("today-stat-applied")).toHaveText("3 applications are waiting on a reply", { timeout: 30_000 });
+  await expect(today.getByTestId("today-stat-applied")).toHaveAttribute("href", "/yours?stage=applied");
+  await expect(today.getByTestId("today-stat-applied-today")).toHaveCount(0);
+  await expect(today).not.toContainText("of 12");
+  // The row's next action shows without a hover.
+  if (!testInfo.project.use.hasTouch) await page.mouse.move(0, 0);
+  await expect(rows.first().getByTestId("today-apply")).toBeVisible();
+  await expect(rows.first().getByTestId("today-row-actions")).toHaveCSS("opacity", "1");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
@@ -1199,7 +1249,8 @@ signedInTest("Today counts a pick as new when this device hadn't listed it befor
   const today = page.getByTestId("today-home");
   const rows = today.getByTestId("today-new-row");
   await expect(rows).toHaveCount(2, { timeout: 60_000 });
-  await expect(today.getByTestId("today-stat-new")).toHaveText(/^1 new pick since \w+/);
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^1 new role fits you since \w+\.$/);
+  await expect(today.getByTestId("today-next-step")).toHaveText("Next: It's at the top, marked New. Apply if it suits you.");
   await expect(rows.and(page.locator('[data-job-id="reached-late"]')).getByTestId("today-new-badge")).toHaveCount(1);
   await expect(rows.and(page.locator('[data-job-id="listed-before"]')).getByTestId("today-new-badge")).toHaveCount(0);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
@@ -1215,7 +1266,7 @@ signedInTest("on a first visit Today counts every pick as this week's and marks 
 
   const today = page.getByTestId("today-home");
   await expect(today.getByTestId("today-new-row")).toHaveCount(2, { timeout: 60_000 });
-  await expect(today.getByTestId("today-stat-new")).toHaveText(/^2 picks this week/);
+  await expect(today.getByTestId("today-stat-new")).toHaveText("2 roles posted this week fit you.");
   await expect(today.getByTestId("today-new-badge")).toHaveCount(0);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);

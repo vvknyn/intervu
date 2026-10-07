@@ -59,6 +59,7 @@ import {
     readTodayVisit,
     resolveTodaySince,
     sincePhrase,
+    todaySummary,
     todaySearchFloor,
     tuneToday,
     writeTodaySeen,
@@ -80,7 +81,7 @@ import { serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
 import { retryDelayMs } from "@/lib/load-result";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
-import { DEFAULT_DAILY_APPLY_GOAL, countAppliedToday } from "@/lib/pursuits/daily-apply-plan";
+import { countAppliedToday } from "@/lib/pursuits/daily-apply-plan";
 import { boardColumn, type Pursuit } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -461,10 +462,6 @@ const NEEDS_YOU_ACTION: Record<NeedsYouKind, HomeActionKind> = {
 /** What the picks list shows: the search's state, or why there is no résumé to rank against. */
 export type TodayStatus = PicksSearch["kind"] | `no-resume-${TodayNoResume}`;
 
-function plural(n: number, one: string, many: string): string {
-    return n === 1 ? one : many;
-}
-
 /** The rule a pick passed (`todayLeftOut`), said once at the top so every row's fit word has its basis. */
 const PICKS_BASIS = "This week's roles in your line of work, at your level, where you can work. Your own role comes first.";
 
@@ -482,8 +479,7 @@ export function TodayHomeView({
     roles,
     newCount,
     appliedToday,
-    appliedWaiting,
-    goal = DEFAULT_DAILY_APPLY_GOAL,
+    appliedWaiting = 0,
     nowMs,
     likedIds,
     tuning,
@@ -517,16 +513,15 @@ export function TodayHomeView({
     newIds?: ReadonlySet<string>;
     /** The picks, best first after ratings; the list shows the first `rowLimit`. */
     roles: TodayRole[];
-    /** Picks posted since the last visit. */
+    /** Picks this device hadn't listed before (`isNewPick`); every pick on a first visit. */
     newCount: number;
     appliedToday: number;
     /**
-     * Applications in the tracker's Applied stage, the page the applied number
-     * opens. Said beside the day's count when they differ, so "0 of 12 applied
-     * today" doesn't open a page of 11 applications from earlier days.
+     * Applications in the tracker's Applied stage, the page the waiting line
+     * opens, so the number and the page agree (not "0 of 12 applied today"
+     * opening 11 applications from earlier days, Vivek 2026-10-06).
      */
     appliedWaiting?: number;
-    goal?: number;
     nowMs: number;
     /** Picks given a thumbs up. */
     likedIds: ReadonlySet<string>;
@@ -554,6 +549,46 @@ export function TodayHomeView({
     const ranking = matched || status === "no-resume-loading";
     const shown = roles.slice(0, rowLimit);
     const gated = gate != null && roles.length > rowLimit;
+    // One plain line: what the numbers count and the next thing to do ("the UI needs to almost nudge the user to do
+    // the next natural thing", Vivek 2026-10-07, after "0 new picks · 0 of 12 applied today" beside 11 applications).
+    const summary = todaySummary({ ready: status === "ready", shown: shown.length, newCount, firstVisit, since, appliedToday, appliedWaiting });
+    const summaryLine =
+        summary.picks || summary.appliedToday || summary.waiting ? (
+            <div className="space-y-0.5 text-sm" data-testid="today-summary">
+                {summary.picks ? (
+                    <p className="text-foreground">
+                        <span data-testid="today-stat-new">{summary.picks}</span>
+                        {summary.next ? (
+                            <>
+                                {" "}
+                                <span data-testid="today-next-step">
+                                    <span className="font-semibold">Next:</span> {summary.next}
+                                </span>
+                            </>
+                        ) : null}
+                    </p>
+                ) : null}
+                {summary.appliedToday || summary.waiting ? (
+                    <p className="text-muted-foreground">
+                        {summary.appliedToday ? <span data-testid="today-stat-applied-today">{summary.appliedToday}</span> : null}
+                        {summary.appliedToday && summary.waiting ? " " : null}
+                        {summary.waiting ? (
+                            <>
+                                <Link
+                                    href="/yours?stage=applied"
+                                    data-testid="today-stat-applied"
+                                    className={cn(SUMMARY_LINK, "text-foreground")}
+                                    onClick={() => onTrack?.("stat_applied")}
+                                >
+                                    {summary.waiting}
+                                </Link>
+                                .
+                            </>
+                        ) : null}
+                    </p>
+                ) : null}
+            </div>
+        ) : null;
     const whereAsk = whereUnknown ? (
         <div data-testid="today-where-unknown" className="space-y-3 poster-list-inset-x py-6 text-left">
             <p className="text-sm text-foreground">
@@ -595,35 +630,7 @@ export function TodayHomeView({
                               ? "What needs you today. This week's roles that fit your résumé show here once it loads."
                               : "What needs you today. Add your résumé and this week's roles that fit it show here too."}
                     </p>
-                    <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-foreground" data-testid="today-summary">
-                        {status === "ready" ? (
-                            <>
-                                <a href="#today-new" data-testid="today-stat-new" className={SUMMARY_LINK} onClick={() => onTrack?.("stat_new")}>
-                                    <span className="font-semibold tabular-nums">{newCount}</span>{" "}
-                                    {firstVisit
-                                        ? `${plural(newCount, "pick", "picks")} this week`
-                                        : `new ${plural(newCount, "pick", "picks")} ${since}`}
-                                </a>
-                                <span aria-hidden className="text-muted-foreground">
-                                    ·
-                                </span>
-                            </>
-                        ) : null}
-                        <Link
-                            href="/yours?stage=applied"
-                            data-testid="today-stat-applied"
-                            className={SUMMARY_LINK}
-                            onClick={() => onTrack?.("stat_applied")}
-                        >
-                            <span className="font-semibold tabular-nums">{appliedToday}</span> of {goal} applied today
-                            {appliedWaiting != null && appliedWaiting !== appliedToday ? (
-                                <span className="text-muted-foreground" data-testid="today-stat-applied-waiting">
-                                    {" "}
-                                    ({appliedWaiting} in Applied)
-                                </span>
-                            ) : null}
-                        </Link>
-                    </p>
+                    {summaryLine}
                     {matched && tuning ? (
                         <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground" data-testid="today-tuning">
                             <span className="min-w-0" aria-live="polite">
@@ -748,10 +755,10 @@ const ROW_ACTIONS_ON_HOVER =
 /**
  * One pick. Every row has the same few things, so each is said once and
  * quietly: the fit word leads the meta line (it opens the same receipt as the
- * chip), Apply is a text button, and the thumbs are the only other control (a
- * thumbs down takes the pick out, which is what Skip did, and tunes the rest).
- * With a mouse, Apply and the thumbs show on hover or keyboard focus, so the
- * list reads as roles, not a column of buttons; a liked row keeps its lit
+ * chip), Apply is the row's one button and always shows (the next thing to do,
+ * Vivek 2026-10-07), and the thumbs are the only other control (a thumbs down
+ * takes the pick out, which is what Skip did, and tunes the rest). With a
+ * mouse, the thumbs show on hover or keyboard focus; a liked row keeps its lit
  * thumb in view. Touch has no hover, so there they always show.
  */
 function TodayRow({
@@ -821,17 +828,13 @@ function TodayRow({
                         />
                     </div>
                 </div>
-                <div
-                    data-testid="today-row-actions"
-                    className={cn(
-                        "mt-1 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end",
-                        !liked && ROW_ACTIONS_ON_HOVER,
-                    )}
-                >
-                    <Button type="button" variant="ghost" data-testid="today-apply" onClick={onApply} className="-ml-3 sm:ml-0">
+                <div data-testid="today-row-actions" className="mt-2 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end">
+                    <Button type="button" variant="outline" data-testid="today-apply" onClick={onApply}>
                         Apply
                     </Button>
-                    <RoleTuningButtons active liked={liked} onMore={onMore} onFewer={onFewer} />
+                    <div data-testid="today-row-tuning" className={cn(!liked && ROW_ACTIONS_ON_HOVER)}>
+                        <RoleTuningButtons active liked={liked} onMore={onMore} onFewer={onFewer} />
+                    </div>
                 </div>
             </div>
         </li>
