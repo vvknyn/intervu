@@ -89,6 +89,9 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     postedBucket: p.postedBucket ?? "",
     postedSinceMs: p.postedSinceMs ?? 0,
     places,
+    yearsExperience: p.yearsExperience ?? "",
+    // Order kept: each phrase is a lane, and the lanes interleave in this order.
+    fitPhrases: p.fitPhrases ?? [],
     limit: p.limit ?? 40,
     offset: p.offset ?? 0,
     withFacets: Boolean(p.withFacets),
@@ -181,6 +184,50 @@ export function getDegradedServe(p: JobSearchParams): DegradedServeDecision | nu
   return resolveDegradedServe(p, (key) => cache.get(key));
 }
 
+/**
+ * How long a live answer stays the answer for the same search. Visitors
+ * running the same search (a job pack, the newest list, the probes every list
+ * search runs beside it) inside this window share one Meilisearch call
+ * instead of each making their own, so a crowd costs the search box what
+ * one visitor does.
+ */
+export const SEARCH_FRESH_MS = 15_000;
+let freshMs = SEARCH_FRESH_MS;
+const inFlight = new Map<string, Promise<JobSearchResult>>();
+
+/**
+ * One Meilisearch call for identical searches: a live answer younger than
+ * `SEARCH_FRESH_MS` is reused, a call already on its way is joined, and
+ * otherwise `run` makes a new one, whose success becomes the last-good
+ * answer `getDegradedServe` falls back on. A failure is never reused: every
+ * caller waiting on it gets the failure, and the next search calls again.
+ */
+export function sharedLiveSearch(
+  p: JobSearchParams,
+  run: () => Promise<JobSearchResult>,
+  nowMs = Date.now(),
+): Promise<JobSearchResult> {
+  const key = normalizeSearchCacheKey(p);
+  const fresh = cache.get(key);
+  if (fresh && nowMs - fresh.cachedAtMs < freshMs) return Promise.resolve(fresh.result);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const call = run()
+    .then((result) => {
+      cacheSearchResult(p, result);
+      return result;
+    })
+    .finally(() => inFlight.delete(key));
+  inFlight.set(key, call);
+  return call;
+}
+
 export function clearSearchCacheForTests(): void {
   cache.clear();
+  inFlight.clear();
+}
+
+/** Tests that search twice to reach the outage path turn sharing off (0). */
+export function setSearchFreshMsForTests(ms: number): void {
+  freshMs = ms;
 }
