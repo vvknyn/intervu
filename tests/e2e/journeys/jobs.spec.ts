@@ -789,6 +789,58 @@ signedInTest("Needs you lists the tracker's interview this week and the applicat
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("Needs you asks for the account's side again by itself when the first read fails, and shows Retry only when the second fails too", { tag: ["@J-JOBS-113"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+
+  // Vivek 2026-10-07: "We can't check your saved searches right now." on his hub, from one failed read with no retry.
+  // The account read (`listNeedsYouAction`; its one argument carries `sinceIso`) fails `failures` times, then answers
+  // with a saved search that has new roles.
+  const remote = {
+    searches: [{ id: "journey-search", name: "Nurse jobs in Toronto", href: "/jobs?q=nurse", count: 3, more: false }],
+    follows: [],
+    closedJobIds: [],
+    savedSearchCount: 1,
+    followCount: 0,
+  };
+  let failures = 1;
+  let reads = 0;
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"] || !(req.postData() ?? "").includes("sinceIso")) return route.fallback();
+      reads += 1;
+      const failed = reads <= failures;
+      // A read still in flight when the test ends finds the page closed: nothing is left to answer.
+      const res = await route.fetch().catch(() => null);
+      if (!res) return;
+      const text = await res.text();
+      return route.fulfill({ response: res, body: withActionResult(text, failed ? { error: "Failed to load" } : { data: remote }) });
+    },
+  );
+  await page.goto("/jobs?view=for-you");
+
+  // One failed read: the second answers, and the panel never says it failed.
+  const needs = page.getByTestId("today-home").getByTestId("today-needs-you");
+  await expect(needs.getByTestId("today-needs-you-item").filter({ hasText: "has 3 new" })).toBeVisible({ timeout: 30_000 });
+  expect(reads).toBe(2);
+  await expect(needs.getByTestId("today-needs-you-failed")).toHaveCount(0);
+
+  // Two failed reads: then it says so, and Retry asks again.
+  failures = 2;
+  reads = 0;
+  await page.reload();
+  await expect(needs.getByTestId("today-needs-you-failed")).toContainText("We can't check your saved searches right now.", { timeout: 30_000 });
+  expect(reads).toBe(2);
+  await needs.getByTestId("today-needs-you-failed-retry").click();
+  await expect(needs.getByTestId("today-needs-you-item").filter({ hasText: "has 3 new" })).toBeVisible({ timeout: 30_000 });
+  expect(reads).toBe(3);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("three or more applications gone quiet are one Needs you line that opens the Applied stage, under the interview", { tag: ["@J-JOBS-98"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
