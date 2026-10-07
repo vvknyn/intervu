@@ -1,10 +1,13 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
+import { CompanyFitPrompt } from "@/components/company/CompanyFitPrompt";
+import { fitPromptBody, fitPromptTitle } from "@/components/company/company-page-copy";
 import { KpiStat } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
@@ -22,11 +25,22 @@ import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { matchBand, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { noteResumeOnFile } from "@/hooks/use-onboarding";
+import { captureEvent } from "@/lib/analytics/events";
+import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
+import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
+import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { companyRowMetaSegments } from "@/lib/presentation";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
+
+// Loaded on first use: most visitors never open it.
+const ResumeImportModal = dynamic(
+  () => import("@/components/resume-builder/ResumeImportModal").then((m) => m.ResumeImportModal),
+  { ssr: false, loading: () => null },
+);
 
 /** Rendered-list cap — both the default (no-query) preview and a search
  *  match list stop here. One constant, so "how many roles do we ever draw
@@ -158,37 +172,85 @@ export function CompanyRoleSearch({
   const [selectedJob, setSelectedJob] = useState<PublicJob | null>(null);
   const [loadingJobId, setLoadingJobId] = useState<string | null>(null);
 
-  // Match chip — same résumé read path as `/jobs` and the job-detail header
-  // (`fetchResumeData` → `resumeIsUsable`, see PublicJobDetail.tsx) so this
-  // page's chip can never disagree with the SERP/detail chip for the same
-  // signed-in user. Fetched ONCE per page (keyed on auth state), not per row.
+  // Match chip — same résumé read path as the job-detail header
+  // (PublicJobDetail.tsx): the account's résumé, else the one parsed in this
+  // browser (a guest's, or an account whose save didn't land), so a role's
+  // chip here can never disagree with its chip on /jobs or its own page.
+  // Fetched ONCE per page (keyed on auth state), not per row.
   const [user, setUser] = useState<User | null>(() => getCurrentUser());
   useEffect(() => onAuthChange(setUser), []);
 
   const [resume, setResume] = useState<ResumeData | null>(null);
   const [resumeAsOfDate, setResumeAsOfDate] = useState<string | null>(null);
+  // True while an account's résumé is on its way, so a returning person with
+  // one isn't asked for it in the meantime. Set only in effects: the server
+  // render and hydration both show the ask.
+  const [resumePending, setResumePending] = useState(false);
   useEffect(() => {
+    const showResume = (data: ResumeData, updatedAt: string | null | undefined) => {
+      setResume(data);
+      const ms = updatedAt ? Date.parse(updatedAt) : NaN;
+      setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+    };
+    const applyLocalResume = () => {
+      const stored = readLocalAiResume();
+      if (stored && resumeIsUsable(stored.data)) showResume(stored.data, stored.updatedAt);
+      else {
+        setResume(null);
+        setResumeAsOfDate(null);
+      }
+    };
     if (!user) {
-      setResume(null);
-      setResumeAsOfDate(null);
+      setResumePending(false);
+      applyLocalResume();
       return;
     }
     let cancelled = false;
+    setResumePending(true);
     fetchResumeData()
       .then(({ data: stored, text, updatedAt }) => {
+        if (cancelled) return;
         const data = storedResumeData(stored, text);
-        if (cancelled || !data || !resumeIsUsable(data)) return;
-        setResume(data);
-        const ms = updatedAt ? Date.parse(updatedAt) : NaN;
-        setResumeAsOfDate(Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null);
+        if (data && resumeIsUsable(data)) showResume(data, updatedAt);
+        else applyLocalResume();
       })
       .catch(() => {
-        /* no résumé on file — no chip, no nagging */
+        if (!cancelled) applyLocalResume();
+      })
+      .finally(() => {
+        if (!cancelled) setResumePending(false);
       });
     return () => {
       cancelled = true;
     };
   }, [user]);
+
+  // An upload started here ranks this list in place, and is kept where /jobs
+  // keeps one: the account when signed in, else this browser.
+  const [importOpen, setImportOpen] = useState(false);
+  const handleImport = (data: ResumeData, source: "pdf" | "docx" | "text", confidence: number, sourceLabel: string) => {
+    const updatedAt = new Date().toISOString();
+    setImportOpen(false);
+    setResume(data);
+    setResumeAsOfDate(shortDate(Date.parse(updatedAt)).toLowerCase());
+    if (!user) {
+      writeLocalAiResume(data, updatedAt, sourceLabel);
+      return;
+    }
+    // Same as /jobs: a failed save keeps it in this browser until a later one lands.
+    let keptHere = false;
+    noteResumeOnFile();
+    saveResumeToAccount(data, source, confidence, {
+      onSaved: () => {
+        if (keptHere) clearLocalAiResume();
+        captureEvent("resume_uploaded", { surface: "company" });
+      },
+      onFailed: () => {
+        keptHere = true;
+        writeLocalAiResume(data, updatedAt, sourceLabel);
+      },
+    });
+  };
 
   // The one scoring function (`scoreJobAgainstResume`, lib/match/score.ts),
   // computed once per résumé/job-set, keyed by job id — same map idiom as
@@ -207,6 +269,8 @@ export function CompanyRoleSearch({
   const hasQuery = trimmedQuery.length > 0;
 
   const fitStat = roleFitStat(matchScores, jobs.length, searchesPartialWindow);
+  // Ask for the résumé until one is known to be on hand.
+  const askForFit = jobs.length > 0 && !resume && !resumePending;
   const allStats = fitStat ? [fitStat, ...stats] : stats;
 
   // `jobs` arrives already deduped — `getCompanyPageData` (get-company.ts)
@@ -260,6 +324,13 @@ export function CompanyRoleSearch({
             <KpiStat key={stat.key} value={stat.value} label={stat.label} minWidthClassName="min-w-0" />
           ))}
         </div>
+      )}
+      {askForFit && (
+        <CompanyFitPrompt
+          title={fitPromptTitle(jobs.length, searchesPartialWindow)}
+          body={fitPromptBody(Boolean(user))}
+          onAddResume={() => setImportOpen(true)}
+        />
       )}
       <SectionTitle className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3">
         Open roles
@@ -425,6 +496,17 @@ export function CompanyRoleSearch({
           </Button>
         </div>
       )}
+
+      <ResumeImportModal
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={handleImport}
+        confirmLabel="Rank these roles"
+        title={fitPromptTitle(jobs.length, searchesPartialWindow)}
+        description="Upload a PDF or Word résumé. We read it in your browser, show what we accepted, then label each role here by how well it fits you."
+        storageNote={resumeImportStorageNote(Boolean(user))}
+        funnelContext={{ reason: "fit", surface: "company", signed_in: Boolean(user) }}
+      />
 
       {/* Job detail sheet — same chrome/props contract as /jobs mobile detail (SERP). */}
       <Sheet open={Boolean(selectedJob)} onOpenChange={(open) => !open && setSelectedJob(null)}>

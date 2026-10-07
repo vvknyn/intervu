@@ -41,3 +41,24 @@ export function staleShareText(
   const count = Math.round((data.ghostFlaggedPct / 100) * data.jobs.length);
   return `${count} of the ${data.jobs.length} roles tracked here may no longer be live.`;
 }
+
+/**
+ * The question above the role list for a visitor with no résumé on hand
+ * (`CompanyFitPrompt`), short enough to share a phone's row with its button;
+ * the company is named in the header right above it. The count is the roles
+ * the résumé would be scored against, every loaded role, and says "newest"
+ * when those are only the most recent ones, the same split `roleFitStat`
+ * makes for its answer.
+ */
+export function fitPromptTitle(loadedCount: number, partialWindow: boolean): string {
+  if (partialWindow) return `Which of the ${loadedCount} newest roles here fit you?`;
+  return loadedCount === 1 ? "Does this open role fit you?" : `Which of these ${loadedCount} roles fit you?`;
+}
+
+/** The prompt's line under the question: what adding a résumé does here,
+ *  and where it is kept (`resumeImportStorageNote` says the same in the
+ *  importer). A guest's résumé is read and scored in this browser only. */
+export function fitPromptBody(signedIn: boolean): string {
+  const what = "Add your résumé to see how well each role here fits you, and why.";
+  return signedIn ? `${what} It's saved to your account.` : `${what} It stays in this browser.`;
+}

@@ -288,3 +288,62 @@ test("a logo that fails before the page is interactive shows the letter tile, no
     await expect(header.getByTestId("company-logo-tile")).toBeVisible();
     await expect(header.getByRole("img", { name: /logo$/ })).toHaveCount(0);
 });
+
+/** Fabricated candidate (no real person), for J-COMPANY-49. */
+const FIT_RESUME = [
+    "Riley Morgan",
+    "Software Engineer",
+    "riley.morgan.e2e@example.com | Toronto, Ontario, Canada | 416-555-0199",
+    "",
+    "EXPERIENCE",
+    "Software Engineer, Northwind Systems",
+    "2019 - Present",
+    "- Built and ran backend services in TypeScript and Python.",
+    "",
+    "Registered Nurse, Lakeshore Health",
+    "2014 - 2019",
+    "- Cared for patients on a medical-surgical unit.",
+    "",
+    "EDUCATION",
+    "B.Sc. Computer Science, University of Toronto, 2014",
+    "",
+    "SKILLS",
+    "TypeScript, Python, PostgreSQL, Patient Care",
+].join("\n");
+
+// Google visitors to company pages mostly left without a click (PostHog, 30
+// days to 2026-10-07). The page now asks the one question Velai can answer
+// there, and answers it in place. Read-only: a guest's résumé is parsed and
+// scored in the browser and kept in this browser only.
+test("a visitor with no résumé is asked which roles fit them, and adding one ranks this list in place", { tag: ["@J-COMPANY-49"] }, async ({ page, diagnostics }) => {
+    await openCompany(page);
+    const prompt = page.getByTestId("company-fit-prompt");
+    await expect(prompt).toBeVisible({ timeout: 30_000 });
+    await expect(prompt).toContainText(/^(Which of these \d+ roles|Which of the \d+ newest roles here|Does this open role) fit you\?/);
+    await expect(prompt).toContainText("It stays in this browser.");
+    // Asked before the roles it is about.
+    const firstRole = page.getByTestId("company-role-row").first();
+    expect((await prompt.boundingBox())!.y).toBeLessThan((await firstRole.boundingBox())!.y);
+
+    await prompt.getByRole("button", { name: "Check my fit" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.locator('input[type="file"]').setInputFiles({ name: "riley.txt", mimeType: "text/plain", buffer: Buffer.from(FIT_RESUME) });
+    await dialog.getByTestId("resume-import-skip-download").click();
+    await dialog.getByTestId("resume-import-parse-primary").click();
+    await dialog.getByRole("button", { name: "Rank these roles" }).click({ timeout: 30_000 });
+    await expect(dialog).toHaveCount(0);
+
+    // Answered on this page: no ask, the list best fit first, each role labelled.
+    await expect(prompt).toHaveCount(0);
+    const roles = page.getByTestId("company-role-search");
+    await expect(roles).toContainText("Best fit first");
+    await expect(page.getByTestId("company-role-stats")).toContainText(/strong fit for your résumé|strong fits among the \d+ newest/);
+    await expect(roles.getByTestId("match-chip").first()).toBeVisible();
+    await expect(page).toHaveURL(/\/co\//);
+
+    // Kept in this browser: the next visit is ranked without asking again.
+    await page.reload();
+    await expect(page.getByTestId("company-role-stats")).toContainText(/strong fit for your résumé|strong fits among the \d+ newest/, { timeout: 30_000 });
+    await expect(page.getByTestId("company-fit-prompt")).toHaveCount(0);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
