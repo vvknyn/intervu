@@ -16,6 +16,7 @@ import {
     sincePhrase,
     todayLeftOut,
     todaySearchFloor,
+    todaySummary,
     tuneToday,
     type TodayRole,
 } from "@/lib/jobs/for-you/today";
@@ -376,5 +377,53 @@ describe("formatLastHere and sincePhrase", () => {
         assert.equal(sincePhrase(new Date(2026, 8, 29, 9, 0).getTime(), now), "today");
         assert.equal(sincePhrase(new Date(2026, 8, 28, 9, 0).getTime(), now), "since yesterday");
         assert.equal(sincePhrase(new Date(2026, 8, 25, 9, 0).getTime(), now), "since Friday");
+    });
+});
+
+describe("todaySummary", () => {
+    const base = { ready: true, shown: 1, newCount: 0, firstVisit: false, since: "today", appliedToday: 0, appliedWaiting: 11 };
+
+    it("nothing new: says so, names the next step for the role still listed, and counts what's waiting in Applied (no daily goal)", () => {
+        // Vivek, 2026-10-07: "0/12, 0 picks...but 11 applied...and 1 role to look at....so much confusion".
+        assert.deepEqual(todaySummary(base), {
+            picks: "No new roles fit you since you were here earlier today.",
+            next: "Apply to the role below, or give it a thumbs down so it stops showing.",
+            appliedToday: null,
+            waiting: "11 applications are waiting on a reply",
+        });
+        const many = todaySummary({ ...base, shown: 4, since: "since Friday" });
+        assert.equal(many.picks, "No new roles fit you since Friday.");
+        assert.equal(many.next, "Apply to the roles below that suit you, and give the rest a thumbs down so they stop showing.");
+    });
+
+    it("new picks: counts them since the last visit and points at the New ones at the top", () => {
+        const one = todaySummary({ ...base, shown: 5, newCount: 1, since: "since Tuesday" });
+        assert.equal(one.picks, "1 new role fits you since Tuesday.");
+        assert.equal(one.next, "It's at the top, marked New. Apply if it suits you.");
+        const two = todaySummary({ ...base, shown: 5, newCount: 2, since: "since yesterday" });
+        assert.equal(two.picks, "2 new roles fit you since yesterday.");
+        assert.equal(two.next, "They're at the top, marked New. Apply to the ones that suit you.");
+    });
+
+    it("a first visit counts the week's picks, none marked New", () => {
+        const first = todaySummary({ ...base, firstVisit: true, since: "this week", shown: 2, newCount: 2, appliedWaiting: 0 });
+        assert.deepEqual(first, {
+            picks: "2 roles posted this week fit you.",
+            next: "Look at them below and apply to the ones that suit you.",
+            appliedToday: null,
+            waiting: null,
+        });
+    });
+
+    it("no picks listed (loading, failed, empty, no résumé): only the applications speak", () => {
+        for (const input of [{ ...base, ready: false }, { ...base, shown: 0 }]) {
+            const s = todaySummary({ ...input, appliedToday: 1, appliedWaiting: 1 });
+            assert.equal(s.picks, null);
+            assert.equal(s.next, null);
+            assert.equal(s.appliedToday, "You applied to 1 role today.");
+            assert.equal(s.waiting, "1 application is waiting on a reply");
+        }
+        const none = todaySummary({ ...base, ready: false, appliedWaiting: 0 });
+        assert.deepEqual(none, { picks: null, next: null, appliedToday: null, waiting: null });
     });
 });

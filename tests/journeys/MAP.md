@@ -54,7 +54,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Landing on /jobs with no search](#landing-on-jobs-with-no-search) | JOBS 01, 03, 21, 24–25, 29–30, 55, 58, 60, 65–66 · SRCH 01–02, 18 · MOB 01, 14, 16–18, 23 · ALERTS 21–23 · NAV 01, 06, 21 · SPEED 05–08 | 31 | 17 | 14 | 0 | 0 |
 | [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–33 · FILT 01–26 · MOB 02, 11–13, 21, 25–27 · SPEED 01–04 | 82 | 23 | 59 | 0 | 0 |
 | [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93, 103, 107 · AUTH 31–33 · RESUME 28–29, 40–41 · MODAL 01 | 24 | 18 | 6 | 0 | 0 |
-| [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–102, 105–106, 108–111 · NAV 30–32 | 37 | 33 | 4 | 0 | 0 |
+| [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–102, 105–106, 108–112 · NAV 30–32 | 38 | 34 | 4 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75, 104 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–43 · ERR 07–08 | 56 | 22 | 34 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–33 | 33 | 8 | 25 | 0 | 0 |
 | [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–73 · NAV 10 · MODAL 04 | 77 | 30 | 47 | 0 | 0 |

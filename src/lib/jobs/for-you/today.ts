@@ -302,6 +302,71 @@ export function sincePhrase(sinceMs: number | null, nowMs: number): string {
     return last === "earlier today" ? "today" : `since ${last}`;
 }
 
+/**
+ * Today's summary in sentences, each saying what its number counts: the picks
+ * and the next thing to do with them, then the applications. A part is `null`
+ * when there is nothing to say (no picks shown: the list's own empty state
+ * speaks; no applications: no line about them).
+ */
+export interface TodaySummary {
+    /** "2 new roles fit you since Tuesday." · "No new roles fit you since yesterday." · "5 roles posted this week fit you." */
+    picks: string | null;
+    /** The step after "Next:": "Apply to the role below, or give it a thumbs down so it stops showing." */
+    next: string | null;
+    /** "You applied to 1 role today." */
+    appliedToday: string | null;
+    /** "11 applications are waiting on a reply": the tracker's Applied stage, the page it opens. */
+    waiting: string | null;
+}
+
+export function todaySummary(input: {
+    /** The picks have loaded and at least `shown` of them are listed. */
+    ready: boolean;
+    /** Rows the list shows. */
+    shown: number;
+    /** Picks this device hadn't listed before (`isNewPick`); every pick on a first visit. */
+    newCount: number;
+    firstVisit: boolean;
+    /** `sincePhrase`. */
+    since: string;
+    appliedToday: number;
+    /** Applications in the tracker's Applied stage. */
+    appliedWaiting: number;
+}): TodaySummary {
+    const { ready, shown, newCount, firstVisit, since, appliedToday, appliedWaiting } = input;
+    const s = (n: number, one: string, many: string) => (n === 1 ? one : many);
+    let picks: string | null = null;
+    let next: string | null = null;
+    if (ready && shown > 0) {
+        const sinceText = since === "today" ? "since you were here earlier today" : since;
+        if (firstVisit) {
+            picks = `${newCount} ${s(newCount, "role", "roles")} posted this week ${s(newCount, "fits", "fit")} you.`;
+            next = shown === 1 ? "Look at it below and apply if it suits you." : "Look at them below and apply to the ones that suit you.";
+        } else if (newCount > 0) {
+            picks = `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`;
+            next =
+                newCount === 1
+                    ? "It's at the top, marked New. Apply if it suits you."
+                    : "They're at the top, marked New. Apply to the ones that suit you.";
+        } else {
+            picks = `No new roles fit you ${sinceText}.`;
+            next =
+                shown === 1
+                    ? "Apply to the role below, or give it a thumbs down so it stops showing."
+                    : "Apply to the roles below that suit you, and give the rest a thumbs down so they stop showing.";
+        }
+    }
+    return {
+        picks,
+        next,
+        appliedToday: appliedToday > 0 ? `You applied to ${appliedToday} ${s(appliedToday, "role", "roles")} today.` : null,
+        waiting:
+            appliedWaiting > 0
+                ? `${appliedWaiting} ${s(appliedWaiting, "application is", "applications are")} waiting on a reply`
+                : null,
+    };
+}
+
 const SKIPPED_KEY = "intervu.today.skipped";
 const VISIT_KEY = "intervu.today.visit";
 const SEEN_KEY = "intervu.today.seen";
