@@ -16,6 +16,7 @@ import { SubTitle } from "@/components/ui/heading";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
+import { readWithRetry, settleEnvelope } from "@/lib/load-result";
 import { NEEDS_YOU_MAX_ITEMS, type NeedsYouItem, type NeedsYouRemote, type StarterStep } from "@/lib/jobs/for-you/needs-you";
 import { cn } from "@/lib/utils";
 
@@ -70,17 +71,17 @@ export function useNeedsYouRemote({
         if (!enabled) return;
         if (attempt === 0 && freshHubProbeMemo(needsYouMemo, memoKey, Date.now())) return;
         let cancelled = false;
-        void listNeedsYouAction(inputsRef.current)
-            .catch(() => ({ error: "Failed to load" }) as { data?: NeedsYouRemote; error?: string })
-            .then((res) => {
-                if (cancelled) return;
-                if (!res.data) {
-                    setSettled({ key: requestKey, state: { kind: "failed" } });
-                    return;
-                }
-                needsYouMemo = { key: memoKey, at: Date.now(), complete: true, data: res.data };
-                setSettled({ key: requestKey, state: { kind: "ready", data: res.data } });
-            });
+        // One quiet retry before the panel says it failed, like every other account
+        // list (lib/server-list-cache.ts): a single dropped read is not worth a Retry button.
+        void readWithRetry(() => settleEnvelope(listNeedsYouAction(inputsRef.current))).then((res) => {
+            if (cancelled) return;
+            if (!res.ok) {
+                setSettled({ key: requestKey, state: { kind: "failed" } });
+                return;
+            }
+            needsYouMemo = { key: memoKey, at: Date.now(), complete: true, data: res.data };
+            setSettled({ key: requestKey, state: { kind: "ready", data: res.data } });
+        });
         return () => {
             cancelled = true;
         };

@@ -14,6 +14,7 @@ import { listUnlistedJobIds } from "@/lib/jobs/get-job";
 import { JOBS_FETCHED_PER_SAVED_SEARCH, listNewRolesForSavedSearch } from "@/lib/jobs/saved-search-new-roles";
 import { jobsUrlStateFromSavedHref, savedSearchBoardHref } from "@/lib/jobs/saved-searches";
 import { docToSavedSearch, savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
+import { logServer, scrubMessage } from "@/lib/observability/posthog-logs";
 import { allowNeedsYouRequest } from "@/lib/shield/rate-limit";
 
 const DAY_MS = 86_400_000;
@@ -35,9 +36,17 @@ export async function listNeedsYouAction(input: {
     sinceIso: string;
     savedJobIds: string[];
 }): Promise<{ data?: NeedsYouRemote; error?: string }> {
+    // Each refusal says why in the server log: the panel's "We can't check
+    // your saved searches" used to leave no trace of which one it was.
     const user = await getServerUser();
-    if (!user) return { error: "User not authenticated" };
-    if (!allowNeedsYouRequest(user.uid)) return { error: "Too many requests" };
+    if (!user) {
+        logServer("warn", "needs-you read refused", { reason: "signed_out" });
+        return { error: "User not authenticated" };
+    }
+    if (!allowNeedsYouRequest(user.uid)) {
+        logServer("warn", "needs-you read refused", { reason: "rate_limited" });
+        return { error: "Too many requests" };
+    }
 
     const now = Date.now();
     const since = Date.parse(input.sinceIso);
@@ -58,6 +67,11 @@ export async function listNeedsYouAction(input: {
         savedSearches = searchSnap.docs.map(docToSavedSearch);
     } catch (error) {
         console.error("Error reading needs-you sources:", error);
+        logServer("warn", "needs-you read refused", {
+            reason: "store_read_failed",
+            "error.code": String((error as { code?: unknown })?.code ?? ""),
+            "error.message": scrubMessage(error instanceof Error ? error.message : String(error)),
+        });
         return { error: "Failed to load" };
     }
 
