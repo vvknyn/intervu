@@ -1,6 +1,9 @@
 import path from "node:path";
 import type { Page } from "@playwright/test";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
+import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
 /**
  * The résumé importer every upload goes through (/resume, the /jobs "Rank jobs
@@ -49,6 +52,15 @@ trailer << /Size 5 /Root 1 0 R >>
 startxref
 280
 %%EOF`;
+
+/** Model consent already given, and a Chrome built-in model that loads at once and then never answers. */
+const hangingModel = (page: Page) =>
+  page.addInitScript(() => {
+    localStorage.setItem("velai.localAi.consent", "1");
+    (window as unknown as Record<string, unknown>).LanguageModel = {
+      create: async () => ({ prompt: () => new Promise<string>(() => {}) }),
+    };
+  });
 
 /** Counts every request for model weights, so a test can prove none was made. */
 function watchModelDownloads(page: Page): string[] {
@@ -139,14 +151,8 @@ test("A PDF with no text says so where the person is looking, offers Paste the t
 
 test("An on-device model that never finishes reading leaves the quick match within 30 s, and the résumé can be used meanwhile", { tag: ["@J-RESUME-44"] }, async ({ page, diagnostics }) => {
   test.setTimeout(90_000);
-  // A Chrome built-in model that loads at once and then never answers: what
-  // "Reading your résumé with the on-device model" spinning for good was.
-  await page.addInitScript(() => {
-    localStorage.setItem("velai.localAi.consent", "1");
-    (window as unknown as Record<string, unknown>).LanguageModel = {
-      create: async () => ({ prompt: () => new Promise<string>(() => {}) }),
-    };
-  });
+  // What "Reading your résumé with the on-device model" spinning for good was.
+  await hangingModel(page);
   const dialog = await openImporter(page);
   await expect(dialog.getByTestId("resume-import-model-on")).toBeVisible();
   await dialog.locator('input[type="file"]').setInputFiles(WORD);
@@ -162,4 +168,53 @@ test("An on-device model that never finishes reading leaves the quick match with
   await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Maya Okonkwo");
   await expect(confirm).toBeEnabled();
   expect(diagnostics.pageErrors).toEqual([]);
+});
+
+signedInTest("Signed in with a résumé on file, Replace on For you opens Rank jobs by your résumé, and a partly read résumé ranks with no confidence gate or endless model spinner", { tag: ["@J-RESUME-46"] }, async ({ page, diagnostics }) => {
+  test.setTimeout(120_000);
+  // Vivek 2026-10-08 on velai.app/jobs, ranked against an earlier résumé: Replace showed
+  // "Manual edit required 56%", "Confidence is 56%, needs to be above 90" and a model
+  // spinner whose only way out was a small Skip link.
+  await page.addInitScript(
+    ([onboardingKey, introKey]) => {
+      localStorage.setItem(onboardingKey, "1");
+      localStorage.setItem(introKey, "1");
+      localStorage.setItem("velai.localAi.enabled", "1");
+      if (localStorage.getItem("velai.localAi.resume")) return;
+      const resume = {
+        profile: { name: "Sam Rivera", profession: "Software Engineer", yearsOfExperience: 4, location: "Toronto, Ontario, Canada", email: "sam.rivera.dev@example.com", phone: "", linkedin: "", website: "" },
+        experience: [{ id: "exp1", company: "Nimbus Data", role: "Software Engineer", dates: "2021 - Present", description: "Built backend services in TypeScript." }],
+        competencies: [{ category: "Languages", skills: ["TypeScript", "SQL"] }],
+        education: [],
+        generatedSummary: "",
+      };
+      localStorage.setItem("velai.localAi.resume", JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "Sam_Rivera_Resume.pdf" }));
+    },
+    [ONBOARDING_COMPLETED_STORAGE_KEY, PACKS_HOME_INTRO_KEY] as const,
+  );
+  await hangingModel(page);
+  await page.goto("/jobs?view=for-you");
+
+  const inUse = page.getByTestId("today-resume-in-use");
+  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume.pdf", { timeout: 30_000 });
+  await inUse.getByTestId("today-replace-resume").click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Rank jobs by your résumé" })).toBeVisible();
+
+  await dialog.locator('input[type="file"]').setInputFiles({ name: "Priya_Raman_Resume.txt", mimeType: "text/plain", buffer: Buffer.from(PARTLY_READ) });
+  await dialog.getByTestId("resume-import-parse-primary").click();
+
+  const strip = dialog.getByTestId("resume-model-strip");
+  await expect(strip).toHaveAttribute("data-stage", "reading", { timeout: 15_000 });
+  await expect(dialog.getByTestId("resume-import-missing")).toContainText("We couldn't find your skills.");
+  await expect(dialog.getByText(/needs to be above|Manual edit required/)).toHaveCount(0);
+  const rank = dialog.getByRole("button", { name: "Rank my jobs" });
+  await expect(rank).toBeEnabled();
+
+  await expect(strip).toHaveAttribute("data-phase", "slow", { timeout: 40_000 });
+  await expect(dialog.getByTestId("resume-model-skip")).toHaveCount(0);
+  await rank.click();
+  await expect(dialog).toBeHidden();
+  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Priya_Raman_Resume.txt", { timeout: 30_000 });
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
