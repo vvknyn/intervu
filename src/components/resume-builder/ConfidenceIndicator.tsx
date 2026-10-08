@@ -13,13 +13,14 @@ interface ConfidenceIndicatorProps {
  * Color-coded confidence badge:
  * - Green (90%+): High confidence - auto-accepted
  * - Yellow (70-89%): Medium confidence - "Review suggested"
- * - Red (<70%): Low confidence - "Manual edit required"
+ * - Red (<70%): Low confidence - "Partly read" (the review names what's
+ *   missing; it no longer blocks going on, see `canAcceptLocalParse`)
  */
 export function ConfidenceIndicator({ score, showLabel = true, size = 'md', className }: ConfidenceIndicatorProps) {
     const getConfidenceLevel = (score: number) => {
         if (score >= 90) return { level: 'high', label: 'High confidence', color: 'bg-live', textColor: 'text-live', bgColor: 'bg-surface-2', borderColor: 'border-live' };
         if (score >= 70) return { level: 'medium', label: 'Review suggested', color: 'bg-warn', textColor: 'text-warn', bgColor: 'bg-surface-2', borderColor: 'border-warn' };
-        return { level: 'low', label: 'Manual edit required', color: 'bg-danger-text', textColor: 'text-danger-text', bgColor: 'bg-surface-2', borderColor: 'border-danger-text' };
+        return { level: 'low', label: 'Partly read', color: 'bg-danger-text', textColor: 'text-danger-text', bgColor: 'bg-surface-2', borderColor: 'border-danger-text' };
     };
 
     const { level, label, color, textColor, bgColor, borderColor } = getConfidenceLevel(score);

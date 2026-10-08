@@ -85,7 +85,6 @@ for (const vp of VIEWPORTS) {
     await expect(dialog.getByTestId("resume-import-parse-primary")).toBeInViewport();
 
     await dialog.locator('input[type="file"]').setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: Buffer.from(RESUME_TEXT) });
-    await dialog.getByTestId("resume-import-skip-download").click();
     await dialog.getByTestId("resume-import-parse-primary").click();
 
     // Located by the parsed values, not by review-step markup (which another change owns).
