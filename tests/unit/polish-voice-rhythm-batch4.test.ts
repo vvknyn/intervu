@@ -98,8 +98,11 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
     it("import modal keeps footer parse primary immediately — no gated consent step", () => {
         const src = readFileSync(IMPORT_MODAL, "utf8");
         assert.match(src, /resume-import-parse-primary/);
-        assert.match(src, /Download model & parse/);
-        assert.match(src, /resume-import-skip-download/);
+        // The primary is the quick read; the model download is an opt-in link,
+        // never what the primary starts (2026-10-07).
+        assert.match(src, /Read my résumé/);
+        assert.doesNotMatch(src, /Download model & parse/);
+        assert.match(src, /resume-import-use-model/);
         assert.doesNotMatch(src, /resume-import-download-parse/);
         assert.doesNotMatch(src, /consentDecided \?/);
         const privacy = sliceBetween(src, "const renderPrivacyConsent", "const renderInputStep");
@@ -108,7 +111,7 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         assert.ok(footer.length > 0);
     });
 
-    it("signed-out upload and skip-download controls take their height from the control scale (44px touch = hit area)", () => {
+    it("signed-out upload and use-model controls take their height from the control scale (44px touch = hit area)", () => {
         const resume = readFileSync(join(ROOT, "src/app/resume/page.tsx"), "utf8");
         const uploadTestId = 'data-testid="resume-signed-out-upload"';
         const uploadIdx = resume.indexOf(uploadTestId);
@@ -124,7 +127,7 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         assert.match(uploadButton, /resume-signed-out-upload/);
 
         const modal = readFileSync(IMPORT_MODAL, "utf8");
-        const skipTestId = 'data-testid="resume-import-skip-download"';
+        const skipTestId = 'data-testid="resume-import-use-model"';
         const skipIdx = modal.indexOf(skipTestId);
         assert.notStrictEqual(skipIdx, -1, skipTestId);
         const skipButtonStart = modal.lastIndexOf("<Button", skipIdx);

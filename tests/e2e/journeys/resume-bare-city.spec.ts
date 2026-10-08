@@ -46,7 +46,6 @@ test("a bare city on the contact line is asked about above the ranked board; Yes
     await page.getByRole("button", { name: "Upload résumé" }).first().click({ timeout: 60_000 });
     const dialog = page.getByRole("dialog");
     await dialog.locator('input[type="file"]').setInputFiles({ name: "maya.txt", mimeType: "text/plain", buffer: Buffer.from(BARE_CITY_RESUME) });
-    await dialog.getByTestId("resume-import-skip-download").click();
     await dialog.getByTestId("resume-import-parse-primary").click();
     // No guess: the review leaves the location blank.
     await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue("", { timeout: 30_000 });

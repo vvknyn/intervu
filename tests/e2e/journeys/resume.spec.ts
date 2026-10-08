@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { extractText, getDocumentProxy } from "unpdf";
 import { WRAPPED_RESUME, buildWrappedResumePdf } from "../../fixtures/wrapped-resume-pdf";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
@@ -124,7 +125,6 @@ test("A PDF résumé whose lines wrap imports with its summary as one paragraph 
   await page.getByTestId("resume-signed-out-upload").click();
   const dialog = page.getByRole("dialog");
   await dialog.locator('input[type="file"]').setInputFiles({ name: "jordan-lee.pdf", mimeType: "application/pdf", buffer: Buffer.from(buildWrappedResumePdf()) });
-  await dialog.getByTestId("resume-import-skip-download").click();
   await dialog.getByTestId("resume-import-parse-primary").click();
 
   // The review step's fields, found by what they hold.
@@ -158,7 +158,6 @@ async function uploadGuestPdf(page: Page, fixture: string): Promise<Uint8Array> 
   await page.getByTestId("resume-signed-out-upload").click();
   const importer = page.getByRole("dialog");
   await importer.locator('input[type="file"]').setInputFiles({ name: `${fixture}.pdf`, mimeType: "application/pdf", buffer: Buffer.from(original) });
-  await importer.getByTestId("resume-import-skip-download").click();
   await importer.getByTestId("resume-import-parse-primary").click();
   await importer.getByRole("button", { name: "Apply to Resume" }).click({ timeout: 30_000 });
   await expect(page.getByText("Local résumé on this device")).toBeVisible();
@@ -300,6 +299,25 @@ test.describe("signed in (dev-server only)", () => {
     await expect(page.getByRole("button", { name: /Edit template/ })).toBeVisible();
   });
 
+  test("Replace's Choose file opens the file picker on a click, reads a PDF or Word file into the box, and is ready for the same file again", { tag: ["@J-RESUME-45"] }, async ({ page }) => {
+    await signInWithTextResume(page);
+    await page.goto("/resume");
+    await page.getByRole("button", { name: /Replace/ }).click();
+
+    const choose = page.getByRole("button", { name: "Choose file" });
+    const box = page.getByPlaceholder(/Paste your résumé text here/);
+    for (const file of ["maya-okonkwo.pdf", "maya-okonkwo.docx"]) {
+      // A real click, not a script setting the input: the picker itself opens.
+      const [picker] = await Promise.all([page.waitForEvent("filechooser"), choose.click()]);
+      await picker.setFiles(path.join(__dirname, "../../fixtures/resume-word", file));
+      await expect(page.getByText(file, { exact: true })).toBeVisible();
+      await expect(box).toHaveValue(/Maya Okonkwo[\s\S]*Marketing Manager/);
+      // Cleared after each pick, so choosing the same file again fires a change.
+      await expect(page.locator('input[type="file"]')).toHaveValue("");
+    }
+    await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+
   test("A résumé saved to the account as text ranks /jobs against it instead of asking for an upload", { tag: ["@J-RESUME-34"] }, async ({ page }) => {
     // fetchResumeData sends the stored text; the browser structures it.
     await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
@@ -345,7 +363,6 @@ test("A signed-in import that doesn't reach the account says so, keeps the résu
   await page.goto("/jobs?resume=setup");
   const dialog = page.getByRole("dialog");
   await dialog.locator('input[type="file"]').setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: Buffer.from(SAVE_RESUME) }, { timeout: 60_000 });
-  await dialog.getByTestId("resume-import-skip-download").click();
   await dialog.getByTestId("resume-import-parse-primary").click();
   await expect(dialog.getByRole("button", { name: "Back" })).toBeVisible({ timeout: 30_000 });
   await dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last().click();
@@ -388,7 +405,6 @@ test("A name line with credentials (\"Amara Okafor, RN\") is the name, and the p
   await page.getByTestId("resume-signed-out-upload").click();
   const dialog = page.getByRole("dialog");
   await dialog.locator('input[type="file"]').setInputFiles({ name: "amara.txt", mimeType: "text/plain", buffer: Buffer.from(text) });
-  await dialog.getByTestId("resume-import-skip-download").click();
   await dialog.getByTestId("resume-import-parse-primary").click();
   await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue("Hamilton, ON", { timeout: 30_000 });
   await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Amara Okafor");

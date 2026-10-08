@@ -328,7 +328,6 @@ test("a visitor with no résumé is asked which roles fit them, and adding one r
     await prompt.getByRole("button", { name: "Check my fit" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.locator('input[type="file"]').setInputFiles({ name: "riley.txt", mimeType: "text/plain", buffer: Buffer.from(FIT_RESUME) });
-    await dialog.getByTestId("resume-import-skip-download").click();
     await dialog.getByTestId("resume-import-parse-primary").click();
     await dialog.getByRole("button", { name: "Rank these roles" }).click({ timeout: 30_000 });
     await expect(dialog).toHaveCount(0);

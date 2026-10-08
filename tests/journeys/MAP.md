@@ -62,13 +62,13 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–49 | 44 | 15 | 29 | 0 | 0 |
 | [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–56 · NAV 03–05, 17–19 | 58 | 13 | 45 | 0 | 0 |
 | [New-account setup](#new-account-setup) | ONBOARD 01–10 | 10 | 10 | 0 | 0 | 0 |
-| [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27, 30–39 · MODAL 03, 06 | 38 | 12 | 26 | 0 | 0 |
+| [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–23, 25–27, 30–39, 42–45 · MODAL 03, 06 | 42 | 17 | 25 | 0 | 0 |
 | [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–33 · NAV 11–13, 20 | 35 | 6 | 29 | 0 | 0 |
 | [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–28 · OAUTH 01–22 | 53 | 5 | 48 | 0 | 0 |
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–28 · SEO 01–09 | 36 | 3 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–11 | 11 | 6 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–41 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 48 | 14 | 34 | 0 | 0 |
-| **All stages** | | **714** | **243** | **471** | **0** | **0** |
+| **All stages** | | **718** | **248** | **470** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search
