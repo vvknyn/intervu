@@ -132,6 +132,11 @@ test("the server binds to 0.0.0.0, so the rewrite stays inside it", () => {
     // Subspace repo (deploy/contabo-web) sets the same.
     assert.match(read("Dockerfile"), /^ENV HOSTNAME=0\.0\.0\.0$/m);
     assert.match(read("docker-compose.yml"), /^\s+HOSTNAME: 0\.0\.0\.0$/m);
+    // With WEB_CONCURRENCY above 1 the entrypoint starts the servers itself:
+    // each one binds the same way.
+    const entry = read("scripts/start-web.mjs");
+    assert.match(entry, /HOSTNAME: "0\.0\.0\.0"/);
+    assert.doesNotMatch(entry, /HOSTNAME: "127\.0\.0\.1"/);
 });
 
 test("the server-rendered page searches with the list's own first-search params and passes them on", () => {

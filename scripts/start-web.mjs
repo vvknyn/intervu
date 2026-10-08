@@ -66,7 +66,11 @@ function startPool(n) {
         w.startedAt = Date.now();
         w.child = spawn(process.execPath, [serverJs], {
             stdio: "inherit",
-            env: { ...process.env, PORT: String(w.port), HOSTNAME: "127.0.0.1", NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""}${heapFlag}`.trim() },
+            // 0.0.0.0, as the Dockerfile sets for one server: bound to 127.0.0.1,
+            // Next.js proxies its own middleware rewrites (front door, phone
+            // first rows) to https://localhost and they answer 500 behind Caddy.
+            // Only :PORT is published, so the private ports stay in the container.
+            env: { ...process.env, PORT: String(w.port), HOSTNAME: "0.0.0.0", NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""}${heapFlag}`.trim() },
         });
         w.child.on("exit", (code, signal) => {
             w.ready = false;
