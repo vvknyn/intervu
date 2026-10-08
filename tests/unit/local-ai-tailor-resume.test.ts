@@ -15,6 +15,7 @@ import {
     groundDraft,
     TAILOR_VOICE_RULES,
 } from "../../src/lib/local-ai/tailor-with-engine";
+import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
 import type { ResumeData } from "../../src/types/resume";
 
 function mkResume(
@@ -225,6 +226,27 @@ describe("heuristicTailorResume", () => {
         // Class-wide: experience bullets are tagged too, not just project ones.
         assert.ok(draft.bullets.every((b) => b.source === "experience" || b.source === "project"));
         assert.ok(draft.bullets.some((b) => b.source === "experience"));
+    });
+    it("leaves the other lines of a rewritten entry as they were, bullet markers included", () => {
+        const resume = mkResume({ profession: "Registered Nurse" }, [
+            {
+                id: "exp-rn",
+                company: "St. Michael's Hospital",
+                role: "Registered Nurse",
+                dates: "2022 - Present",
+                description:
+                    "• Triage and assess 30+ patients per shift in a level 1 trauma centre\n• Administer medications and IV therapy, document care in Epic\n• Coordinate with physicians on critically ill patients",
+            },
+        ]);
+        const draft = heuristicTailorResume(resume, {
+            title: "Registered Nurse - ICU",
+            description: "Patient assessment, ventilator management and IV therapy. Triage of critically ill patients.",
+        });
+        const after = draft.tailored.experience[0].description;
+        // Unpunctuated lines without their markers would be read back as one long bullet.
+        assert.equal(descriptionToBullets(after).length, 3);
+        assert.match(after, /\n• Administer medications/);
+        assert.match(after, /\n• Coordinate with physicians/);
     });
 });
 
