@@ -18,7 +18,7 @@
  */
 import { test, before, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { clearSearchCacheForTests } from "../../src/lib/jobs/search-cache";
+import { clearSearchCacheForTests, setSearchFreshMsForTests } from "../../src/lib/jobs/search-cache";
 import type { CountryLookup } from "../../src/lib/geo/ip-country";
 
 before(() => {
@@ -28,6 +28,8 @@ before(() => {
 
 beforeEach(() => {
   clearSearchCacheForTests();
+  // These search twice to reach the outage path; a shared live answer would answer the second.
+  setSearchFreshMsForTests(0);
 });
 
 function jsonResponse(status: number, body: unknown) {

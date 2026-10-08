@@ -6,8 +6,12 @@
 import type { RawParsedResumeInput } from "@/lib/resume/normalize-parsed-resume";
 import type { ResumeConfidenceScores, ResumeData } from "@/types/resume";
 
-/** Minimum overall score (inclusive) to accept local parse on review. */
-export const LOCAL_PARSE_ACCEPT_MIN = 91;
+/**
+ * The score a complete read reaches: name, title, work history, skills and
+ * email. Shown on review as how much was found; it no longer decides whether
+ * the person may go on (`canAcceptLocalParse`).
+ */
+export const LOCAL_PARSE_COMPLETE_MIN = 91;
 
 export type LocalParseConfidenceInput = RawParsedResumeInput | ResumeData;
 
@@ -143,7 +147,31 @@ export function scoreLocalParseConfidence(data: LocalParseConfidenceInput): Resu
     };
 }
 
-export function canAcceptLocalParse(confidence: ResumeConfidenceScores | number): boolean {
-    const overall = typeof confidence === "number" ? confidence : confidence.overall;
-    return overall >= LOCAL_PARSE_ACCEPT_MIN;
+function hasJobTitle(data: LocalParseConfidenceInput): boolean {
+    if (isNonEmptyString(data.profile?.profession)) return true;
+    return Array.isArray(data.experience) && data.experience.some((entry) => isNonEmptyString(entry.role));
+}
+
+/**
+ * What matching reads that this parse didn't find, in the words the review
+ * step shows ("job title", "work history", "skills"). Name, email and
+ * education don't rank jobs, so they're never listed.
+ */
+export function missingMatchFields(data: LocalParseConfidenceInput): string[] {
+    const missing: string[] = [];
+    if (!hasJobTitle(data)) missing.push("job title");
+    if (experienceEntryCount(data) === 0) missing.push("work history");
+    if (flattenSkills(data).length === 0) missing.push("skills");
+    return missing;
+}
+
+/**
+ * A read can rank jobs once it names a job title (the headline or any role)
+ * or at least one skill. The old rule wanted a 91 score, which a real résumé
+ * missing an email, or one the quick read only half understood, never
+ * reached, so the person was stuck on review with nothing to do but retype
+ * it (2026-10-07).
+ */
+export function canAcceptLocalParse(data: LocalParseConfidenceInput): boolean {
+    return hasJobTitle(data) || flattenSkills(data).length > 0;
 }

@@ -32,6 +32,10 @@ import { rememberResumeLayout } from "@/lib/resume/layout-profile-storage";
  * browser, and one plain Node (so `node:test`) can't replicate at all.
  */
 
+/** A PDF with no text layer: saved as pictures of its pages (a scan, a photo, or a design tool that outlines its text). */
+export const PDF_NO_TEXT_MESSAGE =
+    "This PDF has no text we can read. It was likely saved as an image (a scan, or a design tool that turns text into pictures). Paste your résumé text instead, or upload it as a Word file.";
+
 export async function extractPDFTextInBrowser(
     buffer: ArrayBuffer,
 ): Promise<{ text?: string; error?: string }> {
@@ -43,6 +47,8 @@ export async function extractPDFTextInBrowser(
         }
 
         let pages: string[];
+        // Every text item as pdf.js reports it, for a page the line joiner reads as empty.
+        let itemText = "";
         const layoutPages: LayoutPage[] = [];
         try {
             // Page text with each paragraph and bullet on one line, not one
@@ -53,7 +59,9 @@ export async function extractPDFTextInBrowser(
             for (let n = 1; n <= pdf.numPages; n++) {
                 const page = await pdf.getPage(n);
                 const content = await page.getTextContent();
-                pages.push(pdfPageText(content.items as PdfTextItem[]));
+                const items = content.items as PdfTextItem[];
+                pages.push(pdfPageText(items));
+                itemText += items.map((item) => (typeof item.str === "string" ? item.str : "")).join(" ") + "\n\n";
                 const [x0, y0, x1, y1] = page.view;
                 layoutPages.push({
                     width: x1 - x0,
@@ -74,11 +82,12 @@ export async function extractPDFTextInBrowser(
             return { error: `Could not parse PDF: ${msg}. Please try pasting the content directly.` };
         }
 
-        const rawText = pages.join("\n\n");
+        let rawText = pages.join("\n\n");
+        // The joiner drops nothing on its own, but a file whose items it
+        // can't place still has its words: never call a PDF with text empty.
+        if (rawText.trim().length < 20 && itemText.trim().length >= 20) rawText = itemText;
         if (!rawText || rawText.trim().length < 20) {
-            return {
-                error: "No text could be extracted from this PDF. It may be an image-based/scanned document. Please re-upload a text PDF or paste your resume text instead.",
-            };
+            return { error: PDF_NO_TEXT_MESSAGE };
         }
 
         const cleanedText = rawText

@@ -185,7 +185,7 @@ startxref
 %%EOF`;
         const result = await extractPDFTextInBrowser(toArrayBuffer(Buffer.from(pdf)));
         assert.ok(result.error, "should error for a PDF with no text");
-        assert.match(result.error!, /No text could be extracted|Could not parse/);
+        assert.match(result.error!, /no text we can read|Could not parse/);
     });
 });
 

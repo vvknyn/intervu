@@ -259,7 +259,6 @@ for (const resume of FIRST_RUN_RESUMES) {
     await page.getByRole("button", { name: "Upload résumé" }).first().click({ timeout: 60_000 });
     const dialog = page.getByRole("dialog");
     await dialog.locator('input[type="file"]').setInputFiles({ name: `${resume.name}.txt`, mimeType: "text/plain", buffer: Buffer.from(resume.text) });
-    await dialog.getByTestId("resume-import-skip-download").click();
     await dialog.getByTestId("resume-import-parse-primary").click();
     await expect(dialog.getByLabel("Job title", { exact: true })).toHaveValue(resume.title, { timeout: 30_000 });
     await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue(resume.location);

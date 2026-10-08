@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { staleShareText } from "../../src/components/company/company-page-copy";
+import { fitPromptBody, fitPromptTitle, staleShareText } from "../../src/components/company/company-page-copy";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
@@ -55,4 +55,16 @@ test("staleShareText: null pct (no fetched window) renders no sentence, not a fa
 
 test("staleShareText: zero flagged still states the honest zero count, not null", () => {
   assert.equal(staleShareText({ ghostFlaggedPct: 0, jobs: jobs(5) }), "0 of the 5 roles tracked here may no longer be live.");
+});
+
+test("fitPromptTitle counts the roles the résumé would be scored against", () => {
+  assert.equal(fitPromptTitle(12, false), "Which of these 12 roles fit you?");
+  assert.equal(fitPromptTitle(1, false), "Does this open role fit you?");
+  // Only the newest roles are loaded: the question says so, as the fit stat does.
+  assert.equal(fitPromptTitle(200, true), "Which of the 200 newest roles here fit you?");
+});
+
+test("fitPromptBody says where the résumé is kept", () => {
+  assert.match(fitPromptBody(false), /It stays in this browser\.$/);
+  assert.match(fitPromptBody(true), /It's saved to your account\.$/);
 });

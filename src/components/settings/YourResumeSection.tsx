@@ -432,6 +432,9 @@ function ResumeUploadForm({
                     className="hidden"
                     onChange={(e) => {
                         const file = e.target.files?.[0];
+                        // Cleared, so choosing the same file again (after one
+                        // that couldn't be read) still fires a change.
+                        e.target.value = "";
                         if (file) void handleFile(file);
                     }}
                 />
