@@ -161,17 +161,18 @@ function splitDescriptionLines(description: string): string[] {
         .filter(Boolean);
 }
 
-function firstMeaningfulBullet(description: string): { line: string; index: number; lines: string[] } | null {
-    const lines = splitDescriptionLines(description);
-    for (let i = 0; i < lines.length; i++) {
-        if (lines[i].length >= 8) return { line: lines[i], index: i, lines };
-    }
-    return null;
+function firstMeaningfulBullet(description: string): { line: string } | null {
+    const line = splitDescriptionLines(description).find((l) => l.length >= 8);
+    return line ? { line } : null;
 }
 
-function replaceBulletLine(description: string, index: number, newLine: string, allLines: string[]): string {
-    const rebuilt = allLines.map((l, i) => (i === index ? newLine : l));
-    return rebuilt.join("\n");
+/** Swaps one line's text in place, so the other lines keep their bullet
+ *  markers: rebuilding from the stripped lines ran unpunctuated bullets
+ *  together into one when the description was split again for the PDF. */
+function replaceBulletLine(description: string, line: string, newLine: string): string {
+    if (newLine === line) return description;
+    const at = description.indexOf(line);
+    return at < 0 ? description : description.slice(0, at) + newLine + description.slice(at + line.length);
 }
 
 function termAlreadyPresent(text: string, term: string): boolean {
@@ -290,7 +291,7 @@ function tailorBulletsForEntries(
         if (idx >= 0) {
             tailoredList[idx] = {
                 ...tailoredList[idx],
-                description: replaceBulletLine(entry.description, hit.index, after, hit.lines),
+                description: replaceBulletLine(entry.description, hit.line, after),
             };
         }
 
