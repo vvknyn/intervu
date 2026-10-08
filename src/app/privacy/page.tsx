@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "September 29, 2026";
+const LAST_UPDATED = "October 8, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -232,6 +232,21 @@ export default function PrivacyPage() {
           or how it uses what it processes. This only ever happens for a client you connected yourself, and you
           can disconnect it at any time from <Link href="/settings">account settings</Link>, which cuts off all
           further access.
+        </p>
+
+        <SectionTitle id="browser-extension">Browser extension</SectionTitle>
+        <p>
+          The Velai extension for Chrome only reads a page when you click its button there, or when you pick
+          &ldquo;Search Velai for&rdquo; on text you selected. It then reads that one page&apos;s address, title and
+          the job details the page publishes, plus its visible text if you ask it to read the page as the job. It
+          doesn&apos;t read pages on its own or keep a list of pages you visit.
+        </p>
+        <p>
+          If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
+          on your account, then works out your fit and tailors your résumé inside the extension. The tailored copy
+          stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
+          title and employer to Velai&apos;s search, which logs it like any search on the website. It keeps only the
+          page it is showing, and Chrome clears that when you close the browser.
         </p>
 
         <SectionTitle>Email</SectionTitle>

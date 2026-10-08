@@ -28,7 +28,7 @@ import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resum
 import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import {
     canAcceptLocalParse,
-    LOCAL_PARSE_ACCEPT_MIN,
+    missingMatchFields,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
@@ -113,6 +113,13 @@ export function ResumeParsingStep() {
     );
 }
 
+/** How long the review waits on an on-device model's read before keeping the quick one. */
+export const MODEL_READ_LIMIT_MS = 30_000;
+
+function joinWords(words: string[]): string {
+    return words.length > 1 ? `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}` : words[0] ?? "";
+}
+
 export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
@@ -126,10 +133,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Founder rule: résumé interpretation never happens on our servers —
-    // parsing always runs on-device (see `parseResumeLocally`). These two
-    // track the download-consent decision only, not a cloud/local choice.
+    // parsing always runs on-device (see `parseResumeLocally`). This tracks
+    // the model-download consent only, not a cloud/local choice. The quick
+    // read never needs it; the model is an opt-in on top (2026-10-07: the
+    // default path used to start a ~494 MB download on the first Parse).
     const [localAiConsent, setLocalAiConsent] = useState(false);
-    const [consentDeclined, setConsentDeclined] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
     // Model upgrade of the quick (rules) parse — see `startEnhancement`.
     const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
@@ -166,7 +174,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEditedData(null);
         setIsProcessing(false);
         setEngineLabel(null);
-        setConsentDeclined(false);
         abandonEnhancement();
     };
 
@@ -175,82 +182,54 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         onClose();
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const extension = file.name.split('.').pop()?.toLowerCase();
-            if (extension === 'pdf') {
-                setContentType('pdf');
-            } else if (extension === 'docx') {
-                setContentType('docx');
-            } else if (extension === 'txt') {
-                setContentType('text');
-            } else {
-                setError(extension === 'doc' ? LEGACY_DOC_MESSAGE : "Unsupported file type. Please use PDF, DOCX, or TXT.");
-                captureEvent(
-                    "resume_upload_rejected",
-                    buildResumeFunnelPayload({
-                        source: "picker",
-                        error_class: "type",
-                        error_code: "type",
-                        file_type: classifyResumeFileType(extension),
-                        ...funnelContext,
-                    }),
-                );
-                return;
-            }
-            setSelectedFile(file);
-            setError(null);
+    const selectFile = useCallback((file: File, source: "picker" | "drop") => {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (extension === 'pdf') {
+            setContentType('pdf');
+        } else if (extension === 'docx') {
+            setContentType('docx');
+        } else if (extension === 'txt') {
+            setContentType('text');
+        } else {
+            setError(extension === 'doc' ? LEGACY_DOC_MESSAGE : "Unsupported file type. Please use PDF, DOCX, or TXT.");
             captureEvent(
-                "resume_upload_selected",
+                "resume_upload_rejected",
                 buildResumeFunnelPayload({
-                    source: "picker",
+                    source,
+                    error_class: "type",
+                    error_code: "type",
                     file_type: classifyResumeFileType(extension),
-                    size_bucket: classifyResumeSizeBucket(file.size),
                     ...funnelContext,
                 }),
             );
+            return;
         }
+        setSelectedFile(file);
+        setError(null);
+        captureEvent(
+            "resume_upload_selected",
+            buildResumeFunnelPayload({
+                source,
+                file_type: classifyResumeFileType(extension),
+                size_bucket: classifyResumeSizeBucket(file.size),
+                ...funnelContext,
+            }),
+        );
+    }, [funnelContext]);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        // Cleared, or picking the same file again (after Remove or a file
+        // that couldn't be read) fires no change and the picker looks dead.
+        e.target.value = "";
+        if (file) selectFile(file, "picker");
     };
 
     const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         const file = e.dataTransfer.files?.[0];
-        if (file) {
-            const extension = file.name.split('.').pop()?.toLowerCase();
-            if (extension === 'pdf') {
-                setContentType('pdf');
-            } else if (extension === 'docx') {
-                setContentType('docx');
-            } else if (extension === 'txt') {
-                setContentType('text');
-            } else {
-                setError(extension === 'doc' ? LEGACY_DOC_MESSAGE : "Unsupported file type. Please use PDF, DOCX, or TXT.");
-                captureEvent(
-                    "resume_upload_rejected",
-                    buildResumeFunnelPayload({
-                        source: "drop",
-                        error_class: "type",
-                        error_code: "type",
-                        file_type: classifyResumeFileType(extension),
-                        ...funnelContext,
-                    }),
-                );
-                return;
-            }
-            setSelectedFile(file);
-            setError(null);
-            captureEvent(
-                "resume_upload_selected",
-                buildResumeFunnelPayload({
-                    source: "drop",
-                    file_type: classifyResumeFileType(extension),
-                    size_bucket: classifyResumeSizeBucket(file.size),
-                    ...funnelContext,
-                }),
-            );
-        }
-    }, [funnelContext]);
+        if (file) selectFile(file, "drop");
+    }, [selectFile]);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -295,8 +274,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             "resume_parse_succeeded",
             buildResumeFunnelPayload({
                 duration_ms: Date.now() - started,
-                parser_source: consentDeclined ? "rules" : "on_device_model",
-                engine: consentDeclined ? "rules" : "on_device_model",
+                parser_source: localAiConsent ? "on_device_model" : "rules",
+                engine: localAiConsent ? "on_device_model" : "rules",
                 section_count: local.data.parsed.experience.length + local.data.parsed.education.length,
                 warning_count: local.data.warnings?.length ?? 0,
                 ...funnelContext,
@@ -304,15 +283,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         );
     };
 
-    // Implicit grant when Parse is hit before a download decision — one place
-    // for the consent-grant sequence.
+    // The only way into a model download: the person asks for it.
     const grantConsent = () => {
         grantLocalAiConsent();
         setLocalAiConsent(true);
-    };
-
-    const handleSkipDownload = () => {
-        setConsentDeclined(true);
     };
 
     const adoptImproved = (result: LocalParseResult) => {
@@ -326,6 +300,9 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     // Waits for the model however long the download takes — the user can skip
     // at any time. Skipping only stops the wait: transformers.js can't cancel a
     // download, so it finishes in the background and is cached for next time.
+    // Reading is bounded: a model already on the device could spin on
+    // "Reading your résumé" for minutes (2026-10-07), so after
+    // MODEL_READ_LIMIT_MS the quick read stands and the strip says why.
     const startEnhancement = async (textContent: string) => {
         const run = ++enhancementRun.current;
         setEnhancement("loading");
@@ -334,11 +311,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         });
         const upgraded = (async () => {
             if ((await initLocalAiLadder({ waitMs: Infinity })) === "heuristic") return null;
-            return parseResumeLocally(textContent);
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const slow = new Promise<"slow">((resolve) => {
+                timer = setTimeout(() => resolve("slow"), MODEL_READ_LIMIT_MS);
+            });
+            try {
+                return await Promise.race([parseResumeLocally(textContent), slow]);
+            } finally {
+                clearTimeout(timer);
+            }
         })().catch(() => null);
         const outcome = await Promise.race([upgraded, skipped]);
         if (enhancementRun.current !== run) return;
         if (outcome === "skipped") return setEnhancement("skipped");
+        if (outcome === "slow") return setEnhancement("slow");
         if (outcome === null || outcome.engine === "heuristic" || refuseResumeReview(outcome.data.parsed, textContent)) {
             return setEnhancement("unimproved");
         }
@@ -382,12 +368,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
             await runParse(textContent);
 
-            // Explicitly declining the download means heuristic rules only —
-            // never trigger a model download the user asked to skip.
-            if (!consentDeclined) {
-                if (!localAiConsent) grantConsent();
-                void startEnhancement(textContent);
-            }
+            // The model only runs for someone who asked for it here or before.
+            if (localAiConsent) void startEnhancement(textContent);
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Failed to parse resume";
             setError(message);
@@ -410,12 +392,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         return scoreLocalParseConfidence(editedData);
     }, [editedData]);
 
-    const localParseBlocked =
-        reviewConfidence !== null && !canAcceptLocalParse(reviewConfidence);
+    const localParseBlocked = editedData !== null && !canAcceptLocalParse(editedData);
+    const missingFields = useMemo(() => (editedData ? missingMatchFields(editedData) : []), [editedData]);
 
     const handleConfirm = () => {
         if (!editedData || !parseResult) return;
-        if (reviewConfidence && !canAcceptLocalParse(reviewConfidence)) {
+        if (!canAcceptLocalParse(editedData)) {
             captureEvent(
                 "resume_upload_rejected",
                 buildResumeFunnelPayload({
@@ -450,41 +432,40 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         handleClose();
     };
 
-    // Privacy/consent block — explanation + optional basic-parsing link only.
-    // The one green parse/download primary lives in the modal footer (no extra
-    // first-visit step); footer label is "Download model & parse" until consent
-    // is stored or the visitor opts into basic parsing via the link below.
-    const renderPrivacyConsent = () => {
-        const decided = localAiConsent || consentDeclined;
-        return (
-            <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Cpu size={16} className="text-live shrink-0" />
-                    <span>Parsed on your device</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                    To read your résumé, Velai downloads an AI model to this browser once and runs it here.
-                    {localAiConsent ? null : <ModelDownloadSize />}
+    // Privacy block: the résumé is read in this browser. The quick read is
+    // the default; the on-device model (a large one-time download) is an
+    // offer, never started by the primary button.
+    const renderPrivacyConsent = () => (
+        <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+                <Cpu size={16} className="text-live shrink-0" />
+                <span>Read on your device</span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+                {RESUME_IMPORT_PARSE_LINE} {storageNote}
+            </p>
+            {localAiConsent ? (
+                <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-model-on">
+                    The on-device AI model also reads it after the quick read, if it&apos;s on this device or you let it download.
                 </p>
+            ) : (
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                    {RESUME_IMPORT_PARSE_LINE} {storageNote}
-                </p>
-                {!decided ? (
                     <Button
                         type="button"
                         variant="link"
                         size="link"
-                        data-testid="resume-import-skip-download"
-                        onClick={handleSkipDownload}
+                        data-testid="resume-import-use-model"
+                        onClick={grantConsent}
                         // control-type-allow: an inline text link (size="link") set with the 12px notes above it
-                        className="inline-flex justify-start text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                        className="inline text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     >
-                        Skip the download (basic parsing)
+                        Also read it with the on-device AI model
                     </Button>
-                ) : null}
-            </div>
-        );
-    };
+                    .<ModelDownloadSize />
+                </p>
+            )}
+        </div>
+    );
 
     const renderInputStep = () => (
         <div className="space-y-6">
@@ -572,9 +553,17 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             )}
 
             {error && (
-                <div className="rounded-panel p-3 bg-surface-2 border border-danger-text text-danger-text text-sm flex items-center gap-2">
-                    <Warning size={16} weight="bold" />
-                    {error}
+                <div className="rounded-panel p-3 bg-surface-2 border border-danger-text text-danger-text text-sm space-y-2" role="alert">
+                    <p className="flex items-start gap-2">
+                        <Warning size={16} weight="bold" className="shrink-0 mt-0.5" />
+                        <span>{error}</span>
+                    </p>
+                    {inputMethod === "file" ? (
+                        <Button type="button" variant="outline" size="sm" data-testid="resume-import-paste-instead" onClick={() => { setError(null); setInputMethod("paste"); }}>
+                            <ClipboardText size={16} />
+                            Paste the text instead
+                        </Button>
+                    ) : null}
                 </div>
             )}
         </div>
@@ -615,14 +604,18 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                     </div>
                 )}
 
-                {localParseBlocked && (
+                {missingFields.length > 0 && (
                     <div className="px-6">
-                        <div className="rounded-panel p-3 bg-surface-2 border border-warn text-warn text-sm flex items-start gap-2">
+                        <div
+                            className="rounded-panel p-3 bg-surface-2 border border-warn text-warn text-sm flex items-start gap-2"
+                            data-testid="resume-import-missing"
+                            data-blocked={localParseBlocked}
+                        >
                             <Warning size={16} weight="bold" className="shrink-0 mt-0.5" />
                             <span>
-                                Confidence is {reviewConfidence.overall}% — needs to be above{" "}
-                                {LOCAL_PARSE_ACCEPT_MIN - 1}. Add name, title, experience, and skills
-                                (plus email or education), or go back and paste cleaner text.
+                                {localParseBlocked
+                                    ? `We couldn't find a job title or any skills, so there's nothing to match jobs on yet. Add your most recent job title below.`
+                                    : `We couldn't find your ${joinWords(missingFields)}. Add ${missingFields.length === 1 ? "it" : "them"} below for closer matches, or carry on with what we read.`}
                             </span>
                         </div>
                     </div>
@@ -642,12 +635,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             return (inputMethod === 'file' && selectedFile) || (inputMethod === 'paste' && pastedText.trim().length > 50);
         }
         return true;
-    };
-
-    const parseButtonLabel = () => {
-        if (consentDeclined) return "Parse with basic rules";
-        if (!localAiConsent) return "Download model & parse";
-        return "Parse on device";
     };
 
     return (
@@ -701,12 +688,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 {isProcessing ? (
                                     <>
                                         <InlineSpinner className="mr-2" />
-                                        Processing...
+                                        Reading…
                                     </>
                                 ) : (
                                     <>
                                         <Cpu size={16} weight="fill" className="mr-2" />
-                                        {parseButtonLabel()}
+                                        Read my résumé
                                         <ArrowRight size={16} className="ml-2" />
                                     </>
                                 )}

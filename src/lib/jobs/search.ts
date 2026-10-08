@@ -24,7 +24,7 @@ import { loadGazetteer } from "../geo/gazetteer";
 import { createCorpusValueChecker } from "../geo/corpus-values";
 import type { CountryLookup } from "../geo/ip-country";
 import { applyLocationDefault } from "../geo/ip-default";
-import { cacheSearchResult, getDegradedServe, type SearchServeMeta } from "./search-cache";
+import { getDegradedServe, sharedLiveSearch, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
 export type { SearchServeMeta } from "./search-cache";
 
@@ -178,11 +178,11 @@ export async function searchJobs(
     // above) becomes part of the public result shape, without mutating
     // either backend's own return value.
     if (backend === "meilisearch") {
-      const result = { ...(await searchMeili(p)), effectiveQ: p.q ?? "" };
-      // Remember this as the last-good response for its exact query/filter
-      // shape (and, if it's the default browse, as the outage fallback too)
-      // — see search-cache.ts. Only the success path ever teaches the cache.
-      cacheSearchResult(p, result);
+      // Identical searches share one call, and a success is remembered as the
+      // last-good response for its exact query/filter shape (and, if it's the
+      // default browse, as the outage fallback too) — see search-cache.ts.
+      // Only the success path ever teaches the cache.
+      const result = { ...(await sharedLiveSearch(p, () => searchMeili(p))), effectiveQ: p.q ?? "" };
       return {
         ...result,
         meta: { degraded: false, servedFrom: "live" },

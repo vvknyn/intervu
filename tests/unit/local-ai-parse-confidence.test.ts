@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
     canAcceptLocalParse,
-    LOCAL_PARSE_ACCEPT_MIN,
+    LOCAL_PARSE_COMPLETE_MIN,
+    missingMatchFields,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
 import { structureResumeText } from "../../src/lib/resume/structure-resume-text";
@@ -49,8 +50,8 @@ describe("scoreLocalParseConfidence", () => {
     it("scores clean complete fixture ≥ 91", () => {
         const structured = structureResumeText(FIXTURE);
         const score = scoreLocalParseConfidence(structured);
-        assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN, `expected ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`);
-        assert.ok(canAcceptLocalParse(score));
+        assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN, `expected ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`);
+        assert.ok(canAcceptLocalParse(structured));
     });
 
     it("missing name → ≤ 90", () => {
@@ -58,7 +59,8 @@ describe("scoreLocalParseConfidence", () => {
         structured.profile = { ...structured.profile, name: "" };
         const score = scoreLocalParseConfidence(structured);
         assert.ok(score.overall <= 90);
-        assert.equal(canAcceptLocalParse(score), false);
+        // A name doesn't rank jobs: the read still goes on.
+        assert.ok(canAcceptLocalParse(structured));
     });
 
     it("missing profession → ≤ 90", () => {
@@ -66,7 +68,8 @@ describe("scoreLocalParseConfidence", () => {
         structured.profile = { ...structured.profile, profession: "" };
         const score = scoreLocalParseConfidence(structured);
         assert.ok(score.overall <= 90);
-        assert.equal(canAcceptLocalParse(score), false);
+        // The roles in its work history still name a job title.
+        assert.ok(canAcceptLocalParse(structured));
     });
 
     it("no experience → ≤ 90", () => {
@@ -74,7 +77,8 @@ describe("scoreLocalParseConfidence", () => {
         structured.experience = [];
         const score = scoreLocalParseConfidence(structured);
         assert.ok(score.overall <= 90);
-        assert.equal(canAcceptLocalParse(score), false);
+        assert.ok(canAcceptLocalParse(structured));
+        assert.deepEqual(missingMatchFields(structured), ["work history"]);
     });
 
     it("no skills → ≤ 90", () => {
@@ -82,25 +86,28 @@ describe("scoreLocalParseConfidence", () => {
         structured.competencies = [];
         const score = scoreLocalParseConfidence(structured);
         assert.ok(score.overall <= 90);
-        assert.equal(canAcceptLocalParse(score), false);
+        assert.ok(canAcceptLocalParse(structured));
+        assert.deepEqual(missingMatchFields(structured), ["skills"]);
     });
 
     it("core four without email or education → ≤ 90", () => {
         const score = scoreLocalParseConfidence(coreFourBase());
         assert.equal(score.overall, 90);
-        assert.equal(canAcceptLocalParse(score), false);
+        // No email and no education used to block ranking at 90.
+        assert.ok(canAcceptLocalParse(coreFourBase()));
+        assert.deepEqual(missingMatchFields(coreFourBase()), []);
     });
 
     it("core four + email → ≥ 91", () => {
         const data = coreFourBase();
         data.profile.email = "jane.doe@example.com";
         const score = scoreLocalParseConfidence(data);
-        assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN);
-        assert.ok(canAcceptLocalParse(score));
+        assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN);
+        assert.ok(canAcceptLocalParse(data));
     });
 
-    it("name and email only stays well below 90", () => {
-        const score = scoreLocalParseConfidence({
+    it("name and email only stays well below 90 and can't rank jobs", () => {
+        const data = {
             profile: {
                 name: "Jane Doe",
                 profession: "",
@@ -114,16 +121,21 @@ describe("scoreLocalParseConfidence", () => {
             competencies: [],
             education: [],
             generatedSummary: "",
-        });
+        };
+        const score = scoreLocalParseConfidence(data);
         assert.ok(score.overall < 70);
-        assert.equal(canAcceptLocalParse(score), false);
+        assert.equal(canAcceptLocalParse(data), false);
+        assert.deepEqual(missingMatchFields(data), ["job title", "work history", "skills"]);
     });
 
-    it("canAcceptLocalParse respects LOCAL_PARSE_ACCEPT_MIN", () => {
-        assert.equal(LOCAL_PARSE_ACCEPT_MIN, 91);
-        assert.equal(canAcceptLocalParse(90), false);
-        assert.equal(canAcceptLocalParse(91), true);
-        assert.equal(canAcceptLocalParse({ overall: 99, profile: 0, experience: 0, competencies: 0, education: 0, summary: 0 }), true);
+    it("a read with only a skill, or only a role, can rank jobs", () => {
+        const base = coreFourBase();
+        const skillOnly = { ...base, profile: { ...base.profile, profession: "" }, experience: [] };
+        assert.ok(canAcceptLocalParse(skillOnly));
+        assert.deepEqual(missingMatchFields(skillOnly), ["job title", "work history"]);
+        const roleOnly = { ...base, profile: { ...base.profile, profession: "" }, competencies: [] };
+        assert.ok(canAcceptLocalParse(roleOnly));
+        assert.deepEqual(missingMatchFields(roleOnly), ["skills"]);
     });
 
     it("computes per-section scores independently of overall", () => {

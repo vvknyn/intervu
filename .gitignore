@@ -87,3 +87,6 @@ openclaw/node_modules/
 audit-*.json
 .velai-*
 
+
+# Chrome extension build output (node extension/build.mjs)
+/extension/dist/

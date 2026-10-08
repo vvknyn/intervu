@@ -41,7 +41,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Runtime geo data: the mmdb is read from disk via process.cwd() (see
 # src/lib/geo/ip-country.ts), so the standalone trace can't discover it.
 COPY --from=builder --chown=nextjs:nodejs /app/data/geo ./data/geo
+# The entrypoint: WEB_CONCURRENCY Next.js servers behind :3000, each visitor
+# always on the same one (scripts/start-web.mjs). Capped by the container's
+# CPUs and memory at 768 MB a server; WEB_CONCURRENCY=1 runs server.js alone.
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/start-web.mjs /app/scripts/web-pool.mjs ./
+ENV WEB_CONCURRENCY=3
 
 USER nextjs
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "start-web.mjs"]

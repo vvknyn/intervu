@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Velai</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <img src="icons/icon32.png" alt="" width="20" height="20" />
+      <span class="brand">Velai</span>
+      <a class="site" href="https://velai.app" target="_blank" rel="noopener">velai.app</a>
+    </header>
+    <form id="search" class="search" role="search">
+      <input id="q" name="q" type="search" placeholder="Role or company" aria-label="Search Velai" autocomplete="off" />
+      <button type="submit">Search</button>
+    </form>
+    <p id="source" class="source" hidden></p>
+    <section id="results" aria-live="polite"></section>
+    <footer class="foot">
+      <a href="https://velai.app/privacy#browser-extension" target="_blank" rel="noopener">Privacy</a>
+    </footer>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

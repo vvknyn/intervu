@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-    LOCAL_PARSE_ACCEPT_MIN,
+    LOCAL_PARSE_COMPLETE_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
 import { resumeDataFromPlainText, structureResumeText } from "../../src/lib/resume/structure-resume-text";
@@ -82,7 +82,7 @@ Salesforce, Gong, Excel`;
         assert.ok((out.profile.yearsOfExperience ?? 0) > 0, "expected YoE > 0");
 
         const score = scoreLocalParseConfidence(out);
-        assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN, `expected ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`);
+        assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN, `expected ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`);
     });
 
     it("parses experience from body without Experience header (Priya Shah)", () => {
@@ -302,6 +302,6 @@ Salesforce`;
     it("fixture scores ≥ 91 overall confidence", () => {
         const out = structureResumeText(FIXTURE);
         const score = scoreLocalParseConfidence(out);
-        assert.ok(score.overall >= LOCAL_PARSE_ACCEPT_MIN, `expected ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`);
+        assert.ok(score.overall >= LOCAL_PARSE_COMPLETE_MIN, `expected ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`);
     });
 });

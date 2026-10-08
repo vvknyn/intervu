@@ -213,10 +213,12 @@ export const allowReportListingRequest = createIpRateLimiter(REPORT_LISTING_WIND
  * Per-account limit for the packs home's "Needs you" read
  * (`listNeedsYouAction`, keyed by uid): one read fans out to a search per
  * followed company and saved search. The home memoises it, so a real visitor
- * makes a few a minute at most.
+ * makes a few a minute at most; the cap leaves room for the read's one
+ * automatic retry and a second tab without ever answering a person "Too
+ * many requests".
  */
 export const NEEDS_YOU_WINDOW_MS = 60_000;
-export const NEEDS_YOU_MAX_REQUESTS = 6;
+export const NEEDS_YOU_MAX_REQUESTS = 12;
 
 export const allowNeedsYouRequest = createIpRateLimiter(NEEDS_YOU_WINDOW_MS, NEEDS_YOU_MAX_REQUESTS);
 

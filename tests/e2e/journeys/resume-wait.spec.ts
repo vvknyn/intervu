@@ -42,9 +42,11 @@ async function startImport(page: Page) {
     await page.getByTestId("resume-signed-out-upload").click();
     const dialog = page.getByRole("dialog");
     await dialog.locator('input[type="file"]').setInputFiles({ name: "resume.txt", mimeType: "text/plain", buffer: RESUME });
-    // Consent copy states the measured size before anything downloads.
+    // The offer states the measured size before anything downloads; the
+    // model only runs because the person asks for it here.
     await expect(dialog.getByTestId("model-download-size")).toContainText("494 MB");
-    await dialog.getByTestId("resume-import-parse-primary").click(); // "Download model & parse" — not skipped
+    await dialog.getByTestId("resume-import-use-model").click();
+    await dialog.getByTestId("resume-import-parse-primary").click();
     return { dialog, clickedAt: Date.now() };
 }
 

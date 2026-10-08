@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
-    LOCAL_PARSE_ACCEPT_MIN,
+    LOCAL_PARSE_COMPLETE_MIN,
     scoreLocalParseConfidence,
 } from "../../src/lib/local-ai/parse-confidence";
 import { parseQuotedOrPhrases } from "../../src/lib/jobs/fit-phrases";
@@ -56,8 +56,8 @@ describe("Vivek Okta résumé fixture", () => {
 
         const score = scoreLocalParseConfidence(out);
         assert.ok(
-            score.overall >= LOCAL_PARSE_ACCEPT_MIN,
-            `expected overall ≥ ${LOCAL_PARSE_ACCEPT_MIN}, got ${score.overall}`,
+            score.overall >= LOCAL_PARSE_COMPLETE_MIN,
+            `expected overall ≥ ${LOCAL_PARSE_COMPLETE_MIN}, got ${score.overall}`,
         );
     });
 
