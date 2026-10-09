@@ -18,9 +18,11 @@ import { refuseResumeReview } from "../../src/lib/resume/profile-review-parse";
  * The quick read must get, from every one, what matching needs without the
  * person typing it in: the name, the title, every role with its employer,
  * nearly every skill, and every school. Before 2026-10-09 it got 65 of the
- * 165 files right (two-column PDFs lost the second job and the school;
- * "Work History", "Core Competencies", "Qualifications" and other common
- * headings were not read as sections; scans had no text at all).
+ * 165 files right (two-column PDFs lost the second job and the school; a
+ * second job written as the employer over "Title | dates", or as a title
+ * over "Employer, Town" and the dates, lost its employer; "Qualifications",
+ * "Professional Profile" and "About Me" were not read as sections; scans
+ * had no text at all).
  */
 
 const DIR = path.join(process.cwd(), "tests/fixtures/resume-corpus");
