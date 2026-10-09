@@ -23,12 +23,19 @@ export interface BlogImage {
 
 export interface BlogPost {
     slug: string;
+    /** The page's heading. */
     title: string;
-    /** One or two sentences for the index, search results and link previews. */
+    /**
+     * The title search results and link previews show, when it should name
+     * what people search for and the heading doesn't. Under 60 characters
+     * with " · Velai" added, so search results don't cut it off.
+     */
+    searchTitle?: string;
+    /** One or two sentences for the index, search results and link previews; under 160 characters so search results show all of it. */
     description: string;
     /** YYYY-MM-DD. */
     datePublished: string;
-    author: string;
+    author: { name: string; role: string };
     /** Markdown. Pictures use site paths (`/blog/<slug>/x.png`) listed in `images`. */
     body: string;
     images: Record<string, BlogImage>;
@@ -46,6 +53,19 @@ export function blogPostPath(slug: string): string {
 
 export function getBlogPost(slug: string): BlogPost | null {
     return BLOG_POSTS.find((post) => post.slug === slug) ?? null;
+}
+
+/** The title for search results and link previews. */
+export function blogSearchTitle(post: BlogPost): string {
+    return post.searchTitle ?? post.title;
+}
+
+/** The cover's alt text, taken from where the body shows it, so a link preview describes the same picture. */
+export function blogCoverAlt(post: BlogPost): string | undefined {
+    for (const m of post.body.matchAll(/!\[([^\]]*)\]\(([^)\s]+)\)/g)) {
+        if (m[2] === post.cover) return m[1];
+    }
+    return undefined;
 }
 
 /** "October 5, 2026", the date as written, never shifted by the reader's or server's timezone. */

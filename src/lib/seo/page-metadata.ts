@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getSiteUrl } from "./constants";
+import { getSiteUrl, SITE_NAME } from "./constants";
 
 /**
  * Per-page canonical + Open Graph + Twitter URL/title mechanics — the
@@ -11,6 +11,12 @@ import { getSiteUrl } from "./constants";
  * mechanics `metadataBase` alone doesn't give a nested route: without an
  * explicit `alternates.canonical` and `openGraph.url`, a subpage inherits
  * the root layout's homepage og:url and generic site title.
+ *
+ * Next merges metadata shallowly, so a page's `openGraph`/`twitter` replace
+ * the root layout's whole objects. The site name, locale and large-picture
+ * card are repeated here or every subpage would lose them. No picture is
+ * set here: an `images` entry would win over a route's own opengraph-image
+ * file (trends, jobs/[slug]), so a page that needs one passes its own.
  */
 export function canonicalMetadata(
   path: string,
@@ -19,7 +25,7 @@ export function canonicalMetadata(
 ): Pick<Metadata, "alternates" | "openGraph" | "twitter"> {
   return {
     alternates: { canonical: path },
-    openGraph: { title, description, url: `${getSiteUrl()}${path}` },
-    twitter: { title, description },
+    openGraph: { title, description, url: `${getSiteUrl()}${path}`, siteName: SITE_NAME, locale: "en_US" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
