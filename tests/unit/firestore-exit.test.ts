@@ -93,9 +93,16 @@ describe("firestore exit copy", { skip: !URL && "DOCSTORE_TEST_PG_URL not set" }
 
         const inv = await inventoryFirestore(firestore, log);
         assert.deepEqual(inv.legacy.map((d) => d.path).sort(), ["mystery_collection/m1", "users/u1/oldThing/x"]);
-        await copyAll(engine, pool, inv, null, log);
 
-        const checks = await checkTables(engine, pool, inv);
+        // Before the switch the app still reads agent rows unsealed, so the
+        // first pass leaves them alone and the check doesn't count that as a gap.
+        await copyAll(engine, pool, inv, null, log, false);
+        const before = await pool.query(`SELECT doc->>'clientId' AS c, sealed FROM intervu.agent_credentials WHERE path = 'agent_credentials/live'`);
+        assert.deepEqual(before.rows[0], { c: "c", sealed: null });
+        assert.deepEqual((await checkTables(engine, pool, inv, false)).filter((c) => c.missing.length || (c.unsealed && !c.unsealedOk)), []);
+
+        await copyAll(engine, pool, inv, null, log, true);
+        const checks = await checkTables(engine, pool, inv, true);
         const bad = checks.filter((c) => c.missing.length || c.unsealed);
         assert.deepEqual(bad, [], JSON.stringify(bad));
 

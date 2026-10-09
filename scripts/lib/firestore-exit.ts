@@ -106,7 +106,14 @@ export function legacyKey(engine: Engine, path: string): string {
 /** Collections already live on Postgres through agent/store.ts's plain
  *  postgresStore (AGENT_PG_LIVE_COLLECTIONS): Postgres is their source of
  *  truth and their Firestore copies are stale, so they are resealed in place
- *  rather than copied, and not compared against Firestore. */
+ *  rather than copied, and not compared against Firestore. Until
+ *  DATA_STORE=postgres is live the app still reads them unsealed, so they are
+ *  left alone until the pass that runs after the switch. */
+/** True where the app itself reads the sealed store (DATA_STORE=postgres). */
+export function appReadsSealedStore(): boolean {
+    return process.env.DATA_STORE === "postgres";
+}
+
 export function pgSourcedCollections(): Set<string> {
     return new Set(
         (process.env.AGENT_PG_LIVE_COLLECTIONS ?? "")
@@ -118,6 +125,8 @@ export function pgSourcedCollections(): Set<string> {
 
 export interface TableCheck {
     collection: string;
+    /** Unsealed rows are expected here (Postgres-live rows before the switch). */
+    unsealedOk?: boolean;
     firestore: number;
     postgres: number;
     unsealed: number;
@@ -128,7 +137,12 @@ export interface TableCheck {
 }
 
 /** Opens every row and compares real document paths with Firestore's. */
-export async function checkTables(engine: Engine, pool: Pool, inv: FirestoreInventory): Promise<TableCheck[]> {
+export async function checkTables(
+    engine: Engine,
+    pool: Pool,
+    inv: FirestoreInventory,
+    appOnPostgres = appReadsSealedStore(),
+): Promise<TableCheck[]> {
     const checks: TableCheck[] = [];
     const pgSourced = pgSourcedCollections();
     for (const [collection, docs] of inv.known) {
@@ -144,7 +158,15 @@ export async function checkTables(engine: Engine, pool: Pool, inv: FirestoreInve
         }
         const inFs = new Set(docs.map((d) => d.path));
         if (pgSourced.has(collection)) {
-            checks.push({ collection: `${collection} (pg)`, firestore: inFs.size, postgres: inPg.size, unsealed, missing: [], extra: 0 });
+            checks.push({
+                collection: `${collection} (pg)`,
+                firestore: inFs.size,
+                postgres: inPg.size,
+                unsealed,
+                unsealedOk: !appOnPostgres,
+                missing: [],
+                extra: 0,
+            });
             continue;
         }
         checks.push({
@@ -175,7 +197,7 @@ export function printChecks(checks: TableCheck[], log: (line: string) => void): 
     log(`${"collection".padEnd(24)} ${"firestore".padStart(9)} ${"postgres".padStart(9)} ${"unsealed".padStart(9)} ${"missing".padStart(8)} ${"extra".padStart(6)}`);
     let ok = true;
     for (const c of checks) {
-        if (c.missing.length || c.unsealed) ok = false;
+        if (c.missing.length || (c.unsealed && !c.unsealedOk)) ok = false;
         log(
             `${c.collection.padEnd(24)} ${String(c.firestore).padStart(9)} ${String(c.postgres).padStart(9)} ${String(c.unsealed).padStart(9)} ${String(c.missing.length).padStart(8)} ${String(c.extra).padStart(6)}`,
         );
@@ -188,9 +210,9 @@ const BATCH = 500;
 
 /**
  * The --apply pass (see scripts/firestore-to-postgres.ts): seal and upsert
- * every Firestore document, reseal Postgres-live agent rows in place, prune
- * rows Firestore no longer has, and copy forgotten collections into
- * legacy_docs. With `flippedAt`, rows the app wrote after that moment are
+ * every Firestore document, reseal Postgres-live agent rows in place once
+ * the app reads the sealed store, prune rows Firestore no longer has, and
+ * copy forgotten collections into legacy_docs. With `flippedAt`, rows the app wrote after that moment are
  * never overwritten or pruned.
  */
 export async function copyAll(
@@ -199,6 +221,7 @@ export async function copyAll(
     inv: FirestoreInventory,
     flippedAt: Date | null,
     log: (line: string) => void,
+    appOnPostgres = appReadsSealedStore(),
 ): Promise<void> {
     const pgSourced = pgSourcedCollections();
     // Rows written by the app after the switch are left exactly as they are.
@@ -207,6 +230,10 @@ export async function copyAll(
         const layout = layoutOf(collection);
         const table = engine.table(layout);
         if (pgSourced.has(collection)) {
+            if (!appOnPostgres) {
+                log(`  ${collection}: left as is until the pass after the switch (the app still reads it unsealed)`);
+                continue;
+            }
             const { rows } = await pool.query<{ path: string; doc: Record<string, unknown> }>(
                 `SELECT path, doc FROM ${table} WHERE sealed IS NULL`,
             );
