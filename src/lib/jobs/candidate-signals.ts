@@ -53,8 +53,8 @@ export interface CandidateSignals {
 
 const SKILLS_CAP = 12;
 
-/** `EXPERIENCE_LEVELS` (agent/facets.ts) → the `experience_level` facet vocabulary. */
-const SENIORITY_FROM_PREFERENCE: Record<string, Seniority> = {
+/** `EXPERIENCE_LEVELS` (agent/facets.ts) → the three-step scale levels are compared on. */
+const SENIORITY_OF_LEVEL: Record<string, Seniority> = {
     intern: "entry",
     entry: "entry",
     mid: "mid",
@@ -62,6 +62,12 @@ const SENIORITY_FROM_PREFERENCE: Record<string, Seniority> = {
     lead: "senior",
     executive: "senior",
 };
+
+/** An `experience_level` value, from Settings or a listing, on the three-step scale; null when it names none. */
+export function seniorityOfLevel(level: string | null | undefined): Seniority | null {
+    const key = (level ?? "").trim().toLowerCase();
+    return Object.hasOwn(SENIORITY_OF_LEVEL, key) ? SENIORITY_OF_LEVEL[key]! : null;
+}
 
 const NOT_RELOCATING = /\b(no|not|never|won'?t|can'?t|cannot|unwilling|none|n\/a)\b/i;
 const RELOCATING = /\b(yes|anywhere|open|willing|happy|keen|able|can|relocat\w*|move)\b/i;
@@ -151,7 +157,7 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
 }
 
 function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
-    const stated = SENIORITY_FROM_PREFERENCE[(prefs?.search.experienceLevel ?? "").trim().toLowerCase()];
+    const stated = seniorityOfLevel(prefs?.search.experienceLevel);
     if (stated) return signal(stated, "explicit");
     const basis = resumeSeniorityBasis(resume);
     return basis ? { ...signal(basis.level, "resume"), basis } : unknown();

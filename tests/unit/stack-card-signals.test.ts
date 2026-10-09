@@ -57,7 +57,7 @@ const score: MatchScore = {
     total: 82,
     components: [
         { key: "relevance", label: "Relevance to this role", detail: "9 of 12 terms this role names", score: 1 },
-        { key: "seniority", label: "Seniority", detail: "senior — fits", score: 1 },
+        { key: "seniority", label: "Seniority", detail: "senior role — matches your senior level (set in Settings)", score: 1 },
         { key: "location", label: "Location", detail: "this role's country isn't listed", score: 0.5, unknown: true },
     ],
 };
@@ -79,7 +79,7 @@ describe("stacked role card: what we inferred", () => {
         assert.deepEqual(out.slice(0, 3), [
             { text: "Overlaps your Senior Product Designer experience.", tone: "good" },
             { text: "Relevance to this role: 9 of 12 terms this role names", tone: "good" },
-            { text: "Seniority: senior — fits", tone: "good" },
+            { text: "Seniority: senior role — matches your senior level (set in Settings)", tone: "good" },
         ]);
         assert.ok(!out.some((row) => /country isn't listed/.test(row.text)), "an unknown component compared nothing");
     });
@@ -87,11 +87,11 @@ describe("stacked role card: what we inferred", () => {
     it("marks a weak component as a caution, not a match", () => {
         const weak: MatchScore = {
             total: 40,
-            components: [{ key: "seniority", label: "Seniority", detail: "mid-level — below ask", score: 0.25 }],
+            components: [{ key: "seniority", label: "Seniority", detail: "senior role — above your mid level (4 years of experience)", score: 0.25 }],
         };
         assert.deepEqual(
             rows(job(), weak).find((row) => row.text.startsWith("Seniority")),
-            { text: "Seniority: mid-level — below ask", tone: "caution" },
+            { text: "Seniority: senior role — above your mid level (4 years of experience)", tone: "caution" },
         );
     });
 
@@ -121,6 +121,17 @@ describe("stacked role card: what we inferred", () => {
         const line = rows(relisted).find((row) => row.text.startsWith("First seen by us"));
         assert.equal(line?.tone, "caution");
         assert.ok(!rows(job()).some((row) => /salary|repost/i.test(row.text)), "pay and reposts carry no verdict here");
+    });
+
+    it("never calls a role new when its posted date in the details is older than 7 days (2026-10-09)", () => {
+        const foundLate = job({
+            posted_at: new Date(NOW - 21 * DAY).toISOString(),
+            first_seen_at: new Date(NOW - 3 * DAY).toISOString(),
+        });
+        const out = rows(foundLate);
+        assert.ok(!out.some((row) => /within the last 7 days/.test(row.text)));
+        assert.deepEqual(out.find((row) => row.text.startsWith("Posted")), { text: "Posted 21d ago", tone: "caution" });
+        assert.equal(stackCardDetails(foundLate, "21d ago").find((detail) => detail.label === "Posted")?.value, "21d ago");
     });
 });
 

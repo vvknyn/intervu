@@ -135,3 +135,13 @@ test("neither fresh nor relisted: both dates old and posted_at close to first_se
     const r = classifyPostingFreshness({ posted_at: posted, first_seen_at: firstSeen }, NOW);
     assert.equal(r.kind, null);
 });
+
+test("not fresh: we first saw it this week but the employer posted it 21 days ago (Vivek, 2026-10-09)", () => {
+    const r = classifyPostingFreshness({ posted_at: ago(21 * 86_400_000), first_seen_at: ago(3 * 86_400_000) }, NOW);
+    assert.equal(r.kind, null);
+});
+
+test("fresh: both the employer's date and ours are inside the window", () => {
+    const r = classifyPostingFreshness({ posted_at: ago(4 * 86_400_000), first_seen_at: ago(3 * 86_400_000) }, NOW);
+    assert.equal(r.kind, "fresh");
+});

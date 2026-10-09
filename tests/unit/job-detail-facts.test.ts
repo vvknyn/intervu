@@ -192,6 +192,19 @@ test("deriveGhostSignals: a relisted, thin, unsalaried posting reports each hone
     assert.match(signals[3]!.text, /not disclosed/);
 });
 
+test("deriveGhostSignals: an older role names its oldest date, the employer's when we found it late (2026-10-09)", () => {
+    const ageLine = (firstSeenDays: number, postedDays: number | null) =>
+        deriveGhostSignals(
+            job({}),
+            freshness({ firstSeenMs: NOW - firstSeenDays * 86_400_000, postedMs: postedDays == null ? null : NOW - postedDays * 86_400_000 }),
+            0,
+            NOW,
+        ).find((s) => s.kind === "freshness")!;
+    assert.deepEqual(ageLine(20, 21), { text: "posted 21d ago", status: "unfavorable", kind: "freshness" });
+    assert.deepEqual(ageLine(20, 19), { text: "first seen by us 20d ago", status: "unfavorable", kind: "freshness" });
+    assert.deepEqual(ageLine(20, null), { text: "first seen by us 20d ago", status: "unfavorable", kind: "freshness" });
+});
+
 test("deriveGhostSignals: reposts is UNCHANGED by relist state — same neutral text whether relisted or not", () => {
     const notRelisted = deriveGhostSignals(job({ description: null }), freshness({ kind: "fresh", firstSeenMs: NOW - 86_400_000 }), 0, NOW);
     const relisted = deriveGhostSignals(job({ description: null }), freshness({ kind: "relisted", firstSeenMs: NOW - 40 * 86_400_000 }), 0, NOW);
