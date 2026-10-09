@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { BLOG_POSTS, blogPostPath, formatBlogDate, getBlogPost, renderBlogPost } from "@/lib/blog/posts";
+import { BLOG_POSTS, blogCoverAlt, blogPostPath, blogSearchTitle, formatBlogDate, getBlogPost, renderBlogPost } from "@/lib/blog/posts";
 
 const PUBLIC = path.join(process.cwd(), "public");
 
@@ -20,7 +20,10 @@ describe("blog posts", () => {
       assert.match(post.slug, /^[a-z0-9-]+$/);
       assert.match(post.datePublished, /^\d{4}-\d{2}-\d{2}$/);
       assert.ok(post.images[post.cover], `${post.slug}: cover ${post.cover} is one of its pictures`);
-      assert.ok(post.description.length > 40 && post.description.length < 300, `${post.slug}: description length`);
+      // Search results cut descriptions at about 160 characters and titles at about 60.
+      assert.ok(post.description.length > 40 && post.description.length <= 160, `${post.slug}: description length`);
+      assert.ok(`${blogSearchTitle(post)} · Velai`.length <= 60, `${post.slug}: search title length`);
+      assert.ok(blogCoverAlt(post)?.length, `${post.slug}: the cover is shown in the body with alt text`);
     }
   });
 

@@ -15,10 +15,11 @@ const HIRINGCAFE_COST_POST = "https://www.reddit.com/r/hiringcafe/comments/1www5
 export const SAME_RESUME_TEST_OCTOBER_2026: BlogPost = {
     slug: "same-resume-test-october-2026",
     title: "Same résumé, two job searches: what a small test showed us",
+    searchTitle: "Velai vs HiringCafe: same résumé, two job searches",
     description:
-        "We gave Velai and HiringCafe's Talent Agent the same résumé on the same day and scored the top 20 jobs from each without knowing which was which. The numbers, what they can't tell you, and what we got wrong.",
+        "We gave Velai and HiringCafe's Talent Agent the same résumé and blind-scored the top 20 jobs from each. The numbers, their limits, and what we got wrong.",
     datePublished: "2026-10-09",
-    author: "Vivek, founder of Velai",
+    author: { name: "Vivek", role: "founder of Velai" },
     cover: `${DIR}/results.png`,
     images: {
         [`${DIR}/results.png`]: { width: 2400, height: 1260 },

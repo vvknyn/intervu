@@ -8,10 +8,17 @@ import { PageContainer } from "@/components/layout/PageContainer";
 const TITLE = "Velai blog";
 const DESCRIPTION = "What changed in Velai and why, written for the people who use it.";
 
+const canonical = canonicalMetadata("/blog", TITLE, DESCRIPTION);
+// The site's own preview picture (src/app/opengraph-image.tsx): a page that
+// sets openGraph no longer inherits it from the root.
+const SITE_PREVIEW_IMAGE = { url: "/opengraph-image", width: 1200, height: 630 };
+
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  ...canonicalMetadata("/blog", TITLE, DESCRIPTION),
+  ...canonical,
+  openGraph: { ...canonical.openGraph, images: [SITE_PREVIEW_IMAGE] },
+  twitter: { ...canonical.twitter, images: [SITE_PREVIEW_IMAGE] },
 };
 
 export default function BlogIndexPage() {
