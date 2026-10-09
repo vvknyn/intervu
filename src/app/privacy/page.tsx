@@ -208,8 +208,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you have an account, we store the structured résumé with that account until you delete the résumé or
-          the account. Deleting the account removes that copy from our database. It does not delete analytics or
-          replays already stored in PostHog.
+          the account. Deleting the account removes that copy from our database and asks PostHog to delete the
+          analytics events and replays tied to your account.
         </p>
         <p>
           Strong, Good, and Stretch are calculated from your résumé and each job&apos;s public details. On the
@@ -349,17 +349,20 @@ export default function PrivacyPage() {
           example applications, résumés, saved searches, prep answers, agent credentials, and email digest state
           keyed to your account). When your sign-in email is a real address, not a synthetic username-only address,
           it also removes contact-form messages and connect, founding-seat, and credit-pack waitlist entries stored
-          under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id, any
-          sign-in record left in Google&apos;s Firebase Authentication from before we moved sign-in to WorkOS, then
-          your WorkOS sign-in record. For a real address it then runs our identity-forget path: global email
+          under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id,
+          asks PostHog to delete the person tied to your account id along with that person&apos;s analytics events
+          and session recordings, deletes any sign-in record left in Google&apos;s Firebase Authentication from
+          before we moved sign-in to WorkOS, then deletes your WorkOS sign-in record. For a real address it then runs our identity-forget path: global email
           suppression for that address and deletion from our PostgreSQL identity store.
         </p>
         <p>
-          Self-serve account deletion makes no call to PostHog to delete data and does not remove analytics
-          events or replay-derived data already stored there. Session replay recordings in PostHog are kept for
-          30 days, as described above, then expire under PostHog&apos;s rules. We have not confirmed a fixed
-          retention period for ordinary analytics events or heatmap data in PostHog. It does not remove contact-form messages
-          or waitlist entries sent from a different email address than the one you sign in with. Anonymous search
+          PostHog data from visits where you were never signed in carries no account id, so it is not linked to
+          you and is not removed. If PostHog can&apos;t be reached when you delete your account, the rest of the
+          deletion still completes, and we do not retry the PostHog request. Session replay recordings in PostHog
+          are kept for 30 days, as described above, then expire under PostHog&apos;s rules.
+          We have not confirmed a fixed retention period for ordinary analytics events or heatmap data in PostHog. Deletion does not
+          remove contact-form messages or waitlist entries sent from a different email address than the one you
+          sign in with. Anonymous search
           logs and aggregate statistics are unaffected. Suppression entries for your address stay in place so we do
           not resume email after you leave.
         </p>
