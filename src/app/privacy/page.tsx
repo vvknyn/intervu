@@ -349,7 +349,8 @@ export default function PrivacyPage() {
           example applications, résumés, saved searches, prep answers, agent credentials, and email digest state
           keyed to your account). When your sign-in email is a real address, not a synthetic username-only address,
           it also removes contact-form messages and connect, founding-seat, and credit-pack waitlist entries stored
-          under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id, then
+          under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id, any
+          sign-in record left in Google&apos;s Firebase Authentication from before we moved sign-in to WorkOS, then
           your WorkOS sign-in record. For a real address it then runs our identity-forget path: global email
           suppression for that address and deletion from our PostgreSQL identity store.
         </p>

@@ -10,6 +10,7 @@
  *  - Records kept under the sign-in email rather than the uid: contact-form
  *    messages, the connect, founding-seat and credit-pack waitlists.
  *  - PostHog: the person, their events and their replays.
+ *  - The Firebase Authentication record from before sign-in moved to WorkOS.
  *
  * Order matters only where a step needs something an earlier one removes:
  * everything keyed by uid or email goes before the WorkOS sign-in record.
@@ -30,6 +31,8 @@ export interface EraseAccountDeps {
     deleteTelemetry(uid: string): Promise<unknown>;
     /** PostHog person, events and replays for this distinct id. */
     deleteAnalyticsPerson(uid: string): Promise<unknown>;
+    /** The pre-WorkOS Firebase Authentication record, if one is left. */
+    deleteLegacySignIn(uid: string): Promise<unknown>;
     /** The WorkOS sign-in record. */
     deleteSignIn(uid: string): Promise<void>;
     /** Suppression, then the email-follow identity store. */
@@ -50,12 +53,17 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
 
     await deps.deleteTelemetry(input.uid);
 
-    // PostHog is a third party with its own outages; failing to reach it must
-    // not leave the account half deleted, so it is logged rather than thrown.
+    // Third parties with their own outages: failing to reach one must not
+    // leave the account half deleted, so it is logged rather than thrown.
     try {
         await deps.deleteAnalyticsPerson(input.uid);
     } catch (error) {
         deps.logError("[Auth] PostHog person delete failed", error);
+    }
+    try {
+        await deps.deleteLegacySignIn(input.uid);
+    } catch (error) {
+        deps.logError("[Auth] Firebase sign-in record delete failed", error);
     }
 
     await deps.deleteSignIn(input.uid);

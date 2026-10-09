@@ -11,6 +11,7 @@ function recorder(overrides: Partial<EraseAccountDeps> = {}) {
         deletePaths: async (paths) => void calls.push(`delete:${paths.join(",")}`),
         deleteTelemetry: async (uid) => calls.push(`telemetry:${uid}`),
         deleteAnalyticsPerson: async (uid) => calls.push(`posthog:${uid}`),
+        deleteLegacySignIn: async (uid) => calls.push(`firebase:${uid}`),
         deleteSignIn: async (uid) => void calls.push(`workos:${uid}`),
         forgetEmail: async (email) => void calls.push(`forget:${email}`),
         logError: (message) => void calls.push(`log:${message}`),
@@ -29,6 +30,7 @@ describe("eraseAccount", () => {
             "delete:profiles/u1,applications/a1,contact_messages/c1",
             "telemetry:u1",
             "posthog:u1",
+            "firebase:u1",
             "workos:u1",
             "forget:maya@example.com",
         ]);
@@ -37,17 +39,28 @@ describe("eraseAccount", () => {
     it("still erases ledger rows and PostHog for a username-only account", async () => {
         const { calls, deps } = recorder();
         await eraseAccount({ uid: "u2", email: null }, deps);
-        assert.deepEqual(calls, ["owned:u2", "delete:profiles/u1,applications/a1", "telemetry:u2", "posthog:u2", "workos:u2"]);
+        assert.deepEqual(calls, [
+            "owned:u2",
+            "delete:profiles/u1,applications/a1",
+            "telemetry:u2",
+            "posthog:u2",
+            "firebase:u2",
+            "workos:u2",
+        ]);
     });
 
-    it("finishes the deletion when PostHog is down, and logs it", async () => {
+    it("finishes the deletion when PostHog or Firebase is down, and logs it", async () => {
         const { calls, deps } = recorder({
             deleteAnalyticsPerson: async () => {
+                throw new Error("503");
+            },
+            deleteLegacySignIn: async () => {
                 throw new Error("503");
             },
         });
         await eraseAccount({ uid: "u3", email: null }, deps);
         assert.ok(calls.includes("log:[Auth] PostHog person delete failed"));
+        assert.ok(calls.includes("log:[Auth] Firebase sign-in record delete failed"));
         assert.equal(calls.at(-1), "workos:u3");
     });
 

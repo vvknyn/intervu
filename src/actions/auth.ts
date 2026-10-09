@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import type { User } from "@workos-inc/node";
 import { getServerUser } from "@/lib/auth/server-user";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { deleteLegacyFirebaseUser, getAdminDb } from "@/lib/firebase/admin";
 import { deletePosthogPerson, eraseAccount, storeEraseDeps } from "@/lib/account/erase-account";
 import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
@@ -372,6 +372,7 @@ export async function deleteAccount(): Promise<{ error?: string }> {
                 ...storeEraseDeps(db),
                 deleteTelemetry: async (uid) => (telemetryPg ? deleteTelemetryByUserId(telemetryPg, uid) : 0),
                 deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
+                deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
                 async deleteSignIn(uid) {
                     const userManagement = await getWorkosUserManagement();
                     const workosUserId = await resolveWorkosUserId(
