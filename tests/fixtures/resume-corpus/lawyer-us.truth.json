@@ -1,0 +1,35 @@
+{
+  "id": "lawyer-us",
+  "name": "Rebecca Stein",
+  "title": "Corporate Associate",
+  "location": "New York, NY",
+  "experience": [
+    {
+      "title": "Corporate Associate",
+      "company": "Davis & Hart LLP"
+    },
+    {
+      "title": "Judicial Law Clerk",
+      "company": "U.S. District Court, S.D.N.Y."
+    }
+  ],
+  "skills": [
+    "Mergers and Acquisitions",
+    "Contract Drafting",
+    "Due Diligence",
+    "Private Equity",
+    "Securities Law",
+    "Legal Research",
+    "Negotiation"
+  ],
+  "education": [
+    {
+      "degree": "J.D.",
+      "school": "Columbia Law School"
+    },
+    {
+      "degree": "B.A. Political Science",
+      "school": "Cornell University"
+    }
+  ]
+}

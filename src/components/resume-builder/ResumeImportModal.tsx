@@ -127,6 +127,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // The PDF is pictures of its pages: its words are being read off them on this device.
+    const [readingScan, setReadingScan] = useState(false);
     const [parseResult, setParseResult] = useState<ParsedResumeResult | null>(null);
     const [editedData, setEditedData] = useState<ResumeData | null>(null);
     const [contentType, setContentType] = useState<'pdf' | 'docx' | 'text'>('text');
@@ -251,7 +253,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         // Résumé bytes never leave the browser — unpdf/mammoth run in-page.
         const result = await (isDocx
             ? extractDocxTextInBrowser(arrayBuffer)
-            : extractPDFTextInBrowser(arrayBuffer));
+            : extractPDFTextInBrowser(arrayBuffer, { onReadingScan: () => setReadingScan(true) }));
 
         if (result.error) throw new Error(result.error);
         return result.text || "";
@@ -342,6 +344,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const handleParse = async () => {
         abandonEnhancement();
         setIsProcessing(true);
+        setReadingScan(false);
         setError(null);
         captureEvent(
             "resume_upload_started",
@@ -384,6 +387,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             );
         } finally {
             setIsProcessing(false);
+            setReadingScan(false);
         }
     };
 
@@ -552,6 +556,12 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 </div>
             )}
 
+            {readingScan && isProcessing ? (
+                <p className="text-sm text-muted-foreground" role="status" data-testid="resume-import-reading-scan">
+                    This PDF is a picture of your résumé, so Velai is reading the words off it on this device. The first one takes a few seconds longer.
+                </p>
+            ) : null}
+
             {error && (
                 <div className="rounded-panel p-3 bg-surface-2 border border-danger-text text-danger-text text-sm space-y-2" role="alert">
                     <p className="flex items-start gap-2">
@@ -688,7 +698,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                                 {isProcessing ? (
                                     <>
                                         <InlineSpinner className="mr-2" />
-                                        Reading…
+                                        {readingScan ? "Reading the scan…" : "Reading…"}
                                     </>
                                 ) : (
                                     <>

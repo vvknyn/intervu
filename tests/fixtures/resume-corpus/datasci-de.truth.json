@@ -1,0 +1,33 @@
+{
+  "id": "datasci-de",
+  "name": "Jonas Becker",
+  "title": "Data Scientist",
+  "location": "Berlin, Germany",
+  "experience": [
+    {
+      "title": "Data Scientist",
+      "company": "Zalando SE"
+    },
+    {
+      "title": "Data Analyst",
+      "company": "N26"
+    }
+  ],
+  "skills": [
+    "Python",
+    "SQL",
+    "pandas",
+    "scikit-learn",
+    "Forecasting",
+    "A/B Testing",
+    "Looker",
+    "Statistics",
+    "Spark"
+  ],
+  "education": [
+    {
+      "degree": "M.Sc. Statistics",
+      "school": "Humboldt University of Berlin"
+    }
+  ]
+}

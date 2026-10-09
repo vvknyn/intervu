@@ -1,0 +1,32 @@
+{
+  "id": "electrician-au",
+  "name": "Liam O'Connor",
+  "title": "Licensed Electrician",
+  "location": "Brisbane, QLD, Australia",
+  "experience": [
+    {
+      "title": "Licensed Electrician",
+      "company": "Sparkline Electrical"
+    },
+    {
+      "title": "Electrical Apprentice",
+      "company": "Coastal Power Services"
+    }
+  ],
+  "skills": [
+    "Commercial Wiring",
+    "Switchboards",
+    "Fault Finding",
+    "Three-Phase Power",
+    "PLC Basics",
+    "Testing and Tagging",
+    "AS/NZS 3000",
+    "Conduit Installation"
+  ],
+  "education": [
+    {
+      "degree": "Certificate III in Electrotechnology",
+      "school": "TAFE Queensland"
+    }
+  ]
+}

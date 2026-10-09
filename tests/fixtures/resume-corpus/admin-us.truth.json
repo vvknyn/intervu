@@ -1,0 +1,31 @@
+{
+  "id": "admin-us",
+  "name": "Tasha Robinson",
+  "title": "Administrative Assistant",
+  "location": "Chicago, IL",
+  "experience": [
+    {
+      "title": "Administrative Assistant",
+      "company": "Northwestern Medicine"
+    },
+    {
+      "title": "Receptionist",
+      "company": "Hyatt Regency Chicago"
+    }
+  ],
+  "skills": [
+    "Calendar Management",
+    "Travel Coordination",
+    "Microsoft Office",
+    "Minute Taking",
+    "Data Entry",
+    "Customer Service",
+    "Scheduling"
+  ],
+  "education": [
+    {
+      "degree": "Associate of Applied Science in Office Administration",
+      "school": "Harold Washington College"
+    }
+  ]
+}

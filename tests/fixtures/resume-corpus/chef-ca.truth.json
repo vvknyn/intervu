@@ -1,0 +1,31 @@
+{
+  "id": "chef-ca",
+  "name": "Marco Bianchi",
+  "title": "Sous Chef",
+  "location": "Toronto, ON",
+  "experience": [
+    {
+      "title": "Sous Chef",
+      "company": "Terroni"
+    },
+    {
+      "title": "Line Cook",
+      "company": "Buca"
+    }
+  ],
+  "skills": [
+    "Menu Development",
+    "Food Cost Control",
+    "Kitchen Management",
+    "Italian Cuisine",
+    "Food Safety",
+    "Inventory",
+    "Team Training"
+  ],
+  "education": [
+    {
+      "degree": "Culinary Management Diploma",
+      "school": "George Brown College"
+    }
+  ]
+}

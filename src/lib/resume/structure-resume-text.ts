@@ -62,11 +62,56 @@ const EXPERIENCE_HEADERS = new Set([
     "roles",
 ]);
 
-const SUMMARY_HEADERS = new Set(["summary", "professional summary", "profile", "about"]);
+const SUMMARY_HEADERS = new Set([
+    "summary",
+    "professional summary",
+    "profile",
+    "about",
+    "about me",
+    "professional profile",
+    "personal profile",
+    "career profile",
+    "objective",
+    "career objective",
+    "professional objective",
+    "personal statement",
+    "overview",
+    "professional overview",
+]);
 
-const SKILLS_HEADERS = new Set(["skills", "technical skills", "core competencies", "competencies"]);
+const SKILLS_HEADERS = new Set([
+    "skills",
+    "technical skills",
+    "core competencies",
+    "competencies",
+    "areas of expertise",
+    "expertise",
+    "technical expertise",
+    "key strengths",
+    "core strengths",
+    "strengths",
+    "technologies",
+    "tools",
+    "tools & technologies",
+    "tools and technologies",
+    "technical proficiencies",
+    "proficiencies",
+    "tech stack",
+]);
 
-const EDUCATION_HEADERS = new Set(["education", "academic", "education & professional development"]);
+const EDUCATION_HEADERS = new Set([
+    "education",
+    "academic",
+    "education & professional development",
+    "qualifications",
+    "academic qualifications",
+    "educational qualifications",
+]);
+
+/** "Education", "Education & Training", "Educational Background", "Continuing Education",
+ *  "Academic Background": a heading that starts with the word. Not a subject or skill that
+ *  ends in it ("Patient Education", "Special Education", "Physical Education"). */
+const EDUCATION_HEADING_RE = /^(?:(?:formal|further|higher|continuing)\s+)?(?:education(?:al)?|academics?)\b/;
 
 const PROJECTS_HEADERS = new Set(["independent projects", "projects", "selected projects"]);
 
@@ -86,11 +131,19 @@ function normalizeSectionKey(line: string): string {
         .trim();
 }
 
+/** What may stand before "Experience" in its heading ("Relevant Work Experience"); a skill
+ *  such as "Customer Experience" or "User Experience" is not a heading. */
+const EXPERIENCE_QUALIFIER_RE =
+    /^(?:(?:professional|work|relevant|selected|recent|other|additional|related|previous|prior|volunteer|teaching|clinical|research|industry|international|leadership|military|internship|freelance|consulting|management|technical|legal|nursing|field|practical|job|employment|career|paid|overseas|canadian|us|uk)\s+)+experiences?$/;
+
 function isExperienceHeader(key: string): boolean {
     if (EXPERIENCE_HEADERS.has(key)) return true;
-    if (key.includes("exp") && !key.includes("expert")) return true;
-    if (key.includes("employ")) return true;
-    if (key.includes("career")) return true;
+    // "Experience", "Experience & Achievements" — but not "Experimentation" or "Experienced Hire".
+    if (/^experiences?(?:\s|$)/.test(key)) return true;
+    if (EXPERIENCE_QUALIFIER_RE.test(key)) return true;
+    // "Employment", "Employment History" — but not the skill "Employee Relations".
+    if (/^employment\b/.test(key)) return true;
+    if (/^(?:professional\s+)?career\b/.test(key) && !/\b(?:objective|profile|summary|goals?)\b/.test(key)) return true;
     if (key === "positions" || key === "roles") return true;
     if (key.includes("work") && (key.includes("history") || key.includes("experience") || key === "work")) {
         return true;
@@ -112,10 +165,10 @@ function isExperienceHeader(key: string): boolean {
 
 function resolveSection(header: string): string {
     const key = normalizeSectionKey(header);
-    if (key.includes("skill") || key.includes("competen") || SKILLS_HEADERS.has(key)) return "skills";
+    if (isSkillsHeadingKey(key)) return "skills";
     if (PROJECTS_HEADERS.has(key) || /\bindependent projects?\b/.test(key)) return "projects";
     if (key === "projects" || key === "selected projects") return "projects";
-    if (EDUCATION_HEADERS.has(key) || /\b(education|academic)\b/.test(key)) return "education";
+    if (EDUCATION_HEADERS.has(key) || EDUCATION_HEADING_RE.test(key)) return "education";
     if (SUMMARY_HEADERS.has(key) || key.includes("summary") || key === "about") return "summary";
     if (isExperienceHeader(key)) return "experience";
     return key;
@@ -208,16 +261,22 @@ function isSectionHeader(line: string): string | null {
     // mentions "experience" or "skills" is prose, not a section break.
     if (line.length > 80 || line.trim().split(/\s+/).length > 5 || /[.!?]$/.test(line.trim())) return null;
     if (isExperienceHeader(key)) return key;
-    if (key.includes("skill") || key.includes("competen") || SKILLS_HEADERS.has(key)) return key;
-    if (EDUCATION_HEADERS.has(key) || /\b(education|academic)\b/.test(key)) return key;
+    if (isSkillsHeadingKey(key)) return key;
+    if (EDUCATION_HEADERS.has(key) || EDUCATION_HEADING_RE.test(key)) return key;
     if (SUMMARY_HEADERS.has(key) || key.includes("summary") || key === "about") return key;
     return null;
+}
+
+/** "Skills", "Key Skills", "Core Competencies", "Areas of Expertise". Not the skill
+ *  "Cultural Competency": only the plural, or a heading that starts with the word. */
+function isSkillsHeadingKey(key: string): boolean {
+    return SKILLS_HEADERS.has(key) || key.includes("skill") || /\bcompetencies\b|^competenc/.test(key);
 }
 
 /** Headings of sections a résumé carries beyond the five the app models:
  *  certifications, licences, awards, languages... Kept whole and printed
  *  in place, never folded into the job above them. */
-const EXTRA_SECTION_RE = /^(?:(?:professional |relevant |selected |key )?(?:certifications?|licen[cs]es?|credentials|awards?|honou?rs?|achievements|accomplishments|publications|presentations|patents|languages?|interests|hobbies|activities|extracurricular activities|volunteering|community involvement|leadership|memberships?|affiliations|professional affiliations|training|courses|coursework|professional development|bar admissions?|admissions|references|additional information|conferences|speaking|research)(?:\s*(?:&|and|\/|,)\s*(?:certifications?|licen[cs]es?|credentials|awards?|honou?rs?|achievements|publications|languages?|interests|activities|memberships?|affiliations|training|courses|admissions|skills|development))*)$/i;
+const EXTRA_SECTION_RE = /^(?:(?:professional |relevant |selected |key )?(?:certifications?|licen[cs]es?|credentials|accreditations?|registrations?|tickets|permits|clearances?|endorsements?|awards?|honou?rs?|achievements|accomplishments|recognition|publications|presentations|patents|languages?|interests|hobbies|activities|extracurricular activities|volunteering|community involvement|leadership|memberships?|affiliations|professional affiliations|training|courses|coursework|professional development|bar admissions?|admissions|references|additional information|conferences|speaking|research)(?:\s*(?:&|and|\/|,)\s*(?:certifications?|licen[cs]es?|credentials|accreditations?|registrations?|tickets|permits|clearances?|endorsements?|awards?|honou?rs?|achievements|recognition|publications|languages?|interests|activities|memberships?|affiliations|training|courses|admissions|skills|development))*)$/i;
 
 /** The heading of a section beyond the five modelled ones, or null. */
 export function extraSectionHeading(line: string): string | null {
@@ -288,8 +347,14 @@ function parseRoleCompanyFromLine(line: string, dates: string): { role: string; 
     }
 
     const commaParts = leftover.split(/,\s*/).map((p) => p.trim()).filter(Boolean);
+    // "Humber River Health, Toronto, ON": a company and its place, not "Role, Company".
+    while (commaParts.length >= 3 && looksLikeRealPlaceSegment(commaParts.slice(-2).join(", "))) commaParts.splice(-2);
     if (commaParts.length >= 2) {
         return assignRoleCompany(commaParts[0], commaParts[1]);
+    }
+    if (commaParts.length === 1 && commaParts[0] !== leftover) {
+        const [only] = commaParts;
+        return looksLikeTitle(only) && !looksLikeCompany(only) ? { role: only, company: "" } : { role: "", company: only };
     }
 
     const cleanedLeftover = leftover.replace(/\s*\|\s*$/g, "").trim();
@@ -380,7 +445,39 @@ function isHeaderBlockOverDates(lines: string[], i: number): boolean {
     if (i + 2 >= lines.length || !isDateOnlyLine(lines[i + 2])) return false;
     const [a, b] = [lines[i], lines[i + 1]];
     if (!looksLikeHeaderText(a) || !looksLikeHeaderText(b)) return false;
-    return looksLikeTitle(a) || looksLikeTitle(b);
+    // "General Labourer" / "Peel Packaging, Mississauga, ON": a title the word list lacks over a company and its place.
+    return looksLikeTitle(a) || looksLikeTitle(b) || looksLikeCompany(a) || looksLikeCompany(b) || /,\s*\S/.test(b);
+}
+
+/** "Peel Packaging, Mississauga, ON": a line whose last comma parts name a place. */
+function endsOnPlace(line: string): boolean {
+    const parts = line.split(/,\s*/);
+    return parts.length >= 3 && looksLikeRealPlaceSegment(parts.slice(-2).join(", "));
+}
+
+/** "Drake & Scull, Abu Dhabi" over "Civil Engineer | 2013 – 2017": the next entry's company,
+ *  printed above a dated role line that names no company, not the last line of this entry. */
+function isCompanyOverDatedRole(lines: string[], i: number): boolean {
+    const line = lines[i];
+    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_RANGE_RE.test(line) || !looksLikeHeaderText(line)) return false;
+    const next = lines[i + 1];
+    const match = next.match(DATE_RANGE_RE);
+    if (!match || BULLET_RE.test(next)) return false;
+    const { role, company } = parseRoleCompanyFromLine(next, match[0]);
+    return Boolean(role) && !company;
+}
+
+/** "Software Engineer" over "Infosys, Mysuru · Jul 2016 – Dec 2020": the next entry's title,
+ *  printed above the dated line that names its company, not the last line of this entry. */
+function isTitleOverDatedCompany(lines: string[], i: number): boolean {
+    const line = lines[i];
+    if (i + 1 >= lines.length || BULLET_RE.test(line) || DATE_RANGE_RE.test(line)) return false;
+    if (!looksLikeHeaderText(line) || !looksLikeTitle(line) || looksLikeCompany(line)) return false;
+    const next = lines[i + 1];
+    const match = next.match(DATE_RANGE_RE);
+    if (!match || BULLET_RE.test(next)) return false;
+    const datedText = trimEdgePunctuation(next.replace(match[0], "").replace(/\(\s*\)/g, ""));
+    return Boolean(datedText) && !looksLikeTitle(datedText);
 }
 
 function collectDescriptionLines(
@@ -393,7 +490,15 @@ function collectDescriptionLines(
     while (i < lines.length) {
         const next = lines[i];
         if (DATE_RANGE_RE.test(next) && !BULLET_RE.test(next)) break;
-        if (singleDateEntryDate(next, anyName) || isRoleLineOverDates(lines, i) || isHeaderBlockOverDates(lines, i)) break;
+        if (
+            singleDateEntryDate(next, anyName) ||
+            isRoleLineOverDates(lines, i) ||
+            isHeaderBlockOverDates(lines, i) ||
+            isCompanyOverDatedRole(lines, i) ||
+            isTitleOverDatedCompany(lines, i)
+        ) {
+            break;
+        }
         const section = isSectionHeader(next);
         if (section) break;
         descLines.push(next);
@@ -478,6 +583,13 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
             if (nextDateMatch && !BULLET_RE.test(nextLine)) {
                 const dates = nextDateMatch[0];
                 let { role, company } = parseRoleCompanyFromLine(nextLine, dates);
+                // "Primary School Teacher" over "Oakwood Primary School, Manchester · 09/2018 – Present":
+                // the line above names the role, the dated line the company and its place.
+                const datedText = trimEdgePunctuation(nextLine.replace(dates, "").replace(/\(\s*\)/g, ""));
+                if (datedText && looksLikeTitle(line) && !looksLikeCompany(line) && !looksLikeTitle(datedText)) {
+                    role = line;
+                    company = datedText.split(/\s*[|·,]\s*|\s+[—–-]\s+/)[0];
+                }
                 if (!role && !company) {
                     // "Software Engineer | Beta Systems" names both.
                     const own = parseRoleCompanyFromLine(line, "");
@@ -497,8 +609,11 @@ function parseExperienceBlock(lines: string[], anyName = false): Omit<ResumeExpe
         if (i + 2 < lines.length && DATE_RANGE_RE.test(lines[i + 2])) {
             // Company over title is the usual order; title over company when the lines say so.
             const [first, second] = [lines[i], lines[i + 1]];
+            // "Peel Packaging, Mississauga, ON" ends on its place: the company line, whatever the title says.
             const titleFirst =
-                (looksLikeTitle(first) && !looksLikeTitle(second)) || (looksLikeCompany(second) && !looksLikeCompany(first));
+                (looksLikeTitle(first) && !looksLikeTitle(second)) ||
+                (looksLikeCompany(second) && !looksLikeCompany(first)) ||
+                (endsOnPlace(second) && !endsOnPlace(first));
             const [role, company] = titleFirst ? [first, second] : [second, first];
             const dates = lines[i + 2].match(DATE_RANGE_RE)?.[0] ?? lines[i + 2];
             const { descLines, nextIndex } = collectDescriptionLines(lines, i + 3, anyName);
@@ -691,7 +806,7 @@ const SKILL_CATEGORY_RE = /^([^:]{2,60}):\s*(.+)$/;
 const SKILLS_WRAPPER_RE = /^Skills?:\s*(.+)$/i;
 /** A degree name or abbreviation (`B.Sc.`, `BSc (Hons)`, `M.B.A.`, `B.Tech`, `Master of Design`). */
 const DEGREE_LIKE_RE =
-    /(?<![\p{L}])(?:bachelor|master|doctor(?:ate)?|associate|micromasters?|certificate|diploma|m\.?b\.?a|ph\.?\s?d|[bm]\.?\s?(?:sc|s|a|tech|eng|com|arch|ed|des|fa|phil)\.?|ll\.?[bm]|j\.?d)(?![\p{L}])/iu;
+    /(?<![\p{L}])(?:bachelor|master|doctor(?:ate)?|associate|micromasters?|certificate|diploma|m\.?b\.?a|ph\.?\s?d|[bm]\.?\s?(?:sc|s|a|tech|eng|com|arch|ed|des|fa|phil)\.?|ll\.?[bm]|j\.?d|[bm]\.?\s?(?:asc|ba|sn|ph|pa)|pgce|pgde|pg\s?dip|pg\s?cert|hnd|hnc|btec|gcses?|a[- ]levels?)(?![\p{L}])/iu;
 
 /** Words that name a school in the languages our résumés arrive in. */
 const INSTITUTION_RE =
@@ -775,11 +890,19 @@ function continuesSkillLine(previous: string, line: string): boolean {
     return /^[(&/]|^\p{Ll}/u.test(line);
 }
 
+/** A list of three or more items that stops mid-item, then a short line with no list of its own:
+ *  the printed line wrapped inside the last item ("…, Inventory Ordering, Food" / "Safe"). */
+function wrapsListItem(previous: string, line: string): boolean {
+    if ((previous.match(/,/g)?.length ?? 0) < 2 || /[,;]\s*$/.test(previous)) return false;
+    return !/[,;:|•]/.test(line) && line.split(/\s+/).length <= 3 && !BULLET_RE.test(line);
+}
+
 function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
     const categories: ResumeCompetencyCategory[] = [];
     const fallbackSkills: string[] = [];
     // Each category's list as printed, so a line the PDF wrapped joins it instead of vanishing.
     let lastList = "";
+    let previousList = "";
 
     for (const rawLine of lines) {
         let cleaned = stripSkillsWrapper(rawLine.replace(BULLET_RE, "").trim());
@@ -796,7 +919,7 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
         if (categories.length > 0) {
             // Once the block has categories, a plain line is never dropped: it continues the
             // category above ("Telemetry, Triage" / "(CTAS)") or is a list of its own.
-            if (continuesSkillLine(lastList, cleaned)) {
+            if (continuesSkillLine(lastList, cleaned) || wrapsListItem(lastList, cleaned)) {
                 lastList = `${lastList} ${cleaned}`;
                 categories[categories.length - 1].skills = splitSkillList(lastList);
             } else {
@@ -807,9 +930,14 @@ function parseSkillsBlock(lines: string[]): ResumeCompetencyCategory[] {
             continue;
         }
         const parts = cleaned.split(/[,;|•]/).map((s) => s.trim()).filter(Boolean);
+        // "…, Inventory Ordering, Food" / "Safe": a comma list wrapped inside an item, not a new item.
+        if (wrapsListItem(previousList, cleaned) && fallbackSkills.length > 0 && parts.length > 0) {
+            fallbackSkills[fallbackSkills.length - 1] = `${fallbackSkills[fallbackSkills.length - 1]} ${parts.shift()}`;
+        }
         for (const part of parts) {
             if (part.length > 1) fallbackSkills.push(part);
         }
+        previousList = cleaned;
     }
 
     if (categories.length > 0) return categories;
@@ -851,14 +979,19 @@ function assignDegreeInstitution(parts: string[]): { degree: string; institution
     return { degree: parts.filter((_, i) => i !== inst).join(", "), institution: parts[inst] };
 }
 
-/** Pure: one education line → the slots it fills. Strong separators (| — ·) split before commas. */
-function parseEducationLine(line: string): Omit<ResumeEducation, "id"> {
-    const year = line.match(/\b(?:19|20)\d{2}\b/g)?.at(-1) ?? "";
-    const rest = line
+/** One education line without its dates and edge separators. */
+function educationLineText(line: string): string {
+    return line
         .replace(DATE_RANGE_RE, "")
         .replace(new RegExp(`(?:${MONTH}\\.?\\s+)?\\b(?:19|20)\\d{2}\\b`, "gi"), "")
         .replace(/\(\s*\)/g, "")
         .replace(/^[\s,;|·•—–-]+|[\s,;|·•—–-]+$/g, "");
+}
+
+/** Pure: one education line → the slots it fills. Strong separators (| — ·) split before commas. */
+function parseEducationLine(line: string): Omit<ResumeEducation, "id"> {
+    const year = line.match(/\b(?:19|20)\d{2}\b/g)?.at(-1) ?? "";
+    const rest = educationLineText(line);
     if (!rest) return { degree: "", institution: "", year };
     const strong = rest.split(/\s*[|·•]\s*|\s+[—–-]\s+/).filter(Boolean);
     const commas = rest.split(/\s*,\s*/).filter(Boolean);
@@ -876,11 +1009,44 @@ function parseEducationLine(line: string): Omit<ResumeEducation, "id"> {
  */
 function parseEducationBlock(lines: string[]): Omit<ResumeEducation, "id">[] {
     const entries: Omit<ResumeEducation, "id">[] = [];
-    for (const rawLine of lines) {
-        const line = rawLine.replace(BULLET_RE, "").trim();
-        if (!line || /^[^:]{2,30}:\s/.test(line)) continue;
-        const parsed = parseEducationLine(line);
+    const cleaned = lines.map((l) => l.replace(BULLET_RE, "").trim()).filter((l) => l && !/^[^:]{2,30}:\s/.test(l));
+    for (let n = 0; n < cleaned.length; n++) {
+        const line = cleaned[n];
+        const previous = cleaned[n - 1] ?? "";
+        const following = cleaned[n + 1] ?? "";
+        let parsed = parseEducationLine(line);
         const open = entries.at(-1);
+        const bareName = !parsed.degree && !parsed.year && Boolean(parsed.institution) && !INSTITUTION_RE.test(line) && !DEGREE_LIKE_RE.test(line);
+        // A narrow column wraps a degree: "Bachelor of Commerce," / "Accounting", "Associate of Applied
+        // Science in" / "Office Administration", "Diploma in Hospitality" / "Management" over the school.
+        if (open?.degree && !open.institution && !open.year && bareName &&
+            (/,$/.test(previous) || TRAILING_LINK_WORD_RE.test(previous) || INSTITUTION_RE.test(following))) {
+            open.degree = `${open.degree}${/,$/.test(previous) ? "," : ""} ${educationLineText(line)}`;
+            continue;
+        }
+        // "National Institute of Technology" / "Karnataka", "Polytechnic University of the" / "Philippines":
+        // a narrow column wrapped the school's name; "Bengaluru, India" under it is where the school is.
+        // Neither starts a new entry.
+        if (open?.institution && bareName) {
+            if (TRAILING_LINK_WORD_RE.test(open.institution) || !looksLikeRealPlaceSegment(line)) {
+                open.institution = `${open.institution} ${parsed.institution}`;
+            }
+            continue;
+        }
+        // "Ontario Secondary School" / "Diploma" over "Cawthra Park Secondary School": the credential's
+        // own name wrapped, and the school follows.
+        if (open?.institution && !open.degree && !open.year && /^(?:diploma|certificate)$/i.test(line) &&
+            !/\b(?:university|college|institute)\b/i.test(open.institution) && INSTITUTION_RE.test(following)) {
+            open.degree = `${open.institution} ${line}`;
+            open.institution = "";
+            continue;
+        }
+        // "B.S. Computer Science" / "University of California, Berkeley": with the degree already open,
+        // a comma is inside the school's name.
+        if (open?.degree && !open.institution && parsed.degree && parsed.institution && !DEGREE_LIKE_RE.test(parsed.degree) &&
+            INSTITUTION_RE.test(line)) {
+            parsed = { degree: "", institution: educationLineText(line), year: parsed.year };
+        }
         const slots = ["degree", "institution", "year"] as const;
         if (open && slots.every((k) => !parsed[k] || !open[k])) {
             for (const k of slots) open[k] = open[k] || parsed[k] || "";

@@ -1,0 +1,32 @@
+{
+  "id": "civil-ae",
+  "name": "Omar Haddad",
+  "title": "Civil Engineer",
+  "location": "Dubai, UAE",
+  "experience": [
+    {
+      "title": "Senior Civil Engineer",
+      "company": "Arabtec Construction"
+    },
+    {
+      "title": "Civil Engineer",
+      "company": "Drake & Scull"
+    }
+  ],
+  "skills": [
+    "Structural Design",
+    "AutoCAD",
+    "Primavera P6",
+    "Site Supervision",
+    "Quantity Surveying",
+    "Concrete Works",
+    "Project Planning",
+    "QA/QC"
+  ],
+  "education": [
+    {
+      "degree": "B.Sc. Civil Engineering",
+      "school": "American University of Sharjah"
+    }
+  ]
+}
