@@ -19,7 +19,8 @@
  *  1. Seals and upserts every Firestore document at its path.
  *  2. Collections already live on Postgres (AGENT_PG_LIVE_COLLECTIONS) are
  *     NOT copied from Firestore, whose copy is stale; their plain rows are
- *     resealed in place.
+ *     resealed in place, but only once DATA_STORE=postgres is live, because
+ *     until then the app reads them unsealed.
  *  3. Deletes rows Firestore no longer has: the old plain one-off copy of
  *     since-deleted documents, and plain rows at email paths now stored
  *     hashed. This is what makes the copy match, so it is part of --apply.
