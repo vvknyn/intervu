@@ -1,6 +1,8 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 
+import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
+
 let adminApp: App;
 let adminDb: Firestore;
 
@@ -29,7 +31,31 @@ function getAdminApp(): App {
     return adminApp;
 }
 
+/**
+ * Where account data lives. DATA_STORE=postgres serves every caller from our
+ * own Postgres with each document sealed (src/lib/db/docstore/pg-docstore.ts),
+ * through the same Firestore-shaped calls, so no call site changes. Unset, or
+ * anything else, is Firestore, which is how this ships: the switch flips only
+ * after the copy (scripts/firestore-to-postgres.ts) has run and checked out,
+ * and flipping it back is the rollback until Firestore is wiped.
+ */
+export function usesPostgresStore(): boolean {
+    return process.env.DATA_STORE?.trim().toLowerCase() === "postgres";
+}
+
 export function getAdminDb(): Firestore {
+    if (usesPostgresStore()) {
+        // The pool and the data key are only touched here, so a Firestore
+        // deploy never connects to Postgres or needs DATA_ENCRYPTION_KEY.
+        return getPgDocDb() as unknown as Firestore;
+    }
+    return getFirestoreDb();
+}
+
+/** Firestore itself, whatever DATA_STORE says: only the copy and wipe
+ *  scripts (scripts/firestore-to-postgres.ts, scripts/firestore-wipe.ts)
+ *  need this; app code reads account data through getAdminDb(). */
+export function getFirestoreDb(): Firestore {
     if (!adminDb) {
         adminDb = getFirestore(getAdminApp());
     }

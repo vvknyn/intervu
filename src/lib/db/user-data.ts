@@ -18,7 +18,9 @@
  * collection the manifest calls user-owned — is a unit test rather than a
  * hope. `runUserDataPlan` is the thin I/O half.
  */
-import { getFirestore, type Firestore, FieldPath } from "firebase-admin/firestore";
+import { type Firestore, FieldPath } from "firebase-admin/firestore";
+
+import { getAdminDb } from "@/lib/firebase/admin";
 
 import { MIGRATION_MANIFEST, type CollectionSpec } from "./firestore-migration-manifest";
 
@@ -119,7 +121,7 @@ async function runQuery(db: Firestore, q: UserDataQuery): Promise<FoundDoc[]> {
 /** Run the whole plan and bucket the results by manifest table name. */
 export async function runUserDataPlan(
     uid: string,
-    db: Firestore = getFirestore()
+    db: Firestore = getAdminDb()
 ): Promise<Record<string, FoundDoc[]>> {
     const reads = userDataPlan(uid);
     const results = await Promise.all(reads.map((r) => runQuery(db, r.query)));

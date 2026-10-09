@@ -358,6 +358,39 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
       { field: "expiresAt", type: "epoch_ms", column: "expires_at_ms" },
     ],
   },
+  // Added 2026-10-08 for the Firestore exit (Vivek: "I dont want ANYTHING on
+  // firestore"). These four were written by live or past code but sat
+  // outside this list, so no copy would have carried them across.
+  {
+    // job_views/<uid>_<jobId> — the signed-in viewed-jobs history.
+    collection: "job_views",
+    table: "job_views",
+    owner: { by: "field", field: "user_id" },
+    indexed: [{ field: "user_id", type: "text" }],
+  },
+  {
+    collection: "follow_funnel_events",
+    table: "follow_funnel_events",
+    owner: { by: "none", reason: "anonymous funnel steps; an entry records a step, a company domain and a time, never a uid" },
+    indexed: [
+      { field: "step", type: "text" },
+      { field: "createdAt", type: "text", column: "created_at" },
+    ],
+  },
+  {
+    // FROZEN since credits were removed 2026-08-27; kept for the admin count.
+    collection: "credit_grants",
+    table: "credit_grants",
+    owner: { by: "none", reason: "frozen history whose writer predates this repo's history, so no owner field is known to query by" },
+    indexed: [{ field: "granted_at", type: "text" }],
+  },
+  {
+    // The old credit-pack waitlist: one row per email x pack, no account.
+    collection: "waitlist",
+    table: "waitlist",
+    owner: { by: "none", reason: "keyed by email with no uid recorded, so a uid cannot resolve it" },
+    indexed: [{ field: "ts", type: "text" }],
+  },
 ];
 
 /**
