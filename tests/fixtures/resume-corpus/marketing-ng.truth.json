@@ -1,0 +1,32 @@
+{
+  "id": "marketing-ng",
+  "name": "Chiamaka Eze",
+  "title": "Marketing Manager",
+  "location": "Lagos, Nigeria",
+  "experience": [
+    {
+      "title": "Marketing Manager",
+      "company": "Paystack"
+    },
+    {
+      "title": "Digital Marketing Specialist",
+      "company": "Jumia"
+    }
+  ],
+  "skills": [
+    "Brand Strategy",
+    "Performance Marketing",
+    "Google Ads",
+    "Meta Ads",
+    "SEO",
+    "Content Marketing",
+    "Market Research",
+    "Budget Management"
+  ],
+  "education": [
+    {
+      "degree": "B.Sc. Mass Communication",
+      "school": "University of Lagos"
+    }
+  ]
+}

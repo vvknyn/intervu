@@ -1,0 +1,34 @@
+{
+  "id": "swe-in",
+  "name": "Arjun Raghavan",
+  "title": "Senior Software Engineer",
+  "location": "Bengaluru, India",
+  "experience": [
+    {
+      "title": "Senior Software Engineer",
+      "company": "Razorpay"
+    },
+    {
+      "title": "Software Engineer",
+      "company": "Infosys"
+    }
+  ],
+  "skills": [
+    "Go",
+    "Java",
+    "Python",
+    "PostgreSQL",
+    "Kafka",
+    "Redis",
+    "Kubernetes",
+    "AWS",
+    "Microservices",
+    "REST APIs"
+  ],
+  "education": [
+    {
+      "degree": "B.Tech in Computer Science",
+      "school": "National Institute of Technology Karnataka"
+    }
+  ]
+}

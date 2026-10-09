@@ -1,0 +1,32 @@
+{
+  "id": "pm-us",
+  "name": "Ethan Park",
+  "title": "Senior Product Manager",
+  "location": "San Francisco, CA",
+  "experience": [
+    {
+      "title": "Senior Product Manager",
+      "company": "Stripe"
+    },
+    {
+      "title": "Product Manager",
+      "company": "Twilio"
+    }
+  ],
+  "skills": [
+    "Product Strategy",
+    "Roadmapping",
+    "API Design",
+    "SQL",
+    "Experimentation",
+    "Pricing",
+    "Stakeholder Management",
+    "User Research"
+  ],
+  "education": [
+    {
+      "degree": "B.S. Computer Science",
+      "school": "University of California, Berkeley"
+    }
+  ]
+}

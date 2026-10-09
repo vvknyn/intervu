@@ -1,0 +1,31 @@
+{
+  "id": "driver-us",
+  "name": "Marcus Bell",
+  "title": "CDL-A Truck Driver",
+  "location": "Dallas, TX",
+  "experience": [
+    {
+      "title": "CDL-A Truck Driver",
+      "company": "Lone Star Freight"
+    },
+    {
+      "title": "Delivery Driver",
+      "company": "Metro Supply Co."
+    }
+  ],
+  "skills": [
+    "Long-Haul Driving",
+    "Pre-Trip Inspection",
+    "ELD Logs",
+    "DOT Regulations",
+    "Hazmat",
+    "Route Planning",
+    "Load Securement"
+  ],
+  "education": [
+    {
+      "degree": "High School Diploma",
+      "school": "Skyline High School"
+    }
+  ]
+}

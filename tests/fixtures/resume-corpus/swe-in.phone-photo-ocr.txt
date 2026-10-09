@@ -1,0 +1,20 @@
+Arjun Raghavan
+Senior Software Engineer
+Bengaluru, India | arjun.raghavan@example.com | +91 99999 00000
+Summary
+Backend engineer with eight years building payment APIs and data pipelines at scale.
+Experience
+Razorpay, Bengaluru
+Senior Software Engineer | Jan 2021 - Present
+• Own the settlement service handling 20 million transactions a day in Go and PostgreSQL.
+• Cut p99 AP! latency from 800 ms to 180 ms by moving reads to a cache.
+Infosys, Mysuru
+Software Engineer | Jul 2016 - Dec 2020
+• Built Java microservices for a banking client and their CI pipelines.
+Technical Skills
+Languages: Go, Java, Python
+Data: PostgreSQL, Kafka, Redis
+Cloud: Kubernetes, AWS
+Practices: Microservices, REST APIs
+Education
+B.Tech in Computer Science | National Institute of Technology Karnataka | 2016

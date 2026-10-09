@@ -1,0 +1,20 @@
+Ethan Park
+Senior Product Manager
+San Francisco, CA | ethan.park@example.com | (415) 555-0108
+
+SUMMARY
+Product manager who ships developer platforms; led the 0 → 1 build of a usage-based billing API.
+
+PROFESSIONAL EXPERIENCE
+Senior Product Manager | Stripe | San Francisco, CA | Apr 2021 – Present
+• Own the billing API roadmap used by 9,000 companies.
+• Launched usage-based billing, adding $40M in annual revenue.
+
+Product Manager | Twilio | San Francisco, CA | Jun 2017 – Mar 2021
+• Shipped the messaging insights dashboard from discovery to GA.
+
+SKILLS
+Product Strategy, Roadmapping, API Design, SQL, Experimentation, Pricing, Stakeholder Management, User Research
+
+EDUCATION
+B.S. Computer Science | University of California, Berkeley | 2016

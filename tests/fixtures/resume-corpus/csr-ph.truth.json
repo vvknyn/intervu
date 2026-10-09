@@ -1,0 +1,31 @@
+{
+  "id": "csr-ph",
+  "name": "Maria Santos",
+  "title": "Customer Service Representative",
+  "location": "Quezon City, Philippines",
+  "experience": [
+    {
+      "title": "Customer Service Representative",
+      "company": "Concentrix"
+    },
+    {
+      "title": "Sales Associate",
+      "company": "SM Supermalls"
+    }
+  ],
+  "skills": [
+    "Customer Support",
+    "Call Handling",
+    "Live Chat",
+    "Zendesk",
+    "Troubleshooting",
+    "Upselling",
+    "Data Entry"
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Business Administration",
+      "school": "Polytechnic University of the Philippines"
+    }
+  ]
+}

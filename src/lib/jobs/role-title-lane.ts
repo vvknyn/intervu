@@ -58,7 +58,11 @@ const ROLE_TITLE_PAIR_CAP = 12;
 
 /** Title-only pair queries for seniority+role recall (e.g. "director brand").
  *  Executive tokens expand to director/vp/head of/chief so a director query
- *  also retrieves VP Product / Head of Brand titles. */
+ *  also retrieves VP Product / Head of Brand titles. A pair that is just the
+ *  typed query ("associate warehouse" for "Warehouse Associate") never runs
+ *  the lane on its own, but leads it when other pairs do: the lane is the
+ *  whole result, so without it "Warehouse Associate" found only "Junior
+ *  Warehouse" titles. */
 export function roleTitlePairQueries(q: string): string[] {
   const trimmed = q.trim();
   if (!trimmed) return [];
@@ -76,15 +80,20 @@ export function roleTitlePairQueries(q: string): string[] {
 
   const fullKey = sortedTokenKey(meaningfulTitleTokens(trimmed));
   const pairs: string[] = [];
+  let typedPair: string | null = null;
   outer: for (const prefix of prefixes) {
     for (const token of remaining) {
       const pair = `${prefix} ${token}`;
-      if (sortedTokenKey(meaningfulTitleTokens(pair)) === fullKey) continue;
+      if (sortedTokenKey(meaningfulTitleTokens(pair)) === fullKey) {
+        typedPair ??= pair;
+        continue;
+      }
       pairs.push(pair);
-      if (pairs.length >= ROLE_TITLE_PAIR_CAP) break outer;
+      if (pairs.length >= ROLE_TITLE_PAIR_CAP - 1) break outer;
     }
   }
-  return pairs;
+  if (pairs.length === 0) return [];
+  return typedPair ? [typedPair, ...pairs] : pairs;
 }
 
 /** True when `title` carries a seniority token in the query's bucket AND at

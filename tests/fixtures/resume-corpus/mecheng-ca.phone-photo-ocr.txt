@@ -1,0 +1,15 @@
+Wei Zhang
+Mechanical Engineer
+Waterloo, ON | wei.zhang@example.com | 519-555-0126
+Education
+BASc Mechanical Engineering | University of Waterloo | 2023
+Experience
+Christie Digital, Kitchener, ON
+Mechanical Engineer | May 2023 - Present
+• Design projector cooling assemblies in SolidWorks.
+• Run thermal tests and write test reports.
+BlackBerry QNX, Ottawa, ON
+Mechanical Engineering Co-op | Sep 2021 - Dec 2021
+• Built test fixtures for automotive hardware.
+Technical Skills
+SolidWorks, GD&T, Thermal Analysis, ANSYS, Prototyping, MATLAB, Design for Manufacturing
