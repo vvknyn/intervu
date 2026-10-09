@@ -124,7 +124,7 @@ describe("public legal & email contact copy guards", () => {
     }
   });
 
-  it("privacy discloses self-serve deletion flow, scope, and PostHog exclusion", () => {
+  it("privacy discloses self-serve deletion flow, scope, and what it asks PostHog to delete", () => {
     const pageSrc = readFileSync(join(ROOT, "src/app/privacy/page.tsx"), "utf8");
     const prose = articleProse("src/app/privacy/page.tsx");
     assert.match(pageSrc, /ACCOUNT_SELF_SERVE_DELETION_FLOW/);
@@ -133,8 +133,8 @@ describe("public legal & email contact copy guards", () => {
     assert.match(prose, /local storage[\s\S]{0,24}first/i);
     assert.match(prose, /sign you out/i);
     assert.match(prose, /WorkOS/i);
-    assert.match(prose, /no call to PostHog to delete/i);
-    assert.match(prose, /does not remove analytics[\s\S]{0,40}replay-derived/i);
+    assert.match(prose, /asks PostHog to delete the person tied to your account id/i);
+    assert.match(prose, /never signed in[\s\S]{0,80}not removed/i);
     assert.match(prose, /replay recordings[\s\S]{0,80}30 days/i);
     assert.match(prose, /not confirmed a fixed[\s\S]{0,120}analytics events or heatmap/i);
     assert.doesNotMatch(prose, /follow the PostHog retention described above/i);
