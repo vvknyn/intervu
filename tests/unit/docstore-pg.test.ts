@@ -14,6 +14,7 @@ import assert from "node:assert/strict";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { Pool } from "pg";
 
+import { emailKeyedPaths } from "../../src/lib/account/erase-account";
 import { createPgDocDb, type PgDocDb } from "../../src/lib/db/docstore/pg-docstore";
 import { deriveDocKeys } from "../../src/lib/db/docstore/seal";
 
@@ -21,6 +22,7 @@ const URL = process.env.DOCSTORE_TEST_PG_URL;
 const TABLES = [
     "applications", "profiles", "resume_history", "favorite_questions", "apply_counters",
     "saved_searches", "email_suppressions", "agent_codes", "search_events", "welcome_emails", "market_stats_daily",
+    "contact_messages", "connect_waitlist", "founding_waitlist", "waitlist",
 ];
 
 describe("pg docstore", { skip: !URL && "DOCSTORE_TEST_PG_URL not set" }, () => {
@@ -159,6 +161,18 @@ describe("pg docstore", { skip: !URL && "DOCSTORE_TEST_PG_URL not set" }, () => 
         assert.deepEqual(latest.docs.map((d) => d.get("q")), ["secret query 4", "secret query 3"]);
         const leaked = await pool.query(`SELECT count(*)::int AS n FROM intervu.search_events WHERE doc::text LIKE '%secret%'`);
         assert.equal(leaked.rows[0].n, 0);
+    });
+
+    it("finds every record kept under an account's email for deletion", async () => {
+        await db.collection("contact_messages").add({ email: "Maya@Example.com ", message: "hi" });
+        await db.collection("contact_messages").add({ email: "other@example.com", message: "hi" });
+        await db.collection("connect_waitlist").doc("maya@example.com").set({ email: "maya@example.com", client: "claude" });
+        await db.collection("founding_waitlist").doc("typo@example.com").set({ email: "typo@example.com", uid: "u7" });
+        await db.collection("waitlist").doc("w1").set({ email: "maya@example.com", pack: "50" });
+        const paths = await emailKeyedPaths(db as unknown as Parameters<typeof emailKeyedPaths>[0], "Maya@Example.com ", "u7");
+        assert.deepEqual([...new Set(paths)].map((p) => p.split("/")[0]).sort(), [
+            "connect_waitlist", "contact_messages", "founding_waitlist", "waitlist",
+        ]);
     });
 
     it("still reads rows written before sealing", async () => {

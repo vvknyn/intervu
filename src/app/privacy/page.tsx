@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 8, 2026";
+const LAST_UPDATED = "October 9, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -345,26 +345,27 @@ export default function PrivacyPage() {
           cookie.
         </p>
         <p>
-          That server action removes your Firestore profile and every user-owned collection in our migration manifest
-          (for example applications, résumés, saved searches, prep answers, agent credentials, and email digest
-          state keyed to your account), deletes your WorkOS sign-in record, and — when your sign-in email is a real
-          address, not a synthetic username-only address — runs our identity-forget path: global email suppression
-          for that address, deletion from our PostgreSQL identity store, and deletion of behavioural-ledger rows in
-          PostgreSQL keyed to your WorkOS user id.
+          That server action removes your profile and every user-owned collection in our migration manifest (for
+          example applications, résumés, saved searches, prep answers, agent credentials, and email digest state
+          keyed to your account). When your sign-in email is a real address, not a synthetic username-only address,
+          it also removes contact-form messages and connect, founding-seat, and credit-pack waitlist entries stored
+          under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id, then
+          your WorkOS sign-in record. For a real address it then runs our identity-forget path: global email
+          suppression for that address and deletion from our PostgreSQL identity store.
         </p>
         <p>
           Self-serve account deletion makes no call to PostHog to delete data and does not remove analytics
           events or replay-derived data already stored there. Session replay recordings in PostHog are kept for
           30 days, as described above, then expire under PostHog&apos;s rules. We have not confirmed a fixed
-          retention period for ordinary analytics events or heatmap data in PostHog. It does not remove contact-form messages,
-          connect-waitlist entries, or other records stored only by email without an account id. Anonymous search
+          retention period for ordinary analytics events or heatmap data in PostHog. It does not remove contact-form messages
+          or waitlist entries sent from a different email address than the one you sign in with. Anonymous search
           logs and aggregate statistics are unaffected. Suppression entries for your address stay in place so we do
           not resume email after you leave.
         </p>
         <p>
           We do not offer a separate bulk export or machine-readable download of your stored account data. If you
           need account-held data removed, use self-serve deletion above or email us for help removing waitlist or
-          contact-form records that are not tied to an account.
+          contact-form records sent from another address.
         </p>
 
         <SectionTitle>Your choices</SectionTitle>
