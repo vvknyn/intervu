@@ -69,6 +69,7 @@ supabase/.temp/
 # (npm "prebuild" hook) from openclaw/, never hand-edited.
 /public/install
 /public/intervu-apply-skill.tar.gz
+/public/ocr
 
 # The viewer's WebRTC stack, installed on the user's machine by install.sh.
 openclaw/node_modules/

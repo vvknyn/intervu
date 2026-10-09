@@ -4809,6 +4809,20 @@ export function JobsContent({
             .finally(() => setHubResumeReading(false));
     }, [forYouOpen, forYouPackDeckOpen, user, resume, hubResumeAttempt]);
 
+    // A role opened by an account with a résumé on file: load it, so the role
+    // offers Customize with it instead of asking for an upload it already has
+    // (opened from a typed search, nothing else had loaded it).
+    const detailResumeLoadRef = useRef(false);
+    useEffect(() => {
+        if (!detailJob || !user || resumeOnFile !== true) return;
+        if (resume && resumeIsUsable(resume)) return;
+        if (detailResumeLoadRef.current) return;
+        detailResumeLoadRef.current = true;
+        void resolveUsableResume().then((loaded) => {
+            if (!loaded) detailResumeLoadRef.current = false;
+        });
+    }, [detailJob?.id, user, resumeOnFile, resume]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Today on the packs home: ranked against the résumé once there is a usable one. Signed in it
     // shows without one too (what needs them, and why there are no picks), so a slow or unreadable
     // saved résumé never leaves the page looking like it has none.
@@ -5555,7 +5569,13 @@ export function JobsContent({
                     onRetryDescription={retryDescription}
                     matchScore={matchScores?.get(detailJob.id) ?? undefined}
                     resume={resume}
-                    onUploadResume={() => handleUploadClick()}
+                    onUploadResume={() =>
+                        resumeOnFile === true
+                            ? void resolveUsableResume().then((loaded) => {
+                                  if (!loaded) handleUploadClick();
+                              })
+                            : handleUploadClick()
+                    }
                     onSignInToSync={() => {
                         openAuth("tailor", "user", { originSurface: "job_detail", jobId: detailJob.id });
                     }}

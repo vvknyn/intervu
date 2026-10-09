@@ -1,0 +1,33 @@
+{
+  "id": "accountant-ca",
+  "name": "Priyanka Desai",
+  "title": "Senior Accountant",
+  "location": "Calgary, AB",
+  "experience": [
+    {
+      "title": "Senior Accountant",
+      "company": "Prairie Energy Partners"
+    },
+    {
+      "title": "Staff Accountant",
+      "company": "MNP LLP"
+    }
+  ],
+  "skills": [
+    "Month-End Close",
+    "IFRS",
+    "Consolidation",
+    "Account Reconciliation",
+    "SAP",
+    "Excel",
+    "Audit Support",
+    "Variance Analysis",
+    "Corporate Tax"
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Commerce, Accounting",
+      "school": "University of Calgary"
+    }
+  ]
+}

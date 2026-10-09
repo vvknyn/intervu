@@ -1,0 +1,31 @@
+{
+  "id": "hr-ie",
+  "name": "Siobhan Murphy",
+  "title": "HR Generalist",
+  "location": "Dublin, Ireland",
+  "experience": [
+    {
+      "title": "HR Generalist",
+      "company": "Workday"
+    },
+    {
+      "title": "HR Coordinator",
+      "company": "Accenture"
+    }
+  ],
+  "skills": [
+    "Employee Relations",
+    "Recruitment",
+    "Onboarding",
+    "Payroll",
+    "HRIS",
+    "Irish Employment Law",
+    "Performance Management"
+  ],
+  "education": [
+    {
+      "degree": "BA Human Resource Management",
+      "school": "Dublin City University"
+    }
+  ]
+}

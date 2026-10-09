@@ -32,6 +32,20 @@ test("roleTitlePairQueries: ampersand normalizes like and", () => {
     assert.ok(pairs.includes("director product"));
 });
 
+test("roleTitlePairQueries: the typed title leads the lane when other pairs run it", () => {
+    // The lane is the whole result: without its own pair, "Warehouse Associate"
+    // searched only "junior warehouse" and listed nothing.
+    assert.deepEqual(roleTitlePairQueries("Warehouse Associate"), ["associate warehouse", "junior warehouse"]);
+    assert.deepEqual(roleTitlePairQueries("Sales Associate").slice(0, 1), ["associate sales"]);
+    assert.deepEqual(roleTitlePairQueries("Product Director").slice(0, 1), ["director product"]);
+    assert.deepEqual(roleTitlePairQueries("Junior Developer"), ["junior developer", "associate developer"]);
+});
+
+test("roleTitlePairQueries: a typed title with no other pair leaves the search to the normal path", () => {
+    assert.deepEqual(roleTitlePairQueries("Marketing Intern"), []);
+    assert.equal(shouldRunRoleTitleLane("Marketing Intern", false), false);
+});
+
 test("roleTitlePairQueries: lone director → []", () => {
     assert.deepEqual(roleTitlePairQueries("director"), []);
 });

@@ -94,20 +94,22 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.match(prose, /Input masking is on/i);
   });
 
-  it("replaces the stale résumé-to-OpenRouter paragraph and keeps the PostHog deletion exception", () => {
+  it("replaces the stale résumé-to-OpenRouter paragraph and says what account deletion asks PostHog to delete", () => {
     const prose = privacyArticle().replace(/\s+/g, " ");
     assert.match(prose, /do not send it to a cloud AI to interpret it/);
     assert.match(prose, /Optional models, if you allow a download, run in that browser/);
     assert.match(prose, /We do not keep the original file/);
     assert.match(prose, /we store the structured résumé with that account until you delete the résumé or the account/);
-    assert.match(prose, /It does not delete analytics or replays already stored in PostHog/);
+    assert.match(prose, /asks PostHog to delete the analytics events and replays tied to your account/);
     assert.match(prose, /Strong, Good, and Stretch are calculated from your résumé and each job&apos;s public details/);
     assert.match(prose, /On the website that calculation runs in your browser/);
     assert.match(prose, /A connected assistant can also ask our servers to calculate it from the résumé saved on the account/);
     assert.match(prose, /Finding jobs sends role and skill phrases to our search index, not your full résumé/);
     assert.doesNotMatch(prose, /résumé parsing \(when you upload one\) and résumé tailoring/);
     assert.doesNotMatch(prose, /We use OpenRouter and Groq/);
-    assert.match(prose, /makes no call to PostHog to delete data/);
+    assert.doesNotMatch(prose, /makes no call to PostHog to delete data/);
+    assert.match(prose, /asks PostHog to delete the person tied to your account id/);
+    assert.match(prose, /we do not retry the PostHog request/);
     assert.match(prose, /Interview-prep search parsing can send the search text you typed to OpenRouter/);
     assert.match(prose, /Audio transcription can send a recording to Groq/);
   });

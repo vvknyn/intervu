@@ -1,0 +1,36 @@
+{
+  "id": "teacher-uk",
+  "name": "Hannah Whitfield",
+  "title": "Primary School Teacher",
+  "location": "Manchester, United Kingdom",
+  "experience": [
+    {
+      "title": "Primary School Teacher",
+      "company": "Oakwood Primary School"
+    },
+    {
+      "title": "Teaching Assistant",
+      "company": "St. Anne's Church of England Primary"
+    }
+  ],
+  "skills": [
+    "Lesson Planning",
+    "Phonics",
+    "Classroom Management",
+    "SEN Support",
+    "Safeguarding",
+    "Curriculum Design",
+    "Parent Communication",
+    "Assessment"
+  ],
+  "education": [
+    {
+      "degree": "PGCE Primary Education",
+      "school": "Manchester Metropolitan University"
+    },
+    {
+      "degree": "BA English Literature",
+      "school": "University of Leeds"
+    }
+  ]
+}

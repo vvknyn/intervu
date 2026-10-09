@@ -1,6 +1,7 @@
 import { pdfPageText, type PdfTextItem } from "@/lib/local-ai/pdf-text-lines";
 import { measureResumeLayout, type LayoutPage, type LayoutTextItem } from "@/lib/resume/layout-profile";
 import { rememberResumeLayout } from "@/lib/resume/layout-profile-storage";
+import { ocrPdfInBrowser, type OcrPdfDocument } from "@/lib/local-ai/ocr-pdf";
 
 /**
  * Browser-side résumé text extraction. Founder rule: résumé interpretation
@@ -32,13 +33,20 @@ import { rememberResumeLayout } from "@/lib/resume/layout-profile-storage";
  * browser, and one plain Node (so `node:test`) can't replicate at all.
  */
 
-/** A PDF with no text layer: saved as pictures of its pages (a scan, a photo, or a design tool that outlines its text). */
+/** A PDF with no text layer (pictures of its pages: a scan, a photo, or a design tool that outlines
+ *  its text) whose pictures on-device OCR couldn't read either. */
 export const PDF_NO_TEXT_MESSAGE =
-    "This PDF has no text we can read. It was likely saved as an image (a scan, or a design tool that turns text into pictures). Paste your résumé text instead, or upload it as a Word file.";
+    "This PDF has no text we can read: it's a picture of the page, and the words in it were too unclear to make out. Paste your résumé text instead, or upload it as a Word file.";
+
+export interface PdfExtractOptions {
+    /** Called when the PDF turns out to be pictures of its pages and on-device OCR starts (seconds, not instant). */
+    onReadingScan?: () => void;
+}
 
 export async function extractPDFTextInBrowser(
     buffer: ArrayBuffer,
-): Promise<{ text?: string; error?: string }> {
+    options: PdfExtractOptions = {},
+): Promise<{ text?: string; error?: string; scanned?: boolean }> {
     try {
         const bytes = new Uint8Array(buffer);
         const header = String.fromCharCode(...bytes.slice(0, 5));
@@ -47,6 +55,7 @@ export async function extractPDFTextInBrowser(
         }
 
         let pages: string[];
+        let pdf: OcrPdfDocument | null = null;
         // Every text item as pdf.js reports it, for a page the line joiner reads as empty.
         let itemText = "";
         const layoutPages: LayoutPage[] = [];
@@ -54,10 +63,11 @@ export async function extractPDFTextInBrowser(
             // Page text with each paragraph and bullet on one line, not one
             // line per printed line (pdf-text-lines.ts).
             const { getDocumentProxy } = await import("unpdf");
-            const pdf = await getDocumentProxy(bytes);
+            const doc = await getDocumentProxy(bytes);
+            pdf = doc as unknown as OcrPdfDocument;
             pages = [];
-            for (let n = 1; n <= pdf.numPages; n++) {
-                const page = await pdf.getPage(n);
+            for (let n = 1; n <= doc.numPages; n++) {
+                const page = await doc.getPage(n);
                 const content = await page.getTextContent();
                 const items = content.items as PdfTextItem[];
                 pages.push(pdfPageText(items));
@@ -87,7 +97,17 @@ export async function extractPDFTextInBrowser(
         // can't place still has its words: never call a PDF with text empty.
         if (rawText.trim().length < 20 && itemText.trim().length >= 20) rawText = itemText;
         if (!rawText || rawText.trim().length < 20) {
-            return { error: PDF_NO_TEXT_MESSAGE };
+            // Pictures of pages: read the words off them here, in the browser.
+            if (!pdf || typeof document === "undefined") return { error: PDF_NO_TEXT_MESSAGE };
+            options.onReadingScan?.();
+            let scanText = "";
+            try {
+                scanText = await ocrPdfInBrowser(pdf);
+            } catch {
+                return { error: PDF_NO_TEXT_MESSAGE };
+            }
+            if (scanText.replace(/\s+/g, "").length < 20) return { error: PDF_NO_TEXT_MESSAGE };
+            return { text: scanText, scanned: true };
         }
 
         const cleanedText = rawText

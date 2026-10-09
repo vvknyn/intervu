@@ -1,0 +1,30 @@
+Jonas Becker
+Data Scientist
+CONTACT
+Berlin, Germany
+jonas.becker@example.com
++49 30 23125 456
+SKILLS & TOOLS
+Python
+SQL
+pandas
+scikit-learn
+Forecasting
+A/B Testing
+Looker
+Statistics
+Spark
+ACADEMIC BACKGROUND
+M.Sc. Statistics
+Humboldt University of Berlin
+2017
+ABOUT ME
+Data scientist building demand forecasts and pricing models for e-commerce.
+CAREER HISTORY
+Data Scientist
+Zalando SE, Berlin · 04/2020 – Present
+Built demand forecasting models in Python that cut overstock by 12%.
+Ran pricing experiments and reported results to category leads.
+Data Analyst
+N26, Berlin · 10/2017 – 03/2020
+Wrote SQL dashboards in Looker for the growth team.

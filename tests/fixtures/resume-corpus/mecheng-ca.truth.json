@@ -1,0 +1,31 @@
+{
+  "id": "mecheng-ca",
+  "name": "Wei Zhang",
+  "title": "Mechanical Engineer",
+  "location": "Waterloo, ON",
+  "experience": [
+    {
+      "title": "Mechanical Engineer",
+      "company": "Christie Digital"
+    },
+    {
+      "title": "Mechanical Engineering Co-op",
+      "company": "BlackBerry QNX"
+    }
+  ],
+  "skills": [
+    "SolidWorks",
+    "GD&T",
+    "Thermal Analysis",
+    "ANSYS",
+    "Prototyping",
+    "MATLAB",
+    "Design for Manufacturing"
+  ],
+  "education": [
+    {
+      "degree": "BASc Mechanical Engineering",
+      "school": "University of Waterloo"
+    }
+  ]
+}

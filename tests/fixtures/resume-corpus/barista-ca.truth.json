@@ -1,0 +1,30 @@
+{
+  "id": "barista-ca",
+  "name": "Chloe Tremblay",
+  "title": "Shift Supervisor",
+  "location": "Vancouver, BC",
+  "experience": [
+    {
+      "title": "Shift Supervisor",
+      "company": "Bean Around the World"
+    },
+    {
+      "title": "Barista",
+      "company": "Starbucks"
+    }
+  ],
+  "skills": [
+    "Customer Service",
+    "Espresso Preparation",
+    "Cash Handling",
+    "Team Leadership",
+    "Inventory Ordering",
+    "Food Safe"
+  ],
+  "education": [
+    {
+      "degree": "Diploma in Hospitality Management",
+      "school": "Vancouver Community College"
+    }
+  ]
+}

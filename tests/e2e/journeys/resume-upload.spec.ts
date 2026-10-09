@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
@@ -20,6 +20,12 @@ import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 const WORD = path.join(__dirname, "../../fixtures/resume-word/maya-okonkwo.docx");
 // The same résumé saved as PDF by LibreOffice: embedded subset fonts, a real text layer.
 const WORD_PDF = path.join(__dirname, "../../fixtures/resume-word/maya-okonkwo.pdf");
+
+// Invented people (tests/fixtures/resume-corpus): a warehouse worker's résumé saved as pictures of
+// its page, no text layer at all; an accountant's in a two-column template, with contact, skills
+// and school down a sidebar.
+const SCAN = path.join(__dirname, "../../fixtures/resume-corpus/pdf/warehouse-ca.scan.pdf");
+const TWO_COLUMN = path.join(__dirname, "../../fixtures/resume-corpus/pdf/accountant-ca.two-column.pdf");
 
 // One job, a headline from it, no skills section: the quick read scores 74.
 const PARTLY_READ = `Priya Raman
@@ -61,6 +67,9 @@ const hangingModel = (page: Page) =>
       create: async () => ({ prompt: () => new Promise<string>(() => {}) }),
     };
   });
+
+/** Every matching field's value, in order. */
+const valuesOf = (fields: Locator) => fields.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
 
 /** Counts every request for model weights, so a test can prove none was made. */
 function watchModelDownloads(page: Page): string[] {
@@ -142,10 +151,58 @@ test("A PDF with no text says so where the person is looking, offers Paste the t
 
   await dialog.getByTestId("resume-import-parse-primary").click();
   const alert = dialog.getByRole("alert");
-  await expect(alert).toContainText("This PDF has no text we can read.");
+  // After trying to read the page as a picture, on this device.
+  await expect(alert).toContainText("This PDF has no text we can read", { timeout: 45_000 });
   await alert.getByTestId("resume-import-paste-instead").click();
   await expect(dialog.locator("#resume-text")).toBeVisible();
   await expect(dialog.getByRole("alert")).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("A scanned résumé, pictures of its pages with no text layer, is read on this device into review with both jobs and the school, from Velai's own files", { tag: ["@J-RESUME-47"] }, async ({ page, diagnostics, baseURL }) => {
+  test.setTimeout(90_000);
+  // 2026-10-09: a scan, a phone photo saved as PDF or a design tool's outlined text got
+  // "This PDF has no text we can read" and the person had to type their résumé in.
+  const elsewhere: string[] = [];
+  page.on("request", (req) => {
+    if (/tesseract|traineddata/i.test(req.url()) && !req.url().startsWith(baseURL ?? "")) elsewhere.push(req.url());
+  });
+  const downloads = watchModelDownloads(page);
+  const dialog = await openImporter(page);
+  await dialog.locator('input[type="file"]').setInputFiles(SCAN);
+  await dialog.getByTestId("resume-import-parse-primary").click();
+
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeVisible({ timeout: 60_000 });
+  await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Kwame Mensah");
+  await expect(dialog.getByLabel("Job title", { exact: true })).toHaveValue("Warehouse Associate");
+  const roles = dialog.getByPlaceholder("Role");
+  await expect(roles).toHaveCount(2);
+  await expect(roles.nth(1)).toHaveValue("General Labourer");
+  await expect(dialog.getByPlaceholder("Company").nth(1)).toHaveValue(/^Peel Packaging/);
+  await expect(dialog.getByPlaceholder("Institution").first()).toHaveValue("Cawthra Park Secondary School");
+  await expect(dialog.getByTestId("resume-import-missing")).toHaveCount(0);
+  const confirm = dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last();
+  await expect(confirm).toBeEnabled();
+  expect(elsewhere, "OCR files only from our own origin").toEqual([]);
+  expect(downloads, "no model weights fetched").toEqual([]);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("A two-column résumé PDF (contact, skills and school down a sidebar) reads both jobs with their employers and the school whole", { tag: ["@J-RESUME-48"] }, async ({ page, diagnostics }) => {
+  // 2026-10-09: the second job came back as "MNP LLP @ Calgary" with its title stuck to the
+  // job above, and "Bachelor of Commerce," / "Accounting" down the sidebar as two schools.
+  const dialog = await openImporter(page);
+  await dialog.locator('input[type="file"]').setInputFiles(TWO_COLUMN);
+  await dialog.getByTestId("resume-import-parse-primary").click();
+
+  await expect(dialog.getByRole("button", { name: "Back" })).toBeVisible({ timeout: 15_000 });
+  await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Priyanka Desai");
+  await expect(dialog.getByLabel("Job title", { exact: true })).toHaveValue("Senior Accountant");
+  expect(await valuesOf(dialog.getByPlaceholder("Role"))).toEqual(["Senior Accountant", "Staff Accountant"]);
+  expect(await valuesOf(dialog.getByPlaceholder("Company"))).toEqual(["Prairie Energy Partners", "MNP LLP"]);
+  expect(await valuesOf(dialog.getByPlaceholder("Degree"))).toEqual(["Bachelor of Commerce, Accounting"]);
+  expect(await valuesOf(dialog.getByPlaceholder("Institution"))).toEqual(["University of Calgary"]);
+  await expect(dialog.getByTestId("resume-import-missing")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

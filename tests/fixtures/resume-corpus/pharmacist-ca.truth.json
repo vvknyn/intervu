@@ -1,0 +1,30 @@
+{
+  "id": "pharmacist-ca",
+  "name": "Émilie Côté",
+  "title": "Pharmacist",
+  "location": "Montréal, QC",
+  "experience": [
+    {
+      "title": "Pharmacist",
+      "company": "Jean Coutu"
+    },
+    {
+      "title": "Pharmacy Intern",
+      "company": "CHUM"
+    }
+  ],
+  "skills": [
+    "Dispensing",
+    "Medication Review",
+    "Patient Counselling",
+    "Drug Interactions",
+    "Immunization",
+    "Kroll"
+  ],
+  "education": [
+    {
+      "degree": "Doctor of Pharmacy (Pharm.D.)",
+      "school": "Université de Montréal"
+    }
+  ]
+}

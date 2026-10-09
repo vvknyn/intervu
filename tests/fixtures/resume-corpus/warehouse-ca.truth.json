@@ -1,0 +1,30 @@
+{
+  "id": "warehouse-ca",
+  "name": "Kwame Mensah",
+  "title": "Warehouse Associate",
+  "location": "Mississauga, ON",
+  "experience": [
+    {
+      "title": "Warehouse Associate",
+      "company": "Amazon Fulfillment Centre YYZ4"
+    },
+    {
+      "title": "General Labourer",
+      "company": "Peel Packaging"
+    }
+  ],
+  "skills": [
+    "Forklift Operation",
+    "Order Picking",
+    "Shipping and Receiving",
+    "RF Scanners",
+    "Inventory Counts",
+    "WHMIS"
+  ],
+  "education": [
+    {
+      "degree": "Ontario Secondary School Diploma",
+      "school": "Cawthra Park Secondary School"
+    }
+  ]
+}

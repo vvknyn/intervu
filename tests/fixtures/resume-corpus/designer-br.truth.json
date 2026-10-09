@@ -1,0 +1,31 @@
+{
+  "id": "designer-br",
+  "name": "João Ribeiro",
+  "title": "Graphic Designer",
+  "location": "São Paulo, Brazil",
+  "experience": [
+    {
+      "title": "Graphic Designer",
+      "company": "Natura &Co"
+    },
+    {
+      "title": "Junior Designer",
+      "company": "Agência Pólen"
+    }
+  ],
+  "skills": [
+    "Adobe Illustrator",
+    "Photoshop",
+    "InDesign",
+    "Figma",
+    "Brand Identity",
+    "Packaging Design",
+    "Typography"
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Design",
+      "school": "Universidade de São Paulo"
+    }
+  ]
+}

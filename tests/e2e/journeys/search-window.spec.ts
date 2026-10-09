@@ -8,8 +8,9 @@ import { isListSearch } from "./list-search";
  * Journeys for what a typed search reaches and in what order (2026-09-30):
  * the 90-day posted default (J-JOBS-04, J-FILT-02, J-FILT-25, J-FILT-26), the
  * IP-country default's remote-anywhere rule (J-SRCH-22), newer first among
- * equally matching roles (J-SRCH-23), and the job page's "checked" date
- * (J-DETAIL-40). See tests/journeys/CATALOG.md. Read-only.
+ * equally matching roles (J-SRCH-23), an entry-level title such as "Sales
+ * Associate" listing that title (J-SRCH-34), and the job page's "checked"
+ * date (J-DETAIL-40). See tests/journeys/CATALOG.md. Read-only.
  *
  * Every data-dependent journey reads live results and skips, saying why,
  * when the data it needs is not there — never a pinned id or date.
@@ -251,6 +252,21 @@ test("among equally matching roles, the newer posting comes first", { tag: ["@J-
   }
   test.skip(pairs === 0, "no two rows on page 1 share a title");
   expect(outOfOrder).toEqual([]);
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("a search for an entry-level title such as Sales Associate lists roles with that title", { tag: ["@J-SRCH-34"] }, async ({ page, diagnostics }) => {
+  // "Associate" is a seniority word, so the search looks in titles for the
+  // title's pairs ("associate sales", "junior sales") and lists only what
+  // they find. It once left out the pair that is the typed title itself and
+  // listed nothing for "Sales Associate" or "Warehouse Associate", which
+  // also left a warehouse résumé with no ranked jobs.
+  const result = await typedSearch(page, "sales associate");
+  expect(result?.hits.length ?? 0, "rows for a typed \"sales associate\"").toBeGreaterThan(0);
+  const titled = result!.hits.filter((h) => /\bsales\b/i.test(h.title) && /\bassociate\b/i.test(h.title));
+  expect(titled.length, `Sales Associate titles in ${JSON.stringify(result!.hits.slice(0, 5).map((h) => h.title))}`).toBeGreaterThan(0);
+  await expect(page.getByTestId("search-empty-results")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

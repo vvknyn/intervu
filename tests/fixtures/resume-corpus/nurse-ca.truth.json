@@ -1,0 +1,33 @@
+{
+  "id": "nurse-ca",
+  "name": "Daniela Ortiz",
+  "title": "Registered Nurse",
+  "location": "Toronto, ON, Canada",
+  "experience": [
+    {
+      "title": "Registered Nurse, Emergency Department",
+      "company": "Humber River Health"
+    },
+    {
+      "title": "Registered Nurse, Medical-Surgical",
+      "company": "St. Michael's Hospital"
+    }
+  ],
+  "skills": [
+    "Patient Assessment",
+    "Triage",
+    "IV Therapy",
+    "Wound Care",
+    "Medication Administration",
+    "Epic",
+    "BLS",
+    "ACLS",
+    "Patient Education"
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Nursing",
+      "school": "Toronto Metropolitan University"
+    }
+  ]
+}
