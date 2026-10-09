@@ -328,6 +328,17 @@ test.describe("signed in (dev-server only)", () => {
     await expect(page.getByTestId("today-home")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Add your résumé", { exact: true })).toHaveCount(0);
   });
+
+  test("A role opened from a typed search offers Customize with the résumé on file, not an upload", { tag: ["@J-RESUME-49"] }, async ({ page }) => {
+    // Nothing on a typed search had loaded the saved résumé, so the role asked
+    // an account that has one to "Upload résumé to customize" (validation, 2026-10-09).
+    await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
+    await page.goto("/jobs?view=search&q=engineer");
+    await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
+
+    await expect(page.locator('[data-testid="local-customize-open"]:visible').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('[data-testid="job-detail-upload-to-customize"]:visible')).toHaveCount(0);
+  });
 });
 
 /** A name no other request carries, so the account save is the request that names it. */

@@ -27,7 +27,7 @@ const STAGES = [
   { key: "search", label: "Search, filters and results", areas: ["SRCH", "FILT", "SPEED"],
     ids: ["JOBS:4-8", "JOBS:14-18", "JOBS:26", "JOBS:28", "JOBS:67-74", "MOB:2", "MOB:11-13", "MOB:20-21", "MOB:25-27"] },
   { key: "upload", label: "Résumé upload and top matches",
-    ids: ["JOBS:34-36", "JOBS:54", "JOBS:56-57", "JOBS:59", "JOBS:61", "JOBS:76-78", "JOBS:90-91", "JOBS:93", "JOBS:103", "JOBS:107", "RESUME:8", "RESUME:28-29", "RESUME:40-44", "RESUME:46-48", "MODAL:1", "AUTH:31-33"] },
+    ids: ["JOBS:34-36", "JOBS:54", "JOBS:56-57", "JOBS:59", "JOBS:61", "JOBS:76-78", "JOBS:90-91", "JOBS:93", "JOBS:103", "JOBS:107", "RESUME:8", "RESUME:28-29", "RESUME:40-44", "RESUME:46-49", "MODAL:1", "AUTH:31-33"] },
   { key: "foryou", label: "For you: job packs",
     ids: ["JOBS:19-20", "JOBS:27", "JOBS:31", "JOBS:37-52", "JOBS:80", "JOBS:92", "JOBS:94", "JOBS:96-102", "JOBS:105-106", "JOBS:108-113", "NAV:30-32"] },
   { key: "detail", label: "Job detail: pane, sheet, page", areas: ["DETAIL"],
