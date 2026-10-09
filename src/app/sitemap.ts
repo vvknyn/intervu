@@ -72,12 +72,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // SUBSET of what the page considers indexable, never a superset.
   // Under-listing a page that a crawler can still reach through `/jobs` is
   // recoverable; over-listing empty pages is the thing #171 fixed.
-  // One entry per blog post, dated by when it was published.
+  // One entry per blog post, dated by when it was published, with its
+  // pictures so image search can find them.
   const blogEntries: MetadataRoute.Sitemap = BLOG_POSTS.map((post) => ({
     url: `${siteUrl}${blogPostPath(post.slug)}`,
     lastModified: new Date(`${post.datePublished}T00:00:00Z`),
     changeFrequency: "monthly",
     priority: 0.5,
+    images: Object.keys(post.images).map((src) => `${siteUrl}${src}`),
   }));
 
   const indexableDomains = await fetchIndexableCompanyDomains();
