@@ -121,19 +121,24 @@ export default function PrivacyPage() {
         </p>
         <p>
           Once you&apos;re using Velai, we store the things you create: your tracked applications, saved résumés,
-          saved searches, and prep answers. This data lives in Google Cloud Firestore and is only
-          ever accessed by our servers — never exposed directly to the browser or to other users.
+          saved searches, and prep answers. This data lives in a PostgreSQL database we run on our own servers.
+          Each record is encrypted with AES-256 under a key only we hold before it is stored, so the database holds
+          those records only in encrypted form, and so do the backups taken since the move; older backups expire on
+          their normal schedule. A few values we have to look records up by, such as a sign-in username or an
+          email, are kept as keyed hashes that can be matched but not read back. Your data is only ever accessed by
+          our servers — never exposed directly to the browser or to other users. Until October 2026 this data was
+          held in Google Cloud Firestore; it has been moved here, and the copy in Firestore is being deleted.
         </p>
         <p>
           We also keep a record of what you do while searching: the searches you run (including the text of what
           you typed), which job postings come up, and which ones you click, open, save, or apply
           to. If you&apos;re signed in, we tie this to your account and build a profile of your search
-          activity over time — what you&apos;re looking for, and what you actually respond to. Today this sits in
-          Google Cloud Firestore, alongside the rest of your account data. We&apos;re moving it onto a
-          PostgreSQL database we run on our own servers.
+          activity over time — what you&apos;re looking for, and what you actually respond to. It is stored and
+          encrypted the same way as the rest of your account data. Search records made before the move were not
+          copied; they stay in Firestore only until it is emptied.
         </p>
         <p className="text-xs text-muted-foreground">
-          For reference, the kinds of Google Cloud Firestore data these storage claims cover today include:
+          For reference, the kinds of account data these storage claims cover include:
         </p>
         <ul className="list-disc pl-5 text-xs text-muted-foreground">
           {FIRESTORE_STORAGE_CATEGORIES.map((category) => (
@@ -208,7 +213,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you have an account, we store the structured résumé with that account until you delete the résumé or
-          the account. Deleting the account removes that copy from our database and asks PostHog to delete the
+          the account. Deleting the account deletes that copy from our database; backups that still hold it, in
+          encrypted form, expire on their normal schedule. Deleting the account also asks PostHog to delete the
           analytics events and replays tied to your account.
         </p>
         <p>
@@ -324,15 +330,15 @@ export default function PrivacyPage() {
           You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
           or published a single home region for every data store behind Velai. PostHog product analytics are
           processed in the United States — our app is configured to use PostHog&apos;s US cloud (
-          <code className="text-xs text-foreground">us.posthog.com</code>). Other processing — including account data in Google
-          Cloud Firestore, search indexes, email delivery, sign-in through WorkOS, and databases we operate — may
+          <code className="text-xs text-foreground">us.posthog.com</code>). Other processing — including the databases we
+          operate, which hold your account data, search indexes, email delivery, and sign-in through WorkOS — may
           run outside your country, including in the United States, without us naming a region we have not
           confirmed in configuration.
         </p>
 
         <SectionTitle>Retention &amp; deletion</SectionTitle>
         <p>
-          We keep your account data for as long as your account is active. Search-activity records in Firestore —
+          We keep your account data for as long as your account is active. Search-activity records —
           which searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep
           only aggregate statistics that no longer identify you. The behavioural analytics ledger described above
           follows the same 90-day deletion window. PostHog session replays are retained for 30 days in PostHog.
