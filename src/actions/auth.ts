@@ -3,8 +3,9 @@
 import { after } from "next/server";
 import type { User } from "@workos-inc/node";
 import { getServerUser } from "@/lib/auth/server-user";
-import { getAdminDb } from "@/lib/firebase/admin";
-import { runUserDataPlan } from "@/lib/db/user-data";
+import { deleteLegacyFirebaseUser, getAdminDb } from "@/lib/firebase/admin";
+import { deletePosthogPerson, eraseAccount, storeEraseDeps } from "@/lib/account/erase-account";
+import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
@@ -327,7 +328,9 @@ export async function confirmPasswordResetAction(
 /**
  * Close the account and remove everything it owns.
  *
- * WHICH collections comes from `MIGRATION_MANIFEST` via `runUserDataPlan`,
+ * What gets erased, and in what order, lives in `eraseAccount`
+ * (lib/account/erase-account.ts). WHICH collections comes from
+ * `MIGRATION_MANIFEST` via `runUserDataPlan`,
  * never from a list kept here. The literal list this replaced named nine
  * collections and reached them only by a `user_id` field or the profile doc
  * id, so closing an account left behind every saved resume version
@@ -362,29 +365,28 @@ export async function deleteAccount(): Promise<{ error?: string }> {
 
     try {
         const db = getAdminDb();
-        const uid = user.uid;
-
-        const owned = await runUserDataPlan(uid, db);
-        const paths = Object.values(owned).flatMap((docs) => docs.map((d) => d.path));
-
-        // 500 writes is Firestore's hard limit for one commit.
-        for (let i = 0; i < paths.length; i += 500) {
-            const batch = db.batch();
-            for (const path of paths.slice(i, i + 500)) batch.delete(db.doc(path));
-            await batch.commit();
-        }
-
-        const userManagement = await getWorkosUserManagement();
-        const workosUserId = await resolveWorkosUserId(
-            (externalId) => userManagement.getUserByExternalId(externalId),
-            uid,
+        const telemetryPg = getTelemetryForgetPg();
+        await eraseAccount(
+            { uid: user.uid, email: user.email && !isMintedLoginEmail(user.email) ? user.email : null },
+            {
+                ...storeEraseDeps(db),
+                deleteTelemetry: async (uid) => (telemetryPg ? deleteTelemetryByUserId(telemetryPg, uid) : 0),
+                deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
+                deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
+                async deleteSignIn(uid) {
+                    const userManagement = await getWorkosUserManagement();
+                    const workosUserId = await resolveWorkosUserId(
+                        (externalId) => userManagement.getUserByExternalId(externalId),
+                        uid,
+                    );
+                    await userManagement.deleteUser(workosUserId);
+                },
+                // The ledger rows went by uid above; WorkOS no longer knows the
+                // address by now, so forgetIdentity's own lookup would find nobody.
+                forgetEmail: (email) => forgetIdentity(getIntervuPg(), null, email),
+                logError: (message, error) => console.error(message, error),
+            },
         );
-        await userManagement.deleteUser(workosUserId);
-
-        if (user.email && !isMintedLoginEmail(user.email)) {
-            await forgetIdentity(getIntervuPg(), getTelemetryForgetPg(), user.email);
-        }
-
         return {};
     } catch (error) {
         console.error("[Auth] Delete account error:", error);

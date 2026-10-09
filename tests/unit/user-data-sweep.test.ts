@@ -114,13 +114,14 @@ describe("user data sweep", () => {
     });
 
     // Firestore first, Auth last: once the Auth user is gone a failed sweep
-    // can never be retried, because nobody can sign in as them again.
-    it("deletes the Auth user only after the Firestore sweep", () => {
+    // can never be retried, because nobody can sign in as them again. The
+    // order itself is tested on eraseAccount (erase-account.test.ts); this
+    // pins that deleteAccount goes through it with the manifest sweep.
+    it("deletes the Auth user only through eraseAccount, after the sweep", () => {
         const src = read("src/actions/auth.ts");
         const body = src.slice(src.indexOf("export async function deleteAccount"));
-        const sweep = body.indexOf("runUserDataPlan");
-        const authDelete = body.indexOf("deleteUser(");
-        assert.ok(sweep > -1 && authDelete > -1, "both steps must be present");
-        assert.ok(sweep < authDelete, "deleteUser must come after the Firestore sweep");
+        assert.match(body, /eraseAccount\(/);
+        assert.match(body, /storeEraseDeps\(db\)/);
+        assert.match(read("src/lib/account/erase-account.ts"), /runUserDataPlan\(uid, db\)/);
     });
 });

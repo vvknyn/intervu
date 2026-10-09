@@ -1,4 +1,5 @@
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 
 import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
@@ -60,4 +61,20 @@ export function getFirestoreDb(): Firestore {
         adminDb = getFirestore(getAdminApp());
     }
     return adminDb;
+}
+
+/**
+ * Deletes the Firebase Authentication record left from before sign-in moved
+ * to WorkOS: scripts/migrate-firebase-to-workos.ts copied each account and
+ * never removed the original, which still holds the email. The uid is the
+ * same one WorkOS keeps as externalId. False when there is none.
+ */
+export async function deleteLegacyFirebaseUser(uid: string): Promise<boolean> {
+    try {
+        await getAuth(getAdminApp()).deleteUser(uid);
+        return true;
+    } catch (error) {
+        if ((error as { code?: unknown }).code === "auth/user-not-found") return false;
+        throw error;
+    }
 }
