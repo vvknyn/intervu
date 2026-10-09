@@ -20,7 +20,9 @@
  *  2. Collections already live on Postgres (AGENT_PG_LIVE_COLLECTIONS) are
  *     NOT copied from Firestore, whose copy is stale; their plain rows are
  *     resealed in place, but only once DATA_STORE=postgres is live, because
- *     until then the app reads them unsealed.
+ *     until then the app reads them unsealed. Collections named in
+ *     FIRESTORE_EXIT_SKIP (the anonymous search logs, to stay inside the free
+ *     plan's daily reads) are handled the same way and never read at all.
  *  3. Deletes rows Firestore no longer has: the old plain one-off copy of
  *     since-deleted documents, and plain rows at email paths now stored
  *     hashed. This is what makes the copy match, so it is part of --apply.

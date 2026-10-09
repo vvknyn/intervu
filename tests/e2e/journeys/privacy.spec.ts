@@ -24,3 +24,14 @@ test("the privacy policy says account deletion also erases records kept under yo
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("the privacy policy says account data is encrypted in our own database, not kept in Firestore", { tag: ["@J-CONTENT-31"] }, async ({ page, diagnostics }) => {
+  await page.goto("/privacy");
+  const article = page.locator("article").first();
+  await expect(article).toContainText("This data lives in a PostgreSQL database we run on our own servers.");
+  await expect(article).toContainText("Each record is encrypted with AES-256 under a key only we hold before it is stored");
+  await expect(article).not.toContainText("This data lives in Google Cloud Firestore");
+  await expect(article).not.toContainText("We're moving it onto a PostgreSQL database");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});

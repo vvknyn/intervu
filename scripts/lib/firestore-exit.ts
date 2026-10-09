@@ -60,7 +60,15 @@ export function plainData(snap: DocumentSnapshot): DocData {
 
 export async function inventoryFirestore(fs: Firestore, log: (line: string) => void): Promise<FirestoreInventory> {
     const known = new Map<string, SourceDoc[]>();
+    const notRead = pgSourcedCollections();
     for (const spec of MIGRATION_MANIFEST as readonly CollectionSpec[]) {
+        // Every document read counts against Firestore's daily quota, and
+        // these collections' Firestore copies are never used.
+        if (notRead.has(spec.collection)) {
+            log(`  ${spec.collection}: not read from Firestore (Postgres-live or left behind)`);
+            known.set(spec.collection, []);
+            continue;
+        }
         const query = spec.subcollectionOf ? fs.collectionGroup(spec.collection) : fs.collection(spec.collection);
         const snap = await query.get();
         known.set(
@@ -114,13 +122,28 @@ export function appReadsSealedStore(): boolean {
     return process.env.DATA_STORE === "postgres";
 }
 
+function envList(name: string): string[] {
+    return (process.env[name] ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+/**
+ * Collections left behind in Firestore (FIRESTORE_EXIT_SKIP, comma-separated):
+ * the anonymous search logs, which are most of Firestore's documents, so the
+ * copy fits the free plan's 50,000 reads a day. Vivek chose to lose them
+ * (2026-10-09). They are not read, copied or compared; rows Postgres already
+ * holds for them are handled like Postgres-live rows below.
+ */
+export function skippedCollections(): Set<string> {
+    return new Set(envList("FIRESTORE_EXIT_SKIP"));
+}
+
+/** Collections whose Postgres rows are the ones kept: Postgres-live ones and
+ *  the ones left behind. Never read from Firestore, never pruned. */
 export function pgSourcedCollections(): Set<string> {
-    return new Set(
-        (process.env.AGENT_PG_LIVE_COLLECTIONS ?? "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-    );
+    return new Set([...envList("AGENT_PG_LIVE_COLLECTIONS"), ...skippedCollections()]);
 }
 
 export interface TableCheck {
@@ -245,7 +268,7 @@ export async function copyAll(
                     enc.sealed,
                 ]);
             }
-            log(`  ${collection}: resealed ${rows.length} rows in place (live on Postgres; Firestore copy ignored)`);
+            log(`  ${collection}: resealed ${rows.length} rows in place (Postgres copy kept; Firestore copy ignored)`);
             continue;
         }
 

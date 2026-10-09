@@ -36,8 +36,17 @@ interface ArticleJsonLd {
   dateModified: string;
   description?: string;
   url: string;
-  publisher: { "@type": "Organization"; name: string; url: string };
+  image?: string[];
+  author?: { "@type": "Person"; name: string; jobTitle?: string };
+  inLanguage: "en";
+  publisher: { "@type": "Organization"; name: string; url: string; logo: { "@type": "ImageObject"; url: string } };
   mainEntityOfPage: { "@type": "WebPage"; "@id": string };
+}
+
+interface BreadcrumbJsonLd {
+  "@context": "https://schema.org";
+  "@type": "BreadcrumbList";
+  itemListElement: { "@type": "ListItem"; position: number; name: string; item: string }[];
 }
 
 interface WebsiteJsonLd {
@@ -158,6 +167,9 @@ export interface ArticleJsonLdInput {
   description?: string | null;
   /** Path relative to the site origin, e.g. "/research/ghost-jobs". */
   path: string;
+  /** Site path of the article's main picture, e.g. "/blog/x/cover.png". */
+  image?: string;
+  author?: { name: string; jobTitle?: string };
 }
 
 export function buildArticleJsonLd(input: ArticleJsonLdInput): ArticleJsonLd {
@@ -171,8 +183,31 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): ArticleJsonLd {
     dateModified: input.dateModified ?? input.datePublished,
     ...(input.description ? { description: input.description } : {}),
     url,
-    publisher: { "@type": "Organization", name: SITE_NAME, url: siteUrl },
+    ...(input.image ? { image: [`${siteUrl}${input.image}`] } : {}),
+    ...(input.author ? { author: { "@type": "Person", ...input.author } } : {}),
+    inLanguage: "en",
+    publisher: {
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: siteUrl,
+      logo: { "@type": "ImageObject", url: `${siteUrl}/icon-512.png` },
+    },
     mainEntityOfPage: { "@type": "WebPage", "@id": url },
+  };
+}
+
+/** Breadcrumb trail for search results ("velai.app › Blog › Post"). `path`s are site paths. */
+export function buildBreadcrumbJsonLd(items: { name: string; path: string }[]): BreadcrumbJsonLd {
+  const siteUrl = getSiteUrl();
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: `${siteUrl}${item.path}`,
+    })),
   };
 }
 

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   buildArticleJsonLd,
+  buildBreadcrumbJsonLd,
   buildCompanyFaqItems,
   buildCompanyOrganizationJsonLd,
   buildFaqPageJsonLd,
@@ -105,6 +106,33 @@ describe("seo/jsonld", () => {
     });
     assert.equal(jsonLd.dateModified, "2026-08-01");
     assert.equal(jsonLd.description, "A description.");
+  });
+
+  it("buildArticleJsonLd makes the picture absolute and names the author as a person", () => {
+    const jsonLd = buildArticleJsonLd({
+      headline: "Headline",
+      datePublished: "2026-10-09",
+      path: "/blog/x",
+      image: "/blog/x/cover.png",
+      author: { name: "Vivek", jobTitle: "founder of Velai" },
+    });
+    assert.deepEqual(jsonLd.image, [`${ORIGIN}/blog/x/cover.png`]);
+    assert.deepEqual(jsonLd.author, { "@type": "Person", name: "Vivek", jobTitle: "founder of Velai" });
+    assert.equal(jsonLd.publisher.logo.url, `${ORIGIN}/icon-512.png`);
+  });
+
+  it("buildBreadcrumbJsonLd numbers each step from 1 with absolute URLs", () => {
+    const jsonLd = buildBreadcrumbJsonLd([
+      { name: "Blog", path: "/blog" },
+      { name: "Post", path: "/blog/x" },
+    ]);
+    assert.deepEqual(
+      jsonLd.itemListElement.map((i) => [i.position, i.name, i.item]),
+      [
+        [1, "Blog", `${ORIGIN}/blog`],
+        [2, "Post", `${ORIGIN}/blog/x`],
+      ],
+    );
   });
 
   it("buildWebsiteJsonLd points its SearchAction at the jobs search root", () => {
