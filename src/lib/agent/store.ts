@@ -278,6 +278,11 @@ export function postgresStore(pg: Queryable): AgentStore {
  * rollback. No second code change or redeploy either way.
  */
 function pgLiveCollections(): ReadonlySet<string> {
+    // DATA_STORE=postgres moves ALL account data, agent collections included,
+    // into the sealed store behind getAdminDb() (firestoreStore() below reads
+    // through it). The plain-JSON postgresStore would then write unsealed
+    // rows into the same tables, so it is retired by that switch.
+    if (process.env.DATA_STORE?.trim().toLowerCase() === "postgres") return new Set();
     const raw = process.env.AGENT_PG_LIVE_COLLECTIONS ?? "";
     return new Set(
         raw

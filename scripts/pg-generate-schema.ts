@@ -37,6 +37,10 @@ function ddlFor(spec: CollectionSpec): string {
         // Provenance for re-runs; the copy is idempotent and this records
         // when a row was last refreshed, not when the document was created.
         `    copied_at   timestamptz NOT NULL DEFAULT now()`,
+        // The whole document, AES-256-GCM (src/lib/db/docstore/seal.ts).
+        // Once sealed, `doc` keeps only the lookup fields layout.ts allows.
+        // NULL only on rows written before sealing, which the copy reseals.
+        `    sealed      text`,
     ];
 
     if (spec.subcollectionOf) {
@@ -56,6 +60,8 @@ function ddlFor(spec: CollectionSpec): string {
     lines.push(`CREATE TABLE IF NOT EXISTS ${table(spec)} (`);
     lines.push(cols.join(",\n"));
     lines.push(`);`);
+    // Tables created before sealing existed get the column too.
+    lines.push(`ALTER TABLE ${table(spec)} ADD COLUMN IF NOT EXISTS sealed text;`);
 
     const indexTargets = [
         ...(spec.subcollectionOf ? [{ column: "uid", unique: false }] : []),
@@ -81,13 +87,24 @@ const header = `-- GENERATED FILE — do not edit by hand.
 -- no DROP and no DELETE. Firebase Auth is unaffected — uid remains the key
 -- and continues to come from Firebase.
 --
--- Every table is: path (Firestore document path) as the primary key, doc
--- (the whole document) as jsonb, and generated columns derived from doc, so
--- an indexed column can never disagree with the document it came from.
+-- Every table is: path (Firestore document path) as the primary key, sealed
+-- (the whole document, AES-256-GCM), doc (only the lookup fields that may
+-- stay readable, src/lib/db/docstore/layout.ts) as jsonb, and generated
+-- columns derived from doc.
 
 BEGIN;
 
 CREATE SCHEMA IF NOT EXISTS ${q(INTERVU_SCHEMA)};
+`;
+
+const legacy = `-- Documents from Firestore collections no code mentions any more, copied so
+-- the wipe can't destroy forgotten data. Keyed by a keyed hash of the
+-- original path (an id may be an email); never read by the app.
+CREATE TABLE IF NOT EXISTS ${q(INTERVU_SCHEMA)}.${q("legacy_docs")} (
+    path        text PRIMARY KEY,
+    sealed      text NOT NULL,
+    copied_at   timestamptz NOT NULL DEFAULT now()
+);
 `;
 
 const footer = `
@@ -104,7 +121,7 @@ COMMIT;
 `;
 
 const body = MIGRATION_MANIFEST.map(ddlFor).join("\n\n");
-const sql = `${header}\n${body}\n${footer}`;
+const sql = `${header}\n${body}\n\n${legacy}${footer}`;
 
 const here = __dirname;
 const out = join(here, "..", "deploy", "db-box", "intervu-schema.sql");
