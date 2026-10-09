@@ -36,19 +36,10 @@ import { Pool } from "pg";
 
 import { getFirestoreDb } from "../src/lib/firebase/admin";
 import { createPgDocDb } from "../src/lib/db/docstore/pg-docstore";
-import { docKeysFromEnv, seal } from "../src/lib/db/docstore/seal";
-import { layoutOf } from "../src/lib/db/docstore/layout";
-import {
-    LEGACY_TABLE,
-    checkTables,
-    inventoryFirestore,
-    legacyKey,
-    pgSourcedCollections,
-    printChecks,
-} from "./lib/firestore-exit";
+import { docKeysFromEnv } from "../src/lib/db/docstore/seal";
+import { checkTables, copyAll, inventoryFirestore, printChecks } from "./lib/firestore-exit";
 
 const log = (line: string) => console.log(line);
-const BATCH = 500;
 
 async function main(): Promise<void> {
     const args = process.argv.slice(2);
@@ -69,68 +60,7 @@ async function main(): Promise<void> {
     const total = [...inv.known.values()].reduce((n, d) => n + d.length, 0) + inv.legacy.length;
     log(`${total} documents across ${inv.known.size} manifest collections and ${inv.legacy.length} legacy documents`);
 
-    if (apply) {
-        const pgSourced = pgSourcedCollections();
-        // Rows written by the app after the switch are left exactly as they are.
-        const guard = flippedAt ? ` WHERE t.copied_at <= $4` : "";
-        for (const [collection, docs] of inv.known) {
-            const layout = layoutOf(collection);
-            const table = engine.table(layout);
-            if (pgSourced.has(collection)) {
-                const { rows } = await pool.query<{ path: string; doc: Record<string, unknown> }>(
-                    `SELECT path, doc FROM ${table} WHERE sealed IS NULL`,
-                );
-                for (const row of rows) {
-                    const enc = engine.encode(layout, row.path, row.doc);
-                    await pool.query(`UPDATE ${table} SET doc = $2::jsonb, sealed = $3 WHERE path = $1 AND sealed IS NULL`, [
-                        row.path,
-                        enc.doc,
-                        enc.sealed,
-                    ]);
-                }
-                log(`  ${collection}: resealed ${rows.length} rows in place (live on Postgres; Firestore copy ignored)`);
-                continue;
-            }
-
-            const kept: string[] = [];
-            for (let i = 0; i < docs.length; i += BATCH) {
-                const client = await pool.connect();
-                try {
-                    await client.query("BEGIN");
-                    for (const doc of docs.slice(i, i + BATCH)) {
-                        const enc = engine.encode(layout, doc.path, doc.data);
-                        kept.push(enc.path);
-                        await client.query(
-                            `INSERT INTO ${table} AS t (path, doc, sealed, copied_at) VALUES ($1, $2::jsonb, $3, now())
-                             ON CONFLICT (path) DO UPDATE SET doc = EXCLUDED.doc, sealed = EXCLUDED.sealed, copied_at = now()${guard}`,
-                            flippedAt ? [enc.path, enc.doc, enc.sealed, flippedAt.toISOString()] : [enc.path, enc.doc, enc.sealed],
-                        );
-                    }
-                    await client.query("COMMIT");
-                } catch (err) {
-                    await client.query("ROLLBACK").catch(() => {});
-                    throw err;
-                } finally {
-                    client.release();
-                }
-            }
-            const pruned = await pool.query(
-                `DELETE FROM ${table} WHERE NOT (path = ANY($1::text[]))${flippedAt ? " AND copied_at <= $2" : ""}`,
-                flippedAt ? [kept, flippedAt.toISOString()] : [kept],
-            );
-            log(`  ${collection}: ${docs.length} sealed, ${pruned.rowCount ?? 0} stale rows removed`);
-        }
-
-        for (const doc of inv.legacy) {
-            const key = legacyKey(engine, doc.path);
-            await pool.query(
-                `INSERT INTO ${LEGACY_TABLE} (path, sealed, copied_at) VALUES ($1, $2, now())
-                 ON CONFLICT (path) DO UPDATE SET sealed = EXCLUDED.sealed, copied_at = now()`,
-                [key, seal(engine.keys, key, { p: doc.path, d: doc.data })],
-            );
-        }
-        if (inv.legacy.length) log(`  legacy_docs: ${inv.legacy.length} sealed`);
-    }
+    if (apply) await copyAll(engine, pool, inv, flippedAt, log);
 
     if (apply || verifyOnly) {
         log("\nchecking every row against Firestore...");
