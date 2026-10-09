@@ -751,8 +751,9 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONTENT-24 | Failed Turnstile (error stubbed) on /contact shows the notice telling the visitor to reload, with no invented alternative path (skips if the build has no site key) | anon | /contact | signed-out | no | covered | turnstile.spec.ts |
 | J-CONTENT-25 | A contact submit that fails on the server shows the error with the support-email escape hatch | anon | /contact (POST /api/contact answered 500) | signed-out | no | uncovered | — |
 | J-CONTENT-26 | A faceted career hub's "Search these jobs" opens /jobs with the hub's facets applied | anon | /careers/<hub with jobsFacets> (no hub sets them on staging yet) | signed-out | no | uncovered | — |
-| J-CONTENT-27 | Open the blog from the footer, read the first post with all four pictures loaded, and see its setup link | anon | /about (footer › Blog) | signed-out | no | covered | blog.spec.ts |
+| J-CONTENT-27 | Open the blog from the footer, read the October what's-new post with all four pictures loaded, and see its setup link | anon | /about (footer › Blog) | signed-out | no | covered | blog.spec.ts |
 | J-CONTENT-28 | Open a blog address with no post behind it and get a 404 | anon | /blog/no-such-post | signed-out | no | covered | blog.spec.ts |
+| J-CONTENT-29 | Open the same-résumé test post from /blog: its chart loads, it says the gap is within chance, and HiringCafe's own cost post is linked | anon | /blog › Same résumé, two job searches | signed-out | no | covered | blog.spec.ts |
 
 ## SEO
 

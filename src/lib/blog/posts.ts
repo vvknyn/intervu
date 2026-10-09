@@ -12,6 +12,7 @@
  * loads and the text below never jumps.
  */
 import MarkdownIt from "markdown-it";
+import { SAME_RESUME_TEST_OCTOBER_2026 } from "./same-resume-test-october-2026";
 import { WHATS_NEW_OCTOBER_2026 } from "./whats-new-october-2026";
 
 export interface BlogImage {
@@ -35,7 +36,7 @@ export interface BlogPost {
     cover: string;
 }
 
-export const BLOG_POSTS: readonly BlogPost[] = [WHATS_NEW_OCTOBER_2026];
+export const BLOG_POSTS: readonly BlogPost[] = [SAME_RESUME_TEST_OCTOBER_2026, WHATS_NEW_OCTOBER_2026];
 
 export const BLOG_PATH = "/blog";
 
