@@ -186,12 +186,19 @@ export function deriveGhostSignals(
 
     if (freshness.firstSeenMs != null) {
         const firstSeenRelative = formatRelativeAge(new Date(freshness.firstSeenMs).toISOString(), nowMs);
+        // An older role names its oldest date. When the employer's date is
+        // older than ours (we found it late), that is the "Posted" date the
+        // details show, so the two read the same (2026-10-09).
+        const postedEarlier = freshness.postedMs != null && freshness.postedMs < freshness.firstSeenMs;
+        const age = postedEarlier
+            ? `posted ${formatRelativeAge(new Date(freshness.postedMs!).toISOString(), nowMs)}`
+            : `first seen by us ${firstSeenRelative}`;
         signals.push(
             freshness.kind === "relisted"
                 ? { text: `first seen by us ${firstSeenRelative} · posted date refreshed since`, status: "unfavorable", kind: "freshness" }
                 : freshness.kind === "fresh"
                   ? { text: "posted within the last 7 days", status: "favorable", kind: "freshness" }
-                  : { text: `first seen by us ${firstSeenRelative}`, status: "unfavorable", kind: "freshness" },
+                  : { text: age, status: "unfavorable", kind: "freshness" },
         );
         // `unknown`, not `unfavorable`: there is no close/reopen data source
         // in the corpus at all (see this function's doc comment), so this
