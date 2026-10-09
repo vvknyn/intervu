@@ -47,6 +47,7 @@
 import {
     candidateCountries,
     resolveCandidateSignals,
+    seniorityOfLevel,
     type CandidateSignals,
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
@@ -64,7 +65,7 @@ export type MatchComponentKey = "relevance" | "seniority" | "location";
 export interface MatchComponent {
     key: MatchComponentKey;
     label: string;
-    /** Honest, computed verdict text — e.g. "7 of 12 terms this role names", "senior — fits". */
+    /** Honest, computed verdict text — e.g. "7 of 12 terms this role names", "senior role — matches your senior level (set in Settings)". */
     detail: string;
     /** This component's own match quality, 0..1. */
     score: number;
@@ -469,17 +470,38 @@ export function jobLevel(job: Pick<PublicJob, "experience_level" | "title">): Se
     return jobLevelRead(job)?.level ?? null;
 }
 
-/** `jobLevel`, with whether the listing or the title said it. */
+/** `jobLevel`, with whether the listing or the title said it. A listed Lead or Executive reads senior, Intern entry. */
 export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title">): { level: Seniority; from: "listing" | "title" } | null {
-    const listed = normalize(job.experience_level ?? "") as Seniority;
-    if (EXPERIENCE_LEVEL_ORDER.includes(listed)) return { level: listed, from: "listing" };
+    const listed = seniorityOfLevel(job.experience_level);
+    if (listed) return { level: listed, from: "listing" };
     const title = job.title ?? "";
     if (TITLE_SENIOR.test(title)) return { level: "senior", from: "title" };
     if (TITLE_ENTRY.test(title)) return { level: "entry", from: "title" };
     return null;
 }
 
-/** Candidate seniority vs the role's level (`jobLevel`). Unknown on either side is neutral and flagged. */
+/** The role's level in the words its details show: the listing's own word ("lead role"), else the title's rank ("senior role by its title"). */
+function roleLevelText(job: Pick<PublicJob, "experience_level">, read: { level: Seniority; from: "listing" | "title" }): string {
+    if (read.from === "title") return `${SENIORITY_LABEL[read.level]} role by its title`;
+    const listed = normalize(job.experience_level ?? "");
+    return `${(SENIORITY_LABEL as Record<string, string>)[listed] ?? listed} role`;
+}
+
+/** The candidate's level with what it was read from: "your mid level (5 years as a Technical Account Manager)". */
+function ownLevelText(read: SeniorityRead): string {
+    const level = `your ${read.own} level`;
+    if (read.ownFrom === "settings") return `${level} (set in Settings)`;
+    if (read.years == null) return level;
+    const years = `${read.years} ${read.years === 1 ? "year" : "years"}`;
+    if (!read.role) return `${level} (${years} of experience)`;
+    return `${level} (${years} as ${/^[aeiou]/i.test(read.role) ? "an" : "a"} ${read.role})`;
+}
+
+/**
+ * Candidate seniority vs the role's level (`jobLevel`). Unknown on either side is neutral and flagged.
+ * The detail names the role's level first, as its details show it, then the candidate's with its
+ * source: "senior — exceeds ask" read as the role's level beside a listing marked Mid (2026-10-09).
+ */
 function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const own = signals.seniority.value;
     const read = jobLevelRead(job);
@@ -497,7 +519,7 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
 
     const diff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
-    const verdict = diff === 0 ? "fits" : diff > 0 ? "exceeds ask" : "below ask";
+    const verdict = diff === 0 ? "matches" : diff > 0 ? "below" : "above";
     const reason: MatchReason = diff === 0 ? "level_fits" : diff > 0 ? "level_above_ask" : "level_below_ask";
     const basis = signals.seniority.basis;
     const level: SeniorityRead = {
@@ -507,7 +529,7 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
         ownFrom: signals.seniority.source === "explicit" ? "settings" : "resume",
         ...(basis && signals.seniority.source !== "explicit" ? { years: basis.years, role: basis.role } : {}),
     };
-    return { key: "seniority", label: "Seniority", detail: `${SENIORITY_LABEL[own]} — ${verdict}`, score, reason, level };
+    return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${verdict} ${ownLevelText(level)}`, score, reason, level };
 }
 
 /**

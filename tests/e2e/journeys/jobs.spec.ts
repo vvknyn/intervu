@@ -1381,6 +1381,52 @@ signedInTest("an opened pack reads its roles' descriptions for place before it s
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("an open role's \"What we inferred\" names the same posted date and level as its details: a role posted 21 days ago that we found this week isn't new", { tag: ["@J-JOBS-114"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-09: "posted within 7 days is marked green, but it was posted 21 days ago" and
+  // "seniority says exceeds ask in one, whereas the other listing says it is ok" (the level named was his, not the role's).
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
+  const pack = [
+    remoteRole("found-late", "Software Engineer", "Remote, Canada", { posted_at: daysAgo(21), first_seen_at: daysAgo(3) }),
+    remoteRole("senior-listed", "Senior Software Engineer", "Remote, Canada", { experience_level: "senior", posted_at: daysAgo(21), first_seen_at: daysAgo(20) }),
+  ];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    return answerListSearch(route, { hits: pack, total: pack.length, backend: "meilisearch", configured: true, searchId: "e2e-inferred-agrees" });
+  });
+
+  await page.goto("/jobs?view=for-you");
+  await openHubTile(page, "all");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  const detail = (label: string) => front.locator("dt", { hasText: new RegExp(`^${label}$`) }).locator("xpath=following-sibling::dd[1]");
+  const inferred = front.getByTestId("role-card-inferred");
+  const seen = new Set<string>();
+  for (let step = 0; step < pack.length; step++) {
+    if (step > 0) await page.getByTestId("for-you-next").click();
+    const id = (await front.getAttribute("data-job-id")) ?? "";
+    seen.add(id);
+    await expect(detail("Posted")).toHaveText("21d ago");
+    await expect(inferred).toContainText("Posted 21d ago");
+    await expect(inferred).not.toContainText("within the last 7 days");
+    // The résumé: 4 years as a software engineer, mid level. The row names the role's level as the details show it, then theirs.
+    if (id === "found-late") {
+      await expect(detail("Seniority")).toHaveText("Mid");
+      await expect(inferred).toContainText("Seniority: mid-level role — matches your mid level (4 years of experience)");
+    } else {
+      await expect(detail("Seniority")).toHaveText("Senior");
+      await expect(inferred).toContainText("Seniority: senior role — above your mid level (4 years of experience)");
+    }
+  }
+  expect([...seen].sort()).toEqual(["found-late", "senior-listed"]);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);

@@ -14,6 +14,7 @@ import {
     outsideLabel,
     placeUnclear,
     labelNamesPlace,
+    jobLevel,
 } from '../../src/lib/match/score';
 import { explainMatch } from '../../src/lib/match/explain';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
@@ -144,7 +145,7 @@ describe('scoreJobAgainstResume', () => {
             const relevance = result!.components.find((c) => c.key === 'relevance');
             const seniority = result!.components.find((c) => c.key === 'seniority');
             assert.equal(relevance?.score, 0);
-            assert.equal(seniority?.detail, 'mid-level — fits');
+            assert.equal(seniority?.detail, 'mid-level role — matches your mid level (5 years of experience)');
             assert.equal(result!.total, 32);
         });
 
@@ -330,13 +331,13 @@ describe('scoreJobAgainstResume', () => {
         it('seniority boundary: exactly 2 years is junior, not mid', () => {
             const result = scoreJobAgainstResume(relevantResume(2), relevantJob('entry'));
             const seniority = result!.components.find((c) => c.key === 'seniority');
-            assert.equal(seniority?.detail, 'entry-level — fits');
+            assert.equal(seniority?.detail, 'entry-level role — matches your entry level (2 years of experience)');
         });
 
         it('seniority boundary: exactly 9 years is senior, not lead/principal', () => {
             const result = scoreJobAgainstResume(relevantResume(9), relevantJob('senior'));
             const seniority = result!.components.find((c) => c.key === 'seniority');
-            assert.equal(seniority?.detail, 'senior — fits');
+            assert.equal(seniority?.detail, 'senior role — matches your senior level (9 years of experience)');
         });
 
         it('an unmapped experience_level value makes seniority neutral and flagged, still counted', () => {
@@ -799,5 +800,68 @@ describe('a role outside where the candidate can work', () => {
         assert.equal(outsideLabel(['Netherlands']), 'Outside Netherlands');
         assert.equal(outsideLabel(['Canada', 'United States']), 'Abroad');
         assert.equal(outsideLabel(['Bosnia and Herzegovina']), 'Abroad');
+    });
+});
+
+/**
+ * The seniority reason names the role's level the way the role's details
+ * show it, then the candidate's with where it came from. "Seniority: senior —
+ * exceeds ask" sat beside a listing whose details said Mid: "senior" was the
+ * candidate's level, read as the role's (Vivek, 2026-10-09).
+ */
+describe('the seniority reason agrees with the role\'s details', () => {
+    const fixture = (name: string) =>
+        resumeDataFromPlainText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8'));
+    const settings = (experienceLevel: string): AgentPreferences => ({ configured: true, search: { experienceLevel }, answers: { custom: {} } });
+
+    it('a Mid listing for a candidate set to senior says the role is below them, a Senior one that it matches', () => {
+        const resume = fixture('vivek-tam-resume');
+        const signals = resolveCandidateSignals(resume, settings('senior'));
+        const at = (experience_level: string, title: string) =>
+            scoreJobAgainstResume(resume, mkJob({ title, experience_level }), signals)!.components.find((c) => c.key === 'seniority')!;
+        assert.equal(at('mid', 'Enterprise Customer Success Manager').detail, 'mid-level role — below your senior level (set in Settings)');
+        assert.equal(at('senior', 'Manager, Customer Success (Enterprise)').detail, 'senior role — matches your senior level (set in Settings)');
+    });
+
+    it('a level read from the résumé names the years and the role it came from', () => {
+        const resume = fixture('vivek-tam-resume');
+        const seniority = scoreJobAgainstResume(resume, mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
+            .components.find((c) => c.key === 'seniority')!;
+        assert.match(seniority.detail, /^senior role — above your mid level \(\d+ years as a Technical Account Manager\)$/);
+    });
+
+    it('for every résumé and listed level, the reason opens with the level the details show', () => {
+        const titles: Record<string, string> = {
+            'vivek-tam-resume': 'Technical Account Manager',
+            'health-rn-resume': 'Registered Nurse',
+            'health-physio-resume': 'Physiotherapist',
+            'health-science-grad-resume': 'Research Assistant',
+            'sample-resume': 'Software Engineer',
+        };
+        const shown: Record<string, string> = { entry: 'entry-level', mid: 'mid-level', senior: 'senior', lead: 'lead', executive: 'executive', intern: 'intern' };
+        for (const [name, title] of Object.entries(titles)) {
+            const resume = fixture(name);
+            for (const level of Object.keys(shown)) {
+                const score = scoreJobAgainstResume(resume, mkJob({ title, experience_level: level }));
+                const seniority = score?.components.find((c) => c.key === 'seniority');
+                if (!seniority || seniority.unknown) continue;
+                const at = `${name}, ${level} listing`;
+                assert.ok(seniority.detail.startsWith(`${shown[level]} role — `), `${at}: ${seniority.detail}`);
+                const verdict = { level_fits: 'matches', level_above_ask: 'below', level_below_ask: 'above' }[seniority.reason as string];
+                assert.ok(seniority.detail.includes(` — ${verdict} your `), `${at}: ${seniority.detail}`);
+            }
+        }
+    });
+
+    it('a listed Lead or Executive reads senior and an Intern entry, so a level the details show is never "not listed"', () => {
+        assert.equal(jobLevel({ title: 'Customer Success', experience_level: 'lead' }), 'senior');
+        assert.equal(jobLevel({ title: 'Customer Success', experience_level: 'executive' }), 'senior');
+        assert.equal(jobLevel({ title: 'Customer Success', experience_level: 'intern' }), 'entry');
+    });
+
+    it('with no listed level, the title\'s rank word says it, and the reason says so', () => {
+        const seniority = scoreJobAgainstResume(fixture('vivek-tam-resume'), mkJob({ title: 'Senior Technical Account Manager', experience_level: 'unknown' }))!
+            .components.find((c) => c.key === 'seniority')!;
+        assert.match(seniority.detail, /^senior role by its title — above your mid level/);
     });
 });

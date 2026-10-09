@@ -66,6 +66,12 @@ export interface PostingFreshness {
  * data is absence of claim; no badge is rendered). Relisted wins over fresh:
  * a re-stamped old req can look recently-posted by its own claim, but the
  * first-seen date is ours and doesn't move.
+ *
+ * Fresh means the role's OLDEST known date is inside the window: we first saw
+ * it this week AND the employer's date, when there is one, is this week too.
+ * A role we only found this week but the employer posted 21 days ago is not
+ * new (Vivek, 2026-10-09: "posted within 7 days is marked green, but it was
+ * posted 21 days ago"), and the card's own "Posted 21d ago" said so.
  */
 export function classifyPostingFreshness(
     job: { posted_at?: string | null; first_seen_at?: string | null },
@@ -76,7 +82,7 @@ export function classifyPostingFreshness(
     let kind: PostingFreshness["kind"] = null;
     if (postedMs != null && firstSeenMs != null && postedMs - firstSeenMs >= RELIST_MARGIN_MS) {
         kind = "relisted";
-    } else if (firstSeenMs != null && nowMs - firstSeenMs <= FRESH_WINDOW_MS) {
+    } else if (firstSeenMs != null && nowMs - Math.min(firstSeenMs, postedMs ?? firstSeenMs) <= FRESH_WINDOW_MS) {
         kind = "fresh";
     }
     return { kind, firstSeenMs, postedMs };
