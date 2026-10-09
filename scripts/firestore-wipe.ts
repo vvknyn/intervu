@@ -11,7 +11,9 @@
  * only DATA_ENCRYPTION_KEY opens it. It refuses to delete anything unless
  * the same check scripts/firestore-to-postgres.ts --verify runs passes,
  * which means every document, in every collection Firestore reports
- * (including ones no code mentions), is in Postgres and sealed.
+ * (including ones no code mentions), is in Postgres and sealed. The one
+ * exception is FIRESTORE_EXIT_SKIP: collections named there are deleted
+ * without a copy, and the check output says so.
  *
  * Runs where the copy runs: inside the Velai container on the web box, with
  * DATA_STORE=postgres already live (so nothing writes to Firestore any more).
@@ -21,7 +23,7 @@ import { Pool } from "pg";
 import { getFirestoreDb, usesPostgresStore } from "../src/lib/firebase/admin";
 import { createPgDocDb } from "../src/lib/db/docstore/pg-docstore";
 import { docKeysFromEnv } from "../src/lib/db/docstore/seal";
-import { checkTables, inventoryFirestore, printChecks } from "./lib/firestore-exit";
+import { checkTables, inventoryFirestore, printChecks, skippedCollections } from "./lib/firestore-exit";
 
 const log = (line: string) => console.log(line);
 
@@ -46,9 +48,16 @@ async function main(): Promise<void> {
         process.exit(1);
     }
 
-    const roots = (await fs.listCollections()).map((c) => c.id);
+    // Collections left behind (FIRESTORE_EXIT_SKIP) go last: on the free plan
+    // a delete run can hit the daily quota, and the account data should be
+    // gone first. Running again picks up where it stopped.
+    const skipped = skippedCollections();
+    const roots = (await fs.listCollections())
+        .map((c) => c.id)
+        .sort((a, b) => Number(skipped.has(a)) - Number(skipped.has(b)));
     if (!yes) {
         log(`\nCheck passed. --yes would delete these root collections and everything under them:\n  ${roots.join(", ")}`);
+        if (skipped.size) log(`Of those, these have no copy in Postgres and are lost: ${[...skipped].join(", ")}`);
         return;
     }
 

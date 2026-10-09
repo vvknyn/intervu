@@ -129,4 +129,33 @@ describe("firestore exit copy", { skip: !URL && "DOCSTORE_TEST_PG_URL not set" }
         assert.equal((await db.collection("profiles").doc("u1").get()).get("resume_text"), "edited after the switch");
         assert.equal((await db.collection("applications").doc("new-after-flip").get()).exists, true);
     });
+
+    it("never reads a left-behind collection from Firestore, and keeps and reseals its Postgres rows", async () => {
+        process.env.FIRESTORE_EXIT_SKIP = "search_events";
+        try {
+            const withLogs = fakeFirestore({ "profiles/u1": { username: "maya" }, "search_events/e1": { q: "nurse" } });
+            const real = withLogs.collection.bind(withLogs);
+            (withLogs as unknown as { collection: (p: string) => unknown }).collection = (path: string) => {
+                if (path === "search_events") throw new Error("read a left-behind collection");
+                return real(path);
+            };
+            await pool.query(`INSERT INTO intervu.search_events (path, doc) VALUES ('search_events/old', '{"q":"welder","expiresAt":"2026-12-01T00:00:00.000Z"}')`);
+
+            const inv = await inventoryFirestore(withLogs, log);
+            assert.deepEqual(inv.known.get("search_events"), []);
+
+            await copyAll(engine, pool, inv, null, log, false);
+            const kept = await pool.query(`SELECT sealed FROM intervu.search_events WHERE path = 'search_events/old'`);
+            assert.deepEqual(kept.rows, [{ sealed: null }], "kept, not pruned, before the switch");
+            assert.deepEqual((await checkTables(engine, pool, inv, false)).filter((c) => c.missing.length || (c.unsealed && !c.unsealedOk)), []);
+
+            await copyAll(engine, pool, inv, null, log, true);
+            assert.equal((await db.collection("search_events").doc("old").get()).get("q"), "welder");
+            const plain = await pool.query(`SELECT count(*)::int AS n FROM intervu.search_events WHERE sealed IS NULL OR doc::text LIKE '%welder%'`);
+            assert.equal(plain.rows[0].n, 0, "resealed after the switch");
+            assert.deepEqual((await checkTables(engine, pool, inv, true)).filter((c) => c.missing.length || c.unsealed), []);
+        } finally {
+            delete process.env.FIRESTORE_EXIT_SKIP;
+        }
+    });
 });
