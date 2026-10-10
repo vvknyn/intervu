@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MCP_TOOL_SPECS } from "../../src/lib/agent/mcp-tool-specs";
-import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS } from "../../src/lib/agent/permissions-copy";
+import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "../../src/lib/agent/permissions-copy";
 
 /**
  * The consent card and /connect say what a connected AI can do before anyone
@@ -36,4 +36,13 @@ test("the consent card and /connect render the shared list, not their old claims
     assert.doesNotMatch(card, /cannot read your chats, files, or resume/);
     assert.doesNotMatch(connect, /Read-only search/);
     assert.doesNotMatch(connect, /strictly for reading/);
+});
+
+test("every /connect sample prompt names tools that exist, and asks for nothing no tool returns", () => {
+    const tools = Object.keys(MCP_TOOL_SPECS);
+    for (const prompt of CONNECT_SAMPLE_PROMPTS) {
+        assert.ok(prompt.tools.length > 0, `"${prompt.text}" names no tool`);
+        for (const tool of prompt.tools) assert.ok(tools.includes(tool), `"${prompt.text}" names ${tool}, which is not an MCP tool`);
+        assert.doesNotMatch(prompt.text, /interview insight|verified salary/i);
+    }
 });

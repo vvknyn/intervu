@@ -21,7 +21,7 @@ import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 import { CONNECT_FAQ_NO_MCP_NEEDED } from "@/lib/jobs/resume-privacy-copy";
 import { PageTitle } from "@/components/ui/heading";
-import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS } from "@/lib/agent/permissions-copy";
+import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";
 
 const MCP_CLIENTS = CONNECT_CLIENTS.filter((c) => c.kind === "mcp");
 
@@ -67,12 +67,7 @@ const CLIENT_INSTRUCTIONS: Record<string, ClientInstruction> = {
   },
 };
 
-const TRY_THESE_PROMPTS = [
-  "Find senior product manager roles in Berlin with verified salary > $120k posted this week",
-  "Is this job posting real, or does it look stale or relisted?",
-  "Search for remote Staff Frontend Engineer roles and save the top 3 matches to my tracker",
-  "Summarize key requirements and interview insights for Stripe and OpenAI openings",
-];
+const TRY_THESE_PROMPTS = CONNECT_SAMPLE_PROMPTS.map((prompt) => prompt.text);
 
 /**
  * `mcpUrl` and `installCommand` arrive already built from `AGENT.issuer()` —
