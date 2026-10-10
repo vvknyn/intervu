@@ -5,8 +5,10 @@ import { CaretDown } from "@phosphor-icons/react";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
-import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
+import { inferReasons, TITLE_OVERLAP_LEAD } from "@/lib/jobs/for-you/infer-reasons";
 import { labelNamesPlace, type MatchScore } from "@/lib/match/score";
+import { fitTerms } from "@/lib/match/fit-terms";
+import { SignalChip } from "@/components/jobs/SignalChip";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
@@ -48,7 +50,17 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
         () => buildFitReasonRows(fitReasonSourcesFromComponents(score.components)),
         [score.components],
     );
-    const reasons = useMemo(() => inferReasons(job, score, resume), [job, score, resume]);
+    // The terms the relevance row counts, ✓ on the résumé or ✗ not: the same
+    // chips the extension shows under its fit label (2026-10-10, after
+    // Autodesk's "Relevant" + matched-skill chips).
+    const terms = useMemo(() => (resume ? fitTerms(resume, job) : null), [resume, job]);
+    const reasons = useMemo(() => {
+        const inferred = inferReasons(job, score, resume);
+        if (!terms) return inferred;
+        // The ✓ chips already name the title and tag words the résumé shares,
+        // so the overlap bullet and the matched-skill chips would say it twice.
+        return { bullets: inferred.bullets.filter((bullet) => !bullet.startsWith(TITLE_OVERLAP_LEAD)), chips: [] };
+    }, [job, score, resume, terms]);
 
     return (
         <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-surface px-4 py-3.5" open>
@@ -82,6 +94,20 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                         <div key={row.key}>
                             <p className={SECTION_LABEL}>{row.label}</p>
                             <p className="mt-1 text-sm text-foreground">{row.singleText}</p>
+                            {row.key === "relevance" && terms && (
+                                <ul data-testid="fit-terms" aria-label="Terms this role names" className="mt-2 flex min-w-0 flex-wrap gap-2">
+                                    {terms.matched.map((term) => (
+                                        <SignalChip key={`has-${term}`} tone="good" title="On your résumé" srNote="on your résumé">
+                                            {term}
+                                        </SignalChip>
+                                    ))}
+                                    {terms.missing.map((term) => (
+                                        <SignalChip key={`lacks-${term}`} tone="lacking" title="Not on your résumé" srNote="not on your résumé">
+                                            {term}
+                                        </SignalChip>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     ),
                 )}

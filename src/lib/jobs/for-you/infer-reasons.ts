@@ -36,6 +36,10 @@ export function noScoreReason(resume: ResumeData | null): NoScoreReason {
 }
 
 const MAX_BULLETS = 3;
+
+/** Lead of the title-overlap bullet. The job sheet drops that bullet when its
+ *  ✓/✗ term chips already show the same words (FitReasons.tsx). */
+export const TITLE_OVERLAP_LEAD = "Title overlap with your experience";
 const MAX_CHIPS = 4;
 
 function tokenOverlap(a: string[], b: string[]): string[] {
@@ -75,7 +79,7 @@ export function inferReasons(
         const resumeTitleTokens = resumeTitles.flatMap((t) => meaningfulTitleTokens(t));
         const titleHits = tokenOverlap(titleTokens, resumeTitleTokens);
         if (titleHits.length > 0 && bullets.length < MAX_BULLETS) {
-            bullets.push(`Title overlap with your experience (${titleHits.slice(0, 3).join(", ")})`);
+            bullets.push(`${TITLE_OVERLAP_LEAD} (${titleHits.slice(0, 3).join(", ")})`);
         }
 
         const skills = topSkills(resume, 12);

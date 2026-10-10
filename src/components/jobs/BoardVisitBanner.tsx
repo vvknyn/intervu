@@ -42,8 +42,9 @@ function readVisitOnce(): Promise<VisitRead> {
  * panel, self-contained about its own fetch (same posture as
  * `FollowAlertsBell`). It used to be a corner toast that dismissed itself
  * after six seconds, so the one reason to come back was gone before most
- * people read it; now it stays for the whole visit, and a signed-out visitor
- * gets the way to have those roles emailed right beside it.
+ * people read it; now it stays for the whole visit. Its "Email me new roles"
+ * link is gone (2026-10-10): the results line's "Weekly job alerts" switch
+ * just below it is the one alerts control.
  *
  * Honesty gate lives in `resolveVisitBannerState`: a visitor with no PRIOR
  * stored board cursor never sees a "since your last visit" claim, however
@@ -52,15 +53,9 @@ function readVisitOnce(): Promise<VisitRead> {
  */
 export function BoardVisitBanner({
     resultCount,
-    onEmailMe,
-    emailOpen = false,
 }: {
     /** Rows the page is showing right now — a zero or thin state hides the line. */
     resultCount: number;
-    /** Signed-out only: opens the email alert form under the line. */
-    onEmailMe?: () => void;
-    /** Whether that form is open, for the button's pressed state. */
-    emailOpen?: boolean;
 }) {
     const [count, setCount] = useState<CorpusCount>(NO_COUNT);
     const [state, setState] = useState<"hidden" | "shown">("hidden");
@@ -102,17 +97,6 @@ export function BoardVisitBanner({
                     new role{count.value === 1 ? "" : "s"} on Velai since your last visit
                 </span>
             </p>
-            {onEmailMe && (
-                <button
-                    type="button"
-                    data-testid="board-visit-email"
-                    aria-expanded={emailOpen}
-                    onClick={onEmailMe}
-                    className="font-semibold text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                >
-                    Email me new roles
-                </button>
-            )}
         </div>
     );
 }

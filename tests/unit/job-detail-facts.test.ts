@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { alsoInLabel, assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, REPRESENTATIVE_GHOST_SIGNALS } from "../../src/components/jobs/job-detail-facts";
+import { alsoInLabel, assessedGhostSignals, buildFactChips, postingCheckChipLabel, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, REPRESENTATIVE_GHOST_SIGNALS } from "../../src/components/jobs/job-detail-facts";
 import type { PostingFreshness } from "../../src/lib/jobs/posting-freshness";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -372,4 +372,18 @@ test("assessedGhostSignals: filters a copy — every signal is still rendered", 
     );
     assert.equal(signals.length, 3);
     assert.equal(assessedGhostSignals(signals).length, 1);
+});
+
+// 2026-10-10: the posting check reads as chips; each chip is its line in a few
+// words, and a gap in our own data (repost history) gets no chip at all.
+test("postingCheckChipLabel: a few words per line, none for the repost history we don't track", () => {
+    assert.equal(postingCheckChipLabel({ text: "posted within the last 7 days", status: "favorable", kind: "freshness" }, false), "Posted in last 7 days");
+    assert.equal(postingCheckChipLabel({ text: "first seen by us 3 months ago", status: "unfavorable", kind: "freshness" }, false), "First seen 3 months ago");
+    assert.equal(postingCheckChipLabel({ text: "posted 2 months ago", status: "unfavorable", kind: "freshness" }, false), "Posted 2 months ago");
+    assert.equal(postingCheckChipLabel({ text: "first seen by us 3 months ago · posted date refreshed since", status: "unfavorable", kind: "freshness" }, true), "Date refreshed");
+    assert.equal(postingCheckChipLabel({ text: "repost (close/reopen) history not tracked yet", status: "unknown", kind: "reposts" }, false), null);
+    assert.equal(postingCheckChipLabel({ text: "description has real substance", status: "favorable", kind: "description" }, false), "Full description");
+    assert.equal(postingCheckChipLabel({ text: "description is thin", status: "unfavorable", kind: "description" }, false), "Thin description");
+    assert.equal(postingCheckChipLabel({ text: "salary disclosed — $120k-$180k", status: "favorable", kind: "pay" }, false), "Pay listed");
+    assert.equal(postingCheckChipLabel({ text: "salary not disclosed (common for some regions)", status: "unknown", kind: "pay" }, false), "Pay not listed");
 });

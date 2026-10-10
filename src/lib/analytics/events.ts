@@ -223,6 +223,11 @@ export interface EventPayloads {
     filter_count: number;
     has_results: boolean;
   };
+  /** The "Weekly job alerts" switch on the results line was flipped. */
+  search_alert_switch_toggled: {
+    on: boolean;
+    signed_in: boolean;
+  };
 
   application_stage_changed: {
     job_id: string;
@@ -290,8 +295,8 @@ export interface EventPayloads {
   };
   /** A search saved to the account or this browser (the weekly email reads the account's). */
   saved_search_created: {
-    /** The Save search control, the search a guest signed in to save, or setup's weekly-email step. */
-    surface: "toolbar" | "after_sign_in" | "setup";
+    /** The Save search control, the results line's alerts switch, the search a guest signed in to save, or setup's weekly-email step. */
+    surface: "toolbar" | "alert_switch" | "after_sign_in" | "setup";
     signed_in: boolean;
   };
   /** The new-account welcome strip showed on one of its visit days (1 to 3). */

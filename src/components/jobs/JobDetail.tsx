@@ -18,7 +18,7 @@ import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { assessedGhostSignals, buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
+import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
@@ -26,12 +26,12 @@ import { cn } from "@/lib/utils";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatRelativeAge } from "@/lib/jobs/freshness";
-import { checkFreshness } from "@/lib/jobs/badges";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { ghostMetaFor, displayCompany, displayCompanyBrand, locationText, placeWithWorkMode, clampLocationSegments, shortDate, salaryText, postedAgeShort, visibleTags } from "@/lib/jobs/presentation";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { presentJob } from "@/lib/presentation";
 import { STATUS_PILL, LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
+import { PostingCheckSummary } from "@/components/jobs/PostingCheckSummary";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobShareUrl } from "@/lib/jobs/share-url";
 import { withShareRef } from "@/lib/share/share-decision";
@@ -96,17 +96,11 @@ export { KpiStat, MetaLine, PostingCheckSignalsGrid };
  * invented breakpoint — so the rail stacks (as mobile already did) while the
  * ~800px SERP column still goes horizontal. */
 export function PostingCheckHeader({
-    favorableCount,
-    assessedCount,
-    unknownCount,
     verdictLabel,
     verdictClassName,
     checkedText,
     headingLevel,
 }: {
-    favorableCount: number;
-    assessedCount: number;
-    unknownCount: number;
     verdictLabel: string;
     verdictClassName: string;
     checkedText: string;
@@ -118,18 +112,10 @@ export function PostingCheckHeader({
     return (
         <div className="@container">
             <div className="flex flex-col gap-2 @min-[480px]:flex-row @min-[480px]:items-center @min-[480px]:justify-between @min-[480px]:gap-3">
-                {/* Inline text, a no-break space before each "·": as flex
-                    items the counts wrapped under the heading on a phone with
-                    the dot leading the line (2026-10-02), the break
-                    DotSeparated's own seam rules out. */}
+                {/* The "N/M favorable · N not tracked" counts that sat here
+                    are the chips under this row now (PostingCheckSummary). */}
                 <div className="text-sm">
                     <HeadingTag className="inline font-semibold text-foreground">Posting check</HeadingTag>
-                    {assessedCount > 0 && (
-                        <span className="text-muted-foreground">
-                            {"\u00A0· "}{favorableCount}/{assessedCount} favorable
-                            {unknownCount > 0 && `\u00A0· ${unknownCount} not tracked`}
-                        </span>
-                    )}
                 </div>
                 <div className="flex items-center justify-between gap-2 @min-[480px]:justify-end">
                     {/* Verdict as a plain colored WORD, not a bordered/bg pill
@@ -512,7 +498,6 @@ export function JobDetail({
      *  omitted entirely (no menu at all) on every other mount site. */
     onSkip?: () => void;
 }) {
-    const staleCheck = checkFreshness(job, now) === "stale";
     // Detail-module-only stand-in for `GHOST_META.unscored` (null there, so
     // list/company surfaces stay quiet on unscored rows): in THIS panel the
     // check ledger's facts are worth showing even before a scoring pass has
@@ -620,14 +605,6 @@ export function JobDetail({
     // renders below — one disclosure boolean, not a second, independently
     // derived `Boolean(salary)` guess that could disagree with the ledger.
     const payDisclosed = ghostSignals.find((s) => s.kind === "pay")?.status === "favorable";
-    // Denominator is the ASSESSED signals, not every line rendered: an
-    // untracked repost history and an undisclosed salary are absences of
-    // data, and counting them as failed checks made ordinary postings read
-    // "1/4 favorable" (live 2026-08-16). The unknowns are still shown — and
-    // still counted, as unknowns — they just don't score against the job.
-    const assessedSignals = assessedGhostSignals(ghostSignals);
-    const favorableSignalCount = assessedSignals.filter((s) => s.status === "favorable").length;
-    const unknownSignalCount = ghostSignals.length - assessedSignals.length;
     // Takes the job, not a timestamp: this line used to be handed
     // `job.updated_at` and so dated the verdict by the last SCRAPE, which is
     // what produced "checked 89d ago" over "first seen by us 89d ago".
@@ -1056,101 +1033,87 @@ export function JobDetail({
                 {ghost && (
                     <div data-tour="jobs-posting-check" className="mb-6 rounded-panel bg-surface p-4">
                         <PostingCheckHeader
-                            favorableCount={favorableSignalCount}
-                            assessedCount={ghostSignals.length > 0 ? assessedSignals.length : 0}
-                            unknownCount={unknownSignalCount}
                             verdictLabel={ghost.label}
                             verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
                             checkedText={checkedText}
                             headingLevel={3}
                         />
-                        {/* Explain copy only earns its place when the verdict isn't
-                            already the unremarkable "clear and current" case — the
-                            ratio + verdict above already say enough there. */}
-                        {!(job.ghost_badge === "clear" && !staleCheck) && (
+                        <PostingCheckSummary signals={ghostSignals} relisted={freshness.kind === "relisted"}>
                             <div className="pt-2 text-sm text-muted-foreground">{ghost.explain}</div>
-                        )}
-                        {ghostSignals.length > 0 && (
-                            <PostingCheckSignalsGrid>
-                                {ghostSignals.map((s) => {
-                                    const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
-                                    return (
-                                    <div key={s.text} className="flex items-start gap-2">
-                                        {/* Three glyphs for two real states — the ratio above
-                                            already excludes unknowns and states them as
-                                            "N not tracked"; a "not tracked" row renders no
-                                            glyph at all (rulebook item e), not the old shared
-                                            "·" that read as a real (if neutral) finding. */}
-                                        <span
-                                            className={cn(
-                                                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
-                                                relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
-                                            )}
-                                            aria-hidden={s.status !== "unknown"}
-                                        >
-                                            {relistCaution ? (
-                                                <Warning size={14} weight="bold" />
-                                            ) : s.status === "favorable" ? (
-                                                <Check size={14} weight="bold" />
-                                            ) : s.status === "unfavorable" ? (
-                                                <Minus size={14} weight="bold" />
-                                            ) : null}
-                                        </span>
-                                        <div className="min-w-0 flex-1 leading-snug">
-                                            {/* `s.kind` (job-detail-facts.ts) is always lowercase
-                                                ("freshness"/"reposts"/"description"/"pay") — that
-                                                module is a shared, out-of-fence source also read
-                                                by JobDetailDocument.tsx, so sentence case is
-                                                applied here at the render call site instead of
-                                                changing the shared string. */}
-                                            <b className="text-sm font-semibold capitalize text-foreground mr-2">{s.kind}</b>
-                                            <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
-                                                {s.text}
-                                                {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
-                                                    <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
+                            {ghostSignals.length > 0 && (
+                                <PostingCheckSignalsGrid>
+                                    {ghostSignals.map((s) => {
+                                        const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
+                                        return (
+                                        <div key={s.text} className="flex items-start gap-2">
+                                            {/* Three glyphs for two real states: a "not tracked"
+                                                row renders no glyph at all (rulebook item e), not
+                                                the old shared "·" that read as a real (if neutral)
+                                                finding. */}
+                                            <span
+                                                className={cn(
+                                                    "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center text-sm font-semibold",
+                                                    relistCaution ? LISTING_STATE_TEXT.relisted : s.status === "favorable" ? "text-live" : "text-muted-foreground",
                                                 )}
+                                                aria-hidden={s.status !== "unknown"}
+                                            >
+                                                {relistCaution ? (
+                                                    <Warning size={14} weight="bold" />
+                                                ) : s.status === "favorable" ? (
+                                                    <Check size={14} weight="bold" />
+                                                ) : s.status === "unfavorable" ? (
+                                                    <Minus size={14} weight="bold" />
+                                                ) : null}
                                             </span>
-                                        </div>
-                                    </div>
-                                    );
-                                })}
-                            </PostingCheckSignalsGrid>
-                        )}
-                        <div className="pt-3">
-                            {/* WHEN this verdict was last checked — a stated fact from
-                                `updated_at`, not a fabricated checklist of what was
-                                inspected (see ghostCheckedText's doc comment). Plain
-                                12/16 secondary caption, no underline signature
-                                (rulebook item e). */}
-                            <div className="text-xs text-muted-foreground">
-                                {GHOST_CHECK_TAGLINE}
-                            </div>
-                            {/* S4 exposure trust badges (dark launch) — positive-only,
-                                same quiet mono house style as the fact chips, same
-                                ContextHelp tooltip mechanism as elsewhere in this
-                                panel. Renders nothing until deriveExposureBadges has
-                                something to say (see its doc comment). */}
-                            {exposureBadges.length > 0 && (
-                                <div className="mono-data mt-3 flex flex-wrap items-center text-xs text-muted-foreground">
-                                    {exposureBadges.map((b, i) => (
-                                        <span key={b.label} className="inline-flex items-center">
-                                            {i > 0 && (
-                                                <span className="mx-1" aria-hidden>
-                                                    ·
+                                            <div className="min-w-0 flex-1 leading-snug">
+                                                {/* `s.kind` (job-detail-facts.ts) is always lowercase
+                                                    ("freshness"/"reposts"/"description"/"pay") — that
+                                                    module is a shared, out-of-fence source also read
+                                                    by JobDetailDocument.tsx, so sentence case is
+                                                    applied here at the render call site instead of
+                                                    changing the shared string. */}
+                                                <b className="text-sm font-semibold capitalize text-foreground mr-2">{s.kind}</b>
+                                                <span className={cn("text-sm", relistCaution ? LISTING_STATE_TEXT.relisted : "text-muted-foreground")}>
+                                                    {s.text}
+                                                    {!relistCaution && s.status === "unfavorable" && isAgeSignal(s) && shouldShowAgeBalanceNote(ghostSignals) && (
+                                                        <ContextHelp content={POSTING_AGE_CONTEXT_COPY} className="ml-1 inline-block align-middle" />
+                                                    )}
                                                 </span>
-                                            )}
-                                            {b.label}
-                                            <ContextHelp
-                                                content={`We check whether this posting appears in ${
-                                                    b.label === "Seen on Google" ? "Google's job search results" : "LinkedIn's job listings"
-                                                } — ${b.checkedText.charAt(0).toLowerCase()}${b.checkedText.slice(1)}.`}
-                                                className="self-center"
-                                            />
-                                        </span>
-                                    ))}
-                                </div>
+                                            </div>
+                                        </div>
+                                        );
+                                    })}
+                                </PostingCheckSignalsGrid>
                             )}
-                        </div>
+                            {/* WHEN this verdict was last checked is in the header
+                                above; this says how. */}
+                            <div className="pt-3 text-xs text-muted-foreground">{GHOST_CHECK_TAGLINE}</div>
+                        </PostingCheckSummary>
+                        {/* S4 exposure trust badges (dark launch) — positive-only,
+                            same quiet mono house style as the fact chips, same
+                            ContextHelp tooltip mechanism as elsewhere in this
+                            panel. Renders nothing until deriveExposureBadges has
+                            something to say (see its doc comment). */}
+                        {exposureBadges.length > 0 && (
+                            <div className="mono-data mt-3 flex flex-wrap items-center text-xs text-muted-foreground">
+                                {exposureBadges.map((b, i) => (
+                                    <span key={b.label} className="inline-flex items-center">
+                                        {i > 0 && (
+                                            <span className="mx-1" aria-hidden>
+                                                ·
+                                            </span>
+                                        )}
+                                        {b.label}
+                                        <ContextHelp
+                                            content={`We check whether this posting appears in ${
+                                                b.label === "Seen on Google" ? "Google's job search results" : "LinkedIn's job listings"
+                                            } — ${b.checkedText.charAt(0).toLowerCase()}${b.checkedText.slice(1)}.`}
+                                            className="self-center"
+                                        />
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
