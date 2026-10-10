@@ -79,10 +79,12 @@ function lifespan(now: number): { createdAt: string; expiresAt: string } {
  *
  * `params.id` is the dead-link existence probe ("does this exact posting still
  * exist"), issued by the app rather than typed by anyone. Logging it would
- * bury real queries under machine traffic.
+ * bury real queries under machine traffic. `params.automatic` is the browser
+ * extension's on-page card looking up the job page that just loaded: the
+ * same, machine traffic.
  */
 export function shouldLogSearch(params: JobSearchParams): boolean {
-    return !params.id;
+    return !params.id && params.automatic !== true;
 }
 
 /** Pure: any explicit filter the user reached for. `hideGhosts` and

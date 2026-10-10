@@ -1,0 +1,32 @@
+{
+  "$comment": "Job boards and applicant-tracking sites where the Velai card shows on its own (manifest content_scripts, written by build.mjs). Elsewhere it shows only on sites the person turns it on for. Keep this to job sites: each entry is listed to the person at install.",
+  "matches": [
+    "https://boards.greenhouse.io/*",
+    "https://job-boards.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://jobs.ashbyhq.com/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://jobs.smartrecruiters.com/*",
+    "https://*.icims.com/*",
+    "https://*.bamboohr.com/careers/*",
+    "https://apply.workable.com/*",
+    "https://*.recruitee.com/*",
+    "https://jobs.jobvite.com/*",
+    "https://*.taleo.net/*",
+    "https://*.breezy.hr/*",
+    "https://*.teamtailor.com/*",
+    "https://*.jobs.personio.com/*",
+    "https://*.jobs.personio.de/*",
+    "https://*.successfactors.com/*",
+    "https://ats.rippling.com/*",
+    "https://jobs.dayforcehcm.com/*",
+    "https://www.linkedin.com/jobs/*",
+    "https://*.indeed.com/*",
+    "https://www.glassdoor.com/*",
+    "https://www.glassdoor.ca/*",
+    "https://wellfound.com/*",
+    "https://www.ziprecruiter.com/*",
+    "https://www.jobbank.gc.ca/*",
+    "https://www.workatastartup.com/*"
+  ]
+}
