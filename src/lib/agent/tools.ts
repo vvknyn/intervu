@@ -14,7 +14,8 @@ import type {
 } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { canonicalFacetValues } from "../jobs/meilisearch";
-import { matchLabel, type MatchScore } from "../match/score";
+import { matchLabel, relevanceTerms, termAsWritten, type MatchScore } from "../match/score";
+import { latestCheckAt } from "../jobs/badges";
 import { fitFor } from "../jobs/for-you/fit";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
@@ -225,10 +226,13 @@ const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBuc
  * review fix) — every PublicJob field a job seeker can already see on
  * intervu's own job-detail view (JobDetail.tsx / job-detail-facts.ts), and
  * nothing else. Company-aggregate/close-rate fields
- * (company_opened_90d/company_closed_90d/company_open_count/company_stage,
- * types.ts:55-58) and `source`/`location_city`/`location_state`/
- * `visa_sponsorship`/`posted_ts` are deliberately absent — none of them
- * render anywhere in the web UI today.
+ * (company_opened_90d/company_closed_90d/company_stage) and `source`/
+ * `location_city`/`location_state`/`visa_sponsorship`/`posted_ts` are
+ * deliberately absent — none of them render anywhere in the web UI today.
+ * `company_open_count` is absent too, for a different reason: the job pane
+ * shows the company's LIVE count (`getCompanyOpenCountAction`, JobDetail.tsx)
+ * and only falls back to this ingest-time aggregate, which drifts from it;
+ * get_company returns that live count (`openCount`).
  *
  * `search_jobs` hits carry this SAME full allowlist, not a narrower subset
  * (see `SearchHit` below) — so an agent can evaluate several roles off one
@@ -281,6 +285,16 @@ export type JobDetailFields = Pick<
    *  and could call a role "a good fit" that the site labels "Outside
    *  Canada". Present exactly when `match` is. */
   fit_label?: string;
+  /** The words in the role's title and tags that the résumé doesn't have, as
+   *  the posting writes them (`relevanceTerms`, the terms behind the
+   *  relevance row's "2 of 3 terms" count — what the extension's "Not on your
+   *  résumé" line names). Present exactly when `match` is. */
+  missing_terms?: string[];
+  /** When Velai last checked the posting (`latestCheckAt`: the later of the
+   *  ghost check and the last time it was seen live), the time behind the
+   *  site's "✓ live 3h ago" / "checked 12d ago". `null` when there is no
+   *  check time to claim — the site says "Check time unavailable". */
+  last_checked_at: string | null;
 };
 
 export function toJobDetailFields(
@@ -309,7 +323,15 @@ export function toJobDetailFields(
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
     intervu_url: jobShareUrl(getSiteUrl(), job),
-    ...(fit ? { match: fit.match, fit_reasons: fit.fit_reasons, fit_label: matchLabel(fit.match) } : {}),
+    last_checked_at: latestCheckAt(job),
+    ...(fit && resume
+      ? {
+          match: fit.match,
+          fit_reasons: fit.fit_reasons,
+          fit_label: matchLabel(fit.match),
+          missing_terms: relevanceTerms(resume, job).missing.map((term) => termAsWritten(term, job)),
+        }
+      : {}),
   };
 }
 

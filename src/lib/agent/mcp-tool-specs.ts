@@ -207,8 +207,11 @@ export const FIT_FIELDS_NOTE =
     "When a structured résumé is on file (get_resume source resume_data), each job also carries fit_label — " +
     "the label velai shows that person on the role: Strong, Good or Stretch, \"Outside <country>\" for a role " +
     "outside where they can work, or \"Country unclear\" — plus match (the score behind it) and fit_reasons, " +
-    "scored with their saved preferences the same way the site scores them. Use fit_label when you describe a " +
-    "role's fit; never call a role labelled Outside or Country unclear a fit.";
+    "scored with their saved preferences the same way the site scores them, and missing_terms (words in the " +
+    "role's title and tags the résumé doesn't have, as the posting writes them). Use fit_label when you describe " +
+    "a role's fit; never call a role labelled Outside or Country unclear a fit. Every job also carries " +
+    "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
+    "say how long ago it was checked when you say a role is open.";
 
 /**
  * The one tool catalog — title, description, and wire schema for every tool
