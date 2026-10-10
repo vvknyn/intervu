@@ -238,6 +238,9 @@ function stubDeps(
     getCompanyPageData: async () => null,
     getCompanyExhaust: async () => null,
     searchCompanies: async () => [],
+    tailor: async () => {
+      throw new Error('tailor is covered in mcp-site-parity.test.ts');
+    },
   };
   return {
     deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls, setBaseResumeCalls,

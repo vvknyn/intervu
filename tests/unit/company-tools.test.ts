@@ -40,6 +40,7 @@ function baseDeps(overrides: Partial<ToolDeps> = {}): ToolDeps {
     getCompanyPageData: async () => null,
     getCompanyExhaust: async () => null,
     searchCompanies: async () => [],
+    tailor: notImplemented('tailor'),
     ...overrides,
   };
 }
