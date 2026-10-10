@@ -79,6 +79,11 @@ export function namedPlaces(state: JobsUrlState): string[] {
     return LOCATION_FACETS.flatMap((key) => state.facets[key] ?? []).filter((v) => v.trim() && !isNeutral(v));
 }
 
+/** "Iceland", "Iceland and Norway", "Iceland, Norway and Denmark". */
+export function formatPlaceList(places: string[]): string {
+    return places.length < 2 ? (places[0] ?? "") : `${places.slice(0, -1).join(", ")} and ${places[places.length - 1]}`;
+}
+
 /**
  * True when `state` names a place and the search dropped every one of them:
  * the rows are that search with no location at all. The board shows them under
