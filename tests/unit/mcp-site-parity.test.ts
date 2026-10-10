@@ -22,6 +22,13 @@ import { readFileSync } from 'node:fs';
 process.env.NEXT_PUBLIC_SITE_URL = 'https://velai.app';
 import { toolGetJob, toolSearchJobs, toolForYou, type ToolDeps } from '../../src/lib/agent/tools';
 import { toolGetCompany } from '../../src/lib/agent/company-tools';
+import { NO_TAILOR_CHANGES_NOTE, rulesTailor, toolTailorResume, type TailorChangeOut } from '../../src/lib/agent/tailor-tool';
+import { jobToTailorInput, tailorWithRules } from '../../src/lib/local-ai/tailor-with-engine';
+import { parseResumeLocally } from '../../src/lib/local-ai/parse-resume';
+import { resumeDataToZipMarkdown } from '../../src/lib/resume/to-zip-markdown';
+import type { BaseResume } from '../../src/lib/resume/base-resume';
+import path from 'node:path';
+import { TAILOR_POSTINGS } from '../fixtures/job-descriptions/tailor-postings';
 import { siteSearch } from '../../src/lib/agent/site-search';
 import { withPlaceCountries } from '../../src/lib/agent/place-countries';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
@@ -139,6 +146,7 @@ function depsFor(persona: Persona, company?: CompanyPageData): ToolDeps {
         getCompanyPageData: async () => company ?? null,
         getCompanyExhaust: async () => null,
         searchCompanies: async () => [],
+        tailor: rulesTailor,
     };
 }
 
@@ -269,5 +277,98 @@ describe('the MCP reads a job the way the site serves it', () => {
     it('the MCP route looks a job up through the same seam as the site\'s job pane', () => {
         assert.ok(namedImports('src/actions/jobs.ts', '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
         assert.ok(namedImports('src/app/api/mcp/route.ts', '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
+    });
+});
+
+describe('tailor_resume tailors the way the site\'s Customize résumé does', () => {
+    /** The corpus résumés as the site reads them (tests/unit/tailor-corpus.test.ts). */
+    async function readCorpusResume(id: string): Promise<ResumeData> {
+        const text = readFileSync(path.join(process.cwd(), 'tests/fixtures/resume-corpus', `${id}.paste.txt`), 'utf8');
+        const parsed = (await parseResumeLocally(text, { skipDownload: true })).data.parsed;
+        return { ...parsed, generatedSummary: parsed.generatedSummary ?? '' };
+    }
+
+    function tailorDeps(base: BaseResume, jobs: PublicJob[], budget: number[] = []): ToolDeps {
+        const deps = depsFor(PERSONAS[0]!);
+        const byId = (id: string): JobSearchResult => {
+            const hits = jobs.filter((job) => job.id === id);
+            return { hits, total: hits.length, backend: 'meilisearch', configured: true } as JobSearchResult;
+        };
+        return {
+            ...deps,
+            getBaseResume: async () => base,
+            search: siteSearch({
+                search: async () => byId(''),
+                hydrate: async (id) => byId(id),
+                rowPlaces: async (hits) => hits,
+                wholePlace: withDescriptionPlace,
+            }),
+            consumeRecordBudget: async (count) => {
+                budget.push(count);
+                return { ok: true };
+            },
+        };
+    }
+
+    const postings = Object.entries(TAILOR_POSTINGS).map(([id, posting]) =>
+        mkJob(`posting-${id}`, { title: posting.title, company: posting.company ?? 'Acme', location: posting.location ?? null, description: posting.description ?? null, tags: posting.tags ?? [] }),
+    );
+
+    it('every corpus résumé gets the site\'s changes and the text its Copy gives', async () => {
+        let changes = 0;
+        for (const [i, id] of Object.keys(TAILOR_POSTINGS).entries()) {
+            const resume = await readCorpusResume(id);
+            const job = postings[i]!;
+            const out = await toolTailorResume(tailorDeps({ source: 'resume_data', resume_data: resume }, postings), { job_id: job.id });
+            if ('error' in out) throw new Error(`${id}: ${out.error}`);
+            const site = tailorWithRules(resume, jobToTailorInput(withDescriptionPlace(job)));
+            assert.deepEqual(out.changes.map((c) => [c.id, c.kind, c.why]), site.changes.map((c) => [c.id, c.kind, c.why]), id);
+            for (const change of site.changes) {
+                if (change.kind !== 'summary' && change.kind !== 'line') continue;
+                const mine: TailorChangeOut | undefined = out.changes.find((c) => c.id === change.id);
+                assert.deepEqual([mine?.before, mine?.after], [change.before, change.after], `${id} ${change.id}`);
+            }
+            assert.equal(out.resume_text, resumeDataToZipMarkdown(site.tailored), id);
+            assert.equal(out.engine, site.engineLabel);
+            changes += out.changes.length;
+        }
+        assert.ok(changes > 0, 'the corpus is tailored at all');
+    });
+
+    it('the nurse\'s charting reads as the posting\'s documenting, in the changes and the text', async () => {
+        const i = Object.keys(TAILOR_POSTINGS).indexOf('nurse-ca');
+        const resume = await readCorpusResume('nurse-ca');
+        const budget: number[] = [];
+        const out = await toolTailorResume(tailorDeps({ source: 'resume_data', resume_data: resume }, postings, budget), { job_id: postings[i]!.id });
+        if ('error' in out) throw new Error(out.error);
+        const line = out.changes.find((c) => c.after === 'Documented all assessments and medication administration in Epic.');
+        assert.ok(line, JSON.stringify(out.changes.map((c) => c.after)));
+        assert.match(line!.section, /·/);
+        assert.ok(out.resume_text.includes('Documented all assessments and medication administration in Epic.'));
+        assert.deepEqual(budget, [1], 'reading the posting counts once against the record budget');
+    });
+
+    it('a résumé that already reads like the posting gets no changes and the site\'s note', async () => {
+        const resume = mkResume();
+        const job = mkJob('plain', { title: 'Zookeeper', description: null, tags: [] });
+        const out = await toolTailorResume(tailorDeps({ source: 'resume_data', resume_data: resume }, [job]), { job_id: 'plain' });
+        if ('error' in out) throw new Error(out.error);
+        assert.deepEqual(out.changes, tailorWithRules(resume, jobToTailorInput(job)).changes);
+        if (out.changes.length === 0) assert.equal(out.note, NO_TAILOR_CHANGES_NOTE);
+    });
+
+    it('needs the structured résumé: none, or text only, is an error that names what to do', async () => {
+        const none = await toolTailorResume(tailorDeps({ source: 'none' }, postings), { job_id: postings[0]!.id });
+        assert.deepEqual(none, { error: 'no résumé on file — call set_resume first, then retry tailor_resume' });
+        const textOnly = await toolTailorResume(tailorDeps({ source: 'resume_text', resume_text: 'Nurse' }, postings), { job_id: postings[0]!.id });
+        assert.ok('error' in textOnly && textOnly.error.includes('plain text only') && textOnly.error.endsWith('retry tailor_resume'));
+        const missing = await toolTailorResume(tailorDeps({ source: 'resume_data', resume_data: mkResume() }, postings), { job_id: 'nope' });
+        assert.deepEqual(missing, { error: 'job not found' });
+    });
+
+    it('the route\'s rules engine is the site\'s no-model tailor', async () => {
+        const resume = await readCorpusResume('accountant-ca');
+        const job = postings[0]!;
+        assert.deepEqual(await rulesTailor(resume, job), tailorWithRules(resume, jobToTailorInput(job)));
     });
 });
