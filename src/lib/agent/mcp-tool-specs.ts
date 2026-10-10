@@ -85,6 +85,8 @@ export const saveResumeVariantInput = jobIdFieldInput.extend({
 
 export const getResumeVariantInput = jobIdFieldInput;
 
+export const tailorResumeInput = jobIdFieldInput;
+
 /** `set_resume`'s wire input. `resume_data` is deliberately PERMISSIVE at
  *  this layer — a plain string-keyed record, not the strict `ResumeData`
  *  shape — so a structurally invalid payload never rejects the whole call
@@ -207,8 +209,11 @@ export const FIT_FIELDS_NOTE =
     "When a structured résumé is on file (get_resume source resume_data), each job also carries fit_label — " +
     "the label velai shows that person on the role: Strong, Good or Stretch, \"Outside <country>\" for a role " +
     "outside where they can work, or \"Country unclear\" — plus match (the score behind it) and fit_reasons, " +
-    "scored with their saved preferences the same way the site scores them. Use fit_label when you describe a " +
-    "role's fit; never call a role labelled Outside or Country unclear a fit.";
+    "scored with their saved preferences the same way the site scores them, and missing_terms (words in the " +
+    "role's title and tags the résumé doesn't have, as the posting writes them). Use fit_label when you describe " +
+    "a role's fit; never call a role labelled Outside or Country unclear a fit. Every job also carries " +
+    "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
+    "say how long ago it was checked when you say a role is open.";
 
 /**
  * The one tool catalog — title, description, and wire schema for every tool
@@ -304,6 +309,20 @@ export const MCP_TOOL_SPECS = {
             "resume from velai's resume builder when present, else the plain-text resume, else an " +
             "explicit \"none\" state (source field tells you which). Never a fabricated placeholder.",
         inputSchema: getResumeInput,
+    },
+    tailor_resume: {
+        title: "Tailor your resume to a job",
+        description:
+            "Tailor YOUR OWN structured resume on file to one job (job_id), the way the site's \"Customize " +
+            "résumé\" does: lines reworded in the posting's own words where the resume already says the same " +
+            "thing, the lines using its words first, and the skills it names first. Nothing is invented: no " +
+            "employer, title, date, number or skill the resume doesn't already have. Returns changes (each with " +
+            "section, before, after and why — show them to the user, who may want some left out), resume_text " +
+            "(the resume with every change applied, as the site's Copy gives it) and engine (what wrote the " +
+            "draft). Saves nothing: file the version the user settles on with save_resume_variant, reverting " +
+            "any change they don't want. Needs a structured resume (get_resume source resume_data). Counts " +
+            `against ${RECORD_BUDGET_NOTE}.`,
+        inputSchema: tailorResumeInput,
     },
     save_resume_variant: {
         title: "Save a tailored resume variant",

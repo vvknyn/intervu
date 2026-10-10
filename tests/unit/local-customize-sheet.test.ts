@@ -144,11 +144,14 @@ describe("Customize dialog contract", () => {
         assert.ok(bookmarkIdx > customizeIdx, "Bookmark follows Customize");
     });
 
-    it("accordion sections: summary expanded by default, experience blocks collapsed", () => {
+    // Vivek 2026-10-10: tailoring "only tweaked the skills". Every change is listed, with its reason and an Undo.
+    it("lists every change with Undo, and Copy and Download use only the changes left on", () => {
         const src = readFileSync(PANEL, "utf8");
-        assert.match(src, /defaultValue=\{\["summary"\]\}/);
-        assert.match(src, /local-customize-section-summary/);
-        assert.match(src, /local-customize-section-\$\{/);
+        assert.match(src, /<TailorChangeList draft=\{draft\} kept=\{kept\}/);
+        assert.match(src, /applyTailorChanges\(draft\.base, draft\.changes\.filter\(\(c\) => !undone\.has\(c\.id\)\)\)/);
+        assert.match(src, /resumeDataToZipMarkdown\(kept\)/);
+        assert.match(src, /exportZipResumePdfFromData\(kept,/);
+        assert.doesNotMatch(src, /draft\.tailored/);
     });
 
     it("copy uses zip markdown; PDF exports from ResumeData", () => {

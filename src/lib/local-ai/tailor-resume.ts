@@ -1,11 +1,39 @@
 /**
  * Pure heuristic résumé tailor — no window, no model download.
- * Rules fallback when on-device generation is unavailable or rejected.
+ * Rules fallback when on-device generation is unavailable or rejected, and
+ * the whole tailor wherever no model runs (the For you download, the Velai
+ * Chrome extension).
+ *
+ * A tailored résumé says what the person's own résumé says, in the posting's
+ * words and in the order the posting cares about. Every edit is one
+ * `TailorChange` with the reason for it, so the person can see each one and
+ * undo any of them (`applyTailorChanges`):
+ *  - "line": an experience or project line reworded in the posting's words
+ *    (tailor-wording.ts: near-synonym verbs, "clients"/"customers", the
+ *    posting's spelling, acronyms the posting spells out);
+ *  - "summary": the summary in the posting's words, closing with the skills
+ *    on the résumé that the posting asks for;
+ *  - "order": a role's lines, the ones using the posting's words first;
+ *  - "skills": a skills group, the skills the posting names first.
+ * Nothing is added that the résumé doesn't already say: no employer, title,
+ * date, number or skill, and no summary when the résumé has none. The
+ * grounding gate (tailor-ground.ts) checks every draft again before use.
  */
 
 import type { LocalAiEngineId } from "./engines/types";
 import { ENGINE_LABELS } from "./engines/types";
 import { resumeMatchText } from "@/lib/resume/match-text";
+import { BULLET_MARKER_RE, descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
+import { lineOrders, skillOrders } from "@/lib/resume/order-for-role";
+import {
+    equivalentWords,
+    openingVerbBase,
+    readPostingWording,
+    respell,
+    rewordLine,
+    spellingKey,
+    type PostingWording,
+} from "./tailor-wording";
 import type { ResumeData, ResumeExperience } from "@/types/resume";
 
 export type TailorJobInput = {
@@ -20,9 +48,7 @@ export type TailorJobInput = {
 export type TailorBulletDiff = {
     experienceId: string;
     /** Which array on `ResumeData` this bullet's `experienceId` indexes into
-     *  — `experience` and `projects` share the same id-bearing shape, so a
-     *  diff must say which one a revert (tailor-with-engine.ts) should
-     *  patch. */
+     *  — `experience` and `projects` share the same id-bearing shape. */
     source: "experience" | "project";
     company: string;
     role: string;
@@ -30,13 +56,52 @@ export type TailorBulletDiff = {
     after: string;
 };
 
+type EntrySource = TailorBulletDiff["source"];
+
+/** One edit the tailor made, with the reason it gives the person (`why`). */
+export type TailorChange =
+    | { id: string; kind: "summary"; before: string; after: string; why: string }
+    | {
+          id: string;
+          kind: "line";
+          source: EntrySource;
+          entryId: string;
+          /** The line's place among the entry's lines (`descriptionToBullets`) in the résumé tailored from. */
+          index: number;
+          company: string;
+          role: string;
+          before: string;
+          after: string;
+          why: string;
+      }
+    | {
+          id: string;
+          kind: "order";
+          source: EntrySource;
+          entryId: string;
+          company: string;
+          role: string;
+          /** `order[i]` is the index of the line that now comes i-th. */
+          order: number[];
+          why: string;
+      }
+    | { id: string; kind: "skills"; group: number; category: string; before: string[]; after: string[]; why: string };
+
 export type TailorDraft = {
     engineId: LocalAiEngineId;
     engineLabel: string;
     usedDescription: boolean;
     summaryBefore: string;
     summaryAfter: string;
+    /** The reworded lines, for callers that list them. */
     bullets: TailorBulletDiff[];
+    /** The résumé the changes apply to. */
+    base: ResumeData;
+    changes: TailorChange[];
+    /** The posting's words that mean the same as a word the résumé uses (`equivalentWords`);
+     *  the grounding gate accepts these as it accepts the résumé's own. */
+    equivalents: string[];
+    /** `base` with every change applied. */
     tailored: ResumeData;
 };
 
@@ -52,23 +117,9 @@ const STOPWORDS = new Set([
     "across", "while", "per", "via", "etc", "role", "job", "work", "team", "company",
 ]);
 
-/** Small synonym clusters for implied JD ↔ résumé overlap. */
-const RELATED: Record<string, string[]> = {
-    roadmap: ["planning", "plan", "strategy", "priorit"],
-    planning: ["roadmap", "plan", "strategy"],
-    agile: ["scrum", "sprint", "kanban"],
-    scrum: ["agile", "sprint"],
-    develop: ["build", "engineer", "implement", "code"],
-    build: ["develop", "engineer", "implement"],
-    lead: ["led", "manage", "managed", "direct", "directed"],
-    manage: ["lead", "led", "oversee", "managed"],
-    product: ["pm", "program"],
-    engineer: ["developer", "development", "engineering"],
-    data: ["analytics", "analyst", "metrics"],
-    design: ["ux", "ui", "user"],
-};
-
 const DESC_SLICE_CHARS = 1000;
+/** The whole posting is read for its wording; this only bounds a pathological one. */
+const POSTING_TEXT_MAX_CHARS = 12000;
 
 function tokenize(text: string): string[] {
     return text
@@ -83,19 +134,15 @@ function uniqueTokens(text: string): string[] {
 }
 
 /**
- * Every field of the résumé that counts as "the résumé's own text" — single
- * source for both keyword-overlap scoring (`resumeVocabulary`, stopword-
- * filtered, below) and the grounding truthfulness check
- * (`tailor-with-engine.ts`'s `groundDraft`, which needs the raw, unfiltered
- * text — stopwords like "team"/"company" are ordinary words a rewrite is
- * allowed to reuse, not fabricated claims).
+ * Every field of the résumé that counts as "the résumé's own text" — what
+ * the grounding gate (`groundDraft`) checks a rewrite's words against.
  *
  * Builds on `resumeMatchText` (match-text.ts) — the one place that owns
  * "what free text counts as the résumé's own" (summary, experience
  * descriptions, project descriptions, skills) — layering on the structural
  * fields match-text.ts intentionally omits (profession, competency category
- * labels, experience/project role & company) so a bullet rewrite is free to
- * reuse a job title or employer name without tripping the grounding gate.
+ * labels, experience/project role & company) so a rewrite is free to reuse a
+ * job title or employer name without tripping the grounding gate.
  */
 export function resumeFullText(resume: ResumeData): string {
     return [
@@ -105,10 +152,6 @@ export function resumeFullText(resume: ResumeData): string {
         ...resume.experience.flatMap((e) => [e.role, e.company]),
         ...(resume.projects ?? []).flatMap((p) => [p.role, p.company]),
     ].join(" ");
-}
-
-function resumeVocabulary(resume: ResumeData): Set<string> {
-    return new Set(tokenize(resumeFullText(resume)));
 }
 
 function extractJdKeywords(job: TailorJobInput): string[] {
@@ -122,189 +165,11 @@ export function roleTermsForJob(job: TailorJobInput): string[] {
     return extractJdKeywords(job);
 }
 
-function jdKeywordsWithResumeOverlap(jdKeywords: string[], resumeTokens: Set<string>): string[] {
-    const overlap: string[] = [];
-    for (const kw of jdKeywords) {
-        if (resumeTokens.has(kw)) {
-            overlap.push(kw);
-            continue;
-        }
-        for (const rt of resumeTokens) {
-            if (rt.includes(kw) || kw.includes(rt)) {
-                overlap.push(kw);
-                break;
-            }
-        }
-    }
-    return [...new Set(overlap)];
-}
-
-function relatedJdTermsForBullet(bulletTokens: Set<string>, jdKeywords: string[]): string[] {
-    const found: string[] = [];
-    for (const jd of jdKeywords) {
-        if (bulletTokens.has(jd)) {
-            found.push(jd);
-            continue;
-        }
-        const related = RELATED[jd] ?? [];
-        if (related.some((r) => [...bulletTokens].some((bt) => bt.includes(r) || r.includes(bt)))) {
-            found.push(jd);
-        }
-    }
-    return found;
-}
-
-function splitDescriptionLines(description: string): string[] {
-    return description
-        .split(/\n|•/)
-        .map((l) => l.replace(/^[\s\-*]+/, "").trim())
-        .filter(Boolean);
-}
-
-function firstMeaningfulBullet(description: string): { line: string } | null {
-    const line = splitDescriptionLines(description).find((l) => l.length >= 8);
-    return line ? { line } : null;
-}
-
-/** Swaps one line's text in place, so the other lines keep their bullet
- *  markers: rebuilding from the stripped lines ran unpunctuated bullets
- *  together into one when the description was split again for the PDF. */
-function replaceBulletLine(description: string, line: string, newLine: string): string {
-    if (newLine === line) return description;
-    const at = description.indexOf(line);
-    return at < 0 ? description : description.slice(0, at) + newLine + description.slice(at + line.length);
-}
-
-function termAlreadyPresent(text: string, term: string): boolean {
-    return text.toLowerCase().includes(term.toLowerCase());
-}
-
-function composeBaseSummary(resume: ResumeData): string {
-    if (resume.generatedSummary?.trim()) return resume.generatedSummary.trim();
-    const yoe = resume.profile.yearsOfExperience;
-    const prof = resume.profile.profession?.trim() || "Professional";
-    const skills = resume.competencies.flatMap((c) => c.skills).slice(0, 6);
-    const skillPhrase = skills.length > 0 ? ` with expertise in ${skills.slice(0, 4).join(", ")}` : "";
-    const yoePhrase = yoe > 0 ? `${yoe}+ years of experience` : "";
-    return [prof, yoePhrase].filter(Boolean).join(" — ") + skillPhrase + ".";
-}
-
-// Used to append a fabricated "Recent focus includes <title> work." clause
-// whenever the job title wasn't already reflected in the summary — a claim
-// about what the candidate has recently been doing that the résumé itself
-// never made. Deleted (front-door C1): a tailor that cannot invent leaves
-// the summary alone instead of inventing a sentence to cover the gap.
-function rewriteSummary(
-    base: string,
-    overlapTerms: string[],
-): string {
-    let result = base.trim();
-    if (!result.endsWith(".")) result += ".";
-
-    const freshTerms = overlapTerms.filter((t) => !termAlreadyPresent(result, t)).slice(0, 2);
-    if (freshTerms.length > 0) {
-        const woven =
-            freshTerms.length === 1
-                ? `Hands-on with ${freshTerms[0]}.`
-                : `Hands-on with ${freshTerms[0]} and ${freshTerms[1]}.`;
-        result = `${result.replace(/\.$/, "")}. ${woven}`;
-    }
-
-    return result.replace(/\.\s+\./g, ".").replace(/\.\./g, ".");
-}
-
-function substituteJdSynonym(bullet: string, jdKeywords: string[]): string {
-    const bulletTokens = new Set(tokenize(bullet));
-    const related = relatedJdTermsForBullet(bulletTokens, jdKeywords);
-    if (related.length === 0) return bullet;
-
-    const jdTerm = related[0];
-    const cluster = [jdTerm, ...(RELATED[jdTerm] ?? [])];
-
-    for (const candidate of cluster) {
-        if (candidate === jdTerm) continue;
-        const re = new RegExp(`\\b${candidate}\\b`, "i");
-        if (re.test(bullet) && !termAlreadyPresent(bullet, jdTerm)) {
-            return bullet.replace(re, (match) =>
-                match.charAt(0) === match.charAt(0).toUpperCase() ? capitalize(jdTerm) : jdTerm,
-            );
-        }
-    }
-
-    for (const [key, synonyms] of Object.entries(RELATED)) {
-        if (!cluster.includes(key) && key !== jdTerm) continue;
-        for (const syn of synonyms) {
-            const re = new RegExp(`\\b${syn}\\b`, "i");
-            if (re.test(bullet) && syn !== jdTerm && !termAlreadyPresent(bullet, jdTerm)) {
-                return bullet.replace(re, (match) =>
-                    match.charAt(0) === match.charAt(0).toUpperCase() ? capitalize(jdTerm) : jdTerm,
-                );
-            }
-        }
-    }
-
-    return bullet;
-}
-
-function capitalize(s: string): string {
-    if (!s) return s;
-    return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function rewriteBullet(
-    bullet: string,
-    _jobTitle: string,
-    jdKeywords: string[],
-    _overlapTerms: string[],
-): string {
-    const cleaned = bullet.replace(/^[•\-\s]+/, "").trim();
-    return substituteJdSynonym(cleaned, jdKeywords);
-}
-
-/** Shared by both experience and project bullets — `ResumeData.projects`
- *  entries reuse the exact `ResumeExperience` shape, so one selector serves
- *  both. */
-function selectBulletSources(entries: ResumeExperience[], max = 4): ResumeExperience[] {
-    return entries.filter((e) => e.description?.trim()).slice(0, max);
-}
-
-/** Rewrites the first meaningful bullet of every eligible entry in `entries`
- *  (experience OR projects — same shape), patching the matching entry in
- *  `tailoredList` in place and returning one `TailorBulletDiff` per rewrite,
- *  tagged with `source` so a later revert patches the right array. */
-function tailorBulletsForEntries(
-    entries: ResumeExperience[],
-    tailoredList: ResumeExperience[],
-    source: TailorBulletDiff["source"],
-    job: TailorJobInput,
-    jdKeywords: string[],
-    overlapTerms: string[],
-    max: number,
-): TailorBulletDiff[] {
-    const bullets: TailorBulletDiff[] = [];
-    for (const entry of selectBulletSources(entries, max)) {
-        const hit = firstMeaningfulBullet(entry.description);
-        if (!hit) continue;
-
-        const after = rewriteBullet(hit.line, job.title, jdKeywords, overlapTerms);
-        const idx = tailoredList.findIndex((e) => e.id === entry.id);
-        if (idx >= 0) {
-            tailoredList[idx] = {
-                ...tailoredList[idx],
-                description: replaceBulletLine(entry.description, hit.line, after),
-            };
-        }
-
-        bullets.push({
-            experienceId: entry.id,
-            source,
-            company: entry.company,
-            role: entry.role,
-            before: hit.line,
-            after,
-        });
-    }
-    return bullets;
+/** Everything the posting says, for its wording. */
+export function postingTextFor(job: TailorJobInput): string {
+    return [job.title, ...(job.tags ?? []), job.occupation ?? "", (job.description ?? "").slice(0, POSTING_TEXT_MAX_CHARS)]
+        .filter(Boolean)
+        .join("\n");
 }
 
 function cloneResume(resume: ResumeData): ResumeData {
@@ -322,30 +187,228 @@ export function looksRoboticTailor(text: string): boolean {
     );
 }
 
-export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): TailorDraft {
-    const tailored = cloneResume(resume);
-    const jdKeywords = extractJdKeywords(job);
-    const resumeTokens = resumeVocabulary(resume);
-    const overlapTerms = jdKeywordsWithResumeOverlap(jdKeywords, resumeTokens);
+function quoteList(terms: string[]): string {
+    return terms.map((t) => `“${t}”`).join(", ");
+}
 
-    const summaryBefore = composeBaseSummary(resume);
-    const summaryAfter = rewriteSummary(summaryBefore, overlapTerms);
-    tailored.generatedSummary = summaryAfter;
+function listJoin(items: string[]): string {
+    return items.length <= 1 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
 
-    const bullets: TailorBulletDiff[] = [
-        ...tailorBulletsForEntries(resume.experience, tailored.experience, "experience", job, jdKeywords, overlapTerms, 4),
-        ...tailorBulletsForEntries(resume.projects ?? [], tailored.projects ?? [], "project", job, jdKeywords, overlapTerms, 4),
-    ];
+/** Word keys of `text`, plural-blind, for finding one phrase inside another. */
+function phraseKeys(text: string): string[] {
+    return (text.match(/\p{L}[\p{L}\p{N}]*(?:[-.+#][\p{L}\p{N}]+)*[+#]*/gu) ?? []).map((w) => {
+        const key = spellingKey(w);
+        return key.length > 3 ? key.replace(/s$/, "") : key;
+    });
+}
 
+function indexOfPhrase(haystack: string[], needle: string[]): number {
+    if (needle.length === 0) return -1;
+    outer: for (let i = 0; i + needle.length <= haystack.length; i++) {
+        for (let j = 0; j < needle.length; j++) if (haystack[i + j] !== needle[j]) continue outer;
+        return i;
+    }
+    return -1;
+}
+
+const SUMMARY_SKILLS_MAX = 3;
+
+/** How the summary names the posting's skills from the résumé ("Core skills
+ *  include IV therapy, wound care and patient education."). Its own words
+ *  claim nothing, so the grounding gate accepts them (`SUMMARY_SKILLS_WORDS`). */
+const SUMMARY_SKILLS_LEAD = "Core skills include";
+export const SUMMARY_SKILLS_WORDS: readonly string[] = SUMMARY_SKILLS_LEAD.toLowerCase().split(" ");
+
+/** Skills listed on the résumé that the posting asks for by name and the
+ *  summary doesn't mention yet, in the posting's order. */
+function skillsThePostingNames(resume: ResumeData, postingText: string, summary: string): string[] {
+    const posting = phraseKeys(postingText);
+    const inSummary = phraseKeys(summary);
+    const seen = new Set<string>();
+    const named: { skill: string; at: number }[] = [];
+    for (const skill of resume.competencies.flatMap((c) => c.skills)) {
+        const keys = phraseKeys(skill);
+        const id = keys.join(" ");
+        if (!id || seen.has(id) || keys.length > 4) continue;
+        seen.add(id);
+        if (indexOfPhrase(inSummary, keys) >= 0) continue;
+        const at = indexOfPhrase(posting, keys);
+        if (at >= 0) named.push({ skill: skill.trim(), at });
+    }
+    return named.sort((a, b) => a.at - b.at).slice(0, SUMMARY_SKILLS_MAX).map((n) => n.skill);
+}
+
+/** The summary in the posting's words, closing with the posting's skills the résumé lists. */
+function summaryChange(resume: ResumeData, job: TailorJobInput, wording: PostingWording, acronymsDone: Set<string>): TailorChange | null {
+    const before = resume.generatedSummary?.trim() ?? "";
+    // A résumé without a summary gets none: the tailor doesn't add a section the person didn't write.
+    if (!before) return null;
+    const reworded = rewordLine(before, wording, { roleOpeners: new Set(), acronymsDone, verbs: false });
+    let after = reworded.after;
+    const why: string[] = [];
+    if (reworded.terms.length > 0) why.push(`Uses the posting's words: ${quoteList(reworded.terms)}.`);
+    const named = skillsThePostingNames(resume, postingTextFor(job), after);
+    if (named.length > 0) {
+        after = `${after.replace(/[\s.]+$/, "")}. ${SUMMARY_SKILLS_LEAD} ${listJoin(named)}.`;
+        why.push(`Names skills from your résumé that the posting asks for.`);
+    }
+    return after === before ? null : { id: "summary", kind: "summary", before, after, why: why.join(" ") };
+}
+
+function lineChangesFor(
+    entries: ResumeExperience[],
+    source: EntrySource,
+    wording: PostingWording,
+    acronymsDone: Set<string>,
+): TailorChange[] {
+    const out: TailorChange[] = [];
+    for (const entry of entries) {
+        const lines = descriptionToBullets(entry.description ?? "");
+        const roleOpeners = new Set(lines.map(openingVerbBase).filter((v): v is string => !!v));
+        lines.forEach((line, index) => {
+            const { after, terms } = rewordLine(line, wording, { roleOpeners, acronymsDone, verbs: true });
+            if (after === line) return;
+            out.push({
+                id: `line:${source}:${entry.id}:${index}`,
+                kind: "line",
+                source,
+                entryId: entry.id,
+                index,
+                company: entry.company,
+                role: entry.role,
+                before: line,
+                after,
+                why: `Uses the posting's words: ${quoteList(terms)}.`,
+            });
+        });
+    }
+    return out;
+}
+
+/** The marker the entry's own lines use ("• ", "- "), so a rewritten entry keeps its look. */
+function bulletMarkerOf(description: string): string {
+    for (const line of description.split("\n")) {
+        const m = line.match(BULLET_MARKER_RE);
+        if (m) return `${m[0].trim()} `;
+    }
+    return "- ";
+}
+
+function applyToEntries(entries: ResumeExperience[], source: EntrySource, changes: TailorChange[]): ResumeExperience[] {
+    return entries.map((entry) => {
+        const mine = changes.filter((c) => (c.kind === "line" || c.kind === "order") && c.source === source && c.entryId === entry.id);
+        if (mine.length === 0) return entry;
+        let lines = descriptionToBullets(entry.description ?? "");
+        const original = [...lines];
+        for (const c of mine) {
+            if (c.kind === "line" && original[c.index] === c.before) lines[c.index] = c.after;
+        }
+        const order = mine.find((c) => c.kind === "order");
+        if (order?.kind === "order" && order.order.length === lines.length) lines = order.order.map((i) => lines[i]);
+        if (lines.every((l, i) => l === original[i])) return entry;
+        const marker = bulletMarkerOf(entry.description ?? "");
+        return { ...entry, description: lines.map((l) => `${marker}${l}`).join("\n") };
+    });
+}
+
+/** Pure: `base` with `changes` applied (a copy; `base` is left as it was). Undo a
+ *  change by leaving it out: the others still apply. */
+export function applyTailorChanges(base: ResumeData, changes: TailorChange[]): ResumeData {
+    const out = cloneResume(base);
+    for (const c of changes) if (c.kind === "summary") out.generatedSummary = c.after;
+    out.experience = applyToEntries(out.experience ?? [], "experience", changes);
+    if (out.projects) out.projects = applyToEntries(out.projects, "project", changes);
+    for (const c of changes) {
+        if (c.kind !== "skills") continue;
+        const group = out.competencies[c.group];
+        if (group && group.skills.length === c.after.length && group.skills.every((s, i) => s === c.before[i])) {
+            out.competencies[c.group] = { ...group, skills: c.after };
+        }
+    }
+    return out;
+}
+
+/** The draft's derived fields (`tailored`, `bullets`, `summaryAfter`) from its base and changes. */
+export function finishDraft(draft: TailorDraft): TailorDraft {
+    const summary = draft.changes.find((c) => c.kind === "summary");
     return {
+        ...draft,
+        summaryAfter: summary?.kind === "summary" ? summary.after : draft.summaryBefore,
+        bullets: draft.changes.flatMap((c) =>
+            c.kind === "line"
+                ? [{ experienceId: c.entryId, source: c.source, company: c.company, role: c.role, before: c.before, after: c.after }]
+                : [],
+        ),
+        tailored: applyTailorChanges(draft.base, draft.changes),
+    };
+}
+
+/** Rewords the résumé in the posting's words (summary and every experience and
+ *  project line); ordering is `withRoleOrder`. */
+export function heuristicTailorResume(resume: ResumeData, job: TailorJobInput): TailorDraft {
+    const base = cloneResume(resume);
+    const posting = postingTextFor(job);
+    const wording = readPostingWording(posting);
+    const acronymsDone = new Set<string>();
+    const summary = summaryChange(base, job, wording, acronymsDone);
+    const changes: TailorChange[] = [
+        ...(summary ? [summary] : []),
+        ...lineChangesFor(base.experience ?? [], "experience", wording, acronymsDone),
+        ...lineChangesFor(base.projects ?? [], "project", wording, acronymsDone),
+    ];
+    return finishDraft({
         engineId: "heuristic",
         engineLabel: ENGINE_LABELS.heuristic,
         usedDescription: Boolean(job.description?.trim()),
-        summaryBefore,
-        summaryAfter,
-        bullets: bullets.slice(0, 4),
-        tailored,
-    };
+        summaryBefore: base.generatedSummary?.trim() ?? "",
+        summaryAfter: base.generatedSummary?.trim() ?? "",
+        bullets: [],
+        base,
+        changes,
+        equivalents: equivalentWords(resumeFullText(base), posting),
+        tailored: base,
+    });
+}
+
+/**
+ * Adds the moves to a (grounded) draft: in each role, the lines that use the
+ * posting's words first; in each skills group, the skills the posting names
+ * first, spelled the way the posting spells them. Pure reorders and spellings
+ * of words already on the résumé, so they need no grounding.
+ */
+export function withRoleOrder(draft: TailorDraft, job: TailorJobInput): TailorDraft {
+    const terms = roleTermsForJob(job);
+    const wording = readPostingWording(postingTextFor(job));
+    const changes: TailorChange[] = [...draft.changes];
+    for (const move of lineOrders(draft.tailored, terms)) {
+        changes.push({
+            id: `order:${move.source}:${move.entryId}`,
+            kind: "order",
+            ...move,
+            why: "Lines that use the posting's words now come first.",
+        });
+    }
+    const groups = new Map(skillOrders(draft.base, terms).map((m) => [m.group, m]));
+    draft.base.competencies.forEach((group, index) => {
+        const moved = groups.get(index);
+        const ordered = moved?.after ?? group.skills;
+        const spelled = ordered.map((skill) => respell(skill, wording).after);
+        const respelled = spelled.some((s, i) => s !== ordered[i]);
+        if (!moved && !respelled) return;
+        changes.push({
+            id: `skills:${index}`,
+            kind: "skills",
+            group: index,
+            category: group.category,
+            before: group.skills,
+            after: spelled,
+            why: [moved ? "Skills the posting names now come first." : "", respelled ? "Spelled the way the posting spells them." : ""]
+                .filter(Boolean)
+                .join(" "),
+        });
+    });
+    return finishDraft({ ...draft, changes });
 }
 
 /** Extract digit runs for truthfulness checks (model output validation). */

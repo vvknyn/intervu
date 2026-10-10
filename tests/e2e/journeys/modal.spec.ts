@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { descriptionToBullets } from "../../../src/lib/resume/merge-bullet-lines";
 import { expect, test } from "./fixtures";
 
 /**
@@ -291,9 +292,13 @@ test("Customize résumé leaves the guest's résumé as it was: the draft is cop
     await settled(dialog);
     await dialog.getByRole("button", { name: "Use a rules draft" }).click();
     await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
-    // The draft starts from the guest's own summary every time, not from an earlier role's draft.
-    const before = dialog.getByTestId("local-customize-section-summary").locator("p", { hasText: "Before:" });
-    await expect(before, `${pass} draft`).toHaveText(`Before: ${GUEST_RESUME.generatedSummary}`);
+    // The draft starts from the guest's own résumé every time, not from an earlier role's draft:
+    // every change it lists was made to the guest's own summary or lines.
+    await expect(dialog.getByTestId("tailor-changes-count").or(dialog.getByTestId("tailor-no-changes"))).toBeVisible();
+    const own = [GUEST_RESUME.generatedSummary, ...descriptionToBullets(GUEST_RESUME.experience[0].description)];
+    for (const was of await dialog.getByText(/^Was: /).allTextContents()) {
+      expect(own, `${pass} draft`).toContain(was.replace(/^Was: /, ""));
+    }
     const footer = dialog.getByTestId("local-customize-close").locator("..");
     await expect(footer.getByRole("button")).toHaveText(["Close", "Copy", "Download PDF"]);
     await dialog.getByTestId("local-customize-close").click();

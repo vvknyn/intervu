@@ -15,6 +15,7 @@ import {
     toolGetPreferences, toolSetPreferences, toolGetApplications, type ToolDeps,
 } from "@/lib/agent/tools";
 import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
+import { rulesTailor, toolTailorResume } from "@/lib/agent/tailor-tool";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
 import { hydrateJobDescription } from "@/lib/jobs/hydrate-description";
@@ -150,6 +151,7 @@ function withDeps<K extends McpToolName, In, Out extends object>(
             getCompanyPageData,
             getCompanyExhaust,
             searchCompanies: (query, limit) => searchCompanies(getExhaustPg(), query, limit),
+            tailor: rulesTailor,
         };
         try {
             return finish(await run(deps, input));
@@ -193,6 +195,7 @@ const handlers: { [K in McpToolName]: CatalogHandler<K> } = {
     get_resume: withDeps("get_resume", toolGetResume),
     save_resume_variant: withDeps("save_resume_variant", toolSaveResumeVariant),
     get_resume_variant: withDeps("get_resume_variant", toolGetResumeVariant),
+    tailor_resume: withDeps("tailor_resume", toolTailorResume),
     set_resume: withDeps("set_resume", toolSetResume),
     get_applications: withDeps("get_applications", toolGetApplications),
     get_preferences: withDeps("get_preferences", toolGetPreferences),

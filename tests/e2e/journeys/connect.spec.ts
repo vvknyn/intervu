@@ -55,6 +55,17 @@ test("Permissions and privacy lists what a connected AI can read and change", { 
   await expect(page.getByText("Read-only search")).toHaveCount(0);
 });
 
+test("/connect says a connected AI can tailor your résumé to a job, and /llms.txt says tailor_resume saves nothing", { tag: ["@J-CONNECT-30"] }, async ({ page, request }) => {
+  await page.goto("/connect");
+  await page.getByRole("button", { name: "Permissions and privacy" }).click();
+  await expect(page.getByTestId("connect-permissions").getByText(/tailor it to a job/)).toBeVisible();
+  const text = await (await request.get("/llms.txt")).text();
+  const line = text.split("\n").find((l) => l.startsWith("- tailor_resume — "));
+  expect(line, "tailor_resume is listed").toBeTruthy();
+  expect(line).toContain("Saves nothing");
+  expect(line).toContain("save_resume_variant");
+});
+
 test("Create account in front of an agent approval comes back to the approval", { tag: ["@J-OAUTH-19"] }, async ({ page }) => {
   const approval =
     "/oauth/authorize?client_id=journey-client&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback" +
@@ -102,4 +113,7 @@ test("/llms.txt lists every MCP tool the server registers and says what fit_labe
   // The label a connected AI repeats is the one the site shows (mcp-tool-specs.ts FIT_FIELDS_NOTE).
   expect(text).toContain("fit_label");
   expect(text).toContain("Country unclear");
+  // What the job pane and the extension show besides the label: the posting's last check, and the résumé's gaps.
+  expect(text).toContain("last_checked_at");
+  expect(text).toContain("missing_terms");
 });
