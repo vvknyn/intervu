@@ -58,7 +58,10 @@ export function SearchAlertSwitch({
     className?: string;
 }) {
     const id = useId();
-    const match = signedIn ? savedSearchFor(saved, urlState) : undefined;
+    // The row this switch just saved, so turning it straight back off deletes
+    // it before the refreshed list has arrived.
+    const [justSaved, setJustSaved] = useState<SavedSearch | null>(null);
+    const match = signedIn ? (savedSearchFor(saved, urlState) ?? (justSaved ? savedSearchFor([justSaved], urlState) : undefined)) : undefined;
     // While a save or delete is in flight, and until the refreshed list agrees with it.
     const [pending, setPending] = useState<boolean | null>(null);
     const [busy, setBusy] = useState(false);
@@ -89,7 +92,7 @@ export function SearchAlertSwitch({
         setPending(next);
         setBusy(true);
         try {
-            const res: { error?: string } = next
+            const res: { data?: SavedSearch; error?: string } = next
                 ? await saveSavedSearchAction({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) })
                 : match
                   ? await deleteSavedSearchAction(match.id)
@@ -99,6 +102,7 @@ export function SearchAlertSwitch({
                 setNote({ tone: "error", text: next ? "Couldn't turn alerts on. Try again." : "Couldn't turn alerts off. Try again." });
                 return;
             }
+            setJustSaved(next ? (res.data ?? null) : null);
             invalidateSavedSearchesCache();
             if (next) {
                 captureEvent("saved_search_created", { surface: "alert_switch", signed_in: true });
