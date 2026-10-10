@@ -5,6 +5,8 @@
  *
  *   node firestore-wipe.cjs          # check only: what would go, and whether Postgres has it all
  *   node firestore-wipe.cjs --yes    # check, then delete everything
+ *   ... --switched-at=<T>            # T from the copy's step 2.4: lets through
+ *                                    # records the site removed after the switch
  *
  * IRREVERSIBLE. After this there is no Firestore to switch back to; the only
  * copy of account data is the sealed Postgres one (and its B2 backups), and
@@ -23,12 +25,15 @@ import { Pool } from "pg";
 import { getFirestoreDb, usesPostgresStore } from "../src/lib/firebase/admin";
 import { createPgDocDb } from "../src/lib/db/docstore/pg-docstore";
 import { docKeysFromEnv } from "../src/lib/db/docstore/seal";
-import { checkTables, inventoryFirestore, printChecks, skippedCollections } from "./lib/firestore-exit";
+import { checkTables, dropDeletedSinceSwitch, inventoryFirestore, printChecks, skippedCollections } from "./lib/firestore-exit";
 
 const log = (line: string) => console.log(line);
 
 async function main(): Promise<void> {
     const yes = process.argv.includes("--yes");
+    // The switch time T from the copy's step 2.4 (DB clock, ISO).
+    const switchedAt = process.argv.find((a) => a.startsWith("--switched-at="))?.slice("--switched-at=".length);
+    if (switchedAt !== undefined && Number.isNaN(Date.parse(switchedAt))) throw new Error(`--switched-at is not a time: ${switchedAt}`);
     if (!usesPostgresStore()) {
         throw new Error("DATA_STORE is not 'postgres' here: the app may still be writing to Firestore, so nothing will be deleted");
     }
@@ -41,7 +46,9 @@ async function main(): Promise<void> {
     log("reading Firestore...");
     const inv = await inventoryFirestore(fs, log);
     log("checking every Firestore document is in Postgres, sealed...");
-    const ok = printChecks(await checkTables(engine, pool, inv), log);
+    let checks = await checkTables(engine, pool, inv);
+    if (switchedAt) checks = dropDeletedSinceSwitch(checks, inv, new Date(switchedAt).toISOString(), log);
+    const ok = printChecks(checks, log);
     await pool.end();
     if (!ok) {
         log("\nNOT deleting: Postgres is missing documents (above). Run firestore-to-postgres --apply first.");
