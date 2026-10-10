@@ -30,3 +30,18 @@ export const AGENT_PERMISSIONS: readonly { text: string; tools: readonly McpTool
 
 /** What it can't do. Only claims no tool contradicts. */
 export const AGENT_PERMISSIONS_LIMITS = "It can't submit an application for you or see anyone else's data.";
+
+/**
+ * /connect's sample prompts, each with the tools that answer it, so
+ * tests/unit/agent-permissions-copy.test.ts fails when a prompt asks for
+ * something no tool returns. The earlier list asked for "interview insights"
+ * and "verified salary", which no tool has, so an assistant could only make
+ * them up.
+ */
+export const CONNECT_SAMPLE_PROMPTS: readonly { text: string; tools: readonly McpToolName[] }[] = [
+    { text: "Find senior product manager roles in Berlin paying over €100k, posted this week", tools: ["search_jobs"] },
+    { text: "Rank jobs by fit against my résumé on Velai and save the top 3 to my tracker", tools: ["for_you", "save_job"] },
+    { text: "Is this job posting still open, or does it look stale?", tools: ["get_job"] },
+    { text: "Tailor my résumé for this role, file it on Velai and give me the PDF link", tools: ["get_resume", "get_job", "save_resume_variant"] },
+    { text: "What is Stripe hiring for, and what has changed there lately?", tools: ["get_company", "get_company_timeline"] },
+];

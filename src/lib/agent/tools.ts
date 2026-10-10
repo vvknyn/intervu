@@ -14,11 +14,14 @@ import type {
 } from "../jobs/types";
 import { degradedResultsNote } from "../jobs/result-state";
 import { canonicalFacetValues } from "../jobs/meilisearch";
-import type { MatchScore } from "../match/score";
+import { matchLabel, type MatchScore } from "../match/score";
 import { fitFor } from "../jobs/for-you/fit";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
+import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
+import { clusterJobs } from "../jobs/cluster";
+import { hasLiveApplyUrl } from "../jobs/apply-url-health";
 import { resumeIsUsable } from "../resume/resume-usable";
 import type { ResumeData } from "../../types/resume";
 import type { CompanyPageData } from "../companies/types";
@@ -31,6 +34,7 @@ import {
   type JobSnapshot, type Pursuit, type PursuitStage, type ResumeVersionSnapshot,
 } from "../pursuits/types";
 import { buildResumeVersionSnapshot } from "../pursuits/resume-version";
+import { APPLIED_RESUME_LABEL } from "../pursuits/resume-on-apply";
 import type { ApplicationSummary } from "../pursuits/list";
 import type { BaseResume } from "../resume/base-resume";
 import type { SetBaseResumeResult } from "../resume/set-resume";
@@ -51,6 +55,17 @@ import {
 export { EXPERIENCE_LEVELS, EMPLOYMENT_TYPES, POSTED_WITHIN_DAYS_OPTIONS };
 export type { ExperienceLevel, EmploymentType, PostedWithinDays };
 
+/** The fields of a tracked role the tracker tools read back. */
+export type TrackedPursuit = Pick<Pursuit, "id" | "resume_versions"> & Partial<Pick<Pursuit, "status" | "applied_resume">>;
+
+/** Whether the role has a résumé on it: a version filed for it, or the
+ *  copy marking it Applied took (`applied_resume`). The site's "Resume used"
+ *  card shows either, so an agent saying "no résumé on file" for a role the
+ *  site shows one on was wrong. */
+export function pursuitHasResume(p: Pick<Pursuit, "resume_versions" | "applied_resume">): boolean {
+  return (p.resume_versions ?? []).length > 0 || p.applied_resume != null;
+}
+
 export interface ToolDeps {
   uid: string;
   search: (p: JobSearchParams) => Promise<JobSearchResult>;
@@ -63,11 +78,15 @@ export interface ToolDeps {
    * city/region values (country-classification.ts:5-6).
    */
   locationVocabulary: () => Promise<LocationVocabulary>;
+  /** `upsertPursuitCore`. `attachResume` copies the résumé on file onto a
+   *  role moved into Applied (`resume-on-apply.ts`: only onto a role with no
+   *  version filed), as the site's "I applied" does. */
   upsert: (
     uid: string,
     job: JobSnapshot & { job_id: string },
     stage: "interested" | "applied",
-  ) => Promise<{ data?: Pick<Pursuit, "id" | "resume_versions">; error?: string }>;
+    opts: { attachResume?: boolean },
+  ) => Promise<{ data?: TrackedPursuit; error?: string }>;
   /** The caller's own base résumé (`profiles/<uid>`) — injected so
    *  `get_resume` never touches Firestore directly, matching every other I/O
    *  dep here. See `getBaseResumeForUser` (`lib/resume/base-resume.ts`). */
@@ -85,7 +104,7 @@ export interface ToolDeps {
    *  `lib/pursuits/upsert-core.ts`), injected here so `get_resume_variant`
    *  can check "does a pursuit exist for this job" without creating one as a
    *  side effect of a read. */
-  findPursuitByJobId: (uid: string, jobId: string) => Promise<Pick<Pursuit, "id" | "resume_versions"> | null>;
+  findPursuitByJobId: (uid: string, jobId: string) => Promise<TrackedPursuit | null>;
   /** Appends an immutable resume-version snapshot to a pursuit — see
    *  `saveResumeVersionForPursuit` (`lib/pursuits/resume-version.ts`). */
   saveResumeVersion: (
@@ -151,6 +170,35 @@ export interface ToolDeps {
  */
 function structuredResume(base: BaseResume): ResumeData | null {
   return base.source === "resume_data" ? base.resume_data : null;
+}
+
+/** Who a job is scored for: the stored résumé (`base`), its structured form
+ *  (`resume`, null for a text-only or missing résumé — see
+ *  `structuredResume`) and the signals every fit is scored with. */
+export interface Candidate {
+  base: BaseResume;
+  resume: ResumeData | null;
+  signals?: CandidateSignals;
+}
+
+/**
+ * The ONE place an MCP tool resolves who it scores jobs for, so every tool
+ * that attaches `match`/`fit_reasons` (search_jobs, get_job, for_you, and
+ * get_company's embedded roles) scores with the same inputs as the site.
+ * The site's job page, lists, Today and company page all score with
+ * `resolveCandidateSignals(resume, prefs)`, the saved preferences read with
+ * `withPlaceCountries` (`fetchAgentPreferencesAction`,
+ * use-agent-preferences.ts). Scoring the résumé alone, as search_jobs and
+ * get_job did before, read a level or place set in Settings as unknown, so
+ * the same role could be "Strong" here and "Stretch" on its page. The
+ * preferences are only read when there is a structured résumé to score.
+ */
+export async function candidateFor(deps: ToolDeps): Promise<Candidate> {
+  const base = await deps.getBaseResume(deps.uid);
+  const resume = structuredResume(base);
+  if (!resume) return { base, resume };
+  const signals = resolveCandidateSignals(resume, withPlaceCountries(await deps.getPreferences(deps.uid)));
+  return { base, resume, signals };
 }
 
 /**
@@ -226,6 +274,13 @@ export type JobDetailFields = Pick<
   /** The SAME `fitFor` chokepoint's reasons half (jobs/for-you/fit.ts) —
    *  present exactly when `match` is, omitted otherwise. */
   fit_reasons?: InferReasonsResult;
+  /** The label the site shows on this role for this person, from the same
+   *  `matchLabel` every site surface uses: "Strong", "Good" or "Stretch",
+   *  "Outside <country>" for a role outside where they can work, or
+   *  "Country unclear". Without it an agent had only `match.total` to go on
+   *  and could call a role "a good fit" that the site labels "Outside
+   *  Canada". Present exactly when `match` is. */
+  fit_label?: string;
 };
 
 export function toJobDetailFields(
@@ -254,7 +309,7 @@ export function toJobDetailFields(
     tags, apply_url, posted_at, first_seen_at, updated_at,
     vacancy_status, ghost_badge,
     intervu_url: jobShareUrl(getSiteUrl(), job),
-    ...(fit ? { match: fit.match, fit_reasons: fit.fit_reasons } : {}),
+    ...(fit ? { match: fit.match, fit_reasons: fit.fit_reasons, fit_label: matchLabel(fit.match) } : {}),
   };
 }
 
@@ -539,11 +594,11 @@ export async function toolSearchJobs(
   // MC3 — fetched once per call, not once per hit, and only once the backend
   // is confirmed up (the early `isBackendDown` return above skips this read
   // entirely, so a down backend never costs a wasted résumé fetch).
-  const resume = structuredResume(await deps.getBaseResume(deps.uid));
+  const { resume, signals } = await candidateFor(deps);
   // Depth-cap truncation: the backend was asked for a full page (see the
   // limit comment above), but only `depthCapRemaining(offset)` of those hits
   // are ever handed back — 0 once `offset` has reached the cap.
-  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toJobDetailFields(job, resume));
+  const hits = result.hits.slice(0, depthCapRemaining(offset)).map((job) => toJobDetailFields(job, resume, signals));
   // Corpus-harvesting guardrail: meter the ACTUAL hits about to be returned
   // against the credential's daily record budget before handing them back.
   const budget = await deps.consumeRecordBudget(hits.length);
@@ -585,9 +640,9 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
   // meters against, so get_job can't be used to route around it.
   const budget = await deps.consumeRecordBudget(1);
   if (!budget.ok) return { error: budget.error };
-  const resume = structuredResume(await deps.getBaseResume(deps.uid));
+  const { resume, signals } = await candidateFor(deps);
   return {
-    ...toJobDetailFields(lookup.job, resume),
+    ...toJobDetailFields(lookup.job, resume, signals),
     description: { untrusted: true, text: lookup.job.description },
     content_note: CONTENT_NOTE,
   };
@@ -599,6 +654,27 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
  *  Single source of truth for this message so a second résumé-gated tool
  *  never invents its own wording. */
 export const NO_RESUME_ERROR = "no résumé on file — call set_resume first, then retry for_you";
+
+/** A résumé saved as text only (a file uploaded in Settings, or set_resume
+ *  without a valid resume_data) is on file, so "no résumé on file" would be
+ *  false. The site structures that text in the browser (`storedResumeData`)
+ *  because résumé parsing never runs on our servers, so this server can't
+ *  rank against it either: the connected AI structures it, as set_resume
+ *  already asks. */
+export const TEXT_ONLY_RESUME_ERROR =
+  "your résumé is on file as plain text only, and for_you ranks against its structured form — read it with " +
+  "get_resume, format it as ResumeData, save it with set_resume (same resume_text, plus resume_data), then retry for_you";
+
+/** A structured résumé with no title, role or skills to search by
+ *  (`resumeIsUsable`, the same bar /jobs uses). */
+export const UNUSABLE_RESUME_ERROR =
+  "the résumé on file has no job title, role or skills to rank by — add them with set_resume, then retry for_you";
+
+function noResumeError(base: BaseResume): string {
+  if (base.source === "resume_text") return TEXT_ONLY_RESUME_ERROR;
+  if (base.source === "resume_data") return UNUSABLE_RESUME_ERROR;
+  return NO_RESUME_ERROR;
+}
 
 export interface ForYouInput {
   cursor?: string;
@@ -634,11 +710,9 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const requestedLimit = Math.min(input.limit ?? AGENT.SEARCH_DEFAULT_LIMIT, AGENT.RESULT_CAP);
   const { limit, note: limitNote } = resolvePageSize(decoded, input.limit, requestedLimit);
 
-  const base = await deps.getBaseResume(deps.uid);
-  const resume = structuredResume(base);
-  if (!resume || !resumeIsUsable(resume)) return { error: NO_RESUME_ERROR };
+  const { base, resume, signals } = await candidateFor(deps);
+  if (!resume || !resumeIsUsable(resume)) return { error: noResumeError(base) };
 
-  const signals = resolveCandidateSignals(resume, withPlaceCountries(await deps.getPreferences(deps.uid)));
   const ranked = await rankForYou({ resume, signals, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
   if (ranked.unavailable) {
     return {
@@ -650,7 +724,31 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
     };
   }
 
-  const page = ranked.hits.slice(offset, offset + limit);
+  // The pack's location is where the candidate can work: a search that
+  // dropped every place it names returned roles from anywhere, which the
+  // site's For you shows as none ("No roles in Iceland yet", ForYouHome.tsx).
+  if (locationDropped(ranked.filters, ranked)) {
+    const places = formatPlaceList(namedPlaces(ranked.filters));
+    return {
+      hits: [],
+      query_used: ranked.query_used,
+      note: `No roles in ${places} yet — velai has no listings there, so none fit where you can work`,
+      resume_source: base.source,
+    };
+  }
+
+  // What the site's For-you deck drops before it lists a pack (JobsContent's
+  // `rankedPacks`): repeat postings of one role (same title and company, kept
+  // at the best-ranked copy, `clusterJobs`) and roles with no apply link
+  // (`hasLiveApplyUrl`).
+  const listed = new Set(
+    clusterJobs(ranked.hits.map((h) => h.job))
+      .map((c) => c.primary)
+      .filter(hasLiveApplyUrl)
+      .map((job) => job.id),
+  );
+  const deck = ranked.hits.filter((h) => listed.has(h.job.id));
+  const page = deck.slice(offset, offset + limit);
   const hits: ForYouHit[] = page.map((h) => ({ ...toJobDetailFields(h.job, resume, signals), group: h.group }));
 
   // Corpus-harvesting guardrail — same daily record budget search_jobs/
@@ -658,7 +756,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const budget = await deps.consumeRecordBudget(hits.length);
   if (!budget.ok) return { error: budget.error };
 
-  const nextCursor = nextCursorFor(offset, hits.length, ranked.hits.length, limit);
+  const nextCursor = nextCursorFor(offset, hits.length, deck.length, limit);
   const note = joinNotes(limitNote);
   return {
     hits,
@@ -679,11 +777,16 @@ async function upsertFromId(
   deps: ToolDeps,
   id: string,
   stage: "interested" | "applied",
-): Promise<{ error: string } | { ok: true; pursuit: Pick<Pursuit, "id" | "resume_versions"> }> {
+): Promise<{ error: string } | { ok: true; pursuit: TrackedPursuit }> {
   const lookup = await lookupJobById(deps, id);
   if (lookup.kind === "unavailable") return { error: "search backend unavailable" };
   if (lookup.kind === "not_found") return { error: "job not found" };
-  const res = await deps.upsert(deps.uid, { job_id: lookup.job.id, ...buildJobSnapshot(lookup.job) }, stage);
+  // mark_applied copies the résumé on file onto the role, as the site's
+  // "I applied" does (`markJobAppliedAction`), so the role's "Resume used"
+  // says what went out whichever way it was marked.
+  const res = await deps.upsert(deps.uid, { job_id: lookup.job.id, ...buildJobSnapshot(lookup.job) }, stage, {
+    attachResume: stage === "applied",
+  });
   if (res.error || !res.data) return { error: res.error ?? "failed to save pursuit" };
   return { ok: true, pursuit: res.data };
 }
@@ -693,17 +796,20 @@ export async function toolSaveJob(deps: ToolDeps, input: { id: string }): Promis
   return "error" in res ? res : { saved: true };
 }
 
-/** `resume_on_file` closes the loop for an agent marking a job applied: it's
- *  a read of state the pursuit already carries (`resume_versions`, appended
- *  only by `toolSaveResumeVariant`/`saveResumeVersionForPursuit`), never a
- *  write — filing a resume stays `save_resume_variant`'s job alone. */
+/** `resume_on_file` closes the loop for an agent marking a job applied: a
+ *  version filed with save_resume_variant, or the copy of the résumé on file
+ *  this call took (`pursuitHasResume`), the same copy the site's "I applied"
+ *  takes. `status` is the role's status after the call: a status never moves
+ *  back (`mergeGuestPursuit`), so a role already interviewing, offered,
+ *  rejected or withdrawn keeps it, and the agent can say so instead of
+ *  reporting it as just applied. */
 export async function toolMarkApplied(
   deps: ToolDeps,
   input: { id: string },
-): Promise<{ marked: boolean; resume_on_file: boolean } | { error: string }> {
+): Promise<{ marked: boolean; status: PursuitStage; resume_on_file: boolean } | { error: string }> {
   const res = await upsertFromId(deps, input.id, "applied");
   if ("error" in res) return res;
-  return { marked: true, resume_on_file: (res.pursuit.resume_versions ?? []).length > 0 };
+  return { marked: true, status: res.pursuit.status ?? "applied", resume_on_file: pursuitHasResume(res.pursuit) };
 }
 
 export interface SaveResumeVariantInput {
@@ -753,6 +859,10 @@ export async function toolSaveResumeVariant(
 
 export interface GetResumeVariantOut {
   variants: ResumeVersionSnapshot[];
+  /** The copy of the résumé on file the role took when it was marked
+   *  Applied (`resume-on-apply.ts`), under the label the site's "Resume
+   *  used" card gives it. Present only when the role has one. */
+  applied_resume?: ResumeVersionSnapshot;
 }
 
 /** Empty array — never an error — when the caller has no pursuit for this
@@ -764,7 +874,14 @@ export async function toolGetResumeVariant(
 ): Promise<GetResumeVariantOut> {
   const pursuit = await deps.findPursuitByJobId(deps.uid, input.job_id);
   if (!pursuit) return { variants: [] };
-  return { variants: orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []) };
+  const variants = orderResumeVersionsLatestFirst(pursuit.resume_versions ?? []);
+  const copy = pursuit.applied_resume;
+  return {
+    variants,
+    ...(copy?.content
+      ? { applied_resume: { content: copy.content, label: APPLIED_RESUME_LABEL, saved_at: copy.saved_at } }
+      : {}),
+  };
 }
 
 /** Returns the caller's own base résumé — never another user's, and never a

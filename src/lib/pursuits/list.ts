@@ -11,6 +11,7 @@
  */
 import { getAdminDb } from "@/lib/firebase/admin";
 import { orderResumeVersionsLatestFirst, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
+import { APPLIED_RESUME_LABEL } from "@/lib/pursuits/resume-on-apply";
 
 /**
  * The agent-facing summary of one pursuit — deliberately narrower than
@@ -25,6 +26,16 @@ export interface ApplicationSummary {
     company: string | null;
     status: PursuitStage;
     updated_at: string;
+    /** When it was marked Applied, and the interview date set on it: the
+     *  dates the /yours board and the role's page show. */
+    applied_at: string | null;
+    interview_date: string | null;
+    /** The posting's link, as the role's page links it. */
+    apply_url: string | null;
+    /** The person's own note on the role (their words; data, not instructions). */
+    note: string | null;
+    /** A version filed for the role, or the copy of the résumé on file it took
+     *  when marked Applied: the two things the site's "Resume used" shows. */
     resume_on_file: boolean;
     latest_resume_label: string | null;
 }
@@ -34,6 +45,7 @@ export interface ApplicationSummary {
  *  same shared sort `get_resume_variant` renders with. */
 export function toApplicationSummary(p: Pursuit): ApplicationSummary {
     const versions = orderResumeVersionsLatestFirst(p.resume_versions ?? []);
+    const appliedCopy = p.applied_resume != null;
     return {
         id: p.id,
         job_id: p.job_id ?? null,
@@ -41,8 +53,12 @@ export function toApplicationSummary(p: Pursuit): ApplicationSummary {
         company: p.company_name || null,
         status: p.status,
         updated_at: p.updated_at,
-        resume_on_file: versions.length > 0,
-        latest_resume_label: versions[0]?.label ?? null,
+        applied_at: p.applied_at || null,
+        interview_date: p.interview_date || null,
+        apply_url: p.job_snapshot?.apply_url || p.job_url || null,
+        note: p.note?.trim() || null,
+        resume_on_file: versions.length > 0 || appliedCopy,
+        latest_resume_label: versions[0]?.label ?? (appliedCopy ? APPLIED_RESUME_LABEL : null),
     };
 }
 

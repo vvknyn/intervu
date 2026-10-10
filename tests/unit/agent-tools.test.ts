@@ -3,8 +3,8 @@ import {
   toolSearchJobs, toolGetJob, toolForYou, toolSaveJob, toolMarkApplied,
   toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
   toolGetPreferences, toolSetPreferences, toolGetApplications,
-  NO_RESUME_ERROR,
-  type ToolDeps, type SaveResumeVariantInput,
+  NO_RESUME_ERROR, TEXT_ONLY_RESUME_ERROR, UNUSABLE_RESUME_ERROR,
+  type ToolDeps, type SaveResumeVariantInput, type TrackedPursuit,
 } from '../../src/lib/agent/tools';
 import { AGENT } from '../../src/lib/agent/config';
 import { getSiteUrl } from '../../src/lib/seo/constants';
@@ -18,7 +18,7 @@ import type { LocationVocabulary } from '../../src/lib/jobs/query-understanding'
 import { buildGazetteerIndex, type GazetteerData } from '../../src/lib/geo/gazetteer';
 import type { CorpusValueChecker } from '../../src/lib/geo/corpus-values';
 import type { PlaceFilter } from '../../src/lib/jobs/types';
-import type { Pursuit, PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
+import type { PursuitStage, ResumeVersionSnapshot } from '../../src/lib/pursuits/types';
 import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
 import type { SetBaseResumeResult } from '../../src/lib/resume/set-resume';
@@ -147,6 +147,8 @@ function makeJob(overrides: Partial<PublicJob> = {}): PublicJob {
  *  degraded-serve shape `degradedResultsNote` actually reads at runtime. */
 type SearchResultExtra = Partial<JobSearchResult> & {
   meta?: { degraded: boolean; servedFrom: 'live' | 'cache'; cachedAtMs?: number };
+  /** What `searchJobs` echoes for places it could not filter on (search.ts). */
+  unmatchedPlaceMentions?: string[];
 };
 
 /** Extra stubbable behavior for the resume tools (Task: MCP resume tools) —
@@ -155,7 +157,7 @@ type SearchResultExtra = Partial<JobSearchResult> & {
  *  untouched. */
 interface ResumeStubDeps {
   baseResume?: BaseResume;
-  pursuitByJobId?: Pick<Pursuit, 'id' | 'resume_versions'> | null;
+  pursuitByJobId?: TrackedPursuit | null;
   saveResumeVersionResult?: { data?: ResumeVersionSnapshot; error?: string };
   setBaseResumeResult?: SetBaseResumeResult;
   preferences?: AgentPreferences;
@@ -168,13 +170,13 @@ interface ResumeStubDeps {
 
 function stubDeps(
   hits: PublicJob[],
-  upsertResult: { data?: Pick<Pursuit, 'id' | 'resume_versions'>; error?: string } = { data: { id: 'app-1' } },
+  upsertResult: { data?: TrackedPursuit; error?: string } = { data: { id: 'app-1' } },
   searchResultExtra: SearchResultExtra = {},
   vocab: LocationVocabulary = TEST_VOCAB,
   resumeDeps: ResumeStubDeps = {},
 ) {
   const searchCalls: JobSearchParams[] = [];
-  const upsertCalls: Array<{ uid: string; job: unknown; stage: string }> = [];
+  const upsertCalls: Array<{ uid: string; job: unknown; stage: string; opts: { attachResume?: boolean } }> = [];
   const getBaseResumeCalls: string[] = [];
   const findPursuitCalls: Array<{ uid: string; jobId: string }> = [];
   const saveResumeVersionCalls: Array<{ uid: string; pursuitId: string; input: { content: string; label: string } }> = [];
@@ -193,8 +195,8 @@ function stubDeps(
       } as JobSearchResult;
     },
     locationVocabulary: async () => vocab,
-    upsert: async (uid, job, stage) => {
-      upsertCalls.push({ uid, job, stage });
+    upsert: async (uid, job, stage, opts) => {
+      upsertCalls.push({ uid, job, stage, opts });
       return upsertResult;
     },
     getBaseResume: async (uid) => {
@@ -572,8 +574,10 @@ describe('toolForYou', () => {
     // empty title/tags — an empty job vocabulary — so
     // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
     const partial = { tags: ['backend', 'fortran', 'cobol', 'mainframe'] };
+    // Different employers: the same title at the same company is one role
+    // cross-posted, which for_you lists once (`clusterJobs`), as the site does.
     const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid', ...partial });
-    const jobLow = makeJob({ id: 'job-low', experience_level: 'entry', ...partial });
+    const jobLow = makeJob({ id: 'job-low', experience_level: 'entry', company: 'Beta Co', company_domain: 'beta.com', ...partial });
     const jobUnscored = makeJob({ id: 'job-unscored', title: '', tags: [], description: '' });
     // Seeded out of rank order on purpose — the assertion below is on
     // rankForYou's own ordering, not an accident of input order.
@@ -591,7 +595,7 @@ describe('toolForYou', () => {
   });
 
   it('pages the already-ranked candidate list via cursor with no overlap between pages', async () => {
-    const hits = Array.from({ length: 5 }, (_, i) => makeJob({ id: `job-${i}` }));
+    const hits = Array.from({ length: 5 }, (_, i) => makeJob({ id: `job-${i}`, company: `Acme ${i}`, company_domain: `acme${i}.com` }));
     const { deps: deps1 } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
     const page1 = await toolForYou(deps1, { limit: 2 });
     if ('error' in page1) throw new Error('unexpected error shape');
@@ -614,10 +618,41 @@ describe('toolForYou', () => {
     assert.deepEqual(out, { error: NO_RESUME_ERROR });
   });
 
-  it('returns the structured NO_RESUME_ERROR when the stored resume shares no comparable field with any job (not just an empty search result)', async () => {
+  it('says the résumé on file has nothing to rank by when the stored resume shares no comparable field with any job (not just an empty search result)', async () => {
     const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, { baseResume: NO_OVERLAP_RESUME });
     const out = await toolForYou(deps, {});
-    assert.deepEqual(out, { error: NO_RESUME_ERROR });
+    assert.deepEqual(out, { error: UNUSABLE_RESUME_ERROR });
+  });
+
+  it('says a text-only résumé is on file, never "no résumé on file", and asks for its structured form', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, {
+      baseResume: { source: 'resume_text', resume_text: 'Jane Doe\nSenior Engineer' },
+    });
+    const out = await toolForYou(deps, {});
+    assert.deepEqual(out, { error: TEXT_ONLY_RESUME_ERROR });
+    assert.ok(!TEXT_ONLY_RESUME_ERROR.includes('no résumé on file'));
+  });
+
+  it('lists one role cross-posted at the same company once, and leaves out a role with no apply link, as the site\'s deck does', async () => {
+    const original = makeJob({ id: 'job-a', location: 'Toronto' });
+    const repost = makeJob({ id: 'job-b', location: 'Vancouver' });
+    const noLink = makeJob({ id: 'job-c', company: 'Gamma Co', company_domain: 'gamma.com', apply_url: '' });
+    const { deps } = stubDeps([original, repost, noLink], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.hits.length, 1);
+    assert.ok(['job-a', 'job-b'].includes(out.hits[0].id));
+  });
+
+  it('returns no roles, with a note naming the place, when the search dropped every place the pack names', async () => {
+    const { deps } = stubDeps([makeJob()], undefined, { unmatchedPlaceMentions: ['Iceland'] } as SearchResultExtra, TEST_VOCAB, {
+      baseResume: MATCHING_RESUME,
+      preferences: { configured: true, search: { location: 'Iceland' }, answers: { custom: {} } },
+    });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits, []);
+    assert.match(out.note ?? '', /^No roles in Iceland yet/);
   });
 
   it('resume_source echoes the stored resume\'s own source discriminant', async () => {
@@ -636,6 +671,7 @@ describe('toolSaveJob', () => {
     assert.equal(upsertCalls.length, 1);
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'interested');
+    assert.equal(upsertCalls[0].opts.attachResume, false);
     assert.deepEqual(upsertCalls[0].job, {
       job_id: 'job-1',
       title: 'Senior Engineer',
@@ -678,15 +714,31 @@ describe('toolMarkApplied', () => {
   it('upserts with stage "applied" using deps.uid', async () => {
     const { deps, upsertCalls } = stubDeps([makeJob()]);
     const out = await toolMarkApplied(deps, { id: 'job-1' });
-    assert.deepEqual(out, { marked: true, resume_on_file: false });
+    assert.deepEqual(out, { marked: true, status: 'applied', resume_on_file: false });
     assert.equal(upsertCalls[0].uid, 'user-abc');
     assert.equal(upsertCalls[0].stage, 'applied');
+    // The site's "I applied" copies the résumé on file onto the role; so does this.
+    assert.equal(upsertCalls[0].opts.attachResume, true);
   });
 
   it('resume_on_file: false when the upserted pursuit has no resume_versions', async () => {
     const { deps } = stubDeps([makeJob()], { data: { id: 'app-1', resume_versions: [] } });
     const out = await toolMarkApplied(deps, { id: 'job-1' });
-    assert.deepEqual(out, { marked: true, resume_on_file: false });
+    assert.deepEqual(out, { marked: true, status: 'applied', resume_on_file: false });
+  });
+
+  it('resume_on_file: true when marking it applied copied the résumé on file onto the role, as the site\'s "I applied" does', async () => {
+    const { deps } = stubDeps([makeJob()], {
+      data: { id: 'app-1', status: 'applied', resume_versions: [], applied_resume: { saved_at: '2026-10-10T00:00:00.000Z' } },
+    });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { marked: true, status: 'applied', resume_on_file: true });
+  });
+
+  it('reports the status the role kept when it was already past Applied, instead of claiming it is now applied', async () => {
+    const { deps } = stubDeps([makeJob()], { data: { id: 'app-1', status: 'interviewing' } });
+    const out = await toolMarkApplied(deps, { id: 'job-1' });
+    assert.deepEqual(out, { marked: true, status: 'interviewing', resume_on_file: false });
   });
 
   it('resume_on_file: true when the upserted pursuit already carries a resume version — a pure read of existing state, not a new write', async () => {
@@ -694,7 +746,7 @@ describe('toolMarkApplied', () => {
       data: { id: 'app-1', resume_versions: [{ content: 'c', label: 'v1', saved_at: '2026-08-01T00:00:00.000Z' }] },
     });
     const out = await toolMarkApplied(deps, { id: 'job-1' });
-    assert.deepEqual(out, { marked: true, resume_on_file: true });
+    assert.deepEqual(out, { marked: true, status: 'applied', resume_on_file: true });
     assert.equal(saveResumeVersionCalls.length, 0);
   });
 
@@ -1212,6 +1264,17 @@ describe('toolGetResumeVariant', () => {
     assert.deepEqual(out, { variants: [newest, oldest] });
   });
 
+  it('returns the copy of the résumé the role took when it was marked applied, under the site\'s "Resume used" label', async () => {
+    const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, {
+      pursuitByJobId: { id: 'app-1', applied_resume: { saved_at: '2026-10-10T00:00:00.000Z', content: 'Jane Doe\nEngineer' } },
+    });
+    const out = await toolGetResumeVariant(deps, { job_id: 'job-1' });
+    assert.deepEqual(out, {
+      variants: [],
+      applied_resume: { content: 'Jane Doe\nEngineer', label: 'Your résumé', saved_at: '2026-10-10T00:00:00.000Z' },
+    });
+  });
+
   it('scopes the lookup to the caller: findPursuitByJobId is called with the job_id and deps.uid', async () => {
     const { deps, findPursuitCalls } = stubDeps([], undefined, {}, TEST_VOCAB, { pursuitByJobId: null });
     await toolGetResumeVariant(deps, { job_id: 'job-1' });
@@ -1302,7 +1365,11 @@ describe('toolGetApplications', () => {
 
   it('relays deps.listApplications result verbatim as { applications }', async () => {
     const applications: ApplicationSummary[] = [
-      { id: 'p1', job_id: 'job-1', title: 'Engineer', company: 'Acme', status: 'applied', updated_at: '2026-08-01T00:00:00.000Z', resume_on_file: true, latest_resume_label: 'v1' },
+      {
+        id: 'p1', job_id: 'job-1', title: 'Engineer', company: 'Acme', status: 'applied', updated_at: '2026-08-01T00:00:00.000Z',
+        applied_at: '2026-08-01T00:00:00.000Z', interview_date: null, apply_url: 'https://acme.com/apply/job-1', note: null,
+        resume_on_file: true, latest_resume_label: 'v1',
+      },
     ];
     const { deps } = stubDeps([], undefined, {}, TEST_VOCAB, { applicationsResult: applications });
     const out = await toolGetApplications(deps, {});
