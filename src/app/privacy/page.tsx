@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 9, 2026";
+const LAST_UPDATED = "October 10, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -242,17 +242,28 @@ export default function PrivacyPage() {
 
         <SectionTitle id="browser-extension">Browser extension</SectionTitle>
         <p>
-          The Velai extension for Chrome only reads a page when you click its button there, or when you pick
-          &ldquo;Search Velai for&rdquo; on text you selected. It then reads that one page&apos;s address, title and
-          the job details the page publishes, plus its visible text if you ask it to read the page as the job. It
-          doesn&apos;t read pages on its own or keep a list of pages you visit.
+          The Velai extension for Chrome reads a job page in two ways. On the job sites it names when you install it
+          (job boards and applicant-tracking sites such as LinkedIn, Indeed, Greenhouse, Lever and Workday), and on
+          any other site you turn its card on for, it reads each page you open there as it loads, to show a small
+          card with your fit and what&apos;s known about the job. Pages that aren&apos;t jobs get no card. Anywhere
+          else, it reads a page only when you click its button, or when you pick &ldquo;Search Velai for&rdquo; on
+          text you selected. It reads the page&apos;s address, title and the job details the page publishes, plus its
+          visible text if you ask it to read the page as the job. It doesn&apos;t keep a list of pages you visit.
+          Chrome asks you before the card is turned on for another site, one site at a time.
         </p>
         <p>
           If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
           on your account, then works out your fit and tailors your résumé inside the extension. The tailored copy
           stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
-          title and employer to Velai&apos;s search, which logs it like any search on the website. It keeps only the
-          page it is showing, and Chrome clears that when you close the browser.
+          title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
+          selection is logged like any search on the website; the card&apos;s own check when a job page loads is
+          not logged. The extension keeps only the job it is showing, which Chrome clears when you close the
+          browser, and the sites you turned its card off on.
+        </p>
+        <p>
+          When you pick &ldquo;I applied&rdquo;, the extension adds the job (its title, employer and the page&apos;s
+          address) to the tracker on your Velai account, the same as &ldquo;Mark as applied&rdquo; on velai.app.
+          Signing in and editing your résumé happen on velai.app itself, in a small window the extension opens.
         </p>
 
         <SectionTitle>Email</SectionTitle>
