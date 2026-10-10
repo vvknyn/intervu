@@ -21,9 +21,9 @@ import { tailoredResumePdf } from "./resume-pdf";
 import { fetchMe, searchVelai, trackApplied } from "./velai-api";
 import { isKnownJobSite, sitePattern } from "./job-sites";
 import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type ToBackground } from "./messages";
+import { fitTerms } from "./card-summary";
 import type { HandOff } from "./handoff";
 import { resumeDataToPlainText } from "@/lib/resume/to-plain-text";
-import { relevanceTerms } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import { LOCATION_UNKNOWN_TEXT } from "@/lib/jobs/presentation";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -33,8 +33,6 @@ import type { ResumeData } from "@/types/resume";
 export const PANEL_LIMIT = 10;
 /** Similar roles shown under a page Velai doesn't have. */
 const SIMILAR_LIMIT = 3;
-/** Missing terms named before "and N more". */
-const MISSING_SHOWN = 5;
 
 const form = document.getElementById("search") as HTMLFormElement;
 const input = document.getElementById("q") as HTMLInputElement;
@@ -95,10 +93,11 @@ function setSource(text: string | null): void {
 
 // ── Pieces ─────────────────────────────────────────────────────────────────
 
-function rowNode(row: PanelRow): HTMLElement {
+function rowNode(row: PanelRow, fit?: { label: string; tone: string } | null): HTMLElement {
     const li = el("li", "row");
     li.append(link(row.velaiUrl, row.title, "title"));
     li.append(el("p", "meta", row.meta.join(" · ")));
+    if (fit) li.append(el("p", `fit fit-${fit.tone} row-fit`, fit.label));
     if (row.marks.length) {
         const marks = el("p", "marks");
         for (const mark of row.marks) marks.append(el("span", `mark mark-${mark.tone}`, mark.text));
@@ -149,22 +148,19 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
     const rows = el("dl", "receipt");
     for (const row of report.rows) rows.append(el("dt", undefined, row.label), el("dd", undefined, row.value));
     const parts: Node[] = [el("p", `fit fit-${report.tone}`, report.label), el("p", "fit-heading", report.heading), el("p", "fit-why", report.why), rows];
-    // The words behind the relevance row that the résumé doesn't have, so the
-    // person knows what a résumé edit would need to cover.
-    const { missing } = relevanceTerms(resume, job);
-    if (missing.length) {
-        const named = missing.slice(0, MISSING_SHOWN).map((term) => asWritten(term, job)).join(", ");
-        const more = missing.length > MISSING_SHOWN ? ` and ${missing.length - MISSING_SHOWN} more` : "";
-        parts.push(el("p", "gap", `Not on your résumé: ${named}${more}. These are words in the role's title and tags, the terms the fit label counts.`));
+    // The words behind the relevance row, ✓ on the résumé or ✗ not, so the
+    // person sees what a résumé edit would need to cover.
+    const terms = fitTerms(resume, job);
+    if (terms) {
+        const chips = el("p", "terms");
+        chips.append(
+            ...terms.matched.map((t) => el("span", "term term-has", `✓ ${t}`)),
+            ...terms.missing.map((t) => el("span", "term term-lacks", `✗ ${t}`)),
+        );
+        parts.push(chips, el("p", "hint", "Words in the role's title and tags, the terms the fit label counts: ✓ on your résumé, ✗ not on it."));
     }
     parts.push(edit);
     return section("Your fit", ...parts);
-}
-
-/** A matching term ("icu") as the job writes it ("ICU"). */
-function asWritten(term: string, job: PublicJob): string {
-    const words = [job.title, ...(job.tags ?? [])].join(" ").split(/[^\p{L}\p{N}+#.]+/u);
-    return words.find((word) => word.toLowerCase() === term) ?? term;
 }
 
 function actionsRow(...children: Node[]): HTMLElement {
@@ -326,9 +322,10 @@ function jobHeader(job: PublicJob): HTMLElement {
     return header;
 }
 
-function similarNode(title: string, hits: PublicJob[], q: string, now: number): HTMLElement {
+/** Similar roles, each with its fit label when the person has a résumé on Velai. */
+function similarNode(title: string, hits: PublicJob[], q: string, now: number, fit?: (job: PublicJob) => { label: string; tone: string } | null): HTMLElement {
     const list = el("ul", "rows");
-    list.append(...hits.slice(0, SIMILAR_LIMIT).map((hit) => rowNode(panelRow(hit, now))));
+    list.append(...hits.slice(0, SIMILAR_LIMIT).map((hit) => rowNode(panelRow(hit, now), fit?.(hit))));
     return section(title, list, link(velaiSearchUrl(q), "See more on Velai", "secondary"));
 }
 
@@ -359,6 +356,14 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
     const velaiJob = hits ? sameJob(hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
     const now = Date.now();
     const retry = () => void renderPage(ctx, textIsTheJob);
+    const resume = me ? resumeFromMe(me) : null;
+    // Each similar role's fit label, scored the same way as the job on the page.
+    const fitOf = resume
+        ? (hit: PublicJob) => {
+              const report = fitReport(resume, me?.preferences ?? null, hit);
+              return report ? { label: report.label, tone: report.tone } : null;
+          }
+        : undefined;
 
     if (!read.posting && !velaiJob && !textIsTheJob) {
         setSource(`${where.charAt(0).toUpperCase()}${where.slice(1)} doesn't publish its job details.`);
@@ -370,7 +375,7 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
         actions.append(button("Read this page as the job", "primary", () => void renderPage(ctx, true)));
         if (hits === null) actions.append(button("Try again", "secondary", retry));
         parts.push(actions);
-        if (hits?.length) parts.push(similarNode("Roles on Velai like this page's title", hits, input.value, now));
+        if (hits?.length) parts.push(similarNode("Roles on Velai like this page's title", hits, input.value, now, fitOf));
         results.replaceChildren(...parts);
         return;
     }
@@ -384,7 +389,6 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
 
     // Velai's copy when it has the posting, so the fit and checks match the site's.
     const job = velaiJob ?? pageJob;
-    const resume = me ? resumeFromMe(me) : null;
     const parts: Node[] = [jobHeader(job)];
     parts.push(fitNode(me, resume, job, retry));
 
@@ -410,7 +414,7 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
         if (applying) parts.push(applying);
     }
 
-    if (!velaiJob && hits?.length) parts.push(similarNode("Similar roles on Velai", hits, input.value, now));
+    if (!velaiJob && hits?.length) parts.push(similarNode("Similar roles on Velai", hits, input.value, now, fitOf));
     const cardSite = await cardSiteNode(ctx).catch(() => null);
     if (mine !== generation) return;
     if (cardSite) parts.push(cardSite);
@@ -455,7 +459,7 @@ async function renderSearch(raw: string): Promise<void> {
         header.append(el("strong", undefined, String(result.total)), ` ${result.total === 1 ? "role" : "roles"} on Velai match “${q}”`);
     }
     const list = el("ul", "rows");
-    list.append(...rows.map(rowNode));
+    list.append(...rows.map((row) => rowNode(row)));
     const more = result.total > rows.length && !result.widened ? `See all ${result.total} on Velai` : "Open this search on Velai";
     results.replaceChildren(header, list, link(velaiSearchUrl(q), more, "secondary"));
 }

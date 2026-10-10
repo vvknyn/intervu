@@ -73,7 +73,7 @@ const PAGES = {
 /** Each state: what velai.app answers, the page clicked on, and what the panel must say. */
 const STATES = {
     found: { me: signedIn, hits: [velaiCopy, ...similar], expect: ["Strong", "Actively posted", "lines that use this job's words now come first", "Download PDF"], pdf: true },
-    "not-on-velai": { me: signedIn, hits: similar, expect: ["Not on Velai yet", "The page says apply by", "Similar roles on Velai"] },
+    "not-on-velai": { me: signedIn, hits: similar, expect: ["Not on Velai yet", "The page says apply by", "Similar roles on Velai", "✓ Registered", "✗ ICU"], has: [".rows .row-fit"] },
     "signed-out": { me: { signedIn: false }, hits: [velaiCopy], expect: ["Sign in to Velai", "Actively posted"] },
     "no-resume": { me: { signedIn: true, resume: { data: null, text: null, updatedAt: null }, preferences: null }, hits: [velaiCopy], expect: ["Add your résumé"] },
     "velai-down": { me: 500, hits: 500, expect: ["Velai didn't answer", "Velai's search didn't answer"] },
@@ -162,6 +162,7 @@ try {
         await settled().catch(() => errors.push("still loading after 15 s"));
         let text = await panel.evaluate(() => document.body.innerText);
         const missing = s.expect.filter((t) => !text.includes(t));
+        for (const selector of s.has ?? []) if (!(await panel.$(selector))) missing.push(selector);
         const unwanted = (s.refuse ?? []).filter((t) => text.includes(t));
         if (s.click) {
             await panel.click(`text=${s.click}`);
@@ -254,7 +255,7 @@ try {
     await page.goto(BOARD_JOB_URL);
     let card = await waitForCard(page, ["Strong", "against your résumé"]);
     {
-        const want = ["Registered Nurse - ICU · Cedarbrook Health", "Strong", "Actively posted · Velai, checked", "Posted", "· the page", "Apply by", "Your résumé for this job", "I applied"];
+        const want = ["Registered Nurse - ICU · Cedarbrook Health", "Strong", "✓ Registered", "✓ Nurse", "✗ ICU", "Actively posted · Velai, checked", "Posted", "· the page", "Apply by", "Your résumé for this job", "I applied"];
         const problems = want.filter((t) => !card?.text.includes(t)).map((t) => `missing "${t}"`);
         if (!searchBodies.some((b) => b.automatic === true)) problems.push("lookup not marked automatic");
         report("shows on its own on a job site", problems);

@@ -8,7 +8,7 @@
  */
 import { readJobPage, type PageRead } from "./page-reader";
 import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type CardAnswer, type ToBackground, type TrackAnswer } from "./messages";
-import type { CardSummary } from "./card-summary";
+import { CARD_TERM_LIMIT, type CardSummary } from "./card-summary";
 
 const HOST_ID = "velai-card-host";
 /** Client-rendered job pages fill in after load; look once more after this. */
@@ -52,6 +52,10 @@ const STYLE = `
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 13px; font-weight: 600; }
 .fit-strong { color: rgb(47 191 113); } .fit-good { color: rgb(245 245 245); } .fit-stretch, .fit-outside { color: rgb(245 158 11); }
 .fit-source { margin-left: 6px; font-size: 12px; color: rgb(163 163 163); }
+.terms { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
+.term { padding: 1px 7px; border-radius: 999px; font-size: 12px; border: 1px solid rgb(38 38 38); }
+.term-has { color: rgb(47 191 113); } .term-lacks { color: rgb(245 158 11); }
+.terms-note { margin: 4px 0 0; font-size: 11px; color: rgb(163 163 163); }
 .note { margin: 8px 0 0; font-size: 13px; color: rgb(163 163 163); }
 ul { list-style: none; margin: 8px 0 0; padding: 0; }
 li { margin-top: 4px; }
@@ -136,6 +140,16 @@ function render(summary: CardSummary, read: PageRead): void {
         const fit = el("p", "fit");
         fit.append(el("span", `chip fit-${summary.fit.tone}`, summary.fit.label), el("span", "fit-source", "against your résumé"));
         card.append(fit);
+        if (summary.terms) {
+            // The words the label counts, as chips: what's on the résumé first, then what isn't.
+            const chips = [
+                ...summary.terms.matched.map((t) => el("span", "term term-has", `✓ ${t}`)),
+                ...summary.terms.missing.map((t) => el("span", "term term-lacks", `✗ ${t}`)),
+            ].slice(0, CARD_TERM_LIMIT);
+            const row = el("p", "terms");
+            row.append(...chips);
+            card.append(row, el("p", "terms-note", "Words in the role's title: ✓ on your résumé, ✗ not on it"));
+        }
     } else if (summary.account) {
         card.append(el("p", "note", ACCOUNT_NOTE[summary.account]));
     }
