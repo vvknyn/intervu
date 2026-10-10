@@ -14,7 +14,7 @@ import type { ResumeData } from "@/types/resume";
 import { fitReport, type FitReport } from "./report";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { VELAI_ORIGIN } from "./rows";
-import { relevanceTerms } from "@/lib/match/score";
+import { relevanceTerms, termAsWritten } from "@/lib/match/score";
 
 export interface CardLine {
     text: string;
@@ -42,17 +42,11 @@ export interface FitTerms {
 /** Terms shown as chips on the card; the panel lists them all. */
 export const CARD_TERM_LIMIT = 4;
 
-/** Pure: a matching term ("icu") as the job writes it ("ICU"). */
-export function asWritten(term: string, job: PublicJob): string {
-    const words = [job.title, ...(job.tags ?? [])].join(" ").split(/[^\p{L}\p{N}+#.]+/u);
-    return words.find((word) => word.toLowerCase() === term) ?? term;
-}
-
 /** Pure: the fit label's terms for the chips, or null when the role names none. */
 export function fitTerms(resume: ResumeData, job: PublicJob): FitTerms | null {
     const { matched, missing } = relevanceTerms(resume, job);
     if (!matched.length && !missing.length) return null;
-    return { matched: matched.map((t) => asWritten(t, job)), missing: missing.map((t) => asWritten(t, job)) };
+    return { matched: matched.map((t) => termAsWritten(t, job)), missing: missing.map((t) => termAsWritten(t, job)) };
 }
 
 export interface CardSummary {
