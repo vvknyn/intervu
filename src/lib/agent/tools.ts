@@ -25,6 +25,7 @@ import { clusterJobs } from "../jobs/cluster";
 import { hasLiveApplyUrl } from "../jobs/apply-url-health";
 import { resumeIsUsable } from "../resume/resume-usable";
 import type { ResumeData } from "../../types/resume";
+import type { TailorDraft } from "../local-ai/tailor-resume";
 import type { CompanyPageData } from "../companies/types";
 import type { CompanyExhaust } from "../companies/exhaust";
 import type { CompanySearchHit } from "../companies/company-search";
@@ -156,6 +157,10 @@ export interface ToolDeps {
    *  (`lib/companies/company-search.ts`). Injected so `search_companies`
    *  never touches Postgres directly, matching every other I/O dep here. */
   searchCompanies: (query: string, limit: number) => Promise<CompanySearchHit[]>;
+  /** Tailors the résumé to one posting (`tailor_resume`, tailor-tool.ts) —
+   *  the route picks the engine (`rulesTailor` today); every engine returns
+   *  the same `TailorDraft`, grounded, so the tool doesn't depend on which. */
+  tailor: (resume: ResumeData, job: PublicJob) => Promise<TailorDraft>;
 }
 
 /**
@@ -647,7 +652,7 @@ export interface JobOut extends JobDetailFields {
  *  about the job, so callers get a third, distinct outcome to check. */
 type IdLookup = { kind: "found"; job: PublicJob } | { kind: "not_found" } | { kind: "unavailable" };
 
-async function lookupJobById(deps: ToolDeps, id: string): Promise<IdLookup> {
+export async function lookupJobById(deps: ToolDeps, id: string): Promise<IdLookup> {
   const result = await deps.search({ id, limit: 1 });
   if (isBackendDown(result)) return { kind: "unavailable" };
   const hit = result.hits[0];
@@ -675,7 +680,24 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
  *  degrade gracefully instead: an honestly omitted `match`/`fit_reasons`).
  *  Single source of truth for this message so a second résumé-gated tool
  *  never invents its own wording. */
-export const NO_RESUME_ERROR = "no résumé on file — call set_resume first, then retry for_you";
+export const NO_RESUME_ERROR = noResumeText("for_you");
+
+function noResumeText(tool: string): string {
+  return `no résumé on file — call set_resume first, then retry ${tool}`;
+}
+
+function textOnlyResumeText(tool: string, use: string): string {
+  return (
+    `your résumé is on file as plain text only, and ${tool} ${use} its structured form — read it with ` +
+    `get_resume, format it as ResumeData, save it with set_resume (same resume_text, plus resume_data), then retry ${tool}`
+  );
+}
+
+/** Why a tool that works from the structured résumé can't run: none on file,
+ *  or text only (the connected AI structures it, as set_resume asks). */
+export function resumeNeededError(base: BaseResume, tool: string, use: string): string {
+  return base.source === "resume_text" ? textOnlyResumeText(tool, use) : noResumeText(tool);
+}
 
 /** A résumé saved as text only (a file uploaded in Settings, or set_resume
  *  without a valid resume_data) is on file, so "no résumé on file" would be
@@ -683,9 +705,7 @@ export const NO_RESUME_ERROR = "no résumé on file — call set_resume first, t
  *  because résumé parsing never runs on our servers, so this server can't
  *  rank against it either: the connected AI structures it, as set_resume
  *  already asks. */
-export const TEXT_ONLY_RESUME_ERROR =
-  "your résumé is on file as plain text only, and for_you ranks against its structured form — read it with " +
-  "get_resume, format it as ResumeData, save it with set_resume (same resume_text, plus resume_data), then retry for_you";
+export const TEXT_ONLY_RESUME_ERROR = textOnlyResumeText("for_you", "ranks against");
 
 /** A structured résumé with no title, role or skills to search by
  *  (`resumeIsUsable`, the same bar /jobs uses). */

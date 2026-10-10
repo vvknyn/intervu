@@ -55,6 +55,17 @@ test("Permissions and privacy lists what a connected AI can read and change", { 
   await expect(page.getByText("Read-only search")).toHaveCount(0);
 });
 
+test("/connect says a connected AI can tailor your résumé to a job, and /llms.txt says tailor_resume saves nothing", { tag: ["@J-CONNECT-30"] }, async ({ page, request }) => {
+  await page.goto("/connect");
+  await page.getByRole("button", { name: "Permissions and privacy" }).click();
+  await expect(page.getByTestId("connect-permissions").getByText(/tailor it to a job/)).toBeVisible();
+  const text = await (await request.get("/llms.txt")).text();
+  const line = text.split("\n").find((l) => l.startsWith("- tailor_resume — "));
+  expect(line, "tailor_resume is listed").toBeTruthy();
+  expect(line).toContain("Saves nothing");
+  expect(line).toContain("save_resume_variant");
+});
+
 test("Create account in front of an agent approval comes back to the approval", { tag: ["@J-OAUTH-19"] }, async ({ page }) => {
   const approval =
     "/oauth/authorize?client_id=journey-client&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback" +

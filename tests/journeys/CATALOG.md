@@ -701,6 +701,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONNECT-27 | Join the OpenClaw waitlist from /openclaw's closing section @writes | anon | /openclaw | signed-out | yes | uncovered | — |
 | J-CONNECT-28 | A résumé-less user who signs in with a password from /connect's "Sign in to velai" step returns to /connect as the copy promises, not the résumé upload (signup: J-CONNECT-24) | anon | /connect, "Sign in to velai" | signed-out | no | uncovered | — |
 | J-CONNECT-29 | Open "Sample prompts" and see only prompts a connected AI's tools can answer (each names the tools it uses in `CONNECT_SAMPLE_PROMPTS`); none asks for "interview insights", which no tool returns | anon | /connect, Sample prompts | signed-out | no | covered | connect.spec.ts |
+| J-CONNECT-30 | Open /connect's "Permissions and privacy" and see that a connected AI can tailor the résumé to a job; /llms.txt lists tailor_resume, which says it saves nothing and that save_resume_variant files the version the person keeps | anon | /connect, Permissions and privacy; GET /llms.txt | signed-out | no | covered | connect.spec.ts |
 
 ## OAUTH
 
