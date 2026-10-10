@@ -1,7 +1,10 @@
 "use server";
 
 import { unstable_cache } from "next/cache";
-import { createApplication, upsertPursuitForJob } from "@/actions/application";
+import { createApplication, updateApplication, upsertPursuitForJob } from "@/actions/application";
+import { findTrackedPosting } from "@/lib/pursuits/same-posting";
+import { appliedAtForTransition } from "@/lib/pursuits/applied-at";
+import { stageRank } from "@/lib/pursuits/types";
 import {
   getJobsBackendStatus,
   getJobsLastUpdated,
@@ -676,6 +679,22 @@ export async function markJobAppliedAction(input: {
     );
     if (res.error) return { error: res.error };
     return { data: { id: res.data!.id } };
+  }
+
+  // No job id (the browser extension on a posting Velai doesn't have): the
+  // same posting URL marked again (a second click, a retry, another tab)
+  // finds the row the first one made rather than adding a second.
+  if (parsed.data.applyUrl) {
+    const user = await getServerUser();
+    if (!user) return { error: "User not authenticated" };
+    const tracked = await findTrackedPosting(user.uid, parsed.data.applyUrl);
+    if (tracked) {
+      if (stageRank(tracked.status) >= stageRank("applied")) return { data: { id: tracked.id } };
+      const appliedAt = appliedAtForTransition(tracked, "applied", new Date().toISOString());
+      const moved = await updateApplication(tracked.id, { status: "applied", ...(appliedAt ? { applied_at: appliedAt } : {}) });
+      if (moved.error) return { error: moved.error };
+      return { data: { id: tracked.id } };
+    }
   }
 
   const res = await createApplication({
