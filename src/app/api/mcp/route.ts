@@ -17,6 +17,9 @@ import {
 import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
+import { hydrateJobDescription } from "@/lib/jobs/hydrate-description";
+import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { siteSearch } from "@/lib/agent/site-search";
 import { upsertPursuitCore, findPursuitByJobId } from "@/lib/pursuits/upsert-core";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
 import { listPursuitsForUser } from "@/lib/pursuits/list";
@@ -135,7 +138,7 @@ function withDeps<K extends McpToolName, In, Out extends object>(
             if (!budget.ok) return finish({ error: budget.error });
         }
         const deps: ToolDeps = {
-            uid, search: searchJobs, locationVocabulary, upsert: upsertPursuitCore,
+            uid, search: searchAsTheSite, locationVocabulary, upsert: upsertPursuitCore,
             getBaseResume: getBaseResumeForUser,
             setBaseResume: setBaseResumeForUser,
             findPursuitByJobId,
@@ -159,6 +162,16 @@ function withDeps<K extends McpToolName, In, Out extends object>(
         }
     };
 }
+
+/** Every tool's job read, with the reads the site adds after the bare search
+ *  (`site-search.ts`): description places, and a filled description for an
+ *  id lookup. No client IP is passed, so no IP location default applies. */
+const searchAsTheSite = siteSearch({
+    search: (params) => searchJobs(params),
+    hydrate: (id) => hydrateJobDescription(id, null),
+    rowPlaces: (hits, opts) => withPlaceRestrictions(hits, opts),
+    wholePlace: withDescriptionPlace,
+});
 
 /**
  * One handler per catalog entry. Typed as a mapped type over `McpToolName`

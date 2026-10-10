@@ -29,6 +29,8 @@ const MANIFEST_IDS = new Set(MIGRATION_MANIFEST.map((s) => s.collection));
 export interface SourceDoc {
     path: string;
     data: DocData;
+    /** Firestore's own last-write time (ISO), when the snapshot has one. */
+    updatedAt?: string;
 }
 
 export interface FirestoreInventory {
@@ -73,7 +75,7 @@ export async function inventoryFirestore(fs: Firestore, log: (line: string) => v
         const snap = await query.get();
         known.set(
             spec.collection,
-            snap.docs.map((d) => ({ path: d.ref.path, data: plainData(d) })),
+            snap.docs.map((d) => ({ path: d.ref.path, data: plainData(d), updatedAt: d.updateTime?.toDate().toISOString() })),
         );
     }
 
@@ -214,6 +216,34 @@ export async function checkTables(
         checks[checks.length - 1].missing = [`${inv.legacy.length - Number(legacy.rows[0].n)} legacy documents`];
     }
     return checks;
+}
+
+/**
+ * After the switch the site deletes records in Postgres only (an unfollow,
+ * a deleted account), so their old Firestore copies show up as "missing".
+ * A copy Firestore last wrote before the switch was already in Firestore
+ * when the second pass ran after the switch, and that pass verified it was
+ * in Postgres, so its absence now means the site removed it. Those stop
+ * blocking the wipe and are deleted with the rest. Anything written after
+ * the switch, or without a known write time, still blocks.
+ */
+export function dropDeletedSinceSwitch(
+    checks: TableCheck[],
+    inv: FirestoreInventory,
+    switchedAt: string,
+    log: (line: string) => void,
+): TableCheck[] {
+    const writtenAt = new Map<string, string | undefined>();
+    for (const docs of inv.known.values()) for (const d of docs) writtenAt.set(d.path, d.updatedAt);
+    return checks.map((c) => {
+        const gone = c.missing.filter((p) => {
+            const at = writtenAt.get(p);
+            return at !== undefined && at <= switchedAt;
+        });
+        if (!gone.length) return c;
+        log(`  ${c.collection}: ${gone.length} removed on the site since the switch, old Firestore copy goes too: ${gone.slice(0, 5).join(", ")}`);
+        return { ...c, missing: c.missing.filter((p) => !gone.includes(p)) };
+    });
 }
 
 export function printChecks(checks: TableCheck[], log: (line: string) => void): boolean {

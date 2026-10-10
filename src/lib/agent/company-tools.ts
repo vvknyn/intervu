@@ -11,7 +11,7 @@ import { CHANGE_HISTORY_LIMIT, type ChangeEventRow } from "../companies/exhaust"
 import type { CompanyPageData } from "../companies/types";
 import type { CompanySearchHit } from "../companies/company-search";
 import { AGENT } from "./config";
-import { toJobDetailFields, type SearchHit, type ToolDeps } from "./tools";
+import { candidateFor, toJobDetailFields, type SearchHit, type ToolDeps } from "./tools";
 
 /**
  * Resolves an MCP caller's free-form `slug_or_domain` to a domain.
@@ -59,7 +59,12 @@ export async function toolGetCompany(
         return { error: "search backend unavailable" };
     }
     if (!page) return { error: "company not found" };
-    const jobs = page.jobs.slice(0, input.limit ?? AGENT.RESULT_CAP).map((job) => toJobDetailFields(job));
+    // Scored for the caller the way the company page's "Check my fit" does
+    // (`CompanyRoleSearch`: résumé + saved preferences), so a role carries the
+    // same fit_label there and here.
+    const roles = page.jobs.slice(0, input.limit ?? AGENT.RESULT_CAP);
+    const { resume, signals } = roles.length > 0 ? await candidateFor(deps) : { resume: null, signals: undefined };
+    const jobs = roles.map((job) => toJobDetailFields(job, resume, signals));
     // Corpus-harvesting guardrail — same daily record budget search_jobs/
     // get_job meter against, so embedded company roles can't be used to
     // route around it.

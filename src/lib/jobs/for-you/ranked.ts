@@ -23,6 +23,7 @@ import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
+import type { LocationReport } from "@/lib/jobs/broaden";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
 import { compareFit, levelUnverified, roleTier, type MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
@@ -45,6 +46,9 @@ export interface RankForYouResult {
      *  backend failure, never a true zero-match ranked list. */
     unavailable?: boolean;
     note?: string;
+    /** The search's places that named nothing it could filter on
+     *  (`JobSearchResult.unmatchedPlaceMentions`), for `locationDropped`. */
+    unmatchedPlaceMentions?: string[];
 }
 
 export interface RankForYouParams {
@@ -87,6 +91,8 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     }
 
     const queryUsed = result.effectiveQ ?? q;
+    // `searchJobs` echoes the places it could not filter on (search.ts).
+    const unmatched = (result as JobSearchResult & LocationReport).unmatchedPlaceMentions;
     const scored = result.hits.map((job) => {
         const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
@@ -114,5 +120,10 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         return { job, match: entry.match, fit_reasons: entry.fit_reasons, group };
     });
 
-    return { hits, filters, query_used: queryUsed };
+    return {
+        hits,
+        filters,
+        query_used: queryUsed,
+        ...(unmatched?.length ? { unmatchedPlaceMentions: unmatched } : {}),
+    };
 }

@@ -170,3 +170,14 @@ a { color: inherit; text-underline-offset: 2px; }
   cursor: pointer;
 }
 .ghost:hover { background: var(--muted); color: var(--foreground); }
+
+/* Résumé gap, editor, applying, on-page card */
+.terms { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.term { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; line-height: 1.4; }
+.term-has { color: var(--brand); }
+.term-lacks { color: var(--warn); }
+.row-fit { margin-top: 6px; padding: 2px 8px; font-size: 12px; }
+.hint { margin: 4px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted-foreground); }
+.edit .actions { margin-top: 12px; }
+.inline { padding: 0; border: 0; background: none; color: var(--foreground); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+#results > .hint { margin-top: 8px; }
