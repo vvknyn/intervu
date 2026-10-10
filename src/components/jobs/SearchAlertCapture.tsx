@@ -11,6 +11,7 @@ import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
 import { getPostHogClient } from "@/lib/analytics/posthog-client";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
+import { cn } from "@/lib/utils";
 
 /** Never throws — a missing/unavailable PostHog distinct id must not block
  *  the alert submission it would otherwise ride along with. */
@@ -30,6 +31,10 @@ export interface SearchAlertCaptureProps {
   queryLength: number;
   hasResults: boolean;
   onDismiss(): void;
+  /** Called once the alert request is accepted (the confirmation email is on its way). */
+  onSent?(): void;
+  /** Opened from the results line's alerts switch, which already names what this is: no heading. */
+  compact?: boolean;
 }
 
 type Status = "idle" | "submitting" | "sent" | "error";
@@ -42,6 +47,8 @@ export function SearchAlertCapture({
   queryLength,
   hasResults,
   onDismiss,
+  onSent,
+  compact = false,
 }: SearchAlertCaptureProps) {
   const [email, setEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -104,6 +111,7 @@ export function SearchAlertCapture({
       if (res.ok) {
         markSearchAlertSubmitted();
         setStatus("sent");
+        onSent?.();
       } else {
         // A Turnstile refusal carries its own actionable `message`.
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -119,7 +127,7 @@ export function SearchAlertCapture({
 
   if (status === "sent") {
     return (
-      <div data-testid="search-alert-capture" className="mt-4 max-w-md text-left">
+      <div data-testid="search-alert-capture" className={cn("max-w-md text-left", !compact && "mt-4")}>
         <p className="text-sm">Check your inbox to confirm.</p>
         <p className="mt-1 text-xs text-muted-foreground">
           We sent a one-click link — confirm it and weekly alerts start.
@@ -129,12 +137,12 @@ export function SearchAlertCapture({
   }
 
   return (
-    <div data-testid="search-alert-capture" className="mt-4 max-w-md text-left">
-      <p className="text-sm">Get new matches by email</p>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Weekly. Unsubscribe anytime.
+    <div data-testid="search-alert-capture" className={cn("max-w-md text-left", !compact && "mt-4")}>
+      {!compact && <p className="text-sm">Get new matches by email</p>}
+      <p className={cn("text-xs text-muted-foreground", !compact && "mt-1")}>
+        {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."}
       </p>
-      <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-center gap-2">
+      <form onSubmit={handleSubmit} className={cn("flex flex-wrap items-center gap-2", compact ? "mt-2" : "mt-3")}>
         <Input
           type="email"
           required

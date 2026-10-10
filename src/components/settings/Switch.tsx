@@ -10,11 +10,14 @@
  * arbitrary `[…]` values) rather than the old per-pixel `translate-x-[23px]`.
  */
 export function Switch({
+    id,
     checked,
     onChange,
     disabled,
     "aria-label": ariaLabel,
 }: {
+    /** For a visible `<label htmlFor>` beside it: a click on the words flips it too. */
+    id?: string;
     checked: boolean;
     onChange: () => void;
     disabled?: boolean;
@@ -22,6 +25,7 @@ export function Switch({
 }) {
     return (
         <button
+            id={id}
             type="button"
             onClick={onChange}
             disabled={disabled}

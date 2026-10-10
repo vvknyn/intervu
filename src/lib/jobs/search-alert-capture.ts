@@ -52,3 +52,26 @@ export function dismissSearchAlertCapture(now = Date.now()): void {
 export function markSearchAlertSubmitted(now = Date.now()): void {
   writeBrowserValue(SUBMITTED_KEY, new Date(now).toISOString());
 }
+
+/**
+ * The searches this browser asked to be emailed about, by `savedSearchId`, so
+ * a guest's alerts switch still reads "on" for that search after a reload.
+ * The alert itself lives on the server under the email address; this is only
+ * the switch's memory, so a cleared browser shows it off again.
+ */
+export const REQUESTED_KEY = "intervu.jobs.searchAlert.requested";
+const MAX_REQUESTED = 20;
+
+export function readRequestedSearchAlerts(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(readBrowserValue(REQUESTED_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function markSearchAlertRequested(searchId: string): void {
+  const kept = readRequestedSearchAlerts().filter((id) => id !== searchId);
+  writeBrowserValue(REQUESTED_KEY, JSON.stringify([searchId, ...kept].slice(0, MAX_REQUESTED)));
+}
