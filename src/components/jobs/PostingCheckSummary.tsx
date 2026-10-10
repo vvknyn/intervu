@@ -1,10 +1,8 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { Check, Minus, Warning } from "@phosphor-icons/react";
 import { postingCheckChipLabel, type GhostSignal } from "@/components/jobs/job-detail-facts";
-import { LISTING_STATE_TEXT } from "@/lib/ui/status-tokens";
-import { cn } from "@/lib/utils";
+import { SignalChip } from "@/components/jobs/SignalChip";
 
 /**
  * The posting check as a row of chips, with the full lines one tap away
@@ -39,27 +37,13 @@ export function PostingCheckSummary({
                 {chips.length > 0 && (
                     <ul data-testid="posting-check-chips" aria-label="Posting check signals" className="flex flex-wrap items-center gap-2">
                         {chips.map(({ signal, label, caution }) => (
-                            <li
+                            <SignalChip
                                 key={signal.kind}
                                 title={signal.text}
-                                className={cn(
-                                    "inline-flex items-center gap-1 rounded-pill border px-2.5 py-0.5 text-xs",
-                                    caution
-                                        ? cn("border-border", LISTING_STATE_TEXT.relisted)
-                                        : signal.status === "favorable"
-                                          ? "border-live-tint-border bg-live-tint-bg text-verdict-good"
-                                          : "border-border text-muted-foreground",
-                                )}
+                                tone={caution ? "caution" : signal.status === "favorable" ? "good" : signal.status === "unfavorable" ? "short" : "neutral"}
                             >
-                                {caution ? (
-                                    <Warning weight="bold" aria-hidden />
-                                ) : signal.status === "favorable" ? (
-                                    <Check weight="bold" aria-hidden />
-                                ) : signal.status === "unfavorable" ? (
-                                    <Minus weight="bold" aria-hidden />
-                                ) : null}
                                 {label}
-                            </li>
+                            </SignalChip>
                         ))}
                     </ul>
                 )}

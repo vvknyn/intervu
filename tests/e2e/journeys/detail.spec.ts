@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_CONSENT_KEY } from "../../../src/lib/local-ai/consent";
 import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
+import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
@@ -259,6 +260,35 @@ test("on /jobs the open role's posting check is chips, and Show details opens ev
   await expect(details).toBeVisible();
   await expect(details.locator("b").first()).toBeVisible();
   await expect(details).toContainText("every signal automated");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("with a résumé in this browser, the open role's fit card shows its terms as ✓/✗ chips that add up to the relevance count", { tag: ["@J-DETAIL-45"] }, async ({ page, diagnostics }) => {
+  // After Autodesk's "Relevant" label and matched-skill chips (Vivek, 2026-10-10): the same
+  // chips the extension shows, from the same terms the relevance row counts.
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Riley Chen", profession: "Registered Nurse", yearsOfExperience: 6, location: "Toronto, Ontario, Canada", email: "riley.e2e@example.com", phone: "", linkedin: "", website: "" },
+      experience: [{ id: "e1", company: "Lakeview General Hospital", role: "Registered Nurse, Emergency", dates: "2019 - Present", description: "Triage, patient assessment, IV therapy and charting in Epic on a busy emergency unit." }],
+      competencies: [{ category: "Skills", skills: ["Patient care", "Triage", "IV therapy", "BLS", "ACLS", "Epic"] }],
+      education: [{ id: "ed1", degree: "BScN", institution: "State University", year: "2018" }],
+      generatedSummary: "Registered nurse with six years in emergency care.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  await page.goto("/jobs?q=nurse");
+  await page.getByTestId("job-row").first().click();
+  const card = page.locator('[data-tour="jobs-fit-reasons"]:visible').last();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  const count = card.getByText(/^\d+ of \d+ terms this role names$/);
+  await expect(count).toBeVisible();
+  const [has, of] = ((await count.textContent()) ?? "").match(/\d+/g)!.map(Number);
+  const terms = card.getByTestId("fit-terms");
+  await expect(terms.locator('li[title="On your résumé"]')).toHaveCount(has);
+  await expect(terms.locator('li[title="Not on your résumé"]')).toHaveCount(of - has);
+  // The ✓ chips are the overlap, so it isn't also written out below them.
+  await expect(card).not.toContainText("Title overlap with your experience");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
