@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { jobFromPage, type PageRead } from "../../extension/src/page-reader";
 import { resumeFromMe } from "../../extension/src/report";
-import { cardSummary, CARD_LINE_LIMIT, type CardInput } from "../../extension/src/card-summary";
+import { asWritten, cardSummary, CARD_LINE_LIMIT, fitTerms, type CardInput } from "../../extension/src/card-summary";
 import { isKnownJobSite, matchesPattern, sitePattern } from "../../extension/src/job-sites";
 import { isSignedInLanding } from "../../extension/src/velai-api";
 import { relevanceTerms } from "../../src/lib/match/score";
@@ -139,6 +139,17 @@ describe("cardSummary", () => {
         assert.equal(cardSummary(input()).track?.jobId, undefined);
         assert.equal(cardSummary(input({ signedIn: false, resume: null })).track, null);
         assert.equal(cardSummary(input({ pageJob: jobFromPage(BARE) })).track, null);
+    });
+});
+
+describe("fit terms", () => {
+    it("shows the terms the fit label counts as the job writes them, on the résumé or not", () => {
+        assert.ok(resume);
+        const card = cardSummary(input({ velaiJob: velai() }));
+        assert.deepEqual(card.terms, { matched: ["Registered", "Nurse"], missing: ["ICU"] });
+        assert.equal(cardSummary(input({ signedIn: false, resume: null })).terms, null, "no chips without a fit label");
+        assert.equal(asWritten("icu", jobFromPage(READ)), "ICU");
+        assert.equal(fitTerms(resume, { ...jobFromPage(READ), title: "", tags: [] }), null);
     });
 });
 

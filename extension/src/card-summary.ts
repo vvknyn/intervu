@@ -14,6 +14,7 @@ import type { ResumeData } from "@/types/resume";
 import { fitReport, type FitReport } from "./report";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { VELAI_ORIGIN } from "./rows";
+import { relevanceTerms } from "@/lib/match/score";
 
 export interface CardLine {
     text: string;
@@ -32,11 +33,35 @@ export interface TrackJob {
     jobId?: string;
 }
 
+/** The terms the fit label counts (the role's title and tags), split by whether the résumé has them, as the job writes them. */
+export interface FitTerms {
+    matched: string[];
+    missing: string[];
+}
+
+/** Terms shown as chips on the card; the panel lists them all. */
+export const CARD_TERM_LIMIT = 4;
+
+/** Pure: a matching term ("icu") as the job writes it ("ICU"). */
+export function asWritten(term: string, job: PublicJob): string {
+    const words = [job.title, ...(job.tags ?? [])].join(" ").split(/[^\p{L}\p{N}+#.]+/u);
+    return words.find((word) => word.toLowerCase() === term) ?? term;
+}
+
+/** Pure: the fit label's terms for the chips, or null when the role names none. */
+export function fitTerms(resume: ResumeData, job: PublicJob): FitTerms | null {
+    const { matched, missing } = relevanceTerms(resume, job);
+    if (!matched.length && !missing.length) return null;
+    return { matched: matched.map((t) => asWritten(t, job)), missing: missing.map((t) => asWritten(t, job)) };
+}
+
 export interface CardSummary {
     title: string;
     company: string | null;
     /** null when signed out, without a résumé, or when the résumé and role don't overlap. */
     fit: Pick<FitReport, "label" | "tone"> | null;
+    /** With a fit label: the terms it counts, ✓ on the résumé or ✗ not. */
+    terms: FitTerms | null;
     /** Why there's no fit line, when there isn't one. */
     account: "signed-out" | "no-resume" | "no-overlap" | "unavailable" | null;
     lines: CardLine[];
@@ -113,13 +138,17 @@ export function cardSummary(input: CardInput): CardSummary {
     }
 
     let fit: CardSummary["fit"] = null;
+    let terms: FitTerms | null = null;
     let account: CardSummary["account"] = null;
     if (input.signedIn === null) account = "unavailable";
     else if (!input.signedIn) account = "signed-out";
     else if (!input.resume) account = "no-resume";
     else {
         const report = fitReport(input.resume, input.prefs, job, input.resumeUpdatedAt);
-        if (report) fit = { label: report.label, tone: report.tone };
+        if (report) {
+            fit = { label: report.label, tone: report.tone };
+            terms = fitTerms(input.resume, job);
+        }
         else account = "no-overlap";
     }
 
@@ -133,6 +162,7 @@ export function cardSummary(input: CardInput): CardSummary {
         title: presented.title,
         company: job.company ? presented.company.name : null,
         fit,
+        terms,
         account,
         lines: lines.slice(0, CARD_LINE_LIMIT),
         velaiUrl: velaiJob ? `${VELAI_ORIGIN}${jobPath(velaiJob)}` : null,
