@@ -332,6 +332,20 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     };
 }
 
+/**
+ * Pure: the terms behind the relevance row ("2 of 3 terms this role names"),
+ * split into the ones the résumé has and the ones it doesn't, in the job's
+ * order. Same vocabularies and matching as `scoreRelevance`, so the lists
+ * always add up to the row's counts.
+ */
+export function relevanceTerms(resume: ResumeData, job: PublicJob): { matched: string[]; missing: string[] } {
+    const resumeVocab = resumeVocabulary(resume);
+    const matched: string[] = [];
+    const missing: string[] = [];
+    for (const token of jobVocabulary(job)) (vocabHasToken(resumeVocab, token) ? matched : missing).push(token);
+    return { matched, missing };
+}
+
 function isRemoteWorkType(workType: string | null | undefined): boolean {
     return /remote/i.test(workType ?? "");
 }

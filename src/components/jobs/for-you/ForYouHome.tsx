@@ -15,7 +15,7 @@ import { LoadFailedState } from "@/components/ui/load-failed-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobs } from "@/lib/jobs/search-client";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
-import { countResults, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
+import { countResults, formatPlaceList, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
@@ -133,11 +133,6 @@ export interface ForYouHomeProps {
     activePursuit?: Pursuit;
     onGoAfter?: (job: PublicJob) => void;
     saveSuccessPulse?: boolean;
-}
-
-/** "Iceland", "Iceland and Norway", "Iceland, Norway and Denmark". */
-function formatPlaceList(places: string[]): string {
-    return places.length < 2 ? (places[0] ?? "") : `${places.slice(0, -1).join(", ")} and ${places[places.length - 1]}`;
 }
 
 function RoleCardSkeleton() {

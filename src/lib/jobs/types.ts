@@ -404,6 +404,12 @@ export interface JobSearchParams {
    * (`"Title A" OR "Title B"`). Do not AND these together.
    */
   fitPhrases?: string[];
+  /**
+   * A lookup the Velai browser extension's on-page card made on its own when
+   * a job page loaded, not a search a person typed. Searched the same way;
+   * only left out of the search log (`shouldLogSearch`).
+   */
+  automatic?: boolean;
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

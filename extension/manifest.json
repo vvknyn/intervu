@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Velai: check a job before you apply",
   "short_name": "Velai",
-  "version": "0.2.0",
-  "description": "On any job page, see how the role fits your Velai résumé, whether the posting looks current, and your résumé tailored to it.",
+  "version": "0.3.1",
+  "description": "On job pages, see how the role fits your Velai résumé, whether the posting looks current, and your résumé tailored to it.",
   "minimum_chrome_version": "116",
   "homepage_url": "https://velai.app",
   "icons": {
@@ -25,6 +25,17 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["activeTab", "contextMenus", "scripting", "sidePanel", "storage"],
-  "host_permissions": ["https://velai.app/*"]
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "scripting",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://velai.app/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*"
+  ]
 }

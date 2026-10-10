@@ -22,6 +22,10 @@ const root = path.resolve(here, "..");
 const dist = path.join(here, "dist");
 const unpacked = path.join(dist, "unpacked");
 const manifest = JSON.parse(readFileSync(path.join(here, "manifest.json"), "utf8"));
+// The card shows on its own only on the job sites in job-sites.json (the one
+// list job-sites.ts reads too); other sites only once the person turns it on.
+const jobSites = JSON.parse(readFileSync(path.join(here, "job-sites.json"), "utf8"));
+manifest.content_scripts = [{ matches: jobSites.matches, js: ["card.js"], run_at: "document_idle" }];
 
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(unpacked, { recursive: true });
@@ -30,6 +34,8 @@ await build({
     entryPoints: {
         background: path.join(here, "src/background.ts"),
         sidepanel: path.join(here, "src/sidepanel.ts"),
+        card: path.join(here, "src/card.ts"),
+        welcome: path.join(here, "src/welcome.ts"),
     },
     outdir: unpacked,
     bundle: true,
@@ -51,7 +57,7 @@ const panelJs = path.join(unpacked, "sidepanel.js");
 const REMOTE_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js";
 writeFileSync(panelJs, readFileSync(panelJs, "utf8").replaceAll(REMOTE_SCRIPT, ""));
 
-cpSync(path.join(here, "manifest.json"), path.join(unpacked, "manifest.json"));
+writeFileSync(path.join(unpacked, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 cpSync(path.join(here, "static"), unpacked, { recursive: true });
 cpSync(path.join(here, "icons"), path.join(unpacked, "icons"), { recursive: true });
 // The résumé PDF's Unicode font, the same files velai.app serves for its PDFs.

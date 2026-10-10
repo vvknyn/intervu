@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { authCardCopy } from "../../../src/lib/auth/auth-gate-copy";
-import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS } from "../../../src/lib/agent/permissions-copy";
+import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "../../../src/lib/agent/permissions-copy";
 import { expect, test } from "./fixtures";
 
 /**
@@ -63,4 +63,43 @@ test("Create account in front of an agent approval comes back to the approval", 
   const params = await createAccountWithGoogle(page);
   expect(params.get("mode")).toBe("signup");
   expect(params.get("next")).toBe(approval);
+});
+
+test("Sample prompts asks only for what a connected AI's tools return", { tag: ["@J-CONNECT-29"] }, async ({ page }) => {
+  await page.goto("/connect");
+  await page.getByRole("button", { name: "Sample prompts" }).click();
+  for (const prompt of CONNECT_SAMPLE_PROMPTS) await expect(page.getByText(prompt.text, { exact: true })).toBeVisible();
+  await expect(page.getByText(/interview insights/i)).toHaveCount(0);
+});
+
+/** Every MCP tool: the permission lines name each one exactly once (tests/unit/agent-permissions-copy.test.ts). */
+const MCP_TOOLS = AGENT_PERMISSIONS.flatMap((p) => p.tools);
+
+test("An MCP call with no token gets a 401 that points at the server's metadata", { tag: ["@J-OAUTH-12"] }, async ({ request }) => {
+  const res = await request.get("/api/mcp");
+  expect(res.status()).toBe(401);
+  expect(await res.json()).toEqual({ error: "unauthorized" });
+  expect(res.headers()["www-authenticate"]).toMatch(/^Bearer resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource"$/);
+});
+
+test("The 401's resource_metadata names /api/mcp and its authorization server", { tag: ["@J-OAUTH-21"] }, async ({ request }) => {
+  const challenge = (await request.get("/api/mcp")).headers()["www-authenticate"] ?? "";
+  const metadataUrl = new URL(challenge.match(/resource_metadata="([^"]+)"/)?.[1] ?? "");
+  const res = await request.get(metadataUrl.pathname);
+  expect(res.status()).toBe(200);
+  const body = (await res.json()) as { resource?: string; authorization_servers?: string[] };
+  expect(body.resource).toMatch(/\/api\/mcp$/);
+  expect(body.authorization_servers?.length).toBeGreaterThan(0);
+});
+
+test("/llms.txt lists every MCP tool the server registers and says what fit_label is", { tag: ["@J-OAUTH-17"] }, async ({ request }) => {
+  const res = await request.get("/llms.txt");
+  expect(res.status()).toBe(200);
+  const text = await res.text();
+  const listed = [...text.matchAll(/^- ([a-z_]+) — /gm)].map((m) => m[1]);
+  expect(new Set(listed)).toEqual(new Set(MCP_TOOLS));
+  expect(text).toContain("/api/mcp");
+  // The label a connected AI repeats is the one the site shows (mcp-tool-specs.ts FIT_FIELDS_NOTE).
+  expect(text).toContain("fit_label");
+  expect(text).toContain("Country unclear");
 });

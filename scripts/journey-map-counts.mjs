@@ -31,7 +31,7 @@ const STAGES = [
   { key: "foryou", label: "For you: job packs",
     ids: ["JOBS:19-20", "JOBS:27", "JOBS:31", "JOBS:37-52", "JOBS:80", "JOBS:92", "JOBS:94", "JOBS:96-102", "JOBS:105-106", "JOBS:108-113", "NAV:30-32"] },
   { key: "detail", label: "Job detail: pane, sheet, page", areas: ["DETAIL"],
-    ids: ["JOBS:9-13", "JOBS:23", "JOBS:53", "JOBS:75", "JOBS:104", "MOB:3", "MOB:9-10", "MOB:24", "ERR:7-8"] },
+    ids: ["JOBS:9-13", "JOBS:23", "JOBS:53", "JOBS:75", "JOBS:104", "JOBS:114", "MOB:3", "MOB:9-10", "MOB:24", "ERR:7-8"] },
   { key: "apply", label: "Apply", areas: ["APPLY"], ids: [] },
   { key: "tracker", label: "Save and tracker", areas: ["TRACKER"],
     ids: ["JOBS:32-33", "MODAL:4", "NAV:10"] },

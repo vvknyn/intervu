@@ -699,6 +699,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONNECT-26 | GET /install serves the OpenClaw installer as text/plain (the target of the Mac one-liner) | agent | GET /install | signed-out | no | uncovered | — |
 | J-CONNECT-27 | Join the OpenClaw waitlist from /openclaw's closing section @writes | anon | /openclaw | signed-out | yes | uncovered | — |
 | J-CONNECT-28 | A résumé-less user who signs in with a password from /connect's "Sign in to velai" step returns to /connect as the copy promises, not the résumé upload (signup: J-CONNECT-24) | anon | /connect, "Sign in to velai" | signed-out | no | uncovered | — |
+| J-CONNECT-29 | Open "Sample prompts" and see only prompts a connected AI's tools can answer (each names the tools it uses in `CONNECT_SAMPLE_PROMPTS`); none asks for "interview insights", which no tool returns | anon | /connect, Sample prompts | signed-out | no | covered | connect.spec.ts |
 
 ## OAUTH
 
@@ -715,16 +716,16 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-OAUTH-09 | Get invalid_grant for a bad or reused code | agent | POST /api/oauth/token | signed-out | no | uncovered | — |
 | J-OAUTH-10 | Rotate a refresh token | agent | POST /api/oauth/token | signed-out | yes | uncovered | — |
 | J-OAUTH-11 | Discover OAuth metadata from /.well-known | agent | GET /.well-known/oauth-authorization-server | signed-out | no | uncovered | — |
-| J-OAUTH-12 | Call /api/mcp with no bearer and get a 401 challenge | agent | GET /api/mcp | signed-out | no | uncovered | — |
+| J-OAUTH-12 | Call /api/mcp with no bearer and get a 401 `{ error: "unauthorized" }` whose WWW-Authenticate is `Bearer resource_metadata="…/.well-known/oauth-protected-resource"` | agent | GET /api/mcp | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-13 | List the 15 MCP tools with a valid bearer | agent | POST /api/mcp (tools/list) | signed-out | no | uncovered | — |
 | J-OAUTH-14 | Hit the MCP rate limit and get a 429 with Retry-After | agent | POST /api/mcp | signed-out | no | uncovered | — |
 | J-OAUTH-15 | Generate a manual token in Settings and see it once (J-OAUTH-16 revokes it) (merged: J-SETTINGS-21) @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
 | J-OAUTH-16 | Revoke a connected agent from Settings @writes | signed-in | /settings?tab=account | signed-in | yes | uncovered | — |
-| J-OAUTH-17 | Read the agent-facing entity card at /llms.txt | agent | GET /llms.txt | signed-out | no | uncovered | — (legacy: agents-page.spec.ts › TC-AGENTS-005: /llms.txt returns 200 and names the MCP endpoint) |
+| J-OAUTH-17 | Read the agent-facing entity card at /llms.txt: it names /api/mcp, lists exactly the tools the server registers (every one the permission lines name), and says what fit_label means, "Country unclear" included, so a deploy that lags the tool code shows | agent | GET /llms.txt | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-18 | Lose the approval when the session expires between render and Allow | signed-in | /oauth/authorize?client_id=…&state=xyz | signed-in | no | uncovered | — |
 | J-OAUTH-19 | Create account in front of an agent approval (/login?next=<authorize request>) goes to /auth/start with that request as next, not the résumé upload, so the approval isn't lost | anon | /login?next=/oauth/authorize?…, Create account | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-20 | The consent card's "This will let it, as you:" list and its limits match the MCP tool list (search; read and replace the résumé; read and update the tracker; read and change preferences; never submit an application) | signed-in | /oauth/authorize?client_id=…&… | signed-in | no | uncovered | — |
-| J-OAUTH-21 | Discover the protected-resource metadata from the 401's `resource_metadata` URL | agent | GET /api/mcp, then the WWW-Authenticate `resource_metadata` URL (/.well-known/oauth-protected-resource) | signed-out | no | uncovered | — |
+| J-OAUTH-21 | Discover the protected-resource metadata from the 401's `resource_metadata` URL | agent | GET /api/mcp, then the WWW-Authenticate `resource_metadata` URL (/.well-known/oauth-protected-resource) | signed-out | no | covered | connect.spec.ts |
 | J-OAUTH-22 | A résumé-less user who signs in with a password from the OAuth "Sign in to continue" card returns to /oauth/authorize with its params and can Allow, not the résumé upload (signup: J-OAUTH-19) | anon | /oauth/authorize?client_id=…&redirect_uri=…&code_challenge=…&code_challenge_method=S256&response_type=code | signed-out | no | uncovered | — |
 
 ## CONTENT
