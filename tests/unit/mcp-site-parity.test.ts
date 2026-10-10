@@ -26,7 +26,8 @@ import { siteSearch } from '../../src/lib/agent/site-search';
 import { withPlaceCountries } from '../../src/lib/agent/place-countries';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { withDescriptionPlace, withPlaceRestrictions } from '../../src/lib/jobs/place-notes';
-import { matchLabel, scoreJobAgainstResume } from '../../src/lib/match/score';
+import { matchLabel, relevanceTerms, scoreJobAgainstResume, termAsWritten } from '../../src/lib/match/score';
+import { latestCheckAt } from '../../src/lib/jobs/badges';
 import { packFilters, packSearchParams } from '../../src/lib/jobs/for-you/pack-filters';
 import { clusterJobs } from '../../src/lib/jobs/cluster';
 import { hasLiveApplyUrl } from '../../src/lib/jobs/apply-url-health';
@@ -39,8 +40,15 @@ import { corpusStub, mkJob, mkResume } from '../support/jobs-corpus-stub';
 const NO_PREFS: AgentPreferences = { configured: false, search: {}, answers: { custom: {} } };
 
 const CORPUS: PublicJob[] = [
-    mkJob('ca-onsite', { location: 'Toronto, ON', location_city: 'Toronto', location_country: 'Canada' }),
-    mkJob('us-onsite', { location: 'Austin, TX', location_city: 'Austin', location_country: 'United States', company: 'Initech' }),
+    // Checked twice: the later of the two is the time the site prints.
+    mkJob('ca-onsite', {
+        location: 'Toronto, ON', location_city: 'Toronto', location_country: 'Canada',
+        ghost_checked_at: '2026-10-10T08:00:00Z', last_observed_alive_at: '2026-10-01T08:00:00Z',
+    }),
+    mkJob('us-onsite', {
+        location: 'Austin, TX', location_city: 'Austin', location_country: 'United States', company: 'Initech',
+        tags: ['javascript', 'GraphQL'], ghost_checked_at: '2026-09-01T08:00:00Z', last_observed_alive_at: '2026-10-09T20:00:00Z',
+    }),
     // Says where only in its description: the site reads it (`withPlaceRestrictions`).
     mkJob('remote-india', {
         work_type: 'remote', location: 'Remote', company: 'Globex',
@@ -205,6 +213,41 @@ describe('MCP tools label a role the way the site does', () => {
         if ('error' in out) throw new Error(out.error);
         assert.notDeepEqual(out.match, resumeOnly, 'Settings level must reach the score');
         assert.equal(out.fit_label, siteLabel(persona, jobPageRow(job)));
+    });
+});
+
+describe('the MCP carries what the job pane and the extension show besides the label', () => {
+    const persona = PERSONAS[0]!;
+
+    it('last_checked_at is the time behind the site\'s "checked" line, for every role', async () => {
+        const deps = depsFor(persona);
+        for (const job of CORPUS) {
+            const out = await toolGetJob(deps, { id: job.id });
+            if ('error' in out) throw new Error(out.error);
+            assert.equal(out.last_checked_at, latestCheckAt(job), job.id);
+        }
+        // Not vacuous: the later stamp wins either way round, and no stamp is null, never a stand-in date.
+        const at = async (id: string) => {
+            const out = await toolGetJob(deps, { id });
+            if ('error' in out) throw new Error(out.error);
+            return out.last_checked_at;
+        };
+        assert.equal(await at('ca-onsite'), '2026-10-10T08:00:00Z');
+        assert.equal(await at('us-onsite'), '2026-10-09T20:00:00Z');
+        assert.equal(await at('remote-unplaced'), null);
+    });
+
+    it('missing_terms are the extension\'s "Not on your résumé" terms, as the posting writes them', async () => {
+        const deps = depsFor(persona);
+        for (const job of CORPUS) {
+            const out = await toolGetJob(deps, { id: job.id });
+            if ('error' in out) throw new Error(out.error);
+            const expected = relevanceTerms(persona.resume, job).missing.map((term) => termAsWritten(term, job));
+            assert.deepEqual(out.missing_terms, out.match ? expected : undefined, job.id);
+        }
+        const out = await toolGetJob(deps, { id: 'us-onsite' });
+        if ('error' in out) throw new Error(out.error);
+        assert.ok(out.missing_terms?.includes('GraphQL'), `got ${JSON.stringify(out.missing_terms)}`);
     });
 });
 

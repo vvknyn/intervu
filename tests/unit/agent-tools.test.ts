@@ -316,14 +316,14 @@ describe('toolSearchJobs', () => {
     assert.equal(searchCalls[0].q, 'backend engineer');
   });
 
-  it('maps hits to the FULL JobDetailFields allowlist (not the old narrow list-card subset), plus the derived intervu_url (R6) — no other invented fields', async () => {
+  it('maps hits to the FULL JobDetailFields allowlist (not the old narrow list-card subset), plus the derived intervu_url (R6) and last_checked_at — no other invented fields', async () => {
     const { deps } = stubDeps([makeJob()]);
     const out = await toolSearchJobs(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
     assert.equal(out.total, 1);
     assert.deepEqual(Object.keys(out.hits[0]).sort(), [
       'apply_url', 'company', 'company_domain', 'employment_type', 'experience_level',
-      'first_seen_at', 'ghost_badge', 'id', 'intervu_url', 'location', 'location_country',
+      'first_seen_at', 'ghost_badge', 'id', 'intervu_url', 'last_checked_at', 'location', 'location_country',
       'posted_at', 'salary_currency', 'salary_max', 'salary_min', 'salary_period',
       'tags', 'title', 'updated_at', 'vacancy_status', 'work_type',
     ]);
