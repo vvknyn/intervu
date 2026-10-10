@@ -1,11 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+    applyTailorChanges,
     extractDigitRuns,
+    finishDraft,
     heuristicTailorResume,
     introducesNewNumbers,
     looksRoboticTailor,
     resumeFullText,
+    withRoleOrder,
+    type TailorChange,
     type TailorDraft,
 } from "../../src/lib/local-ai/tailor-resume";
 import {
@@ -49,8 +53,9 @@ const PM_RESUME = mkResume(
             company: "Acme Corp",
             role: "Senior Product Manager",
             dates: "2021 - Present",
+            // Marked lines, as the résumé reader stores them; unmarked unpunctuated lines read as one bullet.
             description:
-                "Led product planning for B2B SaaS platform\nManaged roadmap prioritization with engineering\nIncreased revenue 20%",
+                "• Led product planning for B2B SaaS platform\n• Managed roadmap prioritization with engineering\n• Increased revenue 20%",
         },
         {
             id: "exp-2",
@@ -78,13 +83,13 @@ const SWE_RESUME = mkResume(
 );
 
 describe("heuristicTailorResume", () => {
-    it("PM job: summary mentions title, bullet uses JD overlap, companies unchanged, no new digits", () => {
+    it("PM job: lines open with the posting's own verbs, companies unchanged, no new digits", () => {
         const draft = heuristicTailorResume(PM_RESUME, {
             title: "Product Manager",
             company: "Stripe",
             tags: ["roadmap", "product", "agile"],
             description:
-                "Own the product roadmap and drive cross-functional planning. Lead agile delivery with engineering partners.",
+                "Oversee the product roadmap and drive cross-functional planning. Lead agile delivery with engineering partners. Grow revenue.",
             occupation: "Product Manager",
         });
 
@@ -92,19 +97,12 @@ describe("heuristicTailorResume", () => {
         assert.equal(draft.engineId, "heuristic");
         assert.equal(draft.usedDescription, true);
 
-        assert.ok(draft.bullets.length >= 1, "expected at least one bullet diff");
-
-        const jdTerms = ["roadmap", "product", "planning", "agile"];
-        const resumeTerms = ["product", "planning", "roadmap", "agile", "manager"];
-        const hasOverlapBullet = draft.bullets.some((b) => {
-            const afterLower = b.after.toLowerCase();
-            return jdTerms.some(
-                (t) =>
-                    afterLower.includes(t) &&
-                    (resumeTerms.some((r) => afterLower.includes(r)) || b.before.toLowerCase().includes(t)),
-            );
-        });
-        assert.ok(hasOverlapBullet, "expected after-bullet to contain overlapping JD keyword");
+        // "Managed" reads "Oversaw" and "Increased" reads "Grew"; "Led" already is the posting's "lead".
+        assert.deepEqual(
+            draft.bullets.map((b) => b.after),
+            ["Oversaw roadmap prioritization with engineering", "Grew revenue 20%"],
+        );
+        assert.match(draft.tailored.experience[0].description, /^• Led product planning/);
 
         for (const b of draft.bullets) {
             assert.equal(b.company, PM_RESUME.experience.find((e) => e.id === b.experienceId)?.company);
@@ -211,7 +209,7 @@ describe("heuristicTailorResume", () => {
         const draft = heuristicTailorResume(resumeWithProject, {
             title: "Product Manager",
             tags: ["roadmap", "agile"],
-            description: "Own the product roadmap. Lead agile delivery with engineering partners.",
+            description: "Own the product roadmap. Develop internal tools with engineering partners.",
         });
 
         const projectBullet = draft.bullets.find((b) => b.source === "project");
@@ -223,9 +221,8 @@ describe("heuristicTailorResume", () => {
         assert.ok(tailoredProject);
         assert.ok(tailoredProject!.description.includes(projectBullet!.after));
 
-        // Class-wide: experience bullets are tagged too, not just project ones.
+        assert.equal(projectBullet!.after, "Developed a roadmap planning tool for internal agile teams");
         assert.ok(draft.bullets.every((b) => b.source === "experience" || b.source === "project"));
-        assert.ok(draft.bullets.some((b) => b.source === "experience"));
     });
     it("leaves the other lines of a rewritten entry as they were, bullet markers included", () => {
         const resume = mkResume({ profession: "Registered Nurse" }, [
@@ -235,18 +232,19 @@ describe("heuristicTailorResume", () => {
                 role: "Registered Nurse",
                 dates: "2022 - Present",
                 description:
-                    "• Triage and assess 30+ patients per shift in a level 1 trauma centre\n• Administer medications and IV therapy, document care in Epic\n• Coordinate with physicians on critically ill patients",
+                    "• Triage and assess 30+ patients per shift in a level 1 trauma centre\n• Administer medications and IV therapy, document care in Epic\n• Precept new graduate nurses on the unit",
             },
         ]);
         const draft = heuristicTailorResume(resume, {
             title: "Registered Nurse - ICU",
-            description: "Patient assessment, ventilator management and IV therapy. Triage of critically ill patients.",
+            description: "Patient assessment, ventilator management and IV therapy. Mentor new nurses.",
         });
+        assert.deepEqual(draft.bullets.map((b) => b.after), ["Mentor new graduate nurses on the unit"]);
         const after = draft.tailored.experience[0].description;
         // Unpunctuated lines without their markers would be read back as one long bullet.
         assert.equal(descriptionToBullets(after).length, 3);
         assert.match(after, /\n• Administer medications/);
-        assert.match(after, /\n• Coordinate with physicians/);
+        assert.match(after, /\n• Mentor new graduate nurses/);
     });
 });
 
@@ -290,32 +288,26 @@ describe("introducesNewNumbers", () => {
 });
 
 describe("groundDraft", () => {
-    function draftWithBullet(before: string, after: string): TailorDraft {
-        const tailored = JSON.parse(JSON.stringify(PM_RESUME)) as ResumeData;
-        const expIdx = tailored.experience.findIndex((e) => e.id === "exp-1");
-        tailored.experience[expIdx] = {
-            ...tailored.experience[expIdx],
-            description: tailored.experience[expIdx].description.replace(before, after),
-        };
-        return {
+    function draftWithLine(resume: ResumeData, source: "experience" | "project", entryId: string, before: string, after: string): TailorDraft {
+        const list = source === "project" ? resume.projects! : resume.experience;
+        const entry = list.find((e) => e.id === entryId)!;
+        const index = descriptionToBullets(entry.description).indexOf(before);
+        assert.ok(index >= 0, `"${before}" is a line of ${entryId}`);
+        const change: TailorChange = { id: "line", kind: "line", source, entryId, index, company: entry.company, role: entry.role, before, after, why: "" };
+        return finishDraft({
             engineId: "heuristic",
             engineLabel: ENGINE_LABELS.heuristic,
             usedDescription: true,
-            summaryBefore: PM_RESUME.generatedSummary,
-            summaryAfter: PM_RESUME.generatedSummary,
-            bullets: [
-                {
-                    experienceId: "exp-1",
-                    source: "experience",
-                    company: "Acme Corp",
-                    role: "Senior Product Manager",
-                    before,
-                    after,
-                },
-            ],
-            tailored,
-        };
+            summaryBefore: resume.generatedSummary,
+            summaryAfter: resume.generatedSummary,
+            bullets: [],
+            base: resume,
+            changes: [change],
+            equivalents: [],
+            tailored: resume,
+        });
     }
+    const draftWithBullet = (before: string, after: string) => draftWithLine(PM_RESUME, "experience", "exp-1", before, after);
 
     it("drops a heuristic-style bullet that introduces a digit absent from the original", () => {
         const before = "Led product planning for B2B SaaS platform";
@@ -344,22 +336,7 @@ describe("groundDraft", () => {
             ...PM_RESUME,
             projects: [{ id: "proj-1", company: "Side Project", role: "Creator", dates: "2022", description: before }],
         };
-        const tailored = JSON.parse(JSON.stringify(resume)) as ResumeData;
-        tailored.projects = [{ ...tailored.projects![0], description: after }];
-        return {
-            resume,
-            draft: {
-                engineId: "heuristic",
-                engineLabel: ENGINE_LABELS.heuristic,
-                usedDescription: true,
-                summaryBefore: resume.generatedSummary,
-                summaryAfter: resume.generatedSummary,
-                bullets: [
-                    { experienceId: "proj-1", source: "project", company: "Side Project", role: "Creator", before, after },
-                ],
-                tailored,
-            },
-        };
+        return { resume, draft: draftWithLine(resume, "project", "proj-1", before, after) };
     }
 
     it("drops a project bullet that introduces a fabricated skill word absent from the résumé (same gate as experience)", () => {
@@ -469,5 +446,90 @@ describe("applyModelTailor (model lane)", () => {
         assert.equal(noExpDraft!.bullets.length, 1);
         assert.equal(noExpDraft!.bullets[0].source, "project");
         assert.equal(noExpDraft!.bullets[0].experienceId, "proj-2");
+    });
+});
+
+describe("on-device model lines", () => {
+    const job = {
+        title: "Product Manager",
+        description: "Oversee the product roadmap and partner with engineering. Lead agile delivery. Grow revenue.",
+    };
+
+    it("offers the model each role's lines by id, the ones using the posting's words first", () => {
+        const prompt = buildModelPrompt(PM_RESUME, job);
+        assert.match(prompt, /\[exp-1#0\] \(Senior Product Manager, Acme Corp\) Led product planning/);
+        assert.match(prompt, /\[exp-1#1\]/);
+        assert.match(prompt, /"lines":\[\{"line":"\.\.\.","text":"\.\.\."\}\]/);
+    });
+
+    it("a rewrite lands on the line it names; the rules' rewordings stay on the other lines", () => {
+        const draft = applyModelTailor(
+            PM_RESUME,
+            job,
+            { summary: PM_RESUME.generatedSummary, lines: [{ line: "exp-1#0", text: "Led product planning and roadmap prioritization for B2B SaaS platform" }] },
+            "webllm",
+        );
+        assert.ok(draft);
+        const lines = draft!.changes.flatMap((c) => (c.kind === "line" ? [[c.index, c.after]] : []));
+        assert.deepEqual(lines, [
+            [1, "Oversaw roadmap prioritization with engineering"],
+            [2, "Grew revenue 20%"],
+            [0, "Led product planning and roadmap prioritization for B2B SaaS platform"],
+        ]);
+        const grounded = groundDraft(resumeFullText(PM_RESUME), draft!);
+        assert.equal(grounded.changes.filter((c) => c.kind === "line").length, 3);
+    });
+
+    it("the gate accepts a model's posting synonym of a résumé word and drops a skill the résumé lacks", () => {
+        const draft = applyModelTailor(
+            PM_RESUME,
+            { title: "Product Manager", description: "Partner with engineering. Oversee the roadmap. Kubernetes a plus." },
+            {
+                summary: PM_RESUME.generatedSummary,
+                lines: [
+                    // "Oversaw" is the posting's word for the résumé's "Managed"; "partnering" the résumé never says.
+                    { line: "exp-1#1", text: "Oversaw engineering roadmap prioritization" },
+                    { line: "exp-1#2", text: "Increased revenue 20%, partnering with engineering" },
+                    { line: "exp-1#0", text: "Led product planning for a Kubernetes B2B SaaS platform" },
+                ],
+            },
+            "webllm",
+        );
+        const grounded = groundDraft(resumeFullText(PM_RESUME), draft!);
+        const kept = grounded.changes.flatMap((c) => (c.kind === "line" ? [c.after] : []));
+        assert.ok(kept.includes("Oversaw engineering roadmap prioritization"), JSON.stringify(kept));
+        assert.ok(!kept.some((l) => /kubernetes|partnering/i.test(l)), JSON.stringify(kept));
+        assert.match(grounded.tailored.experience[0].description, /Led product planning for B2B SaaS platform/);
+    });
+
+    it("never gives a résumé without a summary one from the model", () => {
+        const noSummary = { ...PM_RESUME, generatedSummary: "" };
+        const draft = applyModelTailor(noSummary, job, { summary: "Product manager.", lines: [{ line: "exp-1#2", text: "Increased revenue by 20%" }] }, "webllm");
+        assert.equal(draft!.tailored.generatedSummary, "");
+        assert.ok(!draft!.changes.some((c) => c.kind === "summary"));
+    });
+});
+
+describe("withRoleOrder", () => {
+    it("moves each role's posting lines and skills first, spelled the posting's way, each undoable", () => {
+        const resume = mkResume(
+            { profession: "Pharmacist" },
+            [{ id: "e1", company: "Shoppers", role: "Pharmacist", dates: "2020 - Present", description: "• Managed the dispensary rota\n• Counselled patients on drug interactions" }],
+            [{ category: "Skills", skills: ["Dispensing", "Patient Counselling", "Drug Interactions"] }],
+        );
+        const job = { title: "Staff Pharmacist", description: "Counseling patients and checking drug interactions." };
+        const draft = withRoleOrder(heuristicTailorResume(resume, job), job);
+        const order = draft.changes.find((c) => c.kind === "order");
+        assert.ok(order && order.kind === "order");
+        assert.deepEqual(order.order, [1, 0]);
+        const skills = draft.changes.find((c) => c.kind === "skills");
+        assert.ok(skills && skills.kind === "skills");
+        // Most of the posting's words first; "Counselling" counts as the posting's "Counseling" and takes its spelling.
+        assert.deepEqual(skills.after, ["Drug Interactions", "Patient Counseling", "Dispensing"]);
+        assert.match(draft.tailored.experience[0].description, /^• Counsel{1,2}ed patients/);
+        // Undo the move: the lines go back to the résumé's order, the skills stay moved.
+        const undone = applyTailorChanges(draft.base, draft.changes.filter((c) => c.kind !== "order"));
+        assert.match(undone.experience[0].description, /^• Managed the dispensary rota/);
+        assert.deepEqual(undone.competencies[0].skills, ["Drug Interactions", "Patient Counseling", "Dispensing"]);
     });
 });
