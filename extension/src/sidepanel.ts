@@ -18,8 +18,12 @@ import { jobFromPage, validThrough, type PageRead } from "./page-reader";
 import { panelRow, velaiSearchUrl, VELAI_ORIGIN, type PanelRow } from "./rows";
 import { fitReport, pageChecks, resumeFromMe, sameJob, tailoredResume, velaiChecks, type CheckLine, type MeResponse } from "./report";
 import { tailoredResumePdf } from "./resume-pdf";
+import { fetchMe, searchVelai, trackApplied } from "./velai-api";
+import { isKnownJobSite, sitePattern } from "./job-sites";
+import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type ToBackground } from "./messages";
 import type { HandOff } from "./handoff";
 import { resumeDataToPlainText } from "@/lib/resume/to-plain-text";
+import { relevanceTerms } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import { LOCATION_UNKNOWN_TEXT } from "@/lib/jobs/presentation";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -29,7 +33,8 @@ import type { ResumeData } from "@/types/resume";
 export const PANEL_LIMIT = 10;
 /** Similar roles shown under a page Velai doesn't have. */
 const SIMILAR_LIMIT = 3;
-const REQUEST_TIMEOUT_MS = 10_000;
+/** Missing terms named before "and N more". */
+const MISSING_SHOWN = 5;
 
 const form = document.getElementById("search") as HTMLFormElement;
 const input = document.getElementById("q") as HTMLInputElement;
@@ -38,6 +43,20 @@ const results = document.getElementById("results") as HTMLElement;
 
 /** The latest render; an older one that finishes late is dropped. */
 let generation = 0;
+
+/** The job page on screen, re-checked when the person signs in or edits their résumé. */
+let shown: { kind: "page"; ctx: PageContext; textIsTheJob: boolean } | { kind: "other" } = { kind: "other" };
+
+interface PageContext {
+    read: PageRead;
+    site: string | null;
+    /** The tab the page is in, to turn the on-page card on for its site. */
+    tabId?: number;
+}
+
+function send(message: ToBackground): void {
+    void chrome.runtime.sendMessage(message);
+}
 
 // ── DOM helpers ────────────────────────────────────────────────────────────
 
@@ -74,32 +93,6 @@ function setSource(text: string | null): void {
     source.hidden = !text;
 }
 
-// ── velai.app calls ────────────────────────────────────────────────────────
-
-async function velai<T>(path: string, init?: RequestInit): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-        const response = await fetch(`${VELAI_ORIGIN}${path}`, { ...init, credentials: "include", signal: controller.signal });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return (await response.json()) as T;
-    } finally {
-        clearTimeout(timer);
-    }
-}
-
-function searchVelai(q: string, limit: number): Promise<JobSearchResult> {
-    return velai<JobSearchResult>("/api/jobs/search", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ q, hideGhosts: false, limit }),
-    });
-}
-
-function fetchMe(): Promise<MeResponse> {
-    return velai<MeResponse>("/api/extension/me");
-}
-
 // ── Pieces ─────────────────────────────────────────────────────────────────
 
 function rowNode(row: PanelRow): HTMLElement {
@@ -134,9 +127,8 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
     if (!me.signedIn) {
         return section(
             "Your fit",
-            el("p", "muted", "Sign in to Velai in this browser to see how this role fits your résumé and get a copy tailored to it."),
-            link(`${VELAI_ORIGIN}/login`, "Sign in to Velai", "primary"),
-            button("I've signed in", "ghost", onRetry),
+            el("p", "muted", "Sign in to Velai to see how this role fits your résumé and get a copy tailored to it. Sign-in opens in a small window that closes on its own, and this job is checked again."),
+            actionsRow(button("Sign in to Velai", "primary", () => send({ type: "signIn" })), button("Check again", "ghost", onRetry)),
         );
     }
     if (me.resume === null) {
@@ -145,24 +137,111 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
     if (!resume) {
         return section(
             "Your fit",
-            el("p", "muted", "Add your résumé on Velai to see how this role fits you and get a copy tailored to it."),
-            link(`${VELAI_ORIGIN}/resume`, "Add your résumé", "primary"),
-            button("I've added it", "ghost", onRetry),
+            el("p", "muted", "Add your résumé on Velai to see how this role fits you and get a copy tailored to it. It opens in a small window; close it when you're done and this job is checked again."),
+            actionsRow(button("Add your résumé", "primary", () => send({ type: "openVelai", path: "/resume" })), button("Check again", "ghost", onRetry)),
         );
     }
+    const edit = editResumeNode();
     const report = fitReport(resume, me.preferences ?? null, job, me.resume?.updatedAt);
     if (!report) {
-        return section("Your fit", el("p", "muted", "Your résumé and this role don't share enough to score, so Velai gives it no fit label."));
+        return section("Your fit", el("p", "muted", "Your résumé and this role don't share enough to score, so Velai gives it no fit label."), edit);
     }
     const rows = el("dl", "receipt");
     for (const row of report.rows) rows.append(el("dt", undefined, row.label), el("dd", undefined, row.value));
-    return section(
-        "Your fit",
-        el("p", `fit fit-${report.tone}`, report.label),
-        el("p", "fit-heading", report.heading),
-        el("p", "fit-why", report.why),
-        rows,
+    const parts: Node[] = [el("p", `fit fit-${report.tone}`, report.label), el("p", "fit-heading", report.heading), el("p", "fit-why", report.why), rows];
+    // The words behind the relevance row that the résumé doesn't have, so the
+    // person knows what a résumé edit would need to cover.
+    const { missing } = relevanceTerms(resume, job);
+    if (missing.length) {
+        const named = missing.slice(0, MISSING_SHOWN).map((term) => asWritten(term, job)).join(", ");
+        const more = missing.length > MISSING_SHOWN ? ` and ${missing.length - MISSING_SHOWN} more` : "";
+        parts.push(el("p", "gap", `Not on your résumé: ${named}${more}. These are words in the role's title and tags, the terms the fit label counts.`));
+    }
+    parts.push(edit);
+    return section("Your fit", ...parts);
+}
+
+/** A matching term ("icu") as the job writes it ("ICU"). */
+function asWritten(term: string, job: PublicJob): string {
+    const words = [job.title, ...(job.tags ?? [])].join(" ").split(/[^\p{L}\p{N}+#.]+/u);
+    return words.find((word) => word.toLowerCase() === term) ?? term;
+}
+
+function actionsRow(...children: Node[]): HTMLElement {
+    const row = el("div", "actions");
+    row.append(...children);
+    return row;
+}
+
+/** Velai's résumé editor in a small window; closing it checks this job again. */
+function editResumeNode(): HTMLElement {
+    const node = el("div", "edit");
+    node.append(
+        actionsRow(button("Edit your résumé on Velai", "secondary", () => send({ type: "openVelai", path: "/resume" }))),
+        el("p", "hint", "Opens in a small window. Close it when you're done and this job is checked against your updated résumé."),
     );
+    return node;
+}
+
+/** "I applied": the job goes into the person's Velai tracker as Applied, the same as velai.app's own "Mark as applied". */
+function applyingNode(job: PublicJob, applyUrl: string): HTMLElement | null {
+    const company = job.company?.trim();
+    if (!company) return null;
+    const status = el("p", "muted", "Once you've applied on this page, add the job to your Velai tracker, dated today.");
+    const done = button("I applied", "primary", () => {
+        done.disabled = true;
+        void trackApplied({ title: job.title, company, applyUrl, ...(job.id.startsWith("page:") ? {} : { jobId: job.id }) })
+            .then(() => {
+                status.replaceChildren("Added to your Velai tracker as Applied. ", link(`${VELAI_ORIGIN}/yours`, "Open your tracker"));
+                done.remove();
+            })
+            .catch((e: unknown) => {
+                done.disabled = false;
+                status.textContent = /HTTP 401/.test(String(e)) ? "Velai says you're signed out. Sign in and try again." : "Velai didn't save it. Try again.";
+            });
+    });
+    return section("Applying", status, actionsRow(done));
+}
+
+/**
+ * Turning the on-page card on (or back on) for this page's site. The built-in
+ * job sites have it already; any other site needs the person's say-so, which
+ * Chrome asks for, for that one site.
+ */
+async function cardSiteNode(ctx: PageContext): Promise<HTMLElement | null> {
+    const pattern = sitePattern(ctx.read.url);
+    if (!pattern || ctx.tabId == null) return null;
+    const host = new URL(ctx.read.url).hostname;
+    const stored = await chrome.storage.local.get(HIDDEN_SITES_KEY);
+    const hidden = new Set((stored[HIDDEN_SITES_KEY] as string[] | undefined) ?? []);
+    const enabled = isKnownJobSite(ctx.read.url) || (await chrome.permissions.contains({ origins: [pattern] }));
+    const note = el("p", "hint");
+    const tabId = ctx.tabId;
+    if (enabled && !hidden.has(host)) return null;
+    if (enabled) {
+        note.append(
+            `The Velai card is off on ${host}. `,
+            button("Show it again", "inline", () => {
+                hidden.delete(host);
+                void chrome.storage.local.set({ [HIDDEN_SITES_KEY]: [...hidden] }).then(() => (note.textContent = `The Velai card shows on ${host} again.`));
+            }),
+        );
+    } else {
+        note.append(
+            button(`Show the Velai card on ${host} job pages`, "inline", () => {
+                // Must be called straight from the click for Chrome to ask.
+                void chrome.permissions.request({ origins: [pattern] }).then((granted) => {
+                    if (!granted) return;
+                    hidden.delete(host);
+                    void chrome.storage.local.set({ [HIDDEN_SITES_KEY]: [...hidden] });
+                    send({ type: "siteEnabled", tabId });
+                    note.textContent = `The Velai card now shows on ${host} job pages.`;
+                });
+            }),
+            ` Chrome asks first; it lets Velai read ${host} pages so the card can show on its own.`,
+        );
+    }
+    return note;
 }
 
 /** Rewordings listed in the panel before "and N more in the PDF". */
@@ -230,9 +309,10 @@ function tailorNode(resume: ResumeData, job: PublicJob): HTMLElement {
 // ── Screens ────────────────────────────────────────────────────────────────
 
 function renderIdle(): void {
+    shown = { kind: "other" };
     setSource(null);
     results.replaceChildren(
-        el("p", "lede", "Open a job on any careers site or job board and click the Velai button."),
+        el("p", "lede", "Open a job on any careers site or job board and click the Velai button, or the button on the Velai card."),
         el("p", "muted", "You'll see how it fits your Velai résumé, whether the posting looks current, and a copy of your résumé tailored to it."),
     );
 }
@@ -259,8 +339,10 @@ function similarNode(title: string, hits: PublicJob[], q: string, now: number): 
  * one ("Read this page as the job"), so a page that isn't a job never gets a
  * fit label.
  */
-async function renderPage(read: PageRead, site: string | null, textIsTheJob = false): Promise<void> {
+async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void> {
     const mine = ++generation;
+    const { read, site } = ctx;
+    shown = { kind: "page", ctx, textIsTheJob };
     const fromTitle = queryFromPage(read.title, read.url);
     const pageJob = jobFromPage(read);
     input.value = read.posting ? [pageJob.title, pageJob.company].filter(Boolean).join(" ") : fromTitle.q || pageJob.title;
@@ -276,7 +358,7 @@ async function renderPage(read: PageRead, site: string | null, textIsTheJob = fa
     // role with. A wrong guess just doesn't match.
     const velaiJob = hits ? sameJob(hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
     const now = Date.now();
-    const retry = () => void renderPage(read, site, textIsTheJob);
+    const retry = () => void renderPage(ctx, textIsTheJob);
 
     if (!read.posting && !velaiJob && !textIsTheJob) {
         setSource(`${where.charAt(0).toUpperCase()}${where.slice(1)} doesn't publish its job details.`);
@@ -285,7 +367,7 @@ async function renderPage(read: PageRead, site: string | null, textIsTheJob = fa
             el("p", "muted", "If this page is a job, Velai can read its title and text as the job instead."),
         ];
         const actions = el("div", "actions");
-        actions.append(button("Read this page as the job", "primary", () => void renderPage(read, site, true)));
+        actions.append(button("Read this page as the job", "primary", () => void renderPage(ctx, true)));
         if (hits === null) actions.append(button("Try again", "secondary", retry));
         parts.push(actions);
         if (hits?.length) parts.push(similarNode("Roles on Velai like this page's title", hits, input.value, now));
@@ -323,11 +405,20 @@ async function renderPage(read: PageRead, site: string | null, textIsTheJob = fa
         parts.push(tailorNode(resume, forTailor));
     }
 
+    if (me?.signedIn) {
+        const applying = applyingNode(job, read.url);
+        if (applying) parts.push(applying);
+    }
+
     if (!velaiJob && hits?.length) parts.push(similarNode("Similar roles on Velai", hits, input.value, now));
+    const cardSite = await cardSiteNode(ctx).catch(() => null);
+    if (mine !== generation) return;
+    if (cardSite) parts.push(cardSite);
     results.replaceChildren(...parts);
 }
 
 async function renderSearch(raw: string): Promise<void> {
+    shown = { kind: "other" };
     const q = raw.replace(/\s+/g, " ").trim();
     if (!q) {
         renderIdle();
@@ -373,7 +464,7 @@ function apply(handOff: HandOff | null): void {
     if (!handOff) {
         renderIdle();
     } else if (handOff.kind === "page") {
-        void renderPage(handOff.read, handOff.site);
+        void renderPage({ read: handOff.read, site: handOff.site, tabId: handOff.tabId });
     } else {
         input.value = handOff.q;
         setSource(handOff.site ? `Searching the text you selected on ${handOff.site}.` : null);
@@ -389,6 +480,8 @@ form.addEventListener("submit", (event) => {
 
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "session" && changes[PAGE_QUERY_KEY]?.newValue) apply(changes[PAGE_QUERY_KEY].newValue as HandOff);
+    // Signed in, or closed the résumé editor: check the job on screen again, no click needed.
+    if (area === "local" && changes[ACCOUNT_CHANGED_KEY] && shown.kind === "page") void renderPage(shown.ctx, shown.textIsTheJob);
 });
 
 void chrome.storage.session.get(PAGE_QUERY_KEY).then((stored) => apply((stored[PAGE_QUERY_KEY] as HandOff | undefined) ?? null));
