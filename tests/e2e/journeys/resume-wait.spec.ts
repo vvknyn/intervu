@@ -15,7 +15,7 @@ import { expect, test } from "./fixtures";
  */
 
 // One job and no skills section: a read the quick rules leave short, so the model is asked to read it
-// (a complete read never starts the model, J-RESUME-50).
+// (a complete read never starts the model, J-RESUME-51).
 const RESUME = Buffer.from(`Priya Raman
 priya.raman@example.com | Toronto, ON
 

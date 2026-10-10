@@ -11,20 +11,28 @@ import {
     initLocalAiLadder,
 } from "./ladder";
 import {
+    finishDraft,
     heuristicTailorResume,
     resumeFullText,
-    type TailorBulletDiff,
+    roleTermsForJob,
+    withRoleOrder,
+    type TailorChange,
     type TailorDraft,
     type TailorJobInput,
 } from "./tailor-resume";
 import { ENGINE_LABELS } from "./engines/types";
 import { groundDraft } from "./tailor-ground";
+import { descriptionToBullets } from "@/lib/resume/merge-bullet-lines";
+import { roleTermHits, roleTermSet } from "@/lib/resume/order-for-role";
 import type { ResumeData, ResumeExperience } from "@/types/resume";
 
-type ModelBullet = { experienceId?: string; text?: string };
+/** A rewrite of one line: `line` is the id the prompt gave it ("exp-1#2");
+ *  an older reply names only the entry (`experienceId`), meaning its first line. */
+type ModelBullet = { line?: string; experienceId?: string; text?: string };
 
 type ModelTailorOutput = {
     summary?: string;
+    lines?: ModelBullet[];
     bullets?: ModelBullet[];
 };
 
@@ -32,6 +40,7 @@ export const TAILOR_VOICE_RULES = `Voice rules (still truthful — no invented e
 - Sound like a strong human résumé: concrete, varied rhythm, not keyword-stuffed
 - Avoid buzzword stacks, "Results-driven…", repeating the job title in every bullet, "Responsible for X. Responsible for Y."
 - Prefer verbs from the original bullet; weave JD language only where it already fits the meaning
+- Lead each line with what the posting asks for when the line already says it
 - Summary: 2–4 natural sentences (or one tight paragraph), not a skill list
 - Bullets: keep original structure and length band; do not homogenize every line`;
 
@@ -47,30 +56,38 @@ function tryParseModelJson(text: string): ModelTailorOutput | null {
     }
 }
 
-/** Snippet lines for one résumé section (experience or projects — same
- *  `ResumeExperience` shape) — shared so the model prompt offers both
- *  sections' ids as equally valid bullet targets. */
-function buildEntrySnippets(entries: ResumeExperience[], max: number): string {
+const MODEL_ENTRIES_MAX = 4;
+const MODEL_LINES_PER_ENTRY = 3;
+
+/** The lines offered to the model: per entry, the ones using the posting's
+ *  words most, each with an id ("exp-1#2") its reply names. */
+function modelLines(entries: ResumeExperience[], terms: ReadonlySet<string>): string {
     return entries
         .filter((e) => e.description?.trim())
-        .slice(0, max)
-        .map((e) => {
-            const firstBullet = e.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8) ?? "";
-            return `- id: ${e.id}, role: ${e.role}, company: ${e.company}, bullet: ${firstBullet.slice(0, 200)}`;
+        .slice(0, MODEL_ENTRIES_MAX)
+        .flatMap((e) => {
+            const lines = descriptionToBullets(e.description);
+            const picked = lines
+                .map((line, index) => ({ line, index, hits: roleTermHits(line, terms) }))
+                .sort((a, b) => b.hits - a.hits || a.index - b.index)
+                .slice(0, MODEL_LINES_PER_ENTRY)
+                .sort((a, b) => a.index - b.index);
+            return picked.map((p) => `- [${e.id}#${p.index}] (${e.role}, ${e.company}) ${p.line.slice(0, 240)}`);
         })
         .join("\n");
 }
 
 export function buildModelPrompt(resume: ResumeData, job: TailorJobInput): string {
-    const experienceSnippets = buildEntrySnippets(resume.experience, 4);
-    const projectSnippets = buildEntrySnippets(resume.projects ?? [], 4);
-    const projectSection = projectSnippets ? `\n\nPROJECT SNIPPETS:\n${projectSnippets}` : "";
+    const terms = roleTermSet(roleTermsForJob(job));
+    const experienceLines = modelLines(resume.experience, terms);
+    const projectLines = modelLines(resume.projects ?? [], terms);
+    const projectSection = projectLines ? `\n\nPROJECT LINES:\n${projectLines}` : "";
 
     const desc = (job.description ?? "").slice(0, 800);
 
     const locationLine = job.location?.trim() ? `location: ${job.location.trim()}\n` : "";
 
-    return `Tailor this résumé for the job. Keep truthfulness: do NOT invent employers, titles, dates, or numeric metrics. Mirror JD language where already implied by the original text.
+    return `Tailor this résumé for the job. Keep truthfulness: do NOT invent employers, titles, dates, skills, tools or numeric metrics. Reword each line in the posting's language only where the line already says it, and keep every fact.
 
 ${TAILOR_VOICE_RULES}
 
@@ -84,72 +101,48 @@ description: ${desc}
 CURRENT SUMMARY:
 ${resume.generatedSummary || resume.profile.profession}
 
-EXPERIENCE SNIPPETS:
-${experienceSnippets}${projectSection}
+EXPERIENCE LINES:
+${experienceLines}${projectSection}
 
-Return JSON only — "experienceId" may be an id from either EXPERIENCE or PROJECT snippets:
-{"summary":"...","bullets":[{"experienceId":"...","text":"..."}]}`;
+Return JSON only — "line" is the id in square brackets of the line you rewrote, from EXPERIENCE or PROJECT lines:
+{"summary":"...","lines":[{"line":"...","text":"..."}]}`;
 }
 
-/** Matches model-produced bullets against one résumé section — experience or
- *  projects, which share the `ResumeExperience` shape — patching
- *  `tailoredList` in place and returning one `TailorBulletDiff` per accepted
- *  match. Shared by both the experience and project passes in
- *  `applyModelTailor` so a project bullet from the engine is matched,
- *  cross-checked and diffed exactly like an experience bullet; `source` is
- *  set by the caller and never read from model output. */
-function applyModelBulletsForEntries(
-    entries: ResumeExperience[],
-    tailoredList: ResumeExperience[],
-    source: TailorBulletDiff["source"],
-    modelBullets: ModelBullet[],
-    allEntries: ResumeExperience[],
-): TailorBulletDiff[] {
-    const bullets: TailorBulletDiff[] = [];
-
-    for (const b of modelBullets) {
-        const entryId = b.experienceId?.trim();
-        const text = b.text?.trim();
-        if (!entryId || !text) continue;
-
-        const idx = entries.findIndex((e) => e.id === entryId);
-        if (idx < 0) continue;
-
-        const entry = entries[idx];
-        const hit = entry.description.split(/\n|•/).map((l) => l.trim()).find((l) => l.length >= 8);
-        if (!hit) continue;
-
-        if (text.toLowerCase().includes(entry.company.toLowerCase()) === false && /\b(at|for)\s+[A-Z]/.test(text)) {
-            const origCompany = entry.company.toLowerCase();
-            const mentioned = allEntries.some(
-                (e) => e.id !== entryId && text.toLowerCase().includes(e.company.toLowerCase()),
-            );
-            if (mentioned && !text.toLowerCase().includes(origCompany)) continue;
-        }
-
-        const lines = entry.description.split(/\n|•/).map((l) => l.replace(/^[\s\-*]+/, "").trim()).filter(Boolean);
-        const lineIdx = lines.findIndex((l) => l === hit || l.includes(hit.slice(0, 20)));
-        if (lineIdx >= 0) {
-            lines[lineIdx] = text;
-            tailoredList[idx] = {
-                ...tailoredList[idx],
-                description: lines.join("\n"),
-            };
-        }
-
-        bullets.push({
-            experienceId: entry.id,
-            source,
-            company: entry.company,
-            role: entry.role,
-            before: hit,
-            after: text,
-        });
+/** Where a model rewrite lands: the entry and the line's index, or null when the id names neither. */
+function locateModelLine(
+    b: ModelBullet,
+    entries: { source: "experience" | "project"; entry: ResumeExperience }[],
+): { source: "experience" | "project"; entry: ResumeExperience; index: number } | null {
+    const id = b.line?.trim();
+    if (id) {
+        const hash = id.lastIndexOf("#");
+        const entryId = hash > 0 ? id.slice(0, hash) : id;
+        const index = hash > 0 ? Number(id.slice(hash + 1)) : 0;
+        const found = entries.find((e) => e.entry.id === entryId);
+        if (!found || !Number.isInteger(index)) return null;
+        return descriptionToBullets(found.entry.description)[index] === undefined ? null : { ...found, index };
     }
-
-    return bullets;
+    const entryId = b.experienceId?.trim();
+    const found = entryId ? entries.find((e) => e.entry.id === entryId) : undefined;
+    if (!found) return null;
+    const index = descriptionToBullets(found.entry.description).findIndex((l) => l.length >= 8);
+    return index < 0 ? null : { ...found, index };
 }
 
+/** A rewrite that names another of the person's employers ("…at Beta Inc")
+ *  on this one's line moves a fact between jobs: never accepted. */
+function namesAnotherEmployer(text: string, entry: ResumeExperience, all: ResumeExperience[]): boolean {
+    const lower = text.toLowerCase();
+    if (lower.includes(entry.company.toLowerCase()) || !/\b(at|for)\s+[A-Z]/.test(text)) return false;
+    return all.some((e) => e.id !== entry.id && e.company.trim() && lower.includes(e.company.toLowerCase()));
+}
+
+/**
+ * The model's rewrites as changes on top of the rules draft: a line the model
+ * rewrote takes the model's wording, every other line keeps the rules', and
+ * the model's summary replaces the rules' when the résumé has one. Null when
+ * the model rewrote no line, so the caller falls back to the rules draft.
+ */
 export function applyModelTailor(
     resume: ResumeData,
     job: TailorJobInput,
@@ -158,31 +151,52 @@ export function applyModelTailor(
 ): TailorDraft | null {
     if (!parsed.summary?.trim()) return null;
 
-    const tailored = JSON.parse(JSON.stringify(resume)) as ResumeData;
-    const summaryBefore =
-        resume.generatedSummary?.trim() ||
-        `${resume.profile.profession} — ${resume.profile.yearsOfExperience}+ years`;
-
-    tailored.generatedSummary = parsed.summary.trim();
-
-    const modelBullets = parsed.bullets ?? [];
-    const allEntries = [...resume.experience, ...(resume.projects ?? [])];
-    const bullets: TailorBulletDiff[] = [
-        ...applyModelBulletsForEntries(resume.experience, tailored.experience, "experience", modelBullets, allEntries),
-        ...applyModelBulletsForEntries(resume.projects ?? [], tailored.projects ?? [], "project", modelBullets, allEntries),
+    const rules = heuristicTailorResume(resume, job);
+    const all = [...rules.base.experience, ...(rules.base.projects ?? [])];
+    const located = [
+        ...rules.base.experience.map((entry) => ({ source: "experience" as const, entry })),
+        ...(rules.base.projects ?? []).map((entry) => ({ source: "project" as const, entry })),
     ];
 
-    if (bullets.length === 0) return null;
+    const modelChanges = new Map<string, TailorChange>();
+    for (const b of [...(parsed.lines ?? []), ...(parsed.bullets ?? [])]) {
+        const text = b.text?.trim();
+        const at = text ? locateModelLine(b, located) : null;
+        if (!text || !at || namesAnotherEmployer(text, at.entry, all)) continue;
+        const before = descriptionToBullets(at.entry.description)[at.index];
+        if (text === before) continue;
+        const id = `line:${at.source}:${at.entry.id}:${at.index}`;
+        modelChanges.set(id, {
+            id,
+            kind: "line",
+            source: at.source,
+            entryId: at.entry.id,
+            index: at.index,
+            company: at.entry.company,
+            role: at.entry.role,
+            before,
+            after: text,
+            why: "Reworded on this device for this posting.",
+        });
+    }
+    if (modelChanges.size === 0) return null;
 
-    return {
-        engineId,
-        engineLabel: getActiveEngineLabel(),
-        usedDescription: Boolean(job.description?.trim()),
-        summaryBefore,
-        summaryAfter: parsed.summary.trim(),
-        bullets: bullets.slice(0, 4),
-        tailored,
-    };
+    const summaryBefore = rules.summaryBefore;
+    const summary = parsed.summary.trim();
+    const changes: TailorChange[] = [
+        ...(summaryBefore && summary !== summaryBefore
+            ? [{ id: "summary", kind: "summary" as const, before: summaryBefore, after: summary, why: "Reworded on this device for this posting." }]
+            : rules.changes.filter((c) => c.kind === "summary")),
+        ...rules.changes.filter((c) => c.kind === "line" && !modelChanges.has(c.id)),
+        ...modelChanges.values(),
+    ];
+
+    return finishDraft({ ...rules, engineId, engineLabel: getActiveEngineLabel(), changes });
+}
+
+/** The rules draft, grounded and ordered: what every no-model path gets. */
+export function tailorWithRules(resume: ResumeData, job: TailorJobInput): TailorDraft {
+    return withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, job)), job);
 }
 
 export async function tailorResumeForJob(
@@ -191,8 +205,7 @@ export async function tailorResumeForJob(
     opts?: { allowModel?: boolean },
 ): Promise<TailorDraft> {
     const allowModel = opts?.allowModel ?? false;
-    const resumeText = resumeFullText(resume);
-    const heuristicFallback = () => groundDraft(resumeText, heuristicTailorResume(resume, job));
+    const heuristicFallback = () => tailorWithRules(resume, job);
 
     if (!allowModel || !readLocalAiConsent()) {
         return heuristicFallback();
@@ -220,7 +233,7 @@ export async function tailorResumeForJob(
         return heuristicFallback();
     }
 
-    return groundDraft(resumeText, modelDraft);
+    return withRoleOrder(groundDraft(resumeFullText(resume), modelDraft), job);
 }
 
 export { ENGINE_LABELS };

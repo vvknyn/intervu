@@ -70,7 +70,9 @@ export async function findPursuitByJobId(uid: string, jobId: string): Promise<Pu
  * logic without either depending on the other's auth mechanism.
  *
  * `attachResume` copies the account's résumé onto a role this moves into
- * Applied (`./resume-on-apply.ts`); only the web's "I applied" sets it.
+ * Applied (`./resume-on-apply.ts`): the web's "I applied" and the MCP
+ * `mark_applied` tool set it, so a role marked applied either way says which
+ * résumé went out.
  */
 export async function upsertPursuitCore(
     uid: string,

@@ -8,7 +8,7 @@ import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 /**
  * The résumé importer every upload goes through (/resume, the /jobs "Rank jobs
  * by your résumé" dialog, setup's résumé step, a company page's Check my fit).
- * See tests/journeys/CATALOG.md (J-RESUME-08, J-RESUME-42..44, J-RESUME-50). Read-only: the
+ * See tests/journeys/CATALOG.md (J-RESUME-08, J-RESUME-42..44, J-RESUME-51). Read-only: the
  * résumé is read in the browser and stays in it.
  *
  * 2026-10-07: the primary started a ~494 MB model download, a real résumé the
@@ -256,7 +256,7 @@ test("A two-column résumé PDF (contact, skills and school down a sidebar) read
 test("An on-device model that never finishes reading leaves the quick match within 30 s, and the résumé can be used meanwhile", { tag: ["@J-RESUME-44"] }, async ({ page, diagnostics }) => {
   test.setTimeout(90_000);
   // What "Reading your résumé with the on-device model" spinning for good was.
-  // A résumé the quick read only partly gets: the model is only asked to read those (J-RESUME-50).
+  // A résumé the quick read only partly gets: the model is only asked to read those (J-RESUME-51).
   await hangingModel(page);
   const dialog = await openImporter(page);
   await expect(dialog.getByTestId("resume-import-model-on")).toBeVisible();
@@ -324,7 +324,7 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
-test("A résumé the quick read gets fully never waits on the on-device model, and the review shows the level ranking uses and the roles it counts", { tag: ["@J-RESUME-50"] }, async ({ page, diagnostics }) => {
+test("A résumé the quick read gets fully never waits on the on-device model, and the review shows the level ranking uses and the roles it counts", { tag: ["@J-RESUME-51"] }, async ({ page, diagnostics }) => {
   // Vivek 2026-10-10: a 99% read still spun on "Reading your résumé with the on-device model" ("as though
   // it is still doing work"), and "Years of Experience 13" said nothing of the 5 years in his role that
   // ranking reads his level from.

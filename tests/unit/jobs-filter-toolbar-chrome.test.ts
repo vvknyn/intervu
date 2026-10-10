@@ -344,7 +344,9 @@ describe("jobs filter toolbar chrome", () => {
         const page = readFileSync(PAGE, "utf8");
         const authGatePattern = /authGateVisible:\s*showGuestEngageNudge\s*\|\|\s*showGuestSaveBanner/;
         const callSites = [...page.matchAll(/shouldShowSearchAlertCapture\(\{[\s\S]*?\}\)/g)];
-        assert.ok(callSites.length >= 2, "expected at least two shouldShowSearchAlertCapture call sites");
+        // One since 2026-10-10: with results the form opens only from the alerts
+        // switch, so only the zero-results capture still decides for itself.
+        assert.ok(callSites.length >= 1, "expected a shouldShowSearchAlertCapture call site");
         for (const match of callSites) {
             assert.match(match[0], authGatePattern, "each call site must pass authGateVisible from guest banners");
         }

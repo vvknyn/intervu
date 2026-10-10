@@ -130,6 +130,31 @@ export interface GhostSignal {
     kind: "freshness" | "reposts" | "description" | "pay";
 }
 
+/**
+ * One posting-check line as a chip: a few words, while the full line (its
+ * basis) stays one tap away under the chips. Null for a gap in OUR data
+ * rather than a fact about the posting: the close/reopen history we don't
+ * track yet would be the same chip on every role.
+ */
+export function postingCheckChipLabel(signal: GhostSignal, relisted: boolean): string | null {
+    switch (signal.kind) {
+        case "freshness":
+            if (relisted) return "Date refreshed";
+            if (signal.status === "favorable") return "Posted in last 7 days";
+            return sentenceCase(signal.text.replace("first seen by us", "first seen"));
+        case "reposts":
+            return signal.status === "unknown" ? null : sentenceCase(signal.text);
+        case "description":
+            return signal.status === "favorable" ? "Full description" : "Thin description";
+        case "pay":
+            return signal.status === "favorable" ? "Pay listed" : "Pay not listed";
+    }
+}
+
+function sentenceCase(text: string): string {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /** The signals that actually carry a verdict — the honest denominator for
  *  "N of M favorable". Excludes `unknown` by construction, so no caller can
  *  reintroduce the "absence counted as failure" bug by dividing by

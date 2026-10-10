@@ -27,7 +27,9 @@ function baseDeps(overrides: Partial<ToolDeps> = {}): ToolDeps {
     search: notImplemented('search'),
     locationVocabulary: notImplemented('locationVocabulary'),
     upsert: notImplemented('upsert'),
-    getBaseResume: notImplemented('getBaseResume'),
+    // get_company scores its roles for the caller (`candidateFor`): no résumé
+    // on file here, so the preferences are never read.
+    getBaseResume: async () => ({ source: 'none' }),
     setBaseResume: notImplemented('setBaseResume'),
     findPursuitByJobId: notImplemented('findPursuitByJobId'),
     saveResumeVersion: notImplemented('saveResumeVersion'),
@@ -38,6 +40,7 @@ function baseDeps(overrides: Partial<ToolDeps> = {}): ToolDeps {
     getCompanyPageData: async () => null,
     getCompanyExhaust: async () => null,
     searchCompanies: async () => [],
+    tailor: notImplemented('tailor'),
     ...overrides,
   };
 }

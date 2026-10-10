@@ -90,6 +90,12 @@ export const AGENT = {
      */
     SEARCH_DEPTH_CAP: 100,
     /**
+     * How long a tool's search waits for its rows' description places
+     * (`site-search.ts`). The site waits 250 ms and its browser reads the
+     * rows that missed it; an agent has no second read, so it waits longer.
+     */
+    PLACE_READ_DEADLINE_MS: 2_000,
+    /**
      * Per-credential DAILY budget on job RECORDS returned across every
      * corpus-reading tool (search_jobs, get_job — see record-budget.ts) —
      * orthogonal to RATE_LIMIT, which bounds CALLS per hour, not records

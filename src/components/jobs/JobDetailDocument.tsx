@@ -19,9 +19,9 @@ import { type EventSource } from "@/lib/analytics/events";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
+import { PostingCheckSummary } from "@/components/jobs/PostingCheckSummary";
 import {
     APPLY_BUTTON_LABEL,
-    assessedGhostSignals,
     buildFactChips,
     deriveExposureBadges,
     deriveGhostSignals,
@@ -174,9 +174,6 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
         explain: "This posting hasn't been checked yet — the signals below are the facts we can already state.",
     };
     const signals = deriveGhostSignals(job, freshness, blocks.length, now);
-    const assessed = assessedGhostSignals(signals);
-    const favorableCount = assessed.filter((s) => s.status === "favorable").length;
-    const unknownCount = signals.length - assessed.length;
     const checkedText = ghostCheckedText(job, now);
     const exposureBadges = deriveExposureBadges(job, now);
 
@@ -186,19 +183,17 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
     return (
         <div data-testid="job-detail-receipt" className="border-t border-border py-6">
             <PostingCheckHeader
-                favorableCount={favorableCount}
-                assessedCount={assessed.length}
-                unknownCount={unknownCount}
                 verdictLabel={ghost.label}
                 verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
                 headingLevel={2}
                 checkedText={checkedText}
             />
             {signals.length > 0 && (
-                // Progressive disclosure below `lg`: the verdict line above is
-                // always visible, but the per-signal rows are detail, not the
-                // headline, so they fold on a phone and show on desktop.
-                <MobileDisclosure className="mt-1">
+                // The verdict line above and the chips are the headline at
+                // every width; the per-signal rows (each chip's basis) fold
+                // behind "Show details" (2026-10-10, was desktop-open).
+                <PostingCheckSummary signals={signals} relisted={freshness.kind === "relisted"}>
+                    <div className="pt-2 text-sm text-muted-foreground">{ghost.explain}</div>
                     <PostingCheckSignalsGrid>
                         {signals.map((s) => {
                             const relistCaution = s.kind === "freshness" && freshness.kind === "relisted";
@@ -233,7 +228,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
                             );
                         })}
                     </PostingCheckSignalsGrid>
-                </MobileDisclosure>
+                </PostingCheckSummary>
             )}
             {exposureBadges.length > 0 && (
                 <div className="mono-data mt-3 text-xs text-muted-foreground">

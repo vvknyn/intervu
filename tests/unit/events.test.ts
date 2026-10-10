@@ -84,6 +84,7 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
     search_alert_submitted: "search_alert_submitted",
     search_alert_verified: "search_alert_verified",
     search_alert_dismissed: "search_alert_dismissed",
+    search_alert_switch_toggled: "search_alert_switch_toggled",
 
     application_stage_changed: "application_stage_changed",
     resume_uploaded: "resume_uploaded",

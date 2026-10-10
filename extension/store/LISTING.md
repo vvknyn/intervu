@@ -5,7 +5,7 @@ Every claim here is something the extension does today; keep it that way when ei
 
 ## Package
 
-Upload `extension/dist/velai-extension-<version>.zip` (`node extension/build.mjs --zip`). Version 0.3.0 needs
+Upload `extension/dist/velai-extension-<version>.zip` (`node extension/build.mjs --zip`). Version 0.3.x needs
 velai.app to have `POST /api/extension/track` ("I applied") live first.
 
 ## Store listing tab
@@ -24,7 +24,7 @@ On job boards and applicant-tracking sites such as Greenhouse, Lever, Ashby, Wor
 
 On any other careers page, click the Velai button, or turn the card on for that site from the panel. Chrome asks you first.
 
-Your fit. Signed in to Velai with your résumé added, you get the same fit label velai.app gives, with its reasons: how closely the role matches your experience, its level against yours, and whether it's in your country. The panel also names the words in the role that the fit counts and your résumé doesn't have.
+Your fit. Signed in to Velai with your résumé added, you get the same fit label velai.app gives, with its reasons: how closely the role matches your experience, its level against yours, and whether it's in your country. The card and panel show the words in the role's title that the fit counts, ticked when your résumé has them, and similar roles on Velai carry their own fit label.
 
 Your résumé for this role. Your résumé with the lines and skills this job asks for moved first. Any rewording uses only words already in your résumé, so nothing is made up. Download it as a one-page PDF or copy the text. For bigger changes, edit your résumé on Velai in a small window; the job is checked again when you close it.
 

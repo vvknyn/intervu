@@ -76,3 +76,43 @@ test("toApplicationSummary: title/status/updated_at/id map straight through from
     assert.equal(summary.status, "interviewing");
     assert.equal(summary.updated_at, "2026-07-20T00:00:00.000Z");
 });
+
+test("toApplicationSummary: the copy taken when it was marked Applied counts as a résumé on file, labelled as the site labels it", () => {
+    const p = makePursuit({ status: "applied", applied_resume: { saved_at: "2026-10-10T00:00:00.000Z" } });
+    const summary = toApplicationSummary(p);
+    assert.equal(summary.resume_on_file, true);
+    assert.equal(summary.latest_resume_label, "Your résumé");
+});
+
+test("toApplicationSummary: a version filed for the role names the role's résumé over the applied copy", () => {
+    const p = makePursuit({
+        status: "applied",
+        applied_resume: { saved_at: "2026-10-10T00:00:00.000Z" },
+        resume_versions: [{ content: "c", label: "Tailored for Acme", saved_at: "2026-10-09T00:00:00.000Z" }],
+    });
+    assert.equal(toApplicationSummary(p).latest_resume_label, "Tailored for Acme");
+});
+
+test("toApplicationSummary: carries the dates, link and note the tracker shows", () => {
+    const p = makePursuit({
+        status: "interviewing",
+        applied_at: "2026-10-01T00:00:00.000Z",
+        interview_date: "2026-10-15",
+        job_url: "https://acme.com/old",
+        job_snapshot: { title: "Engineer", company: "Acme", location: null, apply_url: "https://acme.com/apply" },
+        note: "  Recruiter is Sam  ",
+    });
+    const summary = toApplicationSummary(p);
+    assert.equal(summary.applied_at, "2026-10-01T00:00:00.000Z");
+    assert.equal(summary.interview_date, "2026-10-15");
+    assert.equal(summary.apply_url, "https://acme.com/apply");
+    assert.equal(summary.note, "Recruiter is Sam");
+});
+
+test("toApplicationSummary: absent dates, link and note are null, never invented", () => {
+    const summary = toApplicationSummary(makePursuit());
+    assert.equal(summary.applied_at, null);
+    assert.equal(summary.interview_date, null);
+    assert.equal(summary.apply_url, null);
+    assert.equal(summary.note, null);
+});
