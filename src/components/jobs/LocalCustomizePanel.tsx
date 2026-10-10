@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
@@ -11,19 +11,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from "@/components/ui/accordion";
 import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { WaitState } from "@/components/ui/wait-state";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
-import { roleTermsForJob } from "@/lib/local-ai/tailor-resume";
+import { applyTailorChanges, roleTermsForJob } from "@/lib/local-ai/tailor-resume";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
+import { TailorChangeList } from "@/components/jobs/TailorChangeList";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
@@ -60,26 +55,41 @@ export function LocalCustomizePanel({
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
+    // Changes the person undid; Copy and Download use the rest.
+    const [undone, setUndone] = useState<ReadonlySet<string>>(new Set());
+    const kept = useMemo(
+        () => (draft ? applyTailorChanges(draft.base, draft.changes.filter((c) => !undone.has(c.id))) : null),
+        [draft, undone],
+    );
+    const toggleChange = useCallback((id: string) => {
+        setUndone((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    }, []);
+
     const handleCopy = useCallback(async () => {
-        if (!draft) return;
-        const md = resumeDataToZipMarkdown(draft.tailored);
+        if (!kept) return;
+        const md = resumeDataToZipMarkdown(kept);
         await navigator.clipboard.writeText(md);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
-    }, [draft]);
+    }, [kept]);
 
     const handlePdf = useCallback(() => {
-        if (!draft) return;
+        if (!kept) return;
         const filename = deriveResumePdfFilename({
             company: null,
-            role: draft.tailored.profile.profession || null,
-            fallbackLabel: draft.tailored.profile.name || "resume",
+            role: kept.profile.profession || null,
+            fallbackLabel: kept.profile.name || "resume",
             dateIso: new Date().toISOString(),
         });
         void (async () => {
             try {
                 // A résumé tailored to this role is one page, keeping what matters for it.
-                await exportZipResumePdfFromData(draft.tailored, `${filename}.pdf`, {
+                await exportZipResumePdfFromData(kept, `${filename}.pdf`, {
                     onePage: true,
                     roleTerms: roleTermsForJob(jobToTailorInput(job)),
                 });
@@ -87,12 +97,13 @@ export function LocalCustomizePanel({
                 toast.error("Failed to generate PDF");
             }
         })();
-    }, [draft, job]);
+    }, [kept, job]);
 
     const visible = !!resume && resumeIsUsable(resume);
 
     const resetDialogState = useCallback(() => {
         setDraft(null);
+        setUndone(new Set());
         setLoading(false);
         setConsentNeeded(false);
         setGeneratingWithModel(false);
@@ -106,6 +117,7 @@ export function LocalCustomizePanel({
             setConsentNeeded(false);
             setGeneratingWithModel(allowModel);
             setDraft(null);
+            setUndone(new Set());
             try {
                 const result = await tailorResumeForJob(resume, jobToTailorInput(job), { allowModel });
                 setDraft(result);
@@ -273,48 +285,7 @@ export function LocalCustomizePanel({
                                         </p>
                                     )}
 
-                                    <Accordion type="multiple" defaultValue={["summary"]}>
-                                        <AccordionItem
-                                            value="summary"
-                                            data-testid="local-customize-section-summary"
-                                        >
-                                            <AccordionTrigger className="text-sm font-semibold">
-                                                Summary
-                                            </AccordionTrigger>
-                                            <AccordionContent>
-                                                <p className="text-sm leading-relaxed text-foreground">
-                                                    <span className="font-semibold text-muted-foreground">After: </span>
-                                                    {draft.summaryAfter}
-                                                </p>
-                                                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                                    <span className="font-semibold">Before: </span>
-                                                    {draft.summaryBefore}
-                                                </p>
-                                            </AccordionContent>
-                                        </AccordionItem>
-
-                                        {draft.bullets.map((b: TailorDraft["bullets"][number]) => (
-                                            <AccordionItem
-                                                key={b.experienceId}
-                                                value={b.experienceId}
-                                                data-testid={`local-customize-section-${b.experienceId}`}
-                                            >
-                                                <AccordionTrigger className="text-sm font-semibold">
-                                                    {b.role} · {b.company}
-                                                </AccordionTrigger>
-                                                <AccordionContent>
-                                                    <p className="text-sm leading-relaxed text-foreground">
-                                                        <span className="font-semibold text-muted-foreground">After: </span>
-                                                        {b.after}
-                                                    </p>
-                                                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                                                        <span className="font-semibold">Before: </span>
-                                                        {b.before}
-                                                    </p>
-                                                </AccordionContent>
-                                            </AccordionItem>
-                                        ))}
-                                    </Accordion>
+                                    {kept && <TailorChangeList draft={draft} kept={kept} undone={undone} onToggle={toggleChange} />}
                                 </div>
                             )}
                         </DialogBody>
