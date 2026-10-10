@@ -102,4 +102,7 @@ test("/llms.txt lists every MCP tool the server registers and says what fit_labe
   // The label a connected AI repeats is the one the site shows (mcp-tool-specs.ts FIT_FIELDS_NOTE).
   expect(text).toContain("fit_label");
   expect(text).toContain("Country unclear");
+  // What the job pane and the extension show besides the label: the posting's last check, and the résumé's gaps.
+  expect(text).toContain("last_checked_at");
+  expect(text).toContain("missing_terms");
 });
