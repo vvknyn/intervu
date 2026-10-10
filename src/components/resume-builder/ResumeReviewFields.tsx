@@ -1,11 +1,14 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useMemo } from "react";
+import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfidenceBadge } from "./ConfidenceIndicator";
 import { scoreLocalParseConfidence } from "@/lib/local-ai/parse-confidence";
+import { LEVEL_LABEL, rankingLevel } from "@/lib/resume/ranking-level";
+import type { AgentPreferences } from "@/lib/agent/preferences";
 import type {
     ResumeData,
     ResumeEducation,
@@ -16,7 +19,7 @@ import type {
 const PROFILE_FIELDS = [
     { field: "name", label: "Name" },
     { field: "profession", label: "Job title" },
-    { field: "yearsOfExperience", label: "Years of Experience" },
+    { field: "yearsOfExperience", label: "Years of experience in total" },
     { field: "location", label: "Location" },
     { field: "email", label: "Email" },
     { field: "phone", label: "Phone" },
@@ -32,12 +35,17 @@ const PROFILE_FIELDS = [
 export function ResumeReviewFields({
     data: editedData,
     onChange: setEditedData,
+    agentPreferences,
 }: {
     data: ResumeData;
     onChange: (next: ResumeData) => void;
+    /** The signed-in person's saved preferences: Settings' Experience level comes before the résumé's. */
+    agentPreferences?: AgentPreferences | null;
 }) {
     const idBase = useId();
     const reviewConfidence = scoreLocalParseConfidence(editedData);
+    // The level every fit label compares roles against, and the roles it was counted from.
+    const level = useMemo(() => rankingLevel(editedData, agentPreferences), [editedData, agentPreferences]);
     const updateProfile = (field: keyof ResumeData["profile"], value: string | number) => {
         setEditedData({ ...editedData, profile: { ...editedData.profile, [field]: value } });
     };
@@ -86,6 +94,27 @@ export function ResumeReviewFields({
                         </div>
                     ))}
                 </div>
+                <div
+                    className="space-y-1 rounded-panel bg-surface-2 p-3 shadow-[var(--shadow-bevel-inset)]"
+                    data-testid="resume-review-level"
+                    data-level={level.level ?? "unknown"}
+                    data-from={level.from ?? "none"}
+                >
+                    <p className="text-sm font-semibold">
+                        Level used for ranking: {level.level ? LEVEL_LABEL[level.level] : "not known yet"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        {level.detail}
+                        {level.from === "settings" ? (
+                            <>
+                                {" "}
+                                <Link href="/settings?tab=prefs" target="_blank" className="underline underline-offset-2 hover:text-foreground">
+                                    Change it in Settings
+                                </Link>
+                            </>
+                        ) : null}
+                    </p>
+                </div>
             </div>
 
             {/* Experience Section */}
@@ -99,6 +128,11 @@ export function ResumeReviewFields({
                 <div className="space-y-4">
                     {editedData.experience.map((exp, idx) => (
                         <div key={exp.id} className="rounded-panel p-3 bg-surface-2 space-y-2 shadow-[var(--shadow-bevel-inset)]">
+                            {level.countedRoles.includes(idx) ? (
+                                <p className="text-xs font-semibold text-live" data-testid="resume-review-counted">
+                                    Counts toward your level
+                                </p>
+                            ) : null}
                             <div className="grid grid-cols-2 gap-2">
                                 <Input
                                     value={exp.company}

@@ -8,7 +8,7 @@ import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 /**
  * The résumé importer every upload goes through (/resume, the /jobs "Rank jobs
  * by your résumé" dialog, setup's résumé step, a company page's Check my fit).
- * See tests/journeys/CATALOG.md (J-RESUME-08, J-RESUME-42..44). Read-only: the
+ * See tests/journeys/CATALOG.md (J-RESUME-08, J-RESUME-42..44, J-RESUME-50). Read-only: the
  * résumé is read in the browser and stays in it.
  *
  * 2026-10-07: the primary started a ~494 MB model download, a real résumé the
@@ -67,6 +67,53 @@ const hangingModel = (page: Page) =>
       create: async () => ({ prompt: () => new Promise<string>(() => {}) }),
     };
   });
+
+/** Model consent already given, and a Chrome built-in model that loads at once; counts what it is asked to read. */
+const countingModel = (page: Page) =>
+  page.addInitScript(() => {
+    localStorage.setItem("velai.localAi.consent", "1");
+    const w = window as unknown as Record<string, unknown>;
+    w.__modelPrompts = 0;
+    w.LanguageModel = {
+      create: async () => ({
+        prompt: () => {
+          w.__modelPrompts = (w.__modelPrompts as number) + 1;
+          return new Promise<string>(() => {});
+        },
+      }),
+    };
+  });
+
+const YEAR = new Date().getFullYear();
+// Invented. 13 years in all: 5 as a Technical Account Manager after leading a team and 5 in engineering.
+const CAREER_CHANGER = `Jordan Ellis
+Technical Account Manager
+jordan.ellis@example.com | (416) 555-0142 | Toronto, ON
+
+PROFESSIONAL SUMMARY
+Technical account manager with a software engineering background, keeping enterprise customers live on integrations and APIs.
+
+PROFESSIONAL EXPERIENCE
+Technical Account Manager
+Northwind Health | January ${YEAR - 5} — Present
+- Own 30 enterprise accounts through onboarding, renewals and escalations.
+- Cut integration tickets by a third with a self-serve API checklist.
+
+Team Lead
+Brightline Software | June ${YEAR - 8} — December ${YEAR - 6}
+- Led a team of six engineers shipping the billing platform.
+
+Senior Software Engineer
+Brightline Software | January ${YEAR - 13} — May ${YEAR - 8}
+- Built REST APIs and data pipelines in Python and SQL.
+
+SKILLS
+Technical: REST APIs, SQL, Python, Salesforce, Jira
+Customer: Onboarding, Renewals, Escalations
+
+EDUCATION
+Bachelor of Engineering, Computer Engineering, University of Waterloo, ${YEAR - 14}
+`;
 
 /** Every matching field's value, in order. */
 const valuesOf = (fields: Locator) => fields.evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
@@ -209,10 +256,11 @@ test("A two-column résumé PDF (contact, skills and school down a sidebar) read
 test("An on-device model that never finishes reading leaves the quick match within 30 s, and the résumé can be used meanwhile", { tag: ["@J-RESUME-44"] }, async ({ page, diagnostics }) => {
   test.setTimeout(90_000);
   // What "Reading your résumé with the on-device model" spinning for good was.
+  // A résumé the quick read only partly gets: the model is only asked to read those (J-RESUME-50).
   await hangingModel(page);
   const dialog = await openImporter(page);
   await expect(dialog.getByTestId("resume-import-model-on")).toBeVisible();
-  await dialog.locator('input[type="file"]').setInputFiles(WORD);
+  await dialog.locator('input[type="file"]').setInputFiles({ name: "Priya_Raman_Resume.txt", mimeType: "text/plain", buffer: Buffer.from(PARTLY_READ) });
   await dialog.getByTestId("resume-import-parse-primary").click();
 
   const strip = dialog.getByTestId("resume-model-strip");
@@ -222,7 +270,7 @@ test("An on-device model that never finishes reading leaves the quick match with
 
   await expect(strip).toHaveAttribute("data-phase", "slow", { timeout: 40_000 });
   await expect(strip).toContainText("The on-device model was taking too long, so we kept the quick match.");
-  await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Maya Okonkwo");
+  await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Priya Raman");
   await expect(confirm).toBeEnabled();
   expect(diagnostics.pageErrors).toEqual([]);
 });
@@ -274,4 +322,40 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
   await expect(dialog).toBeHidden();
   await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Priya_Raman_Resume.txt", { timeout: 30_000 });
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+test("A résumé the quick read gets fully never waits on the on-device model, and the review shows the level ranking uses and the roles it counts", { tag: ["@J-RESUME-50"] }, async ({ page, diagnostics }) => {
+  // Vivek 2026-10-10: a 99% read still spun on "Reading your résumé with the on-device model" ("as though
+  // it is still doing work"), and "Years of Experience 13" said nothing of the 5 years in his role that
+  // ranking reads his level from.
+  await countingModel(page);
+  const dialog = await openImporter(page);
+  await expect(dialog.getByTestId("resume-import-model-on")).toBeVisible();
+  await dialog.locator('input[type="file"]').setInputFiles({ name: "Jordan_Ellis_Resume.txt", mimeType: "text/plain", buffer: Buffer.from(CAREER_CHANGER) });
+  await dialog.getByTestId("resume-import-parse-primary").click();
+
+  const strip = dialog.getByTestId("resume-model-strip");
+  await expect(strip).toHaveAttribute("data-phase", "not-needed", { timeout: 15_000 });
+  await expect(strip).toHaveText("The quick read found everything ranking uses, so the on-device model wasn't needed.");
+  await expect(dialog.getByTestId("resume-model-skip")).toHaveCount(0);
+
+  const level = dialog.getByTestId("resume-review-level");
+  await expect(level).toContainText("Level used for ranking: Mid level");
+  await expect(level).toContainText("From your 5 years as a Technical Account Manager, the role marked below.");
+  await expect(level).toContainText("your other roles count toward your 13 years in total, not this level");
+  await expect(dialog.getByLabel("Years of experience in total", { exact: true })).toHaveValue("13");
+  const counted = dialog.getByTestId("resume-review-counted");
+  await expect(counted).toHaveCount(1);
+  await expect(counted.locator("xpath=..").getByPlaceholder("Role")).toHaveValue("Technical Account Manager");
+
+  // The level follows the review's edits: ten years in the role is senior, the same as the whole career.
+  await dialog.getByPlaceholder("Dates").first().fill(`January ${YEAR - 10} — Present`);
+  await expect(level).toContainText("Level used for ranking: Senior level");
+  await expect(level).toContainText("From your 13 years of experience.");
+  await expect(counted).toHaveCount(0);
+
+  expect(await page.evaluate(() => (window as unknown as Record<string, number>).__modelPrompts), "the model was never asked to read").toBe(0);
+  const confirm = dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last();
+  await expect(confirm).toBeEnabled();
+  expect(diagnostics.pageErrors).toEqual([]);
 });

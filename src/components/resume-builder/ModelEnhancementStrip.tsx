@@ -10,7 +10,7 @@ import { getModelLoadState, subscribeModelLoad } from "@/lib/local-ai/ladder";
  * Where the background model upgrade stands. The quick (rules) parse is already
  * on screen; this strip reports the model's real progress and offers the way out.
  */
-export type EnhancementPhase = "loading" | "skipped" | "unimproved" | "slow" | "improved-pending";
+export type EnhancementPhase = "loading" | "skipped" | "unimproved" | "slow" | "not-needed" | "improved-pending";
 
 interface Props {
     phase: EnhancementPhase;
@@ -34,7 +34,7 @@ export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
         );
     }
 
-    if (phase === "skipped" || phase === "unimproved" || phase === "slow") {
+    if (phase === "skipped" || phase === "unimproved" || phase === "slow" || phase === "not-needed") {
         const downloading = phase === "skipped" && load.phase === "loading" && !load.cached;
         return (
             <p className="px-6 text-xs text-muted-foreground" data-testid="resume-model-strip" data-phase={phase}>
@@ -42,7 +42,9 @@ export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
                     ? "Skipped — keeping the quick match."
                     : phase === "slow"
                       ? "The on-device model was taking too long, so we kept the quick match."
-                      : "The on-device model couldn't improve this parse — keeping the quick match."}
+                      : phase === "not-needed"
+                        ? "The quick read found everything ranking uses, so the on-device model wasn't needed."
+                        : "The on-device model couldn't improve this parse — keeping the quick match."}
                 {downloading ? " The download finishes in the background so it's cached for next time." : ""}
             </p>
         );

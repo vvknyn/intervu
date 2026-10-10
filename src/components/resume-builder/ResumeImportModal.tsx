@@ -29,9 +29,11 @@ import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import {
     canAcceptLocalParse,
     missingMatchFields,
+    modelReadNeeded,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
-import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import { getModelLoadState, initLocalAiLadder } from "@/lib/local-ai/ladder";
+import type { AgentPreferences } from "@/lib/agent/preferences";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 import { captureEvent } from "@/lib/analytics/events";
 import {
@@ -90,6 +92,8 @@ interface ResumeImportModalProps {
         surface?: string;
         signed_in?: boolean;
     };
+    /** The signed-in person's saved preferences, so the review's "Level used for ranking" is the level ranking reads. */
+    agentPreferences?: AgentPreferences | null;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -113,14 +117,18 @@ export function ResumeParsingStep() {
     );
 }
 
-/** How long the review waits on an on-device model's read before keeping the quick one. */
+/**
+ * How long the review waits on the on-device model before keeping the quick
+ * read. A first download is not counted: its progress is on screen and it can
+ * take minutes. Checking the device, loading a cached model and the read are.
+ */
 export const MODEL_READ_LIMIT_MS = 30_000;
 
 function joinWords(words: string[]): string {
     return words.length > 1 ? `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}` : words[0] ?? "";
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext, agentPreferences }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -283,6 +291,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 ...funnelContext,
             }),
         );
+        return local.data.parsed;
     };
 
     // The only way into a model download: the person asks for it.
@@ -299,39 +308,56 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEnhancement(null);
     };
 
-    // Waits for the model however long the download takes — the user can skip
-    // at any time. Skipping only stops the wait: transformers.js can't cancel a
-    // download, so it finishes in the background and is cached for next time.
-    // Reading is bounded: a model already on the device could spin on
-    // "Reading your résumé" for minutes (2026-10-07), so after
-    // MODEL_READ_LIMIT_MS the quick read stands and the strip says why.
+    // Waits for the model however long a first download takes (its progress is
+    // on screen, and the user can skip at any time). Skipping only stops the
+    // wait: transformers.js can't cancel a download, so it finishes in the
+    // background and is cached for next time. Everything else is bounded:
+    // after MODEL_READ_LIMIT_MS of checking the device, loading a cached model
+    // or reading, the quick read stands and the strip says why. Every way out,
+    // a thrown error included, ends the strip: it never spins on.
     const startEnhancement = async (textContent: string) => {
         const run = ++enhancementRun.current;
         setEnhancement("loading");
         const skipped = new Promise<"skipped">((resolve) => {
             skipEnhancement.current = () => resolve("skipped");
         });
+        // The clock restarts while a first download is in flight.
+        let clockFrom = Date.now();
+        const overLimit = () => {
+            const load = getModelLoadState();
+            if (load.phase === "loading" && !load.cached) clockFrom = Date.now();
+            return Date.now() - clockFrom >= MODEL_READ_LIMIT_MS;
+        };
+        let watchdog: ReturnType<typeof setInterval> | undefined;
+        const slow = new Promise<"slow">((resolve) => {
+            watchdog = setInterval(() => {
+                if (overLimit()) resolve("slow");
+            }, 1_000);
+        });
         const upgraded = (async () => {
             if ((await initLocalAiLadder({ waitMs: Infinity })) === "heuristic") return null;
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            const slow = new Promise<"slow">((resolve) => {
-                timer = setTimeout(() => resolve("slow"), MODEL_READ_LIMIT_MS);
-            });
-            try {
-                return await Promise.race([parseResumeLocally(textContent), slow]);
-            } finally {
-                clearTimeout(timer);
-            }
+            clockFrom = Date.now();
+            return parseResumeLocally(textContent);
         })().catch(() => null);
-        const outcome = await Promise.race([upgraded, skipped]);
-        if (enhancementRun.current !== run) return;
-        if (outcome === "skipped") return setEnhancement("skipped");
-        if (outcome === "slow") return setEnhancement("slow");
-        if (outcome === null || outcome.engine === "heuristic" || refuseResumeReview(outcome.data.parsed, textContent)) {
-            return setEnhancement("unimproved");
+        let phase: EnhancementPhase = "unimproved";
+        try {
+            const outcome = await Promise.race([upgraded, skipped, slow]);
+            if (outcome === "skipped" || outcome === "slow") {
+                phase = outcome;
+            } else if (outcome && outcome.engine !== "heuristic" && !refuseResumeReview(outcome.data.parsed, textContent)) {
+                if (enhancementRun.current === run) setImproved(outcome);
+                phase = "improved-pending";
+            } else if (overLimit()) {
+                // A model that holds the page (transformers.js runs on the main
+                // thread) can keep the watchdog above from ticking: it was slow.
+                phase = "slow";
+            }
+        } catch {
+            phase = "unimproved";
+        } finally {
+            clearInterval(watchdog);
         }
-        setImproved(outcome);
-        setEnhancement("improved-pending");
+        if (enhancementRun.current === run) setEnhancement(phase);
     };
 
     // Untouched quick match → swap in the model's parse silently. Edited → the
@@ -369,10 +395,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             setStep('parsing');
             captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
-            await runParse(textContent);
+            const quick = await runParse(textContent);
 
-            // The model only runs for someone who asked for it here or before.
-            if (localAiConsent) void startEnhancement(textContent);
+            // The model only runs for someone who asked for it here or before,
+            // and only on a read it can add to (`modelReadNeeded`).
+            if (localAiConsent) {
+                if (modelReadNeeded(quick)) void startEnhancement(textContent);
+                else setEnhancement("not-needed");
+            }
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Failed to parse resume";
             setError(message);
@@ -450,7 +480,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             </p>
             {localAiConsent ? (
                 <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-model-on">
-                    The on-device AI model also reads it after the quick read, if it&apos;s on this device or you let it download.
+                    The on-device AI model also reads it when the quick read misses something, if it&apos;s on this device or you let it download.
                 </p>
             ) : (
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -633,7 +663,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 <div>
                     <div className="px-6 space-y-6">
-                        <ResumeReviewFields data={editedData} onChange={setEditedData} />
+                        <ResumeReviewFields data={editedData} onChange={setEditedData} agentPreferences={agentPreferences} />
                     </div>
                 </div>
             </div>
