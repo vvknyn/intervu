@@ -7608,6 +7608,7 @@ export function JobsContent({
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote={resumeImportStorageNote(Boolean(user))}
                 funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}
+                agentPreferences={agentPrefs}
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`

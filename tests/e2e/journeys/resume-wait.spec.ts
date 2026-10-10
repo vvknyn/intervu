@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import path from "node:path";
 import type { Page, Route } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
@@ -16,7 +14,16 @@ import { expect, test } from "./fixtures";
  * progress) is the one exercised.
  */
 
-const RESUME = readFileSync(path.join(__dirname, "../../fixtures/sample-resume.txt"));
+// One job and no skills section: a read the quick rules leave short, so the model is asked to read it
+// (a complete read never starts the model, J-RESUME-51).
+const RESUME = Buffer.from(`Priya Raman
+priya.raman@example.com | Toronto, ON
+
+WORK HISTORY
+Northwind Logistics | Operations Lead | Mar 2019 – Present
+Ran the overnight dispatch floor for 40 drivers and cut late deliveries by a third.
+Rebuilt the weekly shift plan so every route had a backup driver.
+`);
 const HOLD_MS = 5_000;
 // Valid JSON (parses), 3 MB on the wire: the engine then waits on the held files, not a parse error.
 const FAKE_FILE = Buffer.from(`{"pad":"${" ".repeat(3_000_000 - 10)}"}`);

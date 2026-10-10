@@ -33,6 +33,7 @@ import { posterInlinePanelClassName } from "@/components/layout/route-loading";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
+import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 
 function ResumeHeader({ signedIn }: { signedIn: boolean }) {
     return (
@@ -94,6 +95,8 @@ function ResumeContent() {
     const [authReady, setAuthReady] = useState(() => getCurrentUser() !== null);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
     const [importModalOpen, setImportModalOpen] = useState(false);
+    // Settings' Experience level, so the import review shows the level ranking reads.
+    const { prefs: agentPrefs } = useAgentPreferences(user?.uid ?? null);
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [confirmingRemove, setConfirmingRemove] = useState(false);
@@ -286,6 +289,7 @@ function ResumeContent() {
                     title="Upload your base résumé"
                     description={RESUME_UPLOAD_PROMISE}
                     storageNote={RESUME_IMPORT_STORAGE_NOTE}
+                    agentPreferences={agentPrefs}
                 />
 
                 <AuthPopover

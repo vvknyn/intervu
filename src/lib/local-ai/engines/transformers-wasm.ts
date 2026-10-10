@@ -27,15 +27,36 @@ const TRANSFORMERS_CACHE_NAME = "transformers-cache";
 /** Last-resort fallback when the instruct model fails to init (OOM). */
 export const WASM_T5_FALLBACK_MODEL_ID = "Xenova/LaMini-Flan-T5-248M";
 
+/** transformers.js calls this after every generated token with the live beams. */
+type GenerationStep = (beams: { done: boolean }[]) => void;
+
 type TextGenPipeline = (
     input: string,
-    options?: { max_new_tokens?: number; do_sample?: boolean; return_full_text?: boolean },
+    options?: { max_new_tokens?: number; do_sample?: boolean; return_full_text?: boolean; callback_function?: GenerationStep },
 ) => Promise<{ generated_text: string } | { generated_text: string }[]>;
 
 type Text2TextPipeline = (
     input: string,
-    options?: { max_new_tokens?: number },
+    options?: { max_new_tokens?: number; callback_function?: GenerationStep },
 ) => Promise<{ generated_text: string } | { generated_text: string }[]>;
+
+/**
+ * How long a résumé read may run. transformers.js runs on the main thread
+ * here, so a long read can hold the page until it ends: the import review's
+ * Skip link and its own time limit included. Unbounded, up to 512 tokens on
+ * one WASM thread could take minutes on a slow device. The same
+ * as the review's `MODEL_READ_LIMIT_MS`, so a read cut off here is reported
+ * there as too slow.
+ */
+export const WASM_READ_BUDGET_MS = 30_000;
+
+/** A generation step that ends every beam once `deadline` has passed, so generate returns what it has. */
+export function stopAtDeadline(deadline: number, now: () => number = Date.now): GenerationStep {
+    return (beams) => {
+        if (now() < deadline) return;
+        for (const beam of beams) beam.done = true;
+    };
+}
 
 type ChatTokenizer = {
     apply_chat_template?: (
@@ -181,16 +202,19 @@ export const transformersWasmEngine: LocalAiEngine = {
 
     async parseResumeText(text: string) {
         if (!loaded) await this.init();
+        // A read cut off at the budget is unfinished JSON, so it parses to null: the quick read stands.
+        const callback_function = stopAtDeadline(Date.now() + WASM_READ_BUDGET_MS);
         if (loaded!.kind === "instruct") {
             const prompt = formatQwenChat(PARSE_INSTRUCTION(text), loaded!.tokenizer);
             const result = await loaded!.pipeline(prompt, {
                 max_new_tokens: 512,
                 do_sample: false,
                 return_full_text: false,
+                callback_function,
             });
             return tryParseJson(extractGeneratedText(result));
         }
-        const result = await loaded!.pipeline(T5_PARSE_PREFIX(text), { max_new_tokens: 512 });
+        const result = await loaded!.pipeline(T5_PARSE_PREFIX(text), { max_new_tokens: 512, callback_function });
         return tryParseJson(extractGeneratedText(result));
     },
 

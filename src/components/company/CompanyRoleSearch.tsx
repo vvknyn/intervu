@@ -506,6 +506,7 @@ export function CompanyRoleSearch({
         description="Upload a PDF or Word résumé. We read it in your browser, show what we accepted, then label each role here by how well it fits you."
         storageNote={resumeImportStorageNote(Boolean(user))}
         funnelContext={{ reason: "fit", surface: "company", signed_in: Boolean(user) }}
+        agentPreferences={agentPrefs}
       />
 
       {/* Job detail sheet — same chrome/props contract as /jobs mobile detail (SERP). */}
