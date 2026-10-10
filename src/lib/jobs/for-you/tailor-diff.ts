@@ -1,5 +1,5 @@
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 
 export function hasMeaningfulDiff(draft: TailorDraft): boolean {
-    return draft.summaryBefore !== draft.summaryAfter || draft.bullets.length > 0;
+    return draft.changes.length > 0;
 }

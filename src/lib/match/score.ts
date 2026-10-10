@@ -346,6 +346,12 @@ export function relevanceTerms(resume: ResumeData, job: PublicJob): { matched: s
     return { matched, missing };
 }
 
+/** A `relevanceTerms` term ("icu") as the job writes it in its title or tags ("ICU"). */
+export function termAsWritten(term: string, job: PublicJob): string {
+    const words = [job.title, ...(job.tags ?? [])].join(" ").split(/[^\p{L}\p{N}+#.]+/u);
+    return words.find((word) => word.toLowerCase() === term) ?? term;
+}
+
 function isRemoteWorkType(workType: string | null | undefined): boolean {
     return /remote/i.test(workType ?? "");
 }
