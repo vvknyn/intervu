@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { jobFromPage, type PageRead } from "../../extension/src/page-reader";
 import { resumeFromMe } from "../../extension/src/report";
-import { asWritten, cardSummary, CARD_LINE_LIMIT, fitTerms, type CardInput } from "../../extension/src/card-summary";
+import { cardSummary, CARD_LINE_LIMIT, fitTerms, type CardInput } from "../../extension/src/card-summary";
 import { isKnownJobSite, matchesPattern, sitePattern } from "../../extension/src/job-sites";
 import { isSignedInLanding } from "../../extension/src/velai-api";
-import { relevanceTerms } from "../../src/lib/match/score";
+import { relevanceTerms, termAsWritten } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const NOW = Date.parse("2026-10-10T12:00:00Z");
@@ -148,7 +148,7 @@ describe("fit terms", () => {
         const card = cardSummary(input({ velaiJob: velai() }));
         assert.deepEqual(card.terms, { matched: ["Registered", "Nurse"], missing: ["ICU"] });
         assert.equal(cardSummary(input({ signedIn: false, resume: null })).terms, null, "no chips without a fit label");
-        assert.equal(asWritten("icu", jobFromPage(READ)), "ICU");
+        assert.equal(termAsWritten("icu", jobFromPage(READ)), "ICU");
         assert.equal(fitTerms(resume, { ...jobFromPage(READ), title: "", tags: [] }), null);
     });
 });
