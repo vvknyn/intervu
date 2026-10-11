@@ -632,7 +632,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-ALERTS-01 | Guest with zero search results sees the email-alert capture | anon | /jobs?q=zzzzqxwv (zero results) | signed-out | no | uncovered | — |
-| J-ALERTS-02 | With results, the alert capture never opens by itself after searches (it did after two until 2026-10-10); only the results line's "Weekly job alerts" switch opens it | anon | /jobs?q=engineer (interactions seeded to 2) | signed-out | no | uncovered | — |
+| J-ALERTS-02 | With results, the alert capture never opens by itself after searches (it did after two until 2026-10-10); only the results line's "Weekly job alerts" switch opens it | anon | /jobs?q=engineer (interactions seeded to 2) | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-03 | A guest's "Weekly job alerts" switch on the results line (the words flip it too) opens the email form right under it, above the first row; "Not now" turns it back off. It replaced the toolbar's "Get alerts" (2026-10-10) | anon | /jobs?q=engineer | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-04 | "Not now" hides the capture and sets a 30-day dismissal | anon | /jobs?q=zzzzqxwv | signed-out | no | uncovered | — |
 | J-ALERTS-05 | A recent dismissal suppresses the capture on reload | anon | /jobs?q=zzzzqxwv (dismissed key seeded) | signed-out | no | uncovered | — |
@@ -829,6 +829,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-NAV-39 | The page stays on screen after it paints: once the header and content show, they are never blanked or rebuilt as the deferred auth and analytics providers load (they used to wrap the page on arrival, so every route went blank for ~300ms and repainted) | anon | onboarding-completed flag + /pricing, /jobs | signed-out | no | covered | steady-shell.spec.ts |
 | J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 | J-NAV-41 | On a 375px, 360px or 320px phone the /jobs toolbar (Filters, the posted chip, the "?") strands no control on a line of its own: the posted chip shows just "Past 3 months", and its accessible name still reads "Posted · Past 3 months" | anon | onboarding-completed flag + /jobs, /jobs?q=engineer at 375, 360 and 320 wide | signed-out | no | covered | page-scale.spec.ts |
+| J-NAV-42 | The header logo is the paper tile the Chrome extension and the favicon show (not the bare navy brackets, which all but vanished on the charcoal bar), 32px, with transparent corners so no white square shows around it, at 1440 and 390 | anon | /jobs, /about | signed-out | no | covered | header-logo.spec.ts |
 
 ## PRICING
 

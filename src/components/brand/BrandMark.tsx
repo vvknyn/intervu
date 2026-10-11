@@ -4,9 +4,9 @@
  *  `.velai-icon-imports/velai-icon-exports/`). Do not invent a second mark.
  *
  *  Landing and other BrandMark call sites render that raster. The header
- *  lockup (BrandLockup) uses HEADER_MARK_SRC — the same brackets and live
- *  dot with the paper plate removed — because the plate is opaque pixels
- *  in the PNG, not a CSS background. Email hosts `public/velai-logo.png`.
+ *  lockup (BrandLockup) uses HEADER_MARK_SRC — the same paper tile the
+ *  Chrome extension shows, cut out of the raster's white canvas so it sits
+ *  on the charcoal header. Email hosts `public/velai-logo.png`.
  *  Favicon / PWA / apple-touch are regenerated from it via
  *  `scripts/generate-favicons.mjs`. Edge OG cards embed
  *  `LOCKED_MARK_DATA_URI` (128px) because Satori cannot fetch local files.
@@ -14,18 +14,19 @@
 
 import { LOCKED_MARK_SRC } from "@/lib/brand/locked-mark-data-uri";
 
-/** Header lockup only. Same locked brackets and live dot as
- *  `public/velai-logo.png`, with the baked-in paper plate removed so the
- *  mark sits on the charcoal header. The plate is opaque pixels in that
- *  raster — this component does not paint a background behind the mark. */
-export const HEADER_MARK_SRC = "/velai-mark-on-dark.png" as const;
+/** Header lockup only. The locked paper tile, brackets and live dot exactly
+ *  as the Chrome extension shows them (`extension/icons/*` are the same
+ *  pixels as `public/icons/velai-icon-*`), with the white canvas and drop
+ *  shadow around the tile made transparent so it sits on the charcoal
+ *  header. Made by `scripts/generate-header-tile.mjs` from
+ *  `public/icons/velai-icon-1024.png`. */
+export const HEADER_MARK_SRC = "/velai-tile.png" as const;
 
-/** HEADER_MARK_SRC downsampled to 96px (3x the 32px TopBar tile), nothing
- *  else changed: `sharp("public/velai-mark-on-dark.png").resize(96, 96).png()`.
- *  Offered via srcSet so the header paints this 4.5 KB file instead of the
- *  155 KB 512px original, which every page fetched beside its first
- *  JavaScript and slowed it on a phone connection. */
-export const HEADER_MARK_SMALL_SRC = "/velai-mark-on-dark-96.png" as const;
+/** HEADER_MARK_SRC at 96px (3x the 32px TopBar tile), written by the same
+ *  script. Offered via srcSet so the header paints this ~12 KB file instead
+ *  of the 512px original, which every page would fetch beside its first
+ *  JavaScript and slow it on a phone connection. */
+export const HEADER_MARK_SMALL_SRC = "/velai-tile-96.png" as const;
 
 // Legacy SVG geometry retained only for compare fixtures (LockupMock) that
 // intentionally show non-product variants. Product surfaces must use BrandMark /
@@ -87,8 +88,8 @@ export function BrandLockupMark({
 }
 
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
- *  consent chrome, and email cannot drift. The mark is the plate-free
- *  header raster; email still hosts `public/velai-logo.png`.
+ *  consent chrome, and email cannot drift. The mark is the cut-out paper
+ *  tile; email still hosts `public/velai-logo.png`.
  *
  *  `markClassName` overrides just the mark's tile size (e.g. TopBar's 32px
  *  lockup) without touching the default `h-7 w-7` every other call site
