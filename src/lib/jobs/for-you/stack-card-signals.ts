@@ -2,6 +2,7 @@ import { deriveGhostSignals } from "@/components/jobs/job-detail-facts";
 import { deckOverlapSentence } from "@/lib/jobs/for-you/deck-detail";
 import { NO_SCORE_MESSAGES, noScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
+import { yearsAsked } from "@/lib/jobs/role-level";
 import { LOCATION_UNKNOWN_TEXT, placeWithWorkMode, prettyEnum, salaryText } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { MatchScore } from "@/lib/match/score";
@@ -32,9 +33,6 @@ export interface StatedDetail {
 const GOOD_MIN = 0.75;
 const NEUTRAL_MIN = 0.6;
 
-/** Years outside this range are extraction noise, not an ask worth stating. */
-const MAX_PLAUSIBLE_YEARS = 40;
-
 function capitalize(text: string): string {
     return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
@@ -45,16 +43,10 @@ function toneForScore(score: number): InferredTone {
     return "caution";
 }
 
-function plausibleYears(value: number | null | undefined): number | null {
-    return typeof value === "number" && Number.isFinite(value) && value > 0 && value <= MAX_PLAUSIBLE_YEARS
-        ? Math.round(value)
-        : null;
-}
-
 /** "Asks for 5+ years of experience", "Asks for 3 to 5 years of experience", or null. */
 export function yearsAskedText(job: Pick<PublicJob, "min_years_experience" | "max_years_experience">): string | null {
-    const min = plausibleYears(job.min_years_experience);
-    const max = plausibleYears(job.max_years_experience);
+    const min = yearsAsked(job.min_years_experience);
+    const max = yearsAsked(job.max_years_experience);
     if (min != null && max != null && max > min) return `Asks for ${min} to ${max} years of experience`;
     if (min != null) return `Asks for ${min}+ ${min === 1 ? "year" : "years"} of experience`;
     return null;

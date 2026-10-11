@@ -67,6 +67,20 @@ describe('rankingLevel', () => {
         assert.equal(level.detail, 'From your 11 years of experience.');
     });
 
+    it('a title held now that names a higher level than the years sets it, the way a posting\'s title does', () => {
+        const accountant = resume(6, [
+            ['Senior Accountant', 'Jan 2024 - Present'],
+            ['Staff Accountant', 'Jan 2022 - Dec 2023'],
+        ]);
+        const level = rankingLevel(accountant, null, NOW);
+        assert.equal(level.level, 'senior');
+        assert.deepEqual(level.countedRoles, [0]);
+        assert.match(
+            level.detail,
+            /^From your title, Senior Accountant, the role marked below\. A title means the same level on your résumé as on a posting, so it comes before your 6 years of experience\.$/,
+        );
+    });
+
     it('a teacher who was a nurse reads at the level of their teaching years', () => {
         const teacher = resume(10, [
             ['Primary Teacher', 'Sep 2024 - Present'],

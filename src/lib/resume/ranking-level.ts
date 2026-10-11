@@ -31,10 +31,15 @@ const yearsText = (n: number) => `${n} ${n === 1 ? "year" : "years"}`;
 const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 
 /** "your 5 years as a Technical Account Manager" / "your 13 years of experience". */
-function basisText(basis: SeniorityBasis): string {
+function yearsBasisText(basis: SeniorityBasis): string {
     return basis.role
         ? `your ${yearsText(basis.years)} as ${article(basis.role)} ${basis.role}`
         : `your ${yearsText(basis.years)} of experience`;
+}
+
+/** `yearsBasisText`, or "your title, Senior Accountant" when the title held now set the level. */
+function basisText(basis: SeniorityBasis): string {
+    return basis.title ? `your title, ${basis.title}` : yearsBasisText(basis);
 }
 
 export function rankingLevel(
@@ -65,6 +70,15 @@ export function rankingLevel(
             from: null,
             detail: "Ranking can't tell your level yet. Add dates to your roles, or your years of experience, and it will.",
             countedRoles: [],
+        };
+    }
+
+    if (fromResume.title) {
+        return {
+            level: fromResume.level,
+            from: "resume",
+            detail: `From your title, ${fromResume.title}, the role marked below. A title means the same level on your résumé as on a posting, so it comes before ${yearsBasisText(fromResume)}.`,
+            countedRoles: [0],
         };
     }
 
