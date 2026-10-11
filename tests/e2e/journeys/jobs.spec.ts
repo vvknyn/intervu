@@ -1235,7 +1235,7 @@ signedInTest("Today reads a career changer's level from the years in the role th
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("a role above the candidate's level reads Stretch and ranks after the roles at their level, whether its title runs a team or it asks for more years, and its reason says which", { tag: ["@J-JOBS-115"] }, async ({ page, diagnostics }) => {
+signedInTest("a role above the candidate's level reads Stretch and ranks after the roles at their level, whether its title runs a team or it asks for more years, and its reason says which", { tag: ["@J-JOBS-116"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-11, on Sophos's "Manager, Customer Success (Enterprise)" (5+ years managing a team, 7+ as a CSM):
   // "why are these kinds of postings being recommended for me????? this is such a weak match". It read Good for a mid-level TAM.
   await returningVisitor(page);

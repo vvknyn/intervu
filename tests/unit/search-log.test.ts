@@ -78,6 +78,11 @@ test("the dead-link id probe is not a human search", () => {
     assert.equal(shouldLogSearch({}), true, "an empty browse is still a real visit");
     assert.equal(shouldLogSearch({ id: "job-9" }), false);
     assert.equal(shouldLogSearch({ q: "Registered Nurse Cedarbrook Health", automatic: true }), false, "the extension card's own lookup isn't a search");
+    assert.equal(
+        shouldLogSearch({ q: '"Registered Nurse" OR "Charge Nurse"', fromResume: true }),
+        false,
+        "a query built from a résumé never lands in search_events",
+    );
 });
 
 test("every event carries a TTL the retention policy can act on", () => {

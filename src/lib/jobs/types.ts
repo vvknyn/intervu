@@ -410,6 +410,13 @@ export interface JobSearchParams {
    * only left out of the search log (`shouldLogSearch`).
    */
   automatic?: boolean;
+  /**
+   * A search Velai built from the person's résumé (Rank by fit, a For you
+   * pack, Today, a pack's counts): its query is role titles taken from the
+   * résumé. Searched the same way; left out of the search log
+   * (`shouldLogSearch`) so `search_events` never holds words from a résumé.
+   */
+  fromResume?: boolean;
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

@@ -101,7 +101,7 @@ function HubYourJobsMockBody() {
             <div className="shell-row pb-16 pt-6">
                 <CategoryHubGrid
                     isAuthenticated={state !== "signed-out"}
-                    userName="Vivek"
+                    userName="Sam"
                     hasResume
                     onSelectCategory={() => {}}
                     footer={

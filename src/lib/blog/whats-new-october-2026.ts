@@ -16,7 +16,6 @@ export const WHATS_NEW_OCTOBER_2026: BlogPost = {
     description:
         "Fit labels that explain themselves, roles you can't work from marked as such, daily picks, and a one-page tailored résumé that keeps the look of yours.",
     datePublished: "2026-10-05",
-    author: { name: "Vivek", role: "founder of Velai" },
     cover: `${DIR}/matches.png`,
     images: {
         [`${DIR}/matches.png`]: { width: 1440, height: 634 },
@@ -66,7 +65,7 @@ A tailored résumé is always one page. To get there Velai tightens the spacing 
 
 ## Your résumé and your privacy
 
-Velai reads your résumé in your browser, not with a cloud AI, and the fit labels are worked out on your device too.
+Velai reads your résumé in your browser, and the fit labels are worked out on your device too. Signed in, your résumé is saved encrypted. When AI helps read or tailor it, your name and contact details are taken out first and it runs on a sealed server that we can't read. [How Velai keeps your résumé private](/privacy#your-resume).
 
 ## Try it
 

@@ -108,16 +108,16 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd.description, "A description.");
   });
 
-  it("buildArticleJsonLd makes the picture absolute and names the author as a person", () => {
+  it("buildArticleJsonLd makes the picture absolute and names Velai, not a person, as the author", () => {
     const jsonLd = buildArticleJsonLd({
       headline: "Headline",
       datePublished: "2026-10-09",
       path: "/blog/x",
       image: "/blog/x/cover.png",
-      author: { name: "Vivek", jobTitle: "founder of Velai" },
+      author: { "@type": "Organization", name: "Velai", url: ORIGIN },
     });
     assert.deepEqual(jsonLd.image, [`${ORIGIN}/blog/x/cover.png`]);
-    assert.deepEqual(jsonLd.author, { "@type": "Person", name: "Vivek", jobTitle: "founder of Velai" });
+    assert.deepEqual(jsonLd.author, { "@type": "Organization", name: "Velai", url: ORIGIN });
     assert.equal(jsonLd.publisher.logo.url, `${ORIGIN}/icon-512.png`);
   });
 

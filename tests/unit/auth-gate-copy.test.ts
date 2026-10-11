@@ -38,7 +38,7 @@ test("fit and résumé sign-in cards add the account line under the unlock line"
         const accountAt = line.indexOf(AUTH_GATE_RESUME_ACCOUNT_LINE);
         assert.ok(unlockAt >= 0, reason);
         assert.ok(accountAt > unlockAt, reason);
-        assert.match(line, /structured version with your account, not the original file/);
+        assert.match(line, /structured version with your account, encrypted, never the original file/);
     }
     assert.equal(
         formatAuthGateValueLine("save", 0).includes(AUTH_GATE_RESUME_ACCOUNT_LINE),
@@ -46,10 +46,10 @@ test("fit and résumé sign-in cards add the account line under the unlock line"
     );
 });
 
-test("résumé-step banner stays the existing device-parse line", () => {
+test("résumé-step banner says where the file and the structured résumé are kept", () => {
     assert.equal(
         RESUME_LOCAL_DEVICE_BANNER,
-        "Parsed on this device. The file and structured result stay in this browser until you create an account and sync. When you search jobs, our servers may send role and skill phrases derived from your résumé to our search index—not your full résumé file.",
+        "Parsed on this device. The file is read here and never uploaded. The structured result stays in this browser until you sign in, when it is saved to your account encrypted. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.",
     );
 });
 

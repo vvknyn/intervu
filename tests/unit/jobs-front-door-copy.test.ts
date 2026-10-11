@@ -57,6 +57,6 @@ test("FrontDoorResumeBand renders card subcopy, and the sign-in value line only 
     );
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
-        "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account, so it follows you across devices.",
+        "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account encrypted, so it follows you across devices.",
     );
 });

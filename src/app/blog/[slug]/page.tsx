@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  BLOG_BYLINE,
   BLOG_PATH,
   BLOG_POSTS,
   blogCoverAlt,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/blog/posts";
 import { buildArticleJsonLd, buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { getSiteUrl } from "@/lib/seo/constants";
+import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -36,13 +37,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title,
     description: post.description,
-    authors: [{ name: post.author.name }],
     ...canonical,
     openGraph: {
       ...canonical.openGraph,
       type: "article",
       publishedTime: post.datePublished,
-      authors: [post.author.name],
       images: [{ url: coverUrl, width: cover?.width, height: cover?.height, alt: coverAlt }],
     },
     twitter: { ...canonical.twitter, images: [{ url: coverUrl, alt: coverAlt }] },
@@ -60,7 +59,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     description: post.description,
     path,
     image: post.cover,
-    author: { name: post.author.name, jobTitle: post.author.role },
+    author: { "@type": "Organization", name: SITE_NAME, url: getSiteUrl() },
   });
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: "Blog", path: BLOG_PATH },
@@ -81,7 +80,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
       </p>
       <PageTitle className="mt-3">{post.title}</PageTitle>
       <p className="mt-1.5 text-sm text-muted-foreground">
-        By {post.author.name}, {post.author.role}
+        {BLOG_BYLINE}
       </p>
 
       <Prose

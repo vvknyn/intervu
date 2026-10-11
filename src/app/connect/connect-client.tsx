@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowSquareOut, Copy } from "@phosphor-icons/react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CopyCommand } from "@/components/marketing/CopyCommand";
 import { HowItWorksFilm } from "@/components/marketing/HowItWorksFilm";
@@ -19,7 +20,7 @@ import { CONNECT_CLIENTS, type ConnectClientId } from "@/lib/connect-clients";
 import { handoffClientFromConnectTab, saveHandoffClient } from "@/lib/mcp/job-handoff";
 import type { HowItWorksFilmId } from "@/lib/marketing/how-it-works";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
-import { CONNECT_FAQ_NO_MCP_NEEDED } from "@/lib/jobs/resume-privacy-copy";
+import { CONNECT_FAQ_NO_MCP_NEEDED, CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { PageTitle } from "@/components/ui/heading";
 import { AGENT_PERMISSIONS, AGENT_PERMISSIONS_LIMITS, CONNECT_SAMPLE_PROMPTS } from "@/lib/agent/permissions-copy";
 
@@ -350,6 +351,15 @@ export function ConnectClient({
                   <li className="flex items-start gap-1.5">
                     <span className="text-live font-semibold">✓</span>
                     <span><span className="font-semibold text-foreground">Your approval:</span> MCP access only works after you sign in and authorize the connection; revoke it anytime from account settings.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5" data-testid="connect-privacy">
+                    <span className="text-live font-semibold">✓</span>
+                    <span>
+                      <span className="font-semibold text-foreground">Your data:</span> {CONNECT_PRIVACY_LINE}{" "}
+                      <Link href="/privacy#your-resume" className="underline underline-offset-2 hover:text-foreground">
+                        How Velai keeps it private
+                      </Link>
+                    </span>
                   </li>
                 </ul>
               </AccordionContent>

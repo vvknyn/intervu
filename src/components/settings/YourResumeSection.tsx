@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, Trash, PencilSimple, FileText } from "@phosphor-icons/react";
+import Link from "next/link";
+import { Upload, Trash, PencilSimple, FileText, LockSimple } from "@phosphor-icons/react";
 import { WaitState } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
@@ -15,6 +16,7 @@ import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
 import { captureEvent } from "@/lib/analytics/events";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
+import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
@@ -273,7 +275,7 @@ function ResumeSummaryBody({
                 <div className="space-y-1 max-w-sm mx-auto">
                     <h3 className="text-sm font-semibold text-foreground">No resume on file</h3>
                     <p className="text-xs text-muted-foreground">
-                        Edit the standard template in your browser, or upload an existing PDF or Word file.
+                        Edit the standard template in your browser, or upload an existing PDF or Word file. A file is read in your browser and never uploaded.
                     </p>
                 </div>
                 <div className="flex flex-col items-center gap-2 pt-1">
@@ -358,6 +360,13 @@ function ResumeSummaryBody({
                     {deleteError}
                 </p>
             )}
+            <p data-testid="settings-resume-privacy" className="text-xs text-muted-foreground">
+                <LockSimple weight="bold" aria-hidden className="mr-1 inline align-text-bottom text-live" />
+                {SETTINGS_RESUME_PRIVACY_LINE}{" "}
+                <Link href="/privacy#your-resume" className="text-foreground underline underline-offset-2">
+                    How Velai keeps it private
+                </Link>
+            </p>
         </div>
     );
 }

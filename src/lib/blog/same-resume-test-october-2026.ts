@@ -4,7 +4,7 @@ const DIR = "/blog/same-resume-test-october-2026";
 const HIRINGCAFE_COST_POST = "https://www.reddit.com/r/hiringcafe/comments/1www5yu/some_changes_and_freebies/";
 
 /**
- * Vivek's same-résumé test of Velai's For you list against HiringCafe's
+ * Our same-résumé test of Velai's For you list against HiringCafe's
  * Talent Agent (Oct 8, 2026). Every number comes from that study's write-up;
  * the p-value is Fisher's exact test on 17/20 vs 13/20 (0.273). The gap is
  * within chance, so the post says so and reports what Velai got wrong too.
@@ -19,7 +19,6 @@ export const SAME_RESUME_TEST_OCTOBER_2026: BlogPost = {
     description:
         "We gave Velai and HiringCafe's Talent Agent the same résumé and blind-scored the top 20 jobs from each. The numbers, their limits, and what we got wrong.",
     datePublished: "2026-10-09",
-    author: { name: "Vivek", role: "founder of Velai" },
     cover: `${DIR}/results.png`,
     images: {
         [`${DIR}/results.png`]: { width: 2400, height: 1260 },
@@ -43,7 +42,9 @@ Role fit went the same way, 20 of 20 against 16 of 20, with HiringCafe's list in
 
 HiringCafe has said a Talent Agent search costs it about $1, because it compares your search against 20,000+ job descriptions with a language model ([their post](${HIRINGCAFE_COST_POST})).
 
-Velai works differently. The AI in Velai is a small model that runs in your browser, on your own device. It reads your résumé and lays out job descriptions. The search itself is ordinary search with no AI call on our servers, so a search costs us nothing in AI. That's what lets Velai stay free.
+Velai works differently. The search itself is ordinary search with no AI call, so a search costs us nothing in AI. That's what lets Velai stay free. AI only helps read and tailor your résumé: your name and contact details are taken out first, and it runs on a sealed server that we can't read.
+
+*Updated October 11, 2026: when this was written, that AI was a small model running in your browser. It now runs on a sealed server instead. [How Velai keeps your résumé private](/privacy#your-resume).*
 
 ## What we got wrong
 
