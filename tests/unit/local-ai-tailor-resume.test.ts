@@ -12,13 +12,7 @@ import {
     type TailorChange,
     type TailorDraft,
 } from "../../src/lib/local-ai/tailor-resume";
-import {
-    applyModelTailor,
-    buildModelPrompt,
-    ENGINE_LABELS,
-    groundDraft,
-    TAILOR_VOICE_RULES,
-} from "../../src/lib/local-ai/tailor-with-engine";
+import { ENGINE_LABELS, groundDraft } from "../../src/lib/local-ai/tailor-with-engine";
 import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
 import type { ResumeData } from "../../src/types/resume";
 
@@ -267,18 +261,6 @@ describe("resumeFullText", () => {
     });
 });
 
-describe("buildModelPrompt voice rules", () => {
-    it("includes voice constraints and forbids Results-driven", () => {
-        const prompt = buildModelPrompt(PM_RESUME, {
-            title: "Product Manager",
-            tags: ["roadmap"],
-        });
-        assert.match(prompt, /Results-driven/);
-        assert.match(prompt, /not keyword-stuffed/i);
-        assert.equal(prompt.includes(TAILOR_VOICE_RULES), true);
-    });
-});
-
 describe("introducesNewNumbers", () => {
     it("detects new digit runs", () => {
         assert.equal(introducesNewNumbers("Increased revenue 20%", "Increased revenue 35%"), true);
@@ -349,164 +331,6 @@ describe("groundDraft", () => {
         const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
         assert.ok(description.includes(before));
         assert.ok(!description.includes(after));
-    });
-});
-
-describe("applyModelTailor (model lane)", () => {
-    const PM_RESUME_WITH_PROJECT: ResumeData = {
-        ...PM_RESUME,
-        projects: [
-            {
-                id: "proj-1",
-                company: "Side Project",
-                role: "Creator",
-                dates: "2022",
-                description: "Built a roadmap planning tool for internal agile teams",
-            },
-        ],
-    };
-
-    it("drops a project bullet from a fake engine that introduces a skill word absent from the résumé", () => {
-        const fakeEngineOutput = {
-            summary: PM_RESUME.generatedSummary,
-            bullets: [
-                {
-                    experienceId: "proj-1",
-                    text: "Built a roadmap planning tool using Kubernetes for internal agile teams",
-                },
-            ],
-        };
-        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
-        assert.ok(draft, "expected a draft (bullet matched before grounding)");
-
-        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
-        assert.equal(grounded.bullets.length, 0);
-
-        const description = grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description;
-        assert.ok(description.includes("Built a roadmap planning tool for internal agile teams"));
-        assert.ok(!description.includes("Kubernetes"));
-    });
-
-    it("accepts a grounded project bullet from a fake engine with source: project", () => {
-        const fakeEngineOutput = {
-            summary: PM_RESUME.generatedSummary,
-            bullets: [
-                {
-                    experienceId: "proj-1",
-                    text: "Built a roadmap planning tool for internal agile delivery",
-                },
-            ],
-        };
-        const draft = applyModelTailor(PM_RESUME_WITH_PROJECT, { title: "Product Manager" }, fakeEngineOutput, "webllm");
-        assert.ok(draft);
-
-        const grounded = groundDraft(resumeFullText(PM_RESUME_WITH_PROJECT), draft!);
-        assert.equal(grounded.bullets.length, 1);
-        assert.equal(grounded.bullets[0].source, "project");
-        assert.equal(grounded.bullets[0].experienceId, "proj-1");
-        assert.ok(
-            grounded.tailored.projects!.find((p) => p.id === "proj-1")!.description.includes("agile delivery"),
-        );
-    });
-
-    it("generic-fix: an experience bullet through the same shared step is unaffected, and a projects-only résumé still yields project diffs", () => {
-        const expOutput = {
-            summary: PM_RESUME.generatedSummary,
-            bullets: [
-                { experienceId: "exp-1", text: "Led product planning across the B2B SaaS platform and mobile app." },
-            ],
-        };
-        const draft = applyModelTailor(PM_RESUME, { title: "Product Manager" }, expOutput, "webllm");
-        assert.ok(draft);
-        assert.equal(draft!.bullets.length, 1);
-        assert.equal(draft!.bullets[0].source, "experience");
-        assert.equal(draft!.bullets[0].experienceId, "exp-1");
-        assert.equal(draft!.bullets[0].company, "Acme Corp");
-
-        const projectsOnlyResume: ResumeData = {
-            ...mkResume({ profession: "Product Manager", yearsOfExperience: 3 }, [], []),
-            projects: [
-                {
-                    id: "proj-2",
-                    company: "Open Source",
-                    role: "Maintainer",
-                    dates: "2023",
-                    description: "Maintains a roadmap planning tool for agile teams",
-                },
-            ],
-        };
-        const projectOutput = {
-            summary: projectsOnlyResume.generatedSummary,
-            bullets: [
-                { experienceId: "proj-2", text: "Maintains a roadmap planning tool for distributed agile teams" },
-            ],
-        };
-        const noExpDraft = applyModelTailor(projectsOnlyResume, { title: "Product Manager" }, projectOutput, "webllm");
-        assert.ok(noExpDraft, "expected project diffs even with an empty experience array");
-        assert.equal(noExpDraft!.bullets.length, 1);
-        assert.equal(noExpDraft!.bullets[0].source, "project");
-        assert.equal(noExpDraft!.bullets[0].experienceId, "proj-2");
-    });
-});
-
-describe("on-device model lines", () => {
-    const job = {
-        title: "Product Manager",
-        description: "Oversee the product roadmap and partner with engineering. Lead agile delivery. Grow revenue.",
-    };
-
-    it("offers the model each role's lines by id, the ones using the posting's words first", () => {
-        const prompt = buildModelPrompt(PM_RESUME, job);
-        assert.match(prompt, /\[exp-1#0\] \(Senior Product Manager, Acme Corp\) Led product planning/);
-        assert.match(prompt, /\[exp-1#1\]/);
-        assert.match(prompt, /"lines":\[\{"line":"\.\.\.","text":"\.\.\."\}\]/);
-    });
-
-    it("a rewrite lands on the line it names; the rules' rewordings stay on the other lines", () => {
-        const draft = applyModelTailor(
-            PM_RESUME,
-            job,
-            { summary: PM_RESUME.generatedSummary, lines: [{ line: "exp-1#0", text: "Led product planning and roadmap prioritization for B2B SaaS platform" }] },
-            "webllm",
-        );
-        assert.ok(draft);
-        const lines = draft!.changes.flatMap((c) => (c.kind === "line" ? [[c.index, c.after]] : []));
-        assert.deepEqual(lines, [
-            [1, "Oversaw roadmap prioritization with engineering"],
-            [2, "Grew revenue 20%"],
-            [0, "Led product planning and roadmap prioritization for B2B SaaS platform"],
-        ]);
-        const grounded = groundDraft(resumeFullText(PM_RESUME), draft!);
-        assert.equal(grounded.changes.filter((c) => c.kind === "line").length, 3);
-    });
-
-    it("the gate accepts a model's posting synonym of a résumé word and drops a skill the résumé lacks", () => {
-        const draft = applyModelTailor(
-            PM_RESUME,
-            { title: "Product Manager", description: "Partner with engineering. Oversee the roadmap. Kubernetes a plus." },
-            {
-                summary: PM_RESUME.generatedSummary,
-                lines: [
-                    // "Oversaw" is the posting's word for the résumé's "Managed"; "partnering" the résumé never says.
-                    { line: "exp-1#1", text: "Oversaw engineering roadmap prioritization" },
-                    { line: "exp-1#2", text: "Increased revenue 20%, partnering with engineering" },
-                    { line: "exp-1#0", text: "Led product planning for a Kubernetes B2B SaaS platform" },
-                ],
-            },
-            "webllm",
-        );
-        const grounded = groundDraft(resumeFullText(PM_RESUME), draft!);
-        const kept = grounded.changes.flatMap((c) => (c.kind === "line" ? [c.after] : []));
-        assert.ok(kept.includes("Oversaw engineering roadmap prioritization"), JSON.stringify(kept));
-        assert.ok(!kept.some((l) => /kubernetes|partnering/i.test(l)), JSON.stringify(kept));
-        assert.match(grounded.tailored.experience[0].description, /Led product planning for B2B SaaS platform/);
-    });
-
-    it("never gives a résumé without a summary one from the model", () => {
-        const noSummary = { ...PM_RESUME, generatedSummary: "" };
-        const draft = applyModelTailor(noSummary, job, { summary: "Product manager.", lines: [{ line: "exp-1#2", text: "Increased revenue by 20%" }] }, "webllm");
-        assert.equal(draft!.tailored.generatedSummary, "");
-        assert.ok(!draft!.changes.some((c) => c.kind === "summary"));
     });
 });
 

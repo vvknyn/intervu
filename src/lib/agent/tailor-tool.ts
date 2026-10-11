@@ -11,8 +11,9 @@
  * through the grounding gate), so this tool and its output don't change when
  * the engine does; `engine` names the one that wrote it.
  */
-import { heuristicTailorResume, resumeFullText, withRoleOrder, type TailorChange, type TailorDraft } from "../local-ai/tailor-resume";
+import { heuristicTailorResume, resumeFullText, startsOn, withRoleOrder, type TailorChange, type TailorDraft } from "../local-ai/tailor-resume";
 import { groundDraft, jobToTailorInput } from "../local-ai/tailor-ground";
+import { withLeaveOuts } from "../local-ai/tailor-asks";
 import { descriptionToBullets } from "../resume/merge-bullet-lines";
 import { resumeDataToZipMarkdown } from "../resume/to-zip-markdown";
 import type { PublicJob } from "../jobs/types";
@@ -27,7 +28,7 @@ import { lookupJobById, resumeNeededError, type ToolDeps } from "./tools";
  */
 export async function rulesTailor(resume: ResumeData, job: PublicJob): Promise<TailorDraft> {
     const input = jobToTailorInput(job);
-    return withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, input)), input);
+    return withLeaveOuts(withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, input)), input), input);
 }
 
 export interface TailorChangeOut {
@@ -35,10 +36,14 @@ export interface TailorChangeOut {
     kind: TailorChange["kind"];
     /** Where on the résumé: "Summary", "<role> · <company>" or "Skills", as the site groups them. */
     section: string;
-    /** summary/line: the text as it was; order: the role's lines in their old order; skills: the group as it was. */
+    /** summary/line: the text as it was; order: the role's lines in their old order; skills: the group as it was;
+     *  leave-out: the project's lines (`after` is empty). */
     before: string;
     after: string;
     why: string;
+    /** False for a suggestion the site shows off until the person turns it on
+     *  (leaving a project out); `resume_text` leaves it out. */
+    applied: boolean;
 }
 
 export interface TailorResumeOut {
@@ -60,6 +65,10 @@ function entryLines(resume: ResumeData, source: "experience" | "project", entryI
 }
 
 function changeOut(draft: TailorDraft, change: TailorChange): TailorChangeOut {
+    return { ...changeText(draft, change), applied: startsOn(change) };
+}
+
+function changeText(draft: TailorDraft, change: TailorChange): Omit<TailorChangeOut, "applied"> {
     const { id, kind, why } = change;
     switch (change.kind) {
         case "summary":
@@ -76,6 +85,14 @@ function changeOut(draft: TailorDraft, change: TailorChange): TailorChangeOut {
             };
         case "skills":
             return { id, kind, section: change.category || "Skills", before: change.before.join(", "), after: change.after.join(", "), why };
+        case "leave-out":
+            return {
+                id, kind,
+                section: [change.role, change.company].filter(Boolean).join(" · "),
+                before: entryLines(draft.base, change.source, change.entryId).join("\n"),
+                after: "",
+                why,
+            };
     }
 }
 

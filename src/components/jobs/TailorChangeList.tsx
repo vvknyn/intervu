@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { TailorChange, TailorDraft } from "@/lib/local-ai/tailor-resume";
+import { startsOn, type TailorChange, type TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { addedWordRuns } from "@/lib/resume/word-diff";
 import { cn } from "@/lib/utils";
 import type { ResumeData } from "@/types/resume";
@@ -9,8 +9,10 @@ import type { ResumeData } from "@/types/resume";
 /**
  * What tailoring changed for this role, one row per change with the reason
  * and an Undo: the summary, each reworded line and each role's new line
- * order (grouped under the role), and each skills group. Copy and Download
- * use the changes left on (`applyTailorChanges`).
+ * order (grouped under the role), and each skills group. Two kinds start off
+ * and wait for the person (`startsOn`): a rewrite that adds posting words the
+ * résumé doesn't use ("Use"), and leaving a project out ("Leave out"). Copy
+ * and Download use the changes left on (`applyTailorChanges`).
  */
 export interface TailorChangeListProps {
     draft: TailorDraft;
@@ -26,6 +28,9 @@ interface Section {
     changes: TailorChange[];
 }
 
+/** Within a role: leaving it out first, then its lines, then their order. */
+const rank = (c: TailorChange) => (c.kind === "leave-out" ? 0 : c.kind === "order" ? 2 : 1);
+
 function sectionsOf(draft: TailorDraft): Section[] {
     const sections: Section[] = [];
     const summary = draft.changes.filter((c) => c.kind === "summary");
@@ -36,8 +41,8 @@ function sectionsOf(draft: TailorDraft): Section[] {
     ];
     for (const { source, entry } of entries) {
         const mine = draft.changes
-            .filter((c) => (c.kind === "line" || c.kind === "order") && c.source === source && c.entryId === entry.id)
-            .sort((a, b) => (a.kind === "order" ? 1 : 0) - (b.kind === "order" ? 1 : 0) || (a.kind === "line" && b.kind === "line" ? a.index - b.index : 0));
+            .filter((c) => (c.kind === "line" || c.kind === "order" || c.kind === "leave-out") && c.source === source && c.entryId === entry.id)
+            .sort((a, b) => rank(a) - rank(b) || (a.kind === "line" && b.kind === "line" ? a.index - b.index : 0));
         if (mine.length === 0) continue;
         sections.push({ key: `${source}:${entry.id}`, title: [entry.role, entry.company].filter(Boolean).join(" · "), changes: mine });
     }
@@ -69,10 +74,17 @@ function ChangeBody({ change, kept, undone }: { change: TailorChange; kept: Resu
     switch (change.kind) {
         case "summary":
         case "line":
-            return undone ? (
+            // A suggestion still off shows what it would say, so the person can decide.
+            return undone && startsOn(change) ? (
                 <p className="text-sm leading-relaxed text-foreground">{change.before}</p>
             ) : (
                 <Rewording before={change.before} after={change.after} />
+            );
+        case "leave-out":
+            return (
+                <p className="text-sm leading-relaxed text-foreground">
+                    {undone ? "Still in this version. Leave it out?" : "Left out of this version."}
+                </p>
             );
         case "order": {
             if (undone) return <p className="text-sm text-foreground">Lines stay in your order.</p>;
@@ -95,8 +107,22 @@ function ChangeBody({ change, kept, undone }: { change: TailorChange; kept: Resu
 }
 
 function shortLabel(change: TailorChange): string {
-    const text = change.kind === "summary" || change.kind === "line" ? change.after : change.kind === "skills" ? change.category || "skills" : "line order";
+    const text =
+        change.kind === "summary" || change.kind === "line"
+            ? change.after
+            : change.kind === "skills"
+              ? change.category || "skills"
+              : change.kind === "leave-out"
+                ? "the whole project"
+                : "line order";
     return text.length > 48 ? `${text.slice(0, 47)}…` : text;
+}
+
+/** Undo for a change that is on; for one that is off, what turning it on does. */
+function toggleLabel(change: TailorChange, undone: boolean): string {
+    if (!undone) return "Undo";
+    if (startsOn(change)) return "Redo";
+    return change.kind === "leave-out" ? "Leave out" : "Use";
 }
 
 export function TailorChangeList({ draft, kept, undone, onToggle }: TailorChangeListProps) {
@@ -129,23 +155,22 @@ export function TailorChangeList({ draft, kept, undone, onToggle }: TailorChange
                                     data-change-kind={change.kind}
                                     data-undone={isUndone ? "true" : "false"}
                                 >
-                                    <div className={cn("min-w-0 flex-1 break-words", isUndone && "opacity-80")}>
+                                    <div className={cn("min-w-0 flex-1 break-words", isUndone && startsOn(change) && "opacity-80")}>
                                         <ChangeBody change={change} kept={kept} undone={isUndone} />
                                         <p className="mt-1 text-xs text-muted-foreground">
-                                            {isUndone ? "Undone: your résumé's own wording stays." : change.why}
+                                            {isUndone && startsOn(change) ? "Undone: your résumé's own wording stays." : change.why}
                                         </p>
                                     </div>
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="xs"
-                                        aria-pressed={isUndone}
-                                        aria-label={`${isUndone ? "Redo" : "Undo"} ${section.title}: ${shortLabel(change)}`}
+                                        aria-label={`${toggleLabel(change, isUndone)} ${section.title}: ${shortLabel(change)}`}
                                         data-testid="tailor-change-toggle"
                                         onClick={() => onToggle(change.id)}
                                         className="shrink-0"
                                     >
-                                        {isUndone ? "Redo" : "Undo"}
+                                        {toggleLabel(change, isUndone)}
                                     </Button>
                                 </li>
                             );
