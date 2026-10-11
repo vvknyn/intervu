@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { LOCAL_AI_CONSENT_KEY } from "../../../src/lib/local-ai/consent";
 import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
@@ -439,7 +438,8 @@ test("a posting whose lists and titles arrived as plain lines reads as headings,
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("the on-device model lays out the lines the rules guessed, never holds the text back, and the original is one tap away", { tag: ["@J-DETAIL-42"] }, async ({ page, diagnostics }) => {
+test("a description is laid out by the rules alone, word for word: no model is asked, even where one is on the device", { tag: ["@J-DETAIL-42"] }, async ({ page, diagnostics }) => {
+  // Vivek 2026-10-11 removed the on-device models: a posting's layout is the rules', the same everywhere.
   const lines = [
     "What we need",
     "You have five years of B2B sales experience.",
@@ -447,64 +447,21 @@ test("the on-device model lays out the lines the rules guessed, never holds the 
     "You are based in Toronto.",
     "Compensation: $90,000 base plus commission.",
   ];
-  await page.addInitScript(
-    ([enabledKey, consentKey]) => {
-      localStorage.setItem(enabledKey, "1");
-      localStorage.setItem(consentKey, "1");
-      // A stand-in for Chrome's Prompt API that answers only when the test says
-      // so: short titles H, "You have/are…" lines B, the rest P.
-      const w = window as unknown as { __prompts: string[]; __answer: () => void; LanguageModel: unknown };
-      let answer!: () => void;
-      const answered = new Promise<void>((resolve) => (answer = resolve));
-      w.__prompts = [];
-      w.__answer = () => answer();
-      const session = {
-        async prompt(prompt: string) {
-          w.__prompts.push(prompt);
-          await answered;
-          return prompt
-            .split("Posting lines:\n")[1]!
-            .split("\n")
-            .map((line) => {
-              const [n, ...rest] = line.split(" ");
-              const text = rest.join(" ");
-              return `${n} ${/^You (have|are)/.test(text) ? "B" : text.length < 40 && !text.endsWith(".") ? "H" : "P"}`;
-            })
-            .join("\n");
-        },
-        async clone() {
-          return session;
-        },
-        destroy() {},
-      };
-      w.LanguageModel = { create: async () => session };
-    },
-    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_CONSENT_KEY],
-  );
+  await page.addInitScript((enabledKey) => {
+    localStorage.setItem(enabledKey, "1");
+    // Chrome's built-in model, as a browser that has it offers it: nothing should ask it.
+    const w = window as unknown as { __prompts: string[]; LanguageModel: unknown };
+    w.__prompts = [];
+    const session = { async prompt(prompt: string) { w.__prompts.push(prompt); return ""; }, async clone() { return session; }, destroy() {} };
+    w.LanguageModel = { availability: async () => "available", create: async () => session };
+  }, LOCAL_AI_ENABLED_KEY);
   const body = await openJobWithDescription(page, lines.join("\n\n"));
-  // The rules' layout shows at once while the model is still working.
   await expect(body.getByText(lines[1]!)).toBeVisible({ timeout: 20_000 });
   await expect(body).toHaveAttribute("data-layout", "rules");
-  await expect(body.getByRole("listitem")).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length), { timeout: 20_000 }).toBe(1);
-
-  await page.evaluate(() => (window as unknown as { __answer: () => void }).__answer());
-  await expect(body).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
-  // Word for word: the model only chose which lines are list items.
-  await expect(body.getByRole("listitem")).toHaveText(lines.slice(1, 4));
-  await expect(body.getByRole("heading", { name: "What we need" })).toBeVisible();
-  await expect(body.getByText("Laid out on your device.")).toBeVisible();
-
-  await body.getByRole("button", { name: "Show original text" }).click();
-  await expect(body.getByTestId("job-description-original")).toHaveText(lines.join("\n\n"), { useInnerText: true });
-  await expect(body.getByRole("listitem")).toHaveCount(0);
-  await body.getByRole("button", { name: "Show formatted" }).click();
-  await expect(body.getByRole("listitem")).toHaveCount(3);
-
-  // This browser remembers the layout: the next view needs no model call.
-  await page.reload();
-  const again = page.locator(DETAIL).first().getByTestId("job-description-body");
-  await expect(again).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
+  for (const line of lines) await expect(body).toContainText(line);
+  await expect(body.getByText("Laid out on your device.")).toHaveCount(0);
+  await expect(body.getByRole("button", { name: "Show original text" })).toHaveCount(0);
+  await page.waitForTimeout(1_500);
   expect(await page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length)).toBe(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

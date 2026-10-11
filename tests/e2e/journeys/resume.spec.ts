@@ -170,9 +170,7 @@ async function customizeFirstEngineeringRole(page: Page) {
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
   // By name: on a phone the role itself is open in a sheet, which is a dialog too.
-  const customize = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
-  await customize.getByRole("button", { name: "Use a rules draft" }).click();
-  return customize;
+  return page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
 }
 
 /** A guest uploads `fixture` on /resume, customizes the first engineering role with a rules draft and downloads the PDF. */

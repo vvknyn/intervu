@@ -1,16 +1,18 @@
 /**
- * Client-side résumé parse — no cloud LLM, no OpenRouter.
- *
- * Ladder: Nano → WebLLM → Transformers WASM → deterministic rules.
- * Rules path always runs so the /jobs journey never hard-depends on a download.
+ * Client-side résumé parse. The quick read (rules, structure-resume-text.ts)
+ * always runs in the browser. When it misses something ranking uses
+ * (`modelReadNeeded`), the caller can also ask sealed AI (Tinfoil, see
+ * src/lib/sealed-ai/client.ts) to read it: the text goes without the person's
+ * name, email, phone or links, encrypted so only Tinfoil's attested server
+ * can read it, and the quick read stays whatever the model says.
  */
 
 import { normalizeParsedResume, type RawParsedResumeInput } from "@/lib/resume/normalize-parsed-resume";
 import { structureResumeText } from "@/lib/resume/structure-resume-text";
 import type { ParsedResumeResult } from "@/types/resume";
 import { scoreLocalParseConfidence } from "./parse-confidence";
-import { getActiveEngineId, getEngineLabel, initLocalAiLadder, parseWithActiveEngine } from "./ladder";
-import type { LocalAiEngineId } from "./engines/types";
+import { sealedChat } from "@/lib/sealed-ai/client";
+import { ENGINE_LABELS, type LocalAiEngineId, type ModelParseOutput } from "./engines/types";
 
 export interface LocalParseResult {
     data: ParsedResumeResult;
@@ -139,19 +141,78 @@ export function mergeModelIntoHeuristic(
     return { raw, usedHeuristic: !modelContributed };
 }
 
+/** The most résumé text sent to the model: a long résumé's first pages hold what ranking reads. */
+const SEALED_READ_CHARS = 8_000;
+/** Reply cap: the entries and lines of a résumé that long, copied out. */
+const SEALED_READ_MAX_TOKENS = 3_000;
+const SEALED_READ_TIMEOUT_MS = 40_000;
+
+/** The résumé text without what identifies the person: their name, email, phone numbers and links. */
+export function withoutContactDetails(text: string, name?: string): string {
+    let out = text
+        .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "")
+        .replace(/\b(https?:\/\/|www\.)\S+/gi, "")
+        .replace(/\b[\w-]+\.(com|io|me|dev|net|org)\/\S+/gi, "")
+        .replace(/\+\d[\d\s().-]{7,}\d/g, "")
+        .replace(/\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g, "");
+    const who = name?.trim();
+    if (who && who.length >= 3) out = out.split(who).join("");
+    return out;
+}
+
+function readSealedPrompt(text: string): string {
+    return `Read this résumé into JSON. The person's name and contact details were removed.
+Copy every word exactly as written; leave out anything the text doesn't say.
+Reply with JSON only, in this shape:
+{"profile":{"profession":"","yearsOfExperience":0,"location":""},"experience":[{"company":"","role":"","dates":"","description":"• bullet\\n• bullet"}],"competencies":[{"category":"","skills":[""]}],"education":[{"degree":"","institution":"","year":""}]}
+
+"""
+${text.slice(0, SEALED_READ_CHARS)}
+"""`;
+}
+
+function parseModelJson(text: string): ModelParseOutput {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) return null;
+    try {
+        const parsed = JSON.parse(text.slice(start, end + 1)) as unknown;
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+    } catch {
+        return null;
+    }
+}
+
+/** Sealed AI's read of the résumé, or null when it's off or fails. Identity fields stay the quick read's. */
+async function readWithSealedAi(content: string, name?: string): Promise<ModelParseOutput> {
+    const reply = await sealedChat([{ role: "user", content: readSealedPrompt(withoutContactDetails(content, name)) }], {
+        maxTokens: SEALED_READ_MAX_TOKENS,
+        temperature: 0,
+        timeoutMs: SEALED_READ_TIMEOUT_MS,
+    });
+    const out = reply ? parseModelJson(reply) : null;
+    if (!out) return null;
+    // It never saw these: anything it puts there isn't the person's.
+    const profile = (out.profile && typeof out.profile === "object" ? out.profile : {}) as Record<string, unknown>;
+    delete profile.name;
+    delete profile.email;
+    delete profile.phone;
+    delete profile.linkedin;
+    delete profile.website;
+    return { ...out, profile };
+}
+
 export interface ParseResumeLocallyOptions {
     /**
-     * User declined the model download (the modal's "Skip the download"
-     * link). Stay on the heuristic rung deterministically — never init the
-     * ladder or run a model, even if one happens to already be active from
-     * an unrelated feature (e.g. job-tailoring).
+     * Also ask sealed AI to read it, on top of the quick read: only worth it
+     * when the quick read missed something (`modelReadNeeded`).
      */
-    skipDownload?: boolean;
+    withModel?: boolean;
 }
 
 /**
- * Parse résumé text entirely on-device — no cloud LLM, ever. Model paths
- * (Nano/WebLLM/WASM) require ladder init (after consent); rules always work.
+ * Parse résumé text: the quick read in this browser, and — when asked and
+ * sealed AI is set up — the sealed model's read merged over it.
  */
 export async function parseResumeLocally(
     content: string,
@@ -175,19 +236,13 @@ export async function parseResumeLocally(
         sourceHeader: heuristicDraft.sourceHeader,
     };
 
-    let effectiveEngine: LocalAiEngineId = "heuristic";
     let usedHeuristic = true;
-
-    if (!options.skipDownload) {
-        await initLocalAiLadder();
-        const modelOut = await parseWithActiveEngine(content);
-        const merged = mergeModelIntoHeuristic(raw, modelOut);
+    if (options.withModel) {
+        const merged = mergeModelIntoHeuristic(raw, await readWithSealedAi(content, heuristicDraft.profile?.name));
         raw = merged.raw;
         usedHeuristic = merged.usedHeuristic;
-
-        const engine = getActiveEngineId();
-        effectiveEngine = usedHeuristic || engine === "heuristic" ? "heuristic" : engine;
     }
+    const engine: LocalAiEngineId = usedHeuristic ? "heuristic" : "sealed";
 
     const confidence = scoreLocalParseConfidence(raw);
 
@@ -196,9 +251,5 @@ export async function parseResumeLocally(
         confidence,
     });
 
-    return {
-        data,
-        engine: effectiveEngine,
-        engineLabel: getEngineLabel(effectiveEngine),
-    };
+    return { data, engine, engineLabel: ENGINE_LABELS[engine] };
 }

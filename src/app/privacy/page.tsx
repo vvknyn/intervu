@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 10, 2026";
+const LAST_UPDATED = "October 11, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -208,8 +208,13 @@ export default function PrivacyPage() {
 
         <SectionTitle>AI processing</SectionTitle>
         <p>
-          We read your résumé in your browser and do not send it to a cloud AI to interpret it. Optional models, if
-          you allow a download, run in that browser. We do not keep the original file.
+          We read your résumé in your browser first. If that quick read misses something we match on, the
+          résumé&apos;s text, with your name, email, phone number and links taken out, goes to an AI model on{" "}
+          <a href="https://tinfoil.sh" rel="noopener noreferrer">Tinfoil</a>&apos;s sealed server. When you
+          customize your résumé for a job, only the lines that match that job and the job&apos;s matching
+          requirements go there, to be rewritten. Your browser first checks the server&apos;s hardware proof of
+          the code it runs, then encrypts the request so that only that server can read it: our servers pass it
+          on without being able to read it, and Tinfoil&apos;s staff can&apos;t read it either. We do not keep the original file.
         </p>
         <p>
           If you have an account, we store the structured résumé with that account until you delete the résumé or

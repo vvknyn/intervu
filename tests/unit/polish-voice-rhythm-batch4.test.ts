@@ -98,11 +98,11 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
     it("import modal keeps footer parse primary immediately — no gated consent step", () => {
         const src = readFileSync(IMPORT_MODAL, "utf8");
         assert.match(src, /resume-import-parse-primary/);
-        // The primary is the quick read; the model download is an opt-in link,
-        // never what the primary starts (2026-10-07).
+        // The primary is the quick read; sealed AI reads only what it misses,
+        // with no download or consent step (2026-10-11).
         assert.match(src, /Read my résumé/);
         assert.doesNotMatch(src, /Download model & parse/);
-        assert.match(src, /resume-import-use-model/);
+        assert.doesNotMatch(src, /resume-import-use-model/);
         assert.doesNotMatch(src, /resume-import-download-parse/);
         assert.doesNotMatch(src, /consentDecided \?/);
         const privacy = sliceBetween(src, "const renderPrivacyConsent", "const renderInputStep");
@@ -126,13 +126,13 @@ describe("Phase 2 batch 4 — résumé funnel", () => {
         assert.doesNotMatch(uploadButton, /\bsize="(?:icon-)?lg"/);
         assert.match(uploadButton, /resume-signed-out-upload/);
 
-        const modal = readFileSync(IMPORT_MODAL, "utf8");
-        const skipTestId = 'data-testid="resume-import-use-model"';
-        const skipIdx = modal.indexOf(skipTestId);
+        const strip = readFileSync(join(ROOT, "src/components/resume-builder/ModelEnhancementStrip.tsx"), "utf8");
+        const skipTestId = 'data-testid="resume-model-skip"';
+        const skipIdx = strip.indexOf(skipTestId);
         assert.notStrictEqual(skipIdx, -1, skipTestId);
-        const skipButtonStart = modal.lastIndexOf("<Button", skipIdx);
-        const skipButtonEnd = modal.indexOf("</Button>", skipIdx);
-        const skipButton = modal.slice(skipButtonStart, skipButtonEnd);
+        const skipButtonStart = strip.lastIndexOf("<Button", skipIdx);
+        const skipButtonEnd = strip.indexOf("</Button>", skipIdx);
+        const skipButton = strip.slice(skipButtonStart, skipButtonEnd);
         assert.match(skipButton, /size="link"/);
         assert.doesNotMatch(skipButton, /min-h-/);
         assert.match(skipButton, /variant="link"/);

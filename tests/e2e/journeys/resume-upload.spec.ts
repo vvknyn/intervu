@@ -59,28 +59,20 @@ startxref
 280
 %%EOF`;
 
-/** Model consent already given, and a Chrome built-in model that loads at once and then never answers. */
+/** Sealed AI on (a stand-in for Tinfoil, src/lib/sealed-ai/client.ts) that never answers. */
 const hangingModel = (page: Page) =>
   page.addInitScript(() => {
-    localStorage.setItem("velai.localAi.consent", "1");
-    (window as unknown as Record<string, unknown>).LanguageModel = {
-      create: async () => ({ prompt: () => new Promise<string>(() => {}) }),
-    };
+    (window as unknown as Record<string, unknown>).__velaiSealedAi = () => new Promise<string>(() => {});
   });
 
-/** Model consent already given, and a Chrome built-in model that loads at once; counts what it is asked to read. */
+/** Sealed AI on (a stand-in for Tinfoil); counts what it is asked to read. */
 const countingModel = (page: Page) =>
   page.addInitScript(() => {
-    localStorage.setItem("velai.localAi.consent", "1");
     const w = window as unknown as Record<string, unknown>;
     w.__modelPrompts = 0;
-    w.LanguageModel = {
-      create: async () => ({
-        prompt: () => {
-          w.__modelPrompts = (w.__modelPrompts as number) + 1;
-          return new Promise<string>(() => {});
-        },
-      }),
+    w.__velaiSealedAi = () => {
+      w.__modelPrompts = (w.__modelPrompts as number) + 1;
+      return new Promise<string>(() => {});
     };
   });
 
@@ -144,8 +136,8 @@ for (const [label, file] of [
     const downloads = watchModelDownloads(page);
     const dialog = await openImporter(page);
 
-    // The model is offered with its size, never started by the primary.
-    await expect(dialog.getByTestId("resume-import-use-model")).toBeVisible();
+    // No model to download or opt into: the primary is the quick read.
+    await expect(dialog.getByTestId("resume-import-use-model")).toHaveCount(0);
     const primary = dialog.getByTestId("resume-import-parse-primary");
     await expect(primary).toHaveText(/Read my résumé/);
 
@@ -253,9 +245,10 @@ test("A two-column résumé PDF (contact, skills and school down a sidebar) read
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("An on-device model that never finishes reading leaves the quick match within 30 s, and the résumé can be used meanwhile", { tag: ["@J-RESUME-44"] }, async ({ page, diagnostics }) => {
+test("Sealed AI that never finishes reading leaves the quick match within 30 s, and the résumé can be used meanwhile", { tag: ["@J-RESUME-44"] }, async ({ page, diagnostics }) => {
   test.setTimeout(90_000);
-  // What "Reading your résumé with the on-device model" spinning for good was.
+  // What "Reading your résumé with the on-device model" spinning for good was (2026-10-08); the
+  // same bound holds for sealed AI (2026-10-11).
   // A résumé the quick read only partly gets: the model is only asked to read those (J-RESUME-51).
   await hangingModel(page);
   const dialog = await openImporter(page);
@@ -264,12 +257,12 @@ test("An on-device model that never finishes reading leaves the quick match with
   await dialog.getByTestId("resume-import-parse-primary").click();
 
   const strip = dialog.getByTestId("resume-model-strip");
-  await expect(strip).toHaveAttribute("data-stage", "reading", { timeout: 15_000 });
+  await expect(strip).toHaveAttribute("data-phase", "loading", { timeout: 15_000 });
   const confirm = dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last();
   await expect(confirm).toBeEnabled();
 
   await expect(strip).toHaveAttribute("data-phase", "slow", { timeout: 40_000 });
-  await expect(strip).toContainText("The on-device model was taking too long, so we kept the quick match.");
+  await expect(strip).toContainText("Sealed AI was taking too long, so we kept the quick match.");
   await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Priya Raman");
   await expect(confirm).toBeEnabled();
   expect(diagnostics.pageErrors).toEqual([]);
@@ -310,7 +303,7 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
   await dialog.getByTestId("resume-import-parse-primary").click();
 
   const strip = dialog.getByTestId("resume-model-strip");
-  await expect(strip).toHaveAttribute("data-stage", "reading", { timeout: 15_000 });
+  await expect(strip).toHaveAttribute("data-phase", "loading", { timeout: 15_000 });
   await expect(dialog.getByTestId("resume-import-missing")).toContainText("We couldn't find your skills.");
   await expect(dialog.getByText(/needs to be above|Manual edit required/)).toHaveCount(0);
   const rank = dialog.getByRole("button", { name: "Rank my jobs" });
@@ -324,7 +317,7 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
-test("A résumé the quick read gets fully never waits on the on-device model, and the review shows the level ranking uses and the roles it counts", { tag: ["@J-RESUME-51"] }, async ({ page, diagnostics }) => {
+test("A résumé the quick read gets fully is never sent to sealed AI, and the review shows the level ranking uses and the roles it counts", { tag: ["@J-RESUME-51"] }, async ({ page, diagnostics }) => {
   // Vivek 2026-10-10: a 99% read still spun on "Reading your résumé with the on-device model" ("as though
   // it is still doing work"), and "Years of Experience 13" said nothing of the 5 years in his role that
   // ranking reads his level from.
@@ -336,8 +329,10 @@ test("A résumé the quick read gets fully never waits on the on-device model, a
 
   const strip = dialog.getByTestId("resume-model-strip");
   await expect(strip).toHaveAttribute("data-phase", "not-needed", { timeout: 15_000 });
-  await expect(strip).toHaveText("The quick read found everything ranking uses, so the on-device model wasn't needed.");
+  await expect(strip).toHaveText("The quick read found everything ranking uses, so no AI read was needed.");
   await expect(dialog.getByTestId("resume-model-skip")).toHaveCount(0);
+  // No tokens on a résumé the quick read got.
+  expect(await page.evaluate(() => (window as unknown as { __modelPrompts: number }).__modelPrompts)).toBe(0);
 
   const level = dialog.getByTestId("resume-review-level");
   await expect(level).toContainText("Level used for ranking: Mid level");

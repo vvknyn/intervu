@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo, useRef } from "react";
-import { Copy, DownloadSimple, Check, Cpu, ShieldCheck } from "@phosphor-icons/react";
+import { Copy, DownloadSimple, Check, ShieldCheck } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import {
@@ -11,9 +11,6 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
-import { initLocalAiLadder } from "@/lib/local-ai/ladder";
-import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { WaitState } from "@/components/ui/wait-state";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
 import { applyTailorChanges, roleTermsForJob, startsOn } from "@/lib/local-ai/tailor-resume";
@@ -29,7 +26,8 @@ import type { ResumeData } from "@/types/resume";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { CUSTOMIZE_READY_HEADER, SIGN_IN_TO_SYNC_LABEL } from "@/lib/jobs/resume-cta-copy";
-import { LOCAL_CUSTOMIZE_PRIVACY_BADGE } from "@/lib/jobs/resume-privacy-copy";
+import { CUSTOMIZE_RULES_BADGE, CUSTOMIZE_SEALED_BADGE } from "@/lib/jobs/resume-privacy-copy";
+import { sealedAiStatus } from "@/lib/sealed-ai/client";
 
 export interface LocalCustomizePanelProps {
     job: PublicJob;
@@ -53,12 +51,12 @@ export function LocalCustomizePanel({
     const [dialogOpen, setDialogOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const [copied, setCopied] = useState(false);
-    const [consentNeeded, setConsentNeeded] = useState(false);
-    const [generatingWithModel, setGeneratingWithModel] = useState(false);
+    // Whether this server sends the matched lines to sealed AI: the badge says where they go.
+    const [sealed, setSealed] = useState(false);
     // Changes that are off: the ones the person undid and the suggestions they haven't
     // turned on (`startsOn`). Copy and Download use the rest.
     const [undone, setUndone] = useState<ReadonlySet<string>>(new Set());
-    // The on-device model rewrites one line at a time: how far it has got.
+    // How many parts the model is rewriting (lines and the summary, in one request).
     const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
     const kept = useMemo(
         () => (draft ? applyTailorChanges(draft.base, draft.changes.filter((c) => !undone.has(c.id))) : null),
@@ -109,57 +107,34 @@ export function LocalCustomizePanel({
         setUndone(new Set());
         setProgress(null);
         setLoading(false);
-        setConsentNeeded(false);
-        setGeneratingWithModel(false);
         setCopied(false);
     }, []);
 
-    const runGenerate = useCallback(
-        async (allowModel: boolean) => {
-            if (!resume) return;
-            setLoading(true);
-            setConsentNeeded(false);
-            setGeneratingWithModel(allowModel);
-            setDraft(null);
-            setUndone(new Set());
+    const runGenerate = useCallback(async () => {
+        if (!resume) return;
+        setLoading(true);
+        setDraft(null);
+        setUndone(new Set());
+        setProgress(null);
+        try {
+            const result = await tailorResumeForJob(resume, jobToTailorInput(job), {
+                onProgress: (done, total) => setProgress({ done, total }),
+            });
+            setDraft(result);
+            setUndone(new Set(result.changes.filter((c) => !startsOn(c)).map((c) => c.id)));
+        } finally {
+            setLoading(false);
             setProgress(null);
-            try {
-                const result = await tailorResumeForJob(resume, jobToTailorInput(job), {
-                    allowModel,
-                    onProgress: (done, total) => setProgress({ done, total }),
-                });
-                setDraft(result);
-                setUndone(new Set(result.changes.filter((c) => !startsOn(c)).map((c) => c.id)));
-            } finally {
-                setLoading(false);
-                setProgress(null);
-            }
-        },
-        [job, resume],
-    );
+        }
+    }, [job, resume]);
 
+    // Sealed AI when it's set up, the rules draft otherwise: no step to choose between them.
     const handleOpen = useCallback(() => {
         setDialogOpen(true);
         resetDialogState();
-        if (readLocalAiConsent()) {
-            void runGenerate(true);
-        } else {
-            setConsentNeeded(true);
-        }
+        void sealedAiStatus().then((status) => setSealed(status.enabled));
+        void runGenerate();
     }, [resetDialogState, runGenerate]);
-
-    const handleEnableAi = useCallback(async () => {
-        grantLocalAiConsent();
-        // Leave the consent card at once: the wait below shows the model's real download progress.
-        setConsentNeeded(false);
-        setLoading(true);
-        await initLocalAiLadder();
-        void runGenerate(true);
-    }, [runGenerate]);
-
-    const handleRulesDraft = useCallback(() => {
-        void runGenerate(false);
-    }, [runGenerate]);
 
     const handleDialogOpenChange = useCallback(
         (open: boolean) => {
@@ -175,15 +150,7 @@ export function LocalCustomizePanel({
 
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
 
-    const engineLabel = draft
-        ? draft.engineLabel
-        : loading
-          ? generatingWithModel
-              ? "On-device"
-              : "Rules draft"
-          : consentNeeded
-            ? null
-            : null;
+    const engineLabel = draft?.engineLabel ?? null;
 
     return (
         <>
@@ -221,7 +188,7 @@ export function LocalCustomizePanel({
                             <DialogHeader className="space-y-1 text-left">
                                 <div className="flex items-center gap-1.5 text-xs text-brand font-semibold">
                                     <ShieldCheck size={16} />
-                                    <span>{LOCAL_CUSTOMIZE_PRIVACY_BADGE}</span>
+                                    <span data-testid="customize-privacy-badge">{sealed ? CUSTOMIZE_SEALED_BADGE : CUSTOMIZE_RULES_BADGE}</span>
                                 </div>
                                 <DialogTitle className="break-words text-base font-semibold leading-snug text-foreground">
                                     {CUSTOMIZE_READY_HEADER}
@@ -249,48 +216,14 @@ export function LocalCustomizePanel({
                             data-testid="local-customize-panel"
                             className="px-5 py-4"
                         >
-                            {consentNeeded && !loading && !draft && (
-                                <div className="space-y-4">
-                                    <p className="text-sm text-foreground">
-                                        On-device AI can rewrite your summary and bullets for this posting. Nothing
-                                        leaves this device until you copy or download.
-                                    </p>
-                                    <p className="text-sm text-muted-foreground">
-                                        Enabling downloads an on-device model.<ModelDownloadSize /> You can also use a
-                                        rules-based draft without enabling.
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            onClick={() => void handleEnableAi()}
-                                        >
-                                            <Cpu size={16} className="mr-1.5" />
-                                            Enable on-device AI
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={handleRulesDraft}
-                                        >
-                                            Use a rules draft
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
-
-                            {loading && !draft && !consentNeeded && (
-                                <div className="space-y-3">
-                                    <ModelLoadProgress />
-                                    <WaitState
-                                        label={
-                                            progress && progress.total > 0
-                                                ? `Rewriting ${Math.min(progress.done + 1, progress.total)} of ${progress.total} on this device`
-                                                : "Tailoring on-device"
-                                        }
-                                    />
-                                </div>
+                            {loading && !draft && (
+                                <WaitState
+                                    label={
+                                        progress && progress.total > 0
+                                            ? `Rewriting ${progress.total - progress.done} part${progress.total - progress.done === 1 ? "" : "s"} for this posting`
+                                            : "Tailoring for this posting"
+                                    }
+                                />
                             )}
 
                             {draft && (

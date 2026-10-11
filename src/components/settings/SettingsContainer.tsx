@@ -22,8 +22,6 @@ import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesS
 import { LandingNotice } from "@/components/layout/LandingNotice";
 import { FollowedCompaniesSection } from "@/components/settings/FollowedCompaniesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
-import { LocalAiSettingsSection } from "@/components/settings/LocalAiSettingsSection";
-import { SETTINGS_LOCAL_AI_INTRO } from "@/lib/jobs/resume-privacy-copy";
 import { cn } from "@/lib/utils";
 
 type AccountTab = "resume" | "prefs" | "account";
@@ -186,13 +184,6 @@ export function SettingsContainer() {
 
                 {tab === "prefs" && (
                     <>
-                        <SettingsCard>
-                            <h2 className="mb-1 text-base font-semibold leading-snug">On-device AI &amp; privacy</h2>
-                            <p className="mb-4 text-sm text-muted-foreground">
-                                {SETTINGS_LOCAL_AI_INTRO}
-                            </p>
-                            <LocalAiSettingsSection />
-                        </SettingsCard>
                         <SettingsCard>
                             <AgentPreferencesSection user={user} onLoginClick={() => setAuthPopoverOpen(true)} embedded />
                         </SettingsCard>

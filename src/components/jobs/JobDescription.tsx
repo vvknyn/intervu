@@ -1,10 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
-import { labelDescriptionOnDevice, layOutWithModelLetters } from "@/lib/local-ai/label-description";
-import { localAiTaskReady, type LocalAiTaskPriority } from "@/lib/local-ai/run-task";
 
 /** Render structured description blocks (heading / para / list). Descriptions
  *  arrive flattened from the Subspace feed; `formatDescription` reconstructs
@@ -74,81 +72,23 @@ export function JobDescription({ blocks, headingLevel }: { blocks: DescBlock[]; 
     );
 }
 
-export type DescriptionLayoutSource = "rules" | "device";
-
 /**
- * The rules' layout at once (and on the server), then — where local AI is on
- * — the on-device model's line labels once they arrive (cached per device, so
- * a posting it has seen lays out right on the first paint after mount).
- * `background` queues the model call behind whatever the person is looking
- * at; switching to `visible` moves it up.
- */
-export function useFormattedDescription(
-    description: string | null | undefined,
-    priority: LocalAiTaskPriority = "visible",
-): {
-    blocks: DescBlock[];
-    source: DescriptionLayoutSource;
-} {
-    const rules = useMemo(() => formatDescription(description), [description]);
-    const [device, setDevice] = useState<{ description: string; blocks: DescBlock[] } | null>(null);
-
-    useEffect(() => {
-        if (!description?.trim() || !localAiTaskReady()) return;
-        const controller = new AbortController();
-        void labelDescriptionOnDevice({ description, priority, signal: controller.signal }).then((letters) => {
-            if (controller.signal.aborted || !letters) return;
-            const laidOut = layOutWithModelLetters(description, letters);
-            if (laidOut.changed) setDevice({ description, blocks: laidOut.blocks });
-        });
-        return () => controller.abort();
-    }, [description, priority]);
-
-    const current = device?.description === description ? device : null;
-    return { blocks: current?.blocks ?? rules, source: current ? "device" : "rules" };
-}
-
-/**
- * A job's description as every job surface shows it: the formatted layout,
- * and — when the on-device model moved lines around — a line saying so with
- * a switch to the text exactly as it was captured, so nobody has to trust a
- * layout they can't check.
+ * A job's description as every job surface shows it: the rules' layout
+ * (lib/jobs/format-description.ts), the same on the server and in the browser.
+ * No model lays it out (Vivek 2026-10-11 removed the on-device models), so the
+ * words are always the posting's own, in its own order.
  */
 export function FormattedJobDescription({
     description,
     headingLevel,
-    priority,
 }: {
     description: string | null | undefined;
     headingLevel: 3 | 4;
-    priority?: LocalAiTaskPriority;
 }) {
-    const { blocks, source } = useFormattedDescription(description, priority);
-    const [originalFor, setOriginalFor] = useState<string | null>(null);
-    const showOriginal = source === "device" && originalFor === description;
-
+    const blocks = useMemo(() => formatDescription(description), [description]);
     return (
-        <div data-testid="job-description-body" data-layout={source}>
-            {showOriginal ? (
-                <p className="whitespace-pre-line text-base leading-relaxed text-inherit" data-testid="job-description-original">
-                    {description}
-                </p>
-            ) : (
-                <JobDescription blocks={blocks} headingLevel={headingLevel} />
-            )}
-            {source === "device" && (
-                <p className="mt-5 text-sm text-muted-foreground">
-                    Laid out on your device.{" "}
-                    <button
-                        type="button"
-                        className="cursor-pointer underline underline-offset-2 hover:text-inherit"
-                        aria-pressed={showOriginal}
-                        onClick={() => setOriginalFor(showOriginal ? null : (description ?? null))}
-                    >
-                        {showOriginal ? "Show formatted" : "Show original text"}
-                    </button>
-                </p>
-            )}
+        <div data-testid="job-description-body" data-layout="rules">
+            <JobDescription blocks={blocks} headingLevel={headingLevel} />
         </div>
     );
 }

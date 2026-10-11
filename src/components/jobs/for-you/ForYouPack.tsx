@@ -149,12 +149,12 @@ export function ForYouPack({
 
     // Pane loading/empty still keyed off the legacy pack split so hydration
     // semantics stay unchanged; the visible body uses the shared JD template
-    // (deterministic immediately, on-device AI upgrade when enabled).
+    // (the posting's own blocks by heading).
     const sections = useMemo(
         () => splitPackSections(displayJob.description),
         [displayJob.description],
     );
-    const { template, enhancing } = useAiJobDescription(displayJob.id, displayJob.description);
+    const { template } = useAiJobDescription(displayJob.description);
 
     const company = displayCompanyBrand(displayJob.company, displayJob.company_domain, displayJob.title);
     const rawPlace = locationText(displayJob);
@@ -235,11 +235,7 @@ export function ForYouPack({
     );
 
     const templatePane = (
-        <div
-            className="space-y-6"
-            data-testid="for-you-jd-template"
-            data-jd-enhancing={enhancing ? "1" : "0"}
-        >
+        <div className="space-y-6" data-testid="for-you-jd-template">
             {JD_TEMPLATE_ORDER.map((key) => {
                 const blocks = template[key];
                 if (!blocks.length) return null;

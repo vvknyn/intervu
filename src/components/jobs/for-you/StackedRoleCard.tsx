@@ -216,13 +216,7 @@ export function StackedRoleCard({
                             <DescriptionLoadingStatus onRetry={onRetryDescription} />
                         ) : fullBlocks.length > 0 && (!stub || !thin) ? (
                             // The whole posting in its own sections, as the job pane shows it.
-                            // The open card's lines go to the on-device model first; the
-                            // cards waiting behind it get laid out in the background.
-                            <FormattedJobDescription
-                                description={job.description}
-                                headingLevel={3}
-                                priority={active ? "visible" : "background"}
-                            />
+                            <FormattedJobDescription description={job.description} headingLevel={3} />
                         ) : (
                             <p className="text-sm text-muted-foreground">
                                 {job.description?.trim()

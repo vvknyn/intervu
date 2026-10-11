@@ -24,7 +24,8 @@ import { lookupJobById, resumeNeededError, type ToolDeps } from "./tools";
  * The draft every no-model path on the site gets (`tailorWithRules`,
  * tailor-with-engine.ts): the rules rewrite, grounded, then ordered. Composed
  * here rather than imported because that module also loads the browser's
- * on-device engines; tests/unit/mcp-site-parity.test.ts holds the two equal.
+ * sealed-AI client; tests/unit/mcp-site-parity.test.ts holds the two equal.
+ * The MCP tool never calls sealed AI: the assistant asking is the model.
  */
 export async function rulesTailor(resume: ResumeData, job: PublicJob): Promise<TailorDraft> {
     const input = jobToTailorInput(job);

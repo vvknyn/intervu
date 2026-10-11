@@ -5,6 +5,9 @@ import { POSTHOG_PROXY_PATH } from "../../../src/lib/posthog-options";
  * Journey-suite fixtures. Every journey test gets, automatically:
  *  - analytics + first-party telemetry blocked (a regression run must not
  *    pollute PostHog or write rows into the prod telemetry table);
+ *  - sealed AI (Tinfoil) read as off: a run never spends the Tinfoil key or
+ *    depends on a model's answer. A journey that checks the sealed-AI path
+ *    puts a stub on `window.__velaiSealedAi` (src/lib/sealed-ai/client.ts);
  *  - console errors, uncaught page errors and same-origin >=500 responses
  *    collected, attached to the report, and exposed as `diagnostics` so a spec
  *    can assert on them.
@@ -20,6 +23,11 @@ export function isAnalyticsRequest(url: URL, origin: string): boolean {
     url.origin === origin &&
     ANALYTICS_PATH_PREFIXES.some((p) => (p.endsWith("/") ? url.pathname.startsWith(p) : url.pathname === p))
   );
+}
+
+/** Pure: is this a request to velai.app's sealed-AI routes? */
+export function isSealedAiRequest(url: URL, origin: string): boolean {
+  return url.origin === origin && url.pathname.startsWith("/api/sealed-ai/");
 }
 
 export interface Diagnostics {
@@ -47,6 +55,13 @@ export const test = base.extend<{ diagnostics: Diagnostics }>({
           d.analyticsAborted.push(route.request().url());
           return route.abort();
         },
+      );
+      await page.context().route(
+        (url) => isSealedAiRequest(url, origin),
+        (route) =>
+          new URL(route.request().url()).pathname === "/api/sealed-ai/status"
+            ? route.fulfill({ json: { enabled: false, model: "" } })
+            : route.abort(),
       );
       page.on("console", (m) => {
         // An aborted analytics request logs "Failed to load resource" — our own doing, not a finding.
