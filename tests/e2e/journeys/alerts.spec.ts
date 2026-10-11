@@ -1,7 +1,9 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { INTERACTIONS_KEY } from "../../../src/lib/jobs/onboarding-prompt";
 import { SAVED_SEARCHES_KEY } from "../../../src/lib/jobs/saved-searches";
 import { expect, test } from "./fixtures";
+import { runSearch } from "./search-box";
 import { actionObject, signInLikeProduction } from "./signed-in";
 
 /**
@@ -100,6 +102,33 @@ test("a guest's Weekly job alerts switch opens the email form under it, and stay
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   expect(diagnostics.pageErrors).toEqual([]);
   await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("with results, the email form never opens by itself after searches, only from the alerts switch", { tag: ["@J-ALERTS-02"] }, async ({ page, diagnostics }) => {
+  // It opened on its own once a guest had searched twice; 34 people saw it in 90 days and none
+  // sent it (PostHog, 2026-10-10). The count is seeded past that threshold, then one more search runs.
+  await page.addInitScript(
+    ([interactionsKey, onboardingKey]) => {
+      localStorage.setItem(interactionsKey, "2");
+      localStorage.setItem(onboardingKey, "1");
+    },
+    [INTERACTIONS_KEY, ONBOARDING_COMPLETED_STORAGE_KEY],
+  );
+  await page.goto(VISIT_SEARCH);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  const input = page.getByPlaceholder("Job title, skill, or company");
+  await input.fill("nurse");
+  await runSearch(page, input);
+  await expect(page).toHaveURL(/[?&]q=nurse/, { timeout: 30_000 });
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(2_000);
+  await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
+
+  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /weekly job alerts/i });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await toggle.click();
+  await expect(page.getByTestId("search-alert-capture")).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 const isLocal = (baseURL: string | undefined) =>
