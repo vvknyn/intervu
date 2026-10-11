@@ -16,7 +16,7 @@ import { initLocalAiLadder } from "@/lib/local-ai/ladder";
 import { ModelDownloadSize, ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
 import { WaitState } from "@/components/ui/wait-state";
 import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
-import { applyTailorChanges, roleTermsForJob } from "@/lib/local-ai/tailor-resume";
+import { applyTailorChanges, roleTermsForJob, startsOn } from "@/lib/local-ai/tailor-resume";
 import type { TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { TailorChangeList } from "@/components/jobs/TailorChangeList";
 import { resumeDataToZipMarkdown } from "@/lib/resume/to-zip-markdown";
@@ -55,8 +55,11 @@ export function LocalCustomizePanel({
     const [copied, setCopied] = useState(false);
     const [consentNeeded, setConsentNeeded] = useState(false);
     const [generatingWithModel, setGeneratingWithModel] = useState(false);
-    // Changes the person undid; Copy and Download use the rest.
+    // Changes that are off: the ones the person undid and the suggestions they haven't
+    // turned on (`startsOn`). Copy and Download use the rest.
     const [undone, setUndone] = useState<ReadonlySet<string>>(new Set());
+    // The on-device model rewrites one line at a time: how far it has got.
+    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
     const kept = useMemo(
         () => (draft ? applyTailorChanges(draft.base, draft.changes.filter((c) => !undone.has(c.id))) : null),
         [draft, undone],
@@ -104,6 +107,7 @@ export function LocalCustomizePanel({
     const resetDialogState = useCallback(() => {
         setDraft(null);
         setUndone(new Set());
+        setProgress(null);
         setLoading(false);
         setConsentNeeded(false);
         setGeneratingWithModel(false);
@@ -118,11 +122,17 @@ export function LocalCustomizePanel({
             setGeneratingWithModel(allowModel);
             setDraft(null);
             setUndone(new Set());
+            setProgress(null);
             try {
-                const result = await tailorResumeForJob(resume, jobToTailorInput(job), { allowModel });
+                const result = await tailorResumeForJob(resume, jobToTailorInput(job), {
+                    allowModel,
+                    onProgress: (done, total) => setProgress({ done, total }),
+                });
                 setDraft(result);
+                setUndone(new Set(result.changes.filter((c) => !startsOn(c)).map((c) => c.id)));
             } finally {
                 setLoading(false);
+                setProgress(null);
             }
         },
         [job, resume],
@@ -273,7 +283,13 @@ export function LocalCustomizePanel({
                             {loading && !draft && !consentNeeded && (
                                 <div className="space-y-3">
                                     <ModelLoadProgress />
-                                    <WaitState label="Tailoring on-device" />
+                                    <WaitState
+                                        label={
+                                            progress && progress.total > 0
+                                                ? `Rewriting ${Math.min(progress.done + 1, progress.total)} of ${progress.total} on this device`
+                                                : "Tailoring on-device"
+                                        }
+                                    />
                                 </div>
                             )}
 
