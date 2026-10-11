@@ -28,10 +28,11 @@ const LOCKED_SHA256: Record<string, string> = {
     "public/icons/velai-icon-1024.png": "c0568f756ea774c10679c8defd4b055a3aacf416b587fc24ddecc9e4f4fcdd94",
     "src/app/favicon.ico": "7c46bb00f6f237495d95c79d99c20f625436581c017199d6b2333e3a793d6a0d",
     "src/app/icon.png": "b839777d8eeeeba9622fda068477476f1ade435d9310c7152347022cdeac5c74",
-    // Header-only derivative of velai-logo.png: paper plate knocked out, brackets + live dot kept.
-    "public/velai-mark-on-dark.png": "80c42f057859dd2fdff8672852156ada001a9edccdd255061cad982101c35222",
-    // The same header raster resized to 96px (BrandMark's HEADER_MARK_SMALL_SRC), served through srcSet.
-    "public/velai-mark-on-dark-96.png": "b62670fe1607b547809fd6bbdbd76f9c17434257bf664d5e882700e41520d923",
+    // Header-only derivative (scripts/generate-header-tile.mjs): the paper tile the Chrome extension
+    // shows, its white canvas and shadow made transparent so it sits on the charcoal header.
+    "public/velai-tile.png": "0f775d700df3a47771df95b136d2a89c506859317be0f684fe85442fe332bf4a",
+    // The same tile at 96px (BrandMark's HEADER_MARK_SMALL_SRC), served through srcSet.
+    "public/velai-tile-96.png": "2c86f3ae9e7f1bea685176813fe65c26ce5457880e25dcdb7ec0b359df08f3be",
 };
 
 function sha256(rel: string): string {
@@ -66,7 +67,7 @@ test("TopBar and OG cards paint the locked raster, not bracket SVG geometry", ()
 
     assert.match(brand, /src = LOCKED_MARK_SRC/);
     assert.match(brand, /src=\{HEADER_MARK_SRC\}/);
-    assert.match(brand, /HEADER_MARK_SRC = "\/velai-mark-on-dark.png"/);
+    assert.match(brand, /HEADER_MARK_SRC = "\/velai-tile.png"/);
     assert.doesNotMatch(brand, /<svg/);
     assert.match(topBar, /<BrandLockup/);
     assert.match(topBar, /topbar-docked-home-view/);
