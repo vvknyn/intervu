@@ -5,56 +5,68 @@ import path from "node:path";
 import { parseResumeLocally } from "../../src/lib/local-ai/parse-resume";
 import { lineAsks, postingAsks, withLeaveOuts } from "../../src/lib/local-ai/tailor-asks";
 import { wordStem } from "../../src/lib/local-ai/tailor-ground";
-import { applyTailorChanges, introducesNewNumbers, resumeFullText, startsOn, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
+import { applyTailorChanges, resumeFullText, startsOn, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
 import {
+    batchMaxTokens,
     cleanModelLine,
     groundDraft,
-    LINE_EXAMPLES,
-    linePrompt,
-    readModelReply,
+    readBatchReply,
     tailorWithModel,
     tailorWithRules,
     type Generate,
+    type GenerateOptions,
 } from "../../src/lib/local-ai/tailor-with-engine";
-import type { GenerateOptions } from "../../src/lib/local-ai/engines/types";
 import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
 import type { ResumeData } from "../../src/types/resume";
 import { LONG_RESUME_POSTINGS, TAILOR_POSTINGS } from "../fixtures/job-descriptions/tailor-postings";
 
 /**
- * The on-device model's part of Customize résumé (tailor-with-engine.ts
+ * Sealed AI's part of Customize résumé (tailor-with-engine.ts
  * `tailorWithModel`): each line that answers one of the posting's asks is
- * rewritten toward that ask, one model call per line, and the summary from
- * the strongest of them. Vivek 2026-10-10, shown a Claude rewrite: "there must
- * be something we could hack together to let the on device models be as
- * effective".
+ * rewritten toward that ask, and the summary from the strongest of them, all
+ * in one request; a second asks again only for what the first got wrong.
+ * Vivek 2026-10-11: "get rid of the local model and use tinfoil", "remember
+ * to optimize the token usage".
  *
- * The models (Chrome's Gemini Nano, Llama 3.2 3B on WebGPU) can't run here,
- * so these tests answer each prompt with a recorded reply in their style:
- * good rewrites, rewrites that borrow the posting's words, and the slips small
- * models make (a number, a tool, another employer, a ramble).
+ * Tinfoil can't be reached from tests, so they answer each request with
+ * recorded rewrites: good ones, ones that borrow the posting's words, and the
+ * slips models make (a number, a tool, another employer, a ramble).
  */
 
 const DIR = path.join(process.cwd(), "tests/fixtures");
 
 async function readResume(file: string): Promise<ResumeData> {
-    const parsed = (await parseResumeLocally(readFileSync(path.join(DIR, file), "utf8"), { skipDownload: true })).data.parsed;
+    const parsed = (await parseResumeLocally(readFileSync(path.join(DIR, file), "utf8"))).data.parsed;
     return { ...parsed, generatedSummary: parsed.generatedSummary ?? "" };
 }
 
-/** Answers a line prompt with `lines[the line]`, the summary prompt with `summary`; records every prompt. */
+type SentItem = { id: string; text: string; asks: string | string[]; shows?: string[]; max: number };
+
+/** The items a batch prompt sends, one JSON row each. */
+function itemsOf(prompt: string): SentItem[] {
+    return prompt
+        .split("\n")
+        .filter((l) => l.startsWith('{"id"'))
+        .map((l) => JSON.parse(l) as SentItem);
+}
+
+/** Answers each line item with `lines[its text]` and the summary item with `summary`, as the JSON
+ *  the prompt asks for; records every prompt. */
 function recorded(lines: Record<string, string>, summary?: string) {
     const prompts: string[] = [];
     const generate: Generate = async (prompt) => {
         prompts.push(prompt);
-        const line = prompt.match(/The résumé line: "(.*)"\n/)?.[1];
-        if (line !== undefined) return lines[line] ?? null;
-        return /The current summary:/.test(prompt) ? (summary ?? null) : null;
+        const reply: Record<string, string> = {};
+        for (const item of itemsOf(prompt)) {
+            const answer = item.id === "s" ? summary : lines[item.text];
+            if (answer !== undefined) reply[item.id] = answer;
+        }
+        return JSON.stringify(reply);
     };
     return { generate, prompts };
 }
 
-const opts = { engineId: "webllm" as const, engineLabel: "On-device · Llama-3.2-3B-Instruct" };
+const opts = { engineId: "sealed" as const, engineLabel: "Sealed AI · Tinfoil" };
 const nurseJob = TAILOR_POSTINGS["nurse-ca"]!;
 const pmJob = LONG_RESUME_POSTINGS["vivek-pm-resume.txt"]!;
 
@@ -108,18 +120,25 @@ describe("tailorWithModel: the nurse, rewritten toward the emergency posting", (
     const SUMMARY =
         "Registered nurse with seven years of acute care on emergency and medical-surgical units, known for calm CTAS triage, clear patient education and mentoring new nurses.";
 
-    it("rewrites each line toward its ask, one call per line, then the summary", async () => {
+    it("rewrites every line toward its ask and the summary in one request, then asks again only for what it got wrong", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
         const { generate, prompts } = recorded(LINES, SUMMARY);
-        const draft = await tailorWithModel(nurse, nurseJob, generate, { ...opts, tries: 1 });
-        assert.equal(prompts.length, 5, "four lines and the summary");
-        assert.match(prompts[0], /The posting asks: "Triage and assess patients using CTAS and develop nursing care plans\."/);
+        const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
+        assert.equal(prompts.length, 2);
+        const first = itemsOf(prompts[0]!);
+        assert.equal(first.length, 5, "four lines and the summary");
+        assert.deepEqual(
+            first.find((i) => i.text.startsWith("Triage up to 40"))?.asks,
+            "Triage and assess patients using CTAS and develop nursing care plans.",
+        );
+        // The rewrite that added a number was dropped: only that line is asked for again.
+        assert.deepEqual(itemsOf(prompts[1]!).map((i) => i.text), ["Triage up to 40 patients a shift using CTAS and start care plans with the physician team."]);
         assert.equal(draft.engineLabel, opts.engineLabel);
 
         const mentor = lineChange(draft, "Precept new graduate nurses through their first twelve weeks on the unit.");
         assert.equal(mentor?.after, LINES["Precept new graduate nurses through their first twelve weeks on the unit."]);
         assert.ok(mentor && startsOn(mentor));
-        assert.match(mentor!.why, /^Rewritten on this device to answer the posting's “Provide patient education and mentor new nurses”\.$/);
+        assert.match(mentor!.why, /^Rewritten to answer the posting's “Provide patient education and mentor new nurses”\.$/);
 
         const provided = lineChange(draft, "Cared for six to eight post-operative patients per shift, including IV therapy and wound care.");
         assert.equal(provided?.after, "Provided IV therapy and wound care for six to eight post-operative patients per shift.");
@@ -183,27 +202,25 @@ describe("tailorWithModel: the nurse, rewritten toward the emergency posting", (
         assert.deepEqual(draft, tailorWithRules(nurse, nurseJob));
     });
 
-    it("says how far it has got, and starts no new line past its time budget", async () => {
+    it("says how many parts are settled, and starts no second request past its time budget", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
         const seen: [number, number][] = [];
         let clock = 0;
         const { generate, prompts } = recorded(LINES, SUMMARY);
-        await tailorWithModel(nurse, nurseJob, async (p, o) => ((clock += 40_000), generate(p, o)), {
-            ...opts,
-            tries: 1,
-            now: () => clock,
-            budgetMs: 60_000,
-            onProgress: (done, total) => seen.push([done, total]),
-        });
-        assert.equal(prompts.length, 2, "the third call would start past the budget");
-        assert.deepEqual(seen, [[0, 5], [1, 5]]);
+        const slow: Generate = async (p, o) => ((clock += 40_000), generate(p, o));
+        await tailorWithModel(nurse, nurseJob, slow, { ...opts, now: () => clock, budgetMs: 60_000, onProgress: (done, total) => seen.push([done, total]) });
+        assert.deepEqual(seen, [[0, 5], [4, 5]]);
+        prompts.length = 0;
+        clock = 0;
+        await tailorWithModel(nurse, nurseJob, slow, { ...opts, now: () => clock, budgetMs: 30_000 });
+        assert.equal(prompts.length, 1, "the second request would start past the budget");
     });
 
     it("never writes a summary for a résumé without one", async () => {
         const nurse = { ...(await readResume("resume-corpus/nurse-ca.paste.txt")), generatedSummary: "" };
         const { generate, prompts } = recorded(LINES, SUMMARY);
         const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
-        assert.ok(!prompts.some((p) => /The current summary:/.test(p)));
+        assert.ok(!prompts.some((p) => itemsOf(p).some((i) => i.id === "s")));
         assert.equal(draft.tailored.generatedSummary, "");
     });
 });
@@ -221,13 +238,29 @@ describe("tailorWithModel: a product manager's résumé (Vivek's) toward a PM po
             [before.discovery]: "Led client discovery, catching data-consistency issues and shipping a custom ETL solution that accelerated product adoption by 80%.",
         });
         const draft = await tailorWithModel(pm, pmJob, generate, opts);
-        assert.ok(prompts.length > 2);
+        assert.ok(itemsOf(prompts[0]!).length > 2);
         assert.equal(lineChange(draft, before.transition)?.after, "Owned the backlog, scope and release coordination for a zero-defect API transition serving 950K+ users across 6 production regions.");
         assert.equal(lineChange(draft, before.discovery)?.after, "Led client discovery, catching data-consistency issues and shipping a custom ETL solution that accelerated product adoption by 80%.");
         assert.match(lineChange(draft, before.discovery)!.why, /“Lead discovery with customers and translate requirements into shippable releases”/);
-        // A rewrite is one line toward one ask: its prompt carries that line and that ask only.
-        assert.equal(prompts.filter((p) => p.includes(before.transition)).length, 1);
-        assert.equal(linePrompt({ line: "x y z w", ask: postingAsks("Own the product roadmap and backlog.")[0]! }).split("\n").length, 9);
+        // Each line goes once, with its ask; nothing else of the résumé goes: no name, no contact details.
+        assert.equal(itemsOf(prompts[0]!).filter((i) => i.text === before.transition).length, 1);
+        for (const p of prompts) {
+            for (const own of [pm.profile.name, pm.profile.email, pm.profile.phone, pm.profile.linkedin].filter((v): v is string => !!v && v.length > 3)) {
+                assert.ok(!p.includes(own), `the request carries ${own}`);
+            }
+        }
+    });
+
+    it("sends each part once, with a reply cap from its word limit", async () => {
+        const pm = await readResume("vivek-pm-resume.txt");
+        const calls: GenerateOptions[] = [];
+        const prompts: string[] = [];
+        await tailorWithModel(pm, pmJob, async (p, o) => (prompts.push(p), calls.push(o), null), { ...opts, rounds: 1 });
+        assert.equal(calls.length, 1);
+        const items = itemsOf(prompts[0]!);
+        assert.equal(calls[0]!.maxTokens, items.reduce((sum, i) => sum + Math.ceil(i.max * 1.6) + 8, 16));
+        assert.ok(calls[0]!.maxTokens < 1_000, `cap ${calls[0]!.maxTokens}`);
+        assert.equal(calls[0]!.temperature, 0.2);
     });
 
     it("offers to leave out a project the posting asks nothing about, off until turned on", async () => {
@@ -296,79 +329,69 @@ describe("tailorWithModel: a warehouse supervisor toward a distribution lead pos
     });
 });
 
-describe("tailorWithModel: the best of up to three tries per line (Chrome's model, Llama)", () => {
+describe("tailorWithModel: a second request for what the first got wrong", () => {
     const triage = "Triage up to 40 patients a shift using CTAS and start care plans with the physician team.";
-    const tries = {
+    const answers = {
         number: "Triage and assess up to 45 patients a shift using CTAS and develop nursing care plans with the physician team.",
         confirm: "Triage and assess up to 40 patients a shift using CTAS and develop nursing care plans with the physician team.",
         on: "Triage and assess up to 40 patients a shift using CTAS and start care plans with the physician team.",
     };
 
-    /** Answers the triage line with `answers` in turn, as JSON the way the schema asks; nothing else. */
-    function inTurn(answers: string[]) {
-        const calls: GenerateOptions[] = [];
+    /** Answers the triage line with `turns` in turn; nothing for the other parts. */
+    function inTurn(turns: string[]) {
+        const calls: { options: GenerateOptions; texts: string[] }[] = [];
         let i = 0;
         const generate: Generate = async (prompt, options) => {
-            if (!prompt.includes(`The résumé line: "${triage}"`)) return null;
-            calls.push(options ?? {});
-            const answer = answers[i++];
-            return answer === undefined ? null : JSON.stringify({ line: answer });
+            const items = itemsOf(prompt);
+            calls.push({ options, texts: items.map((x) => x.text) });
+            const item = items.find((x) => x.text === triage);
+            const answer = turns[i++];
+            return item && answer !== undefined ? JSON.stringify({ [item.id]: answer }) : "{}";
         };
         return { generate, calls };
     }
 
-    it("keeps the try in the résumé's own words over one that needs an OK and one that adds a number", async () => {
+    it("asks again, warmer, only for parts with nothing usable, and keeps what the second gets right", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
-        const { generate, calls } = inTurn([tries.number, tries.confirm, tries.on]);
+        const { generate, calls } = inTurn([answers.number, answers.on]);
         const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
-        assert.equal(calls.length, 3);
+        assert.equal(calls.length, 2);
+        assert.equal(calls[0]!.options.temperature, 0.2);
+        assert.equal(calls[1]!.options.temperature, 0.6);
+        // Nothing else was answered, so every part is asked for again.
+        assert.deepEqual(calls[1]!.texts, calls[0]!.texts);
         const change = lineChange(draft, triage);
-        assert.equal(change?.after, tries.on);
+        assert.equal(change?.after, answers.on);
         assert.ok(change && startsOn(change));
-        // Each try holds the model to one JSON field and shows it the two worked examples.
-        assert.deepEqual(calls[0]!.schema, { type: "object", properties: { line: { type: "string" } }, required: ["line"], additionalProperties: false });
-        assert.equal(calls[0]!.examples, LINE_EXAMPLES);
     });
 
-    it("keeps one that needs an OK when no try is in the résumé's own words", async () => {
+    it("doesn't ask again for a rewrite it can offer for an OK", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
-        const draft = await tailorWithModel(nurse, nurseJob, inTurn([tries.number, tries.confirm, tries.number + " "]).generate, opts);
+        const { generate, calls } = inTurn([answers.confirm, answers.on]);
+        const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
+        assert.equal(calls.length, 2);
+        assert.ok(calls[0]!.texts.includes(triage));
+        assert.ok(!calls[1]!.texts.includes(triage));
         assert.deepEqual(lineChange(draft, triage)?.confirm, ["develop"]);
     });
 
-    it("stops at the first try in the résumé's own words, and when the model repeats itself", async () => {
+    it("makes one request when told to", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
-        const first = inTurn([tries.on, tries.confirm]);
-        await tailorWithModel(nurse, nurseJob, first.generate, opts);
-        assert.equal(first.calls.length, 1);
-        const repeats = inTurn([tries.number, tries.number, tries.on]);
-        const draft = await tailorWithModel(nurse, nurseJob, repeats.generate, opts);
-        assert.equal(repeats.calls.length, 2, "the same answer twice: the model has settled");
-        assert.ok(!lineChange(draft, triage), "the line keeps its own wording");
-    });
-
-    it("gives the small WASM model one try", async () => {
-        const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
-        const { generate, calls } = inTurn([tries.number, tries.on]);
-        await tailorWithModel(nurse, nurseJob, generate, { ...opts, engineId: "transformers" });
+        const { generate, calls } = inTurn([answers.number, answers.on]);
+        const draft = await tailorWithModel(nurse, nurseJob, generate, { ...opts, rounds: 1 });
         assert.equal(calls.length, 1);
+        assert.notEqual(lineChange(draft, triage)?.after, answers.number);
     });
 
-    it("reads the reply's field, or the reply as written from a model the schema can't hold", () => {
-        assert.equal(readModelReply('{"line": "Led the team."}', "line"), "Led the team.");
-        assert.equal(readModelReply('Sure! {"line": "Led the team."}', "line"), "Led the team.");
-        assert.equal(readModelReply("Led the team.", "line"), "Led the team.");
-        assert.equal(readModelReply('{"summary": "Nurse."}', "line"), '{"summary": "Nurse."}');
+    it("reads the reply's rewrites by id, and nothing from a reply that isn't that JSON", () => {
+        assert.deepEqual([...readBatchReply('{"1": "Led the team.", "s": "Nurse."}')], [["1", "Led the team."], ["s", "Nurse."]]);
+        assert.deepEqual([...readBatchReply('Sure! {"2": "Led the team."} Hope that helps.')], [["2", "Led the team."]]);
+        assert.deepEqual([...readBatchReply('{"1": 3, "2": "Kept."}')], [["2", "Kept."]]);
+        assert.equal(readBatchReply("Led the team.").size, 0);
+        assert.equal(readBatchReply('{"1": "unterminated').size, 0);
     });
 
-    it("shows the model a rewrite in the line's own words and a line left as it is, in the reply shape it asks for", () => {
-        assert.equal(LINE_EXAMPLES.length, 2);
-        for (const example of LINE_EXAMPLES) {
-            const before = example.prompt.match(/The résumé line: "(.*)"\n/)?.[1];
-            const after = readModelReply(example.reply, "line");
-            assert.ok(before && after);
-            assert.ok(!introducesNewNumbers(before, after), after);
-        }
-        assert.equal(readModelReply(LINE_EXAMPLES[1]!.reply, "line"), LINE_EXAMPLES[1]!.prompt.match(/The résumé line: "(.*)"\n/)?.[1]);
+    it("caps the reply at each part's word limit", () => {
+        assert.equal(batchMaxTokens([{ id: "1", text: "x", asks: ["a"], max: 14 }, { id: "s", text: "y", asks: ["a", "b"], shows: ["x"], max: 50 }]), 16 + (23 + 8) + (80 + 8));
     });
 });

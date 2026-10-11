@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { LOCAL_AI_CONSENT_KEY } from "../../../src/lib/local-ai/consent";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -8,17 +7,18 @@ import { answerListSearch, isListSearch } from "./list-search";
 /**
  * Journeys for tailoring a résumé to one role — see tests/journeys/CATALOG.md (J-RESUME-50, J-RESUME-52).
  * Read-only: the résumé lives in localStorage, the search and the posting are answered in the browser,
- * and the draft is tailored on this device.
+ * and sealed AI is off (fixtures.ts) unless a journey stands in for it.
  *
  * Vivek 2026-10-10: "only the skill section is tweaked for a job ... there could be other updates like
  * wordings for their job experiences". The rules draft now rewords the summary and lines in the
  * posting's words, puts the lines and skills the posting asks for first, and lists each change with
  * Undo; Copy and Download use the changes left on.
  *
- * Vivek 2026-10-10, shown a Claude rewrite: "there must be something we could hack together to let the
- * on device models be as effective". With on-device AI on, the model rewrites one line at a time toward
- * the posting sentence it answers; a rewrite that borrows the posting's words waits for the person's
- * OK, and a project the posting asks nothing about is offered to leave out.
+ * Vivek 2026-10-11: "get rid of the local model and use tinfoil", "remember to optimize the token
+ * usage". Where the server has sealed AI (Tinfoil), every matched line and the summary go in one
+ * request, each toward the posting sentence it answers, with no name or contact details; a rewrite
+ * that borrows the posting's words waits for the person's OK, one the gate drops is asked for once
+ * more, and a project the posting asks nothing about is offered to leave out.
  */
 
 /** Fabricated nurse (no real person). */
@@ -104,7 +104,8 @@ async function openCustomizeFor(page: Page, resume: object, posting: Posting, qu
 
 async function openCustomize(page: Page) {
   const dialog = await openCustomizeFor(page, NURSE_RESUME, ICU_POSTING, "nurse");
-  await dialog.getByRole("button", { name: "Use a rules draft" }).click();
+  // No sealed AI on this server: the rules draft, with no step to choose it.
+  await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText("Tailored in your browser by rules.");
   return dialog;
 }
 
@@ -190,7 +191,7 @@ const DC_POSTING: Posting = {
     "Lead a team of warehouse associates across shifts to meet daily shipping targets. Improve picking accuracy and inventory control in the warehouse management system. Train and coach associates on safety procedures.",
 };
 
-/** What the stand-in for Chrome's built-in model answers, per résumé line, in a small model's style. */
+/** What the stand-in for sealed AI answers, per résumé line. */
 const MODEL_ANSWERS: Record<string, string> = {
   // The résumé's own words, safety first: on.
   "Trained new hires on forklift safety and the WMS scanners": "Trained new hires on safety for the forklift and the WMS scanners",
@@ -202,67 +203,63 @@ const MODEL_ANSWERS: Record<string, string> = {
 const MODEL_SUMMARY =
   "Warehouse supervisor with 8 years in distribution centres who led a crew of 12 pickers across two shifts and trained new hires on forklift safety.";
 
-test("on-device AI rewrites each line toward what the posting asks, waits for an OK on the posting's own words, and offers to leave out an unrelated project", { tag: ["@J-RESUME-52"] }, async ({ page, diagnostics }) => {
+test("sealed AI rewrites the matched lines in one request toward what the posting asks, waits for an OK on the posting's own words, and offers to leave out an unrelated project", { tag: ["@J-RESUME-52"] }, async ({ page, diagnostics }) => {
   await page.addInitScript(
-    ([consentKey, answers, summary]) => {
-      localStorage.setItem(consentKey as string, "1");
-      // A stand-in for Chrome's Prompt API: answers each line prompt from `answers` once the test lets it,
-      // as JSON when the page asks for a reply shape (responseConstraint).
-      const w = window as unknown as { __prompts: string[]; __primed: number; __go: () => void; LanguageModel: unknown };
+    ([answers, summary]) => {
+      // A stand-in for Tinfoil (src/lib/sealed-ai/client.ts): answers each item of a request from
+      // `answers` once the test lets it, as the JSON keyed by item id the prompt asks for.
+      type Item = { id: string; text: string };
+      const w = window as unknown as { __requests: { prompt: string; maxTokens: number }[]; __go: () => void; __velaiSealedAi: unknown };
       let go!: () => void;
       const started = new Promise<void>((resolve) => (go = resolve));
-      w.__prompts = [];
-      w.__primed = 0;
+      w.__requests = [];
       w.__go = () => go();
-      const session = {
-        async prompt(prompt: string, options?: { responseConstraint?: unknown }) {
-          w.__prompts.push(prompt);
-          await started;
-          const line = /The résumé line: "(.*)"\n/.exec(prompt)?.[1];
-          const shaped = (key: string, text: string) => (options?.responseConstraint ? JSON.stringify({ [key]: text }) : text);
-          if (line !== undefined) return shaped("line", (answers as Record<string, string>)[line] ?? line);
-          return /The current summary:/.test(prompt) ? shaped("summary", summary as string) : "";
-        },
-        async clone() {
-          return session;
-        },
-        destroy() {},
-      };
-      w.LanguageModel = {
-        availability: async () => "available",
-        create: async (options?: { initialPrompts?: unknown[] }) => ((w.__primed += options?.initialPrompts?.length ? 1 : 0), session),
+      w.__velaiSealedAi = async (messages: { content: string }[], options: { maxTokens: number }) => {
+        const prompt = messages.map((m) => m.content).join("\n");
+        w.__requests.push({ prompt, maxTokens: options.maxTokens });
+        await started;
+        const items = prompt.split("\n").filter((l) => l.startsWith('{"id"')).map((l) => JSON.parse(l) as Item);
+        const reply: Record<string, string> = {};
+        for (const item of items) reply[item.id] = item.id === "s" ? (summary as string) : ((answers as Record<string, string>)[item.text] ?? item.text);
+        return JSON.stringify(reply);
       };
     },
-    [LOCAL_AI_CONSENT_KEY, MODEL_ANSWERS, MODEL_SUMMARY] as const,
+    [MODEL_ANSWERS, MODEL_SUMMARY] as const,
   );
   const dialog = await openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
-  // One line at a time, and it says how far it has got.
-  await expect(dialog.getByText("Rewriting 1 of 4 on this device")).toBeVisible({ timeout: 30_000 });
+  // Three lines and the summary, in one request; it says where they go.
+  await expect(dialog.getByText("Rewriting 4 parts for this posting")).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server: only the matched lines are sent");
   await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
 
   const changes = dialog.getByTestId("tailor-change");
   await expect(changes).toHaveCount(5, { timeout: 30_000 });
-  await expect(dialog.getByText("On-device · Nano")).toBeVisible();
+  await expect(dialog.getByText("Sealed AI · Tinfoil")).toBeVisible();
   await expect(dialog.getByTestId("tailor-changes-count")).toContainText("3 of 5 changes on.");
-  const prompts = await page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts);
-  // Every matched line is asked about, with the worked examples primed once; a line whose rewrite
-  // needs an OK or was dropped is asked again, and stops when the model repeats itself.
-  const lines = prompts.map((p) => /The résumé line: "(.*)"\n/.exec(p)?.[1]).filter(Boolean);
-  expect(new Set(lines).size).toBe(3);
-  expect(lines.filter((l) => l === "Trained new hires on forklift safety and the WMS scanners")).toHaveLength(1);
-  expect(lines.filter((l) => l === "Led a crew of 12 pickers across two shifts to hit shipping deadlines")).toHaveLength(2);
-  expect(await page.evaluate(() => (window as unknown as { __primed: number }).__primed)).toBe(1);
-  expect(prompts.find((p) => p.includes("Trained new hires"))).toContain('The posting asks: "Train and coach associates on safety procedures."');
+  const requests = await page.evaluate(() => (window as unknown as { __requests: { prompt: string; maxTokens: number }[] }).__requests);
+  const texts = (prompt: string) => prompt.split("\n").filter((l) => l.startsWith('{"id"')).map((l) => (JSON.parse(l) as { text: string }).text);
+  // One request for every part; a second only for the line whose rewrite the gate dropped.
+  expect(requests).toHaveLength(2);
+  expect(texts(requests[0]!.prompt)).toHaveLength(4);
+  expect(texts(requests[1]!.prompt)).toEqual(["Improved picking accuracy by rebuilding the slotting plan"]);
+  expect(requests[0]!.prompt).toContain('"asks":"Train and coach associates on safety procedures."');
+  // Lean: a reply capped to the words each part may have, and nothing of the person sent.
+  expect(requests[0]!.maxTokens).toBeLessThan(400);
+  for (const r of requests) {
+    expect(r.prompt).not.toContain(WAREHOUSE_RESUME.profile.name);
+    expect(r.prompt).not.toContain(WAREHOUSE_RESUME.profile.email);
+    expect(r.prompt).not.toContain(DC_POSTING.description);
+  }
 
   const summary = dialog.locator('[data-change-kind="summary"]');
   await expect(summary).toContainText(MODEL_SUMMARY);
   await expect(summary).toContainText(`Was: ${WAREHOUSE_RESUME.generatedSummary}`);
-  await expect(summary).toContainText("Rewritten on this device from your lines that answer 3 of the posting's asks.");
+  await expect(summary).toContainText("Rewritten from your lines that answer 3 of the posting's asks.");
 
   const trained = dialog.locator('[data-change-kind="line"]').filter({ hasText: "Was: Trained new hires on forklift safety" });
   await expect(trained).toHaveAttribute("data-undone", "false");
   await expect(trained).toContainText("Trained new hires on safety for the forklift and the WMS scanners");
-  await expect(trained).toContainText("Rewritten on this device to answer the posting's “Train and coach associates on safety procedures”.");
+  await expect(trained).toContainText("Rewritten to answer the posting's “Train and coach associates on safety procedures”.");
 
   // The posting's words wait for the person: shown with what they'd add, off until "Use".
   const led = dialog.locator('[data-change-kind="line"]').filter({ hasText: "Was: Led a crew of 12 pickers" });

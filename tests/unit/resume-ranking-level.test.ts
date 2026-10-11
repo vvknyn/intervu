@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { rankingLevel } from '../../src/lib/resume/ranking-level';
 import { modelReadNeeded } from '../../src/lib/local-ai/parse-confidence';
-import { stopAtDeadline } from '../../src/lib/local-ai/engines/transformers-wasm';
 import { structureResumeText } from '../../src/lib/resume/structure-resume-text';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
 import type { ResumeData } from '../../src/types/resume';
@@ -119,18 +118,5 @@ describe('modelReadNeeded', () => {
         assert.equal(modelReadNeeded(noSkills), true);
         const noTitle = { ...resume(4, []), competencies: [{ category: 'Skills', skills: ['Excel', 'SAP', 'IFRS'] }] } as ResumeData;
         assert.equal(modelReadNeeded(noTitle), true);
-    });
-});
-
-describe('stopAtDeadline', () => {
-    it('ends every beam once the deadline passes, and none before', () => {
-        let now = 1_000;
-        const step = stopAtDeadline(5_000, () => now);
-        const beams = [{ done: false }, { done: false }];
-        step(beams);
-        assert.deepEqual(beams.map((b) => b.done), [false, false]);
-        now = 5_000;
-        step(beams);
-        assert.deepEqual(beams.map((b) => b.done), [true, true]);
     });
 });

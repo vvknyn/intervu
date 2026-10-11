@@ -124,7 +124,7 @@ describe("the export reproduces the original", () => {
 
   it("the importer's parse keeps the header, headings, order and extra sections the export prints", async () => {
     const { text } = await extractPDFTextInBrowser(fixture("nurse-serif-letter-2p").slice().buffer);
-    const { data } = await parseResumeLocally(text!, { skipDownload: true });
+    const { data } = await parseResumeLocally(text!);
     assert.equal(data.parsed.sourceHeader?.nameLine, "Amara Okafor, RN");
     assert.deepEqual(data.parsed.additionalSections?.map((s) => s.heading), ["Certifications"]);
     assert.ok(data.parsed.sectionOrder?.length, "section order");
@@ -133,7 +133,7 @@ describe("the export reproduces the original", () => {
 
   it("the importer's parse keeps the Projects section and the person's own website, not their email's domain", async () => {
     const civil = await extractPDFTextInBrowser(fixture("civil-engineer-long-3p").slice().buffer);
-    const { data } = await parseResumeLocally(civil.text!, { skipDownload: true });
+    const { data } = await parseResumeLocally(civil.text!);
     assert.deepEqual(data.parsed.projects?.map((p) => [p.role, p.dates]), [
       ["Bow River Pathway Bridge (volunteer design review)", "2022"],
       ["Open-source culvert sizing calculator", "2019"],
@@ -142,7 +142,7 @@ describe("the export reproduces the original", () => {
     assert.equal(data.parsed.profile.website, undefined, "no site on this résumé; its email domain is not one");
 
     const marketing = await extractPDFTextInBrowser(fixture("marketing-dense-unicode").slice().buffer);
-    const own = await parseResumeLocally(marketing.text!, { skipDownload: true });
+    const own = await parseResumeLocally(marketing.text!);
     assert.equal(own.data.parsed.profile.website, "lucja.design");
   });
 

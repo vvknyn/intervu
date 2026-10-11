@@ -25,7 +25,7 @@ import { LONG_RESUME_POSTINGS, TAILOR_POSTINGS } from "../fixtures/job-descripti
 const DIR = path.join(process.cwd(), "tests/fixtures");
 
 async function readResume(file: string): Promise<ResumeData> {
-    const parsed = (await parseResumeLocally(readFileSync(path.join(DIR, file), "utf8"), { skipDownload: true })).data.parsed;
+    const parsed = (await parseResumeLocally(readFileSync(path.join(DIR, file), "utf8"))).data.parsed;
     return { ...parsed, generatedSummary: parsed.generatedSummary ?? "" };
 }
 

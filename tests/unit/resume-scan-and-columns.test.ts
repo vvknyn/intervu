@@ -16,7 +16,7 @@ describe("two-column PDF: a sidebar of contact, skills and school beside the job
     it("keeps the second job's title with its employer, and a wrapped degree whole", async () => {
         const { text, error } = await extractPDFTextInBrowser(bytes("accountant-ca.two-column.pdf"));
         assert.equal(error, undefined);
-        const parsed = (await parseResumeLocally(text!, { skipDownload: true })).data.parsed;
+        const parsed = (await parseResumeLocally(text!)).data.parsed;
         assert.deepEqual(
             parsed.experience.map((e) => [e.role, e.company]),
             [
@@ -33,7 +33,7 @@ describe("two-column PDF: a sidebar of contact, skills and school beside the job
 
     it("reads a title over 'Employer, Town · dates' as that job, not a line of the one above", async () => {
         const { text } = await extractPDFTextInBrowser(bytes("teacher-uk.two-column.pdf"));
-        const parsed = (await parseResumeLocally(text!, { skipDownload: true })).data.parsed;
+        const parsed = (await parseResumeLocally(text!)).data.parsed;
         assert.deepEqual(
             parsed.experience.map((e) => [e.role, e.company]),
             [

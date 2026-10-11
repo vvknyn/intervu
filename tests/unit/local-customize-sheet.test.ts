@@ -103,8 +103,9 @@ describe("Customize dialog contract", () => {
         // The primitive's tier keeps the dialog above its scrim; a z-[70] override put it under (2026-09-30).
         assert.doesNotMatch(src, /<DialogContent[^>]*\bz-/);
         assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/);
-        assert.match(src, /Enable on-device AI/);
-        assert.match(src, /Use a rules draft/);
+        // Sealed AI when the server has it, the rules draft otherwise: no consent step to choose (2026-10-11).
+        assert.doesNotMatch(src, /Enable on-device AI|Use a rules draft/);
+        assert.match(src, /sealedAiStatus/);
         assert.doesNotMatch(src, /basis-full/);
         assert.doesNotMatch(
             src,

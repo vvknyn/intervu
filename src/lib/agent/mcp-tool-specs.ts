@@ -320,7 +320,8 @@ export const MCP_TOOL_SPECS = {
             "section, before, after, why and applied — show them to the user, who may want some left out; applied " +
             "false is a suggestion, such as leaving out a project the posting asks nothing about, that the user " +
             "turns on), resume_text (the resume with every applied change, as the site's Copy gives it) and " +
-            "engine (what wrote the draft). Saves nothing: file the version the user settles on with save_resume_variant, reverting " +
+            "engine (what wrote the draft: always the rules here; the site may add sealed-AI rewrites of the " +
+            "matched lines, and you may reword further under the same no-invention rule). Saves nothing: file the version the user settles on with save_resume_variant, reverting " +
             "any change they don't want. Needs a structured resume (get_resume source resume_data). Counts " +
             `against ${RECORD_BUDGET_NOTE}.`,
         inputSchema: tailorResumeInput,

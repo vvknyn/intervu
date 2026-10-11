@@ -1,7 +1,9 @@
 /**
  * User-facing résumé privacy / storage copy shared by signed-out app surfaces.
- * Wording matches `/privacy`: parse stays in-browser; account sync uses Firestore;
- * job search sends derived role/skill phrases to Meilisearch, not the full file.
+ * Wording matches `/privacy`: the quick read runs in the browser; what it
+ * misses can go, without name or contact details, to sealed AI (Tinfoil),
+ * encrypted so only that server can read it; job search sends derived
+ * role/skill phrases to our search index, not the full file.
  */
 
 /** /resume PageHeader — the one primary headline on the signed-out page. */
@@ -46,7 +48,11 @@ export function resumeImportStorageNote(signedIn: boolean): string {
 
 /** Résumé import modal — parsing location (interpretation, not job-search retrieval). */
 export const RESUME_IMPORT_PARSE_LINE =
-    "Résumé interpretation runs in this browser, not on our servers.";
+    "The quick read runs in this browser, not on our servers.";
+
+/** Résumé import modal, where this server has sealed AI: what it reads, and how. */
+export const RESUME_IMPORT_SEALED_LINE =
+    "If it misses something, the text without your name or contact details goes to Tinfoil's sealed AI server, encrypted so only that server can read it.";
 
 /** Auth popover body when unlocking résumé-backed features (fit/resume gates). */
 export const AUTH_GATE_RESUME_UNLOCK_BODY =
@@ -66,32 +72,32 @@ export const LANDING_DEVICE_STORAGE_NOTE =
 
 /** Landing onboarding — privacy footnote after profile edit. */
 export const LANDING_PROFILE_PRIVACY_NOTE =
-    "Parsing stays on this device. Matching uses derived role and skill phrases on our servers—see our privacy policy for details.";
+    "Parsing starts on this device. Matching uses derived role and skill phrases on our servers—see our privacy policy for details.";
 
 /** Landing onboarding — pre-upload privacy footnote. */
 export const LANDING_UPLOAD_PRIVACY_NOTE =
-    "Résumé parsing runs in this browser tab and is not sent to cloud LLM providers for interpretation. Job search may use derived phrases from your résumé on our servers.";
+    "Résumé parsing runs in this browser tab. What it misses can be read by a sealed AI server, without your name or contact details, encrypted so only that server can read it. Job search may use derived phrases from your résumé on our servers.";
 
 /** First-time onboarding modal — matching step. */
 export const ONBOARDING_MATCHING_PRIVACY =
-    "Résumé parsing stays on your device. To find roles, we send derived titles and skills to our search service—not your full résumé file.";
+    "Résumé parsing starts on your device. To find roles, we send derived titles and skills to our search service—not your full résumé file.";
 
 /** First-time onboarding modal — upload step banner strong label. */
 export const ONBOARDING_UPLOAD_PRIVACY_LABEL = "Parsed on this device:";
 
 /** First-time onboarding modal — upload step banner body after `<strong>`. */
 export const ONBOARDING_UPLOAD_PRIVACY_BODY =
-    "Your résumé file is read here for parsing. It is not sent to external AI providers for interpretation. Sign in to store a copy in your account.";
+    "Your résumé file is read here. What the quick read misses can go to a sealed AI server, without your name or contact details, encrypted so only that server can read it. Sign in to store a copy in your account.";
 
 /** Packs home, once a résumé has loaded (Today header, and the welcome panel before it): results are ranked in this browser (see `RESUME_UPLOAD_PROMISE`). */
 export const PRIVATE_MATCHING_ACTIVE = "Private matching active on this device";
 
-/** Local customize dialog badge (guest or signed-in). */
-export const LOCAL_CUSTOMIZE_PRIVACY_BADGE = "Tailoring runs in your browser when on-device AI is enabled.";
+/** Customize dialog badge when sealed AI (Tinfoil) rewrites the lines. */
+export const CUSTOMIZE_SEALED_BADGE =
+    "Rewritten on Tinfoil's sealed AI server: only the matched lines are sent, encrypted so only that server can read them.";
 
-/** Settings → prefs intro (signed-in users enabling local AI). */
-export const SETTINGS_LOCAL_AI_INTRO =
-    "Optional on-device models parse and tailor résumés in your browser. Product analytics and job search still use our servers as described in the privacy policy.";
+/** Customize dialog badge when this server has no sealed AI: the rules draft. */
+export const CUSTOMIZE_RULES_BADGE = "Tailored in your browser by rules.";
 
 /** Connect FAQ — no MCP required. */
 export const CONNECT_FAQ_NO_MCP_NEEDED =

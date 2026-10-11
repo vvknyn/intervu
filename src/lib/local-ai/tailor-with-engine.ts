@@ -1,17 +1,14 @@
 /**
- * Customize résumé's tailor: the rules draft (tailor-resume.ts) and, when the
- * person allowed on-device AI, the on-device model's rewrites on top of it,
- * one line at a time (`tailorWithModel`). Never calls a hosted model: Vivek
- * 2026-10-10 chose on-device only.
+ * Customize résumé's tailor: the rules draft (tailor-resume.ts) and, when
+ * sealed AI is set up (src/lib/sealed-ai/client.ts), a model's rewrites on top
+ * of it. Every line that answers one of the posting's asks, and the summary,
+ * go in ONE request (`batchPrompt`): the instructions are sent once, only the
+ * matched lines and their asks are sent (never the whole résumé or posting,
+ * and never a name or contact detail), and each reply is capped to the words
+ * it may have. Vivek 2026-10-11: "remember to optimize the token usage".
  */
 
-import { readLocalAiConsent } from "./consent";
-import {
-    generateWithActiveEngine,
-    getActiveEngineId,
-    getActiveEngineLabel,
-    initLocalAiLadder,
-} from "./ladder";
+import { sealedAiStatus, sealedChat } from "@/lib/sealed-ai/client";
 import {
     finishDraft,
     heuristicTailorResume,
@@ -22,25 +19,27 @@ import {
     type TailorDraft,
     type TailorJobInput,
 } from "./tailor-resume";
-import { ENGINE_LABELS, type GenerateOptions, type LocalAiEngineId } from "./engines/types";
+import { ENGINE_LABELS, type LocalAiEngineId } from "./engines/types";
 import { groundDraft, resumeWordSet, ungroundedWords } from "./tailor-ground";
 import { lineAsks, postingAsks, withLeaveOuts, wordKey, type LineAsk, type PostingAsk } from "./tailor-asks";
 import type { ResumeData } from "@/types/resume";
 
-export type Generate = (prompt: string, options?: GenerateOptions) => Promise<string | null>;
+export interface GenerateOptions {
+    /** Cap on the reply: the words every item may have, in tokens. */
+    maxTokens: number;
+    temperature?: number;
+}
+
+export type Generate = (prompt: string, options: GenerateOptions) => Promise<string | null>;
 
 /** Lines the model rewrites per draft, strongest matches first, and per role. */
 const MODEL_LINES_MAX = 8;
 const MODEL_LINES_PER_ENTRY = 3;
-/** The WASM model is slow and weak: it rewrites only the strongest few. */
-const WASM_LINES_MAX = 3;
-/** The model starts no new line after this; what it already rewrote is kept. */
+/** No second request starts after this; what the first rewrote is kept. */
 const MODEL_BUDGET_MS = 60_000;
-/** Tries per line on Chrome's model and Llama: small models vary a lot from
- *  one try to the next, and the gate keeps the best. The WASM model gets one. */
-const MODEL_TRIES = 3;
-const LINE_MAX_TOKENS = 90;
-const SUMMARY_MAX_TOKENS = 160;
+/** Requests per draft: the second asks again only for what the first got
+ *  wrong (dropped by the gate, or missing), at a higher temperature. */
+const MODEL_ROUNDS = 2;
 /** At most this many of the posting's words a line rewrite may add for the person
  *  to confirm (the summary: `SUMMARY_CONFIRM_MAX`); more is a new sentence, dropped. */
 const LINE_CONFIRM_MAX = 4;
@@ -59,51 +58,49 @@ const FRAMING_VERBS = ["provide", "provided", "providing", "provides", "perform"
 const WORDS_RE = /\p{L}[\p{L}\p{N}'’.+#-]*[\p{L}\p{N}+#]|\p{L}/gu;
 const wordCount = (text: string) => text.match(WORDS_RE)?.length ?? 0;
 
-/** The shape a reply must take: one field, so a small model can't wrap the
- *  rewrite in "Here's the rewritten line:" or add a second line. */
-const replySchema = (key: "line" | "summary") => ({
-    type: "object",
-    properties: { [key]: { type: "string" } },
-    required: [key],
-    additionalProperties: false,
-});
-
-/** One line toward one ask: what a small model does well. */
-export function linePrompt(pair: { line: string; ask: { text: string } }): string {
-    const limit = Math.max(14, Math.round(wordCount(pair.line) * 1.4));
-    return `Rewrite one line of a résumé so it answers a job posting.
-
-The posting asks: "${pair.ask.text}"
-The résumé line: "${pair.line}"
-
-Rewrite the line so it leads with what the posting asks for, in the posting's words where the line already shows it.
-Keep every fact, name and number in the line. Do not add a tool, employer, number, result or duty the line doesn't state.
-If the line doesn't show what the posting asks, reply with the line as it is.
-Keep the line's tense. One sentence, at most ${limit} words. Reply with JSON only: {"line": "<the rewritten line>"}`;
+/** One part of the résumé in a batch: a line ("1", "2", …) or the summary ("s"). */
+export interface BatchItem {
+    id: string;
+    text: string;
+    /** What the posting asks that this text answers. */
+    asks: string[];
+    /** The summary only: lines it may draw facts from. */
+    shows?: string[];
+    /** Most words the rewrite may have. */
+    max: number;
 }
 
+/** Most words a line's rewrite may have: a little room to lead with the ask. */
+export const lineWordLimit = (line: string) => Math.max(14, Math.round(wordCount(line) * 1.4));
+
 /**
- * Two worked examples, given to the model as earlier turns (Chrome's
- * `initialPrompts`, WebLLM's messages): small models follow an example better
- * than a list of rules. The first leads with the ask in the line's own words;
- * the second is left as it is rather than gaining a tool it doesn't name.
+ * Every line and the summary in one prompt: the rules once, then one compact
+ * JSON row per item. The reply is one JSON object keyed by item id.
  */
-export const LINE_EXAMPLES: { prompt: string; reply: string }[] = [
-    {
-        prompt: linePrompt({
-            ask: { text: "Grow revenue from key accounts." },
-            line: "Looked after 30 key accounts and grew their revenue 12% in a year.",
+export function batchPrompt(items: BatchItem[]): string {
+    const rows = items.map((item) =>
+        JSON.stringify({
+            id: item.id,
+            asks: item.asks.length === 1 ? item.asks[0] : item.asks,
+            ...(item.shows?.length ? { shows: item.shows } : {}),
+            text: item.text,
+            max: item.max,
         }),
-        reply: JSON.stringify({ line: "Grew revenue from 30 key accounts by 12% in a year." }),
-    },
-    {
-        prompt: linePrompt({
-            ask: { text: "Run campaigns in HubSpot and report on their results." },
-            line: "Planned and ran 4 email campaigns a quarter.",
-        }),
-        reply: JSON.stringify({ line: "Planned and ran 4 email campaigns a quarter." }),
-    },
-];
+    );
+    const summary = items.some((item) => item.shows);
+    return `Rewrite parts of a résumé so each answers what a job posting asks.
+
+For each item:
+- Lead with what "asks" names, in the posting's words where the text already shows it.
+- Keep every fact, name and number. Add no tool, employer, number, result or duty the text doesn't state.
+- If the text doesn't show what is asked, return it unchanged.
+- Keep its tense. One sentence${summary ? ` (the summary, id "s": up to 3, and it may use facts from the lines in "shows")` : ""}, at most "max" words.
+
+Items:
+${rows.join("\n")}
+
+Reply with JSON only, every item's id and its rewritten text: {"<id>": "<text>"}`;
+}
 
 /** The posting's strongest asks the résumé answers, with a line that answers each. */
 function summaryEvidence(pairs: LineAsk[]): { ask: string; line: string }[] {
@@ -118,35 +115,26 @@ function summaryEvidence(pairs: LineAsk[]): { ask: string; line: string }[] {
     return out;
 }
 
-export function summaryPrompt(summary: string, evidence: { ask: string; line: string }[]): string {
-    return `Rewrite the summary at the top of a résumé for one job posting.
-
-The posting asks for:
-${evidence.map((e) => `- ${e.ask}`).join("\n")}
-
-What the résumé shows for those:
-${evidence.map((e) => `- ${e.line}`).join("\n")}
-
-The current summary: "${summary}"
-
-Rewrite the summary in at most 3 sentences and ${SUMMARY_WORDS_MAX} words that lead with what this posting asks for, using only facts from the current summary and the lines above. Keep the job title and years as written. Do not add a tool, employer, number or result. Reply with JSON only: {"summary": "<the summary>"}`;
+/** Tokens a batch's reply needs: each item's word limit, a little over, plus its id. */
+export function batchMaxTokens(items: BatchItem[]): number {
+    return items.reduce((sum, item) => sum + Math.ceil(item.max * 1.6) + 8, 16);
 }
 
-/** The text of a reply: its `key` field when the model answered in JSON (as
- *  the schema asks), else the reply as written (a model that can't be held to
- *  a schema). */
-export function readModelReply(raw: string, key: "line" | "summary"): string {
+/** The rewrites in a batch reply, by item id; empty when the reply isn't the JSON asked for. */
+export function readBatchReply(raw: string): Map<string, string> {
+    const out = new Map<string, string>();
     const start = raw.indexOf("{");
     const end = raw.lastIndexOf("}");
-    if (start !== -1 && end > start) {
-        try {
-            const value = (JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>)[key];
-            if (typeof value === "string") return value;
-        } catch {
-            // Not JSON after all: read it as text.
+    if (start === -1 || end <= start) return out;
+    try {
+        const parsed = JSON.parse(raw.slice(start, end + 1)) as Record<string, unknown>;
+        for (const [id, value] of Object.entries(parsed)) {
+            if (typeof value === "string") out.set(id, value);
         }
+    } catch {
+        // Not the JSON asked for: nothing from this reply is used.
     }
-    return raw;
+    return out;
 }
 
 /** The rewrite out of a model's reply: its first real line, without a label,
@@ -249,15 +237,15 @@ function quoteAsk(text: string): string {
 function whyFor(verdict: RewriteVerdict, asks: string[]): string {
     const answers =
         asks.length === 1
-            ? `Rewritten on this device to answer the posting's ${quoteAsk(asks[0])}.`
-            : `Rewritten on this device from your lines that answer ${asks.length} of the posting's asks.`;
+            ? `Rewritten to answer the posting's ${quoteAsk(asks[0])}.`
+            : `Rewritten from your lines that answer ${asks.length} of the posting's asks.`;
     if (verdict.kind !== "confirm") return answers;
     const words = verdict.words.map((w) => `“${w}”`).join(", ");
     return `${answers} Adds the posting's ${words}: use it only if that's true.`;
 }
 
 /** In the browser console only: why a model's rewrite wasn't used, so a person
- *  checking the model on their own device can see what the gate caught. */
+ *  checking the rewrites can see what the gate caught. */
 function logDropped(before: string, after: string, reason: string): void {
     if (typeof window !== "undefined" || process.env.TAILOR_DEBUG) console.info(`[tailor] model rewrite not used (${reason}):`, { before, after });
 }
@@ -282,11 +270,11 @@ export interface ModelTailorOptions {
     engineId: LocalAiEngineId;
     engineLabel: string;
     maxLines?: number;
-    /** Tries per line and for the summary; default `MODEL_TRIES`, one on the WASM model. */
-    tries?: number;
+    /** Requests per draft; default `MODEL_ROUNDS`. */
+    rounds?: number;
     budgetMs?: number;
     now?: () => number;
-    /** Called before each model call: how many are done, of how many. */
+    /** Called before each request: how many parts are settled, of how many. */
     onProgress?: (done: number, total: number) => void;
 }
 
@@ -295,47 +283,15 @@ type Kept = { after: string; verdict: Exclude<RewriteVerdict, { kind: "drop" }> 
 /** Fewer is better: a rewrite in the résumé's own words, then one that needs the fewest words confirmed. */
 const cost = (verdict: Kept["verdict"]) => (verdict.kind === "on" ? 0 : verdict.words.length);
 
-/**
- * Up to `tries` answers to one prompt, each judged; the best that passes. It
- * stops at the first in the résumé's own words, when the model repeats
- * itself (it has settled), or when `outOfTime` says so.
- */
-async function bestRewrite(
-    generate: Generate,
-    prompt: string,
-    options: GenerateOptions,
-    key: "line" | "summary",
-    before: string,
-    judge: (after: string) => RewriteVerdict,
-    tries: number,
-    outOfTime: () => boolean,
-): Promise<Kept | null> {
-    let best: Kept | null = null;
-    const seen = new Set<string>();
-    for (let t = 0; t < tries; t++) {
-        if (t > 0 && outOfTime()) break;
-        const raw = await generate(prompt, options);
-        const after = raw ? cleanModelLine(readModelReply(raw, key), before) : null;
-        if (!after) continue;
-        if (seen.has(after)) break;
-        seen.add(after);
-        const verdict = judge(after);
-        if (verdict.kind === "drop") {
-            logDropped(before, after, verdict.reason);
-            continue;
-        }
-        if (!best || cost(verdict) < cost(best.verdict)) best = { after, verdict };
-        if (verdict.kind === "on") break;
-    }
-    return best;
-}
+type Part = { item: BatchItem; before: string; judge: (after: string) => RewriteVerdict };
 
 /**
  * The rules draft, with the model's rewrites on top: each line that answers
- * one of the posting's asks (tailor-asks.ts) rewritten toward that ask, one
- * call per line (the best of up to three tries), and the summary from the
- * strongest of them. Each rewrite is judged (`judgeRewrite`) and goes through
- * the grounding gate; a line the model didn't improve keeps the rules' wording.
+ * one of the posting's asks (tailor-asks.ts) rewritten toward that ask, and
+ * the summary from the strongest of them, all in one request, then one more
+ * for what the first got wrong. Each rewrite is judged (`judgeRewrite`) and
+ * goes through the grounding gate; a line the model didn't improve keeps the
+ * rules' wording.
  */
 export async function tailorWithModel(
     resume: ResumeData,
@@ -346,7 +302,6 @@ export async function tailorWithModel(
     const now = opts.now ?? Date.now;
     const started = now();
     const outOfTime = () => now() - started > (opts.budgetMs ?? MODEL_BUDGET_MS);
-    const tries = opts.tries ?? (opts.engineId === "transformers" ? 1 : MODEL_TRIES);
     const fullText = resumeFullText(resume);
     const rules = groundDraft(fullText, heuristicTailorResume(resume, job));
     const asks = postingAsks(job.description ?? "");
@@ -354,7 +309,6 @@ export async function tailorWithModel(
     const pairs = pickPairs(matched, opts.maxLines ?? MODEL_LINES_MAX);
     const summaryBefore = rules.summaryBefore;
     const evidence = summaryBefore ? summaryEvidence(matched) : [];
-    const total = pairs.length + (evidence.length > 0 ? 1 : 0);
 
     const resumeWords = new Set(fullText.toLowerCase().split(/[^\p{L}\p{N}+#]+/u).filter(Boolean));
     const postingNames = new Set(namesOf(job.description ?? "").map((n) => n.toLowerCase()).filter((n) => !resumeWords.has(n)));
@@ -362,23 +316,14 @@ export async function tailorWithModel(
     const all = [...rules.base.experience, ...(rules.base.projects ?? [])];
     const skillsText = rules.base.competencies.flatMap((c) => c.skills).join(" ");
 
-    const modelChanges = new Map<string, TailorChange>();
-    // A rewrite that needs the person's OK starts off, so it never replaces a
-    // rewording the rules could already stand behind: that one stays on.
-    const rulesChanged = new Set(rules.changes.map((c) => c.id));
-    let done = 0;
-    for (const pair of pairs) {
-        if (outOfTime()) break;
-        opts.onProgress?.(done, total);
+    const parts = new Map<string, Part>();
+    pairs.forEach((pair, i) => {
         const entry = all.find((e) => e.id === pair.entryId);
         const otherEmployers = all.filter((e) => e !== entry && e.company !== entry?.company).map((e) => e.company.trim());
-        const kept = await bestRewrite(
-            generate,
-            linePrompt(pair),
-            { temperature: 0.2, maxTokens: LINE_MAX_TOKENS, schema: replySchema("line"), examples: LINE_EXAMPLES },
-            "line",
-            pair.line,
-            (after) =>
+        parts.set(String(i + 1), {
+            item: { id: String(i + 1), text: pair.line, asks: [pair.ask.text], max: lineWordLimit(pair.line) },
+            before: pair.line,
+            judge: (after) =>
                 judgeRewrite(pair.line, after, {
                     vocabulary,
                     resumeWords,
@@ -388,16 +333,65 @@ export async function tailorWithModel(
                     otherEmployers,
                     confirmMax: LINE_CONFIRM_MAX,
                 }),
-            tries,
-            outOfTime,
-        );
-        done++;
-        if (!kept) continue;
+        });
+    });
+    if (evidence.length > 0) {
+        const summaryAsks = asks.filter((a) => evidence.some((e) => e.ask === a.text));
+        // A summary may grow from one sentence to three, drawing on the lines.
+        const maxWords = Math.max(SUMMARY_WORDS_MAX, wordCount(summaryBefore) + 8);
+        parts.set("s", {
+            item: { id: "s", text: summaryBefore, asks: evidence.map((e) => e.ask), shows: evidence.map((e) => e.line), max: maxWords },
+            before: summaryBefore,
+            judge: (after) =>
+                judgeRewrite(summaryBefore, after, {
+                    vocabulary,
+                    resumeWords,
+                    numbersFrom: [summaryBefore, ...evidence.map((e) => e.line), skillsText].join(" "),
+                    asks: summaryAsks,
+                    postingNames,
+                    otherEmployers: [],
+                    confirmMax: SUMMARY_CONFIRM_MAX,
+                    maxWords,
+                }),
+        });
+    }
+
+    const best = new Map<string, Kept>();
+    const rounds = opts.rounds ?? MODEL_ROUNDS;
+    for (let round = 0; round < rounds; round++) {
+        // After the first request, ask again only for parts with nothing usable yet.
+        const open = [...parts.values()].filter((p) => !best.has(p.item.id));
+        if (open.length === 0 || (round > 0 && outOfTime())) break;
+        opts.onProgress?.(parts.size - open.length, parts.size);
+        const items = open.map((p) => p.item);
+        const raw = await generate(batchPrompt(items), { maxTokens: batchMaxTokens(items), temperature: round === 0 ? 0.2 : 0.6 });
+        const replies = raw ? readBatchReply(raw) : new Map<string, string>();
+        for (const part of open) {
+            const reply = replies.get(part.item.id);
+            const after = reply ? cleanModelLine(reply, part.before) : null;
+            if (!after) continue;
+            const verdict = part.judge(after);
+            if (verdict.kind === "drop") {
+                logDropped(part.before, after, verdict.reason);
+                continue;
+            }
+            const held = best.get(part.item.id);
+            if (!held || cost(verdict) < cost(held.verdict)) best.set(part.item.id, { after, verdict });
+        }
+    }
+
+    const modelChanges = new Map<string, TailorChange>();
+    // A rewrite that needs the person's OK starts off, so it never replaces a
+    // rewording the rules could already stand behind: that one stays on.
+    const rulesChanged = new Set(rules.changes.map((c) => c.id));
+    pairs.forEach((pair, i) => {
+        const kept = best.get(String(i + 1));
+        if (!kept) return;
         const { after, verdict } = kept;
         const id = `line:${pair.source}:${pair.entryId}:${pair.index}`;
         if (verdict.kind === "confirm" && rulesChanged.has(id)) {
             logDropped(pair.line, after, "needs your OK; the rules rewording stays");
-            continue;
+            return;
         }
         modelChanges.set(id, {
             id,
@@ -412,46 +406,19 @@ export async function tailorWithModel(
             why: whyFor(verdict, [pair.ask.text]),
             ...(verdict.kind === "confirm" ? { confirm: verdict.words } : {}),
         });
-    }
-
-    if (evidence.length > 0 && !outOfTime()) {
-        opts.onProgress?.(done, total);
-        const summaryAsks = asks.filter((a) => evidence.some((e) => e.ask === a.text));
-        const kept = await bestRewrite(
-            generate,
-            summaryPrompt(summaryBefore, evidence),
-            { temperature: 0.2, maxTokens: SUMMARY_MAX_TOKENS, schema: replySchema("summary") },
-            "summary",
-            summaryBefore,
-            (after) =>
-                judgeRewrite(summaryBefore, after, {
-                    vocabulary,
-                    resumeWords,
-                    numbersFrom: [summaryBefore, ...evidence.map((e) => e.line), skillsText].join(" "),
-                    asks: summaryAsks,
-                    postingNames,
-                    otherEmployers: [],
-                    confirmMax: SUMMARY_CONFIRM_MAX,
-                    // A summary may grow from one sentence to three, drawing on the lines.
-                    maxWords: Math.max(SUMMARY_WORDS_MAX, wordCount(summaryBefore) + 8),
-                }),
-            tries,
-            outOfTime,
-        );
-        const after = kept?.after;
-        const verdict = kept?.verdict;
-        if (after && verdict?.kind === "confirm" && rulesChanged.has("summary")) {
-            logDropped(summaryBefore, after, "needs your OK; the rules rewording stays");
-        } else if (after && verdict) {
-            modelChanges.set("summary", {
-                id: "summary",
-                kind: "summary",
-                before: summaryBefore,
-                after,
-                why: whyFor(verdict, evidence.map((e) => e.ask)),
-                ...(verdict.kind === "confirm" ? { confirm: verdict.words } : {}),
-            });
-        }
+    });
+    const summary = best.get("s");
+    if (summary?.verdict.kind === "confirm" && rulesChanged.has("summary")) {
+        logDropped(summaryBefore, summary.after, "needs your OK; the rules rewording stays");
+    } else if (summary) {
+        modelChanges.set("summary", {
+            id: "summary",
+            kind: "summary",
+            before: summaryBefore,
+            after: summary.after,
+            why: whyFor(summary.verdict, evidence.map((e) => e.ask)),
+            ...(summary.verdict.kind === "confirm" ? { confirm: summary.verdict.words } : {}),
+        });
     }
 
     if (modelChanges.size === 0) return tailorWithRules(resume, job);
@@ -469,20 +436,17 @@ export function tailorWithRules(resume: ResumeData, job: TailorJobInput): Tailor
     return withLeaveOuts(withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, job)), job), job);
 }
 
+/** The sealed model's rewrites when sealed AI is set up on this server, else the rules draft. */
 export async function tailorResumeForJob(
     resume: ResumeData,
     job: TailorJobInput,
-    opts?: { allowModel?: boolean; onProgress?: (done: number, total: number) => void },
+    opts?: { onProgress?: (done: number, total: number) => void },
 ): Promise<TailorDraft> {
-    if (!opts?.allowModel || !readLocalAiConsent()) return tailorWithRules(resume, job);
-    await initLocalAiLadder();
-    const engineId = getActiveEngineId();
-    if (engineId === "heuristic") return tailorWithRules(resume, job);
-    return tailorWithModel(resume, job, generateWithActiveEngine, {
-        engineId,
-        engineLabel: getActiveEngineLabel(),
-        maxLines: engineId === "transformers" ? WASM_LINES_MAX : MODEL_LINES_MAX,
-        onProgress: opts.onProgress,
+    if (!(await sealedAiStatus()).enabled) return tailorWithRules(resume, job);
+    return tailorWithModel(resume, job, (prompt, options) => sealedChat([{ role: "user", content: prompt }], options), {
+        engineId: "sealed",
+        engineLabel: ENGINE_LABELS.sealed,
+        onProgress: opts?.onProgress,
     });
 }
 
