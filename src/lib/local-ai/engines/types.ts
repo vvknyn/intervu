@@ -11,9 +11,17 @@ export const ENGINE_LABELS: Record<LocalAiEngineId, string> = {
 
 /** Per-call knobs; an engine that can't honour one ignores it. */
 export interface GenerateOptions {
+    /** Ignored by Chrome's built-in model on web pages. */
     temperature?: number;
     /** Cap on generated tokens — a labelling task needs a few per line. */
     maxTokens?: number;
+    /** A JSON schema the reply must match (Chrome's `responseConstraint`, WebLLM's
+     *  JSON mode). An engine that can't constrain ignores it, so callers read
+     *  plain text too. */
+    schema?: Record<string, unknown>;
+    /** Worked examples, given to the model as earlier turns: a prompt like this
+     *  one and the reply wanted. */
+    examples?: { prompt: string; reply: string }[];
 }
 
 /** Raw JSON-ish object from a model before shared normalization. */

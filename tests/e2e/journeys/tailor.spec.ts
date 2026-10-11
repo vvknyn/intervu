@@ -206,26 +206,32 @@ test("on-device AI rewrites each line toward what the posting asks, waits for an
   await page.addInitScript(
     ([consentKey, answers, summary]) => {
       localStorage.setItem(consentKey as string, "1");
-      // A stand-in for Chrome's Prompt API: answers each line prompt from `answers`, once the test lets it.
-      const w = window as unknown as { __prompts: string[]; __go: () => void; LanguageModel: unknown };
+      // A stand-in for Chrome's Prompt API: answers each line prompt from `answers` once the test lets it,
+      // as JSON when the page asks for a reply shape (responseConstraint).
+      const w = window as unknown as { __prompts: string[]; __primed: number; __go: () => void; LanguageModel: unknown };
       let go!: () => void;
       const started = new Promise<void>((resolve) => (go = resolve));
       w.__prompts = [];
+      w.__primed = 0;
       w.__go = () => go();
       const session = {
-        async prompt(prompt: string) {
+        async prompt(prompt: string, options?: { responseConstraint?: unknown }) {
           w.__prompts.push(prompt);
           await started;
           const line = /The résumé line: "(.*)"\n/.exec(prompt)?.[1];
-          if (line !== undefined) return (answers as Record<string, string>)[line] ?? "";
-          return /The current summary:/.test(prompt) ? (summary as string) : "";
+          const shaped = (key: string, text: string) => (options?.responseConstraint ? JSON.stringify({ [key]: text }) : text);
+          if (line !== undefined) return shaped("line", (answers as Record<string, string>)[line] ?? line);
+          return /The current summary:/.test(prompt) ? shaped("summary", summary as string) : "";
         },
         async clone() {
           return session;
         },
         destroy() {},
       };
-      w.LanguageModel = { create: async () => session };
+      w.LanguageModel = {
+        availability: async () => "available",
+        create: async (options?: { initialPrompts?: unknown[] }) => ((w.__primed += options?.initialPrompts?.length ? 1 : 0), session),
+      };
     },
     [LOCAL_AI_CONSENT_KEY, MODEL_ANSWERS, MODEL_SUMMARY] as const,
   );
@@ -239,7 +245,13 @@ test("on-device AI rewrites each line toward what the posting asks, waits for an
   await expect(dialog.getByText("On-device · Nano")).toBeVisible();
   await expect(dialog.getByTestId("tailor-changes-count")).toContainText("3 of 5 changes on.");
   const prompts = await page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts);
-  expect(prompts.filter((p) => p.includes("The résumé line:"))).toHaveLength(3);
+  // Every matched line is asked about, with the worked examples primed once; a line whose rewrite
+  // needs an OK or was dropped is asked again, and stops when the model repeats itself.
+  const lines = prompts.map((p) => /The résumé line: "(.*)"\n/.exec(p)?.[1]).filter(Boolean);
+  expect(new Set(lines).size).toBe(3);
+  expect(lines.filter((l) => l === "Trained new hires on forklift safety and the WMS scanners")).toHaveLength(1);
+  expect(lines.filter((l) => l === "Led a crew of 12 pickers across two shifts to hit shipping deadlines")).toHaveLength(2);
+  expect(await page.evaluate(() => (window as unknown as { __primed: number }).__primed)).toBe(1);
   expect(prompts.find((p) => p.includes("Trained new hires"))).toContain('The posting asks: "Train and coach associates on safety procedures."');
 
   const summary = dialog.locator('[data-change-kind="summary"]');
