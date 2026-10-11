@@ -1,5 +1,7 @@
 /**
- * User-facing résumé privacy / storage copy shared by signed-out app surfaces.
+ * User-facing résumé privacy / storage copy shared by app surfaces. The
+ * headline promises themselves live in `lib/legal/privacy-promises.ts`; every
+ * line here must agree with them and with /privacy#your-resume.
  * Wording matches `/privacy`: the quick read runs in the browser; what it
  * misses can go, without name or contact details, to sealed AI (Tinfoil),
  * encrypted so only that server can read it; job search sends derived
@@ -18,14 +20,14 @@ export const RESUME_PAGE_SUBCOPY =
 
 /** /resume subcopy for a signed-in visitor, who can already export. */
 export const RESUME_PAGE_SUBCOPY_SIGNED_IN =
-    "The résumé your matches are ranked by. Edit it, export a PDF, or replace it with a new file.";
+    "The résumé your matches are ranked by, saved to your account encrypted. Edit it, export a PDF, or replace it with a new file.";
 
 /** /resume local-résumé banner — semibold label (matches prior banner markup). */
 export const RESUME_LOCAL_DEVICE_BANNER_LABEL = "Parsed on this device";
 
 /** /resume local-résumé banner — body after em dash in UI. */
 export const RESUME_LOCAL_DEVICE_BANNER_BODY =
-    "The file and structured result stay in this browser until you create an account and sync. When you search jobs, our servers may send role and skill phrases derived from your résumé to our search index—not your full résumé file.";
+    "The file is read here and never uploaded. The structured result stays in this browser until you sign in, when it is saved to your account encrypted. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.";
 
 /** Full banner text (tests / grep); UI uses label + body spans. */
 export const RESUME_LOCAL_DEVICE_BANNER = `${RESUME_LOCAL_DEVICE_BANNER_LABEL}. ${RESUME_LOCAL_DEVICE_BANNER_BODY}`;
@@ -39,7 +41,7 @@ export const RESUME_IMPORT_STORAGE_NOTE =
     "The parsed résumé stays in this browser until you sign in and sync.";
 
 const RESUME_IMPORT_ACCOUNT_STORAGE_NOTE =
-    "Your résumé and the parsed result are then saved to your account so they follow you across devices.";
+    "The parsed résumé is then saved to your account, encrypted, so it follows you across devices. The file itself is never uploaded.";
 
 /** `storageNote` for a caller whose persistence depends on sign-in: account when signed in, this browser otherwise. */
 export function resumeImportStorageNote(signedIn: boolean): string {
@@ -64,30 +66,7 @@ export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
 
 /** The same band for a signed-in account with no résumé: the upload is saved to the account (see `resumeImportStorageNote`). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN =
-    "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account, so it follows you across devices.";
-
-/** Landing onboarding — device-only storage choice helper. */
-export const LANDING_DEVICE_STORAGE_NOTE =
-    "Parsed résumé stays in this browser until you sign in. Job search sends derived phrases to our servers, not your full file.";
-
-/** Landing onboarding — privacy footnote after profile edit. */
-export const LANDING_PROFILE_PRIVACY_NOTE =
-    "Parsing starts on this device. Matching uses derived role and skill phrases on our servers—see our privacy policy for details.";
-
-/** Landing onboarding — pre-upload privacy footnote. */
-export const LANDING_UPLOAD_PRIVACY_NOTE =
-    "Résumé parsing runs in this browser tab. What it misses can be read by a sealed AI server, without your name or contact details, encrypted so only that server can read it. Job search may use derived phrases from your résumé on our servers.";
-
-/** First-time onboarding modal — matching step. */
-export const ONBOARDING_MATCHING_PRIVACY =
-    "Résumé parsing starts on your device. To find roles, we send derived titles and skills to our search service—not your full résumé file.";
-
-/** First-time onboarding modal — upload step banner strong label. */
-export const ONBOARDING_UPLOAD_PRIVACY_LABEL = "Parsed on this device:";
-
-/** First-time onboarding modal — upload step banner body after `<strong>`. */
-export const ONBOARDING_UPLOAD_PRIVACY_BODY =
-    "Your résumé file is read here. What the quick read misses can go to a sealed AI server, without your name or contact details, encrypted so only that server can read it. Sign in to store a copy in your account.";
+    "Upload your résumé to rank these jobs by fit, with the reasons. It is saved to your account encrypted, so it follows you across devices.";
 
 /** Packs home, once a résumé has loaded (Today header, and the welcome panel before it): results are ranked in this browser (see `RESUME_UPLOAD_PROMISE`). */
 export const PRIVATE_MATCHING_ACTIVE = "Private matching active on this device";
@@ -102,3 +81,11 @@ export const CUSTOMIZE_RULES_BADGE = "Tailored in your browser by rules.";
 /** Connect FAQ — no MCP required. */
 export const CONNECT_FAQ_NO_MCP_NEEDED =
     "No. You can search jobs, see fit bands, and use the tracker in the browser without pairing an AI assistant. Connect is optional for people who use MCP-compatible assistants.";
+
+/** Connect, "Permissions and privacy": where the résumé an assistant reads lives, and where it goes. */
+export const CONNECT_PRIVACY_LINE =
+    "Velai keeps your résumé encrypted, and the tools your assistant calls run without any AI on our servers. What your assistant reads goes to its own AI provider, under that provider's terms.";
+
+/** Settings, under a saved résumé: how it is kept and who can load it (/privacy#your-resume). */
+export const SETTINGS_RESUME_PRIVACY_LINE =
+    "Saved to your account encrypted with AES-256. Only you, and an assistant or the Velai extension you connect, can load it. Delete removes it and its saved versions.";

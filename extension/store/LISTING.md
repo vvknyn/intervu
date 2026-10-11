@@ -36,7 +36,7 @@ Signing in happens in a small window over the job page. It closes itself when yo
 You can also select a job title on any page, right-click and choose "Search Velai" to see matching roles from company careers pages.
 
 How it treats your data
-The card reads job pages only on the job sites it lists and on sites you turn it on for. Anywhere else, the extension reads a page only when you click its button or choose "Search Velai". Your fit and tailored résumé are worked out inside the extension, and the tailored copy stays in your browser until you download or copy it. It uses the velai.app sign-in in your browser and never sees your password.
+The card reads job pages only on the job sites it lists and on sites you turn it on for. Anywhere else, the extension reads a page only when you click its button or choose "Search Velai". Your résumé comes from your Velai account, where it is saved encrypted, and the extension holds it in memory only, never in Chrome's storage. Your fit and tailored résumé are worked out inside the extension, and the tailored copy stays in your browser until you download or copy it. Checking a job sends only its title and employer to Velai. It uses the velai.app sign-in in your browser and never sees your password.
 
 You need a Velai account with a résumé on it for your fit and tailored résumé. The job checks work without signing in.
 ```

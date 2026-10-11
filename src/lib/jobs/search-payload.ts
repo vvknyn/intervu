@@ -105,12 +105,14 @@ export function searchParamsFromUrlState(
     state: JobsUrlState,
     postedDateSupported = true,
     suppressLocationDefault?: boolean,
-): ReturnType<typeof buildJobSearchPayload> {
-    return buildJobSearchPayload(
+): ReturnType<typeof buildJobSearchPayload> & Pick<JobSearchParams, "fromResume"> {
+    const payload = buildJobSearchPayload(
         state,
         state.q,
         urlSortToBackendSort(state.sort),
         postedDateSupported,
         suppressLocationDefault,
     );
+    // `sort=fit` is a résumé's own query (`packFilters`): searched, never logged.
+    return state.sort === "fit" ? { ...payload, fromResume: true } : payload;
 }

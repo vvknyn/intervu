@@ -1,4 +1,4 @@
-import type { PostHogConfig } from "posthog-js";
+import type { CaptureResult, CapturedNetworkRequest, PostHogConfig } from "posthog-js";
 
 /**
  * What intervu tells PostHog at init.
@@ -78,6 +78,71 @@ export function posthogApiHost(
   return `${stripTrailingSlash(origin)}${POSTHOG_PROXY_PATH}`;
 }
 
+/**
+ * Attributes whose value is words a person can read (a tooltip, a label, a
+ * field's value), so they can hold résumé or account text. Analytics drop them
+ * from clicks and replays star them out; `class`, `id`, `style` and `src`
+ * stay, so a replay still draws the page.
+ */
+export const TEXT_ATTRIBUTES: readonly string[] = [
+  "title",
+  "alt",
+  "placeholder",
+  "value",
+  "label",
+  "content",
+  "aria-label",
+  "aria-description",
+  "aria-valuetext",
+  "aria-placeholder",
+];
+
+/** Replay attribute masking: words in text attributes become stars of the same length, and a link loses its query string (a search link carries what was searched). */
+export function maskReplayAttribute(name: string, value: string, element?: Element): string {
+  if (TEXT_ATTRIBUTES.includes(name)) return value.replace(/\S/g, "*");
+  if (name === "href" && element?.tagName === "A") return value.split(/[?#]/)[0] ?? "";
+  return value;
+}
+
+/**
+ * A `/jobs` address with `sort=fit` carries the résumé's own role titles as
+ * `q` (`packFilters`, Rank by fit). Every event's `$current_url` and every
+ * replay's page address used to hold them; analytics get the address without
+ * `q`. Anything that isn't such an address comes back unchanged.
+ */
+export function withoutResumeQuery(value: string): string {
+  if (!value.includes("sort=fit") || !/^https?:\/\//.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (url.searchParams.get("sort") !== "fit" || !url.searchParams.has("q")) return value;
+    url.searchParams.delete("q");
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+/** `before_send`: every URL-valued property of an event, person `$set`s included, without a résumé query. */
+export function stripResumeQueries(event: CaptureResult | null): CaptureResult | null {
+  if (!event) return event;
+  for (const bag of [event.properties, event.$set, event.$set_once]) {
+    if (!bag) continue;
+    for (const [key, value] of Object.entries(bag)) {
+      if (typeof value === "string") bag[key] = withoutResumeQuery(value);
+    }
+  }
+  return event;
+}
+
+/**
+ * Replay page addresses and network entries pass through here
+ * (posthog-js `_maskUrl`): the address loses a résumé query, and a request's
+ * or response's body is never kept (a search request's body is its query).
+ */
+export function maskReplayNetworkRequest(request: CapturedNetworkRequest): CapturedNetworkRequest {
+  return { ...request, name: withoutResumeQuery(request.name), requestBody: null, responseBody: null };
+}
+
 export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // Guests stay unprofiled; a person profile is created only once
   // PostHogProvider calls identify() on sign-in.
@@ -97,7 +162,14 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   capture_pageview: "history_change",
 
   capture_pageleave: true,
-  autocapture: true,
+
+  // On, but blind to words: a click records which element it was, never the
+  // text in it (`mask_all_text`, below) or the attributes that carry text
+  // (this list). A click on a résumé line, a fit-reason skill or a tailored
+  // change used to send that text as `$el_text`; /privacy now promises
+  // analytics never hold the words on your screen.
+  autocapture: { element_attribute_ignorelist: [...TEXT_ATTRIBUTES] },
+  mask_all_text: true,
 
   // Uncaught errors and unhandled rejections in the browser -> `$exception`
   // events (PostHog Error Tracking). The project had none, so client crashes
@@ -124,9 +196,22 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // rest a published privacy claim on a third-party value we neither control
   // nor can test. Setting it here makes "what you type isn't captured" a
   // decision in this repo.
+  //
+  // Text on the page is masked too (`maskTextSelector: "*"`, PostHog's
+  // documented "mask all text"), with the attributes that carry words: a
+  // replay of the résumé page, the Customize dialog or a fit card used to
+  // show the résumé itself. A replay keeps layout, clicks and scrolling; every
+  // word in it is starred out. The client value wins over the project setting
+  // (posthog-js lazy-loaded-session-recorder, `masking_client_side ?? …`).
   session_recording: {
     maskAllInputs: true,
+    maskTextSelector: "*",
+    maskAttributeFn: maskReplayAttribute,
+    maskCapturedNetworkRequestFn: maskReplayNetworkRequest,
   },
+
+  // The last stop before an event leaves the browser: no résumé role titles in any address.
+  before_send: stripResumeQueries,
 
   // Cookieless, per-tab, gone when the tab closes.
   //
