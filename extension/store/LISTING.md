@@ -2,6 +2,7 @@
 
 Paste these into the item's tabs in the [developer dashboard](https://chrome.google.com/webstore/devconsole).
 Every claim here is something the extension does today; keep it that way when either changes.
+Name no other company's site or product in the description: Google rejected 0.3.1 ("Yellow Argon", excessive keywords) for listing job sites there.
 
 ## Package
 
@@ -20,7 +21,7 @@ On job pages, see how the role fits your Velai résumé, whether the posting loo
 ```
 Velai checks the job you're looking at before you apply.
 
-On job boards and applicant-tracking sites such as Greenhouse, Lever, Ashby, Workday, SmartRecruiters, Indeed and LinkedIn, a small Velai card shows up on job pages by itself (on a page that doesn't publish its job details, when Velai has the role). It gives your fit for the role and what's known about the posting: whether it looks actively posted, when it was posted, what it pays and the apply-by date. Every line says where it comes from, the page or Velai, and anything nobody knows is left out rather than guessed.
+On the main job boards and applicant-tracking sites, a small Velai card shows up on job pages by itself (on a page that doesn't publish its job details, when Velai has the role). It gives your fit for the role and what's known about the posting: whether it looks actively posted, when it was posted, what it pays and the apply-by date. Every line says where it comes from, the page or Velai, and anything nobody knows is left out rather than guessed.
 
 On any other careers page, click the Velai button, or turn the card on for that site from the panel. Chrome asks you first.
 
@@ -58,7 +59,7 @@ You need a Velai account with a résumé on it for your fit and tailored résum�
 Check a job posting the person is viewing against Velai: how it fits their Velai résumé, Velai's freshness and pay checks on the posting, their résumé tailored to it, and adding it to their Velai tracker once they apply.
 
 **Permission justifications:**
-- Content script on the listed job sites (job boards and applicant-tracking sites such as LinkedIn jobs, Indeed, Greenhouse, Lever, Ashby, Workday; the full list is the manifest's `content_scripts`): when a page there loads, reads the job it publishes (its address, title and schema.org JobPosting details) and shows the Velai card. Pages that aren't jobs get nothing. It sends only the role's title and employer to Velai's search.
+- Content script on the listed job sites (job boards and applicant-tracking sites; the full list is the manifest's `content_scripts`): when a page there loads, reads the job it publishes (its address, title and schema.org JobPosting details) and shows the Velai card. Pages that aren't jobs get nothing. It sends only the role's title and employer to Velai's search.
 - Optional host permission `https://*/*`: never granted at install. Asked for one site at a time (`https://<that site>/*`), only when the person clicks "Show the Velai card on <site> job pages" in the side panel, so the card can show on that careers site too. Removable in Chrome's extension settings.
 - `activeTab`: Reads the job on the tab where the person clicks the Velai button (its address, title, the schema.org JobPosting details it publishes, and its visible text only if they ask the panel to read the page as the job), once, at that moment.
 - `scripting`: Runs the bundled page reader on the clicked tab, and registers the bundled card script for the sites the person turned the card on for. No code is fetched from anywhere.
