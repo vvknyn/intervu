@@ -5,15 +5,18 @@ import path from "node:path";
 import { parseResumeLocally } from "../../src/lib/local-ai/parse-resume";
 import { lineAsks, postingAsks, withLeaveOuts } from "../../src/lib/local-ai/tailor-asks";
 import { wordStem } from "../../src/lib/local-ai/tailor-ground";
-import { applyTailorChanges, resumeFullText, startsOn, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
+import { applyTailorChanges, introducesNewNumbers, resumeFullText, startsOn, type TailorDraft } from "../../src/lib/local-ai/tailor-resume";
 import {
     cleanModelLine,
     groundDraft,
+    LINE_EXAMPLES,
     linePrompt,
+    readModelReply,
     tailorWithModel,
     tailorWithRules,
     type Generate,
 } from "../../src/lib/local-ai/tailor-with-engine";
+import type { GenerateOptions } from "../../src/lib/local-ai/engines/types";
 import { descriptionToBullets } from "../../src/lib/resume/merge-bullet-lines";
 import type { ResumeData } from "../../src/types/resume";
 import { LONG_RESUME_POSTINGS, TAILOR_POSTINGS } from "../fixtures/job-descriptions/tailor-postings";
@@ -108,7 +111,7 @@ describe("tailorWithModel: the nurse, rewritten toward the emergency posting", (
     it("rewrites each line toward its ask, one call per line, then the summary", async () => {
         const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
         const { generate, prompts } = recorded(LINES, SUMMARY);
-        const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
+        const draft = await tailorWithModel(nurse, nurseJob, generate, { ...opts, tries: 1 });
         assert.equal(prompts.length, 5, "four lines and the summary");
         assert.match(prompts[0], /The posting asks: "Triage and assess patients using CTAS and develop nursing care plans\."/);
         assert.equal(draft.engineLabel, opts.engineLabel);
@@ -187,6 +190,7 @@ describe("tailorWithModel: the nurse, rewritten toward the emergency posting", (
         const { generate, prompts } = recorded(LINES, SUMMARY);
         await tailorWithModel(nurse, nurseJob, async (p, o) => ((clock += 40_000), generate(p, o)), {
             ...opts,
+            tries: 1,
             now: () => clock,
             budgetMs: 60_000,
             onProgress: (done, total) => seen.push([done, total]),
@@ -223,7 +227,7 @@ describe("tailorWithModel: a product manager's résumé (Vivek's) toward a PM po
         assert.match(lineChange(draft, before.discovery)!.why, /“Lead discovery with customers and translate requirements into shippable releases”/);
         // A rewrite is one line toward one ask: its prompt carries that line and that ask only.
         assert.equal(prompts.filter((p) => p.includes(before.transition)).length, 1);
-        assert.equal(linePrompt({ line: "x y z w", ask: postingAsks("Own the product roadmap and backlog.")[0]! }).split("\n").length, 8);
+        assert.equal(linePrompt({ line: "x y z w", ask: postingAsks("Own the product roadmap and backlog.")[0]! }).split("\n").length, 9);
     });
 
     it("offers to leave out a project the posting asks nothing about, off until turned on", async () => {
@@ -289,5 +293,82 @@ describe("tailorWithModel: a warehouse supervisor toward a distribution lead pos
         assert.equal(wordStem("administered"), wordStem("administer"));
         assert.equal(wordStem("delivering"), wordStem("deliver"));
         assert.equal(wordStem("assess"), "assess");
+    });
+});
+
+describe("tailorWithModel: the best of up to three tries per line (Chrome's model, Llama)", () => {
+    const triage = "Triage up to 40 patients a shift using CTAS and start care plans with the physician team.";
+    const tries = {
+        number: "Triage and assess up to 45 patients a shift using CTAS and develop nursing care plans with the physician team.",
+        confirm: "Triage and assess up to 40 patients a shift using CTAS and develop nursing care plans with the physician team.",
+        on: "Triage and assess up to 40 patients a shift using CTAS and start care plans with the physician team.",
+    };
+
+    /** Answers the triage line with `answers` in turn, as JSON the way the schema asks; nothing else. */
+    function inTurn(answers: string[]) {
+        const calls: GenerateOptions[] = [];
+        let i = 0;
+        const generate: Generate = async (prompt, options) => {
+            if (!prompt.includes(`The résumé line: "${triage}"`)) return null;
+            calls.push(options ?? {});
+            const answer = answers[i++];
+            return answer === undefined ? null : JSON.stringify({ line: answer });
+        };
+        return { generate, calls };
+    }
+
+    it("keeps the try in the résumé's own words over one that needs an OK and one that adds a number", async () => {
+        const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
+        const { generate, calls } = inTurn([tries.number, tries.confirm, tries.on]);
+        const draft = await tailorWithModel(nurse, nurseJob, generate, opts);
+        assert.equal(calls.length, 3);
+        const change = lineChange(draft, triage);
+        assert.equal(change?.after, tries.on);
+        assert.ok(change && startsOn(change));
+        // Each try holds the model to one JSON field and shows it the two worked examples.
+        assert.deepEqual(calls[0]!.schema, { type: "object", properties: { line: { type: "string" } }, required: ["line"], additionalProperties: false });
+        assert.equal(calls[0]!.examples, LINE_EXAMPLES);
+    });
+
+    it("keeps one that needs an OK when no try is in the résumé's own words", async () => {
+        const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
+        const draft = await tailorWithModel(nurse, nurseJob, inTurn([tries.number, tries.confirm, tries.number + " "]).generate, opts);
+        assert.deepEqual(lineChange(draft, triage)?.confirm, ["develop"]);
+    });
+
+    it("stops at the first try in the résumé's own words, and when the model repeats itself", async () => {
+        const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
+        const first = inTurn([tries.on, tries.confirm]);
+        await tailorWithModel(nurse, nurseJob, first.generate, opts);
+        assert.equal(first.calls.length, 1);
+        const repeats = inTurn([tries.number, tries.number, tries.on]);
+        const draft = await tailorWithModel(nurse, nurseJob, repeats.generate, opts);
+        assert.equal(repeats.calls.length, 2, "the same answer twice: the model has settled");
+        assert.ok(!lineChange(draft, triage), "the line keeps its own wording");
+    });
+
+    it("gives the small WASM model one try", async () => {
+        const nurse = await readResume("resume-corpus/nurse-ca.paste.txt");
+        const { generate, calls } = inTurn([tries.number, tries.on]);
+        await tailorWithModel(nurse, nurseJob, generate, { ...opts, engineId: "transformers" });
+        assert.equal(calls.length, 1);
+    });
+
+    it("reads the reply's field, or the reply as written from a model the schema can't hold", () => {
+        assert.equal(readModelReply('{"line": "Led the team."}', "line"), "Led the team.");
+        assert.equal(readModelReply('Sure! {"line": "Led the team."}', "line"), "Led the team.");
+        assert.equal(readModelReply("Led the team.", "line"), "Led the team.");
+        assert.equal(readModelReply('{"summary": "Nurse."}', "line"), '{"summary": "Nurse."}');
+    });
+
+    it("shows the model a rewrite in the line's own words and a line left as it is, in the reply shape it asks for", () => {
+        assert.equal(LINE_EXAMPLES.length, 2);
+        for (const example of LINE_EXAMPLES) {
+            const before = example.prompt.match(/The résumé line: "(.*)"\n/)?.[1];
+            const after = readModelReply(example.reply, "line");
+            assert.ok(before && after);
+            assert.ok(!introducesNewNumbers(before, after), after);
+        }
+        assert.equal(readModelReply(LINE_EXAMPLES[1]!.reply, "line"), LINE_EXAMPLES[1]!.prompt.match(/The résumé line: "(.*)"\n/)?.[1]);
     });
 });

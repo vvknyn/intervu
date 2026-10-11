@@ -43,7 +43,15 @@ function tryParseJson(text: string): ModelParseOutput {
     }
 }
 
-let engine: { chat: { completions: { create: (opts: { messages: { role: string; content: string }[]; temperature?: number; max_tokens?: number }) => Promise<{ choices: { message: { content: string } }[] }> } } } | null = null;
+type ChatOptions = {
+    messages: { role: string; content: string }[];
+    temperature?: number;
+    max_tokens?: number;
+    /** JSON mode: the reply is grammar-constrained to `schema` (a JSON string). */
+    response_format?: { type: "json_object"; schema?: string };
+};
+
+let engine: { chat: { completions: { create: (opts: ChatOptions) => Promise<{ choices: { message: { content: string } }[] }> } } } | null = null;
 
 type WebllmModule = {
     CreateMLCEngine: (
@@ -111,12 +119,26 @@ export const webllmEngine: LocalAiEngine = {
 
     async generate(prompt: string, options?: GenerateOptions) {
         if (!engine) await this.init();
-        const response = await engine!.chat.completions.create({
-            messages: [{ role: "user", content: prompt }],
+        const chat: ChatOptions = {
+            messages: [
+                ...(options?.examples ?? []).flatMap((e) => [
+                    { role: "user", content: e.prompt },
+                    { role: "assistant", content: e.reply },
+                ]),
+                { role: "user", content: prompt },
+            ],
             temperature: options?.temperature ?? 0.3,
             ...(options?.maxTokens ? { max_tokens: options.maxTokens } : {}),
-        });
-        return response.choices[0]?.message?.content ?? null;
+        };
+        if (!options?.schema) return (await engine!.chat.completions.create(chat)).choices[0]?.message?.content ?? null;
+        try {
+            const constrained = { ...chat, response_format: { type: "json_object" as const, schema: JSON.stringify(options.schema) } };
+            return (await engine!.chat.completions.create(constrained)).choices[0]?.message?.content ?? null;
+        } catch (e) {
+            // A schema this WebLLM build can't compile: ask again unconstrained.
+            console.warn("[local-ai] webllm JSON mode failed, retrying without it", e);
+            return (await engine!.chat.completions.create(chat)).choices[0]?.message?.content ?? null;
+        }
     },
 
     getDisplayLabel() {
