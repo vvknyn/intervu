@@ -115,9 +115,10 @@ export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
     // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
     if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
     if (placeUnknown(score)) return "unplaced";
+    // Before the band: a role above their level is a Stretch for that reason (score.ts).
+    if (score.components.some((c) => c.reason === "level_below_ask")) return "level";
     if (matchBand(score.total) === "stretch") return "stretch";
     if (score.role !== "own" && score.role !== "family") return "other-role";
-    if (score.components.some((c) => c.reason === "level_below_ask")) return "level";
     return null;
 }
 

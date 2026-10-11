@@ -77,12 +77,45 @@ describe('resumeSeniority', () => {
         assert.equal(resumeSeniority(resume(9, [['Shift Supervisor', '2024 - Present']]), NOW), 'senior');
         assert.equal(resumeSeniority(resume(9, [['Registered Nurse', 'sometime']]), NOW), 'senior');
     });
+    it('reads the title held now when it names a higher level than the years, the way a posting\'s title is read', () => {
+        // 4 years as an accountant read mid; the title they hold says senior, as it would on a posting.
+        const accountant = resume(6, [
+            ['Senior Accountant', 'Jan 2024 - Present'],
+            ['Staff Accountant', 'Jan 2022 - Dec 2023'],
+        ]);
+        assert.equal(resumeSeniority(accountant, NOW), 'senior');
+        const lead = resume(5, [['Manager, Customer Success', 'Jan 2023 - Present'], ['Customer Success Manager', 'Jan 2021 - Dec 2022']]);
+        assert.equal(resumeSeniority(lead, NOW), 'senior');
+        // A rank-free or lower title leaves the years' level alone.
+        assert.equal(resumeSeniority(resume(13, [['Technical Account Manager', 'September 2021 - Present'], ['Senior Software Engineer', 'February 2013 - April 2018']]), NOW), 'mid');
+        assert.equal(resumeSeniority(resume(8, [['Junior Developer', '2018 - Present']]), NOW), 'senior');
+    });
 });
 
 describe('jobLevel', () => {
-    const job = (title: string, experience_level: string | null) => ({ title, experience_level: experience_level as string });
-    it('takes the listed level first', () => {
-        assert.equal(jobLevel(job('Senior Technical Account Manager', 'mid')), 'mid');
+    const job = (title: string, experience_level: string | null, min_years_experience?: number) =>
+        ({ title, experience_level: experience_level as string, min_years_experience });
+    it('takes the highest of the listed level, the title and the years asked', () => {
+        assert.equal(jobLevel(job('Senior Technical Account Manager', 'mid')), 'senior');
+        assert.equal(jobLevel(job('Technical Account Manager', 'mid', 8)), 'senior');
+        assert.equal(jobLevel(job('Technical Account Manager', 'senior', 3)), 'senior');
+        assert.equal(jobLevel(job('Technical Account Manager', 'entry', 4)), 'mid');
+        assert.equal(jobLevel(job('Junior Accountant', 'mid')), 'mid');
+    });
+    it('reads the years asked on the same scale as a candidate\'s years, and ignores implausible ones', () => {
+        assert.equal(jobLevel(job('Accountant', null, 2)), 'entry');
+        assert.equal(jobLevel(job('Accountant', null, 5)), 'mid');
+        assert.equal(jobLevel(job('Accountant', null, 7)), 'senior');
+        assert.equal(jobLevel(job('Accountant', null, 0)), null);
+        assert.equal(jobLevel(job('Accountant', null, 75)), null);
+    });
+    it('reads a title that runs a team as senior, and one that names the work as no level', () => {
+        for (const title of ['Manager, Customer Success (Enterprise)', 'Manager of Nursing', 'Manager - Payroll', 'Manager: Store Operations', 'Manager (Technical Account Management)']) {
+            assert.equal(jobLevel(job(title, null)), 'senior', title);
+        }
+        for (const title of ['Customer Success Manager', 'Account Manager - Insurance', 'Product Manager, Growth', 'Assistant Manager', 'Manager']) {
+            assert.equal(jobLevel(job(title, null)), null, title);
+        }
     });
     it('reads the title when no level is listed', () => {
         assert.equal(jobLevel(job('Senior Technical Account Manager', null)), 'senior');

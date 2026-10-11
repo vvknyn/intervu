@@ -52,10 +52,11 @@ import {
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { payPlace } from "@/lib/jobs/pay-place";
+import { titleLevel, yearsAsked } from "@/lib/jobs/role-level";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
-import { buildMatchQuery, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -84,17 +85,24 @@ export interface MatchComponent {
 
 /**
  * The two levels a seniority verdict compares and where each came from: the
- * role's from its listing or its title (`jobLevelRead`), the candidate's from
- * Settings or from years on the résumé (`resumeSeniorityBasis`), with the role
- * they hold now when only those years counted.
+ * role's from its listing, its title or the years it asks for (`jobLevelRead`),
+ * the candidate's from Settings or from their résumé (`resumeSeniorityBasis`):
+ * their years, with the role they hold now when only those years counted, or
+ * the title they hold now when it names a higher level.
  */
 export interface SeniorityRead {
     own: Seniority;
     job: Seniority;
-    jobFrom: "listing" | "title";
+    jobFrom: JobLevelRead["from"];
+    /** The years the role asks for, when they set its level. */
+    jobYears?: number;
+    /** The role's title runs a team ("Manager, Customer Success"), when that set its level. */
+    jobRunsTeam?: true;
     ownFrom: "settings" | "resume";
     years?: number;
     role?: string | null;
+    /** The title the candidate holds now, when it set their level. */
+    title?: string;
 }
 
 /** The verdict behind a seniority or location component's `detail`. */
@@ -477,32 +485,53 @@ function relocatesTo(signals: CandidateSignals, countries: readonly string[]): b
 
 const SENIORITY_LABEL: Record<Seniority, string> = { entry: "entry-level", mid: "mid-level", senior: "senior" };
 
-/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate" read entry. */
-const TITLE_SENIOR = /\b(?:senior(?!s|\s+(?:care|living|home|homes|centre|center|services|citizens?)\b)|sr|lead(?!\s+gen)|principal|director|head of|vice president|vp|chief)\b/i;
-const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice)\b/i;
+/** A role's level and what said it: its listing, its title (`titleLevel`), or the years it asks for. */
+export interface JobLevelRead {
+    level: Seniority;
+    from: "listing" | "title" | "years";
+    /** The years asked, when they set the level. */
+    years?: number;
+    /** The title runs a team ("Manager, Customer Success"), when it set the level. */
+    runsTeam?: true;
+}
 
 /**
- * A role's level: the one its listing names, else the rank word in its title.
- * A "Senior Technical Account Manager" whose level was never listed read as
- * unknown, so it was a pick for a mid-level TAM (2026-10-06).
+ * A role's level: the highest of what its listing names, what its title names
+ * (a rank word, or a title that runs a team) and what the years it asks for
+ * read as on the same scale as the candidate's years (`seniorityFromYears`).
+ * Whatever the posting says it asks for is what it asks for: a "Senior
+ * Technical Account Manager" whose level was never listed read as unknown,
+ * so it was a pick for a mid-level TAM (2026-10-06), and Sophos's "Manager,
+ * Customer Success (Enterprise)", asking for 7+ years and 5+ managing a team,
+ * read as a TAM's own level (2026-10-11).
  */
-export function jobLevel(job: Pick<PublicJob, "experience_level" | "title">): Seniority | null {
+export function jobLevel(job: Pick<PublicJob, "experience_level" | "title" | "min_years_experience">): Seniority | null {
     return jobLevelRead(job)?.level ?? null;
 }
 
-/** `jobLevel`, with whether the listing or the title said it. A listed Lead or Executive reads senior, Intern entry. */
-export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title">): { level: Seniority; from: "listing" | "title" } | null {
+/** `jobLevel`, with what said it. A listed Lead or Executive reads senior, Intern entry. On a tie the listing, then the title, is named. */
+export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title" | "min_years_experience">): JobLevelRead | null {
+    const reads: JobLevelRead[] = [];
     const listed = seniorityOfLevel(job.experience_level);
-    if (listed) return { level: listed, from: "listing" };
-    const title = job.title ?? "";
-    if (TITLE_SENIOR.test(title)) return { level: "senior", from: "title" };
-    if (TITLE_ENTRY.test(title)) return { level: "entry", from: "title" };
-    return null;
+    if (listed) reads.push({ level: listed, from: "listing" });
+    const titled = titleLevel(job.title);
+    if (titled) reads.push({ level: titled.level, from: "title", ...(titled.runsTeam ? { runsTeam: true as const } : {}) });
+    const years = yearsAsked(job.min_years_experience);
+    const byYears = years == null ? null : seniorityFromYears(years);
+    if (byYears) reads.push({ level: byYears, from: "years", years: years! });
+    return reads.reduce<JobLevelRead | null>(
+        (top, read) => (!top || EXPERIENCE_LEVEL_ORDER.indexOf(read.level) > EXPERIENCE_LEVEL_ORDER.indexOf(top.level) ? read : top),
+        null,
+    );
 }
 
-/** The role's level in the words its details show: the listing's own word ("lead role"), else the title's rank ("senior role by its title"). */
-function roleLevelText(job: Pick<PublicJob, "experience_level">, read: { level: Seniority; from: "listing" | "title" }): string {
-    if (read.from === "title") return `${SENIORITY_LABEL[read.level]} role by its title`;
+/**
+ * The role's level in the words its details show: the listing's own word ("lead role"), the title's
+ * ("senior role by its title", "senior role: its title runs a team") or the years ("senior role by the 7+ years it asks for").
+ */
+function roleLevelText(job: Pick<PublicJob, "experience_level">, read: JobLevelRead): string {
+    if (read.from === "title") return read.runsTeam ? `${SENIORITY_LABEL[read.level]} role: its title runs a team` : `${SENIORITY_LABEL[read.level]} role by its title`;
+    if (read.from === "years") return `${SENIORITY_LABEL[read.level]} role by the ${read.years}+ years it asks for`;
     const listed = normalize(job.experience_level ?? "");
     return `${(SENIORITY_LABEL as Record<string, string>)[listed] ?? listed} role`;
 }
@@ -511,6 +540,7 @@ function roleLevelText(job: Pick<PublicJob, "experience_level">, read: { level: 
 function ownLevelText(read: SeniorityRead): string {
     const level = `your ${read.own} level`;
     if (read.ownFrom === "settings") return `${level} (set in Settings)`;
+    if (read.title) return `${level} (your title, ${read.title})`;
     if (read.years == null) return level;
     const years = `${read.years} ${read.years === 1 ? "year" : "years"}`;
     if (!read.role) return `${level} (${years} of experience)`;
@@ -546,8 +576,12 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
         own,
         job: read!.level,
         jobFrom: read!.from,
+        ...(read!.years != null ? { jobYears: read!.years } : {}),
+        ...(read!.runsTeam ? { jobRunsTeam: true as const } : {}),
         ownFrom: signals.seniority.source === "explicit" ? "settings" : "resume",
-        ...(basis && signals.seniority.source !== "explicit" ? { years: basis.years, role: basis.role } : {}),
+        ...(basis && signals.seniority.source !== "explicit"
+            ? { years: basis.years, role: basis.role, ...(basis.title ? { title: basis.title } : {}) }
+            : {}),
     };
     return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${verdict} ${ownLevelText(level)}`, score, reason, level };
 }
@@ -753,11 +787,16 @@ export function roleOffTarget(resume: ResumeData, job: PublicJob): boolean {
  * location cannot be verified for this candidate never reads as Strong: the
  * total is capped just under the Strong band (so is a job whose level was
  * never derived, for a candidate whose level is known — `levelUnverified` —
- * a job above the candidate's level, and a job whose title can't be tied to
+ * and a job whose title can't be tied to
  * the résumé's target role — `roleFit` "unverified"). A job for a different kind of role than the
  * résumé targets (`roleFit` "off-target") is capped under Good, and so is one
  * outside every country the candidate can work in, which also carries
- * `outside` so its label says so (`matchLabel`).
+ * `outside` so its label says so (`matchLabel`), and one above the
+ * candidate's level (`jobLevel`): a role that asks for more than the résumé
+ * shows is a Stretch, as the word says. Held only under Strong, an above-level
+ * role read Good and outranked the roles at the candidate's level: a mid-level
+ * TAM was shown a customer success job asking for 7+ years and 5+ years
+ * managing a team as Good (2026-10-11).
  *
  * `signals` defaults to the résumé-only resolution; callers that hold the
  * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
@@ -785,11 +824,11 @@ export function scoreJobAgainstResume(
     const abroad = location.reason != null && OUTSIDE_REASONS.has(location.reason);
 
     const rank = familyRank(resume, job, role);
-    // A role above the candidate's level can't read Strong: the label would say they can take what its reason says they can't.
+    // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
     const aboveLevel = components[1]!.reason === "level_below_ask";
-    const capped = offTarget
+    const capped = offTarget || aboveLevel
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || aboveLevel || role === "unverified" || role === "adjacent"
+        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
     const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank };

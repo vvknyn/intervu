@@ -271,7 +271,9 @@ describe('scoreJobAgainstResume', () => {
                 occupation: 'Software Engineer', experience_level: 'mid',
             }));
             const withoutRank = scoreJobAgainstResume(SWE_RESUME, J1_FULL_MATCH);
-            assert.equal(withRank!.total, withoutRank!.total);
+            // The rank word sets the role's level (`jobLevelRead`), not its relevance.
+            const relevance = (score: typeof withRank) => score!.components.find((c) => c.key === 'relevance');
+            assert.deepEqual(relevance(withRank), relevance(withoutRank));
         });
 
         it('an experience role title alone (no profession, no skills) can still drive a match', () => {
@@ -634,23 +636,24 @@ describe('a role scores the same on its page as in a list', () => {
             }
         });
     }
-    it("a Technical Account Manager's résumé reads Expel's TAM role as a fit on its page in the US, and as likely for people in the US in Canada", () => {
+    it("a Technical Account Manager's résumé reads Expel's senior TAM role as above its level in the US, and as likely for people in the US in Canada", () => {
         // Remote, no country in its title, place or description, paid in USD (Vivek, 2026-10-03, in Canada: "this is a US job").
         const resume = fixture('vivek-tam-resume');
         const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
         assert.equal(matchLabel(inCanada), 'Outside Canada');
         assert.equal(matchBand(inCanada.total), 'stretch');
-        assert.equal(matchBand(inCanada.outside!.total), 'good');
+        // Before the place cap it is still a Stretch: the listing asks for a senior TAM, above his mid level.
+        assert.equal(matchBand(inCanada.outside!.total), 'stretch');
         assert.equal(inCanada.components.find((c) => c.key === 'location')!.reason, 'remote_pay_abroad');
         assert.equal(
             explainMatch(inCanada).split('. ')[0],
             "It's remote with no country listed, but it pays in USD, so it's likely for people in the United States, outside Canada, where your résumé places you",
         );
         const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
-        // Good, not Strong: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level.
+        // A Stretch: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level.
         const usScore = scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!;
         assert.equal(usScore.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask');
-        assert.equal(matchBand(usScore.total), 'good');
+        assert.equal(matchBand(usScore.total), 'stretch');
     });
 });
 
