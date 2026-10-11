@@ -314,3 +314,23 @@ export const SEARCH_ALERT_MAX_REQUESTS = 5;
 
 /** Thin I/O wrapper: `checkRateLimitWindow` wired to the search-alert route's own store. */
 export const allowSearchAlertRequest = createIpRateLimiter(SEARCH_ALERT_WINDOW_MS, SEARCH_ALERT_MAX_REQUESTS);
+
+/**
+ * Per-IP sliding-window limit for the sealed-AI pass-through
+ * (`/api/sealed-ai/v1/chat/completions`) — its own store. One Customize asks
+ * for about 20 rewrites (8 lines, up to two tries each, plus the summary) and
+ * one résumé read asks once or twice, so 60 per 10 minutes is three tailored
+ * jobs back to back with room to spare, and tight against a script spending
+ * our Tinfoil key.
+ */
+export const SEALED_AI_WINDOW_MS = 600_000;
+export const SEALED_AI_MAX_REQUESTS = 60;
+
+export const allowSealedAiRequest = createIpRateLimiter(SEALED_AI_WINDOW_MS, SEALED_AI_MAX_REQUESTS);
+
+/** The same pass-through's cap for the whole server (keyed by one shared id):
+ *  a ceiling on what the Tinfoil key can spend in an hour, whoever asks. */
+export const SEALED_AI_ALL_WINDOW_MS = 3_600_000;
+export const SEALED_AI_ALL_MAX_REQUESTS = 3_000;
+
+export const allowSealedAiServerRequest = createIpRateLimiter(SEALED_AI_ALL_WINDOW_MS, SEALED_AI_ALL_MAX_REQUESTS);
