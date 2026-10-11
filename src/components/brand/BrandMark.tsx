@@ -6,7 +6,7 @@
  *  Landing and other BrandMark call sites render that raster. The header
  *  lockup (BrandLockup) uses HEADER_MARK_SRC — the same paper tile the
  *  Chrome extension shows, cut out of the raster's white canvas so it sits
- *  on the charcoal header. Email hosts `public/velai-logo.png`.
+ *  on the charcoal header. Email's charcoal band hosts the same tile.
  *  Favicon / PWA / apple-touch are regenerated from it via
  *  `scripts/generate-favicons.mjs`. Edge OG cards embed
  *  `LOCKED_MARK_DATA_URI` (128px) because Satori cannot fetch local files.
@@ -89,7 +89,7 @@ export function BrandLockupMark({
 
 /** Mark + wordmark — the header lockup. Size/weight live here so TopBar,
  *  consent chrome, and email cannot drift. The mark is the cut-out paper
- *  tile; email still hosts `public/velai-logo.png`.
+ *  tile; email's header band hosts the same tile file.
  *
  *  `markClassName` overrides just the mark's tile size (e.g. TopBar's 32px
  *  lockup) without touching the default `h-7 w-7` every other call site

@@ -117,3 +117,40 @@ test("/llms.txt lists every MCP tool the server registers and says what fit_labe
   expect(text).toContain("last_checked_at");
   expect(text).toContain("missing_terms");
 });
+
+// The two how-it-works films. Their poster (2.5s in, the wordmark centred)
+// must show the Velai paper tile: sampled at the tile's top margin, the poster
+// is warm paper. The old intervu-branded render was charcoal there.
+for (const film of [
+  { button: "How MCP works", title: "How it works · Claude / ChatGPT", src: "/marketing/how-it-works/video-a-mcp.mp4", poster: "/marketing/how-it-works/poster-a-mcp.png" },
+  { button: "Watch the demo", title: "How it works · OpenClaw", src: "/marketing/how-it-works/video-b-openclaw.mp4", poster: "/marketing/how-it-works/poster-b-openclaw.png" },
+]) {
+  test(`/connect: "${film.button}" opens its Velai-branded film`, { tag: ["@J-CONNECT-16"] }, async ({ page }) => {
+    await page.goto("/connect");
+    await page.getByRole("button", { name: film.button }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText(film.title)).toBeVisible();
+    const video = dialog.locator("video");
+    await expect(video).toHaveAttribute("src", film.src);
+    await expect(video).toHaveAttribute("poster", film.poster);
+    // Served, not decoded: the open-source Chromium the suite runs on has no
+    // H.264, so the element itself cannot load the mp4 here.
+    const served = await page.request.get(film.src);
+    expect(served.status()).toBe(200);
+    expect(served.headers()["content-type"]).toBe("video/mp4");
+
+    const paper = await page.evaluate(async (src) => {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const [r, g, b] = ctx.getImageData(845, 369, 1, 1).data;
+      return r > 230 && g > 225 && b > 215;
+    }, film.poster);
+    expect(paper).toBe(true);
+  });
+}
