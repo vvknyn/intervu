@@ -39,6 +39,7 @@ const MIME = {
   ".css": "text/css",
   ".woff2": "font/woff2",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
 };
 
 // Chromium refuses cross-origin @font-face and @import over file://, so the

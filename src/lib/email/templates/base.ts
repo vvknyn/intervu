@@ -71,16 +71,18 @@ function preheaderBlock(text: string): string {
 
 /**
  * Charcoal header band: hosted mark + title-case Velai lockup (Concept A).
- * Mark is `public/velai-logo.png` — same raster as in-app chrome; SVG is
- * unreliable in Gmail/Outlook. Empty `alt` so screen readers do not hear the
- * brand twice beside the text wordmark.
+ * Mark is `public/velai-tile-96.png` — the same cut-out paper tile as the
+ * site header (BrandMark's HEADER_MARK_SMALL_SRC), transparent around the
+ * tile so no white square shows on the band; SVG is unreliable in
+ * Gmail/Outlook. Empty `alt` so screen readers do not hear the brand twice
+ * beside the text wordmark.
  */
 function headerBand(siteUrl: string): string {
   const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
   return `<tr>
         <td align="center" bgcolor="${C.band}" style="padding:28px 32px 24px;background-color:${C.band};">
           <a href="${siteUrl}" style="text-decoration:none;color:${C.bandInk};">
-            <img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />
+            <img src="${siteUrl}/velai-tile-96.png" width="28" height="28" alt="" style="vertical-align:middle;border:0;display:inline-block;" />
             <span style="${FONT}font-size:${fontSize}px;font-weight:${fontWeight};letter-spacing:${letterSpacing};color:${C.bandInk};vertical-align:middle;padding-left:8px;">${text}</span>
           </a>
         </td>
@@ -91,7 +93,7 @@ function headerBand(siteUrl: string): string {
 function transactionalHeaderBand(siteUrl?: string): string {
   const { text, fontSize, fontWeight, letterSpacing } = EMAIL_WORDMARK;
   const mark = siteUrl
-    ? `<img src="${siteUrl}/velai-logo.png" width="28" height="28" alt="" style="border-radius:6px;vertical-align:middle;border:0;display:inline-block;" />`
+    ? `<img src="${siteUrl}/velai-tile-96.png" width="28" height="28" alt="" style="vertical-align:middle;border:0;display:inline-block;" />`
     : "";
   const inner =
     mark +
