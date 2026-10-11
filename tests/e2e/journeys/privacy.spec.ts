@@ -2,7 +2,7 @@ import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/priva
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/33,
+ * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34,
  * and J-JOBS-115, the front door's privacy promises that link here).
  * Read-only. What "Delete account" erases is a promise people act on, so the
  * page has to say what the server action really removes
@@ -38,7 +38,7 @@ test("the privacy policy says account data is encrypted in our own database, not
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the privacy policy opens with Velai's résumé promises and a Your résumé section that explains each one", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
+test("the privacy policy opens with Velai's résumé promises and a Your résumé section that explains each one", { tag: ["@J-CONTENT-34"] }, async ({ page, diagnostics }) => {
   await page.goto("/privacy");
   const promises = page.getByTestId("privacy-promises");
   await expect(promises).toBeVisible();

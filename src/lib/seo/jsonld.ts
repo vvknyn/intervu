@@ -37,7 +37,7 @@ interface ArticleJsonLd {
   description?: string;
   url: string;
   image?: string[];
-  author?: { "@type": "Person"; name: string; jobTitle?: string };
+  author?: ArticleAuthor;
   inLanguage: "en";
   publisher: { "@type": "Organization"; name: string; url: string; logo: { "@type": "ImageObject"; url: string } };
   mainEntityOfPage: { "@type": "WebPage"; "@id": string };
@@ -169,8 +169,11 @@ export interface ArticleJsonLdInput {
   path: string;
   /** Site path of the article's main picture, e.g. "/blog/x/cover.png". */
   image?: string;
-  author?: { name: string; jobTitle?: string };
+  author?: ArticleAuthor;
 }
+
+/** Always an organization (Velai itself): the site names no person who works on it. */
+export type ArticleAuthor = { "@type": "Organization"; name: string; url: string };
 
 export function buildArticleJsonLd(input: ArticleJsonLdInput): ArticleJsonLd {
   const siteUrl = getSiteUrl();
@@ -184,7 +187,7 @@ export function buildArticleJsonLd(input: ArticleJsonLdInput): ArticleJsonLd {
     ...(input.description ? { description: input.description } : {}),
     url,
     ...(input.image ? { image: [`${siteUrl}${input.image}`] } : {}),
-    ...(input.author ? { author: { "@type": "Person", ...input.author } } : {}),
+    ...(input.author ? { author: input.author } : {}),
     inLanguage: "en",
     publisher: {
       "@type": "Organization",

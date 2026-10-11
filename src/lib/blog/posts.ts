@@ -35,7 +35,6 @@ export interface BlogPost {
     description: string;
     /** YYYY-MM-DD. */
     datePublished: string;
-    author: { name: string; role: string };
     /** Markdown. Pictures use site paths (`/blog/<slug>/x.png`) listed in `images`. */
     body: string;
     images: Record<string, BlogImage>;
@@ -46,6 +45,12 @@ export interface BlogPost {
 export const BLOG_POSTS: readonly BlogPost[] = [SAME_RESUME_TEST_OCTOBER_2026, WHATS_NEW_OCTOBER_2026];
 
 export const BLOG_PATH = "/blog";
+
+/**
+ * Every post is signed by the team, and search engines are told the author is
+ * Velai itself: the site names no person who works on it (2026-10-11).
+ */
+export const BLOG_BYLINE = "By the Velai team";
 
 export function blogPostPath(slug: string): string {
     return `${BLOG_PATH}/${slug}`;

@@ -29,7 +29,6 @@ Also fixed: if "Continue with Google" kept sending you back to the start, it now
 
 [Read the full update on our blog](/blog/whats-new-october-2026?utm_source=email&utm_medium=email&utm_campaign=2026-10-whats-new).
 
-Something broken or missing? Reply to this email; it comes to me.
+Something broken or missing? Reply to this email; it comes to us.
 
-Vivek\
-Founder, Velai
+The Velai team
