@@ -285,10 +285,13 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
             assert.equal(sophos.role, 'family');
             assert.equal(seniority(sophos).reason, 'level_below_ask');
             assert.equal(matchBand(sophos.total), 'stretch', `${level}: ${sophos.total}`);
-            assert.equal(seniority(sophos).detail, 'senior role: its title runs a team — above your mid level (5 years as a Technical Account Manager)');
+            assert.equal(
+                seniority(sophos).detail,
+                'senior role: its title runs a team — above your mid level (5 years as a Technical Account Manager) · no role on your résumé shows you managing people',
+            );
             assert.match(
                 explainMatch(sophos),
-                /It's a Stretch because .*its title runs a team, which makes it a senior role, above the mid level of your 5 years as a Technical Account Manager\./,
+                /It's a Stretch because its title runs a team, which makes it a senior role, above the mid level of your 5 years as a Technical Account Manager, and no role on your résumé shows you managing people\. Your résumé has \d of the \d key words/,
             );
             assert.equal(todayLeftOut(sophos), 'level');
         }
@@ -313,8 +316,9 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
 
     it('a candidate set to senior in Settings, or who holds such a title now, is at that level', () => {
         const settings = resolveCandidateSignals(TAM, { configured: true, search: { experienceLevel: 'senior' }, answers: { custom: {} } });
-        const asSenior = scoreJobAgainstResume(TAM, remote('Manager, Customer Success (Enterprise)', 'unknown'), settings)!;
+        const asSenior = scoreJobAgainstResume(TAM, remote('Senior Customer Success Manager', 'unknown'), settings)!;
         assert.equal(seniority(asSenior).reason, 'level_fits');
+        assert.notEqual(matchBand(asSenior.total), 'stretch');
         const manager: ResumeData = {
             ...TAM,
             experience: [{ ...TAM.experience[0]!, role: 'Manager, Customer Success' }, ...TAM.experience.slice(1)],
@@ -322,6 +326,46 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
         const own = score(manager, remote('Manager, Customer Success (Enterprise)', 'unknown'))!;
         assert.equal(seniority(own).reason, 'level_fits');
         assert.match(seniority(own).detail, /matches your senior level \(your title, Manager, Customer Success\)$/);
+        assert.equal(own.newToManaging, undefined);
         assert.notEqual(matchBand(own.total), 'stretch');
+    });
+});
+
+/**
+ * Vivek, 2026-10-11, on the Sophos posting: "i dont have any managerial
+ * experience...i think that should have been taken into account". A role whose
+ * title manages people is a Stretch when nothing on the résumé shows its owner
+ * managing anyone, whatever level they read or set: his Team Lead and
+ * Technology Lead roles led the work, not people.
+ */
+describe('a role that manages people is a Stretch for a résumé that shows no one managed', () => {
+    const remote = (title: string, experience_level: string) => canada(title, experience_level, { work_type: 'remote' });
+    const asSenior = resolveCandidateSignals(TAM, { configured: true, search: { experienceLevel: 'senior' }, answers: { custom: {} } });
+
+    it('holds a manager\'s or director\'s role under Good for the TAM résumé, even set to senior, and says why', () => {
+        for (const title of ['Manager, Customer Success (Enterprise)', 'Director, Customer Success', 'Head of Customer Success']) {
+            const s = scoreJobAgainstResume(TAM, remote(title, 'senior'), asSenior)!;
+            assert.equal(s.newToManaging, true, title);
+            assert.equal(s.components.find((c) => c.key === 'seniority')!.reason, 'level_fits', title);
+            assert.equal(matchBand(s.total), 'stretch', `${title}: ${s.total}`);
+            assert.match(explainMatch(s), /It's a Stretch because (its title manages people, which no role on your résumé shows you doing|.*, and no role on your résumé shows you managing people)/, title);
+            assert.equal(todayLeftOut(s), 'level', title);
+        }
+        const csm = scoreJobAgainstResume(TAM, remote('Senior Customer Success Manager', 'senior'), asSenior)!;
+        assert.equal(csm.newToManaging, undefined);
+        assert.equal(todayLeftOut(csm), null);
+    });
+
+    it('holds an Engineering Manager role for a senior engineer who never managed, not for one who did', () => {
+        const em = canada('Engineering Manager', 'senior');
+        const ic = score(SWE, em)!;
+        assert.equal(ic.newToManaging, true);
+        assert.equal(matchBand(ic.total), 'stretch');
+        assert.notEqual(matchBand(score(SWE, canada('Senior Software Engineer', 'senior'))!.total), 'stretch');
+        const managed: ResumeData = {
+            ...SWE,
+            experience: [{ ...SWE.experience[0]!, description: `${SWE.experience[0]!.description}\nManaged a team of 6 engineers.` }, ...SWE.experience.slice(1)],
+        };
+        assert.equal(score(managed, em)!.newToManaging, undefined);
     });
 });

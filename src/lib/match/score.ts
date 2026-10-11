@@ -52,7 +52,7 @@ import {
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { payPlace } from "@/lib/jobs/pay-place";
-import { titleLevel, yearsAsked } from "@/lib/jobs/role-level";
+import { resumeManagedPeople, titleLevel, titleManagesPeople, yearsAsked } from "@/lib/jobs/role-level";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
@@ -138,6 +138,11 @@ export interface MatchScore {
     familyRank?: number;
     /** Set when the role is outside every country the candidate can work in (`MatchOutside`). */
     outside?: MatchOutside;
+    /**
+     * Its title is a people manager's (`titleManagesPeople`) and no role or line on the résumé shows
+     * its owner managing people (`resumeManagedPeople`). Such a role is a Stretch whatever their level.
+     */
+    newToManaging?: true;
 }
 
 /**
@@ -587,6 +592,17 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
 }
 
 /**
+ * What a people manager's role for a résumé that shows no one managed (`MatchScore.newToManaging`) says,
+ * on the seniority receipt and in the reason. When the level already reads "its title runs a team", only
+ * the résumé's side is left to say.
+ */
+export function newToManagingText(read: SeniorityRead | undefined): string {
+    return read?.jobRunsTeam
+        ? "no role on your résumé shows you managing people"
+        : "its title manages people, which no role on your résumé shows you doing";
+}
+
+/**
  * A seniority filter also retrieves jobs whose level was never derived
  * (`unknown-inclusive-facets.ts`). For a candidate whose level IS known, such a
  * job cannot be verified as a fit, so like an unverifiable location it never
@@ -603,9 +619,11 @@ interface ResumeTargets {
     ownFamilies: RoleFamilyId[];
     /** `ownFamilies` in the whole résumé's order of strength (`families`): which of its own roles leads. */
     leading: RoleFamilyId[];
+    /** A role or line on the résumé shows its owner managing people (`resumeManagedPeople`). */
+    managed: boolean;
 }
 
-/** Per résumé object: the role families it targets, the titles its packs search for, and its own role. */
+/** Per résumé object: the role families it targets, the titles its packs search for, its own role, and whether it shows managing people. */
 const TARGETS = new WeakMap<ResumeData, ResumeTargets>();
 
 function resumeTargets(resume: ResumeData): ResumeTargets {
@@ -621,6 +639,7 @@ function resumeTargets(resume: ResumeData): ResumeTargets {
                 ...roles.families.filter((family) => roles.ownFamilies.includes(family)),
                 ...roles.ownFamilies.filter((family) => !roles.families.includes(family)),
             ],
+            managed: resumeManagedPeople(resume),
         };
         TARGETS.set(resume, targets);
     }
@@ -796,7 +815,11 @@ export function roleOffTarget(resume: ResumeData, job: PublicJob): boolean {
  * shows is a Stretch, as the word says. Held only under Strong, an above-level
  * role read Good and outranked the roles at the candidate's level: a mid-level
  * TAM was shown a customer success job asking for 7+ years and 5+ years
- * managing a team as Good (2026-10-11).
+ * managing a team as Good (2026-10-11). A role whose title manages people is
+ * a Stretch too when no role or line on the résumé shows managing people
+ * (`newToManaging`), whatever level the candidate is: "i dont have any
+ * managerial experience...i think that should have been taken into account"
+ * (2026-10-11).
  *
  * `signals` defaults to the résumé-only resolution; callers that hold the
  * candidate's saved preferences pass `resolveCandidateSignals(resume, prefs)`.
@@ -817,7 +840,14 @@ export function scoreJobAgainstResume(
           ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job` }
           : overlap;
 
-    const components = [relevance, scoreSeniority(signals, job), scoreLocation(signals, job)];
+    // A people manager's role for a résumé that shows no one managed: said beside the level, where the receipt names what it asks.
+    const newToManaging = titleManagesPeople(job.title) && !resumeTargets(resume).managed;
+    const seniority = scoreSeniority(signals, job);
+    const components = [
+        relevance,
+        newToManaging ? { ...seniority, detail: `${seniority.detail} · ${newToManagingText(seniority.level)}` } : seniority,
+        scoreLocation(signals, job),
+    ];
     const weighted = components.reduce((sum, c) => sum + MATCH_WEIGHTS[c.key] * c.score, 0);
     const total = Math.round((weighted / WEIGHT_SUM) * 100);
     const location = components[2]!;
@@ -826,12 +856,12 @@ export function scoreJobAgainstResume(
     const rank = familyRank(resume, job, role);
     // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
     const aboveLevel = components[1]!.reason === "level_below_ask";
-    const capped = offTarget || aboveLevel
+    const capped = offTarget || aboveLevel || newToManaging
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
-    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank };
+    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}) };
     if (!abroad || !location.place) return score;
     return {
         ...score,

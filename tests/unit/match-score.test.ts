@@ -823,7 +823,12 @@ describe('the seniority reason agrees with the role\'s details', () => {
         const at = (experience_level: string, title: string) =>
             scoreJobAgainstResume(resume, mkJob({ title, experience_level }), signals)!.components.find((c) => c.key === 'seniority')!;
         assert.equal(at('mid', 'Enterprise Customer Success Manager').detail, 'mid-level role — below your senior level (set in Settings)');
-        assert.equal(at('senior', 'Manager, Customer Success (Enterprise)').detail, 'senior role — matches your senior level (set in Settings)');
+        // Its level matches; that his résumé shows no one managed is said beside it (newToManaging).
+        assert.equal(
+            at('senior', 'Manager, Customer Success (Enterprise)').detail,
+            'senior role — matches your senior level (set in Settings) · its title manages people, which no role on your résumé shows you doing',
+        );
+        assert.equal(at('senior', 'Senior Customer Success Manager').detail, 'senior role — matches your senior level (set in Settings)');
     });
 
     it('a level read from the résumé names the years and the role it came from', () => {

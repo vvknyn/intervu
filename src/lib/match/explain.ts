@@ -10,6 +10,7 @@ import {
     MATCH_BAND_STRONG_MIN,
     matchBand,
     matchBandLabel,
+    newToManagingText,
     placeUnclear,
     type MatchComponent,
     type MatchOutside,
@@ -227,25 +228,33 @@ export function explainMatch(score: MatchScore): string {
     const terms = termsClause(score);
 
     const support = clauses.filter((c) => !WEAK.has(c.reason)).map((c) => c.text);
-    const against = [...(terms ? [terms] : []), ...clauses.filter((c) => WEAK.has(c.reason)).map((c) => c.text)];
+    const weak = clauses.filter((c) => WEAK.has(c.reason)).map((c) => c.text);
+    const managing = score.newToManaging ? [newToManagingText(component(score, "seniority")?.level)] : [];
 
     const parts: string[] = [];
     const role = roleSentence(score);
     if (role) parts.push(role);
     if (support.length > 0) parts.push(sentence(support));
-    if (against.length > 0) {
-        // The role sentence already says why an adjacent, unverified or off-target role
-        // is held down; otherwise a below-Strong label is explained by what's against it.
-        const heldByRole = score.role === "adjacent" || score.role === "unverified" || score.role === "off-target";
-        // A role above the candidate's level is a Stretch for that reason (score.ts), whatever else it has.
-        const aboveLevel = level === "level_below_ask";
-        parts.push(
-            aboveLevel && !heldByRole
-                ? `It's a Stretch because ${against.join(" and ")}.`
-                : score.total < MATCH_BAND_STRONG_MIN && !heldByRole
-                  ? `It isn't a Strong match because ${against.join(" and ")}.`
-                  : sentence([against.join(" and ")]),
-        );
+    // The role sentence already says why an adjacent, unverified or off-target role
+    // is held down; otherwise a below-Strong label is explained by what's against it.
+    const heldByRole = score.role === "adjacent" || score.role === "unverified" || score.role === "off-target";
+    // A role above the candidate's level, or managing people when they haven't, is a Stretch for that
+    // reason (score.ts), whatever else it has: say that first, and the key words after it on their own.
+    if (level === "level_below_ask" || managing.length > 0) {
+        const held = [...weak, ...managing];
+        // Those clauses carry commas of their own, so a comma comes before the last "and".
+        const reasons = held.length > 1 ? `${held.slice(0, -1).join(", ")}, and ${held[held.length - 1]}` : held[0]!;
+        parts.push(heldByRole ? sentence([reasons]) : `It's a Stretch because ${reasons}.`);
+        if (terms) parts.push(sentence([terms]));
+    } else {
+        const against = [...(terms ? [terms] : []), ...weak];
+        if (against.length > 0) {
+            parts.push(
+                score.total < MATCH_BAND_STRONG_MIN && !heldByRole
+                    ? `It isn't a Strong match because ${against.join(" and ")}.`
+                    : sentence([against.join(" and ")]),
+            );
+        }
     }
     if (parts.length === 0) return `${matchBandLabel(matchBand(score.total))} against your résumé.`;
     return parts.join(" ");

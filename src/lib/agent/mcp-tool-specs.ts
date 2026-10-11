@@ -214,6 +214,9 @@ export const FIT_FIELDS_NOTE =
     "a role's fit; never call a role labelled Outside or Country unclear a fit. A role above their level is " +
     "always Stretch: a role's level is the highest of its listed level, its title (a rank word like Senior, or a " +
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
+    "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
+    "Store Manager and the like) is also Stretch when no role or line on their résumé shows them managing people; " +
+    "leading a team's work (Team Lead) doesn't count. " +
     "Every job also carries " +
     "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
     "say how long ago it was checked when you say a role is open.";
