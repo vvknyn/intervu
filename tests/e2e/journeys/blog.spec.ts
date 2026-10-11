@@ -1,11 +1,11 @@
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -31).
+ * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -32, -33).
  * Read-only. The October 2026 "what's new" note is the post the email to
  * registered users links to, so its pictures and its setup link have to work
  * for someone arriving cold. The same-résumé test post (J-CONTENT-29) is the
- * one Vivek links from Reddit, so its chart and its source link have to work.
+ * one we link from Reddit, so its chart and its source link have to work.
  */
 
 const POST_PATH = "/blog/whats-new-october-2026";
@@ -82,7 +82,7 @@ test("a blog post tells search engines and link previews its title, picture, aut
     .locator('script[type="application/ld+json"]')
     .evaluateAll((nodes) => nodes.map((n) => JSON.parse(n.textContent ?? "{}")));
   const article = graphs.find((g) => g["@type"] === "Article");
-  expect(article?.author?.name).toBe("Vivek");
+  expect(article?.author).toEqual({ "@type": "Organization", name: "Velai", url: expect.stringMatching(/^https?:\/\//) });
   expect(article?.datePublished).toBe("2026-10-09");
   expect(article?.image?.[0]).toMatch(/results\.png$/);
   const crumbs = graphs.find((g) => g["@type"] === "BreadcrumbList");
@@ -92,6 +92,25 @@ test("a blog post tells search engines and link previews its title, picture, aut
   await more.getByRole("link", { name: "What's new in Velai: every match says why" }).click();
   await expect(page).toHaveURL(new RegExp(`${POST_PATH}$`));
   await expect(page.getByTestId("blog-more").getByRole("link", { name: /Same résumé, two job searches/ })).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("every blog post is signed by the Velai team and names no person, on the page or to search engines", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
+  for (const path of [POST_PATH, TEST_POST_PATH]) {
+    await page.goto(path);
+    const post = page.getByTestId("blog-post");
+    await expect(post.getByText("By the Velai team", { exact: true })).toBeVisible();
+    await expect(post).not.toContainText(/founder/i);
+
+    expect(await page.locator('meta[name="author"]').getAttribute("content")).toBe("Velai");
+    await expect(page.locator('meta[property="article:author"]')).toHaveCount(0);
+    const article = (
+      await page.locator('script[type="application/ld+json"]').evaluateAll((nodes) => nodes.map((n) => JSON.parse(n.textContent ?? "{}")))
+    ).find((g) => g["@type"] === "Article");
+    expect(article?.author?.["@type"]).toBe("Organization");
+    expect(article?.author?.name).toBe("Velai");
+  }
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
