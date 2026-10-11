@@ -576,7 +576,8 @@ describe('toolForYou', () => {
     // jobLow's without hand-computing either exact total. jobUnscored has an
     // empty title/tags — an empty job vocabulary — so
     // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
-    const partial = { tags: ['backend', 'fortran', 'cobol', 'mainframe'] };
+    // No rank word in the title, so the listed level alone sets each role's level (`jobLevelRead`).
+    const partial = { title: 'Engineer', tags: ['backend', 'fortran', 'cobol', 'mainframe'] };
     // Different employers: the same title at the same company is one role
     // cross-posted, which for_you lists once (`clusterJobs`), as the site does.
     const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid', ...partial });

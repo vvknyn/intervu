@@ -29,6 +29,7 @@ import { isRoleTitlePhrase } from "@/lib/resume/title-text";
 import { formatQuotedOrQuery } from "./fit-phrases";
 import { resumeIndustry, type IndustryId } from "./resume-industry";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
+import { titleLevel } from "./role-level";
 
 export interface DerivedQuery {
     q: string;
@@ -60,7 +61,10 @@ const SENIORITY_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
  * picks with senior roles (2026-10-06). The same for any change of line: a
  * nurse who became a teacher, an engineer who became a product manager.
  * When the latest role names no kind we know, or its dates can't be read,
- * the whole career decides, as before.
+ * the whole career decides, as before. A title held now that names a higher
+ * level than those years ("Senior Accountant", "Manager, Customer Success")
+ * sets the level instead: a title means the same level on a résumé as on a
+ * posting (`titleLevel`), so the candidate's own title never reads above them.
  */
 export function resumeSeniority(resume: ResumeData | null | undefined, now: Date = new Date()): Seniority | null {
     return resumeSeniorityBasis(resume, now)?.level ?? null;
@@ -75,9 +79,21 @@ export interface SeniorityBasis {
     role: string | null;
     /** Which `experience` entries (by index) the years were counted from, when `role` is set: the review marks them. */
     roles?: number[];
+    /** The title held now, when it names a higher level than the years do and so sets `level` (`titleLevel`). */
+    title?: string;
 }
 
 export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now: Date = new Date()): SeniorityBasis | null {
+    const basis = yearsSeniorityBasis(resume, now);
+    if (!basis) return null;
+    const held = (resume?.experience?.[0]?.role ?? "").trim();
+    const titled = titleLevel(held);
+    if (!titled || SENIORITY_ORDER.indexOf(titled.level) <= SENIORITY_ORDER.indexOf(basis.level)) return basis;
+    return { ...basis, level: titled.level, title: held };
+}
+
+/** The level from years alone: in the candidate's line of work, never above their whole career. */
+function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): SeniorityBasis | null {
     const careerYears = resume?.profile?.yearsOfExperience ?? 0;
     const overall = seniorityFromYears(careerYears);
     if (!overall) return null;

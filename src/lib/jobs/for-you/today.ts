@@ -100,7 +100,9 @@ export type TodayRole = { job: PublicJob; score: MatchScore };
  *  - `other-role`: the title is not the candidate's own kind of role (a
  *    neighbour the pack also searched for, a title tied to no role the
  *    résumé names, or a different kind of job). Packs still list these;
- *  - `level`: the role asks for more seniority than the résumé shows;
+ *  - `level`: the role asks for more seniority than the résumé shows, or
+ *    its title manages people and nothing on the résumé shows managing
+ *    anyone (`MatchScore.newToManaging`);
  *  - `abroad`: the role is in, or remote from, a country the candidate
  *    can't work in, or names none and pays in another country's money;
  *  - `unplaced`: nothing says the candidate can take it from where they
@@ -115,9 +117,10 @@ export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
     // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
     if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
     if (placeUnknown(score)) return "unplaced";
+    // Before the band: a role above their level, or managing people when they haven't, is a Stretch for that reason (score.ts).
+    if (score.newToManaging || score.components.some((c) => c.reason === "level_below_ask")) return "level";
     if (matchBand(score.total) === "stretch") return "stretch";
     if (score.role !== "own" && score.role !== "family") return "other-role";
-    if (score.components.some((c) => c.reason === "level_below_ask")) return "level";
     return null;
 }
 

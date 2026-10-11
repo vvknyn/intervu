@@ -1188,11 +1188,8 @@ signedInTest("a role that doesn't say which countries it hires in reads Country 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("Today reads a career changer's level from the years in the role they hold now, so senior roles in that role aren't picks, whether the listing or only the title says senior", { tag: ["@J-JOBS-110"] }, async ({ page, diagnostics }) => {
-  // Vivek, 2026-10-06: "All the roles that are showing up are all senior roles ... ALL MY RECOMMENDATIONS SUCK".
-  // A fabricated résumé of the same shape: 13 years in all, the last 5 as a Technical Account Manager after 8 in engineering.
-  await returningVisitor(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+/** A fabricated career changer in Toronto: 13 years in all, the last 5 as a Technical Account Manager after 8 in engineering. */
+async function withCareerChangerTamResume(page: Page) {
   await page.addInitScript(([enabledKey, resumeKey]) => {
     const resume = {
       profile: { name: "Alex Morgan", profession: "Technical Account Manager", yearsOfExperience: 13, location: "Toronto, Ontario, Canada", email: "alex.morgan@example.com", phone: "", linkedin: "", website: "" },
@@ -1207,6 +1204,13 @@ signedInTest("Today reads a career changer's level from the years in the role th
     localStorage.setItem(enabledKey, "1");
     localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
   }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+}
+
+signedInTest("Today reads a career changer's level from the years in the role they hold now, so senior roles in that role aren't picks, whether the listing or only the title says senior", { tag: ["@J-JOBS-110"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-06: "All the roles that are showing up are all senior roles ... ALL MY RECOMMENDATIONS SUCK".
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withCareerChangerTamResume(page);
   const week = [
     remoteRole("tam", "Technical Account Manager", "Remote, Canada", { tags: [] }),
     remoteRole("tam-senior", "Senior Technical Account Manager", "Remote, Canada", { tags: [], experience_level: "senior" }),
@@ -1227,6 +1231,96 @@ signedInTest("Today reads a career changer's level from the years in the role th
   // Today asks search for roles at their level, not senior ones too.
   expect(asked.at(-1)).toMatch(/\bmid\b/);
   expect(asked.at(-1)).not.toMatch(/\bsenior\b/i);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a role above the candidate's level reads Stretch and ranks after the roles at their level, whether its title runs a team or it asks for more years, and its reason says which", { tag: ["@J-JOBS-116"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-11, on Sophos's "Manager, Customer Success (Enterprise)" (5+ years managing a team, 7+ as a CSM):
+  // "why are these kinds of postings being recommended for me????? this is such a weak match". It read Good for a mid-level TAM.
+  await returningVisitor(page);
+  await withCareerChangerTamResume(page);
+  const hits = [
+    remoteRole("cs-manager", "Manager, Customer Success (Enterprise)", "Remote, Canada", { tags: [] }),
+    remoteRole("tam-7y", "Technical Account Manager", "Remote, Canada", { tags: [], min_years_experience: 7 }),
+    remoteRole("csm", "Customer Success Manager", "Remote, Canada", { tags: [] }),
+    remoteRole("tam", "Technical Account Manager", "Remote, Canada", { tags: [], min_years_experience: 5 }),
+  ];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-above-level" }));
+  await page.goto("/jobs?view=search&q=customer%20success&sort=fit");
+
+  const rows = page.getByTestId("job-row");
+  await expect(rows).toHaveCount(4, { timeout: 60_000 });
+  const chip = (id: string) => page.locator(`[data-testid="job-row"][data-job-id="${id}"]`).getByTestId("match-chip");
+  await expect(chip("cs-manager")).toHaveText("Stretch", { timeout: 60_000 });
+  await expect(chip("tam-7y")).toHaveText("Stretch");
+  await expect(chip("tam")).toHaveText("Strong");
+  await expect(chip("csm")).toHaveText(/^(Strong|Good)$/);
+  // Own role first, then the same kind of role; inside each, the role at their level before the one above it.
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["tam", "tam-7y", "csm", "cs-manager"]);
+
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip("cs-manager").tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip("cs-manager").hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("It's a Stretch because");
+  await expect(reason).toContainText(/its title runs a team, which makes it a senior role, above the mid level of your \d+ years as a Technical Account Manager/);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a role whose title manages people reads Stretch for a résumé that shows no one managed, at their level or not, and its reason says so", { tag: ["@J-JOBS-117"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-11: "i dont have any managerial experience...i think that should have been taken into account".
+  // Leading the work ("Led the payments rewrite with four engineers") is not managing people.
+  await returningVisitor(page);
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Jordan Lee", profession: "Senior Software Engineer", yearsOfExperience: 10, location: "Toronto, Ontario, Canada", email: "jordan.lee@example.com", phone: "", linkedin: "", website: "" },
+      experience: [
+        { id: "e1", company: "Nimbus Data", role: "Senior Software Engineer", dates: "January 2019 - Present", description: "Built backend services in TypeScript and Node. Led the payments rewrite with four engineers." },
+        { id: "e2", company: "Contoso", role: "Software Engineer", dates: "June 2015 - December 2018", description: "Built APIs in Python." },
+      ],
+      competencies: [{ category: "Languages", skills: ["TypeScript", "Node.js", "Python", "SQL"] }],
+      education: [],
+      generatedSummary: "Senior software engineer building backend systems.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  const hits = [
+    remoteRole("manager", "Manager, Software Engineering", "Remote, Canada", { tags: [], experience_level: "senior" }),
+    remoteRole("ic", "Senior Software Engineer", "Remote, Canada", { tags: [], experience_level: "senior" }),
+  ];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-new-to-managing" }));
+  await page.goto("/jobs?view=search&q=software%20engineer&sort=fit");
+
+  const rows = page.getByTestId("job-row");
+  await expect(rows).toHaveCount(2, { timeout: 60_000 });
+  const chip = (id: string) => page.locator(`[data-testid="job-row"][data-job-id="${id}"]`).getByTestId("match-chip");
+  await expect(chip("ic")).toHaveText("Strong", { timeout: 60_000 });
+  await expect(chip("manager")).toHaveText("Stretch");
+  await expect.poll(() => rows.evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")))).toEqual(["ic", "manager"]);
+
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip("manager").tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip("manager").hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("matches the senior level of your 10 years of experience");
+  await expect(reason).toContainText("It's a Stretch because its title manages people, which no role on your résumé shows you doing.");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
