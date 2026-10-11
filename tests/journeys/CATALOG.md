@@ -632,7 +632,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |----|---------|---------|-------|------|--------|--------|------|
 | J-ALERTS-01 | Guest with zero search results sees the email-alert capture | anon | /jobs?q=zzzzqxwv (zero results) | signed-out | no | uncovered | — |
-| J-ALERTS-02 | With results, the alert capture never opens by itself after searches (it did after two until 2026-10-10); only the results line's "Weekly job alerts" switch opens it | anon | /jobs?q=engineer (interactions seeded to 2) | signed-out | no | uncovered | — |
+| J-ALERTS-02 | With results, the alert capture never opens by itself after searches (it did after two until 2026-10-10); only the results line's "Weekly job alerts" switch opens it | anon | /jobs?q=engineer (interactions seeded to 2) | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-03 | A guest's "Weekly job alerts" switch on the results line (the words flip it too) opens the email form right under it, above the first row; "Not now" turns it back off. It replaced the toolbar's "Get alerts" (2026-10-10) | anon | /jobs?q=engineer | signed-out | no | covered | alerts.spec.ts |
 | J-ALERTS-04 | "Not now" hides the capture and sets a 30-day dismissal | anon | /jobs?q=zzzzqxwv | signed-out | no | uncovered | — |
 | J-ALERTS-05 | A recent dismissal suppresses the capture on reload | anon | /jobs?q=zzzzqxwv (dismissed key seeded) | signed-out | no | uncovered | — |
