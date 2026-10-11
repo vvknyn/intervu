@@ -1,11 +1,11 @@
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
 
 /**
- * Journeys for tailoring a résumé to one role — see tests/journeys/CATALOG.md (J-RESUME-50, J-RESUME-52).
+ * Journeys for tailoring a résumé to one role — see tests/journeys/CATALOG.md (J-RESUME-50, J-RESUME-52 to 54).
  * Read-only: the résumé lives in localStorage, the search and the posting are answered in the browser,
  * and sealed AI is off (fixtures.ts) unless a journey stands in for it.
  *
@@ -299,5 +299,52 @@ test("sealed AI rewrites the matched lines in one request toward what the postin
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), LOCAL_AI_RESUME_KEY);
   expect(stored?.data?.experience?.[0]?.description).toBe(WAREHOUSE_RESUME.experience[0].description);
   expect(stored?.data?.projects).toHaveLength(1);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Open Customize on the warehouse posting with the real sealed-AI routes in front (the fixture's "off" is bypassed). */
+async function openCustomizeWithSealedRoutes(page: Page, sealed: (route: Route) => Promise<void>) {
+  // A page route runs before the fixture's context route; openCustomizeFor's own route falls back to this one.
+  await page.route((url) => url.pathname.startsWith("/api/sealed-ai/"), sealed);
+  return openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
+}
+
+test("where sealed AI is on but its request fails, Customize keeps the rules draft and never says Tinfoil rewrote it", { tag: ["@J-RESUME-54"] }, async ({ page, diagnostics }) => {
+  const asked: string[] = [];
+  const dialog = await openCustomizeWithSealedRoutes(page, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/sealed-ai/status") return route.fulfill({ json: { enabled: true, model: "llama3-3-70b" } });
+    asked.push(path);
+    // What the pass-through answers when Tinfoil doesn't.
+    return route.fulfill({ status: 502, json: { error: "Sealed AI didn't answer" } });
+  });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 60_000 });
+  await expect(dialog.getByText("Rules", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Sealed AI · Tinfoil")).toHaveCount(0);
+  await expect(dialog.getByTestId("local-customize-copy")).toBeEnabled();
+  // Either the attestation check failed first (nothing sent) or the pass-through's 502 came back: both end in the rules draft.
+  expect(asked.every((p) => p === "/api/sealed-ai/v1/chat/completions")).toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on the live server, Customize's sealed-AI request reaches Tinfoil through velai.app's pass-through", { tag: ["@J-RESUME-53"] }, async ({ page, diagnostics }) => {
+  // Spends the Tinfoil key: a release check (JOURNEY_SEALED_AI_LIVE=1 against prod), never a regular run.
+  test.skip(process.env.JOURNEY_SEALED_AI_LIVE !== "1", "spends the Tinfoil key; run with JOURNEY_SEALED_AI_LIVE=1 as a release check");
+  const answers: { status: number; nonce: boolean }[] = [];
+  const dialog = await openCustomizeWithSealedRoutes(page, async (route) => {
+    const response = await route.fetch();
+    if (new URL(route.request().url()).pathname === "/api/sealed-ai/v1/chat/completions") {
+      answers.push({ status: response.status(), nonce: Boolean(response.headers()["ehbp-response-nonce"]) });
+    }
+    return route.fulfill({ response });
+  });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 90_000 });
+  // At least one request went through, and Tinfoil's sealed answer came back on it.
+  expect(answers.length).toBeGreaterThan(0);
+  expect(answers[0]).toEqual({ status: 200, nonce: true });
+  const label = (await dialog.getByText(/^(Sealed AI · Tinfoil|Rules)$/).first().textContent()) ?? "";
+  test.info().annotations.push({ type: "sealed-ai-draft", description: `${label}; requests ${answers.map((a) => a.status).join(",")}` });
   expect(diagnostics.pageErrors).toEqual([]);
 });

@@ -458,7 +458,9 @@ test("a description is laid out by the rules alone, word for word: no model is a
   const body = await openJobWithDescription(page, lines.join("\n\n"));
   await expect(body.getByText(lines[1]!)).toBeVisible({ timeout: 20_000 });
   await expect(body).toHaveAttribute("data-layout", "rules");
-  for (const line of lines) await expect(body).toContainText(line);
+  // "Label: text" reads as the label's heading over its text, as every rules layout does (J-DETAIL-41).
+  for (const line of [...lines.slice(0, 4), "Compensation", "$90,000 base plus commission."]) await expect(body).toContainText(line);
+  await expect(body.getByRole("heading", { name: "Compensation" })).toBeVisible();
   await expect(body.getByText("Laid out on your device.")).toHaveCount(0);
   await expect(body.getByRole("button", { name: "Show original text" })).toHaveCount(0);
   await page.waitForTimeout(1_500);
