@@ -16,7 +16,6 @@ export const WHATS_NEW_OCTOBER_2026: BlogPost = {
     description:
         "Fit labels that explain themselves, roles you can't work from marked as such, daily picks, and a one-page tailored résumé that keeps the look of yours.",
     datePublished: "2026-10-05",
-    author: { name: "Vivek", role: "founder of Velai" },
     cover: `${DIR}/matches.png`,
     images: {
         [`${DIR}/matches.png`]: { width: 1440, height: 634 },

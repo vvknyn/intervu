@@ -15,11 +15,11 @@ import { PageTitle } from "@/components/ui/heading";
 const FIXTURES: { title: string; user: User }[] = [
     {
         title: "Google photo",
-        user: { uid: "mock-1", displayName: "Vivek Narayanan", email: "vivek@example.com", pictureUrl: "/velai-logo.png" },
+        user: { uid: "mock-1", displayName: "Sam Rivera", email: "sam@example.com", pictureUrl: "/velai-logo.png" },
     },
     {
         title: "No photo — name initials",
-        user: { uid: "mock-2", displayName: "Vivek Narayanan", email: "vivek@example.com" },
+        user: { uid: "mock-2", displayName: "Sam Rivera", email: "sam@example.com" },
     },
     {
         title: "No photo, no name — email initials",

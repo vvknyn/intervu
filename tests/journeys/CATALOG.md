@@ -772,6 +772,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONTENT-30 | Read in the privacy policy that deleting the account also erases contact-form and waitlist records kept under your sign-in email, your behavioural-ledger rows, and your PostHog analytics and replays | anon | /privacy › Retention & deletion | signed-out | no | covered | privacy.spec.ts |
 | J-CONTENT-31 | Read in the privacy policy that account data lives encrypted in a PostgreSQL database Velai runs, and that the Firestore copy is being deleted | anon | /privacy › What we collect | signed-out | no | covered | privacy.spec.ts |
 | J-CONTENT-32 | A blog post gives search engines and link previews its search title, picture, author, date and breadcrumb, and its More from the blog list opens the other post | anon | /blog/same-resume-test-october-2026 | signed-out | no | covered | blog.spec.ts |
+| J-CONTENT-33 | Read a blog post signed "By the Velai team", with Velai (not a person) as the author in its page tags and search data | anon | /blog/whats-new-october-2026, /blog/same-resume-test-october-2026 | signed-out | no | covered | blog.spec.ts |
 
 ## SEO
 
