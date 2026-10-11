@@ -16,7 +16,6 @@ import {
     X,
     Check,
     Question,
-    Bell,
 } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
@@ -99,7 +98,7 @@ import {
     getRecentlyViewedServerSnapshot,
     recordRecentlyViewedJob,
 } from "@/lib/jobs/recently-viewed";
-import { jobsUrlStateFromSavedHref, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
+import { hrefFromJobsUrlState, jobsUrlStateFromSavedHref, savedSearchId, suggestSavedSearchName } from "@/lib/jobs/saved-searches";
 import { useSavedSearches, savePendingSearchAfterSignIn, syncGuestSavedSearchesToServer } from "@/lib/jobs/use-saved-searches";
 import {
     subscribeSuppressLocationDefault,
@@ -122,6 +121,7 @@ import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
 import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
+import { SearchAlertSwitch } from "@/components/jobs/SearchAlertSwitch";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { splitFitGate } from "@/lib/jobs/fit-gate";
 import { indexCategories } from "@/lib/jobs/index-categories";
@@ -279,6 +279,8 @@ import {
     dismissSearchAlertCapture,
     isSearchAlertDismissed,
     isSearchAlertSubmitted,
+    markSearchAlertRequested,
+    readRequestedSearchAlerts,
     shouldShowSearchAlertCapture,
 } from "@/lib/jobs/search-alert-capture";
 import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-density";
@@ -5330,25 +5332,17 @@ export function JobsContent({
             hasResults: false,
             authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
         });
-    const hasResultsPanel =
-        resultsPanel !== "empty" &&
-        resultsPanel !== "loading" &&
-        resultsPanel !== "error" &&
-        resultsPanel !== "not-connected" &&
-        resultsPanel !== "serp-ask";
-    const showResultsSearchAlert =
-        !user &&
-        hasResultsPanel &&
-        shouldShowSearchAlertCapture({
-            signedIn: !!user,
-            dismissed: searchAlertDismissed,
-            submitted: searchAlertSubmitted,
-            interactions: searchInteractions,
-            hasResults: true,
-            authGateVisible: showGuestEngageNudge || showGuestSaveBanner,
-        });
-
+    // With results, the email form no longer opens on its own after a
+    // couple of searches: the results line's alerts switch opens it
+    // (`manualAlertOpen`). 34 people saw the self-opening form in 90 days
+    // and none sent it (PostHog, 2026-10-10).
     const [manualAlertOpen, setManualAlertOpen] = useState(false);
+    // The searches this browser already asked to be emailed about, so a
+    // guest's switch reads on for them after a reload.
+    const [requestedAlerts, setRequestedAlerts] = useState<string[]>([]);
+    useEffect(() => {
+        setRequestedAlerts(readRequestedSearchAlerts());
+    }, []);
 
     const handleDismissSearchAlert = useCallback(() => {
         dismissSearchAlertCapture();
@@ -5810,25 +5804,8 @@ export function JobsContent({
             <>
                 {rankByFitEl}
                 {savedSearchControl}
-                {/* Guests only: signed in, "Save search" beside it is the
-                    alert (saved searches feed the email digest), and the
-                    capture below is the guest email form. */}
-                {canSaveSearch && !user && (
-                    <button
-                        type="button"
-                        data-testid="jobs-create-alert-trigger"
-                        onClick={() => setManualAlertOpen((prev) => !prev)}
-                        className={cn(
-                            toolbarControlHeight,
-                            // px-0 below lg: a bare word like Rank with my résumé and Sort beside it.
-                            "ctl-button inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-foreground transition-colors px-0 lg:px-2",
-                        )}
-                        title="Get email alerts for this search"
-                    >
-                        <Bell size={16} aria-hidden />
-                        <span>Get alerts</span>
-                    </button>
-                )}
+                {/* No "Get alerts" here any more: the results line's
+                    "Weekly job alerts" switch is the one alerts control. */}
             </>
         ) : null;
 
@@ -5839,39 +5816,29 @@ export function JobsContent({
         ? savedSearchMountEl && <span className="hidden lg:contents">{savedSearchMountEl}</span>
         : savedSearchMountEl;
 
-    // E3 (save-this-search, 2026-09-17): a second, compact save/alert entry
-    // point mounted at the results-count line — the highest-visibility real
-    // estate on the page, directly above the first result row — because
-    // PostHog showed `search_alert_impressed` firing (76/30d) but
-    // `search_alert_submitted` and `search_alert_verified` never following
-    // through from the toolbar's existing, easy-to-miss
-    // `jobs-create-alert-trigger`. Reuses the SAME two mechanisms rather than
-    // inventing a third: `SavedSearchesPanel`'s signed-in save path (guest
-    // save is intentionally NOT offered here — a signed-out visitor gets the
-    // email-capture path instead, since a local-only bookmark does nothing
-    // for the north-star signup metric) and the existing `manualAlertOpen`
-    // toggle that already renders `SearchAlertCapture` below.
+    // The results line's one alerts control (Vivek, 2026-10-10: Autodesk's
+    // quiet "Turn on job alerts for this search" switch over our sentences).
+    // Signed in it saves or deletes this search (saved searches feed the
+    // weekly digest); signed out it opens the email form right under the
+    // line. It replaced three links to that same form: the toolbar's "Get
+    // alerts", the visit line's "Email me new roles" and this line's "Get
+    // new matches by email". PostHog, 90 days to 2026-10-10: 58 people saw
+    // the form, 0 sent it, and no saved search was ever created.
+    const alertUrlState = buildUrlState();
+    const alertSearchId = savedSearchId(hrefFromJobsUrlState(alertUrlState));
     const resultLineActionEl = canSaveSearch ? (
-        user ? (
-            <SavedSearchesPanel
-                saved={savedSearches}
-                urlState={buildUrlState()}
-                canSave={canSaveSearch}
-                onApply={applySavedSearch}
-                label="Save this search"
-                hideList
-                compact
-            />
-        ) : (
-            <button
-                type="button"
-                data-testid="result-line-get-alerts"
-                onClick={() => setManualAlertOpen((prev) => !prev)}
-                className="text-xs font-semibold text-foreground transition-colors"
-            >
-                Get new matches by email
-            </button>
-        )
+        <SearchAlertSwitch
+            signedIn={!!user}
+            saved={savedSearches}
+            urlState={alertUrlState}
+            guestOn={manualAlertOpen}
+            guestRequested={requestedAlerts.includes(alertSearchId)}
+            onGuestChange={setManualAlertOpen}
+            // The next natural step when the account has no address we can mail.
+            onSignedInOn={() => {
+                if (accountEmailState !== null && accountEmailState !== "reachable") setEmailNudgeOpen(true);
+            }}
+        />
     ) : null;
 
     const clearFiltersEl = activeCount > 0 ? (
@@ -6981,19 +6948,9 @@ export function JobsContent({
                                     comment for the full adopter list). */}
                                 <div className="px-[var(--list-inset)]">
                                 {/* The new-since line leads the group and stays for the
-                                    visit. Signed out, its "Email me new roles" opens the
-                                    same SearchAlertCapture below that the result line's
-                                    button does (`manualAlertOpen`), unless that form is
-                                    already showing on its own. */}
-                                <BoardVisitBanner
-                                    resultCount={hits.length}
-                                    onEmailMe={
-                                        !user && !showResultsSearchAlert
-                                            ? () => setManualAlertOpen((prev) => !prev)
-                                            : undefined
-                                    }
-                                    emailOpen={manualAlertOpen}
-                                />
+                                    visit. Alerts for this search are the switch on the
+                                    results line below it. */}
+                                <BoardVisitBanner resultCount={hits.length} />
                                 {localAiGuestEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -7077,19 +7034,6 @@ export function JobsContent({
                                     />
                                 )}
 
-                                {!user && (showResultsSearchAlert || manualAlertOpen) && (
-                                    <div className="mb-3 border-t border-border pt-4 pb-2">
-                                        <SearchAlertCapture
-                                            surface="results"
-                                            searchName={searchAlertName}
-                                            searchHref={searchAlertHref}
-                                            filterCount={searchAlertFilterCount}
-                                            queryLength={searchAlertQueryLength}
-                                            hasResults
-                                            onDismiss={handleDismissSearchAlert}
-                                        />
-                                    </div>
-                                )}
                                 </div>
 
                         {/* Screen 4 — the relaxed pass. `widened` now means the STRICT
@@ -7336,6 +7280,26 @@ export function JobsContent({
                                                     of `data-testid="results-clear-filters"`. What is left
                                                     here only reports: the count, the window, the scope. */}
                                             </div>
+                                            {/* The alerts switch's email form, right under the switch
+                                                that opened it (signed out). */}
+                                            {!user && manualAlertOpen && (
+                                                <div className="mb-3 px-[var(--list-inset)]">
+                                                    <SearchAlertCapture
+                                                        surface="results"
+                                                        searchName={searchAlertName}
+                                                        searchHref={searchAlertHref}
+                                                        filterCount={searchAlertFilterCount}
+                                                        queryLength={searchAlertQueryLength}
+                                                        hasResults
+                                                        compact
+                                                        onDismiss={() => setManualAlertOpen(false)}
+                                                        onSent={() => {
+                                                            markSearchAlertRequested(alertSearchId);
+                                                            setRequestedAlerts(readRequestedSearchAlerts());
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
                                             {broadenNudge}
                                             {/* ITEM S (2026-08-15, Vivek: "duplicate information") — this
                                                 used to render a second row of "✕ clear <facet>" chips
@@ -7644,6 +7608,7 @@ export function JobsContent({
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote={resumeImportStorageNote(Boolean(user))}
                 funnelContext={{ ...importFunnelContext, signed_in: Boolean(user) }}
+                agentPreferences={agentPrefs}
             />
             <Sheet
                 // Two-Panel Selector: gated through `resolveDetailMountSite`

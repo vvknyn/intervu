@@ -17,21 +17,21 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConfidenceIndicator, WarningBanner } from "./ConfidenceIndicator";
 import { ResumeReviewFields } from "./ResumeReviewFields";
 import { ResumeData, ParsedResumeResult } from "@/types/resume";
-import { readLocalAiConsent, grantLocalAiConsent } from "@/lib/local-ai/consent";
 import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-resume";
 import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
 import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
-import { ModelDownloadSize } from "@/components/local-ai/ModelLoadProgress";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
-import { RESUME_IMPORT_PARSE_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { RESUME_IMPORT_PARSE_LINE, RESUME_IMPORT_SEALED_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { sealedAiStatus } from "@/lib/sealed-ai/client";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
 import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
 import {
     canAcceptLocalParse,
     missingMatchFields,
+    modelReadNeeded,
     scoreLocalParseConfidence,
 } from "@/lib/local-ai/parse-confidence";
-import { initLocalAiLadder } from "@/lib/local-ai/ladder";
+import type { AgentPreferences } from "@/lib/agent/preferences";
 import { FileText, Upload, ClipboardText, ArrowRight, ArrowLeft, Check, Warning, Cpu } from "@phosphor-icons/react";
 import { captureEvent } from "@/lib/analytics/events";
 import {
@@ -90,6 +90,8 @@ interface ResumeImportModalProps {
         surface?: string;
         signed_in?: boolean;
     };
+    /** The signed-in person's saved preferences, so the review's "Level used for ranking" is the level ranking reads. */
+    agentPreferences?: AgentPreferences | null;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -113,14 +115,14 @@ export function ResumeParsingStep() {
     );
 }
 
-/** How long the review waits on an on-device model's read before keeping the quick one. */
+/** How long the review waits on sealed AI's read before keeping the quick read. */
 export const MODEL_READ_LIMIT_MS = 30_000;
 
 function joinWords(words: string[]): string {
     return words.length > 1 ? `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}` : words[0] ?? "";
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext, agentPreferences }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -134,12 +136,10 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const [contentType, setContentType] = useState<'pdf' | 'docx' | 'text'>('text');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // Founder rule: résumé interpretation never happens on our servers —
-    // parsing always runs on-device (see `parseResumeLocally`). This tracks
-    // the model-download consent only, not a cloud/local choice. The quick
-    // read never needs it; the model is an opt-in on top (2026-10-07: the
-    // default path used to start a ~494 MB download on the first Parse).
-    const [localAiConsent, setLocalAiConsent] = useState(false);
+    // The quick read runs in this browser. Sealed AI (Tinfoil) reads it too
+    // only when this server has it set up and the quick read missed something
+    // ranking uses (`modelReadNeeded`); its read never reaches our servers.
+    const [sealedOn, setSealedOn] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
     // Model upgrade of the quick (rules) parse — see `startEnhancement`.
     const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
@@ -149,7 +149,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
     useEffect(() => {
         if (!isOpen) return;
-        setLocalAiConsent(readLocalAiConsent());
+        void sealedAiStatus().then((status) => setSealedOn(status.enabled));
         captureEvent(
             "resume_gate_shown",
             buildResumeFunnelPayload({
@@ -263,7 +263,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     // which may be a large first-time download — upgrades it in the background.
     const runParse = async (textContent: string) => {
         const started = Date.now();
-        const local = await parseResumeLocally(textContent, { skipDownload: true });
+        const local = await parseResumeLocally(textContent);
         const refusal = refuseResumeReview(local.data.parsed, textContent);
         if (refusal) {
             throw new Error(refusal);
@@ -276,19 +276,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             "resume_parse_succeeded",
             buildResumeFunnelPayload({
                 duration_ms: Date.now() - started,
-                parser_source: localAiConsent ? "on_device_model" : "rules",
-                engine: localAiConsent ? "on_device_model" : "rules",
+                parser_source: "rules",
+                engine: "rules",
                 section_count: local.data.parsed.experience.length + local.data.parsed.education.length,
                 warning_count: local.data.warnings?.length ?? 0,
                 ...funnelContext,
             }),
         );
-    };
-
-    // The only way into a model download: the person asks for it.
-    const grantConsent = () => {
-        grantLocalAiConsent();
-        setLocalAiConsent(true);
+        return local.data.parsed;
     };
 
     const adoptImproved = (result: LocalParseResult) => {
@@ -299,39 +294,35 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEnhancement(null);
     };
 
-    // Waits for the model however long the download takes — the user can skip
-    // at any time. Skipping only stops the wait: transformers.js can't cancel a
-    // download, so it finishes in the background and is cached for next time.
-    // Reading is bounded: a model already on the device could spin on
-    // "Reading your résumé" for minutes (2026-10-07), so after
-    // MODEL_READ_LIMIT_MS the quick read stands and the strip says why.
+    // Sealed AI's read, bounded: after MODEL_READ_LIMIT_MS, or when the person
+    // skips, the quick read stands and the strip says why. Every way out, a
+    // thrown error included, ends the strip: it never spins on.
     const startEnhancement = async (textContent: string) => {
         const run = ++enhancementRun.current;
         setEnhancement("loading");
         const skipped = new Promise<"skipped">((resolve) => {
             skipEnhancement.current = () => resolve("skipped");
         });
-        const upgraded = (async () => {
-            if ((await initLocalAiLadder({ waitMs: Infinity })) === "heuristic") return null;
-            let timer: ReturnType<typeof setTimeout> | undefined;
-            const slow = new Promise<"slow">((resolve) => {
-                timer = setTimeout(() => resolve("slow"), MODEL_READ_LIMIT_MS);
-            });
-            try {
-                return await Promise.race([parseResumeLocally(textContent), slow]);
-            } finally {
-                clearTimeout(timer);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const slow = new Promise<"slow">((resolve) => {
+            timer = setTimeout(() => resolve("slow"), MODEL_READ_LIMIT_MS);
+        });
+        const upgraded = parseResumeLocally(textContent, { withModel: true }).catch(() => null);
+        let phase: EnhancementPhase = "unimproved";
+        try {
+            const outcome = await Promise.race([upgraded, skipped, slow]);
+            if (outcome === "skipped" || outcome === "slow") {
+                phase = outcome;
+            } else if (outcome && outcome.engine !== "heuristic" && !refuseResumeReview(outcome.data.parsed, textContent)) {
+                if (enhancementRun.current === run) setImproved(outcome);
+                phase = "improved-pending";
             }
-        })().catch(() => null);
-        const outcome = await Promise.race([upgraded, skipped]);
-        if (enhancementRun.current !== run) return;
-        if (outcome === "skipped") return setEnhancement("skipped");
-        if (outcome === "slow") return setEnhancement("slow");
-        if (outcome === null || outcome.engine === "heuristic" || refuseResumeReview(outcome.data.parsed, textContent)) {
-            return setEnhancement("unimproved");
+        } catch {
+            phase = "unimproved";
+        } finally {
+            clearTimeout(timer);
         }
-        setImproved(outcome);
-        setEnhancement("improved-pending");
+        if (enhancementRun.current === run) setEnhancement(phase);
     };
 
     // Untouched quick match → swap in the model's parse silently. Edited → the
@@ -369,10 +360,14 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             setStep('parsing');
             captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
-            await runParse(textContent);
+            const quick = await runParse(textContent);
 
-            // The model only runs for someone who asked for it here or before.
-            if (localAiConsent) void startEnhancement(textContent);
+            // Sealed AI reads it only where this server has it, and only a read
+            // it can add to (`modelReadNeeded`): no tokens on a résumé the quick read got.
+            if (sealedOn) {
+                if (modelReadNeeded(quick)) void startEnhancement(textContent);
+                else setEnhancement("not-needed");
+            }
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : "Failed to parse resume";
             setError(message);
@@ -436,36 +431,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         handleClose();
     };
 
-    // Privacy block: the résumé is read in this browser. The quick read is
-    // the default; the on-device model (a large one-time download) is an
-    // offer, never started by the primary button.
+    // Privacy block: the résumé is read in this browser, and where this
+    // server has sealed AI, what goes to it when the quick read misses something.
     const renderPrivacyConsent = () => (
         <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]">
             <div className="flex items-center gap-2 text-sm font-semibold">
                 <Cpu size={16} className="text-live shrink-0" />
-                <span>Read on your device</span>
+                <span>Read in your browser</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
                 {RESUME_IMPORT_PARSE_LINE} {storageNote}
             </p>
-            {localAiConsent ? (
+            {sealedOn && (
                 <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-model-on">
-                    The on-device AI model also reads it after the quick read, if it&apos;s on this device or you let it download.
-                </p>
-            ) : (
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                    <Button
-                        type="button"
-                        variant="link"
-                        size="link"
-                        data-testid="resume-import-use-model"
-                        onClick={grantConsent}
-                        // control-type-allow: an inline text link (size="link") set with the 12px notes above it
-                        className="inline text-left text-xs font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground"
-                    >
-                        Also read it with the on-device AI model
-                    </Button>
-                    .<ModelDownloadSize />
+                    {RESUME_IMPORT_SEALED_LINE}
                 </p>
             )}
         </div>
@@ -633,7 +612,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
 
                 <div>
                     <div className="px-6 space-y-6">
-                        <ResumeReviewFields data={editedData} onChange={setEditedData} />
+                        <ResumeReviewFields data={editedData} onChange={setEditedData} agentPreferences={agentPreferences} />
                     </div>
                 </div>
             </div>

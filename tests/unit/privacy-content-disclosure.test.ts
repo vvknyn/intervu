@@ -96,8 +96,12 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
 
   it("replaces the stale résumé-to-OpenRouter paragraph and says what account deletion asks PostHog to delete", () => {
     const prose = privacyArticle().replace(/\s+/g, " ");
-    assert.match(prose, /do not send it to a cloud AI to interpret it/);
-    assert.match(prose, /Optional models, if you allow a download, run in that browser/);
+    // Sealed AI (Tinfoil) since 2026-10-11: what goes, without what, and who can read it.
+    assert.match(prose, /We read your résumé in your browser first/);
+    assert.match(prose, /with your name, email, phone number and links taken out/);
+    assert.match(prose, /Tinfoil/);
+    assert.match(prose, /only the lines that match that job and the job&apos;s matching\s+requirements go there/);
+    assert.match(prose, /encrypts the request so that only that server can read it/);
     assert.match(prose, /We do not keep the original file/);
     assert.match(prose, /we store the structured résumé with that account until you delete the résumé or the account/);
     assert.match(prose, /asks PostHog to delete the analytics events and replays tied to your account/);

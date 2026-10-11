@@ -41,18 +41,65 @@ test("a returning visitor who searches sees how many roles are new since their l
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("Email me new roles beside that line opens the email alert form", { tag: ["@J-ALERTS-23"] }, async ({ page, diagnostics }) => {
+test("the visit line carries no email link: the results line's alerts switch is the one alerts control", { tag: ["@J-ALERTS-23"] }, async ({ page, diagnostics }) => {
   await lastVisitDaysAgo(page, 3);
   await page.goto(VISIT_SEARCH);
-  const emailMe = page.getByTestId("board-visit-email");
-  await expect(emailMe).toBeVisible({ timeout: 30_000 });
+  const line = page.getByTestId("board-visit-banner");
+  await expect(line).toBeVisible({ timeout: 30_000 });
+  // "Email me new roles" here, "Get alerts" in the toolbar and "Get new matches by email" on the
+  // results line all opened the same form (2026-10-10).
+  await expect(line.getByRole("button")).toHaveCount(0);
+  await expect(page.getByTestId("jobs-create-alert-trigger")).toHaveCount(0);
+  await expect(page.getByTestId("result-line-get-alerts")).toHaveCount(0);
+  await expect(page.getByTestId("search-alert-switch").getByRole("switch")).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a guest's Weekly job alerts switch opens the email form under it, and stays on for that search once sent", { tag: ["@J-ALERTS-03", "@J-ALERTS-45"] }, async ({ page, diagnostics }) => {
+  // Read-only: the alert request is answered in the browser, nothing is sent.
+  const requests: string[] = [];
+  await page.route("**/api/search-alerts", async (route) => {
+    requests.push(route.request().postData() ?? "");
+    await route.fulfill({ status: 200, json: { ok: true } });
+  });
+  await page.goto(VISIT_SEARCH);
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  const control = page.getByTestId("search-alert-switch");
+  const toggle = control.getByRole("switch", { name: /weekly job alerts/i });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  // With results the form no longer opens by itself; only the switch opens it.
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
-  await emailMe.click();
+
+  // The words beside the switch flip it too.
+  await control.getByText("Weekly job alerts").click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   const form = page.getByTestId("search-alert-capture");
   await expect(form).toBeVisible();
-  await expect(form.getByPlaceholder("you@company.com")).toBeVisible();
-  await expect(emailMe).toHaveAttribute("aria-expanded", "true");
+  // Right under the switch that opened it, above the first row.
+  const [switchBox, formBox, rowBox] = await Promise.all([toggle.boundingBox(), form.boundingBox(), page.getByTestId("job-row").first().boundingBox()]);
+  expect(formBox!.y).toBeGreaterThan(switchBox!.y);
+  expect(formBox!.y).toBeLessThan(rowBox!.y);
+
+  await form.getByTestId("search-alert-dismiss").click();
+  await expect(form).toHaveCount(0);
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+
+  await toggle.click();
+  await page.getByTestId("search-alert-email-input").fill("journey@example.com");
+  await page.getByTestId("search-alert-submit").click();
+  await expect(page.getByTestId("search-alert-capture")).toContainText("Check your inbox to confirm.");
+  expect(requests).toHaveLength(1);
+  expect(JSON.parse(requests[0]).href).toContain("q=engineer");
+
+  await page.reload();
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  // The alert lives under the email address, so off points at the email's own Unsubscribe.
+  await toggle.click();
+  await expect(control.getByTestId("search-alert-switch-note")).toHaveText("To stop these emails, use Unsubscribe in any alert email.");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
 const isLocal = (baseURL: string | undefined) =>
@@ -155,6 +202,50 @@ test("a signed-in person's Save search goes out at once while the search is stil
   expect(saves[0] - pressed).toBeLessThan(6_000);
   // The held search still lands afterwards.
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  expect(diagnostics.pageErrors).toEqual([]);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("signed in, the Weekly job alerts switch saves this search to the account, and off deletes it", { tag: ["@J-ALERTS-48"] }, async ({ page, diagnostics }) => {
+  // The switch is the saved search: on saves it (saved searches feed the
+  // weekly digest), off deletes it, with no naming step. Writes are answered
+  // in the browser, so nothing reaches an account.
+  const saves: Record<string, unknown>[] = [];
+  const deletes: string[] = [];
+  let row: { id: string; name: string; href: string; createdAt: string } | null = null;
+  await signInLikeProduction(page, (args) => {
+    if (args.length === 0) return { data: row ? [row] : [] };
+    // Setup's actions also take one string (the account's uid), so match the saved row's id.
+    if (args.length === 1 && args[0] === "saved-journey") {
+      deletes.push(args[0]);
+      row = null;
+      return {};
+    }
+    const input = actionObject(args[0]);
+    if (args.length === 1 && typeof input.name === "string" && typeof input.href === "string") {
+      saves.push(input);
+      row = { id: "saved-journey", name: input.name, href: input.href, createdAt: new Date().toISOString() };
+      return { data: row };
+    }
+    return undefined;
+  });
+  await page.goto("/jobs?view=search&q=engineer");
+  await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
+  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /weekly job alerts/i });
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+
+  await toggle.click();
+  await expect.poll(() => saves, { timeout: 15_000 }).toEqual([expect.objectContaining({ name: "engineer", href: expect.stringContaining("q=engineer") })]);
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  // Signed in there is no email form: the account's address gets the digest.
+  await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
+  // Never a second copy in this browser's storage.
+  expect(await page.evaluate((key) => localStorage.getItem(key), SAVED_SEARCHES_KEY)).toBeNull();
+
+  await toggle.click();
+  await expect.poll(() => deletes, { timeout: 15_000 }).toEqual(["saved-journey"]);
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
   expect(diagnostics.pageErrors).toEqual([]);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });

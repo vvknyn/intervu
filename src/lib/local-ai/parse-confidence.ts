@@ -175,3 +175,14 @@ export function missingMatchFields(data: LocalParseConfidenceInput): string[] {
 export function canAcceptLocalParse(data: LocalParseConfidenceInput): boolean {
     return hasJobTitle(data) || flattenSkills(data).length > 0;
 }
+
+/**
+ * Whether the on-device model should read a résumé after the quick read: only
+ * when the quick read left something short (a field ranking uses, or the score
+ * a complete read reaches). A complete read has nothing for the model to add.
+ * Vivek, 2026-10-10, on a 99% read with "Reading your résumé with the
+ * on-device model" still spinning: "as though it is still doing work".
+ */
+export function modelReadNeeded(data: LocalParseConfidenceInput): boolean {
+    return missingMatchFields(data).length > 0 || scoreLocalParseConfidence(data).overall < LOCAL_PARSE_COMPLETE_MIN;
+}

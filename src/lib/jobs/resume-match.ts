@@ -73,6 +73,8 @@ export interface SeniorityBasis {
     years: number;
     /** The role held now, when the years are those in that line of work; `null` when they are the whole career. */
     role: string | null;
+    /** Which `experience` entries (by index) the years were counted from, when `role` is set: the review marks them. */
+    roles?: number[];
 }
 
 export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now: Date = new Date()): SeniorityBasis | null {
@@ -83,12 +85,15 @@ export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now:
     const experience = resume?.experience ?? [];
     const line = familiesNamedBy([resume?.profile?.profession ?? "", experience[0]?.role ?? ""].filter(Boolean));
     if (line.length === 0) return career;
-    const inLine = experience.filter((entry) => familiesNamedBy([entry.role ?? ""]).some((family) => line.includes(family)));
+    const roles = experience.flatMap((entry, index) =>
+        familiesNamedBy([entry.role ?? ""]).some((family) => line.includes(family)) ? [index] : [],
+    );
+    const inLine = roles.map((index) => experience[index]!);
     const years = computeYearsOfExperience(inLine, now);
     if (years == null) return career;
     const own = seniorityFromYears(Math.max(years, 1))!;
     if (SENIORITY_ORDER.indexOf(own) >= SENIORITY_ORDER.indexOf(overall)) return career;
-    return { level: own, years, role: (inLine[0]?.role ?? "").trim() || null };
+    return { level: own, years, role: (inLine[0]?.role ?? "").trim() || null, roles };
 }
 
 /**

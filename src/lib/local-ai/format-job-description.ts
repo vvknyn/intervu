@@ -1,30 +1,12 @@
 /**
- * On-device AI job-description formatter.
- *
- * Goal: every For-you postcard (and any other consumer) reads the same
- * scannable template — not a raw ATS HTML dump — with light emoji section
- * markers. Pipeline:
- *
- *   1. Deterministic template (instant) — remaps formatDescription blocks
- *      into hook / do / bring / nice / perks. Always available; never empty
- *      a card that already had prose.
- *   2. On-device AI upgrade (async) — Nano → WebLLM → Transformers via the
- *      existing ladder + generateWithActiveEngine. Only when local-AI is
- *      enabled + consented. Cached per jobId + content hash so scrolling
- *      the deck does not re-prompt.
- *   3. Fail soft — AI miss / timeout / unavailable keeps the deterministic
- *      (or previously cached) template. Never blocks deck navigation.
+ * Job-description template for every For-you postcard: the posting's own
+ * blocks (formatDescription) remapped into hook / do / bring / nice / perks
+ * by their headings, so each card reads the same scannable way. Rules only:
+ * no model rewrites a posting (Vivek 2026-10-11 removed the on-device models),
+ * so every line is the employer's own words.
  */
 
 import { formatDescription, type DescBlock } from "@/lib/jobs/format-description";
-import { readBrowserValue, writeBrowserValue } from "@/lib/jobs/browser-storage";
-import { readLocalAiConsent } from "./consent";
-import { readLocalAiEnabled } from "./flag";
-import {
-    generateWithActiveEngine,
-    getActiveEngineId,
-    initLocalAiLadder,
-} from "./ladder";
 
 export type JdTemplateKey = "hook" | "do" | "bring" | "nice" | "perks";
 
@@ -47,25 +29,6 @@ export const JD_TEMPLATE_LABELS: Record<JdTemplateKey, string> = {
 
 /** Stable render order for the postcard. */
 export const JD_TEMPLATE_ORDER: JdTemplateKey[] = ["hook", "do", "bring", "nice", "perks"];
-
-const CACHE_PREFIX = "velai.jdFormat.v1:";
-const CACHE_VERSION = 2;
-const MAX_CACHE_ENTRIES = 48;
-const AI_TIMEOUT_MS = 12_000;
-/** Cap source text sent to the on-device model. */
-const SOURCE_CHAR_CAP = 5_000;
-
-type CachedEntry = {
-    v: number;
-    jobId: string;
-    hash: string;
-    template: JdTemplate;
-    engine: string;
-    at: number;
-};
-
-const memoryCache = new Map<string, CachedEntry>();
-const inFlight = new Map<string, Promise<JdTemplate | null>>();
 
 function emptyTemplate(): JdTemplate {
     return { hook: [], do: [], bring: [], nice: [], perks: [] };
@@ -125,76 +88,6 @@ export function jdSearchIndexSnippet(raw: string | null | undefined, max = 280):
     const cut = Math.max(slice.lastIndexOf(". "), slice.lastIndexOf("; "), slice.lastIndexOf(", "), slice.lastIndexOf(" "));
     const base = cut > 80 ? slice.slice(0, cut + (slice[cut] === "." || slice[cut] === ";" ? 1 : 0)) : slice;
     return `${base.trim()}…`;
-}
-
-/** djb2-ish content hash — short, stable, good enough for cache keys. */
-export function hashJobDescription(raw: string): string {
-    let h = 5381;
-    for (let i = 0; i < raw.length; i++) {
-        h = ((h << 5) + h) ^ raw.charCodeAt(i);
-    }
-    return (h >>> 0).toString(36);
-}
-
-function cacheKey(jobId: string, hash: string): string {
-    return `${CACHE_PREFIX}${jobId}:${hash}`;
-}
-
-function readCache(jobId: string, hash: string): JdTemplate | null {
-    const key = cacheKey(jobId, hash);
-    const mem = memoryCache.get(key);
-    if (mem && mem.v === CACHE_VERSION && mem.hash === hash) return mem.template;
-
-    const raw = readBrowserValue(key);
-    if (!raw) return null;
-    try {
-        const parsed = JSON.parse(raw) as CachedEntry;
-        if (parsed?.v !== CACHE_VERSION || parsed.hash !== hash || !parsed.template) return null;
-        memoryCache.set(key, parsed);
-        return parsed.template;
-    } catch {
-        return null;
-    }
-}
-
-function writeCache(jobId: string, hash: string, template: JdTemplate, engine: string): void {
-    const key = cacheKey(jobId, hash);
-    const entry: CachedEntry = {
-        v: CACHE_VERSION,
-        jobId,
-        hash,
-        template,
-        engine,
-        at: Date.now(),
-    };
-    memoryCache.set(key, entry);
-    writeBrowserValue(key, JSON.stringify(entry));
-    evictOldestCacheEntries();
-}
-
-function evictOldestCacheEntries(): void {
-    if (typeof globalThis.localStorage === "undefined") return;
-    try {
-        const keys: { key: string; at: number }[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (!k?.startsWith(CACHE_PREFIX)) continue;
-            try {
-                const parsed = JSON.parse(localStorage.getItem(k) ?? "") as CachedEntry;
-                keys.push({ key: k, at: parsed?.at ?? 0 });
-            } catch {
-                keys.push({ key: k, at: 0 });
-            }
-        }
-        if (keys.length <= MAX_CACHE_ENTRIES) return;
-        keys.sort((a, b) => a.at - b.at);
-        for (const stale of keys.slice(0, keys.length - MAX_CACHE_ENTRIES)) {
-            localStorage.removeItem(stale.key);
-            memoryCache.delete(stale.key);
-        }
-    } catch {
-        /* private mode / quota */
-    }
 }
 
 const DO_HEADINGS = new Set([
@@ -451,156 +344,8 @@ export function buildDeterministicJdTemplate(raw: string | null | undefined): Jd
     return out;
 }
 
-type ModelJdOutput = {
-    hook?: string;
-    do?: string[];
-    bring?: string[];
-    nice?: string[];
-    perks?: string[];
-};
-
-function tryParseModelJson(text: string): ModelJdOutput | null {
-    const trimmed = text.trim();
-    const start = trimmed.indexOf("{");
-    const end = trimmed.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-        return JSON.parse(trimmed.slice(start, end + 1)) as ModelJdOutput;
-    } catch {
-        return null;
-    }
-}
-
-export function buildJdFormatPrompt(raw: string): string {
-    const source = raw.replace(/\s+/g, " ").trim().slice(0, SOURCE_CHAR_CAP);
-    return `Rewrite this job posting into a consistent scannable template. Return JSON only — no markdown fences, no commentary.
-
-Shape:
-{"hook":"one sentence role pitch","do":["bullet",...],"bring":["bullet",...],"nice":["bullet",...],"perks":["bullet",...]}
-
-Rules:
-- hook: ONE sentence. No company name, salary, or location (shown elsewhere).
-- do: 3–6 concrete "what you'll do" bullets from the source.
-- bring: 3–6 must-have qualifications from the source.
-- nice: 0–4 preferred/nice-to-haves; use [] if none.
-- perks: 0–4 benefits/perks; use [] if none. Omit salary figures.
-- Preserve facts — do NOT invent skills, years, or perks.
-- Short bullets. No emoji inside strings. No section labels inside strings.
-
-SOURCE:
-"""
-${source}
-"""`;
-}
-
-function modelToTemplate(model: ModelJdOutput, fallback: JdTemplate): JdTemplate {
-    const out = emptyTemplate();
-    const hook = model.hook?.trim();
-    if (hook) out.hook = [{ type: "para", text: firstSentence(hook, 200) }];
-    else out.hook = fallback.hook;
-
-    const mapList = (arr: string[] | undefined, fb: DescBlock[]): DescBlock[] => {
-        if (!arr || !Array.isArray(arr)) return fb;
-        const items = arr.map((s) => String(s).trim()).filter((s) => s.length >= 2).slice(0, 10);
-        return items.length ? toListBlocks(items) : fb;
-    };
-
-    out.do = mapList(model.do, fallback.do);
-    out.bring = mapList(model.bring, fallback.bring);
-    out.nice = mapList(model.nice, fallback.nice);
-    out.perks = mapList(model.perks, fallback.perks);
-
-    return jdTemplateHasContent(out) ? out : fallback;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-    return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("jd-format timeout")), ms);
-        promise.then(
-            (v) => {
-                clearTimeout(timer);
-                resolve(v);
-            },
-            (e) => {
-                clearTimeout(timer);
-                reject(e);
-            },
-        );
-    });
-}
-
-export function canUseOnDeviceJdFormat(): boolean {
-    return readLocalAiEnabled() && readLocalAiConsent();
-}
-
-/**
- * Try on-device AI rewrite. Returns null on any failure so callers keep the
- * deterministic template. Dedupes in-flight work per jobId+hash.
- */
-export async function enhanceJdTemplateWithLocalAi(
-    jobId: string,
-    raw: string,
-    fallback: JdTemplate,
-): Promise<JdTemplate | null> {
-    if (!raw.trim() || !canUseOnDeviceJdFormat()) return null;
-
-    const hash = hashJobDescription(raw);
-    const cached = readCache(jobId, hash);
-    if (cached && !jdTemplateIsThin(cached, raw)) return cached;
-
-    const key = cacheKey(jobId, hash);
-    const existing = inFlight.get(key);
-    if (existing) return existing;
-
-    const work = (async (): Promise<JdTemplate | null> => {
-        try {
-            await initLocalAiLadder();
-            const prompt = buildJdFormatPrompt(raw);
-            const rawOut = await withTimeout(generateWithActiveEngine(prompt), AI_TIMEOUT_MS);
-            if (!rawOut) return null;
-            const parsed = tryParseModelJson(rawOut);
-            if (!parsed) return null;
-            const template = modelToTemplate(parsed, fallback);
-            // Soft-fail thin AI output — keep the richer deterministic baseline.
-            if (jdTemplateIsThin(template, raw) && !jdTemplateIsThin(fallback, raw)) {
-                return null;
-            }
-            if (jdTemplateIsThin(template, raw)) return null;
-            writeCache(jobId, hash, template, getActiveEngineId());
-            return template;
-        } catch (e) {
-            console.warn("[local-ai] jd format failed", e);
-            return null;
-        } finally {
-            inFlight.delete(key);
-        }
-    })();
-
-    inFlight.set(key, work);
-    return work;
-}
-
-/** Sync path: cache hit or deterministic template. Never throws. */
-export function resolveJdTemplateSync(
-    jobId: string | null | undefined,
-    raw: string | null | undefined,
-): { template: JdTemplate; source: "cache" | "deterministic" | "empty" } {
+/** The template for a description: the deterministic one, or empty. Never throws. */
+export function resolveJdTemplateSync(raw: string | null | undefined): { template: JdTemplate; source: "deterministic" | "empty" } {
     if (!raw?.trim()) return { template: emptyTemplate(), source: "empty" };
-    const hash = hashJobDescription(raw);
-    const deterministic = buildDeterministicJdTemplate(raw);
-    if (jobId) {
-        const cached = readCache(jobId, hash);
-        // Prefer cached only when it is at least as rich as deterministic —
-        // never resurrect a thin hook-only AI cache into the postcard.
-        if (cached && !jdTemplateIsThin(cached, raw)) {
-            return { template: cached, source: "cache" };
-        }
-    }
-    return { template: deterministic, source: "deterministic" };
-}
-
-/** Test helper — clears memory + in-flight maps (not localStorage). */
-export function resetJdFormatCacheForTests(): void {
-    memoryCache.clear();
-    inFlight.clear();
+    return { template: buildDeterministicJdTemplate(raw), source: "deterministic" };
 }

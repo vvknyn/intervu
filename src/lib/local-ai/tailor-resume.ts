@@ -14,10 +14,15 @@
  *  - "summary": the summary in the posting's words, closing with the skills
  *    on the résumé that the posting asks for;
  *  - "order": a role's lines, the ones using the posting's words first;
- *  - "skills": a skills group, the skills the posting names first.
+ *  - "skills": a skills group, the skills the posting names first;
+ *  - "leave-out": a project the posting asks nothing about, offered to leave
+ *    off this version (tailor-asks.ts; off until the person turns it on).
  * Nothing is added that the résumé doesn't already say: no employer, title,
- * date, number or skill, and no summary when the résumé has none. The
- * grounding gate (tailor-ground.ts) checks every draft again before use.
+ * date, number or skill, and no summary when the résumé has none. The one
+ * exception is a rewrite by the on-device model that takes a few of the
+ * posting's own words the résumé doesn't use (`confirm`): it starts off, says
+ * which words, and is used only if the person turns it on. The grounding gate
+ * (tailor-ground.ts) checks every draft again before use.
  */
 
 import type { LocalAiEngineId } from "./engines/types";
@@ -60,7 +65,7 @@ type EntrySource = TailorBulletDiff["source"];
 
 /** One edit the tailor made, with the reason it gives the person (`why`). */
 export type TailorChange =
-    | { id: string; kind: "summary"; before: string; after: string; why: string }
+    | { id: string; kind: "summary"; before: string; after: string; why: string; confirm?: string[] }
     | {
           id: string;
           kind: "line";
@@ -73,7 +78,11 @@ export type TailorChange =
           before: string;
           after: string;
           why: string;
+          /** The posting's words this rewrite uses that the résumé doesn't: true only if
+           *  the person says so, so the change starts off (`startsOn`). */
+          confirm?: string[];
       }
+    | { id: string; kind: "leave-out"; source: EntrySource; entryId: string; company: string; role: string; why: string }
     | {
           id: string;
           kind: "order";
@@ -101,9 +110,17 @@ export type TailorDraft = {
     /** The posting's words that mean the same as a word the résumé uses (`equivalentWords`);
      *  the grounding gate accepts these as it accepts the résumé's own. */
     equivalents: string[];
-    /** `base` with every change applied. */
+    /** `base` with every change that starts on applied (`startsOn`). */
     tailored: ResumeData;
 };
+
+/** A change is on until the person undoes it, except two that wait for them to
+ *  turn them on: a rewrite that adds posting words they must confirm, and
+ *  leaving a project out (word matching can't tell how much it matters). */
+export function startsOn(change: TailorChange): boolean {
+    if (change.kind === "leave-out") return false;
+    return !((change.kind === "line" || change.kind === "summary") && change.confirm?.length);
+}
 
 const STOPWORDS = new Set([
     "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
@@ -319,6 +336,9 @@ export function applyTailorChanges(base: ResumeData, changes: TailorChange[]): R
     for (const c of changes) if (c.kind === "summary") out.generatedSummary = c.after;
     out.experience = applyToEntries(out.experience ?? [], "experience", changes);
     if (out.projects) out.projects = applyToEntries(out.projects, "project", changes);
+    const leftOut = (source: EntrySource, id: string) => changes.some((c) => c.kind === "leave-out" && c.source === source && c.entryId === id);
+    out.experience = out.experience.filter((e) => !leftOut("experience", e.id));
+    if (out.projects) out.projects = out.projects.filter((e) => !leftOut("project", e.id));
     for (const c of changes) {
         if (c.kind !== "skills") continue;
         const group = out.competencies[c.group];
@@ -331,16 +351,17 @@ export function applyTailorChanges(base: ResumeData, changes: TailorChange[]): R
 
 /** The draft's derived fields (`tailored`, `bullets`, `summaryAfter`) from its base and changes. */
 export function finishDraft(draft: TailorDraft): TailorDraft {
-    const summary = draft.changes.find((c) => c.kind === "summary");
+    const on = draft.changes.filter(startsOn);
+    const summary = on.find((c) => c.kind === "summary");
     return {
         ...draft,
         summaryAfter: summary?.kind === "summary" ? summary.after : draft.summaryBefore,
-        bullets: draft.changes.flatMap((c) =>
+        bullets: on.flatMap((c) =>
             c.kind === "line"
                 ? [{ experienceId: c.entryId, source: c.source, company: c.company, role: c.role, before: c.before, after: c.after }]
                 : [],
         ),
-        tailored: applyTailorChanges(draft.base, draft.changes),
+        tailored: applyTailorChanges(draft.base, on),
     };
 }
 

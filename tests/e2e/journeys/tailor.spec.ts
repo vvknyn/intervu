@@ -1,18 +1,24 @@
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
 
 /**
- * Journeys for tailoring a résumé to one role — see tests/journeys/CATALOG.md (J-RESUME-50).
+ * Journeys for tailoring a résumé to one role — see tests/journeys/CATALOG.md (J-RESUME-50, J-RESUME-52 to 54).
  * Read-only: the résumé lives in localStorage, the search and the posting are answered in the browser,
- * and the draft is tailored on this device.
+ * and sealed AI is off (fixtures.ts) unless a journey stands in for it.
  *
  * Vivek 2026-10-10: "only the skill section is tweaked for a job ... there could be other updates like
  * wordings for their job experiences". The rules draft now rewords the summary and lines in the
  * posting's words, puts the lines and skills the posting asks for first, and lists each change with
  * Undo; Copy and Download use the changes left on.
+ *
+ * Vivek 2026-10-11: "get rid of the local model and use tinfoil", "remember to optimize the token
+ * usage". Where the server has sealed AI (Tinfoil), every matched line and the summary go in one
+ * request, each toward the posting sentence it answers, with no name or contact details; a rewrite
+ * that borrows the posting's words waits for the person's OK, one the gate drops is asked for once
+ * more, and a project the posting asks nothing about is offered to leave out.
  */
 
 /** Fabricated nurse (no real person). */
@@ -66,9 +72,10 @@ const ICU_POSTING = {
   ghost_badge: "unscored",
 };
 
-const ANSWER = { hits: [ICU_POSTING], total: 1, backend: "meilisearch", configured: true, searchId: "journey-tailor" };
+type Posting = typeof ICU_POSTING;
 
-async function openCustomize(page: Page) {
+/** Search for `query`, open `posting`, and open Customize on it with `resume` on this device. */
+async function openCustomizeFor(page: Page, resume: object, posting: Posting, query: string) {
   await page.addInitScript(
     ([onboardingKey, resumeKey, resume]) => {
       localStorage.setItem(onboardingKey as string, "1");
@@ -79,20 +86,26 @@ async function openCustomize(page: Page) {
         value: { writeText: async (text: string) => void ((window as unknown as { __copied?: string }).__copied = text) },
       });
     },
-    [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_RESUME_KEY, NURSE_RESUME] as const,
+    [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_RESUME_KEY, resume] as const,
   );
+  const answer = { hits: [posting], total: 1, backend: "meilisearch", configured: true, searchId: "journey-tailor" };
   await page.route("**/*", async (route) => {
     const req = route.request();
-    if (isListSearch(req)) return answerListSearch(route, ANSWER);
-    if (new URL(req.url()).pathname === `/api/jobs/${ICU_POSTING.id}/description`) return route.fulfill({ json: ANSWER });
+    if (isListSearch(req)) return answerListSearch(route, answer);
+    if (new URL(req.url()).pathname === `/api/jobs/${posting.id}/description`) return route.fulfill({ json: answer });
     return route.fallback();
   });
-  await page.goto("/jobs?view=search&q=nurse");
-  await page.getByTestId("job-row").getByTestId("job-title").filter({ hasText: ICU_POSTING.title }).first().click({ timeout: 45_000 });
+  await page.goto(`/jobs?view=search&q=${query}`);
+  await page.getByTestId("job-row").getByTestId("job-title").filter({ hasText: posting.title }).first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
   // By name: on a phone the role itself is open in a sheet, which is a dialog too.
-  const dialog = page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
-  await dialog.getByRole("button", { name: "Use a rules draft" }).click();
+  return page.getByRole("dialog", { name: "Your résumé is ready. Customize for this role." });
+}
+
+async function openCustomize(page: Page) {
+  const dialog = await openCustomizeFor(page, NURSE_RESUME, ICU_POSTING, "nurse");
+  // No sealed AI on this server: the rules draft, with no step to choose it.
+  await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText("Tailored in your browser by rules.");
   return dialog;
 }
 
@@ -142,5 +155,196 @@ test("a rules draft rewords the summary and lines in the posting's words, puts w
   const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), LOCAL_AI_RESUME_KEY);
   expect(stored?.data?.experience?.[0]?.description).toBe(NURSE_RESUME.experience[0].description);
   expect(stored?.data?.generatedSummary).toBe(NURSE_RESUME.generatedSummary);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Fabricated warehouse supervisor (no real person): tailoring works the same in any field. */
+const WAREHOUSE_RESUME = {
+  profile: { name: "Marco Bianchi", profession: "Warehouse Supervisor", yearsOfExperience: 8, location: "Mississauga, ON", email: "marco.e2e@example.com", phone: "" },
+  experience: [
+    {
+      id: "exp1",
+      company: "Northgate Distribution",
+      role: "Warehouse Supervisor",
+      dates: "2018 - Present",
+      description: [
+        "• Led a crew of 12 pickers across two shifts to hit shipping deadlines",
+        "• Improved picking accuracy by rebuilding the slotting plan",
+        "• Trained new hires on forklift safety and the WMS scanners",
+      ].join("\n"),
+    },
+  ],
+  projects: [{ id: "proj1", company: "Eastside Community Garden", role: "Volunteer coordinator", dates: "2020 - Present", description: "• Built raised beds and ran the spring seed swap" }],
+  competencies: [{ category: "Operations", skills: ["Forklift", "Inventory Control", "Shipping and Receiving", "Team Leadership"] }],
+  education: [{ id: "edu1", degree: "Diploma, Supply Chain Management", institution: "Sheridan College", year: "2016" }],
+  generatedSummary: "Warehouse supervisor with 8 years in distribution centres, focused on safe and accurate shipping.",
+};
+
+const DC_POSTING: Posting = {
+  ...ICU_POSTING,
+  id: "22222222-0000-4000-8000-000000000051",
+  title: "Distribution Centre Lead",
+  company: "Harbourline Logistics",
+  location: "Mississauga, ON",
+  location_city: "Mississauga",
+  description:
+    "Lead a team of warehouse associates across shifts to meet daily shipping targets. Improve picking accuracy and inventory control in the warehouse management system. Train and coach associates on safety procedures.",
+};
+
+/** What the stand-in for sealed AI answers, per résumé line. */
+const MODEL_ANSWERS: Record<string, string> = {
+  // The résumé's own words, safety first: on.
+  "Trained new hires on forklift safety and the WMS scanners": "Trained new hires on safety for the forklift and the WMS scanners",
+  // Borrows the posting's "meet daily shipping targets": offered, off until the person says it's true.
+  "Led a crew of 12 pickers across two shifts to hit shipping deadlines": "Led a team of 12 pickers across two shifts to meet daily shipping targets",
+  // A figure the résumé doesn't have: never shown.
+  "Improved picking accuracy by rebuilding the slotting plan": "Improved picking accuracy by 30% by rebuilding the slotting plan",
+};
+const MODEL_SUMMARY =
+  "Warehouse supervisor with 8 years in distribution centres who led a crew of 12 pickers across two shifts and trained new hires on forklift safety.";
+
+test("sealed AI rewrites the matched lines in one request toward what the posting asks, waits for an OK on the posting's own words, and offers to leave out an unrelated project", { tag: ["@J-RESUME-52"] }, async ({ page, diagnostics }) => {
+  await page.addInitScript(
+    ([answers, summary]) => {
+      // A stand-in for Tinfoil (src/lib/sealed-ai/client.ts): answers each item of a request from
+      // `answers` once the test lets it, as the JSON keyed by item id the prompt asks for.
+      type Item = { id: string; text: string };
+      const w = window as unknown as { __requests: { prompt: string; maxTokens: number }[]; __go: () => void; __velaiSealedAi: unknown };
+      let go!: () => void;
+      const started = new Promise<void>((resolve) => (go = resolve));
+      w.__requests = [];
+      w.__go = () => go();
+      w.__velaiSealedAi = async (messages: { content: string }[], options: { maxTokens: number }) => {
+        const prompt = messages.map((m) => m.content).join("\n");
+        w.__requests.push({ prompt, maxTokens: options.maxTokens });
+        await started;
+        const items = prompt.split("\n").filter((l) => l.startsWith('{"id"')).map((l) => JSON.parse(l) as Item);
+        const reply: Record<string, string> = {};
+        for (const item of items) reply[item.id] = item.id === "s" ? (summary as string) : ((answers as Record<string, string>)[item.text] ?? item.text);
+        return JSON.stringify(reply);
+      };
+    },
+    [MODEL_ANSWERS, MODEL_SUMMARY] as const,
+  );
+  const dialog = await openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
+  // Three lines and the summary, in one request; it says where they go.
+  await expect(dialog.getByText("Rewriting 4 parts for this posting")).toBeVisible({ timeout: 30_000 });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server: only the matched lines are sent");
+  await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
+
+  const changes = dialog.getByTestId("tailor-change");
+  await expect(changes).toHaveCount(5, { timeout: 30_000 });
+  await expect(dialog.getByText("Sealed AI · Tinfoil")).toBeVisible();
+  await expect(dialog.getByTestId("tailor-changes-count")).toContainText("3 of 5 changes on.");
+  const requests = await page.evaluate(() => (window as unknown as { __requests: { prompt: string; maxTokens: number }[] }).__requests);
+  const texts = (prompt: string) => prompt.split("\n").filter((l) => l.startsWith('{"id"')).map((l) => (JSON.parse(l) as { text: string }).text);
+  // One request for every part; a second only for the line whose rewrite the gate dropped.
+  expect(requests).toHaveLength(2);
+  expect(texts(requests[0]!.prompt)).toHaveLength(4);
+  expect(texts(requests[1]!.prompt)).toEqual(["Improved picking accuracy by rebuilding the slotting plan"]);
+  expect(requests[0]!.prompt).toContain('"asks":"Train and coach associates on safety procedures."');
+  // Lean: a reply capped to the words each part may have, and nothing of the person sent.
+  expect(requests[0]!.maxTokens).toBeLessThan(400);
+  for (const r of requests) {
+    expect(r.prompt).not.toContain(WAREHOUSE_RESUME.profile.name);
+    expect(r.prompt).not.toContain(WAREHOUSE_RESUME.profile.email);
+    expect(r.prompt).not.toContain(DC_POSTING.description);
+  }
+
+  const summary = dialog.locator('[data-change-kind="summary"]');
+  await expect(summary).toContainText(MODEL_SUMMARY);
+  await expect(summary).toContainText(`Was: ${WAREHOUSE_RESUME.generatedSummary}`);
+  await expect(summary).toContainText("Rewritten from your lines that answer 3 of the posting's asks.");
+
+  const trained = dialog.locator('[data-change-kind="line"]').filter({ hasText: "Was: Trained new hires on forklift safety" });
+  await expect(trained).toHaveAttribute("data-undone", "false");
+  await expect(trained).toContainText("Trained new hires on safety for the forklift and the WMS scanners");
+  await expect(trained).toContainText("Rewritten to answer the posting's “Train and coach associates on safety procedures”.");
+
+  // The posting's words wait for the person: shown with what they'd add, off until "Use".
+  const led = dialog.locator('[data-change-kind="line"]').filter({ hasText: "Was: Led a crew of 12 pickers" });
+  await expect(led).toHaveAttribute("data-undone", "true");
+  await expect(led).toContainText("Led a team of 12 pickers across two shifts to meet daily shipping targets");
+  await expect(led).toContainText("Adds the posting's “meet”, “daily”, “targets”: use it only if that's true.");
+  await expect(led.getByTestId("tailor-change-toggle")).toHaveText("Use");
+
+  // A rewrite with a figure the résumé doesn't have is never shown.
+  await expect(dialog.getByText("by 30%")).toHaveCount(0);
+
+  const garden = dialog.locator('[data-change-kind="leave-out"]');
+  await expect(garden).toContainText("Still in this version. Leave it out?");
+  await expect(garden.getByTestId("tailor-change-toggle")).toHaveText("Leave out");
+
+  // Off, neither is in what Copy gives.
+  await dialog.getByTestId("local-customize-copy").click();
+  const copied = () => page.evaluate(() => (window as unknown as { __copied?: string }).__copied ?? "");
+  expect(await copied()).toContain("Led a crew of 12 pickers across two shifts to hit shipping deadlines");
+  expect(await copied()).toContain("Eastside Community Garden");
+  expect(await copied()).toContain("Trained new hires on safety for the forklift and the WMS scanners");
+
+  // Turned on, both are.
+  await led.getByTestId("tailor-change-toggle").click();
+  await expect(led).toHaveAttribute("data-undone", "false");
+  await expect(led.getByTestId("tailor-change-toggle")).toHaveText("Undo");
+  await garden.getByTestId("tailor-change-toggle").click();
+  await expect(garden).toContainText("Left out of this version.");
+  await expect(dialog.getByTestId("tailor-changes-count")).toContainText("5 of 5 changes on.");
+  await expect(dialog.getByTestId("local-customize-copy")).toHaveText("Copy");
+  await dialog.getByTestId("local-customize-copy").click();
+  await expect.poll(copied).toContain("Led a team of 12 pickers across two shifts to meet daily shipping targets");
+  expect(await copied()).not.toContain("Eastside Community Garden");
+  expect(await copied()).not.toContain("hit shipping deadlines");
+
+  // The résumé it tailors from is untouched.
+  const stored = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? "null"), LOCAL_AI_RESUME_KEY);
+  expect(stored?.data?.experience?.[0]?.description).toBe(WAREHOUSE_RESUME.experience[0].description);
+  expect(stored?.data?.projects).toHaveLength(1);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Open Customize on the warehouse posting with the real sealed-AI routes in front (the fixture's "off" is bypassed). */
+async function openCustomizeWithSealedRoutes(page: Page, sealed: (route: Route) => Promise<void>) {
+  // A page route runs before the fixture's context route; openCustomizeFor's own route falls back to this one.
+  await page.route((url) => url.pathname.startsWith("/api/sealed-ai/"), sealed);
+  return openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
+}
+
+test("where sealed AI is on but its request fails, Customize keeps the rules draft and never says Tinfoil rewrote it", { tag: ["@J-RESUME-54"] }, async ({ page, diagnostics }) => {
+  const asked: string[] = [];
+  const dialog = await openCustomizeWithSealedRoutes(page, async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/sealed-ai/status") return route.fulfill({ json: { enabled: true, model: "llama3-3-70b" } });
+    asked.push(path);
+    // What the pass-through answers when Tinfoil doesn't.
+    return route.fulfill({ status: 502, json: { error: "Sealed AI didn't answer" } });
+  });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 60_000 });
+  await expect(dialog.getByText("Rules", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Sealed AI · Tinfoil")).toHaveCount(0);
+  await expect(dialog.getByTestId("local-customize-copy")).toBeEnabled();
+  // Either the attestation check failed first (nothing sent) or the pass-through's 502 came back: both end in the rules draft.
+  expect(asked.every((p) => p === "/api/sealed-ai/v1/chat/completions")).toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on the live server, Customize's sealed-AI request reaches Tinfoil through velai.app's pass-through", { tag: ["@J-RESUME-53"] }, async ({ page, diagnostics }) => {
+  // Spends the Tinfoil key: a release check (JOURNEY_SEALED_AI_LIVE=1 against prod), never a regular run.
+  test.skip(process.env.JOURNEY_SEALED_AI_LIVE !== "1", "spends the Tinfoil key; run with JOURNEY_SEALED_AI_LIVE=1 as a release check");
+  const answers: { status: number; nonce: boolean }[] = [];
+  const dialog = await openCustomizeWithSealedRoutes(page, async (route) => {
+    const response = await route.fetch();
+    if (new URL(route.request().url()).pathname === "/api/sealed-ai/v1/chat/completions") {
+      answers.push({ status: response.status(), nonce: Boolean(response.headers()["ehbp-response-nonce"]) });
+    }
+    return route.fulfill({ response });
+  });
+  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 90_000 });
+  // At least one request went through, and Tinfoil's sealed answer came back on it.
+  expect(answers.length).toBeGreaterThan(0);
+  expect(answers[0]).toEqual({ status: 200, nonce: true });
+  const label = (await dialog.getByText(/^(Sealed AI · Tinfoil|Rules)$/).first().textContent()) ?? "";
+  test.info().annotations.push({ type: "sealed-ai-draft", description: `${label}; requests ${answers.map((a) => a.status).join(",")}` });
   expect(diagnostics.pageErrors).toEqual([]);
 });

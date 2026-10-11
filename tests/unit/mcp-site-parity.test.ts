@@ -284,7 +284,7 @@ describe('tailor_resume tailors the way the site\'s Customize résumé does', ()
     /** The corpus résumés as the site reads them (tests/unit/tailor-corpus.test.ts). */
     async function readCorpusResume(id: string): Promise<ResumeData> {
         const text = readFileSync(path.join(process.cwd(), 'tests/fixtures/resume-corpus', `${id}.paste.txt`), 'utf8');
-        const parsed = (await parseResumeLocally(text, { skipDownload: true })).data.parsed;
+        const parsed = (await parseResumeLocally(text)).data.parsed;
         return { ...parsed, generatedSummary: parsed.generatedSummary ?? '' };
     }
 

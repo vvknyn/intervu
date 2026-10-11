@@ -201,8 +201,7 @@ test("Customize résumé dialog sits above its dim layer: its buttons take click
   const close = dialog.getByTestId("local-customize-close");
   expect(await isTopmost(close), "Close is the topmost element, not under the dialog's scrim").toBe(true);
 
-  // A rules draft is tailored on this device (no model download): the dialog's own buttons work.
-  await dialog.getByRole("button", { name: "Use a rules draft" }).click();
+  // With no sealed AI here the rules draft is tailored on open: the dialog's own buttons work.
   await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
   await close.click();
   await expect(dialog).toBeHidden();
@@ -290,7 +289,6 @@ test("Customize résumé leaves the guest's résumé as it was: the draft is cop
   for (const pass of ["first", "second"]) {
     await open.click({ timeout: 15_000 });
     await settled(dialog);
-    await dialog.getByRole("button", { name: "Use a rules draft" }).click();
     await expect(dialog.getByTestId("local-customize-copy")).toBeVisible({ timeout: 30_000 });
     // The draft starts from the guest's own résumé every time, not from an earlier role's draft:
     // every change it lists was made to the guest's own summary or lines.

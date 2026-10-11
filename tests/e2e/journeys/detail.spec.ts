@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { LOCAL_AI_CONSENT_KEY } from "../../../src/lib/local-ai/consent";
 import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
+import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { stripHtmlLikeIngest } from "../../fixtures/job-descriptions/ingest-strip";
 import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
@@ -217,27 +217,77 @@ test("the pane's company links say where they go, never a bare company name", { 
   test.skip(true, "none of the first three jobs had a hiring record to link from");
 });
 
-test("the job page shows its keywords and check rows on desktop, one tap away on a phone", { tag: ["@J-DETAIL-31"] }, async ({ page, diagnostics }) => {
-  // A closed <details> hid them at every width, whatever `lg:!block` said (2026-09-30).
+test("the job page's posting check reads as chips with its rows one tap away; keywords show on desktop", { tag: ["@J-DETAIL-31"] }, async ({ page, diagnostics }) => {
+  // A closed <details> hid the rows at every width, whatever `lg:!block` said (2026-09-30).
+  // Since 2026-10-10 chips carry each line in a few words at every width, and the full
+  // lines (each chip's basis) sit behind "Show details".
   const [path] = await liveJobPaths(page, "product manager", 1);
   await page.goto(path!);
   const receipt = page.getByTestId("job-detail-receipt");
   await expect(receipt).toBeVisible({ timeout: 20_000 });
+  await expect(receipt.getByTestId("posting-check-chips").getByRole("listitem").first()).toBeVisible();
   const checkRow = receipt.locator("b").first();
   const toggle = receipt.getByRole("button", { name: /^(Show|Hide) details$/ });
+  await expect(checkRow).toBeHidden();
+  await expect(toggle).toHaveText("Show details");
+  await toggle.click();
+  await expect(checkRow).toBeVisible();
+  await expect(toggle).toHaveText("Hide details");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
   if (isDesktop(page)) {
-    await expect(checkRow).toBeVisible();
-    await expect(toggle).toBeHidden();
     const keywords = page.getByTestId("job-detail-keywords");
     if ((await keywords.count()) > 0) await expect(keywords).toBeVisible();
-  } else {
-    await expect(checkRow).toBeHidden();
-    await expect(toggle).toHaveText("Show details");
-    await toggle.click();
-    await expect(checkRow).toBeVisible();
-    await expect(toggle).toHaveText("Hide details");
-    await expect(toggle).toHaveAttribute("aria-expanded", "true");
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on /jobs the open role's posting check is chips, and Show details opens every line with its basis", { tag: ["@J-DETAIL-44"] }, async ({ page, diagnostics }) => {
+  // It was a heading with "1/2 favorable · 2 not tracked", a paragraph and a four-line
+  // grid on every opened role (2026-10-10, Vivek: "so much of our app is text").
+  await page.goto("/jobs?q=nurse");
+  await page.getByTestId("job-row").first().click();
+  const check = page.locator('[data-tour="jobs-posting-check"]').last();
+  await expect(check).toBeVisible({ timeout: 30_000 });
+  await expect(check).not.toContainText("favorable");
+  const chips = check.getByTestId("posting-check-chips").getByRole("listitem");
+  await expect(chips.first()).toBeVisible();
+  // Each chip names its full line on hover.
+  expect(await chips.first().getAttribute("title")).toBeTruthy();
+  const details = check.getByTestId("posting-check-details");
+  await expect(details).toBeHidden();
+  await check.getByRole("button", { name: "Show details" }).click();
+  await expect(details).toBeVisible();
+  await expect(details.locator("b").first()).toBeVisible();
+  await expect(details).toContainText("every signal automated");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("with a résumé in this browser, the open role's fit card shows its terms as ✓/✗ chips that add up to the relevance count", { tag: ["@J-DETAIL-45"] }, async ({ page, diagnostics }) => {
+  // After Autodesk's "Relevant" label and matched-skill chips (Vivek, 2026-10-10): the same
+  // chips the extension shows, from the same terms the relevance row counts.
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Riley Chen", profession: "Registered Nurse", yearsOfExperience: 6, location: "Toronto, Ontario, Canada", email: "riley.e2e@example.com", phone: "", linkedin: "", website: "" },
+      experience: [{ id: "e1", company: "Lakeview General Hospital", role: "Registered Nurse, Emergency", dates: "2019 - Present", description: "Triage, patient assessment, IV therapy and charting in Epic on a busy emergency unit." }],
+      competencies: [{ category: "Skills", skills: ["Patient care", "Triage", "IV therapy", "BLS", "ACLS", "Epic"] }],
+      education: [{ id: "ed1", degree: "BScN", institution: "State University", year: "2018" }],
+      generatedSummary: "Registered nurse with six years in emergency care.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  await page.goto("/jobs?q=nurse");
+  await page.getByTestId("job-row").first().click();
+  const card = page.locator('[data-tour="jobs-fit-reasons"]:visible').last();
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  const count = card.getByText(/^\d+ of \d+ terms this role names$/);
+  await expect(count).toBeVisible();
+  const [has, of] = ((await count.textContent()) ?? "").match(/\d+/g)!.map(Number);
+  const terms = card.getByTestId("fit-terms");
+  await expect(terms.locator('li[title="On your résumé"]')).toHaveCount(has);
+  await expect(terms.locator('li[title="Not on your résumé"]')).toHaveCount(of - has);
+  // The ✓ chips are the overlap, so it isn't also written out below them.
+  await expect(card).not.toContainText("Title overlap with your experience");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -388,7 +438,8 @@ test("a posting whose lists and titles arrived as plain lines reads as headings,
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("the on-device model lays out the lines the rules guessed, never holds the text back, and the original is one tap away", { tag: ["@J-DETAIL-42"] }, async ({ page, diagnostics }) => {
+test("a description is laid out by the rules alone, word for word: no model is asked, even where one is on the device", { tag: ["@J-DETAIL-42"] }, async ({ page, diagnostics }) => {
+  // Vivek 2026-10-11 removed the on-device models: a posting's layout is the rules', the same everywhere.
   const lines = [
     "What we need",
     "You have five years of B2B sales experience.",
@@ -396,64 +447,23 @@ test("the on-device model lays out the lines the rules guessed, never holds the 
     "You are based in Toronto.",
     "Compensation: $90,000 base plus commission.",
   ];
-  await page.addInitScript(
-    ([enabledKey, consentKey]) => {
-      localStorage.setItem(enabledKey, "1");
-      localStorage.setItem(consentKey, "1");
-      // A stand-in for Chrome's Prompt API that answers only when the test says
-      // so: short titles H, "You have/are…" lines B, the rest P.
-      const w = window as unknown as { __prompts: string[]; __answer: () => void; LanguageModel: unknown };
-      let answer!: () => void;
-      const answered = new Promise<void>((resolve) => (answer = resolve));
-      w.__prompts = [];
-      w.__answer = () => answer();
-      const session = {
-        async prompt(prompt: string) {
-          w.__prompts.push(prompt);
-          await answered;
-          return prompt
-            .split("Posting lines:\n")[1]!
-            .split("\n")
-            .map((line) => {
-              const [n, ...rest] = line.split(" ");
-              const text = rest.join(" ");
-              return `${n} ${/^You (have|are)/.test(text) ? "B" : text.length < 40 && !text.endsWith(".") ? "H" : "P"}`;
-            })
-            .join("\n");
-        },
-        async clone() {
-          return session;
-        },
-        destroy() {},
-      };
-      w.LanguageModel = { create: async () => session };
-    },
-    [LOCAL_AI_ENABLED_KEY, LOCAL_AI_CONSENT_KEY],
-  );
+  await page.addInitScript((enabledKey) => {
+    localStorage.setItem(enabledKey, "1");
+    // Chrome's built-in model, as a browser that has it offers it: nothing should ask it.
+    const w = window as unknown as { __prompts: string[]; LanguageModel: unknown };
+    w.__prompts = [];
+    const session = { async prompt(prompt: string) { w.__prompts.push(prompt); return ""; }, async clone() { return session; }, destroy() {} };
+    w.LanguageModel = { availability: async () => "available", create: async () => session };
+  }, LOCAL_AI_ENABLED_KEY);
   const body = await openJobWithDescription(page, lines.join("\n\n"));
-  // The rules' layout shows at once while the model is still working.
   await expect(body.getByText(lines[1]!)).toBeVisible({ timeout: 20_000 });
   await expect(body).toHaveAttribute("data-layout", "rules");
-  await expect(body.getByRole("listitem")).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length), { timeout: 20_000 }).toBe(1);
-
-  await page.evaluate(() => (window as unknown as { __answer: () => void }).__answer());
-  await expect(body).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
-  // Word for word: the model only chose which lines are list items.
-  await expect(body.getByRole("listitem")).toHaveText(lines.slice(1, 4));
-  await expect(body.getByRole("heading", { name: "What we need" })).toBeVisible();
-  await expect(body.getByText("Laid out on your device.")).toBeVisible();
-
-  await body.getByRole("button", { name: "Show original text" }).click();
-  await expect(body.getByTestId("job-description-original")).toHaveText(lines.join("\n\n"), { useInnerText: true });
-  await expect(body.getByRole("listitem")).toHaveCount(0);
-  await body.getByRole("button", { name: "Show formatted" }).click();
-  await expect(body.getByRole("listitem")).toHaveCount(3);
-
-  // This browser remembers the layout: the next view needs no model call.
-  await page.reload();
-  const again = page.locator(DETAIL).first().getByTestId("job-description-body");
-  await expect(again).toHaveAttribute("data-layout", "device", { timeout: 20_000 });
+  // "Label: text" reads as the label's heading over its text, as every rules layout does (J-DETAIL-41).
+  for (const line of [...lines.slice(0, 4), "Compensation", "$90,000 base plus commission."]) await expect(body).toContainText(line);
+  await expect(body.getByRole("heading", { name: "Compensation" })).toBeVisible();
+  await expect(body.getByText("Laid out on your device.")).toHaveCount(0);
+  await expect(body.getByRole("button", { name: "Show original text" })).toHaveCount(0);
+  await page.waitForTimeout(1_500);
   expect(await page.evaluate(() => (window as unknown as { __prompts: string[] }).__prompts.length)).toBe(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

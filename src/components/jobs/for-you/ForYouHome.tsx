@@ -29,7 +29,7 @@ import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
-import { jobToTailorInput, tailorResumeForJob } from "@/lib/local-ai/tailor-with-engine";
+import { jobToTailorInput, tailorWithRules } from "@/lib/local-ai/tailor-with-engine";
 import { roleTermsForJob, type TailorDraft } from "@/lib/local-ai/tailor-resume";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
@@ -242,9 +242,8 @@ export function ForYouHome({
             const hydrated = hydratedJobs.get(job.id)?.job ?? job;
             const located = resumeForPackApply(resume);
             try {
-                const draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
-                    allowModel: false,
-                });
+                // Rules only: a pre-warm for every card in view spends no AI.
+                const draft = tailorWithRules(located, jobToTailorInput(hydrated));
                 draftCache.current.set(job.id, draft);
             } catch {
                 // Best-effort pre-warm — apply path generates on demand.
@@ -300,9 +299,7 @@ export function ForYouHome({
                 const hydrated = hydratedJobs.get(activeJob.id)?.job ?? activeJob;
                 let draft = draftCache.current.get(activeJob.id);
                 if (!draft) {
-                    draft = await tailorResumeForJob(located, jobToTailorInput(hydrated), {
-                        allowModel: false,
-                    });
+                    draft = tailorWithRules(located, jobToTailorInput(hydrated));
                     draftCache.current.set(activeJob.id, draft);
                 }
                 const tailored = hasMeaningfulDiff(draft) ? draft.tailored : located;

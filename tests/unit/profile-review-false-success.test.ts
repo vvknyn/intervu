@@ -134,7 +134,7 @@ describe("profile review false success", () => {
         assert.equal(unguarded.profile.location ?? "", "");
         assert.equal(unguarded.profile.yearsOfExperience ?? 0, 0);
 
-        const review = await parsePdfForProfileReview(operatorPdf(), { skipDownload: true });
+        const review = await parsePdfForProfileReview(operatorPdf());
         assert.equal(review.ok, false);
         if (!review.ok) {
             assert.match(review.error, /Could not read a résumé from this file/);
@@ -148,7 +148,7 @@ describe("profile review false success", () => {
     });
 
     it("still accepts a synthetic PDF whose text is a résumé", async () => {
-        const review = await parsePdfForProfileReview(readableResumePdf(), { skipDownload: true });
+        const review = await parsePdfForProfileReview(readableResumePdf());
         assert.equal(review.ok, true);
         if (review.ok) {
             assert.equal(review.parsed.profile.name, "Jane Doe");
@@ -163,7 +163,7 @@ describe("profile review false success", () => {
     });
 
     it("accepts a two-column style synthetic résumé layout", async () => {
-        const review = await parsePdfForProfileReview(readableResumePdfTwoColumn(), { skipDownload: true });
+        const review = await parsePdfForProfileReview(readableResumePdfTwoColumn());
         assert.equal(review.ok, true);
         if (review.ok) {
             assert.ok(review.parsed.profile.profession?.trim() || review.parsed.profile.name?.trim());
@@ -172,7 +172,7 @@ describe("profile review false success", () => {
     });
 
     it("accepts a compact single-line header layout", async () => {
-        const review = await parsePdfForProfileReview(readableResumePdfCompact(), { skipDownload: true });
+        const review = await parsePdfForProfileReview(readableResumePdfCompact());
         assert.equal(review.ok, true);
         if (review.ok) {
             assert.match(review.parsed.profile.name ?? "", /Sam/i);

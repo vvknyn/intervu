@@ -62,8 +62,6 @@ const SECURITY_HEADERS = [
 ];
 
 const nextConfig: NextConfig = {
-  // @xenova/transformers pulls onnxruntime-web — keep it out of the server bundle.
-  serverExternalPackages: ["@xenova/transformers", "onnxruntime-web"],
   // Contabo/Docker: emit .next/standalone for a slim runtime image (see Dockerfile).
   output: "standalone",
   // `next dev` allows localhost by default but treats 127.0.0.1 as a

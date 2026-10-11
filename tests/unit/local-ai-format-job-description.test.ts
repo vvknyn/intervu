@@ -1,24 +1,17 @@
-import { describe, it, beforeEach } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
     buildDeterministicJdTemplate,
-    buildJdFormatPrompt,
-    hashJobDescription,
     jdSearchIndexSnippet,
     jdTemplateFilledSectionCount,
     jdTemplateHasContent,
     jdTemplateIsThin,
-    resetJdFormatCacheForTests,
     resolveJdTemplateSync,
     JD_TEMPLATE_LABELS,
     JD_TEMPLATE_ORDER,
 } from "../../src/lib/local-ai/format-job-description";
 
-describe("format-job-description (on-device JD template)", () => {
-    beforeEach(() => {
-        resetJdFormatCacheForTests();
-    });
-
+describe("format-job-description (rules JD template)", () => {
     it("exposes stable emoji section labels for every template key", () => {
         for (const key of JD_TEMPLATE_ORDER) {
             assert.ok(JD_TEMPLATE_LABELS[key].length > 0);
@@ -71,28 +64,10 @@ describe("format-job-description (on-device JD template)", () => {
         assert.ok(jdTemplateHasContent(t));
     });
 
-    it("hash is stable for identical content and changes when content changes", () => {
-        const a = hashJobDescription("Hello world");
-        const b = hashJobDescription("Hello world");
-        const c = hashJobDescription("Hello world!");
-        assert.equal(a, b);
-        assert.notEqual(a, c);
-    });
-
     it("resolveJdTemplateSync returns empty for blank input", () => {
-        const r = resolveJdTemplateSync("job-1", "   ");
+        const r = resolveJdTemplateSync("   ");
         assert.equal(r.source, "empty");
         assert.equal(jdTemplateHasContent(r.template), false);
-    });
-
-    it("buildJdFormatPrompt asks for JSON template and excludes salary/location chrome", () => {
-        const prompt = buildJdFormatPrompt("Build APIs. Need 3 years Go. Salary $200k. Location NYC.");
-        assert.match(prompt, /Return JSON only/);
-        assert.match(prompt, /"hook"/);
-        assert.match(prompt, /"do"/);
-        assert.match(prompt, /"bring"/);
-        assert.match(prompt, /No company name, salary, or location/);
-        assert.match(prompt, /Build APIs/);
     });
 
     it("skips EEO / company-about walls so they do not flood the hook", () => {

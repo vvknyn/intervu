@@ -62,7 +62,7 @@ describe("résumé corpus: the quick read gets what matching needs from every la
             if (OCR_ACCENT_GAPS.has(`${id}/${format}`)) continue;
             it(`${id} (${format})`, async () => {
                 const text = readFileSync(path.join(DIR, `${id}.${format}.txt`), "utf8");
-                const parsed = (await parseResumeLocally(text, { skipDownload: true })).data.parsed;
+                const parsed = (await parseResumeLocally(text)).data.parsed;
                 assert.equal(refuseResumeReview(parsed, text), null, "review opens");
                 assert.ok(canAcceptLocalParse(parsed), "ranks without hand-filling");
                 assert.ok(same(parsed.profile.name, truth.name), `name: ${parsed.profile.name}`);

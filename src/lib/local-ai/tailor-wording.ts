@@ -481,6 +481,11 @@ export function openingVerbBase(line: string): string | null {
     return first ? verbFormOf(first)?.member.base ?? null : null;
 }
 
+/** Which group of near-synonym verbs a word is a form of (`VERB_GROUPS`), or null. */
+export function verbGroupOf(word: string): number | null {
+    return verbFormOf(word)?.group ?? null;
+}
+
 /** A skill as the posting spells it ("Patient Counselling" → "Patient Counseling"). */
 export function respell(text: string, wording: PostingWording): LineRewording {
     const terms: string[] = [];

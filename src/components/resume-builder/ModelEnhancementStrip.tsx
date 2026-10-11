@@ -1,16 +1,13 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { InlineSpinner } from "@/components/ui/wait-state";
-import { ModelLoadProgress } from "@/components/local-ai/ModelLoadProgress";
-import { getModelLoadState, subscribeModelLoad } from "@/lib/local-ai/ladder";
 
 /**
- * Where the background model upgrade stands. The quick (rules) parse is already
- * on screen; this strip reports the model's real progress and offers the way out.
+ * Where sealed AI's read of the résumé stands. The quick (rules) read is
+ * already on screen; this strip says what the model is doing and offers the way out.
  */
-export type EnhancementPhase = "loading" | "skipped" | "unimproved" | "slow" | "improved-pending";
+export type EnhancementPhase = "loading" | "skipped" | "unimproved" | "slow" | "not-needed" | "improved-pending";
 
 interface Props {
     phase: EnhancementPhase;
@@ -19,13 +16,11 @@ interface Props {
 }
 
 export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
-    const load = useSyncExternalStore(subscribeModelLoad, getModelLoadState, getModelLoadState);
-
     if (phase === "improved-pending") {
         return (
             <div className="px-6" data-testid="resume-model-strip" data-phase={phase}>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-panel border border-border bg-surface-2 p-3">
-                    <p className="text-sm text-foreground">A better parse from the on-device model is ready.</p>
+                    <p className="text-sm text-foreground">A better read from sealed AI is ready.</p>
                     <Button type="button" variant="outline" onClick={onUseImproved} data-testid="resume-model-use-improved">
                         Use improved parse (replaces your edits)
                     </Button>
@@ -34,33 +29,27 @@ export function ModelEnhancementStrip({ phase, onSkip, onUseImproved }: Props) {
         );
     }
 
-    if (phase === "skipped" || phase === "unimproved" || phase === "slow") {
-        const downloading = phase === "skipped" && load.phase === "loading" && !load.cached;
+    if (phase === "skipped" || phase === "unimproved" || phase === "slow" || phase === "not-needed") {
         return (
             <p className="px-6 text-xs text-muted-foreground" data-testid="resume-model-strip" data-phase={phase}>
                 {phase === "skipped"
                     ? "Skipped — keeping the quick match."
                     : phase === "slow"
-                      ? "The on-device model was taking too long, so we kept the quick match."
-                      : "The on-device model couldn't improve this parse — keeping the quick match."}
-                {downloading ? " The download finishes in the background so it's cached for next time." : ""}
+                      ? "Sealed AI was taking too long, so we kept the quick match."
+                      : phase === "not-needed"
+                        ? "The quick read found everything ranking uses, so no AI read was needed."
+                        : "Sealed AI couldn't improve this read — keeping the quick match."}
             </p>
         );
     }
 
-    // "loading" — a download/cache load in flight, then the model reading the résumé.
-    const stage = load.phase === "loading" ? "loading-model" : load.phase === "ready" ? "reading" : "preparing";
     return (
-        <div className="px-6" data-testid="resume-model-strip" data-phase={phase} data-stage={stage}>
+        <div className="px-6" data-testid="resume-model-strip" data-phase={phase}>
             <div className="space-y-2 rounded-panel border border-border bg-surface-2 p-3">
-                {stage === "loading-model" ? (
-                    <ModelLoadProgress />
-                ) : (
-                    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                        <InlineSpinner />
-                        {stage === "reading" ? "Reading your résumé with the on-device model" : "Checking this device for an on-device model"}
-                    </p>
-                )}
+                <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <InlineSpinner />
+                    Reading your résumé with sealed AI
+                </p>
                 <p className="text-xs text-muted-foreground">Your quick match is ready to edit meanwhile.</p>
                 <Button
                     type="button"
