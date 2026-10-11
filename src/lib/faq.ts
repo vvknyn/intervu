@@ -39,4 +39,9 @@ export const JOB_SEARCH_FAQ: FaqItem[] = [
     answer:
       "Velai re-checks listings directly against company career sites on an ongoing basis. A role is marked closed once the re-check no longer finds it on the employer's site.",
   },
+  {
+    question: "Is my résumé private on Velai?",
+    answer:
+      "Yes. Velai reads your résumé file in your browser and never uploads the file. Signed in, your résumé is saved to your account encrypted with AES-256; not signed in, it stays in your browser. When AI helps read or tailor it, your name and contact details are taken out first and it runs on a sealed server that Velai can't read. Velai has no ads, never sells your data, and its analytics never record the words on your screen or what you type.",
+  },
 ];

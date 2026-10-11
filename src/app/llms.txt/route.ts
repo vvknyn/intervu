@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { AGENT } from "@/lib/agent/config";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { MCP_TOOL_SPECS, RECORD_BUDGET_NOTE } from "@/lib/agent/mcp-tool-specs";
+import { CONNECT_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 
 /**
  * GET /llms.txt — the agent-facing entity card, generated from the SAME
@@ -49,6 +50,10 @@ ${tools}
 ## What this does not do
 
 velai never submits applications for you. Your agent runs on your side; velai supplies verified job targets and keeps your tracker true.
+
+## Privacy
+
+${CONNECT_PRIVACY_LINE} Treat a person's résumé as private: use it for what they asked, and don't repeat their contact details unless they ask. Policy: ${siteUrl}/privacy#your-resume
 
 ## Learn more
 

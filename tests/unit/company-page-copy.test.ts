@@ -66,5 +66,5 @@ test("fitPromptTitle counts the roles the résumé would be scored against", () 
 
 test("fitPromptBody says where the résumé is kept", () => {
   assert.match(fitPromptBody(false), /It stays in this browser\.$/);
-  assert.match(fitPromptBody(true), /It's saved to your account\.$/);
+  assert.match(fitPromptBody(true), /It's saved to your account, encrypted\.$/);
 });

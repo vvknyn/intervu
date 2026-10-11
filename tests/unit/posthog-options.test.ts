@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   isPhoneSurveyViewport,
+  maskReplayNetworkRequest,
+  stripResumeQueries,
+  withoutResumeQuery,
   PHONE_SURVEY_BREAKPOINT,
   POSTHOG_OPTIONS,
   POSTHOG_PRODUCT,
@@ -29,9 +32,14 @@ test("guests stay unprofiled until identify() runs", () => {
   assert.equal(POSTHOG_OPTIONS.person_profiles, "identified_only");
 });
 
-test("pageleave and autocapture stay on", () => {
+test("pageleave and autocapture stay on, and autocapture records no words", () => {
   assert.equal(POSTHOG_OPTIONS.capture_pageleave, true);
-  assert.equal(POSTHOG_OPTIONS.autocapture, true);
+  assert.ok(POSTHOG_OPTIONS.autocapture, "autocapture must stay on");
+  assert.equal(POSTHOG_OPTIONS.mask_all_text, true, "a click must not send the text it landed on ($el_text)");
+  const ignored = typeof POSTHOG_OPTIONS.autocapture === "object" ? POSTHOG_OPTIONS.autocapture.element_attribute_ignorelist : [];
+  for (const name of ["title", "aria-label", "value", "placeholder", "alt"]) {
+    assert.ok(ignored?.includes(name), `autocapture must drop the ${name} attribute`);
+  }
 });
 
 test("exception autocapture stays on so client crashes reach Error Tracking", () => {
@@ -153,13 +161,22 @@ test("postHogOptionsForViewport disables surveys only on the phone viewport, and
 
 // Replay records real screens. The masking /privacy promises therefore has to
 // be a value in this repo, not a posthog-js default that can move under us.
-test("session replay masks typed input, and /privacy says so", () => {
+test("session replay masks typed input and every word on the page, and /privacy says so", () => {
   assert.equal(
     POSTHOG_OPTIONS.session_recording?.maskAllInputs,
     true,
     "Replay is on at the project level; without explicit masking, /privacy's " +
       "promise that typed input is never captured rests on a library default.",
   );
+  assert.equal(
+    POSTHOG_OPTIONS.session_recording?.maskTextSelector,
+    "*",
+    "Replays used to show the résumé page and the Customize dialog as written; every text node must be masked.",
+  );
+  const maskAttribute = POSTHOG_OPTIONS.session_recording?.maskAttributeFn;
+  assert.equal(typeof maskAttribute, "function");
+  assert.equal(maskAttribute!("title", "Senior nurse, ICU"), "****** ****** ***");
+  assert.equal(maskAttribute!("class", "row muted"), "row muted");
 
   const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
   assert.match(
@@ -172,4 +189,31 @@ test("session replay masks typed input, and /privacy says so", () => {
     /masked/i,
     "/privacy no longer states that typed input is masked.",
   );
+});
+
+// Rank by fit puts the résumé's role titles in the address (`?q=...&sort=fit`),
+// and every event carries `$current_url`: analytics get the address without them.
+test("analytics addresses drop a résumé query and keep every other search", () => {
+  const fit = 'https://velai.app/jobs?q=%22Registered+Nurse%22+OR+%22Charge+Nurse%22&sort=fit&job=abc';
+  assert.equal(withoutResumeQuery(fit), "https://velai.app/jobs?sort=fit&job=abc");
+  const typed = "https://velai.app/jobs?q=nurse&sort=newest";
+  assert.equal(withoutResumeQuery(typed), typed);
+  assert.equal(withoutResumeQuery("sort=fit is not a url"), "sort=fit is not a url");
+
+  const event = {
+    uuid: "1",
+    event: "$pageview",
+    properties: { $current_url: fit, $pathname: "/jobs", count: 3 },
+    $set_once: { $initial_current_url: fit },
+  };
+  const sent = stripResumeQueries(event);
+  assert.equal(sent?.properties.$current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(sent?.properties.count, 3);
+  assert.equal(POSTHOG_OPTIONS.before_send, stripResumeQueries);
+
+  const request = maskReplayNetworkRequest({ name: fit, requestBody: '{"q":"Nurse"}', responseBody: "{}" } as never);
+  assert.equal(request.name, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(request.requestBody, null);
+  assert.equal(request.responseBody, null);
 });
