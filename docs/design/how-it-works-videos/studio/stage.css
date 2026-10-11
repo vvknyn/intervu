@@ -173,9 +173,9 @@ body {
   letter-spacing: -0.03em;
 }
 
-.wordmark svg {
+.wordmark img {
   width: 62px;
-  height: auto;
+  height: 62px;
   display: block;
 }
 
@@ -190,7 +190,7 @@ body {
 @keyframes spine {
   0%,
   16.901% {
-    transform: translate(744px, 340px) scale(1.7);
+    transform: translate(793px, 340px) scale(1.7);
   }
   19.718%,
   85.915% {
@@ -198,7 +198,7 @@ body {
   }
   88.732%,
   100% {
-    transform: translate(744px, 340px) scale(1.7);
+    transform: translate(793px, 340px) scale(1.7);
   }
 }
 
@@ -392,9 +392,10 @@ body {
   flex: none;
 }
 
-.wa-avatar svg {
+.wa-avatar img {
   width: 30px;
-  color: #8aab9a;
+  height: 30px;
+  display: block;
 }
 
 .wa-name {

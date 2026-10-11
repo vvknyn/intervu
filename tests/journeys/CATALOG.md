@@ -694,7 +694,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONNECT-13 | Open "Sample prompts" and copy one prompt | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-14 | Open the accordion sections (Sample prompts, FAQ, Permissions and privacy, Raw JSON config) and see only one open at a time; the FAQ is one section showing all its answers | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-15 | Open "Permissions and privacy" and read what a connected AI can do as you (search; read and replace your résumé; read and update your tracker; read and change your preferences) and what it can't (submit an application, see anyone else's data); no "Read-only search" | anon | /connect | signed-out | no | covered | connect.spec.ts |
-| J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal | anon | /connect | signed-out | no | uncovered | — |
+| J-CONNECT-16 | Open "How MCP works" and "Watch the demo" in the film modal: each plays its film, and its poster shows the Velai paper tile (not the old intervu mark) | anon | /connect | signed-out | no | covered | connect.spec.ts |
 | J-CONNECT-17 | Copy the one-line Mac install command in the OpenClaw column | anon | /connect | signed-out | no | uncovered | — |
 | J-CONNECT-18 | Join the Windows/Linux waitlist with an email @writes | anon | /connect | signed-out | yes | uncovered | — |
 | J-CONNECT-19 | The OpenClaw waitlist on /connect refuses a malformed email ("name@host") with "Enter a full email address, like you@example.com." right under Notify me and in view, on every press; nothing is written | anon | /connect | signed-out | no | covered | email-form-refusals.spec.ts |
