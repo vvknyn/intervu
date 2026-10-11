@@ -81,10 +81,11 @@ function lifespan(now: number): { createdAt: string; expiresAt: string } {
  * exist"), issued by the app rather than typed by anyone. Logging it would
  * bury real queries under machine traffic. `params.automatic` is the browser
  * extension's on-page card looking up the job page that just loaded: the
- * same, machine traffic.
+ * same, machine traffic. `params.fromResume` is a query built from the
+ * person's résumé: kept out so the log never holds résumé words (/privacy).
  */
 export function shouldLogSearch(params: JobSearchParams): boolean {
-    return !params.id && params.automatic !== true;
+    return !params.id && params.automatic !== true && params.fromResume !== true;
 }
 
 /** Pure: any explicit filter the user reached for. `hideGhosts` and

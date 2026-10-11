@@ -10,11 +10,13 @@ import {
 import { Prose } from "@/components/ui/prose";
 import { SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
+import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
 const TITLE = "Privacy Policy";
-const DESCRIPTION = "How Velai collects, uses, and protects your data.";
+const DESCRIPTION = "How Velai keeps your résumé private: read in your browser, encrypted when saved, and never sold. What we collect, why, and how you control it.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -105,10 +107,48 @@ export default function PrivacyPage() {
       <div className="rounded-none border border-border bg-card p-6 sm:p-10">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
+        <PrivacyPromises heading="Velai's privacy promises" showPolicyLink={false} className="mb-8" />
+
         <Prose>
         <p>
-          Velai is a job search tool. This page explains what we collect, why, and how you can control it. If
-          anything here is unclear, use the contact page — we read every message ourselves.
+          Velai is a job search tool, and keeping your résumé private is part of what it is. This page explains
+          what we collect, why, and how you can control it. If anything here is unclear, use the contact page — we
+          read every message ourselves.
+        </p>
+
+        <SectionTitle id={PRIVACY_RESUME_SECTION_ID}>Your résumé</SectionTitle>
+        <p>
+          Velai reads your résumé file in your browser, on your own device. The file itself is never uploaded to
+          us: what Velai works with is the text and the structured résumé read from it.
+        </p>
+        <p>
+          If you aren&apos;t signed in, that structured résumé is kept in this browser&apos;s local storage and
+          nowhere else. If you are signed in, it is saved to your account so it follows you across devices, and it
+          is encrypted with AES-256 before it is stored, under a key kept on our web server rather than in the
+          database. The same goes for the copies Velai keeps for you: earlier versions saved in the résumé editor,
+          the résumé a role kept when you marked it applied, and tailored résumés filed on a role.
+        </p>
+        <p>
+          Besides you, only an AI assistant or the Velai browser extension that you connect yourself can load your
+          résumé. Velai never sends it to an employer: you apply on the employer&apos;s own site. No AI model on
+          our servers reads it. When AI helps read or tailor it, your name and contact details are taken out first
+          and the request goes, encrypted, to a sealed server that we can&apos;t read (see{" "}
+          <a href="#ai-processing">AI processing</a>).
+        </p>
+        <p>
+          To find jobs that fit, Velai sends role titles taken from your résumé, plus a country and seniority
+          filter, to our search index. Those searches are not logged. Strong, Good and Stretch are worked out in
+          your browser.
+        </p>
+        <p>
+          Our analytics never record your résumé. Session replays mask every word on the page and anything you
+          type, clicks are recorded without the text you clicked, and page addresses lose the role titles that
+          ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
+        </p>
+        <p>
+          You can delete your résumé from <Link href="/settings">account settings</Link> at any time. That also
+          removes its earlier versions and the copies kept on roles you marked applied. Deleting your account
+          removes everything, tailored résumés included.
         </p>
 
         <SectionTitle>What we collect</SectionTitle>
@@ -134,7 +174,8 @@ export default function PrivacyPage() {
           you typed), which job postings come up, and which ones you click, open, save, or apply
           to. If you&apos;re signed in, we tie this to your account and build a profile of your search
           activity over time — what you&apos;re looking for, and what you actually respond to. It is stored and
-          encrypted the same way as the rest of your account data. Search records made before the move were not
+          encrypted the same way as the rest of your account data. Searches Velai builds from your résumé (ranking
+          by fit, For you, and Today) are not part of that record. Search records made before the move were not
           copied; they stay in Firestore only until it is emptied.
         </p>
         <p className="text-xs text-muted-foreground">
@@ -173,8 +214,8 @@ export default function PrivacyPage() {
           from your parsed résumé — for example experience role titles, headline profession, inferred adjacent role
           titles, top skill names, and an experience-level filter from your years of experience — plus a country
           filter inferred from your résumé location when we can. We do not send your full résumé file or raw résumé
-          text to Meilisearch. Location typeahead and facet pickers can send the place text you type to Meilisearch
-          facet search so suggestions match the corpus.
+          text to Meilisearch, and these résumé-built searches are not logged. Location typeahead and facet pickers
+          can send the place text you type to Meilisearch facet search so suggestions match the corpus.
         </p>
         <p>
           Résumé fit labels (Strong / Good / Stretch) are computed from your résumé and each job&apos;s public fields
@@ -206,7 +247,7 @@ export default function PrivacyPage() {
           account details, or anything that identifies you.
         </p>
 
-        <SectionTitle>AI processing</SectionTitle>
+        <SectionTitle id="ai-processing">AI processing</SectionTitle>
         <p>
           We read your résumé in your browser first. If that quick read misses something we match on, the
           résumé&apos;s text, with your name, email, phone number and links taken out, goes to an AI model on{" "}
@@ -230,7 +271,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Interview-prep search parsing can send the search text you typed to OpenRouter. Audio transcription can
-          send a recording to Groq. Those requests are not your résumé.
+          send a recording to Groq. Those requests are not your résumé, and no AI model on our servers reads your
+          résumé.
         </p>
 
         <SectionTitle>Connected AI clients</SectionTitle>
@@ -258,8 +300,9 @@ export default function PrivacyPage() {
         </p>
         <p>
           If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
-          on your account, then works out your fit and tailors your résumé inside the extension. The tailored copy
-          stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
+          on your account, then works out your fit and tailors your résumé inside the extension. It holds the
+          résumé in memory only, never in Chrome&apos;s storage, and loads it again after a minute. The tailored
+          copy stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
           title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
           selection is logged like any search on the website; the card&apos;s own check when a job page loads is
           not logged. The extension keeps only the job it is showing, which Chrome clears when you close the
@@ -301,7 +344,7 @@ export default function PrivacyPage() {
           ledger to improve search quality and to compute aggregate statistics. Rows are deleted after 90 days.
         </p>
 
-        <SectionTitle>Cookies &amp; analytics</SectionTitle>
+        <SectionTitle id="cookies-analytics">Cookies &amp; analytics</SectionTitle>
         <p>
           We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
           identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
@@ -328,11 +371,19 @@ export default function PrivacyPage() {
           bots.
         </p>
         <p>
-          PostHog session replay is enabled. Replays capture the pages you saw, how you moved through them, console
-          logs, and performance data from the session. Input masking is on: anything you type is masked before it
-          leaves your browser — we can see that you filled in a field, not what you put in it. Replays are kept
-          for 30 days in PostHog, then expire under PostHog&apos;s own retention rules. A replay covers a single
-          tab and is tied to your identity only if you&apos;re signed in.
+          PostHog session replay is enabled. Replays capture the layout of the pages you saw, how you moved through
+          them, console logs, and performance data from the session. Every word on the page, labels and tooltips
+          included, is masked before it leaves your browser, and links lose their search terms: we can see where
+          you clicked and scrolled, not what the page said, so a replay of your résumé shows no résumé.
+          Input masking is on too: anything you type is masked — we can see that you filled in a field, not what
+          you put in it. Replays never keep what a page sent to or got back from our servers. Replays are kept for 30 days
+          in PostHog, then expire under PostHog&apos;s own retention rules. A replay covers a single tab and is
+          tied to your identity only if you&apos;re signed in.
+        </p>
+        <p>
+          Clicks are recorded by which button or link you pressed, never the text in it or in its labels. Every
+          analytics event carries the address of the page it happened on; when ranking by fit has put role titles
+          from your résumé into that address, they are removed before the event leaves your browser.
         </p>
         <p>
           PostHog also powers heatmaps, in-app feedback surveys, and short forms when a search returns no results.

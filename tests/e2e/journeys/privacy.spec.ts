@@ -1,7 +1,9 @@
+import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/privacy-promises";
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30).
+ * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/33,
+ * and J-JOBS-115, the front door's privacy promises that link here).
  * Read-only. What "Delete account" erases is a promise people act on, so the
  * page has to say what the server action really removes
  * (src/lib/account/erase-account.ts): records kept under the sign-in email and
@@ -32,6 +34,45 @@ test("the privacy policy says account data is encrypted in our own database, not
   await expect(article).toContainText("Each record is encrypted with AES-256 under a key only we hold before it is stored");
   await expect(article).not.toContainText("This data lives in Google Cloud Firestore");
   await expect(article).not.toContainText("We're moving it onto a PostgreSQL database");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the privacy policy opens with Velai's résumé promises and a Your résumé section that explains each one", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
+  await page.goto("/privacy");
+  const promises = page.getByTestId("privacy-promises");
+  await expect(promises).toBeVisible();
+  for (const promise of PRIVACY_PROMISES) {
+    await expect(promises.locator(`[data-promise="${promise.id}"]`)).toContainText(promise.title);
+  }
+
+  const heading = page.getByRole("heading", { name: "Your résumé", exact: true });
+  await expect(heading).toBeVisible();
+  const article = page.locator("article").first();
+  await expect(article).toContainText("The file itself is never uploaded to us");
+  await expect(article).toContainText("it is encrypted with AES-256 before it is stored");
+  await expect(article).toContainText("Those searches are not logged.");
+  await expect(article).toContainText("Every word on the page, labels and tooltips included, is masked before it leaves your browser");
+  await expect(article).toContainText("No AI model on our servers reads it.");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the front door says the résumé stays private in its first screen and links each promise to the policy", { tag: ["@J-JOBS-115"] }, async ({ page, diagnostics }) => {
+  await page.goto("/jobs");
+  const line = page.getByTestId("front-door-privacy-line");
+  await expect(line).toBeVisible({ timeout: 10_000 });
+  await expect(line).toContainText(PRIVACY_HEADLINE);
+  await expect(line.getByRole("link", { name: "How" })).toHaveAttribute("href", "/privacy#your-resume");
+
+  const promises = page.getByTestId("privacy-promises");
+  await promises.scrollIntoViewIfNeeded();
+  await expect(promises).toBeVisible();
+  await expect(promises.locator("[data-promise]")).toHaveCount(PRIVACY_PROMISES.length);
+
+  await promises.locator('[data-promise="encrypted"] a').click();
+  await expect(page).toHaveURL(/\/privacy#your-resume$/);
+  await expect(page.getByRole("heading", { name: "Your résumé", exact: true })).toBeInViewport();
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

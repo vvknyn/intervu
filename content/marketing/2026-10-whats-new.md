@@ -19,7 +19,7 @@ You made a Velai account a while back. If you signed up when we were called Inte
 
 ![A two-page résumé PDF next to Velai's one-page download with the same style of type and margins](/blog/whats-new-october-2026/resume-one-page.png)
 
-Velai reads your résumé in your browser, not with a cloud AI.
+Velai reads your résumé in your browser, and when AI helps it runs on a sealed server that we can't read, without your name or contact details.
 
 [Set up your matches](/jobs?setup=open&utm_source=email&utm_medium=email&utm_campaign=2026-10-whats-new "button")
 

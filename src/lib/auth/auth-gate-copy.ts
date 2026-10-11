@@ -50,7 +50,7 @@ const RESUME_GATE_TITLE = "Create your free account to rank every job by your r�
 
 /** Under the unlock line on fit and résumé sign-in cards. */
 export const AUTH_GATE_RESUME_ACCOUNT_LINE =
-    "Your résumé is read in this browser. Signing in keeps the structured version with your account, not the original file, including one you already added.";
+    "Your résumé is read in this browser. Signing in keeps the structured version with your account, encrypted, never the original file, including one you already added.";
 
 const FIT_RESUME_GATE_BODY = `${AUTH_GATE_RESUME_UNLOCK_BODY}\n\n${AUTH_GATE_RESUME_ACCOUNT_LINE}`;
 

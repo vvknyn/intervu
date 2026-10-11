@@ -60,5 +60,5 @@ export function fitPromptTitle(loadedCount: number, partialWindow: boolean): str
  *  importer). A guest's résumé is read and scored in this browser only. */
 export function fitPromptBody(signedIn: boolean): string {
   const what = "Add your résumé to see how well each role here fits you, and why.";
-  return signedIn ? `${what} It's saved to your account.` : `${what} It stays in this browser.`;
+  return signedIn ? `${what} It's saved to your account, encrypted.` : `${what} It stays in this browser.`;
 }

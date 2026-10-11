@@ -16,6 +16,7 @@ import {
     X,
     Check,
     Question,
+    LockSimple,
 } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
@@ -176,6 +177,8 @@ import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
+import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
+import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 import { SetupPanel } from "@/components/onboarding/SetupPanel";
 import { SETUP_DONE_MESSAGE } from "@/components/onboarding/SetupSheet";
 import { noteResumeOnFile, useOnboarding } from "@/hooks/use-onboarding";
@@ -1051,6 +1054,11 @@ function ListTail({
     );
 }
 
+
+/** A fit-ranked or pack search's query is the résumé's own role titles: marked so the search log leaves it out (`shouldLogSearch`). */
+function resumeSearchMark(fromResume: boolean): { fromResume?: true } {
+    return fromResume ? { fromResume: true } : {};
+}
 
 /** The résumé a guest parsed in this browser, when it is usable for ranking. */
 function readUsableLocalResume() {
@@ -2388,6 +2396,7 @@ export function JobsContent({
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
+                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -3918,6 +3927,7 @@ export function JobsContent({
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
+                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -6153,6 +6163,18 @@ export function JobsContent({
                                     {JOBS_USP.mastheadTitle}
                                 </PageTitle>
                                 <p className="sr-only">{JOBS_USP.searchDescription}</p>
+                                {/* Privacy is what sets Velai apart (Vivek, 2026-10-11), so it is
+                                    said in the first screen, one tap from how. */}
+                                <p data-testid="front-door-privacy-line" className="mt-1.5 text-sm text-muted-foreground">
+                                    <LockSimple weight="bold" aria-hidden className="mr-1 inline align-text-bottom text-live" />
+                                    {PRIVACY_HEADLINE}{" "}
+                                    <Link
+                                        href={`/privacy#${PRIVACY_RESUME_SECTION_ID}`}
+                                        className="font-semibold text-brand underline underline-offset-4 hover:text-brand"
+                                    >
+                                        How
+                                    </Link>
+                                </p>
                             </div>
                             ) : (
                                 <h1 className="sr-only">Jobs</h1>
@@ -7509,6 +7531,9 @@ export function JobsContent({
                         onUploadClick={handleUploadClick}
                         onSignInClick={() => openAuth("generic", "user")}
                     />
+                )}
+                {frontDoorAtRest && !setupPanelVisible && (
+                    <PrivacyPromises className="mx-auto mt-8 w-full max-w-[960px]" />
                 )}
             </div>
 
