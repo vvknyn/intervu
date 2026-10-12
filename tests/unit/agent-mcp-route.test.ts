@@ -323,8 +323,8 @@ describe('mcp route: set_preferences wire schema', () => {
 });
 
 describe('mcp route: MCP_TOOL_SPECS catalog (Slice 3 — one tool list)', () => {
-  it('registers exactly 16 tools (tailor_resume is the 16th)', () => {
-    assert.equal(Object.keys(MCP_TOOL_SPECS).length, 16);
+  it('registers exactly 17 tools (daily_picks is the 17th)', () => {
+    assert.equal(Object.keys(MCP_TOOL_SPECS).length, 17);
   });
 
   it('every spec carries a real ZodObject inputSchema, not a raw shape', () => {

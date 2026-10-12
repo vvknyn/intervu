@@ -11,6 +11,7 @@ import { Switch } from "@/components/settings/Switch";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
+import { DailyPicksSettingsRow, useDailyPicks } from "@/components/daily-picks/DailyPicksSwitch";
 
 export function EmailPreferencesSection({ user }: { user: User | null }) {
     const [prefs, setPrefs] = useState<EmailPreferences | null>(null);
@@ -23,6 +24,8 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
     // cards.
     const [loadFailed, setLoadFailed] = useState(false);
     const [attempt, setAttempt] = useState(0);
+    // Read once the account has an address mail reaches: without one there is no switch to show.
+    const dailyPicks = useDailyPicks(Boolean(user) && prefs?.needsEmail === false, user?.uid ?? null, "settings");
 
     useEffect(() => {
         if (!user) return;
@@ -89,15 +92,18 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
                         className="rounded-panel border border-border bg-surface-2 p-4 shadow-[var(--shadow-bevel-inset)]"
                     />
                 ) : (
-                    <div className="flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-sm">Weekly digest</p>
-                            <p className="text-xs text-muted-foreground">
-                                New roles from your followed companies and saved searches.
-                                {prefs.blockedGlobally && " Blocked — you've unsubscribed from all Velai emails."}
-                            </p>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-sm">Weekly digest</p>
+                                <p className="text-xs text-muted-foreground">
+                                    New roles from your followed companies and saved searches.
+                                    {prefs.blockedGlobally && " Blocked — you've unsubscribed from all Velai emails."}
+                                </p>
+                            </div>
+                            <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} aria-label="Weekly digest" />
                         </div>
-                        <Switch checked={prefs.digestEnabled} onChange={() => void toggleDigest()} disabled={saving} aria-label="Weekly digest" />
+                        <DailyPicksSettingsRow control={dailyPicks} />
                     </div>
                 )
             ) : loadFailed ? (

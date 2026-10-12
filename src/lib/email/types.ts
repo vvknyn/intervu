@@ -17,7 +17,8 @@ export type EmailKind =
   | "verify_search_alert"
   | "verify_email"
   | "password_reset"
-  | "marketing_update";
+  | "marketing_update"
+  | "daily_picks";
 
 export interface EmailKindPolicy {
   /** Checked against `email_suppressions` before every send. False only for
@@ -70,6 +71,10 @@ const EMAIL_KIND_POLICY: Record<EmailKind, EmailKindPolicy> = {
   // as `welcome`/`digest`: suppressible, and every send must carry a
   // List-Unsubscribe header.
   marketing_update: { suppressible: true, requiresUnsubscribeHeader: true },
+  // The daily picks email (lib/daily-picks/send.ts): opt-in, sent only to an
+  // account that turned it on, and still suppressible on top of that, so its
+  // own unsubscribe link (or a global one) stops it without a sign-in.
+  daily_picks: { suppressible: true, requiresUnsubscribeHeader: true },
 };
 
 export function emailKindPolicy(kind: EmailKind): EmailKindPolicy {

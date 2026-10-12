@@ -241,6 +241,12 @@ function stubDeps(
     tailor: async () => {
       throw new Error('tailor is covered in mcp-site-parity.test.ts');
     },
+    getDailyPicks: async () => {
+      throw new Error('daily_picks is covered in daily-picks.test.ts');
+    },
+    setDailyPicksEmail: async () => {
+      throw new Error('daily_picks is covered in daily-picks.test.ts');
+    },
   };
   return {
     deps, searchCalls, upsertCalls, getBaseResumeCalls, findPursuitCalls, saveResumeVersionCalls, setBaseResumeCalls,

@@ -41,6 +41,8 @@ function baseDeps(overrides: Partial<ToolDeps> = {}): ToolDeps {
     getCompanyExhaust: async () => null,
     searchCompanies: async () => [],
     tailor: notImplemented('tailor'),
+    getDailyPicks: notImplemented('getDailyPicks'),
+    setDailyPicksEmail: notImplemented('setDailyPicksEmail'),
     ...overrides,
   };
 }

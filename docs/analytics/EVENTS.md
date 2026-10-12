@@ -45,6 +45,7 @@ on every route change, including client-side navigation.
 | Event | Payload | Seam (file:line) | Feeds |
 |---|---|---|---|
 | `company_viewed` | `{ company_domain }` | `src/components/companies/CompanyFollowChannelProvider.tsx:26` — every `/co/[slug]` mount wraps its page in this provider exactly once, so it's the one place a company page view is guaranteed to fire from, keyed on `[domain]`. | company page traffic; view→follow drop-off. |
+| `daily_picks_set` | `{ on, surface }` | `src/components/daily-picks/DailyPicksSwitch.tsx` (Settings › Account and Today). | how many turn the daily picks email on, and from where. |
 | `company_unfollowed` | `{ company_domain }` | `src/components/companies/FollowButton.tsx:139` (guest, contact-cookie unfollow) and `:176` (signed-in unfollow). | unfollow rate. |
 
 Not wired: `company_band_expanded` `{ company_domain, band }` — no band

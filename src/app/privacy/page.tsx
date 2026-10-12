@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };
 
-const LAST_UPDATED = "October 11, 2026";
+const LAST_UPDATED = "October 12, 2026";
 
 /**
  * Plain-language Firestore storage categories for /privacy, each tied to the
@@ -138,7 +138,9 @@ export default function PrivacyPage() {
         <p>
           To find jobs that fit, Velai sends role titles taken from your résumé, plus a country and seniority
           filter, to our search index. Those searches are not logged. Strong, Good and Stretch are worked out in
-          your browser.
+          your browser. The one exception is daily picks, if you turn them on: then our server ranks your saved
+          résumé against the week&apos;s roles once a day, by the same rules and with no AI, to choose what it
+          emails you (see <a href="#email">Email</a>).
         </p>
         <p>
           Our analytics never record your résumé. Session replays mask every word on the page and anything you
@@ -314,7 +316,7 @@ export default function PrivacyPage() {
           Signing in and editing your résumé happen on velai.app itself, in a small window the extension opens.
         </p>
 
-        <SectionTitle>Email</SectionTitle>
+        <SectionTitle id="email">Email</SectionTitle>
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
@@ -322,14 +324,20 @@ export default function PrivacyPage() {
           status (sent, bounced, or marked as spam) — not the content of what we send you.
         </p>
         <p>
+          Daily picks are off until you turn them on. When they&apos;re on, our server reads the résumé saved on your
+          account once a day, ranks the roles posted that week by the same rules as Today (no AI), and emails you up
+          to five. So no role is sent twice, we keep which roles we&apos;ve sent you and when, encrypted with the rest
+          of your account and erased with it.
+        </p>
+        <p>
           If you have an account, we may also email you now and then about changes to Velai, such as a new feature
           or a fix to something that wasn&apos;t working.
         </p>
         <p>
-          Every email that isn&apos;t a direct response to something you just did — the weekly digest, a waitlist
-          confirmation, a product update — includes an unsubscribe link that works without signing in and takes effect immediately.
+          Every email that isn&apos;t a direct response to something you just did — the weekly digest, daily picks, a
+          waitlist confirmation, a product update — includes an unsubscribe link that works without signing in and takes effect immediately.
           If an email to your address bounces, or you mark one as spam, we stop sending to that address
-          automatically. You can also turn the weekly digest on or off directly from{" "}
+          automatically. You can also turn the weekly digest and daily picks on or off directly from{" "}
           <Link href="/settings">account settings</Link>.
         </p>
 

@@ -1418,6 +1418,42 @@ signedInTest("on a first visit Today counts every pick as this week's and marks 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("Today pins the roles the last daily picks email named at the top, each marked Emailed, and offers the daily picks email as a switch", { tag: ["@J-JOBS-119"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await weekOfTwo(page);
+  // The account's daily picks: off, and an email from earlier today that named the older of the week's two roles.
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"] || req.postData() !== "[]") return route.fallback();
+      const res = await route.fetch().catch(() => null);
+      if (!res) return;
+      const text = await res.text();
+      if (!text.includes("Sign in to get daily picks.") && !text.includes('"emailedIds"')) return route.fulfill({ response: res, body: text });
+      return route.fulfill({
+        response: res,
+        body: withActionResult(text, { data: { on: false, reachable: true, blockedGlobally: false, emailedIds: ["reached-late"], resumeReady: null } }),
+      });
+    },
+  );
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  const rows = today.getByTestId("today-new-row");
+  await expect(rows).toHaveCount(2, { timeout: 60_000 });
+  await expect(rows.first()).toHaveAttribute("data-job-id", "reached-late");
+  await expect(rows.first().getByTestId("today-emailed-badge")).toHaveText("Emailed");
+  await expect(today.getByTestId("today-emailed-badge")).toHaveCount(1);
+  const line = today.getByTestId("today-daily-picks");
+  await expect(line).toContainText("Email me new picks each day");
+  await expect(line.getByRole("switch", { name: "Email me new picks each day" })).toHaveAttribute("aria-checked", "false");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("an opened pack reads its roles' descriptions for place before it shows, so a role for people in another country is never its first card", { tag: ["@J-JOBS-101"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
