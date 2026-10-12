@@ -64,8 +64,15 @@ const signedIn = { signedIn: true, resume: { data: null, text: resumeText, updat
 /** A listed job site (job-sites.json), where the card shows on its own. */
 const BOARD_JOB_URL = "https://boards.greenhouse.io/cedarbrook/jobs/4821";
 const BOARD_LIST_URL = "https://boards.greenhouse.io/cedarbrook";
+/** A careers page that publishes no JobPosting and writes its place as a country code (as some large employers' sites do). */
+const CODED_TITLE = "Registered Nurse - ICU - Toronto, CAN , Critical Care";
+const codedHtml = `<!doctype html><title>${CODED_TITLE} - Job ID: 7781 | Harbourline Careers</title><main><h1>${CODED_TITLE}</h1><p>Job ID: 7781 | Harbourline Health</p><button>Apply now</button><h2>Description</h2><p>Provide direct patient care to critically ill adults in our ICU: patient assessment, IV therapy, Epic charting.</p><h2>Basic qualifications</h2><p>Registered nurse licence, BLS and ACLS.</p><h2>Job details</h2><p>CAN, ON, Toronto</p></main>`;
+const CODED_URL = "https://careers.harbourline.example/en/jobs/7781/registered-nurse-icu";
+/** The same kind of page on a listed job site, where the card shows on its own. */
+const BOARD_CODED_URL = "https://boards.greenhouse.io/harbourline/jobs/7781";
 const PAGES = {
     job: { url: JOB_URL, html: jobHtml },
+    coded: { url: CODED_URL, html: codedHtml },
     board: { url: "https://jobs.board.example/view/48213", html: "<!doctype html><title>Registered Nurse - ICU | Cedarbrook Health | JobBoard</title><main><h1>Registered Nurse - ICU</h1><p>Cedarbrook Health, Toronto, ON</p><p>Patient care in the ICU: IV therapy, Epic charting, triage of critically ill patients. BLS and ACLS required.</p></main>" },
     blog: { url: "https://trails.example/blog/best-hikes", html: "<!doctype html><title>Best fall hikes near Toronto | Trail Notes</title><main><h1>Best fall hikes near Toronto</h1><p>Ten trails with great colours this October.</p></main>" },
 };
@@ -80,6 +87,13 @@ const STATES = {
     "board-match": { page: "board", me: signedIn, hits: [...similar, velaiCopy], expect: ["Velai's copy of the role it names", "Strong"] },
     "board-no-match": { page: "board", me: signedIn, hits: similar, expect: ["doesn't publish its job details", "Read this page as the job"], click: "Read this page as the job", expectAfter: ["as you asked", "Your résumé for this role"] },
     "not-a-job": { page: "blog", me: signedIn, hits: [], expect: ["Read this page as the job"], refuse: ["Your fit"] },
+    "careers-no-details": {
+        page: "coded",
+        me: signedIn,
+        hits: similar,
+        expect: ["Read from the heading and text", "same country"],
+        refuse: ["Read this page as the job", "Country unclear"],
+    },
     selection: { search: "Registered Nurse - ICU", me: { signedIn: false }, hits: [velaiCopy, ...similar], expect: ["4 roles on Velai match"] },
 };
 
@@ -113,6 +127,7 @@ try {
         r.fulfill({ contentType: "text/html", body: `<!doctype html><title>Velai</title><h1>${new URL(r.request().url()).pathname}</h1>` }),
     );
     await context.route(BOARD_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: jobHtml }));
+    await context.route(BOARD_CODED_URL, (r) => r.fulfill({ contentType: "text/html", body: codedHtml }));
     await context.route(BOARD_LIST_URL, (r) => r.fulfill({ contentType: "text/html", body: PAGES.blog.html }));
 
     // First install opens the welcome page, which offers sign-in right there.
@@ -277,6 +292,20 @@ try {
         await page.screenshot({ path: path.join(out, "card-found.png") });
     }
 
+    // A job page with no JobPosting that Velai doesn't have still gets a card, with the country its heading names.
+    state = { ...STATES.found, hits: similar };
+    await page.goto(BOARD_CODED_URL);
+    {
+        const coded = await waitForCard(page, ["against your résumé"]);
+        const problems = [];
+        if (!coded) problems.push("no card");
+        else if (coded.text.includes("Country unclear")) problems.push("Country unclear");
+        report("job page without job data", problems);
+    }
+    state = STATES.found;
+    await page.goto(BOARD_JOB_URL);
+    card = await waitForCard(page, ["Strong", "against your résumé"]);
+
     // "I applied" saves to the tracker with Velai's job id.
     tracked.length = 0;
     await clickCard(page, "I applied");
@@ -284,6 +313,7 @@ try {
     {
         const problems = [];
         if (!card?.text.includes("Added to your Velai tracker as Applied")) problems.push("no confirmation");
+        await page.screenshot({ path: path.join(out, "card-applied.png") });
         const sent = tracked[0];
         if (!sent) problems.push("nothing sent");
         else {
@@ -378,7 +408,7 @@ try {
         if (!(await closed)) problems.push("sign-in window didn't close itself");
         await panel.waitForFunction(() => document.body.innerText.includes("Strong"), null, { timeout: 15_000 }).catch(() => problems.push("panel didn't re-check after sign-in"));
         const text = await panel.evaluate(() => document.body.innerText);
-        for (const t of ["Edit your résumé on Velai", "I applied", "Show the Velai card on careers.cedarbrook.example job pages"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
+        for (const t of ["Edit your résumé on Velai", "I applied", "Show the Velai card on every careers site", "only on careers.cedarbrook.example"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
         await panel.screenshot({ path: path.join(out, "panel-after-sign-in.png"), fullPage: true });
         report("panel sign-in re-checks; edit, applied and card offer show", problems);
         await panel.close();

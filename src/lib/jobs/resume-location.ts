@@ -6,6 +6,7 @@
  * Richmond Hill, Georgia collision).
  */
 import { regionLabel, resolveRegionPhrase } from "@/lib/geo/regions";
+import { ISO3_COUNTRY } from "@/lib/geo/iso3-countries";
 import { classifyCountryValue } from "./country-classification";
 import type { PublicJob } from "./types";
 
@@ -106,7 +107,9 @@ const REGION_TO_COUNTRY: Record<string, string> = {
  * Whole comma-token codes: "ON" → Canada, "TX" → United States, "CAN" → Canada.
  * Only codes that are not also an ISO country code are used ("Berlin, DE",
  * "Amsterdam, NL", "Boston, MA" stay unresolved rather than guessed), and
- * `CA` is Canada only beside a Canadian province code.
+ * `CA` is Canada only beside a Canadian province code. A three-letter token
+ * written in capitals is read as an ISO alpha-3 country code ("IND, KA,
+ * Bangalore", "GBR, London"); lowercase three-letter words are not.
  */
 const CA_PROVINCE_CODES = new Set(["ab", "bc", "mb", "nb", "ns", "nt", "nu", "on", "qc", "yt"]);
 const US_STATE_CODES = new Set(
@@ -117,6 +120,10 @@ const COUNTRY_CODE_TOKENS: Record<string, string> = { can: "Canada", usa: "Unite
 function countriesFromCodeTokens(tokens: string[]): string[] {
     const codes = tokens.map((token) => token.trim().toLowerCase());
     const out = new Set<string>();
+    for (const token of tokens) {
+        const raw = token.trim();
+        if (/^[A-Z]{3}$/.test(raw) && ISO3_COUNTRY[raw]) out.add(ISO3_COUNTRY[raw]);
+    }
     for (const code of codes) {
         if (COUNTRY_CODE_TOKENS[code]) out.add(COUNTRY_CODE_TOKENS[code]);
         else if (CA_PROVINCE_CODES.has(code)) out.add("Canada");
@@ -138,7 +145,8 @@ function canonicalCountry(raw: string): string | null {
     const trimmed = raw.trim();
     if (!trimmed) return null;
     const classified = classifyCountryValue(trimmed);
-    return classified.kind === "country" ? classified.canonical : null;
+    if (classified.kind === "country") return classified.canonical;
+    return /^[A-Z]{3}$/.test(trimmed) ? (ISO3_COUNTRY[trimmed] ?? null) : null;
 }
 
 /**
