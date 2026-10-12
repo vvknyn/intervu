@@ -34,6 +34,8 @@ test("the privacy policy says account data is encrypted in our own database, not
   await expect(article).toContainText("Each record is encrypted with AES-256 under a key only we hold before it is stored");
   await expect(article).not.toContainText("This data lives in Google Cloud Firestore");
   await expect(article).not.toContainText("We're moving it onto a PostgreSQL database");
+  await expect(article).toContainText("the copy in Firestore was deleted in October 2026");
+  await expect(article).not.toContainText("they stay in Firestore only until it is emptied");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
