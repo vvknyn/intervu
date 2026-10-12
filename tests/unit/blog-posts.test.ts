@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { BLOG_POSTS, blogCoverAlt, blogPostPath, blogSearchTitle, formatBlogDate, getBlogPost, renderBlogPost } from "@/lib/blog/posts";
+import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
+import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
+import { APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
 
 const PUBLIC = path.join(process.cwd(), "public");
 
@@ -65,6 +68,21 @@ describe("blog posts", () => {
       const hrefs = [...renderBlogPost(post).matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
       for (const href of hrefs) assert.match(href, /^(\/|https:\/\/)/, href);
     }
+  });
+
+  it("the is-Velai-legit post quotes the live button, prices and address, and names no person or competitor", () => {
+    const post = getBlogPost("is-velai-legit");
+    assert.ok(post);
+    // Checks a reader runs must name the button they will actually see.
+    assert.ok(post.body.includes(`**${APPLY_BUTTON_LABEL}**`));
+    for (const fact of [PRO_MONTHLY_PRICE, FOUNDING_SEAT_PRICE, String(FOUNDING_SEAT_COUNT), PUBLIC_SUPPORT_EMAIL]) {
+      assert.ok(post.body.includes(fact), fact);
+    }
+    assert.match(post.body, /refundable on request, for any reason, until Pro opens/);
+    // The site is signed by the team, and this page names no other product.
+    assert.doesNotMatch(post.body, /founder|jobshifu|hiringcafe|linkedin|indeed/i);
+    // Seven numbered checks, as the title and the cover promise.
+    assert.equal([...post.body.matchAll(/^\d\. \*\*/gm)].length, 7);
   });
 
   it("finds posts by slug and dates them as written", () => {
