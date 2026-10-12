@@ -172,13 +172,14 @@ export default function PrivacyPage() {
           held in Google Cloud Firestore; it has been moved here, and the copy in Firestore was deleted in October 2026.
         </p>
         <p>
-          We also keep a record of what you do while searching: the searches you run (including the text of what
-          you typed), which job postings come up, and which ones you click, open, save, or apply
-          to. If you&apos;re signed in, we tie this to your account and build a profile of your search
-          activity over time — what you&apos;re looking for, and what you actually respond to. It is stored and
-          encrypted the same way as the rest of your account data. Searches Velai builds from your résumé (ranking
-          by fit, For you, and Today) are not part of that record. Search records made before the move were not
-          copied, and were deleted with the rest of Firestore.
+          We keep an anonymous record of the searches people run: the words typed, the place and filters, how
+          many jobs came back, and which result was opened. It holds no account id, IP address or browser id, so a
+          search can&apos;t be traced back to you, and it is how we learn what people look for and which jobs and
+          employers we&apos;re missing. It is encrypted the same way as account data and deleted after 90 days.
+          Searches Velai builds from your résumé (ranking by fit, For you, and Today) are not recorded. If
+          you&apos;re signed in, the jobs you click, open, save, or apply to are tied to your account so we can
+          improve your results. Search records made before the move were not copied, and were deleted with the
+          rest of Firestore.
         </p>
         <p className="text-xs text-muted-foreground">
           For reference, the kinds of account data these storage claims cover include:
@@ -393,8 +394,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Clicks are recorded by which button or link you pressed, never the text in it or in its labels. Every
-          analytics event carries the address of the page it happened on; when ranking by fit has put role titles
-          from your résumé into that address, they are removed before the event leaves your browser.
+          analytics event carries the address of the page it happened on, with the words you searched removed
+          before it leaves your browser.
         </p>
         <p>
           PostHog also powers heatmaps, in-app feedback surveys, and short forms when a search returns no results.
