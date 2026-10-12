@@ -20,7 +20,7 @@ async function enterBrowseMode(page: Page) {
     await expect(
         page
             .getByTestId('filters-toggle')
-            .or(page.getByRole('listbox', { name: 'Job results' }))
+            .or(page.getByRole('region', { name: 'Job results' }))
             .or(page.getByText(/Job search is being connected/i))
             .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))

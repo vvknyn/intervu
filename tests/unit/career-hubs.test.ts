@@ -56,16 +56,23 @@ describe("career intent hubs", () => {
     assert.match(pageSrc, /notFound\(\)/);
   });
 
-  it("careerHubJobsHref encodes location facets for /jobs deep links", () => {
+  it("careerHubJobsHref encodes the hub's query and facets for /jobs deep links", () => {
     const href = careerHubJobsHref({ jobsFacets: { location_country: "United States" } });
-    assert.ok(href);
     assert.match(href, /country=United/);
 
-    assert.match(
-      careerHubJobsHref({ jobsFacets: { location_city: "Chicago" } })!,
-      /city=Chicago/,
-    );
+    assert.match(careerHubJobsHref({ jobsFacets: { location_city: "Chicago" } }), /city=Chicago/);
+    assert.equal(careerHubJobsHref({ jobsQuery: "Nurse" }), "/jobs?q=Nurse");
+    assert.equal(careerHubJobsHref({ jobsFacets: { work_type: "remote" } }), "/jobs?work=remote");
+    assert.equal(careerHubJobsHref({}), "/jobs");
+  });
 
-    assert.equal(careerHubJobsHref({ jobsFacets: undefined }), null);
+  // Every hub linked to a bare /jobs, so a visitor from search landed on
+  // nothing about the page they came from (focus group, 2026-10-12).
+  it("every hub about one field or kind of role links to that search, not a bare /jobs", () => {
+    const general = new Set(["open-positions", "company-career-pages"]);
+    for (const hub of CAREER_HUBS) {
+      if (general.has(hub.slug)) continue;
+      assert.notEqual(careerHubJobsHref(hub), "/jobs", hub.slug);
+    }
   });
 });

@@ -47,7 +47,12 @@ export function locationTriggerLabel(
     defaultedLocation?: string | null,
     remoteAnywhere?: boolean,
 ): string {
-    const values = (state.facets.location_country ?? []).map((v) => v.trim()).filter(Boolean);
+    // Every location field, not only `location_country`: a city picked from
+    // a suggestion lands in `location_city`, and the phone's field showed the
+    // empty placeholder over results filtered to that city.
+    const values = LOCATION_FACET_FIELDS.flatMap((field) => state.facets[field] ?? [])
+        .map((v) => v.trim())
+        .filter(Boolean);
     if (values.length === 1) return values[0]!;
     if (values.length > 1) {
         // A trigger is one line of a narrow control, so past the first place it

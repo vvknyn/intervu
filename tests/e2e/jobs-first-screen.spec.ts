@@ -424,7 +424,7 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
     });
 
     // TASK 9 — Typeahead. The results pane already has its own always-mounted
-    // `role="listbox" aria-label="Job results"` (browse mode), so an
+    // `role="region" aria-label="Job results"` (browse mode), so an
     // unqualified `getByRole("listbox")` (the brief's literal snippet — it
     // carries no `.first()`) strict-mode-fails: 2 elements match. Naming the
     // query after the dropdown's own `aria-label="Search suggestions"` fixes

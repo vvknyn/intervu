@@ -25,7 +25,7 @@ async function enterBrowseMode(page: Page) {
     await page.goto('/jobs?posted=any');
     await page.waitForLoadState('networkidle');
     await expect(
-        page.getByRole('listbox', { name: 'Job results' })
+        page.getByRole('region', { name: 'Job results' })
             .or(page.getByText(/Job search is being connected/i))
             .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
@@ -204,8 +204,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        const firstResult = results.getByRole('option').first();
+        const results = page.getByRole('region', { name: 'Job results' });
+        const firstResult = results.getByRole('article').first();
         if ((await firstResult.count()) === 0) {
             test.skip(true, 'No job rows — cannot verify background refresh feedback');
         }
@@ -229,8 +229,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        const options = results.getByRole('option');
+        const results = page.getByRole('region', { name: 'Job results' });
+        const options = results.getByRole('article');
         if ((await options.count()) === 0) {
             const empty = page
                 .locator('text=/being connected|No roles match|Finding live roles|temporarily unavailable/i')
@@ -253,7 +253,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         // through it can only ever time out.
         const secondByTestId = page.getByTestId('job-row').nth(1);
         await second.click();
-        await expect(secondByTestId).toHaveAttribute('aria-selected', 'true');
+        await expect(secondByTestId).toHaveAttribute('aria-current', 'true');
         const dialog = page.getByRole('dialog');
         await expect(dialog).toBeVisible();
         // NOT `.first()`: the sheet's own accessible label is an sr-only <h2>
@@ -278,8 +278,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        if ((await results.getByRole('option').count()) === 0) {
+        const results = page.getByRole('region', { name: 'Job results' });
+        if ((await results.getByRole('article').count()) === 0) {
             test.skip(true, 'No job rows — cannot verify pane scroll geometry');
         }
 
@@ -349,8 +349,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 1440, height: 900 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        const rows = results.getByRole('option');
+        const results = page.getByRole('region', { name: 'Job results' });
+        const rows = results.getByRole('article');
         const initial = await rows.count();
         if (initial === 0) test.skip(true, 'No job rows — cannot verify pane scrolling or paging');
 
@@ -388,8 +388,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 1024, height: 768 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        if ((await results.getByRole('option').count()) === 0) {
+        const results = page.getByRole('region', { name: 'Job results' });
+        if ((await results.getByRole('article').count()) === 0) {
             test.skip(true, 'No job rows — cannot verify lg pane geometry');
         }
         await expect(results).toBeVisible();
@@ -414,8 +414,8 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 900, height: 768 });
         await enterBrowseMode(page);
 
-        const results = page.getByRole('listbox', { name: 'Job results' });
-        if ((await results.getByRole('option').count()) === 0) {
+        const results = page.getByRole('region', { name: 'Job results' });
+        if ((await results.getByRole('article').count()) === 0) {
             test.skip(true, 'No job rows — cannot verify sub-lg overlay geometry');
         }
         await expect(results).toBeVisible();
@@ -443,7 +443,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await enterBrowseMode(page);
 
-        const options = page.getByRole('listbox', { name: 'Job results' }).getByRole('option');
+        const options = page.getByRole('region', { name: 'Job results' }).getByRole('article');
         if ((await options.count()) === 0) {
             test.skip(true, 'No job rows for mobile sheet test');
         }
@@ -458,7 +458,7 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.setViewportSize({ width: 390, height: 844 });
         await enterBrowseMode(page);
 
-        const options = page.getByRole('listbox', { name: 'Job results' }).getByRole('option');
+        const options = page.getByRole('region', { name: 'Job results' }).getByRole('article');
         if ((await options.count()) === 0) {
             test.skip(true, 'No job rows for mobile empty-refresh test');
         }

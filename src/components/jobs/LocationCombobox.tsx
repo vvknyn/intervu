@@ -70,6 +70,14 @@ interface LocationComboboxProps {
     /** The field's name in a surrounding `<form>`, which submits it before
      *  the page's code has run (the server-drawn /jobs front door). */
     name?: string;
+    /** Render the suggestions in the flow under the field instead of in a
+     *  portal. The phone's location sheet needs this: it is a modal dialog,
+     *  so a list portaled outside it could not be tapped. */
+    inline?: boolean;
+    /** Commit typed text when the field loses focus (default). The sheet
+     *  turns it off: its Continue button reads the typed text itself, and a
+     *  commit on blur would apply the place as soon as a country was ticked. */
+    commitOnBlur?: boolean;
 }
 
 /** Flatten groups to the flat list keyboard navigation moves through — the
@@ -127,6 +135,8 @@ export function LocationCombobox({
     "data-testid": testId = "location-input",
     ariaLabel = "Location",
     name,
+    inline = false,
+    commitOnBlur = true,
 }: LocationComboboxProps) {
     const [groups, setGroups] = useState<LocationSuggestGroup[]>([]);
     const [fetching, setFetching] = useState(false);
@@ -144,7 +154,7 @@ export function LocationCombobox({
     const inputRef = useRef<HTMLInputElement>(null);
     const hasSuggestions = groups.some((g) => g.items.length > 0);
     const showLoading = isOpen && value.trim().length > 0 && fetching;
-    const overlayRect = useAnchoredOverlayRect(anchorRef, isOpen && (hasSuggestions || showLoading));
+    const overlayRect = useAnchoredOverlayRect(anchorRef, !inline && isOpen && (hasSuggestions || showLoading));
 
     // A place typed into the server-drawn field before the page's code ran:
     // keep it as the value rather than letting the next render clear it
@@ -289,7 +299,7 @@ export function LocationCombobox({
     );
 
     return (
-        <div ref={anchorRef} className={cn("relative flex min-w-0 flex-1", containerClassName)}>
+        <div ref={anchorRef} className={cn("relative flex min-w-0 flex-1", inline && "flex-col", containerClassName)}>
             <Input
                 ref={inputRef}
                 data-testid={testId}
@@ -327,6 +337,7 @@ export function LocationCombobox({
                         pickingRef.current = false;
                         return;
                     }
+                    if (!commitOnBlur) return;
                     const typed = value.trim();
                     if (typed) commit(typed, countryCommitFieldForQuery(groups, typed));
                 }}
@@ -334,9 +345,14 @@ export function LocationCombobox({
                 className={className}
             />
 
+            {open && inline && (
+                <div className="mt-1 overflow-hidden border border-border-strong bg-popover">{suggestionList}</div>
+            )}
+
             {/* Portaled so `overflow-hidden` on the docked header search form
                 cannot clip suggestions — same panel chrome as before. */}
             {open &&
+                !inline &&
                 overlayRect &&
                 typeof document !== "undefined" &&
                 createPortal(

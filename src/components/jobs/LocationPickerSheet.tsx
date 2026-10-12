@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Sheet, SheetBar, SheetBody, SheetContent } from "@/components/ui/sheet";
 import { Affordance } from "@/components/jobs/SerpFilters";
+import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import {
     POPULAR_LOCATION_COUNTRIES,
     type LocationSheetDraft,
@@ -13,7 +13,20 @@ import {
 import { pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
 import type { FacetDistribution } from "@/lib/jobs/types";
 import { countryToFlag } from "@/lib/jobs/country-flag";
-import { addLocationValue, hasLocationValue, removeLocationValue } from "@/lib/jobs/location-suggest";
+import {
+    addLocationValue,
+    hasLocationValue,
+    removeLocationValue,
+    type SuggestField,
+} from "@/lib/jobs/location-suggest";
+import { LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
+
+/** What Continue hands the page: whether the IP default stops applying, and
+ *  the place picked from the sheet's search box when that is how it closed. */
+export type LocationSheetContinueOpts = {
+    suppressDefault: boolean;
+    pick?: { value: string; field?: SuggestField };
+};
 
 export function initLocationSheetDraft(
     state: FilterState,
@@ -32,15 +45,14 @@ export function initLocationSheetDraft(
     const canUseDetected = Boolean(opts.defaultedIso2) && !opts.locationDefaultSuppressed;
     const useDetected = canUseDetected && places.length === 0;
 
-    // The free-text row starts empty and closed even when a non-popular place
-    // is committed: it is now the "add another" input, and the committed place
+    // The search box starts empty even when a non-popular place is
+    // committed: it is the "add another" input, and the committed place
     // renders as its own toggle row instead. Pre-filling it would offer to
     // EDIT one member of a list, which is the single-value model again.
     return {
         useDetected,
         places,
         otherText: "",
-        showOther: false,
         remote: remoteOn,
     };
 }
@@ -70,7 +82,7 @@ export function LocationPickerSheet({
     defaultedIso2?: string | null;
     detectedLabel?: string;
     locationDefaultSuppressed: boolean;
-    onContinue: (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => void;
+    onContinue: (draft: LocationSheetDraft, opts: LocationSheetContinueOpts) => void;
     /** Clears the persisted "don't guess" override so the server re-applies
      *  the IP default on the next fetch (page owns the localStorage seam). */
     onRestoreDetected?: () => void;
@@ -121,9 +133,26 @@ export function LocationPickerSheet({
             ...d,
             useDetected: true,
             places: [],
-            showOther: false,
             otherText: "",
         }));
+    };
+
+    /** Places already filtered on, in any location field, so the search
+     *  box's rows can show which ones are chosen. */
+    const chosen = [
+        ...draft.places,
+        ...LOCATION_FACET_FIELDS.filter((f) => f !== "location_country").flatMap((f) => state.facets[f] ?? []),
+    ];
+
+    /** A row picked (or Enter on typed text) in the search box applies at
+     *  once, like the desktop box: one place is the common answer, and the
+     *  rest of the draft (Remote, ticked countries) goes with it. */
+    const continueWith = (pick?: LocationSheetContinueOpts["pick"]) => {
+        const suppressDefault =
+            Boolean(pick) ||
+            (!draft.useDetected && (draft.places.length > 0 || Boolean(draft.otherText.trim())));
+        const committed = pick ? { ...draft, useDetected: false, otherText: "" } : draft;
+        onContinue(committed, pick ? { suppressDefault, pick } : { suppressDefault });
     };
 
     /** Add or drop one place. Folded-compared through the same helpers the
@@ -146,8 +175,25 @@ export function LocationPickerSheet({
                 hideCloseButton
                 className="mx-auto w-full max-w-[720px] gap-0 border-border border-b-0 p-0"
             >
-                <SheetBar title="Where do you want to work?" description="Pick one or more — results update when you continue." />
+                <SheetBar title="Where do you want to work?" description="Type a city or region, or tick one or more below." />
                 <SheetBody className="p-4 pb-[env(safe-area-inset-bottom,16px)]">
+                    {/* The same search as the desktop location box, at the top:
+                        a phone had only eleven country rows and an "Other" row
+                        to open before it could name a city, so a nurse in
+                        Calgary picked Canada and got Edmonton and Hamilton
+                        (focus group, 2026-10-12). */}
+                    <LocationCombobox
+                        inline
+                        commitOnBlur={false}
+                        data-testid="location-sheet-input"
+                        value={draft.otherText}
+                        onChange={(text) => setDraft((d) => ({ ...d, otherText: text, useDetected: text ? false : d.useDetected }))}
+                        onCommit={(value, field) => continueWith({ value, field })}
+                        selected={chosen}
+                        placeholder="Type a city, state, or country"
+                        containerClassName="mb-4"
+                        className="ctl-lg rounded-ctl border-border bg-card text-base"
+                    />
                     <div className="flex flex-col gap-2">
                         {locationDefaultSuppressed && !detectedOptedIn && (
                             <Affordance
@@ -211,46 +257,13 @@ export function LocationPickerSheet({
                                 </span>
                             </Affordance>
                         ))}
-
-                        <Affordance
-                            testId="location-sheet-other"
-                            active={draft.showOther}
-                            onClick={() =>
-                                setDraft((d) => ({
-                                    ...d,
-                                    useDetected: false,
-                                    showOther: !d.showOther,
-                                }))
-                            }
-                        >
-                            Other
-                        </Affordance>
-
-                        {draft.showOther && (
-                            <Input
-                                data-testid="location-sheet-other-input"
-                                type="text"
-                                aria-label="Location"
-                                placeholder="Country or city"
-                                value={draft.otherText}
-                                onChange={(e) =>
-                                    setDraft((d) => ({ ...d, otherText: e.target.value, useDetected: false }))
-                                }
-                                className="ctl-lg rounded-ctl border-border bg-card text-base"
-                            />
-                        )}
                     </div>
 
                     <Button
                         type="button"
                         data-testid="location-sheet-continue"
                         className="mt-5 w-full bg-primary text-primary-foreground hover:bg-primary"
-                            onClick={() => {
-                                const suppressDefault =
-                                    !draft.useDetected &&
-                                    (draft.places.length > 0 || Boolean(draft.otherText.trim()));
-                                onContinue(draft, { suppressDefault });
-                            }}
+                        onClick={() => continueWith()}
                     >
                         Continue
                     </Button>

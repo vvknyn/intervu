@@ -148,9 +148,13 @@ export function JobCard({
 
     return (
         <div
-            role="option"
+            // An article, not a listbox option: an option's children are
+            // presentational, so the title link, company and Save inside it
+            // were hidden from screen readers (axe nested-interactive, focus
+            // group 2026-10-12). `aria-current` marks the open row instead.
+            role="article"
             tabIndex={0}
-            aria-selected={active}
+            aria-current={active ? "true" : undefined}
             aria-label={`View ${accessibleName}`}
             data-job-row
             data-job-id={job.id}
