@@ -39,6 +39,9 @@ export function isKnownJobSite(url: string): boolean {
     return JOB_SITE_MATCHES.some((pattern) => matchesPattern(url, pattern));
 }
 
+/** The optional-permission pattern that turns the card on for job pages on every https site, asked for once. */
+export const ALL_SITES = "https://*/*";
+
 /** The optional-permission pattern that turns the card on for one site: "https://careers.acme.com/*". */
 export function sitePattern(url: string): string | null {
     try {

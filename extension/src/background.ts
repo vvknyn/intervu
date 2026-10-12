@@ -15,12 +15,12 @@
  *    check the job again, so nobody has to find their way back and click.
  */
 import { PAGE_QUERY_KEY, hostOf, queryFromPage, queryFromSelection } from "./page-query";
-import { jobFromPage, readJobPage, validThrough, type PageRead } from "./page-reader";
+import { jobFromPage, looksLikeJob, readJobPage, validThrough, type PageRead } from "./page-reader";
 import { resumeFromMe, sameJob, type MeResponse } from "./report";
 import { cardSummary } from "./card-summary";
 import { fetchMe, isSignedInLanding, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
 import { ACCOUNT_CHANGED_KEY, type CardAnswer, type ToBackground, type TrackAnswer } from "./messages";
-import { JOB_SITE_MATCHES } from "./job-sites";
+import { ALL_SITES, JOB_SITE_MATCHES } from "./job-sites";
 import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
 import type { JobSearchResult } from "@/lib/jobs/types";
@@ -110,7 +110,8 @@ async function cardFor(read: PageRead, fresh: boolean): Promise<CardAnswer> {
     if (!q.trim()) return null;
     const [account, result] = await Promise.all([getMe(fresh), searchOnce(q)]);
     const velaiJob = result ? sameJob(result.hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
-    if (!read.posting && !velaiJob) return null;
+    // A page with no structured details still gets a card when Velai has the role or the page reads as a job.
+    if (!read.posting && !velaiJob && !looksLikeJob(read)) return null;
     return cardSummary({
         pageJob,
         velaiJob,
@@ -176,7 +177,16 @@ async function syncOptionalSites(): Promise<void> {
         if (registered.length) await chrome.scripting.unregisterContentScripts({ ids: [OPTIONAL_SCRIPT_ID] });
         return;
     }
-    const script = { id: OPTIONAL_SCRIPT_ID, matches: granted, js: ["card.js"], runAt: "document_idle" as const, persistAcrossSessions: true };
+    // Every site, once granted, covers the single sites; velai.app and the built-in job sites have their own copy.
+    const matches = granted.includes(ALL_SITES) ? [ALL_SITES] : granted;
+    const script = {
+        id: OPTIONAL_SCRIPT_ID,
+        matches,
+        excludeMatches: [`${VELAI_ORIGIN}/*`, ...JOB_SITE_MATCHES],
+        js: ["card.js"],
+        runAt: "document_idle" as const,
+        persistAcrossSessions: true,
+    };
     await (registered.length ? chrome.scripting.updateContentScripts([script]) : chrome.scripting.registerContentScripts([script]));
 }
 

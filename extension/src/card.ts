@@ -6,7 +6,8 @@
  * worker does the work (velai.app calls, scoring); this only reads the page
  * and draws the card. Pages that aren't jobs get nothing.
  */
-import { readJobPage, type PageRead } from "./page-reader";
+import { looksLikeJob, readJobPage, type PageRead } from "./page-reader";
+import { isKnownJobSite } from "./job-sites";
 import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type CardAnswer, type ToBackground, type TrackAnswer } from "./messages";
 import { CARD_TERM_LIMIT, type CardSummary } from "./card-summary";
 
@@ -223,6 +224,16 @@ async function check(force = false, settleMs = 0): Promise<void> {
         return;
     }
     let read = readJobPage();
+    // On a site the person turned the card on for (not a built-in job site), Velai only hears about pages that read as a job.
+    if (!isKnownJobSite(url) && !looksLikeJob(read)) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+        if (location.href !== url) return;
+        read = readJobPage();
+        if (!looksLikeJob(read)) {
+            removeCard();
+            return;
+        }
+    }
     let summary = await send<CardAnswer>({ type: "card", read, fresh: force });
     if (!summary && !read.posting) {
         // A page that fills in its job details after load.
