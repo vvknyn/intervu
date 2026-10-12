@@ -8,7 +8,7 @@ import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
  */
 export type CareerHubJobsFacetKey = Extract<
   FacetKey,
-  "location_country" | "location_city" | "location_state"
+  "location_country" | "location_city" | "location_state" | "work_type" | "experience_level"
 >;
 
 export interface CareerHub {
@@ -21,7 +21,13 @@ export interface CareerHub {
   relatedSlugs: readonly string[];
   /** Path to one competitor-alternative page when relevant. */
   alternativePath?: string;
+  /** The search the hub's main link runs, so a visitor lands on the roles
+   *  the page is about rather than on an empty /jobs (focus group,
+   *  2026-10-12: every hub linked to bare /jobs). */
+  jobsQuery?: string;
   jobsFacets?: Partial<Record<CareerHubJobsFacetKey, string>>;
+  /** The main link's words, naming those roles. */
+  searchLabel: string;
 }
 
 export const CAREER_HUBS: readonly CareerHub[] = [
@@ -38,6 +44,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     relatedSlugs: ["work-from-home-jobs", "tech-jobs"],
     alternativePath: "/indeed-alternative",
+    jobsFacets: { work_type: "remote" },
+    searchLabel: "Search remote jobs",
   },
   {
     slug: "work-from-home-jobs",
@@ -51,6 +59,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       "Use this hub to find WFH-friendly roles with posting-age signals — so you spend time on listings that are still open where it counts.",
     ],
     relatedSlugs: ["remote-jobs", "entry-level-jobs", "open-positions"],
+    jobsFacets: { work_type: "remote" },
+    searchLabel: "Search work-from-home jobs",
   },
   {
     slug: "software-engineer-jobs",
@@ -65,6 +75,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     relatedSlugs: ["tech-jobs", "remote-jobs", "entry-level-jobs"],
     alternativePath: "/linkedin-jobs-alternative",
+    jobsQuery: "Software Engineer",
+    searchLabel: "Search software engineer jobs",
   },
   {
     slug: "data-scientist-jobs",
@@ -78,6 +90,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       PUBLIC_ANTI_SCORE_SENTENCE,
     ],
     relatedSlugs: ["tech-jobs", "software-engineer-jobs", "remote-jobs"],
+    jobsQuery: "Data Scientist",
+    searchLabel: "Search data scientist jobs",
   },
   {
     slug: "nursing-jobs",
@@ -91,6 +105,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       "Search RN, LPN, and specialty nursing openings with the same freshness screening we apply to every listing.",
     ],
     relatedSlugs: ["healthcare-jobs", "open-positions"],
+    jobsQuery: "Nurse",
+    searchLabel: "Search nursing jobs",
   },
   {
     slug: "healthcare-jobs",
@@ -104,6 +120,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       "From nursing to operations, search healthcare roles with posting-age signals instead of aggregator leftovers.",
     ],
     relatedSlugs: ["nursing-jobs", "skilled-trades-jobs", "open-positions"],
+    jobsQuery: "Healthcare",
+    searchLabel: "Search healthcare jobs",
   },
   {
     slug: "skilled-trades-jobs",
@@ -117,6 +135,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       "Search skilled-trades roles with the same freshness checks we run on tech and healthcare listings.",
     ],
     relatedSlugs: ["healthcare-jobs", "entry-level-jobs"],
+    jobsQuery: "Electrician",
+    searchLabel: "Search electrician jobs",
   },
   {
     slug: "tech-jobs",
@@ -131,6 +151,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     relatedSlugs: ["software-engineer-jobs", "remote-jobs", "data-scientist-jobs"],
     alternativePath: "/indeed-alternative",
+    jobsQuery: "Software Engineer",
+    searchLabel: "Search software jobs",
   },
   {
     slug: "entry-level-jobs",
@@ -145,6 +167,8 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     relatedSlugs: ["open-positions", "remote-jobs", "tech-jobs"],
     alternativePath: "/linkedin-jobs-alternative",
+    jobsFacets: { experience_level: "entry" },
+    searchLabel: "Search entry-level jobs",
   },
   {
     slug: "open-positions",
@@ -158,6 +182,7 @@ export const CAREER_HUBS: readonly CareerHub[] = [
       "Browse open roles across industries with freshness screening on every posting.",
     ],
     relatedSlugs: ["company-career-pages", "entry-level-jobs", "remote-jobs"],
+    searchLabel: "Search live jobs",
   },
   {
     slug: "company-career-pages",
@@ -172,6 +197,7 @@ export const CAREER_HUBS: readonly CareerHub[] = [
     ],
     relatedSlugs: ["open-positions", "remote-jobs", "tech-jobs"],
     alternativePath: "/indeed-alternative",
+    searchLabel: "Search live jobs",
   },
 ] as const;
 
@@ -185,13 +211,12 @@ export function getAllCareerHubSlugs(): string[] {
   return CAREER_HUBS.map((hub) => hub.slug);
 }
 
-/** Build a /jobs deep link from a hub's location facets — null when none set. */
-export function careerHubJobsHref(hub: Pick<CareerHub, "jobsFacets">): string | null {
-  if (!hub.jobsFacets) return null;
+/** The /jobs search a hub's main link runs: its query and facets, or plain
+ *  /jobs for a hub about every field. */
+export function careerHubJobsHref(hub: Pick<CareerHub, "jobsQuery" | "jobsFacets">): string {
   const facets: Partial<Record<CareerHubJobsFacetKey, string[]>> = {};
-  for (const [key, value] of Object.entries(hub.jobsFacets) as [CareerHubJobsFacetKey, string][]) {
+  for (const [key, value] of Object.entries(hub.jobsFacets ?? {}) as [CareerHubJobsFacetKey, string][]) {
     if (value) facets[key] = [value];
   }
-  if (Object.keys(facets).length === 0) return null;
-  return `/jobs${serializeJobsUrl({ ...DEFAULT_URL_STATE, facets })}`;
+  return `/jobs${serializeJobsUrl({ ...DEFAULT_URL_STATE, q: hub.jobsQuery ?? "", facets })}`;
 }
