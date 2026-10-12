@@ -32,7 +32,7 @@ const lower = (list: string[]) => list.map((p) => p.toLowerCase());
 describe('what each golden résumé pack searches for', () => {
     it('the PM résumé searches product roles only, not the engineering job it left in 2018', () => {
         const searched = phrases(PM);
-        assert.deepEqual(lower(searched), ['product manager', 'technical product manager', 'program manager', 'product owner']);
+        assert.deepEqual(lower(searched), ['product manager', 'technical product manager', 'product owner']);
         assert.ok(searched.every((p) => !/engineer/i.test(p)), `no engineering titles: ${searched.join(', ')}`);
     });
 
@@ -106,9 +106,9 @@ describe('a posting for a different kind of role never reads as Strong', () => {
         assert.match(score!.components[0].detail, /different kind of role/);
     });
 
-    it('for the PM résumé, product and program roles are on target', () => {
+    it('for the PM résumé, product roles are on target and program roles, another family it no longer searches, are not', () => {
         assert.equal(roleOffTarget(PM, pmJob), false);
-        assert.equal(roleOffTarget(PM, tpm), false, 'Program Manager is one of the titles the pack searches');
+        assert.equal(roleOffTarget(PM, tpm), true, 'Program Manager names operations, not the product family the résumé names');
     });
 
     it('the CS résumés take Customer Success roles; the PM résumé does not', () => {

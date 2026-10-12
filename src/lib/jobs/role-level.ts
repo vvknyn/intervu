@@ -7,9 +7,9 @@
 import type { Seniority } from "@/lib/jobs/resume-match";
 import type { ResumeData } from "@/types/resume";
 
-/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate" read entry. */
+/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate", "Co-op student" read entry. */
 const TITLE_SENIOR = /\b(?:senior(?!s|\s+(?:care|living|home|homes|centre|center|services|citizens?)\b)|sr|lead(?!\s+gen)|principal|director|head of|vice president|vp|chief)\b/i;
-const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice)\b/i;
+const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice|co-?op (?:student|placement|term|position))\b/i;
 
 /**
  * A title that opens with "Manager" and then names what is managed: "Manager,
