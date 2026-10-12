@@ -43,9 +43,10 @@ async function render(): Promise<void> {
         );
     } else if (!me.signedIn) {
         account.replaceChildren(
-            el("p", "lede", "Sign in so Velai can check jobs against the résumé on your Velai account."),
-            el("p", "muted", "Sign-in opens in a small window that closes on its own when you're done."),
+            el("h2", "card-title", "See how each job fits you"),
+            el("p", "lede", "Sign in and each job page shows how the role fits the résumé on your Velai account."),
             actions(button("Sign in to Velai", "primary", { type: "signIn" })),
+            el("p", "hint", "Opens a small window, where you can also create an account. It closes on its own when you're done."),
         );
     } else if (!resumeFromMe(me)) {
         account.replaceChildren(

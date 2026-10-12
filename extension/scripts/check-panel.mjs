@@ -72,10 +72,10 @@ const PAGES = {
 
 /** Each state: what velai.app answers, the page clicked on, and what the panel must say. */
 const STATES = {
-    found: { me: signedIn, hits: [velaiCopy, ...similar], expect: ["Strong", "Actively posted", "lines that use this job's words now come first", "Download PDF"], pdf: true },
+    found: { me: signedIn, hits: [velaiCopy, ...similar], expect: ["Strong", "Actively posted", "lines that use this job's words now come first", "Download PDF"], order: ["Your fit", "Velai's checks"], pdf: true },
     "not-on-velai": { me: signedIn, hits: similar, expect: ["Not on Velai yet", "The page says apply by", "Similar roles on Velai", "✓ Registered", "✗ ICU"], has: [".rows .row-fit"] },
-    "signed-out": { me: { signedIn: false }, hits: [velaiCopy], expect: ["Sign in to Velai", "Actively posted"] },
-    "no-resume": { me: { signedIn: true, resume: { data: null, text: null, updatedAt: null }, preferences: null }, hits: [velaiCopy], expect: ["Add your résumé"] },
+    "signed-out": { me: { signedIn: false }, hits: [velaiCopy], expect: ["Sign in to Velai", "Actively posted", "create an account"], order: ["Velai's checks", "Your fit"] },
+    "no-resume": { me: { signedIn: true, resume: { data: null, text: null, updatedAt: null }, preferences: null }, hits: [velaiCopy], expect: ["Add your résumé"], order: ["Velai's checks", "Your fit"] },
     "velai-down": { me: 500, hits: 500, expect: ["Velai didn't answer", "Velai's search didn't answer"] },
     "board-match": { page: "board", me: signedIn, hits: [...similar, velaiCopy], expect: ["Velai's copy of the role it names", "Strong"] },
     "board-no-match": { page: "board", me: signedIn, hits: similar, expect: ["doesn't publish its job details", "Read this page as the job"], click: "Read this page as the job", expectAfter: ["as you asked", "Your résumé for this role"] },
@@ -126,7 +126,8 @@ try {
         await welcome.reload();
         await welcome.waitForFunction(() => document.body.innerText.includes("Sign in to Velai"), null, { timeout: 10_000 }).catch(() => {});
         const text = await welcome.evaluate(() => document.body.innerText);
-        const ok = text.includes("Sign in to Velai") && text.includes("How it works");
+        // The card's no-account value comes before the ask to sign in.
+        const ok = text.includes("Sign in to Velai") && text.includes("How it works") && text.indexOf("needs no account") >= 0 && text.indexOf("needs no account") < text.indexOf("Sign in to Velai");
         console.log(`${ok ? "ok  " : "FAIL"} welcome`);
         if (!ok) failures.push("welcome");
         await welcome.screenshot({ path: path.join(out, "welcome.png") });
@@ -164,6 +165,20 @@ try {
         const missing = s.expect.filter((t) => !text.includes(t));
         for (const selector of s.has ?? []) if (!(await panel.$(selector))) missing.push(selector);
         const unwanted = (s.refuse ?? []).filter((t) => text.includes(t));
+        // What the panel can already say comes first: the fit with a résumé, else the posting checks.
+        for (let i = 1; i < (s.order ?? []).length; i++) {
+            if (!(text.indexOf(s.order[i - 1]) >= 0 && text.indexOf(s.order[i - 1]) < text.indexOf(s.order[i]))) missing.push(`"${s.order[i - 1]}" before "${s.order[i]}"`);
+        }
+        // Low vision: no text in the panel under 14px.
+        const smallest = await panel.evaluate(() => {
+            let min = Infinity;
+            for (const node of document.querySelectorAll("body *")) {
+                const hasText = [...node.childNodes].some((c) => c.nodeType === Node.TEXT_NODE && c.textContent.trim());
+                if (hasText && node.getClientRects().length) min = Math.min(min, parseFloat(getComputedStyle(node).fontSize));
+            }
+            return min;
+        });
+        if (smallest < 14) errors.push(`text at ${smallest}px`);
         if (s.click) {
             await panel.click(`text=${s.click}`);
             await settled();
@@ -323,7 +338,8 @@ try {
     card = await waitForCard(page, ["Sign in to see your fit"]);
     {
         const problems = [];
-        if (!card?.text.includes("Sign in to Velai to see how this fits your résumé")) problems.push("no sign-in note");
+        // Leads with the posting's facts; the button is the only ask to sign in.
+        if (!(card && card.text.indexOf("Actively posted") >= 0 && card.text.indexOf("Actively posted") < card.text.indexOf("Sign in to see your fit"))) problems.push("facts don't come before the sign-in button");
         if (card?.text.includes("I applied")) problems.push("offers I applied while signed out");
         await page.screenshot({ path: path.join(out, "card-signed-out.png") });
         const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), clickCard(page, "Sign in to see your fit")]);

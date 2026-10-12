@@ -15,13 +15,23 @@
   color-scheme: dark;
 }
 
+/* Low vision. Sizes are in rem, so Chrome's own font-size setting scales the
+   panel; no text is under 14px; and when the system asks for more contrast,
+   secondary text and dividers move close to the main text colour. */
+@media (prefers-contrast: more) {
+  :root {
+    --muted-foreground: rgb(225 225 225);
+    --border: rgb(120 120 120);
+  }
+}
+
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font: 16px/1.5 "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font: 1rem/1.5 "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 a { color: inherit; text-underline-offset: 2px; }
@@ -35,14 +45,14 @@ a { color: inherit; text-underline-offset: 2px; }
 }
 .bar img { border-radius: 4px; }
 .brand { font-weight: 600; }
-.site { margin-left: auto; font-size: 14px; color: var(--muted-foreground); text-decoration: none; }
+.site { margin-left: auto; font-size: 0.875rem; color: var(--muted-foreground); text-decoration: none; }
 .site:hover { text-decoration: underline; }
 
 .search { display: flex; gap: 8px; padding: 12px var(--inset) 0; }
 .search input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: 2.75rem;
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -52,24 +62,24 @@ a { color: inherit; text-underline-offset: 2px; }
 }
 .search input:focus { outline: none; border-color: var(--foreground); }
 .search button {
-  height: 44px;
+  height: 2.75rem;
   padding: 0 16px;
   border: 0;
   border-radius: 12px;
   background: var(--brand);
   color: var(--brand-foreground);
   font-family: inherit;
-  font-size: 16px;
+  font-size: 1rem;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
 }
 
-.source { margin: 8px var(--inset) 0; font-size: 14px; color: var(--muted-foreground); }
+.source { margin: 8px var(--inset) 0; font-size: 0.875rem; color: var(--muted-foreground); }
 
 #results { padding: 16px var(--inset) 8px; }
-.lede, .notice, .status { margin: 0 0 8px; font-size: 14px; }
-.muted, .count { margin: 0 0 12px; font-size: 14px; color: var(--muted-foreground); }
+.lede, .notice, .status { margin: 0 0 8px; font-size: 1rem; }
+.muted, .count { margin: 0 0 12px; font-size: 0.875rem; color: var(--muted-foreground); }
 .count strong { color: var(--foreground); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .rows { list-style: none; margin: 0 0 12px; padding: 0; }
@@ -77,23 +87,23 @@ a { color: inherit; text-underline-offset: 2px; }
 .row:first-child { padding-top: 0; }
 .title { display: block; font-weight: 600; line-height: 1.35; text-decoration: none; }
 .title:hover { text-decoration: underline; }
-.meta, .explain { margin: 4px 0 0; font-size: 14px; color: var(--muted-foreground); }
-.marks { margin: 4px 0 0; font-size: 14px; display: flex; gap: 8px; }
+.meta, .explain { margin: 4px 0 0; font-size: 0.875rem; color: var(--muted-foreground); }
+.marks { margin: 4px 0 0; font-size: 0.875rem; display: flex; gap: 8px; }
 .mark-stale { color: var(--destructive); }
 .mark-review, .mark-relisted { color: var(--warn); }
-.apply { display: inline-block; margin-top: 6px; font-size: 14px; color: var(--brand); }
+.apply { display: inline-block; margin-top: 6px; font-size: 0.875rem; color: var(--brand); }
 
 .secondary {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: 2.5rem;
   padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
   color: var(--foreground);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1;
   text-decoration: none;
@@ -101,52 +111,52 @@ a { color: inherit; text-underline-offset: 2px; }
 }
 .secondary:hover { background: var(--muted); }
 
-.foot { padding: 8px var(--inset) 16px; font-size: 12px; color: var(--muted-foreground); }
+.foot { padding: 8px var(--inset) 16px; font-size: 0.875rem; color: var(--muted-foreground); }
 
 /* Page report */
 .job { margin-bottom: 16px; }
-.job-title { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.3; }
-.card { padding: 16px 0; border-top: 1px solid var(--border); }
-.card-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--muted-foreground); }
-.card > * + * { margin-top: 8px; }
+.job-title { margin: 0; font-size: 1.25rem; font-weight: 600; line-height: 1.3; }
+.card { padding: 20px 0; border-top: 1px solid var(--border); }
+.card-title { margin: 0 0 8px; font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground); }
+.card > * + * { margin-top: 12px; }
 .card .muted, .card .notice { margin-bottom: 0; }
 
-.fit { display: inline-block; margin: 0; padding: 4px 10px; border: 1px solid currentColor; border-radius: 999px; font-size: 14px; font-weight: 600; line-height: 1; }
+.fit { display: inline-block; margin: 0; padding: 4px 10px; border: 1px solid currentColor; border-radius: 999px; font-size: 0.875rem; font-weight: 600; line-height: 1; }
 .fit-strong { color: var(--brand); }
 .fit-good { color: var(--foreground); }
 .fit-stretch, .fit-outside { color: var(--warn); }
-.fit-heading { margin: 8px 0 0; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
-.fit-why { margin: 4px 0 0; font-size: 14px; line-height: 1.4; }
-.receipt { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; margin: 8px 0 0; font-size: 12px; }
-.receipt dt { color: var(--foreground); }
-.receipt dd { margin: 0; color: var(--muted-foreground); text-align: right; }
+.fit-heading { margin: 8px 0 0; font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground); }
+.fit-why { margin: 6px 0 0; font-size: 1rem; line-height: 1.5; }
+.receipt { display: grid; grid-template-columns: minmax(6.5rem, max-content) 1fr; gap: 8px 12px; margin: 12px 0 0; font-size: 0.875rem; line-height: 1.45; }
+.receipt dt { color: var(--muted-foreground); }
+.receipt dd { margin: 0; color: var(--foreground); }
 
 .checks { list-style: none; margin: 0; padding: 0; }
-.check { padding: 4px 0; font-size: 14px; }
+.check { padding: 6px 0; font-size: 1rem; }
 .check-label::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 999px; background: var(--muted-foreground); vertical-align: middle; }
 .check-ok .check-label::before { background: var(--brand); }
 .check-warn .check-label::before { background: var(--warn); }
 .check-bad .check-label::before { background: var(--destructive); }
 .check .explain { margin: 2px 0 0 16px; }
 
-.diff-label { margin: 12px 0 0; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
-.diff-after { margin: 2px 0 0; font-size: 14px; line-height: 1.4; }
-.diff-before { margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted-foreground); }
-.changes { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.45; }
+.diff-label { margin: 12px 0 0; font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground); }
+.diff-after { margin: 2px 0 0; font-size: 1rem; line-height: 1.5; }
+.diff-before { margin: 2px 0 0; font-size: 0.875rem; line-height: 1.4; color: var(--muted-foreground); }
+.changes { margin: 0; padding-left: 18px; font-size: 0.875rem; line-height: 1.45; }
 .changes li + li { margin-top: 4px; }
 
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 .primary {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: 2.5rem;
   padding: 0 12px;
   border: 0;
   border-radius: 12px;
   background: var(--brand);
   color: var(--brand-foreground);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1;
   text-decoration: none;
@@ -156,7 +166,7 @@ a { color: inherit; text-underline-offset: 2px; }
 .ghost {
   display: inline-flex;
   align-items: center;
-  height: 32px;
+  height: 2.5rem;
   margin-left: 8px;
   padding: 0 12px;
   border: 0;
@@ -164,7 +174,7 @@ a { color: inherit; text-underline-offset: 2px; }
   background: transparent;
   color: var(--muted-foreground);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1;
   cursor: pointer;
@@ -173,11 +183,11 @@ a { color: inherit; text-underline-offset: 2px; }
 
 /* Résumé gap, editor, applying, on-page card */
 .terms { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
-.term { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 12px; line-height: 1.4; }
+.term { padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.875rem; line-height: 1.4; }
 .term-has { color: var(--brand); }
 .term-lacks { color: var(--warn); }
-.row-fit { margin-top: 6px; padding: 2px 8px; font-size: 12px; }
-.hint { margin: 4px 0 0; font-size: 12px; line-height: 1.4; color: var(--muted-foreground); }
+.row-fit { margin-top: 6px; padding: 2px 8px; font-size: 0.875rem; }
+.hint { margin: 6px 0 0; font-size: 0.875rem; line-height: 1.45; color: var(--muted-foreground); }
 .edit .actions { margin-top: 12px; }
 .inline { padding: 0; border: 0; background: none; color: var(--foreground); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 #results > .hint { margin-top: 8px; }

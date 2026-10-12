@@ -51,25 +51,29 @@ const STYLE = `
 .fit { margin: 8px 0 0; }
 .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 13px; font-weight: 600; }
 .fit-strong { color: rgb(47 191 113); } .fit-good { color: rgb(245 245 245); } .fit-stretch, .fit-outside { color: rgb(245 158 11); }
-.fit-source { margin-left: 6px; font-size: 12px; color: rgb(163 163 163); }
+.fit-source { margin-left: 6px; font-size: 13px; color: rgb(163 163 163); }
 .terms { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0; }
-.term { padding: 1px 7px; border-radius: 999px; font-size: 12px; border: 1px solid rgb(38 38 38); }
+.term { padding: 1px 7px; border-radius: 999px; font-size: 13px; border: 1px solid rgb(38 38 38); }
 .term-has { color: rgb(47 191 113); } .term-lacks { color: rgb(245 158 11); }
-.terms-note { margin: 4px 0 0; font-size: 11px; color: rgb(163 163 163); }
+.terms-note { margin: 4px 0 0; font-size: 12px; color: rgb(163 163 163); }
 .note { margin: 8px 0 0; font-size: 13px; color: rgb(163 163 163); }
 ul { list-style: none; margin: 8px 0 0; padding: 0; }
 li { margin-top: 4px; }
 li::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 8px; border-radius: 999px; background: rgb(163 163 163); vertical-align: middle; }
 li.ok::before { background: rgb(47 191 113); } li.warn::before { background: rgb(245 158 11); } li.bad::before { background: rgb(255 59 105); }
-.src { color: rgb(163 163 163); font-size: 12px; }
+.src { color: rgb(163 163 163); font-size: 13px; }
 .actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 button { font: inherit; cursor: pointer; }
 button.primary { border: 0; border-radius: 10px; padding: 7px 12px; background: rgb(47 191 113); color: rgb(8 9 12); font-weight: 600; }
 button.secondary { border: 1px solid rgb(38 38 38); border-radius: 10px; padding: 6px 12px; background: transparent; color: rgb(245 245 245); }
 button.secondary:hover { background: rgb(26 26 26); }
 button:disabled { opacity: 0.6; cursor: default; }
-button.link { border: 0; background: none; padding: 0; color: rgb(163 163 163); font-size: 12px; text-decoration: underline; }
+button.link { border: 0; background: none; padding: 0; color: rgb(163 163 163); font-size: 13px; text-decoration: underline; }
 .done { margin: 0; font-size: 13px; color: rgb(47 191 113); }
+@media (prefers-contrast: more) {
+  .card, .term, button.secondary { border-color: rgb(120 120 120); }
+  .close, .fit-source, .terms-note, .note, .src, button.link { color: rgb(225 225 225); }
+}
 `;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
@@ -110,9 +114,8 @@ function mark(): SVGSVGElement {
     return svg;
 }
 
-const ACCOUNT_NOTE: Record<NonNullable<CardSummary["account"]>, string> = {
-    "signed-out": "Sign in to Velai to see how this fits your résumé.",
-    "no-resume": "Add your résumé on Velai to see how this fits you.",
+/** Why there's no fit label, where no button already says it: signed out and no résumé get "Sign in to see your fit" and "Add your résumé" under the posting's facts instead. */
+const ACCOUNT_NOTE: Partial<Record<NonNullable<CardSummary["account"]>, string>> = {
     "no-overlap": "Your résumé and this role don't share enough to score.",
     unavailable: "Velai didn't answer, so your fit isn't shown.",
 };
@@ -150,7 +153,7 @@ function render(summary: CardSummary, read: PageRead): void {
             row.append(...chips);
             card.append(row, el("p", "terms-note", "Words in the role's title: ✓ on your résumé, ✗ not on it"));
         }
-    } else if (summary.account) {
+    } else if (summary.account && ACCOUNT_NOTE[summary.account]) {
         card.append(el("p", "note", ACCOUNT_NOTE[summary.account]));
     }
 
@@ -168,7 +171,7 @@ function render(summary: CardSummary, read: PageRead): void {
     if (summary.account === "signed-out") {
         actions.append(button("Sign in to see your fit", "primary", () => void send({ type: "signIn" })));
     } else if (summary.account === "no-resume") {
-        actions.append(button("Add your résumé", "primary", () => void send({ type: "openVelai", path: "/resume" })));
+        actions.append(button("Add your résumé to see your fit", "primary", () => void send({ type: "openVelai", path: "/resume" })));
     } else {
         const label = summary.fit ? "Your résumé for this job" : "Open in Velai";
         actions.append(button(label, "primary", () => void send({ type: "openPanel", read })));
