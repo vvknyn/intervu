@@ -125,7 +125,7 @@ export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
 }
 
 /** The same opening listed twice (re-synced or cross-posted): its title, company and place. A role open in two cities is two openings. */
-function sameRoleKey(job: PublicJob): string {
+export function sameRoleKey(job: PublicJob): string {
     const norm = (s: string | null | undefined) => decodeText(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
     return `${norm(job.company)}\0${norm(job.title)}\0${norm(locationText(job))}`;
 }

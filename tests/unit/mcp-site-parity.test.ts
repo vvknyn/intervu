@@ -20,7 +20,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 process.env.NEXT_PUBLIC_SITE_URL = 'https://velai.app';
-import { toolGetJob, toolSearchJobs, toolForYou, type ToolDeps } from '../../src/lib/agent/tools';
+import { toolDailyPicks, toolGetJob, toolSearchJobs, toolForYou, type ToolDeps } from '../../src/lib/agent/tools';
 import { toolGetCompany } from '../../src/lib/agent/company-tools';
 import { NO_TAILOR_CHANGES_NOTE, rulesTailor, toolTailorResume, type TailorChangeOut } from '../../src/lib/agent/tailor-tool';
 import { jobToTailorInput, tailorWithRules } from '../../src/lib/local-ai/tailor-with-engine';
@@ -38,6 +38,9 @@ import { latestCheckAt } from '../../src/lib/jobs/badges';
 import { packFilters, packSearchParams } from '../../src/lib/jobs/for-you/pack-filters';
 import { clusterJobs } from '../../src/lib/jobs/cluster';
 import { hasLiveApplyUrl } from '../../src/lib/jobs/apply-url-health';
+import { pickToday, todayLeftOut, type TodayRole } from '../../src/lib/jobs/for-you/today';
+import { DAILY_PICKS_MAX } from '../../src/lib/daily-picks/pick';
+import { DAILY_PICKS_OFF } from '../../src/lib/daily-picks/state';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
 import type { JobSearchParams, JobSearchResult, PlaceRestriction, PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
@@ -115,6 +118,17 @@ const jobPageRow = (job: PublicJob) => withDescriptionPlace(job);
 /** A page of rows as `searchJobsAction` returns them. */
 const listRows = (rows: PublicJob[]) => withPlaceRestrictions(rows, { read: readPlaces });
 
+/** Today's picks as TodayHome.tsx builds them: the pack's search, its rows scored, `pickToday` (nothing skipped or tracked). */
+async function todayPicks(persona: Persona): Promise<TodayRole[]> {
+    const signals = resolveCandidateSignals(persona.resume, withPlaceCountries(persona.prefs));
+    const pack = await corpusStub(CORPUS).search({ ...packSearchParams(packFilters(persona.resume, signals)), limit: 60, offset: 0 });
+    const roles = (await listRows(pack.hits)).flatMap((job) => {
+        const score = scoreJobAgainstResume(persona.resume, job, signals);
+        return score ? [{ job, score }] : [];
+    });
+    return pickToday(roles, { skipped: new Set(), tracked: new Set() });
+}
+
 function depsFor(persona: Persona, company?: CompanyPageData): ToolDeps {
     const corpus = corpusStub(CORPUS);
     const byId = (id: string): JobSearchResult => {
@@ -147,6 +161,8 @@ function depsFor(persona: Persona, company?: CompanyPageData): ToolDeps {
         getCompanyExhaust: async () => null,
         searchCompanies: async () => [],
         tailor: rulesTailor,
+        getDailyPicks: async () => ({ state: DAILY_PICKS_OFF, on: false, reachable: true, blockedGlobally: false }),
+        setDailyPicksEmail: unused('setDailyPicksEmail') as ToolDeps['setDailyPicksEmail'],
     };
 }
 
@@ -201,7 +217,30 @@ describe('MCP tools label a role the way the site does', () => {
                 assert.equal(hit.fit_label ?? null, siteLabel(persona, rows.get(hit.id)!), `${hit.id} for ${persona.name}`);
             }
         });
+
+        it(`${persona.name}: daily_picks lists Today's picks, in Today's order, labelled the same`, async () => {
+            const deps = { ...depsFor(persona), listApplications: async () => [] };
+            const out = await toolDailyPicks(deps, {});
+            if ('error' in out) throw new Error(out.error);
+            assert.deepEqual(out.picks.map((p) => p.id), (await todayPicks(persona)).slice(0, DAILY_PICKS_MAX).map((r) => r.job.id), persona.name);
+            const rows = new Map((await listRows(CORPUS)).map((row) => [row.id, row] as const));
+            for (const pick of out.picks) {
+                assert.equal(pick.fit_label ?? null, siteLabel(persona, rows.get(pick.id)!), `${pick.id} for ${persona.name}`);
+                assert.ok(pick.fit_label === 'Strong' || pick.fit_label === 'Good', `${pick.id} is labelled ${pick.fit_label}, never a pick`);
+            }
+        });
     }
+
+    it('daily_picks keeps a role above the résumé\'s level out, and has picks to compare (not vacuous)', async () => {
+        const persona = PERSONAS[0]!;
+        const out = await toolDailyPicks({ ...depsFor(persona), listApplications: async () => [] }, {});
+        if ('error' in out) throw new Error(out.error);
+        const ids = out.picks.map((p) => p.id);
+        assert.ok(ids.includes('ca-onsite'), JSON.stringify(ids));
+        assert.ok(!ids.includes('ca-senior'), 'a senior role is a Stretch for a mid résumé, never a pick');
+        assert.equal(todayLeftOut(scoreJobAgainstResume(persona.resume, CORPUS.find((j) => j.id === 'ca-senior')!, resolveCandidateSignals(persona.resume))!), 'level');
+        assert.ok(out.picks.every((p) => p.why.length > 0), 'each pick says why');
+    });
 
     it('the description place changes the label (the contract above would pass vacuously otherwise)', async () => {
         const persona = PERSONAS[0]!;
@@ -267,16 +306,24 @@ describe('the MCP reads a job the way the site serves it', () => {
         return [...source.matchAll(pattern)].flatMap((m) => m[1]!.split(',').map((s) => s.trim()).filter(Boolean));
     }
 
-    it('the MCP route uses every description-place read the site\'s search action uses', () => {
-        const site = namedImports('src/actions/jobs.ts', '@/lib/jobs/place-notes');
-        const mcp = namedImports('src/app/api/mcp/route.ts', '@/lib/jobs/place-notes');
-        assert.ok(site.length > 0, 'src/actions/jobs.ts no longer reads description places — update this contract');
-        for (const name of site) assert.ok(mcp.includes(name), `the site's search action uses ${name}; the MCP route (src/app/api/mcp/route.ts) does not`);
+    /** The MCP route's search, shared with the daily picks run. */
+    const MCP_SEARCH = 'src/lib/agent/search-as-the-site.ts';
+
+    it('the MCP route searches through the shared site search, as the daily picks run does', () => {
+        assert.ok(namedImports('src/app/api/mcp/route.ts', '@/lib/agent/search-as-the-site').includes('searchAsTheSite'));
+        assert.ok(namedImports('src/lib/daily-picks/send.ts', '@/lib/agent/search-as-the-site').includes('searchAsTheSite'));
     });
 
-    it('the MCP route looks a job up through the same seam as the site\'s job pane', () => {
+    it('the MCP search uses every description-place read the site\'s search action uses', () => {
+        const site = namedImports('src/actions/jobs.ts', '@/lib/jobs/place-notes');
+        const mcp = namedImports(MCP_SEARCH, '@/lib/jobs/place-notes');
+        assert.ok(site.length > 0, 'src/actions/jobs.ts no longer reads description places — update this contract');
+        for (const name of site) assert.ok(mcp.includes(name), `the site's search action uses ${name}; the MCP search (${MCP_SEARCH}) does not`);
+    });
+
+    it('the MCP search looks a job up through the same seam as the site\'s job pane', () => {
         assert.ok(namedImports('src/actions/jobs.ts', '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
-        assert.ok(namedImports('src/app/api/mcp/route.ts', '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
+        assert.ok(namedImports(MCP_SEARCH, '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
     });
 });
 

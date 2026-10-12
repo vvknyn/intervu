@@ -138,7 +138,8 @@ export default function ConnectHelpPage() {
           <p>
             Out of the box, this gets you search and tracking: ask your AI to find roles,
             sanity-check a posting, or save something to your tracker, and it can do that right
-            away. Actually opening a listing and filling out the application form needs a
+            away. It can also list today&apos;s picks for your résumé and turn the daily picks
+            email on or off. Actually opening a listing and filling out the application form needs a
             different kind of tool — one with browser control, like Claude Code. Either way,
             nothing here ever submits an application by itself; you&apos;re always the one who
             hits submit.
