@@ -131,6 +131,7 @@ import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
+import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -2787,15 +2788,16 @@ export function JobsContent({
                 position: rank,
                 job_id: id,
                 source: "serp",
-                // `resultRef.current?.searchId`, NOT `lastSearchId`: a
-                // load-more page fetch mints its own `lastSearchId` but
+                // Keyed on `resultRef.current?.searchId`, NOT `lastSearchId`:
+                // a load-more page fetch mints its own `lastSearchId` but
                 // `setResult` never overwrites `searchId` when appending a
                 // page (see `loadMore`'s updater) — `result.searchId` is the
                 // stable id for the WHOLE rendered list a row's position was
-                // computed against, the same value `useResultImpressions` is
-                // armed with below. That's the id a click must carry to join
-                // back to the impression it came from (SPEC §5).
-                ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // computed against, the same list `useResultImpressions` is
+                // armed with below. Analytics get the list's own id, never
+                // `searchId` itself, which keys the search log's words
+                // (`resultSetAnalyticsId`).
+                ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
@@ -3884,8 +3886,8 @@ export function JobsContent({
     // "REFINED query" case SPEC §5 requires. This is the same value
     // `result_clicked`/`apply_clicked` read (via `resultRef.current
     // ?.searchId`) so impressions and the clicks they produce always join
-    // on one query_id.
-    useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
+    // on one query_id: the list's analytics id, not `searchId` itself.
+    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId));
     useListRenderTiming({
         searchId: result?.searchId,
         rows: result?.hits.length ?? 0,
@@ -4396,10 +4398,10 @@ export function JobsContent({
         captureEvent("apply_clicked", {
             job_id: job.id,
             source: "serp",
-            // Same `resultRef.current?.searchId` contract as `openJob`'s
-            // `result_clicked` above — the id `useResultImpressions` is
-            // armed with for the currently-rendered result set (SPEC §5).
-            ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+            // Same contract as `openJob`'s `result_clicked` above — the id
+            // `useResultImpressions` is armed with for the currently-rendered
+            // result set (SPEC §5), never the search log's `searchId`.
+            ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
             ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
