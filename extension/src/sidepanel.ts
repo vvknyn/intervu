@@ -126,8 +126,9 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
     if (!me.signedIn) {
         return section(
             "Your fit",
-            el("p", "muted", "Sign in to Velai to see how this role fits your résumé and get a copy tailored to it. Sign-in opens in a small window that closes on its own, and this job is checked again."),
+            el("p", "lede", "Sign in to see how this role fits your résumé."),
             actionsRow(button("Sign in to Velai", "primary", () => send({ type: "signIn" })), button("Check again", "ghost", onRetry)),
+            el("p", "hint", "Opens a small window, where you can also create an account. It closes on its own and this job is checked again."),
         );
     }
     if (me.resume === null) {
@@ -136,8 +137,9 @@ function fitNode(me: MeResponse | null, resume: ResumeData | null, job: PublicJo
     if (!resume) {
         return section(
             "Your fit",
-            el("p", "muted", "Add your résumé on Velai to see how this role fits you and get a copy tailored to it. It opens in a small window; close it when you're done and this job is checked again."),
+            el("p", "lede", "Add your résumé on Velai to see how this role fits you."),
             actionsRow(button("Add your résumé", "primary", () => send({ type: "openVelai", path: "/resume" })), button("Check again", "ghost", onRetry)),
+            el("p", "hint", "Opens in a small window. Close it when you're done and this job is checked again."),
         );
     }
     const edit = editResumeNode();
@@ -390,15 +392,15 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
     // Velai's copy when it has the posting, so the fit and checks match the site's.
     const job = velaiJob ?? pageJob;
     const parts: Node[] = [jobHeader(job)];
-    parts.push(fitNode(me, resume, job, retry));
-
-    if (velaiJob) {
-        parts.push(section("Velai's checks", checksNode(velaiChecks(velaiJob, now)), link(panelRow(velaiJob, now).velaiUrl, "Open on Velai", "secondary")));
-    } else if (hits === null) {
-        parts.push(section("Velai's checks", el("p", "notice", "Velai's search didn't answer, so this posting couldn't be checked."), button("Try again", "secondary", retry)));
-    } else {
-        parts.push(section("Velai's checks", checksNode(pageChecks(pageJob, validThrough(read), now))));
-    }
+    const fit = fitNode(me, resume, job, retry);
+    const checks = velaiJob
+        ? section("Velai's checks", checksNode(velaiChecks(velaiJob, now)), link(panelRow(velaiJob, now).velaiUrl, "Open on Velai", "secondary"))
+        : hits === null
+          ? section("Velai's checks", el("p", "notice", "Velai's search didn't answer, so this posting couldn't be checked."), button("Try again", "secondary", retry))
+          : section("Velai's checks", checksNode(pageChecks(pageJob, validThrough(read), now)));
+    // Lead with what Velai can already say: the fit when there's a résumé to
+    // score, else the posting checks, which need no account, above the ask to sign in.
+    parts.push(...(resume ? [fit, checks] : [checks, fit]));
 
     if (resume) {
         // Tailor to the fullest description of the role: the page's published
