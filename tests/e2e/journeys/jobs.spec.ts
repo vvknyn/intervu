@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
+import { gunzipSync } from "node:zlib";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
@@ -16,7 +17,7 @@ import { signedInTest, withActionResult, withoutMockSignInHydration } from "./si
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/50/51/52/54/55/56/57/58/60/61/94/95, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/50/51/52/54/55/56/57/58/60/61/94/95, J-SRCH-03, J-SRCH-21, J-SRCH-35, J-SRCH-37, J-DETAIL-01/43). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -139,6 +140,56 @@ test("list analytics fire: results_impressed on first render, search_submitted o
   await page.locator(SEARCH_INPUT).first().fill("analyst");
   await page.locator(SEARCH_INPUT).first().press("Enter");
   await expect.poll(() => events, { timeout: 15_000, message: "search_submitted after a search" }).toContain("search_submitted");
+});
+
+/**
+ * An analytics request's body as text: posthog-js sends events gzipped
+ * (`compression=gzip-js`) or base64 in a `data=` form field; the ledger sends JSON.
+ */
+function analyticsBody(req: Request): string {
+  const raw = req.postDataBuffer();
+  if (!raw) return "";
+  const compression = new URL(req.url()).searchParams.get("compression");
+  if (compression === "gzip-js") return gunzipSync(raw).toString("utf8");
+  const text = raw.toString("utf8");
+  if (compression === "base64" || text.startsWith("data=")) {
+    const data = new URLSearchParams(text).get("data") ?? "";
+    return Buffer.from(data, "base64").toString("utf8");
+  }
+  return text;
+}
+
+test("a search's words never reach analytics: events carry its shape, not what was typed", { tag: ["@J-SRCH-35"] }, async ({ page, diagnostics }) => {
+  // A common query on purpose: every prod run lands in the anonymous search
+  // log the demand view reads, and a made-up word would sit in "Nothing found".
+  const word = "accountant";
+  // The fixture aborts analytics; these page-level routes win, answer locally
+  // and keep each body, so nothing reaches PostHog or the ledger.
+  const ledgerEvents: string[] = [];
+  const bodies: string[] = [];
+  await page.route("**/api/telemetry", async (route) => {
+    const body = analyticsBody(route.request());
+    bodies.push(body);
+    for (const e of (JSON.parse(body || "{}") as { events?: { event_name: string }[] }).events ?? []) ledgerEvents.push(e.event_name);
+    await route.fulfill({ status: 204 });
+  });
+  // Event capture only: replay snapshots (/s/) and flag reads are not events.
+  await page.route(
+    (url) => /^\/ph\/(e|i\/v0\/e|batch)\/?$/.test(url.pathname),
+    async (route) => {
+      bodies.push(analyticsBody(route.request()));
+      await route.fulfill({ status: 200, json: { status: 1 } });
+    },
+  );
+
+  await searchFor(page, word);
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${word}`));
+  await expect.poll(() => ledgerEvents, { timeout: 15_000 }).toContain("search_submitted").catch(() => {});
+  test.skip(!ledgerEvents.includes("search_submitted"), "this build sends no analytics (no PostHog key), so there is nothing to check");
+
+  const leaked = bodies.filter((body) => body.toLowerCase().includes(word));
+  expect(leaked, "no analytics payload holds the words searched").toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
 });
 
 test("returning visitor searches a keyword and gets job rows", { tag: ["@J-SRCH-03"] }, async ({ page, diagnostics }) => {
@@ -1325,6 +1376,53 @@ signedInTest("a role whose title manages people reads Stretch for a résumé tha
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("an intern's résumé ranks entry-level roles, however long its dates run, and says the level came from their title", { tag: ["@J-JOBS-120"] }, async ({ page, diagnostics }) => {
+  // Focus group, 2026-10-12: a "Data Science Intern" since January 2021 read as mid, and the Mid filter left
+  // "Nothing matches these filters." The title held now sets the level: an intern is entry level.
+  await returningVisitor(page);
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Sample Intern", profession: "Data Science Intern", yearsOfExperience: 5, location: "Montreal, QC", email: "intern@example.com", phone: "", linkedin: "", website: "" },
+      experience: [{ id: "e1", company: "Studio", role: "Data Science Intern", dates: "Jan 2021 - Present", description: "Built churn models in Python and scikit-learn." }],
+      competencies: [{ category: "Skills", skills: ["Python", "SQL", "Pandas", "scikit-learn"] }],
+      education: [],
+      generatedSummary: "Graduate student in data science looking for an internship or new grad role.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  const levels: string[][] = [];
+  page.on("request", (req) => {
+    if (!isListSearch(req)) return;
+    const level = (req.postDataJSON() as { facets?: Record<string, string[]> }).facets?.experience_level;
+    if (level) levels.push(level);
+  });
+  const hits = [remoteRole("intern", "Data Science Intern", "Remote, Canada", { tags: [], experience_level: "entry" })];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-intern-level" }));
+  // A returning guest with a résumé opens /jobs on its matches (J-JOBS-54): the list asks for the résumé's level.
+  await page.goto("/jobs");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(1, { timeout: 60_000 });
+  await expect.poll(() => levels.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(levels.every((level) => level.length === 1 && level[0] === "entry"), JSON.stringify(levels)).toBe(true);
+  const chip = page.locator('[data-testid="job-row"][data-job-id="intern"]').getByTestId("match-chip");
+  await expect(chip).toHaveText("Strong", { timeout: 60_000 });
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("matches the entry level of your title, Data Science Intern");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("a fit-ranked list opened again leads with roles this device hasn't shown before, inside the same fit, and a role's reason says what the résumé's level was read from", { tag: ["@J-JOBS-111"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-06: "I keep seeing the same fucking result" and "users should be able to trust our results with why those results were returned".
   await returningVisitor(page);
@@ -1997,7 +2095,7 @@ signedInTest("an opened pack's controls share one row under the top bar, and its
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("an employer search with a place says where its roles in that place end and its roles elsewhere begin", { tag: ["@J-SRCH-35"] }, async ({ page, diagnostics }) => {
+test("an employer search with a place says where its roles in that place end and its roles elsewhere begin", { tag: ["@J-SRCH-37"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   // The employer's roles in the asked-for place come first, the rest follow with the employer's true
   // total; the caption says where the first group ends. The server half (a role word like "warehouse"

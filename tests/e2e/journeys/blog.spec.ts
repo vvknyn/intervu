@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -32, -33).
+ * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -32, -33, -36).
  * Read-only. The October 2026 "what's new" note is the post the email to
  * registered users links to, so its pictures and its setup link have to work
  * for someone arriving cold. The same-résumé test post (J-CONTENT-29) is the
@@ -10,6 +10,7 @@ import { expect, test } from "./fixtures";
 
 const POST_PATH = "/blog/whats-new-october-2026";
 const TEST_POST_PATH = "/blog/same-resume-test-october-2026";
+const LEGIT_POST_PATH = "/blog/is-velai-legit";
 
 test("the blog opens from the footer and its first post shows every picture and the setup link", { tag: ["@J-CONTENT-27"] }, async ({ page, diagnostics }) => {
   await page.goto("/about");
@@ -97,7 +98,7 @@ test("a blog post tells search engines and link previews its title, picture, aut
 });
 
 test("every blog post is signed by the Velai team and names no person, on the page or to search engines", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
-  for (const path of [POST_PATH, TEST_POST_PATH]) {
+  for (const path of [POST_PATH, TEST_POST_PATH, LEGIT_POST_PATH]) {
     await page.goto(path);
     const post = page.getByTestId("blog-post");
     await expect(post.getByText("By the Velai team", { exact: true })).toBeVisible();
@@ -111,6 +112,42 @@ test("every blog post is signed by the Velai team and names no person, on the pa
     expect(article?.author?.["@type"]).toBe("Organization");
     expect(article?.author?.name).toBe("Velai");
   }
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the is-Velai-legit post opens from /about with its pictures, seven checks and links, and names no person", { tag: ["@J-CONTENT-36"] }, async ({ page, diagnostics }) => {
+  await page.goto("/about");
+  await page.getByTestId("about-page").getByRole("link", { name: "how to check it yourself" }).click();
+  await expect(page).toHaveURL(new RegExp(`${LEGIT_POST_PATH}$`));
+  await expect(page).toHaveTitle("Is Velai legit? How to check it yourself · Velai");
+
+  const post = page.getByTestId("blog-post");
+  await expect(post.getByRole("heading", { level: 1 })).toHaveText("Is Velai legit? What it is, who runs it, and how to check");
+  await expect(post.getByText("By the Velai team", { exact: true })).toBeVisible();
+  for (const name of ["Who runs it", "How Velai pays for itself", "What Velai will never do", "Seven ways to check it yourself"]) {
+    await expect(post.getByRole("heading", { level: 2, name })).toBeVisible();
+  }
+
+  // The checklist cover and the privacy promises screenshot, each loaded and described.
+  const pictures = post.locator("img.blog-figure");
+  await expect(pictures).toHaveCount(2);
+  for (const picture of await pictures.all()) {
+    await picture.scrollIntoViewIfNeeded();
+    await expect(picture).toHaveAttribute("alt", /.{40,}/);
+    await expect.poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  }
+
+  // Seven checks, the first naming the button a reader will press.
+  const checks = post.locator("ol > li");
+  await expect(checks).toHaveCount(7);
+  await expect(checks.nth(1)).toContainText("Apply on employer site");
+
+  await expect(post.getByRole("link", { name: "Velai's job search" })).toHaveAttribute("href", "/jobs");
+  await expect(post.getByRole("link", { name: "pricing page" })).toHaveAttribute("href", "/pricing");
+  await expect(post.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy#your-resume");
+  await expect(post.getByRole("link", { name: "tell us" })).toHaveAttribute("href", "/contact");
+  await expect(post).not.toContainText(/founder/i);
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

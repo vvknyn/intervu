@@ -5,16 +5,35 @@
  * facts about the posting, each saying where it comes from. The service
  * worker does the work (velai.app calls, scoring); this only reads the page
  * and draws the card. Pages that aren't jobs get nothing.
+ *
+ * On an application form, the card fills it from the person's résumé on
+ * their click (form-fill.ts) and never submits it. Once the site then says
+ * the application went through, the job goes into their tracker as Applied.
  */
-import { readJobPage, type PageRead } from "./page-reader";
-import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type CardAnswer, type ToBackground, type TrackAnswer } from "./messages";
+import { looksLikeJob, readJobPage, type PageRead } from "./page-reader";
+import { isKnownJobSite } from "./job-sites";
+import {
+    ACCOUNT_CHANGED_KEY,
+    HIDDEN_SITES_KEY,
+    type AppliedAnswer,
+    type CardAnswer,
+    type FillAnswer,
+    type PendingFill,
+    type ToBackground,
+    type TrackAnswer,
+} from "./messages";
 import { CARD_TERM_LIMIT, type CardSummary } from "./card-summary";
+import { fillForm, filledList, findApplicationForm, isConfirmation } from "./form-fill";
 
 const HOST_ID = "velai-card-host";
 /** Client-rendered job pages fill in after load; look once more after this. */
 const RETRY_MS = 2_500;
 /** Single-page sites (LinkedIn) change the URL without a reload. */
 const URL_POLL_MS = 1_000;
+/** An application form that draws itself after the card: look for it again at these times. */
+const FORM_RETRY_MS = [3_000, 8_000];
+/** After a fill, how long the page is watched for the site's "application sent" message. */
+const CONFIRM_WATCH_MS = 30 * 60_000;
 /** ...and fill in the new job a moment after; reading at once would read the last one. */
 const SPA_SETTLE_MS = 1_200;
 
@@ -25,6 +44,15 @@ let shownAccount: CardSummary["account"] = null;
 
 function send<T>(message: ToBackground): Promise<T> {
     return chrome.runtime.sendMessage(message) as Promise<T>;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function fromBase64(base64: string): Uint8Array<ArrayBuffer> {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
 }
 
 function removeCard(): void {
@@ -120,7 +148,8 @@ const ACCOUNT_NOTE: Partial<Record<NonNullable<CardSummary["account"]>, string>>
     unavailable: "Velai didn't answer, so your fit isn't shown.",
 };
 
-function render(summary: CardSummary, read: PageRead): void {
+/** A new card on the page: the shell with Velai's mark and a close button; the caller fills it and calls `show`. */
+function cardShell(): { card: HTMLElement; show: () => void } {
     removeCard();
     const host = el("div");
     host.id = HOST_ID;
@@ -130,14 +159,102 @@ function render(summary: CardSummary, read: PageRead): void {
     const card = el("section", "card");
     card.setAttribute("role", "complementary");
     card.setAttribute("aria-label", "Velai");
-
     const head = el("div", "head");
     head.append(mark(), el("span", "brand", "Velai"), button("×", "close", () => {
         dismissedUrl = location.href;
         removeCard();
     }));
     head.querySelector(".close")?.setAttribute("aria-label", "Close");
-    card.append(head, el("p", "title", [summary.title, summary.company].filter(Boolean).join(" · ")));
+    card.append(head);
+    return {
+        card,
+        show: () => {
+            root.append(style, card);
+            document.documentElement.append(host);
+        },
+    };
+}
+
+/** The card after the site confirmed an application the card filled. */
+function renderApplied(answer: NonNullable<AppliedAnswer>): void {
+    const { card, show } = cardShell();
+    card.append(el("p", "title", answer.title));
+    card.append(answer.ok ? el("p", "done", "Application sent. Added to your Velai tracker as Applied.") : el("p", "note", `Application sent, but it isn't in your tracker yet: ${answer.error}`));
+    show();
+    shownAccount = null;
+}
+
+/** After the site confirms the application the card filled, it goes into the tracker. */
+async function confirmApplied(): Promise<boolean> {
+    const answer = await send<AppliedAnswer>({ type: "appliedAfterFill" }).catch(() => null);
+    if (!answer) return false;
+    renderApplied(answer);
+    return true;
+}
+
+let confirmWatch: MutationObserver | null = null;
+
+/** Watches a form page that confirms in place (no new page) for the site's "application sent" message. */
+function watchForConfirmation(): void {
+    confirmWatch?.disconnect();
+    confirmWatch = null;
+    // Text that was there before the fill (an intro that says "thank you for applying") doesn't count.
+    if (!document.body || isConfirmation(document.body.innerText)) return;
+    const stopAt = Date.now() + CONFIRM_WATCH_MS;
+    let pending: ReturnType<typeof setTimeout> | null = null;
+    const look = () => {
+        pending = null;
+        if (Date.now() > stopAt) {
+            confirmWatch?.disconnect();
+            confirmWatch = null;
+        } else if (isConfirmation(document.body.innerText) && !findApplicationForm()) {
+            confirmWatch?.disconnect();
+            confirmWatch = null;
+            void confirmApplied();
+        }
+    };
+    confirmWatch = new MutationObserver(() => {
+        pending ??= setTimeout(look, 1_000);
+    });
+    confirmWatch.observe(document.body, { childList: true, subtree: true, characterData: true });
+}
+
+/** "Fill from your résumé": the form's fields from the résumé, its upload with the PDF tailored to this job. */
+function fillButton(summary: CardSummary, read: PageRead, status: HTMLElement): HTMLButtonElement {
+    const label = "Fill from your résumé";
+    const fill = button(label, "primary", () => {
+        fill.disabled = true;
+        fill.textContent = "Filling…";
+        status.textContent = "";
+        void send<FillAnswer>({ type: "fillData", read })
+            .catch((): FillAnswer => ({ ok: false, error: "Velai didn't answer." }))
+            .then((answer) => {
+                if (!answer?.ok) {
+                    fill.disabled = false;
+                    fill.textContent = label;
+                    status.textContent = answer?.error ?? "The form couldn't be filled.";
+                    return;
+                }
+                const fields = findApplicationForm() ?? [];
+                const pdf = answer.pdf ? { bytes: fromBase64(answer.pdf.base64), filename: answer.pdf.filename } : null;
+                const filled = fillForm(fields, answer.values, pdf);
+                const missedPdf = !pdf && fields.some((f) => f.kind === "resume");
+                const done = filled.length
+                    ? `Filled ${filledList(filled)}. Check the form, then submit it yourself.${missedPdf ? " Attach your résumé too." : ""}`
+                    : "Nothing to fill: these fields are filled in already, or ask for what your résumé doesn't say.";
+                fill.replaceWith(el("p", "done", done));
+                if (filled.length && summary.track) {
+                    void send({ type: "filled", track: summary.track }).catch(() => {});
+                    watchForConfirmation();
+                }
+            });
+    });
+    return fill;
+}
+
+function render(summary: CardSummary, read: PageRead): void {
+    const { card, show } = cardShell();
+    card.append(el("p", "title", [summary.title, summary.company].filter(Boolean).join(" · ")));
 
     if (summary.fit) {
         const fit = el("p", "fit");
@@ -168,13 +285,19 @@ function render(summary: CardSummary, read: PageRead): void {
     }
 
     const actions = el("div", "actions");
+    const form = summary.canFill ? findApplicationForm() : null;
+    const fillStatus = el("p", "note");
+    fillStatus.setAttribute("aria-live", "polite");
+    const openPanel = () => void send({ type: "openPanel", read });
     if (summary.account === "signed-out") {
         actions.append(button("Sign in to see your fit", "primary", () => void send({ type: "signIn" })));
     } else if (summary.account === "no-resume") {
         actions.append(button("Add your résumé to see your fit", "primary", () => void send({ type: "openVelai", path: "/resume" })));
+    } else if (form) {
+        actions.append(fillButton(summary, read, fillStatus));
     } else {
         const label = summary.fit ? "Your résumé for this job" : "Open in Velai";
-        actions.append(button(label, "primary", () => void send({ type: "openPanel", read })));
+        actions.append(button(label, "primary", openPanel));
     }
     const track = summary.track;
     if (track) {
@@ -191,6 +314,7 @@ function render(summary: CardSummary, read: PageRead): void {
         actions.append(applied);
     }
     card.append(actions);
+    if (form) card.append(fillStatus);
     const off = button(`Don't show on ${location.hostname}`, "link", () => {
         void chrome.storage.local.get(HIDDEN_SITES_KEY).then((stored) => {
             const hidden = new Set((stored[HIDDEN_SITES_KEY] as string[] | undefined) ?? []);
@@ -200,13 +324,27 @@ function render(summary: CardSummary, read: PageRead): void {
         removeCard();
     });
     const footer = el("div", "actions");
+    // On a form, the panel (what was tailored and why) is one tap away instead of the main button.
+    if (form) footer.append(button("See your fit and résumé changes", "link", openPanel));
     footer.append(off);
     card.append(footer);
 
-    root.append(style, card);
-    document.documentElement.append(host);
+    show();
     shownAccount = summary.account;
+    // A form that draws itself after the card (a site's "Apply" step): offer to fill it once it's there.
+    if (summary.canFill && !form) {
+        const url = location.href;
+        for (const wait of FORM_RETRY_MS) {
+            setTimeout(() => {
+                if (location.href === url && document.getElementById(HOST_ID) && !formOffered && findApplicationForm()) render(summary, read);
+            }, wait);
+        }
+    }
+    formOffered = Boolean(form);
 }
+
+/** Whether the card on the page already offers to fill its form. */
+let formOffered = false;
 
 async function check(force = false, settleMs = 0): Promise<void> {
     const url = location.href;
@@ -222,14 +360,41 @@ async function check(force = false, settleMs = 0): Promise<void> {
         removeCard();
         return;
     }
+    // After the card filled an application in this tab, the site's thank-you page puts the job in the tracker.
+    if (!force) {
+        const pending = await send<PendingFill | null>({ type: "pendingFill" }).catch(() => null);
+        if (pending) {
+            for (const wait of [0, RETRY_MS]) {
+                if (wait) await sleep(wait);
+                if (location.href !== url) return;
+                if (document.body && isConfirmation(document.body.innerText) && !findApplicationForm()) {
+                    if (await confirmApplied()) return;
+                    break;
+                }
+            }
+        }
+    }
     let read = readJobPage();
-    let summary = await send<CardAnswer>({ type: "card", read, fresh: force });
-    if (!summary && !read.posting) {
-        // A page that fills in its job details after load.
-        await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
+    let form = findApplicationForm();
+    // On a site the person turned the card on for (not a built-in job site), Velai only hears about pages that read as a job or hold an application form.
+    if (!isKnownJobSite(url) && !looksLikeJob(read) && !form) {
+        await sleep(RETRY_MS);
         if (location.href !== url) return;
         read = readJobPage();
-        if (read.posting) summary = await send<CardAnswer>({ type: "card", read });
+        form = findApplicationForm();
+        if (!looksLikeJob(read) && !form) {
+            removeCard();
+            return;
+        }
+    }
+    let summary = await send<CardAnswer>({ type: "card", read, fresh: force, applying: Boolean(form) });
+    if (!summary && !read.posting) {
+        // A page that fills in its job details, or draws its form, after load.
+        await sleep(RETRY_MS);
+        if (location.href !== url) return;
+        read = readJobPage();
+        form = findApplicationForm();
+        if (read.posting || form) summary = await send<CardAnswer>({ type: "card", read, applying: Boolean(form) });
     }
     if (location.href !== url) return;
     if (summary) render(summary, read);

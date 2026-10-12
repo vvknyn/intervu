@@ -166,6 +166,20 @@ export function applyLocationSheetDraft(
 }
 
 /**
+ * Where a committed location value goes. A suggestion keeps the field it was
+ * advertised on. Typed text that is only a work mode ("Remote", "Hybrid")
+ * names a way of working, not a place, so it goes where the "Remote —
+ * anywhere" pick goes and the visitor's own country still applies. As a
+ * place it switched that country off for good, and a Canadian's "Remote" led
+ * with roles in India and Colombia (focus group, 2026-10-12).
+ */
+export function placeFieldFor(value: string, field?: SuggestField): SuggestField | undefined {
+    if (field !== undefined) return field;
+    const mode = parseWorkTypeTokens(value.trim());
+    return mode.workTypes.length > 0 && !/[\p{L}\p{N}]/u.test(mode.residualQ) ? "work_type" : undefined;
+}
+
+/**
  * One picked or typed place added to the filter — the desktop location box
  * and the phone sheet's search both commit through this, so a city picked on
  * either surface is filtered the same way.
@@ -178,20 +192,21 @@ export function applyLocationSheetDraft(
  * ("San Jose") mis-resolve against the wrong field or country. Free-typed text
  * (`field` undefined) and a picked COUNTRY both go to `location_country`.
  *
- * The bare-work-mode suggestion ("Remote — anywhere") targets the GLOBAL
- * work_type facet, not a place. Add-only, like places: picking a mode that is
+ * The bare-work-mode suggestion ("Remote — anywhere"), and a typed work mode
+ * alone (`placeFieldFor`), target the GLOBAL work_type facet, not a place. Add-only, like places: picking a mode that is
  * already on changes nothing. Returns `state` itself when nothing changed.
  */
 export function addPlaceToFilter(state: FilterState, value: string, field?: SuggestField): FilterState {
     const trimmed = value.trim();
     if (!trimmed) return state;
-    if (field === "work_type") {
+    const target = placeFieldFor(trimmed, field);
+    if (target === "work_type") {
         const current = state.facets.work_type ?? [];
         const next = [...new Set([...current, ...parseWorkTypeTokens(trimmed).workTypes])];
         if (next.length === current.length) return state;
         return { ...state, facets: { ...state.facets, work_type: next } };
     }
-    const targetKey = field ?? "location_country";
+    const targetKey = target ?? "location_country";
     const current = state.facets[targetKey] ?? [];
     const next = addLocationValue(current, trimmed);
     if (next === current) return state;

@@ -30,6 +30,7 @@ import { formatQuotedOrQuery } from "./fit-phrases";
 import { resumeIndustry, type IndustryId } from "./resume-industry";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { titleLevel } from "./role-level";
+import { meaningfulTitleTokens } from "./presentation";
 
 export interface DerivedQuery {
     q: string;
@@ -61,10 +62,13 @@ const SENIORITY_ORDER: readonly Seniority[] = ["entry", "mid", "senior"];
  * picks with senior roles (2026-10-06). The same for any change of line: a
  * nurse who became a teacher, an engineer who became a product manager.
  * When the latest role names no kind we know, or its dates can't be read,
- * the whole career decides, as before. A title held now that names a higher
- * level than those years ("Senior Accountant", "Manager, Customer Success")
- * sets the level instead: a title means the same level on a résumé as on a
- * posting (`titleLevel`), so the candidate's own title never reads above them.
+ * the whole career decides, as before. A title held now that names a level
+ * sets it instead, higher or lower than those years: a title means the same
+ * level on a résumé as on a posting (`titleLevel`), so the candidate's own
+ * title never reads above them ("Senior Accountant", "Manager, Customer
+ * Success"), and an intern, trainee, apprentice or junior is entry level
+ * however long the dates run. A "Data Science Intern" since 2021 read as mid,
+ * and the Mid filter emptied their list (focus group, 2026-10-12).
  */
 export function resumeSeniority(resume: ResumeData | null | undefined, now: Date = new Date()): Seniority | null {
     return resumeSeniorityBasis(resume, now)?.level ?? null;
@@ -79,7 +83,7 @@ export interface SeniorityBasis {
     role: string | null;
     /** Which `experience` entries (by index) the years were counted from, when `role` is set: the review marks them. */
     roles?: number[];
-    /** The title held now, when it names a higher level than the years do and so sets `level` (`titleLevel`). */
+    /** The title held now, when it names a level other than the years' and so sets `level` (`titleLevel`). */
     title?: string;
 }
 
@@ -88,7 +92,7 @@ export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now:
     if (!basis) return null;
     const held = (resume?.experience?.[0]?.role ?? "").trim();
     const titled = titleLevel(held);
-    if (!titled || SENIORITY_ORDER.indexOf(titled.level) <= SENIORITY_ORDER.indexOf(basis.level)) return basis;
+    if (!titled || titled.level === basis.level) return basis;
     return { ...basis, level: titled.level, title: held };
 }
 
@@ -283,6 +287,9 @@ const ADJACENCY_INDUSTRIES: ReadonlySet<IndustryId> = new Set(["tech", "business
  *   5. families inferred from duties alone (`dutyDerivedRoleTitles`);
  *   6. top skills, only when nothing else produced a query.
  *
+ * Titles 2, 4 and 5 are added only when they are close to the résumé's own
+ * (`closeToOwn`): a Customer Success Manager's search added "Product Manager"
+ * and a web developer's "Backend Engineer" (focus group, 2026-10-12).
  * Headlines and roles that aren't job titles (`NOT_A_JOB_TITLE`) are skipped.
  * Seniority widens to mid+senior so adjacent mid-level roles stay visible.
  * `resumeIsUsable` is defined in terms of this function's output (see
@@ -293,16 +300,19 @@ export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date()
     const target = targetRoles(resume);
     const ownTitles = target.phrases.filter(isJobTitle);
     const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle).filter(isJobTitle);
+    const close = closeToOwn([...ownTitles, ...recentTitles], target.ownFamilies);
+    const ownFamilyTitles = new Set(familyRetrievalTitles(target.ownFamilies));
 
     let terms = capExploreTerms(
-        [...ownTitles, ...familyRetrievalTitles(target.families), ...recentTitles],
+        // A family's own standard titles count as that family's, whatever its title patterns say.
+        [...ownTitles, ...familyRetrievalTitles(target.families).filter((t) => ownFamilyTitles.has(t) || close(t)), ...recentTitles],
         4,
     );
     if (terms.length < 4 && ownTitles.length > 0 && ADJACENCY_INDUSTRIES.has(resumeIndustry(resume))) {
-        terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(ownTitles, skills, 8)], 4);
+        terms = capExploreTerms([...terms, ...suggestAdjacentRolesLocal(ownTitles, skills, 8).filter(close)], 4);
     }
     if (terms.length < 4) {
-        terms = capExploreTerms([...terms, ...dutyDerivedRoleTitles(resume)], 4);
+        terms = capExploreTerms([...terms, ...dutyDerivedRoleTitles(resume).filter(close)], 4);
     }
     if (terms.length === 0) {
         terms = capExploreTerms(skills, 4);
@@ -313,6 +323,45 @@ export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date()
     const levels = experienceLevelFacet(resumeSeniority(resume));
     if (levels) facets.experience_level = levels;
     return { q, facets, phrases: terms };
+}
+
+/**
+ * Words that name a rank or a generic job rather than a line of work: two titles
+ * sharing only "Manager" ("Customer Success Manager", "Implementation Manager")
+ * are not the same job.
+ */
+const GENERIC_TITLE_WORDS = new Set([
+    "manager", "management", "specialist", "coordinator", "assistant", "associate", "officer", "representative",
+    "administrator", "consultant", "lead", "head", "director", "senior", "sr", "junior", "jr", "principal", "staff",
+    "intern", "internship", "trainee", "apprentice", "graduate", "student", "i", "ii", "iii", "iv",
+]);
+
+/** A title's words that name its line of work: "data" and "science" in "Data Science Intern". */
+function lineWords(title: string): string[] {
+    return meaningfulTitleTokens(title).filter((word) => !GENERIC_TITLE_WORDS.has(word));
+}
+
+/**
+ * Whether a title the search would add is close to the résumé's own titles: it
+ * names one of the role families they name (a Customer Success Manager's
+ * "Technical Account Manager"), or, where one side names no family we know, it
+ * shares a word of their line of work (a Data Scientist's "Research Scientist",
+ * a Data Science Intern's "Data Analyst", a Graphic Designer's "UX Designer").
+ * A title of another family than the résumé's ("Product Manager" for a CSM) is
+ * not, nor one sharing only a generic word ("Operations Manager" for an HR
+ * Generalist). With no own title to compare, every title is kept: the search
+ * has nothing else to go on.
+ */
+function closeToOwn(own: string[], named: RoleFamilyId[]): (title: string) => boolean {
+    const ownFamilies = new Set([...named, ...familiesNamedBy(own)]);
+    const words = new Set(own.flatMap(lineWords));
+    return (title) => {
+        if (own.length === 0) return true;
+        const families = familiesNamedBy([title]);
+        if (families.some((family) => ownFamilies.has(family))) return true;
+        if (families.length > 0 && ownFamilies.size > 0) return false;
+        return lineWords(title).some((word) => words.has(word));
+    };
 }
 
 /** Flatten competencies into a de-duped (case-insensitive), trimmed skill list, capped at `n`. */

@@ -219,6 +219,8 @@ export const FIT_FIELDS_NOTE =
     "a role's fit; never call a role labelled Outside or Country unclear a fit. A role above their level is " +
     "always Stretch: a role's level is the highest of its listed level, its title (a rank word like Senior, or a " +
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
+    "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
+    "Intern, Junior, Trainee or Apprentice is entry, however long its dates run), else their years in that line of work. " +
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
     "Store Manager and the like) is also Stretch when no role or line on their résumé shows them managing people; " +
     "leading a team's work (Team Lead) doesn't count. " +

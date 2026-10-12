@@ -752,19 +752,18 @@ describe('buildZeroResultPayload', () => {
         assert.equal(payload.query_length, typed.length);
     });
 
-    it('passes through the resolver\'s location interpretation when the search response carried one', () => {
+    it('passes through the IP default country when the search response carried one, and never a typed place', () => {
         const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'engineer', {
             defaultedLocation: 'US',
             unmatchedPlaceMentions: ['North America'],
-        });
+        } as Parameters<typeof buildZeroResultPayload>[2]);
         assert.equal(payload.defaulted_location, 'US');
-        assert.deepEqual(payload.unmatched_place_mentions, ['North America']);
+        assert.equal(JSON.stringify(payload).includes('North America'), false, 'typed place text stays in the anonymous search log');
     });
 
     it('reports no location resolution rather than fabricating one when the response carried none', () => {
         const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'engineer', {});
         assert.equal(payload.defaulted_location, null);
-        assert.deepEqual(payload.unmatched_place_mentions, []);
     });
 });
 

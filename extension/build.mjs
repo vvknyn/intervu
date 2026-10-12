@@ -53,9 +53,12 @@ await build({
 // jsPDF's "open in a new window" output (never called here) writes a script
 // tag for a CDN copy of PDFObject. Drop the URL so the package names no
 // remotely hosted script at all.
-const panelJs = path.join(unpacked, "sidepanel.js");
 const REMOTE_SCRIPT = "https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js";
-writeFileSync(panelJs, readFileSync(panelJs, "utf8").replaceAll(REMOTE_SCRIPT, ""));
+// The panel and the service worker (which makes the PDF a filled form attaches) both bundle jsPDF.
+for (const bundle of ["sidepanel.js", "background.js"]) {
+    const file = path.join(unpacked, bundle);
+    writeFileSync(file, readFileSync(file, "utf8").replaceAll(REMOTE_SCRIPT, ""));
+}
 
 writeFileSync(path.join(unpacked, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 cpSync(path.join(here, "static"), unpacked, { recursive: true });

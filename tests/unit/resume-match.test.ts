@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
     seniorityFromYears,
     resumeSeniority,
+    resumeSeniorityBasis,
     buildMatchQuery,
     topSkills,
     capExploreTerms,
@@ -10,6 +11,7 @@ import {
     mergeFacets,
 } from '../../src/lib/jobs/resume-match';
 import { parseQuotedOrPhrases } from '../../src/lib/jobs/fit-phrases';
+import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
 import { jobLevel, scoreJobAgainstResume } from '../../src/lib/match/score';
 import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
@@ -77,7 +79,7 @@ describe('resumeSeniority', () => {
         assert.equal(resumeSeniority(resume(9, [['Shift Supervisor', '2024 - Present']]), NOW), 'senior');
         assert.equal(resumeSeniority(resume(9, [['Registered Nurse', 'sometime']]), NOW), 'senior');
     });
-    it('reads the title held now when it names a higher level than the years, the way a posting\'s title is read', () => {
+    it('reads the title held now when it names a level, higher or lower than the years, the way a posting\'s title is read', () => {
         // 4 years as an accountant read mid; the title they hold says senior, as it would on a posting.
         const accountant = resume(6, [
             ['Senior Accountant', 'Jan 2024 - Present'],
@@ -86,9 +88,16 @@ describe('resumeSeniority', () => {
         assert.equal(resumeSeniority(accountant, NOW), 'senior');
         const lead = resume(5, [['Manager, Customer Success', 'Jan 2023 - Present'], ['Customer Success Manager', 'Jan 2021 - Dec 2022']]);
         assert.equal(resumeSeniority(lead, NOW), 'senior');
-        // A rank-free or lower title leaves the years' level alone.
+        // A rank-free title leaves the years' level alone.
         assert.equal(resumeSeniority(resume(13, [['Technical Account Manager', 'September 2021 - Present'], ['Senior Software Engineer', 'February 2013 - April 2018']]), NOW), 'mid');
-        assert.equal(resumeSeniority(resume(8, [['Junior Developer', '2018 - Present']]), NOW), 'senior');
+        // An intern, junior or co-op student now is entry level, however long the dates run (focus group, 2026-10-12:
+        // a "Data Science Intern" since 2021 read as mid, and the Mid filter emptied their list).
+        assert.equal(resumeSeniority(resume(8, [['Junior Developer', '2018 - Present']]), NOW), 'entry');
+        assert.equal(resumeSeniority(resume(5, [['Data Science Intern', 'Jan 2021 - Present']]), NOW), 'entry');
+        assert.equal(resumeSeniority(resume(5, [['Engineering Co-op Student', 'Jan 2021 - Present']]), NOW), 'entry');
+        assert.equal(resumeSeniorityBasis(resume(5, [['Data Science Intern', 'Jan 2021 - Present']]), NOW)?.title, 'Data Science Intern');
+        // Only the title held now: an internship years ago doesn't hold a career down.
+        assert.equal(resumeSeniority(resume(8, [['Data Scientist', 'Jan 2020 - Present'], ['Data Science Intern', 'May 2019 - Dec 2019']]), NOW), 'senior');
     });
 });
 
@@ -426,5 +435,86 @@ describe('mergeFacets', () => {
         mergeFacets(current, derived);
         assert.deepEqual(current, { location_country: ['US'] });
         assert.deepEqual(derived, { experience_level: ['senior'] });
+    });
+});
+
+/**
+ * Focus group, 2026-10-12: the titles a résumé's search adds drifted off its
+ * line of work. A Customer Success Manager searched "Product Manager", a web
+ * developer "Backend Engineer". Added titles now stay close to the résumé's
+ * own (same family, or a shared word of the line of work); synthetic one-page
+ * résumés like the study's, read the way an upload is.
+ */
+describe('buildMatchQuery keeps added titles in the résumé\'s own line of work', () => {
+    const read = (text: string) => resumeDataFromPlainText(text) as ResumeData;
+    const searched = (text: string) => buildMatchQuery(read(text), 2026).phrases;
+    const CSM = `Sample Jamal
+Customer Success Manager
+Austin, TX | sample@example.com
+
+Summary
+Customer success manager for B2B SaaS accounts, onboarding to renewal.
+
+Experience
+Customer Success Manager | HubSpot | Austin, TX | Jan 2021 – Present
+• Managed a book of 60 mid-market accounts worth $4M ARR with 95% gross retention.
+• Ran onboarding, QBRs and renewals; partnered with product on roadmap feedback.
+• Reduced churn 15% with health scores in Gainsight.
+
+Education
+BBA Marketing | University of Texas at Austin | 2018
+
+Skills
+Gainsight, Salesforce, Onboarding, Renewals, QBRs, Churn Reduction, SaaS`;
+    const WEB = `Sample Frank
+Web Developer
+Toronto, ON | sample@example.com
+
+Summary
+Career changer and bootcamp graduate building web applications in JavaScript and React.
+
+Experience
+Web Developer | Freelance | Toronto, ON | Jan 2021 – Present
+• Built React and Node.js websites for small businesses.
+• Set up Express APIs with MongoDB and deployed on Heroku.
+
+Education
+Full-Stack Web Development Bootcamp | Lighthouse Labs | 2020
+
+Skills
+JavaScript, React, Node.js, Express, HTML, CSS, MongoDB, Git`;
+    const INTERN = `Sample Arjun
+Data Science Intern
+Montreal, QC | sample@example.com
+
+Summary
+Graduate student in data science looking for an internship or new grad role. Python, SQL and machine learning.
+
+Experience
+Data Science Intern | Ubisoft | Montreal, QC | Jan 2021 – Present
+• Built churn models in Python and scikit-learn on player telemetry.
+• Wrote SQL dashboards in Tableau for the live-ops team.
+
+Education
+MSc Data Science | Concordia University | 2025
+
+Skills
+Python, SQL, Pandas, scikit-learn, Tableau, Statistics`;
+
+    it('a Customer Success Manager searches customer success titles, not Product Manager', () => {
+        assert.deepEqual(searched(CSM), ['Customer Success Manager', 'Technical Account Manager']);
+    });
+
+    it('a web developer searches developer titles, not Backend Engineer', () => {
+        const titles = searched(WEB);
+        assert.equal(titles[0], 'Web Developer');
+        assert.ok(!titles.includes('Backend Engineer'), titles.join(', '));
+        assert.ok(titles.includes('Full Stack Developer'), titles.join(', '));
+    });
+
+    it('a data science intern keeps the data titles that share its line of work, and searches entry level', () => {
+        const q = buildMatchQuery(read(INTERN), 2026);
+        assert.deepEqual(q.phrases, ['Data Science Intern', 'Data Analyst', 'Data Engineer']);
+        assert.deepEqual(q.facets.experience_level, ['entry']);
     });
 });

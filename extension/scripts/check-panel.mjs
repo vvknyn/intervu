@@ -64,8 +64,41 @@ const signedIn = { signedIn: true, resume: { data: null, text: resumeText, updat
 /** A listed job site (job-sites.json), where the card shows on its own. */
 const BOARD_JOB_URL = "https://boards.greenhouse.io/cedarbrook/jobs/4821";
 const BOARD_LIST_URL = "https://boards.greenhouse.io/cedarbrook";
+/** A careers page that publishes no JobPosting and writes its place as a country code (as some large employers' sites do). */
+const CODED_TITLE = "Registered Nurse - ICU - Toronto, CAN , Critical Care";
+const codedHtml = `<!doctype html><title>${CODED_TITLE} - Job ID: 7781 | Harbourline Careers</title><main><h1>${CODED_TITLE}</h1><p>Job ID: 7781 | Harbourline Health</p><button>Apply now</button><h2>Description</h2><p>Provide direct patient care to critically ill adults in our ICU: patient assessment, IV therapy, Epic charting.</p><h2>Basic qualifications</h2><p>Registered nurse licence, BLS and ACLS.</p><h2>Job details</h2><p>CAN, ON, Toronto</p></main>`;
+const CODED_URL = "https://careers.harbourline.example/en/jobs/7781/registered-nurse-icu";
+/** The same kind of page on a listed job site, where the card shows on its own. */
+const BOARD_CODED_URL = "https://boards.greenhouse.io/harbourline/jobs/7781";
+/** A one-page application form under the job, on a listed job site; sending it opens a thank-you page. */
+const FORM_JOB_URL = "https://job-boards.greenhouse.io/cedarbrook/jobs/4821";
+const FORM_CONFIRM_URL = "https://job-boards.greenhouse.io/cedarbrook/jobs/4821/confirmation";
+const formHtml = jobHtml.replace(
+    "</main>",
+    `<form id="application-form" action="/cedarbrook/jobs/4821/confirmation" method="get">
+<h2>Apply for this job</h2>
+<p><label for="first_name">First Name *</label><br><input id="first_name" name="first_name" autocomplete="given-name"></p>
+<p><label for="last_name">Last Name *</label><br><input id="last_name" name="last_name" autocomplete="family-name"></p>
+<p><label for="email">Email *</label><br><input id="email" name="email"></p>
+<p><label for="phone">Phone</label><br><input id="phone" name="phone" type="tel"></p>
+<p><label for="question_9001">LinkedIn Profile</label><br><input id="question_9001" name="question_9001"></p>
+<p><label for="question_9002">Who referred you? (name)</label><br><input id="question_9002" name="question_9002"></p>
+<p><label for="candidate-location">Location (City)</label><br><input id="candidate-location" role="combobox" aria-autocomplete="list"></p>
+<div><div id="upload-label-resume">Resume/CV *</div><button type="button">Attach</button><input type="file" id="resume" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" aria-labelledby="upload-label-resume"></div>
+<div><div id="upload-label-cover_letter">Cover Letter</div><button type="button">Attach</button><input type="file" id="cover_letter" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" aria-labelledby="upload-label-cover_letter"></div>
+<p><label for="auth">Are you legally authorized to work in Canada? *</label><br><select id="auth"><option></option><option>Yes</option><option>No</option></select></p>
+<button type="submit" id="submit-app">Submit application</button>
+</form></main>`,
+);
+const confirmHtml = "<!doctype html><title>Thank you | Cedarbrook Health</title><main><h1>Thank you for applying to Cedarbrook Health!</h1><p>We received your application for Registered Nurse - ICU.</p></main>";
+/** A job page and its application form on a page of its own, which confirms in place (as single-page forms do). */
+const SPLIT_JOB_URL = "https://jobs.lever.co/harbourline/7781";
+const SPLIT_APPLY_URL = "https://jobs.lever.co/harbourline/7781/apply";
+const splitJobHtml = jobHtml.replaceAll("Cedarbrook Health", "Harbourline Health").replace('href="#apply"', 'href="/harbourline/7781/apply"');
+const applyHtml = readFileSync(path.join(here, "fixtures/apply.html"), "utf8");
 const PAGES = {
     job: { url: JOB_URL, html: jobHtml },
+    coded: { url: CODED_URL, html: codedHtml },
     board: { url: "https://jobs.board.example/view/48213", html: "<!doctype html><title>Registered Nurse - ICU | Cedarbrook Health | JobBoard</title><main><h1>Registered Nurse - ICU</h1><p>Cedarbrook Health, Toronto, ON</p><p>Patient care in the ICU: IV therapy, Epic charting, triage of critically ill patients. BLS and ACLS required.</p></main>" },
     blog: { url: "https://trails.example/blog/best-hikes", html: "<!doctype html><title>Best fall hikes near Toronto | Trail Notes</title><main><h1>Best fall hikes near Toronto</h1><p>Ten trails with great colours this October.</p></main>" },
 };
@@ -80,6 +113,13 @@ const STATES = {
     "board-match": { page: "board", me: signedIn, hits: [...similar, velaiCopy], expect: ["Velai's copy of the role it names", "Strong"] },
     "board-no-match": { page: "board", me: signedIn, hits: similar, expect: ["doesn't publish its job details", "Read this page as the job"], click: "Read this page as the job", expectAfter: ["as you asked", "Your résumé for this role"] },
     "not-a-job": { page: "blog", me: signedIn, hits: [], expect: ["Read this page as the job"], refuse: ["Your fit"] },
+    "careers-no-details": {
+        page: "coded",
+        me: signedIn,
+        hits: similar,
+        expect: ["Read from the heading and text", "same country"],
+        refuse: ["Read this page as the job", "Country unclear"],
+    },
     selection: { search: "Registered Nurse - ICU", me: { signedIn: false }, hits: [velaiCopy, ...similar], expect: ["4 roles on Velai match"] },
 };
 
@@ -113,7 +153,12 @@ try {
         r.fulfill({ contentType: "text/html", body: `<!doctype html><title>Velai</title><h1>${new URL(r.request().url()).pathname}</h1>` }),
     );
     await context.route(BOARD_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: jobHtml }));
+    await context.route(BOARD_CODED_URL, (r) => r.fulfill({ contentType: "text/html", body: codedHtml }));
     await context.route(BOARD_LIST_URL, (r) => r.fulfill({ contentType: "text/html", body: PAGES.blog.html }));
+    await context.route(FORM_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: formHtml }));
+    await context.route(`${FORM_CONFIRM_URL}**`, (r) => r.fulfill({ contentType: "text/html", body: confirmHtml }));
+    await context.route(SPLIT_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: splitJobHtml }));
+    await context.route(SPLIT_APPLY_URL, (r) => r.fulfill({ contentType: "text/html", body: applyHtml }));
 
     // First install opens the welcome page, which offers sign-in right there.
     state = { me: { signedIn: false } };
@@ -277,6 +322,20 @@ try {
         await page.screenshot({ path: path.join(out, "card-found.png") });
     }
 
+    // A job page with no JobPosting that Velai doesn't have still gets a card, with the country its heading names.
+    state = { ...STATES.found, hits: similar };
+    await page.goto(BOARD_CODED_URL);
+    {
+        const coded = await waitForCard(page, ["against your résumé"]);
+        const problems = [];
+        if (!coded) problems.push("no card");
+        else if (coded.text.includes("Country unclear")) problems.push("Country unclear");
+        report("job page without job data", problems);
+    }
+    state = STATES.found;
+    await page.goto(BOARD_JOB_URL);
+    card = await waitForCard(page, ["Strong", "against your résumé"]);
+
     // "I applied" saves to the tracker with Velai's job id.
     tracked.length = 0;
     await clickCard(page, "I applied");
@@ -284,6 +343,7 @@ try {
     {
         const problems = [];
         if (!card?.text.includes("Added to your Velai tracker as Applied")) problems.push("no confirmation");
+        await page.screenshot({ path: path.join(out, "card-applied.png") });
         const sent = tracked[0];
         if (!sent) problems.push("nothing sent");
         else {
@@ -378,11 +438,82 @@ try {
         if (!(await closed)) problems.push("sign-in window didn't close itself");
         await panel.waitForFunction(() => document.body.innerText.includes("Strong"), null, { timeout: 15_000 }).catch(() => problems.push("panel didn't re-check after sign-in"));
         const text = await panel.evaluate(() => document.body.innerText);
-        for (const t of ["Edit your résumé on Velai", "I applied", "Show the Velai card on careers.cedarbrook.example job pages"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
+        for (const t of ["Edit your résumé on Velai", "I applied", "Show the Velai card on every careers site", "only on careers.cedarbrook.example"]) if (!text.includes(t)) problems.push(`missing "${t}"`);
         await panel.screenshot({ path: path.join(out, "panel-after-sign-in.png"), fullPage: true });
         report("panel sign-in re-checks; edit, applied and card offer show", problems);
         await panel.close();
     }
+    // An application form under the job: filled from the résumé on a click, never sent; the thank-you page tracks it.
+    state = STATES.found;
+    tracked.length = 0;
+    await accountChanged();
+    await page.goto(FORM_JOB_URL);
+    card = await waitForCard(page, ["Fill from your résumé"]);
+    {
+        const problems = [];
+        if (!card?.text.includes("Fill from your résumé")) problems.push("no fill button");
+        else {
+            await clickCard(page, "Fill from your résumé");
+            card = await waitForCard(page, ["Filled"], 20_000);
+            if (!card?.text.includes("Filled name, email, phone and résumé PDF")) problems.push(`card says: ${card?.text}`);
+            const form = await page.evaluate(() => {
+                const v = (id) => document.getElementById(id).value;
+                const file = (id) => [...document.getElementById(id).files].map((f) => ({ name: f.name, size: f.size, type: f.type }));
+                return { first: v("first_name"), last: v("last_name"), email: v("email"), phone: v("phone"), linkedin: v("question_9001"), referrer: v("question_9002"), city: v("candidate-location"), auth: v("auth"), resume: file("resume"), cover: file("cover_letter"), url: location.href };
+            });
+            const want = { first: "Jordan", last: "Lee", email: "jordan.lee@example.com", phone: "416-555-0100", linkedin: "", referrer: "", city: "", auth: "" };
+            for (const [k, v] of Object.entries(want)) if (form[k] !== v) problems.push(`${k} = "${form[k]}"`);
+            if (form.resume.length !== 1 || !form.resume[0].name.endsWith(".pdf") || form.resume[0].type !== "application/pdf" || form.resume[0].size < 1000) problems.push(`résumé upload ${JSON.stringify(form.resume)}`);
+            if (form.cover.length) problems.push("cover letter upload was filled");
+            if (form.url !== FORM_JOB_URL) problems.push("the form was sent");
+            if (tracked.length) problems.push("tracked before the form was sent");
+        }
+        report("fills an application form from the résumé and doesn't send it", problems);
+    }
+    {
+        const problems = [];
+        await page.click("#submit-app");
+        card = await waitForCard(page, ["Added to your Velai tracker as Applied"], 15_000);
+        if (!card?.text.includes("Added to your Velai tracker as Applied")) problems.push(`card says: ${card?.text ?? "nothing"}`);
+        const sent = tracked[0];
+        if (tracked.length !== 1) problems.push(`tracked ${tracked.length} times`);
+        else if (sent.body.jobId !== velaiCopy.id || sent.body.company !== "Cedarbrook Health" || sent.body.title !== "Registered Nurse - ICU") problems.push(`sent ${JSON.stringify(sent.body)}`);
+        report("the site's thank-you page puts it in the tracker", problems);
+    }
+
+    // The form on a page of its own: the card knows the job from the page before it, and a form that confirms in place is tracked too.
+    state = { ...STATES.found, hits: similar };
+    tracked.length = 0;
+    await page.goto(SPLIT_JOB_URL);
+    await waitForCard(page, ["against your résumé"]);
+    await page.goto(SPLIT_APPLY_URL);
+    card = await waitForCard(page, ["Fill from your résumé"]);
+    {
+        const problems = [];
+        if (!card?.text.includes("Registered Nurse - ICU · Harbourline Health")) problems.push(`card is about: ${card?.text ?? "nothing"}`);
+        if (!card?.text.includes("Fill from your résumé")) problems.push("no fill button");
+        else {
+            await clickCard(page, "Fill from your résumé");
+            card = await waitForCard(page, ["Filled"], 20_000);
+            const form = await page.evaluate(() => ({
+                values: Object.fromEntries([...document.querySelectorAll("form input:not([type=file])")].map((i) => [i.name, i.value])),
+                changes: window.__changes,
+                file: document.querySelector("#resume-upload-input").files[0]?.name ?? null,
+            }));
+            const want = { name: "Jordan Lee", email: "jordan.lee@example.com", phone: "416-555-0100", location: "Toronto, ON, Canada", org: "", "urls[LinkedIn]": "" };
+            for (const [k, v] of Object.entries(want)) if (form.values[k] !== v) problems.push(`${k} = "${form.values[k]}"`);
+            // The page's own scripts saw each change, the way a React form must.
+            for (const k of ["name", "email", "phone", "location", "resume"]) if (!form.changes.includes(k)) problems.push(`page didn't see ${k} change`);
+            if (!form.file?.endsWith(".pdf")) problems.push("no résumé attached");
+            await page.screenshot({ path: path.join(out, "card-filled.png") });
+            await page.click("button.submit");
+            card = await waitForCard(page, ["Added to your Velai tracker as Applied"], 15_000);
+            if (!card?.text.includes("Added to your Velai tracker as Applied")) problems.push(`after sending, card says: ${card?.text ?? "nothing"}`);
+            if (tracked.length !== 1 || tracked[0].body.company !== "Harbourline Health") problems.push(`tracked ${JSON.stringify(tracked.map((t) => t.body))}`);
+        }
+        report("fills a form on its own page and tracks an in-place confirmation", problems);
+    }
+
     if (pageErrors.length) {
         console.log(`FAIL card: page errors — ${pageErrors.join("; ")}`);
         failures.push("card: page errors");

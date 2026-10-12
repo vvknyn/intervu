@@ -25,6 +25,7 @@ declare namespace chrome {
         function query(props: { active?: boolean; currentWindow?: boolean; windowId?: number }): Promise<Tab[]>;
         function update(tabId: number, props: { active?: boolean; url?: string }): Promise<Tab>;
         const onUpdated: Event<(tabId: number, changeInfo: ChangeInfo, tab: Tab) => void>;
+        const onRemoved: Event<(tabId: number) => void>;
     }
     namespace windows {
         interface Window {
@@ -46,6 +47,7 @@ declare namespace chrome {
         interface RegisteredContentScript {
             id: string;
             matches?: string[];
+            excludeMatches?: string[];
             js?: string[];
             runAt?: "document_start" | "document_end" | "document_idle";
             persistAcrossSessions?: boolean;
