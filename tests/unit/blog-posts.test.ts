@@ -2,7 +2,17 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { BLOG_POSTS, blogCoverAlt, blogPostPath, blogSearchTitle, formatBlogDate, getBlogPost, renderBlogPost } from "@/lib/blog/posts";
+import {
+  BLOG_AUTHOR,
+  BLOG_BYLINE,
+  BLOG_POSTS,
+  blogCoverAlt,
+  blogPostPath,
+  blogSearchTitle,
+  formatBlogDate,
+  getBlogPost,
+  renderBlogPost,
+} from "@/lib/blog/posts";
 import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 import { APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
@@ -70,7 +80,20 @@ describe("blog posts", () => {
     }
   });
 
-  it("the is-Velai-legit post quotes the live button, prices and address, and names no person or competitor", () => {
+  it("signs posts with a humble pen name and a drawn SVG avatar, never the founder's real name", () => {
+    assert.equal(BLOG_BYLINE, `By ${BLOG_AUTHOR.name}, ${BLOG_AUTHOR.role}`);
+    assert.doesNotMatch(BLOG_AUTHOR.name, /vivek|narayanan/i);
+    const avatarFile = path.join(PUBLIC, BLOG_AUTHOR.avatar);
+    assert.ok(existsSync(avatarFile), `${BLOG_AUTHOR.avatar} exists`);
+    const svg = readFileSync(avatarFile, "utf8");
+    assert.match(svg, /^<svg\b/);
+    assert.doesNotMatch(svg, /<image\b/i);
+    for (const post of BLOG_POSTS) {
+      assert.doesNotMatch(post.body, /vivek|narayanan/i);
+    }
+  });
+
+  it("the is-Velai-legit post quotes the live button, prices and address, discloses the pen name, and names no competitor", () => {
     const post = getBlogPost("is-velai-legit");
     assert.ok(post);
     // Checks a reader runs must name the button they will actually see.
@@ -79,10 +102,33 @@ describe("blog posts", () => {
       assert.ok(post.body.includes(fact), fact);
     }
     assert.match(post.body, /refundable on request, for any reason, until Pro opens/);
-    // The site is signed by the team, and this page names no other product.
-    assert.doesNotMatch(post.body, /founder|jobshifu|hiringcafe|linkedin|indeed/i);
+    // Discloses that the founder writes under the pen name with a drawn picture, not a fake employee photo.
+    assert.ok(post.body.includes(`pen name ${BLOG_AUTHOR.name}`));
+    assert.match(post.body, /drawn picture rather than a photo/);
+    // This page names no other product.
+    assert.doesNotMatch(post.body, /jobshifu|hiringcafe|linkedin|indeed/i);
     // Seven numbered checks, as the title and the cover promise.
     assert.equal([...post.body.matchAll(/^\d\. \*\*/gm)].length, 7);
+  });
+
+  it("the Velai-vs-JobShifu post quotes Velai's live prices, links JobShifu's public pages, and names where JobShifu goes further", () => {
+    const post = getBlogPost("velai-vs-jobshifu");
+    assert.ok(post);
+    for (const fact of [PRO_MONTHLY_PRICE, FOUNDING_SEAT_PRICE, String(FOUNDING_SEAT_COUNT)]) {
+      assert.ok(post.body.includes(fact), fact);
+    }
+    assert.ok(post.body.includes("**Fill from your résumé**"));
+    for (const url of [
+      "https://jobshifu.com",
+      "https://jobshifu.com/pricing",
+      "https://jobshifu.com/privacy",
+      "https://jobshifu.com/blog/is-jobshifu-legit",
+    ]) {
+      assert.ok(post.body.includes(url), url);
+    }
+    assert.match(post.body, /## What JobShifu has that Velai doesn't/);
+    assert.match(post.body, /\$29\.99\/month/);
+    assert.match(post.body, /\$14\.99 Week Pass/);
   });
 
   it("finds posts by slug and dates them as written", () => {

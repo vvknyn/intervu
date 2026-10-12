@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -32, -33, -36).
+ * Journeys for velai.app/blog — see tests/journeys/CATALOG.md (J-CONTENT-27 to -29, -32, -33, -36, -38).
  * Read-only. The October 2026 "what's new" note is the post the email to
  * registered users links to, so its pictures and its setup link have to work
  * for someone arriving cold. The same-résumé test post (J-CONTENT-29) is the
@@ -11,6 +11,7 @@ import { expect, test } from "./fixtures";
 const POST_PATH = "/blog/whats-new-october-2026";
 const TEST_POST_PATH = "/blog/same-resume-test-october-2026";
 const LEGIT_POST_PATH = "/blog/is-velai-legit";
+const JOBSHIFU_POST_PATH = "/blog/velai-vs-jobshifu";
 
 test("the blog opens from the footer and its first post shows every picture and the setup link", { tag: ["@J-CONTENT-27"] }, async ({ page, diagnostics }) => {
   await page.goto("/about");
@@ -97,12 +98,15 @@ test("a blog post tells search engines and link previews its title, picture, aut
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("every blog post is signed by the Velai team and names no person, on the page or to search engines", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
-  for (const path of [POST_PATH, TEST_POST_PATH, LEGIT_POST_PATH]) {
+test("every blog post is signed with the founder's pen name and drawn avatar, with Velai as the organization in search data", { tag: ["@J-CONTENT-33"] }, async ({ page, diagnostics }) => {
+  for (const path of [POST_PATH, TEST_POST_PATH, LEGIT_POST_PATH, JOBSHIFU_POST_PATH]) {
     await page.goto(path);
     const post = page.getByTestId("blog-post");
-    await expect(post.getByText("By the Velai team", { exact: true })).toBeVisible();
-    await expect(post).not.toContainText(/founder/i);
+    await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
+    const avatar = post.getByTestId("blog-author-avatar");
+    await expect(avatar).toHaveAttribute("src", "/blog/author.svg");
+    await expect.poll(() => avatar.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(post).not.toContainText(/vivek|narayanan/i);
 
     expect(await page.locator('meta[name="author"]').getAttribute("content")).toBe("Velai");
     await expect(page.locator('meta[property="article:author"]')).toHaveCount(0);
@@ -116,7 +120,7 @@ test("every blog post is signed by the Velai team and names no person, on the pa
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the is-Velai-legit post opens from /about with its pictures, seven checks and links, and names no person", { tag: ["@J-CONTENT-36"] }, async ({ page, diagnostics }) => {
+test("the is-Velai-legit post opens from /about with its pictures, seven checks, links, and pen-name disclosure", { tag: ["@J-CONTENT-36"] }, async ({ page, diagnostics }) => {
   await page.goto("/about");
   await page.getByTestId("about-page").getByRole("link", { name: "how to check it yourself" }).click();
   await expect(page).toHaveURL(new RegExp(`${LEGIT_POST_PATH}$`));
@@ -124,10 +128,11 @@ test("the is-Velai-legit post opens from /about with its pictures, seven checks 
 
   const post = page.getByTestId("blog-post");
   await expect(post.getByRole("heading", { level: 1 })).toHaveText("Is Velai legit? What it is, who runs it, and how to check");
-  await expect(post.getByText("By the Velai team", { exact: true })).toBeVisible();
+  await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
   for (const name of ["Who runs it", "How Velai pays for itself", "What Velai will never do", "Seven ways to check it yourself"]) {
     await expect(post.getByRole("heading", { level: 2, name })).toBeVisible();
   }
+  await expect(post.getByText(/writes on this blog under the pen name Arun, with a drawn picture rather than a photo/)).toBeVisible();
 
   // The checklist cover and the privacy promises screenshot, each loaded and described.
   const pictures = post.locator("img.blog-figure");
@@ -138,7 +143,7 @@ test("the is-Velai-legit post opens from /about with its pictures, seven checks 
     await expect.poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   }
 
-  // Seven checks, the first naming the button a reader will press.
+  // Seven checks, the second naming the button a reader will press.
   const checks = post.locator("ol > li");
   await expect(checks).toHaveCount(7);
   await expect(checks.nth(1)).toContainText("Apply on employer site");
@@ -147,7 +152,41 @@ test("the is-Velai-legit post opens from /about with its pictures, seven checks 
   await expect(post.getByRole("link", { name: "pricing page" })).toHaveAttribute("href", "/pricing");
   await expect(post.getByRole("link", { name: "privacy policy" })).toHaveAttribute("href", "/privacy#your-resume");
   await expect(post.getByRole("link", { name: "tell us" })).toHaveAttribute("href", "/contact");
-  await expect(post).not.toContainText(/founder/i);
+  await expect(post).not.toContainText(/vivek|narayanan/i);
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the Velai-vs-JobShifu post opens from /blog with its comparison table picture, where JobShifu goes further, and links to both services", { tag: ["@J-CONTENT-38"] }, async ({ page, diagnostics }) => {
+  await page.goto("/blog");
+  await page.getByTestId("blog-post-link").filter({ hasText: "Velai and JobShifu" }).click();
+  await expect(page).toHaveURL(new RegExp(`${JOBSHIFU_POST_PATH}$`));
+  await expect(page).toHaveTitle("Velai vs JobShifu: how the two job tools compare · Velai");
+
+  const post = page.getByTestId("blog-post");
+  await expect(post.getByRole("heading", { level: 1 })).toHaveText("Velai and JobShifu: how the two job tools compare");
+  await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
+  for (const name of [
+    "Where the jobs come from, and how you search",
+    "Tailoring your résumé without making things up",
+    "Filling out applications and the Chrome extension",
+    "What JobShifu has that Velai doesn't",
+    "Privacy and where your résumé goes",
+    "What each one costs",
+    "Which one to pick",
+  ]) {
+    await expect(post.getByRole("heading", { level: 2, name })).toBeVisible();
+  }
+
+  const figure = post.locator("img.blog-figure");
+  await expect(figure).toHaveCount(1);
+  await figure.scrollIntoViewIfNeeded();
+  await expect(figure).toHaveAttribute("alt", /Side-by-side comparison of Velai and JobShifu/);
+  await expect.poll(() => figure.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+
+  await expect(post.getByRole("link", { name: "JobShifu", exact: true })).toHaveAttribute("href", "https://jobshifu.com");
+  await expect(post.getByRole("link", { name: "JobShifu's privacy policy" })).toHaveAttribute("href", "https://jobshifu.com/privacy");
+  await expect(post.getByRole("link", { name: "MCP" })).toHaveAttribute("href", "/connect");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

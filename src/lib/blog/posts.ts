@@ -12,9 +12,13 @@
  * loads and the text below never jumps.
  */
 import MarkdownIt from "markdown-it";
+import { BLOG_AUTHOR, BLOG_BYLINE } from "./author";
 import { IS_VELAI_LEGIT } from "./is-velai-legit";
 import { SAME_RESUME_TEST_OCTOBER_2026 } from "./same-resume-test-october-2026";
+import { VELAI_VS_JOBSHIFU } from "./velai-vs-jobshifu";
 import { WHATS_NEW_OCTOBER_2026 } from "./whats-new-october-2026";
+
+export { BLOG_AUTHOR, BLOG_BYLINE };
 
 export interface BlogImage {
     /** Intrinsic size in pixels (2x screenshots, shown at half). */
@@ -43,15 +47,14 @@ export interface BlogPost {
     cover: string;
 }
 
-export const BLOG_POSTS: readonly BlogPost[] = [IS_VELAI_LEGIT, SAME_RESUME_TEST_OCTOBER_2026, WHATS_NEW_OCTOBER_2026];
+export const BLOG_POSTS: readonly BlogPost[] = [
+    VELAI_VS_JOBSHIFU,
+    IS_VELAI_LEGIT,
+    SAME_RESUME_TEST_OCTOBER_2026,
+    WHATS_NEW_OCTOBER_2026,
+];
 
 export const BLOG_PATH = "/blog";
-
-/**
- * Every post is signed by the team, and search engines are told the author is
- * Velai itself: the site names no person who works on it (2026-10-11).
- */
-export const BLOG_BYLINE = "By the Velai team";
 
 export function blogPostPath(slug: string): string {
     return `${BLOG_PATH}/${slug}`;

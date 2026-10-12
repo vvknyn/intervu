@@ -1,4 +1,5 @@
 import type { BlogPost } from "./posts";
+import { BLOG_AUTHOR } from "./author";
 import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
@@ -24,7 +25,8 @@ const DIR = "/blog/is-velai-legit";
  *
  * Prices and the support address come from the modules that own them, so the
  * post can't drift from /pricing. tests/unit/blog-posts.test.ts checks the
- * button label it quotes. No person is named: the site is signed by the team.
+ * button label it quotes. The founder signs the blog under the pen name in
+ * `BLOG_AUTHOR` with a drawn avatar, and "Who runs it" says so plainly.
  */
 export const IS_VELAI_LEGIT: BlogPost = {
     slug: "is-velai-legit",
@@ -56,9 +58,9 @@ Velai is in beta. It works, but it is still changing, and it still gets things w
 
 ## Who runs it
 
-Velai is made by a small team. The job data comes from [Subspace](https://thesubspace.io), which reads employers' career pages and keeps track of when each posting appears, changes and closes.
+Velai is made by its founder and a small team. The job data comes from [Subspace](https://thesubspace.io), which reads employers' career pages and keeps track of when each posting appears, changes and closes.
 
-We sign what we write as the Velai team. A person on the team reads every message sent through the [contact page](/contact) or to ${PUBLIC_SUPPORT_EMAIL}, and we answer from that address.
+The founder writes on this blog under the pen name ${BLOG_AUTHOR.name}, with a drawn picture rather than a photo, to keep their own name off the site without making up a fake employee. A person on the team reads every message sent through the [contact page](/contact) or to ${PUBLIC_SUPPORT_EMAIL}, and we answer from that address.
 
 ## How Velai pays for itself
 
