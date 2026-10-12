@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
+  BLOG_AUTHOR,
   BLOG_BYLINE,
   BLOG_PATH,
   BLOG_POSTS,
@@ -79,12 +80,20 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         <time dateTime={post.datePublished}>{formatBlogDate(post.datePublished)}</time>
       </p>
       <PageTitle className="mt-3">{post.title}</PageTitle>
-      <p className="mt-1.5 text-sm text-muted-foreground">
-        {BLOG_BYLINE}
-      </p>
+      <div className="mt-2 flex items-center gap-2.5 text-sm text-muted-foreground" data-testid="blog-byline">
+        <img
+          src={BLOG_AUTHOR.avatar}
+          alt={BLOG_AUTHOR.avatarAlt}
+          width={28}
+          height={28}
+          className="h-7 w-7 shrink-0"
+          data-testid="blog-author-avatar"
+        />
+        <span>{BLOG_BYLINE}</span>
+      </div>
 
       <Prose
-        className="mt-6 [&_.blog-figure]:my-6 [&_.blog-figure]:h-auto [&_.blog-figure]:w-full [&_.blog-figure]:rounded-xl [&_.blog-figure]:border [&_.blog-figure]:border-border"
+        className="mt-6 [&_.blog-figure]:my-6 [&_.blog-figure]:h-auto [&_.blog-figure]:w-full [&_.blog-figure]:rounded-card [&_.blog-figure]:border [&_.blog-figure]:border-border"
         dangerouslySetInnerHTML={{ __html: renderBlogPost(post) }}
       />
 
@@ -94,7 +103,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           <ul className="mt-3 space-y-3">
             {morePosts.map((other) => (
               <li key={other.slug}>
-                <Link href={blogPostPath(other.slug)} className="font-medium hover:underline">
+                <Link href={blogPostPath(other.slug)} className="font-semibold hover:underline">
                   {other.title}
                 </Link>
                 <time dateTime={other.datePublished} className="mt-0.5 block text-xs text-muted-foreground">
