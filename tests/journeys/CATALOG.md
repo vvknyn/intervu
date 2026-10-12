@@ -184,6 +184,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-SRCH-32 | Degraded-search and unmatched-place captions show over the results (`degraded-note`, `unmatched-place-note`) | anon | SEED-A + `/jobs?q=engineer` with a place the index does not know, or a degraded search answered in the browser | signed-out | no | uncovered | — |
 | J-SRCH-33 | A signed-in search for a place filters the list and nothing more: it does not write the saved preferences, so it never becomes where the candidate can work (only Settings, or their agent, sets that; every fit label reads it) | Signed-in candidate | `/jobs?view=search&q=engineer&country=United%20States`, type "software engineer" in the search box and press Enter, wait for `job-row`; no server action posts a `search` preference (signed in: E2E_STORAGE_STATE, or the dev-only hook on a local dev server) | signed-in | no | covered | jobs.spec.ts |
 | J-SRCH-34 | A typed search for an entry-level title such as "Sales Associate" lists roles with that title (it listed nothing: the search looked only for "Junior Sales" titles, which also left a "Warehouse Associate" résumé with no ranked jobs) | anon | SEED-A + `/jobs`, type "sales associate" in the search box and press Enter; read the rows' search result | signed-out | no | covered | search-window.spec.ts |
+| J-SRCH-35 | A typed search's words never reach analytics: after searching "accountant", no PostHog event and no behavioural-ledger row holds the word (addresses lose `q`, `search_submitted` carries only its length), so nothing ties what a person searched to their account; the words live only in the anonymous search log. Search text used to go to the ledger with the account id, and every PostHog event carried `?q=` (2026-10-12) | anon | `/jobs`, type "accountant" and run the search; PostHog event posts and `/api/telemetry` answered locally and read | signed-out | no | covered | jobs.spec.ts |
 
 ## FILT
 
@@ -888,6 +889,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-ADMIN-02 | Admin opens /admin and sees the Metrics dashboard, app config and feedback list | admin | /admin | signed-in | no | uncovered | — |
 | J-ADMIN-03 | @writes Admin toggles the donation button and its URL and saves | admin | /admin | signed-in | yes | uncovered | — |
 | J-ADMIN-04 | Admin filters the feedback list by Bug, Feedback or Other | admin | /admin | signed-in | no | uncovered | — |
+| J-ADMIN-05 | Admin opens /admin and reads Search demand for the last 30 days: Popular, Nothing found, Under 30 found, Companies with nothing open, Places with no roles and Where people search, each with its count, read from the anonymous search log (no account, IP or browser id; résumé-built searches never logged) | admin | /admin | signed-in | no | uncovered | — |
 
 ## MODAL
 
