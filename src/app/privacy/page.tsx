@@ -311,8 +311,17 @@ export default function PrivacyPage() {
           copy stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
           title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
           selection is logged like any search on the website; the card&apos;s own check when a job page loads is
-          not logged. The extension keeps only the job it is showing, which Chrome clears when you close the
-          browser, and the sites you turned its card off on.
+          not logged. The extension keeps the job it is showing and, for two hours, the job page you last opened
+          in each tab (so an application form on a later page knows which job it&apos;s for), which Chrome clears
+          when you close the browser, and the sites you turned its card off on.
+        </p>
+        <p>
+          On an application form, when you pick &ldquo;Fill from your résumé&rdquo;, the extension types the name,
+          email, phone, location and links from your Velai résumé into the form&apos;s empty fields that ask for them,
+          and attaches your résumé tailored to the job as a PDF. That happens in your browser and sends Velai nothing.
+          The site gets those details only when you send the form yourself; the extension never sends it. After it
+          fills a form, it watches that tab for the site&apos;s confirmation that your application was sent, and then
+          adds the job to your tracker as &ldquo;I applied&rdquo; does.
         </p>
         <p>
           When you pick &ldquo;I applied&rdquo;, the extension adds the job (its title, employer and the page&apos;s

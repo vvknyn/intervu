@@ -1,5 +1,6 @@
 /**
- * The tailored résumé as a PDF, made in the panel with the same renderer and
+ * The tailored résumé as a PDF, made in the panel (and in the service worker,
+ * for the résumé the card attaches to an application form) with the same renderer and
  * settings velai.app's "Customize for this job" download uses (one page, the
  * role's terms passed for emphasis). Nothing leaves the browser.
  *
@@ -17,7 +18,7 @@ import type { ResumeData } from "@/types/resume";
 
 const FONT_FILES = ["fonts/LiberationSans-Regular.ttf", "fonts/LiberationSans-Bold.ttf"] as const;
 
-function toBase64(buffer: ArrayBuffer): string {
+export function toBase64(buffer: ArrayBuffer): string {
     const bytes = new Uint8Array(buffer);
     let binary = "";
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));

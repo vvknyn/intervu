@@ -54,11 +54,11 @@ const SHOTS = [
         visual: { kind: "panel", panel: "found-bottom.png", page: "job-page.png" },
     },
     {
-        file: "screenshot-5-track-applications.png",
-        headline: "Every application, tracked",
-        sub: "One click after you apply, and it's in your Velai tracker.",
-        points: ["Dated today and linked to the posting", "Works on company careers sites too", "Turn the card on for every site, once"],
-        visual: { kind: "card", page: "card-applied.png" },
+        file: "screenshot-5-fill-and-track.png",
+        headline: "Fill the form, track the application",
+        sub: "One click fills an application form from your résumé and attaches your résumé for this job.",
+        points: ["Name, email, phone and location", "Never sends it: you check it and submit", "In your Velai tracker once the site confirms"],
+        visual: { kind: "card", page: "card-filled.png" },
     },
 ];
 
@@ -125,7 +125,8 @@ async function cardBox(page, file) {
         const padding = y1 - y;
         for (let run = 0; y > y0 && run < 4; y--) run = blank(y) ? run + 1 : 0;
         while (y > y0 && blank(y)) y--;
-        return { x: x0, y: y0, w: x1 - x0 + 1, h: y + padding - y0 + 1 };
+        // `h` ends at the last line kept; the card's own bottom padding is drawn under it.
+        return { x: x0, y: y0, w: x1 - x0 + 1, h: y - y0 + 1, pad: padding };
     }, png(file));
 }
 
@@ -133,13 +134,14 @@ function visualHtml(v, box) {
     if (v.kind === "card") {
         // The job page behind, scaled into the browser frame; the card itself, larger, in front.
         const scale = 640 / 1280;
-        const x = box.x - CARD_MARGIN, y = box.y - CARD_MARGIN, w = box.w + 2 * CARD_MARGIN, h = box.h + 2 * CARD_MARGIN;
+        const x = box.x - CARD_MARGIN, y = box.y - CARD_MARGIN, w = box.w + 2 * CARD_MARGIN, h = box.h + CARD_MARGIN;
+        const full = h + box.pad + CARD_MARGIN;
         // As large as fits: its right edge 40px inside the shot, its bottom 40px above it.
-        const zoom = Math.min(1.3, 600 / w, 704 / h);
+        const zoom = Math.min(1.3, 600 / w, 704 / full);
         return `<div class="browser"><div class="bar"><i></i><i></i><i></i><span></span></div>
           <div class="page" style="background-image:url(${png(v.page)});background-size:${1280 * scale}px ${800 * scale}px"></div></div>
-          <div class="zoom" style="left:${650 - w * zoom}px;top:${Math.max(48, Math.min(760 - h * zoom, 300))}px;width:${w * zoom}px;height:${h * zoom}px;border-radius:${13 * zoom}px;
-            background-image:url(${png(v.page)});background-size:${1280 * zoom}px ${800 * zoom}px;background-position:-${x * zoom}px -${y * zoom}px"></div>`;
+          <div class="zoom" style="left:${650 - w * zoom}px;top:${Math.max(48, Math.min(760 - full * zoom, 300))}px;width:${w * zoom}px;height:${full * zoom}px;border-radius:${13 * zoom}px;overflow:hidden;background:rgb(16 18 24)">
+            <div style="height:${h * zoom}px;background-image:url(${png(v.page)});background-repeat:no-repeat;background-size:${1280 * zoom}px ${800 * zoom}px;background-position:-${x * zoom}px -${y * zoom}px"></div></div>`;
     }
     return `<div class="browser dim" style="left:-20px"><div class="bar"><i></i><i></i><i></i><span></span></div>
         <div class="page" style="background-image:url(${png(v.page)});background-size:${879 * 0.73}px ${800 * 0.73}px"></div></div>
