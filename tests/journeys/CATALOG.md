@@ -783,6 +783,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-CONTENT-33 | Read a blog post signed "By the Velai team", with Velai (not a person) as the author in its page tags and search data | anon | /blog/whats-new-october-2026, /blog/same-resume-test-october-2026 | signed-out | no | covered | blog.spec.ts |
 | J-CONTENT-34 | Read on /privacy Velai's four résumé promises (read in your browser, encrypted when saved, AI sees only what it needs, never sold), then the Your résumé section: the file is never uploaded, a saved résumé is encrypted with AES-256, résumé-built searches aren't logged, replays mask every word, and no AI on our servers reads it | anon | /privacy | signed-out | no | covered | privacy.spec.ts |
 | J-CONTENT-35 | Links inside long-form paragraphs (/privacy, and every page on the `Prose` wrapper) are underlined, not marked by colour alone. axe found eight on /privacy (focus group, 2026-10-12) | anon | `/privacy`, axe-core link-in-text-block | signed-out | no | covered | a11y.spec.ts |
+| J-CONTENT-36 | Read on /privacy that searches are kept in an anonymous record (the words, place and filters, how many came back, which result was opened) with no account id, IP address or browser id, encrypted and deleted after 90 days; résumé-built searches aren't recorded; analytics addresses lose the words searched. No line still says the typed text is kept against your account | anon | /privacy | signed-out | no | covered | privacy.spec.ts |
 
 ## SEO
 
