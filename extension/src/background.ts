@@ -9,6 +9,9 @@
  *  - The on-page card (card.ts, on the job sites in job-sites.json and any
  *    site the person turned it on for) asks here what to show: the velai.app
  *    calls and the scoring run in this worker, not in the page.
+ *  - The card's "Fill from your résumé" gets the résumé's contact details and
+ *    the PDF tailored to the tab's job from here, and once the site confirms
+ *    the application this adds the job to the tracker as Applied.
  *  - Sign-in and the résumé editor open velai.app in a small window over the
  *    job page. A sign-in window closes itself once velai.app says the person
  *    is signed in; closing either window tells the card and the panel to
@@ -16,10 +19,12 @@
  */
 import { PAGE_QUERY_KEY, hostOf, queryFromPage, queryFromSelection } from "./page-query";
 import { jobFromPage, looksLikeJob, readJobPage, validThrough, type PageRead } from "./page-reader";
-import { resumeFromMe, sameJob, type MeResponse } from "./report";
-import { cardSummary } from "./card-summary";
+import { resumeFromMe, sameJob, tailoredResume, type MeResponse } from "./report";
+import { cardSummary, type TrackJob } from "./card-summary";
+import { contactValues } from "./form-fill";
+import { tailoredResumePdf, toBase64 } from "./resume-pdf";
 import { fetchMe, isSignedInLanding, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
-import { ACCOUNT_CHANGED_KEY, type CardAnswer, type ToBackground, type TrackAnswer } from "./messages";
+import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type FillAnswer, type PendingFill, type ToBackground, type TrackAnswer } from "./messages";
 import { ALL_SITES, JOB_SITE_MATCHES } from "./job-sites";
 import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
@@ -35,6 +40,12 @@ const CARD_SEARCH_LIMIT = 10;
 /** How long the card reuses the account answer and a page's search. */
 const ME_TTL_MS = 60_000;
 const SEARCH_TTL_MS = 5 * 60_000;
+/** storage.session: per tab, the last job page the card read, for an application form on a later page of the same site. */
+const TAB_JOBS_KEY = "velaiTabJobs";
+/** storage.session: per tab, the job whose application form the card filled, until the site confirms it was sent. */
+const FILLED_KEY = "velaiFilled";
+/** How long a tab's job, or a filled form, is remembered. */
+const TAB_MEMORY_MS = 2 * 60 * 60_000;
 
 interface VelaiWindow {
     windowId: number;
@@ -99,11 +110,57 @@ chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes[ACCOUNT_CHANGED_KEY]) me = null;
 });
 
+// ── What each tab is applying to ───────────────────────────────────────────
+
+interface Remembered<T> {
+    host: string | null;
+    at: number;
+    value: T;
+}
+
+async function tabMemory<T>(key: string, tabId: number, url: string): Promise<T | null> {
+    const stored = await chrome.storage.session.get(key);
+    const entry = ((stored[key] ?? {}) as Record<string, Remembered<T>>)[tabId];
+    return entry && entry.host != null && entry.host === hostOf(url) && Date.now() - entry.at < TAB_MEMORY_MS ? entry.value : null;
+}
+
+/** Writes to one key wait for the last, so two tabs writing at once don't drop each other's entry. */
+const memoryWrites = new Map<string, Promise<void>>();
+
+function setTabMemory<T>(key: string, tabId: number, url: string, value: T | null): Promise<void> {
+    const write = async () => {
+        const stored = await chrome.storage.session.get(key);
+        const all = { ...((stored[key] ?? {}) as Record<string, Remembered<T>>) };
+        for (const [id, entry] of Object.entries(all)) if (Date.now() - entry.at >= TAB_MEMORY_MS) delete all[id];
+        if (value == null) delete all[tabId];
+        else all[tabId] = { host: hostOf(url), at: Date.now(), value };
+        await chrome.storage.session.set({ [key]: all });
+    };
+    const done = (memoryWrites.get(key) ?? Promise.resolve()).then(write, write);
+    memoryWrites.set(key, done.catch(() => {}));
+    return done;
+}
+
+/** The job a page is about: the page itself when it reads as a job, else the
+ *  job page the person came from on the same site in this tab (an
+ *  application form often sits on a page of its own). */
+async function jobReadFor(read: PageRead, tabId: number | undefined): Promise<PageRead> {
+    if (read.posting || looksLikeJob(read) || tabId == null) return read;
+    return (await tabMemory<PageRead>(TAB_JOBS_KEY, tabId, read.url)) ?? read;
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+    void setTabMemory(TAB_JOBS_KEY, tabId, "", null);
+    void setTabMemory(FILLED_KEY, tabId, "", null);
+});
+
 // ── The on-page card ───────────────────────────────────────────────────────
 
 /** What the card shows for a page, or null for no card: a page that doesn't
- *  publish its job details only gets one when Velai has the role it names. */
-async function cardFor(read: PageRead, fresh: boolean): Promise<CardAnswer> {
+ *  publish its job details only gets one when Velai has the role it names,
+ *  the page reads as a job, or it has an application form. */
+async function cardFor(pageRead: PageRead, fresh: boolean, tabId: number | undefined, applying: boolean): Promise<CardAnswer> {
+    const read = applying ? await jobReadFor(pageRead, tabId) : pageRead;
     const pageJob = jobFromPage(read);
     const fromTitle = queryFromPage(read.title, read.url);
     const q = read.posting ? [pageJob.title, pageJob.company].filter(Boolean).join(" ") : fromTitle.q;
@@ -111,7 +168,9 @@ async function cardFor(read: PageRead, fresh: boolean): Promise<CardAnswer> {
     const [account, result] = await Promise.all([getMe(fresh), searchOnce(q)]);
     const velaiJob = result ? sameJob(result.hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
     // A page with no structured details still gets a card when Velai has the role or the page reads as a job.
-    if (!read.posting && !velaiJob && !looksLikeJob(read)) return null;
+    const isJob = Boolean(read.posting || velaiJob || looksLikeJob(read));
+    if (!isJob && !applying) return null;
+    if (isJob && tabId != null) await setTabMemory(TAB_JOBS_KEY, tabId, read.url, read);
     return cardSummary({
         pageJob,
         velaiJob,
@@ -122,6 +181,48 @@ async function cardFor(read: PageRead, fresh: boolean): Promise<CardAnswer> {
         resumeUpdatedAt: account?.resume?.updatedAt ?? null,
         nowMs: Date.now(),
     });
+}
+
+// ── Filling an application form ────────────────────────────────────────────
+
+/** The résumé's contact details and its PDF tailored to the tab's job, for the card to put in the form. */
+async function fillData(read: PageRead, tabId: number | undefined): Promise<FillAnswer> {
+    const account = await getMe(false);
+    if (!account) return { ok: false, error: "Velai didn't answer." };
+    if (!account.signedIn) return { ok: false, error: "Sign in to Velai first." };
+    const resume = resumeFromMe(account);
+    if (!resume) return { ok: false, error: "Add your résumé to Velai first." };
+    const job = jobFromPage(await jobReadFor(read, tabId));
+    let pdf: { base64: string; filename: string } | null = null;
+    try {
+        const made = await tailoredResumePdf(tailoredResume(resume, job).resume, job);
+        pdf = { base64: toBase64(await made.blob.arrayBuffer()), filename: made.filename };
+    } catch {
+        // The contact details still go in; the person attaches a file themselves.
+        pdf = null;
+    }
+    return { ok: true, values: contactValues(resume.profile), pdf };
+}
+
+/** Tabs whose confirmed application is being tracked right now (the page and its watcher can both see the confirmation). */
+const confirming = new Set<number>();
+
+/** The site confirmed the application the card filled: track it once. */
+async function appliedAfterFill(tabId: number, url: string): Promise<AppliedAnswer> {
+    if (confirming.has(tabId)) return null;
+    confirming.add(tabId);
+    try {
+        const track = await tabMemory<TrackJob>(FILLED_KEY, tabId, url);
+        if (!track) return null;
+        await setTabMemory(FILLED_KEY, tabId, url, null);
+        const answer: TrackAnswer = await trackApplied(track).then(
+            (r): TrackAnswer => (r.ok ? { ok: true } : { ok: false, error: "Velai didn't save it." }),
+            (): TrackAnswer => ({ ok: false, error: "Velai didn't answer." }),
+        );
+        return { ...answer, title: track.title };
+    } finally {
+        confirming.delete(tabId);
+    }
 }
 
 // ── velai.app in a small window ────────────────────────────────────────────
@@ -199,8 +300,41 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     const message = raw as ToBackground;
     switch (message.type) {
         case "card":
-            void cardFor(message.read, message.fresh === true).then(sendResponse, () => sendResponse(null));
+            void cardFor(message.read, message.fresh === true, sender.tab?.id, message.applying === true).then(sendResponse, () => sendResponse(null));
             return true;
+        case "fillData":
+            void fillData(message.read, sender.tab?.id).then(sendResponse, () => sendResponse({ ok: false, error: "The form couldn't be filled." } satisfies FillAnswer));
+            return true;
+        case "filled": {
+            const tabId = sender.tab?.id;
+            const url = sender.url ?? sender.tab?.url;
+            if (tabId != null && url) void setTabMemory(FILLED_KEY, tabId, url, message.track);
+            sendResponse(true);
+            return false;
+        }
+        case "pendingFill": {
+            const tabId = sender.tab?.id;
+            const url = sender.url ?? sender.tab?.url;
+            if (tabId == null || !url) {
+                sendResponse(null);
+                return false;
+            }
+            void tabMemory<TrackJob>(FILLED_KEY, tabId, url).then(
+                (track) => sendResponse(track ? ({ title: track.title } satisfies PendingFill) : null),
+                () => sendResponse(null),
+            );
+            return true;
+        }
+        case "appliedAfterFill": {
+            const tabId = sender.tab?.id;
+            const url = sender.url ?? sender.tab?.url;
+            if (tabId == null || !url) {
+                sendResponse(null);
+                return false;
+            }
+            void appliedAfterFill(tabId, url).then(sendResponse, () => sendResponse(null));
+            return true;
+        }
         case "openPanel": {
             const tab = sender.tab;
             if (tab) {
@@ -225,6 +359,8 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             );
             return true;
         case "track":
+            // Tracked by hand: nothing left to track when the site confirms.
+            if (sender.tab?.id != null) void setTabMemory(FILLED_KEY, sender.tab.id, "", null);
             void trackApplied(message.job).then(
                 (r): TrackAnswer => (r.ok ? { ok: true } : { ok: false, error: "Velai didn't save it." }),
                 (): TrackAnswer => ({ ok: false, error: "Velai didn't answer." }),
