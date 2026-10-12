@@ -21,7 +21,7 @@ import { parseResumeLocally, type LocalParseResult } from "@/lib/local-ai/parse-
 import { ModelEnhancementStrip, type EnhancementPhase } from "./ModelEnhancementStrip";
 import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
 import { extractPDFTextInBrowser, extractDocxTextInBrowser } from "@/lib/local-ai/extract-in-browser";
-import { RESUME_IMPORT_PARSE_LINE, RESUME_IMPORT_SEALED_LINE } from "@/lib/jobs/resume-privacy-copy";
+import { RESUME_IMPORT_PARSE_LINE, RESUME_IMPORT_SEALED_DETAIL, RESUME_IMPORT_SEALED_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { sealedAiStatus } from "@/lib/sealed-ai/client";
 import { refuseResumeReview, PROFILE_REVIEW_UNREADABLE_ERROR } from "@/lib/resume/profile-review-parse";
 import { LEGACY_DOC_MESSAGE } from "@/lib/resume/extract-file-text";
@@ -140,6 +140,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     // only when this server has it set up and the quick read missed something
     // ranking uses (`modelReadNeeded`); its read never reaches our servers.
     const [sealedOn, setSealedOn] = useState(false);
+    const [sealedHowOpen, setSealedHowOpen] = useState(false);
     const [engineLabel, setEngineLabel] = useState<string | null>(null);
     // Model upgrade of the quick (rules) parse — see `startEnhancement`.
     const [enhancement, setEnhancement] = useState<EnhancementPhase | null>(null);
@@ -444,7 +445,20 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             </p>
             {sealedOn && (
                 <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-model-on">
-                    {RESUME_IMPORT_SEALED_LINE}
+                    {RESUME_IMPORT_SEALED_LINE}{" "}
+                    <button
+                        type="button"
+                        aria-expanded={sealedHowOpen}
+                        onClick={() => setSealedHowOpen((open) => !open)}
+                        className="font-semibold text-foreground underline underline-offset-2"
+                    >
+                        How
+                    </button>
+                </p>
+            )}
+            {sealedOn && sealedHowOpen && (
+                <p className="text-xs text-muted-foreground leading-relaxed" data-testid="resume-import-sealed-detail">
+                    {RESUME_IMPORT_SEALED_DETAIL}
                 </p>
             )}
         </div>
