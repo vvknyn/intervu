@@ -265,6 +265,7 @@ import {
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
+    employerElsewhereNote,
     jobsNotConnectedPanelCopy,
     isSearchUnhealthy,
     userFacingSearchErrorMessage,
@@ -5421,6 +5422,10 @@ export function JobsContent({
     // that, same shape as `degradedNote` above.
     const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions);
 
+    // An employer search with a place asked for lists the employer's roles in
+    // that place first; this captions where they end (`employerElsewhereNote`).
+    const elsewhereNote = result ? employerElsewhereNote(result.inPlace, result.total) : null;
+
     // Two-Panel Selector (master-detail) — single source of truth for where
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
     // 2026-08-14 auto-preview — the pane again for the ambient first result
@@ -7059,6 +7064,12 @@ export function JobsContent({
                             {!loading && unmatchedNote && (
                                 <p data-testid="unmatched-place-note" className="mb-3 text-sm text-muted-foreground">
                                     {unmatchedNote}
+                                </p>
+                            )}
+
+                            {!loading && elsewhereNote && (
+                                <p data-testid="employer-elsewhere-note" className="mb-3 text-sm text-muted-foreground">
+                                    {elsewhereNote}
                                 </p>
                             )}
 

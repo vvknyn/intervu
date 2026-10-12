@@ -18,6 +18,7 @@ import {
     resolveDetailMountSite,
     shouldSuppressLandingAmbientPreview,
     degradedResultsNote,
+    employerElsewhereNote,
     buildZeroResultPayload,
     type SearchServedMeta,
 } from '../../src/lib/jobs/result-state';
@@ -763,5 +764,26 @@ describe('buildZeroResultPayload', () => {
     it('reports no location resolution rather than fabricating one when the response carried none', () => {
         const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'engineer', {});
         assert.equal(payload.defaulted_location, null);
+    });
+});
+
+describe('employerElsewhereNote', () => {
+    it('says nothing when no place was asked for or every row is in it', () => {
+        assert.equal(employerElsewhereNote(undefined, 40), null);
+        assert.equal(employerElsewhereNote(340, 340), null);
+        assert.equal(employerElsewhereNote(0, 0), null);
+    });
+
+    it('says the whole list is from elsewhere when none of it is in the place', () => {
+        assert.match(employerElsewhereNote(0, 29) ?? '', /No roles at this employer match your location/);
+        assert.match(employerElsewhereNote(0, 9049) ?? '', /roles elsewhere/);
+    });
+
+    it('says how many roles lead in the place before the rest', () => {
+        assert.equal(
+            employerElsewhereNote(12, 133),
+            "Showing 12 roles in your location first, then this employer's roles elsewhere.",
+        );
+        assert.match(employerElsewhereNote(1, 40) ?? '', /^Showing 1 role in your location first/);
     });
 });

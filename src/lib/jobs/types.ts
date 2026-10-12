@@ -532,4 +532,11 @@ export interface JobSearchResult {
    * that reshuffled under an explicit sort. Absent on every other path.
    */
   tier1Total?: number;
+  /**
+   * Employer search with a place asked for: how many of the leading rows (of
+   * `total`) sit in that place. The rows after them are the same employer
+   * elsewhere, listed after the place runs out. Absent when no place was asked
+   * for or the search is not scoped to an employer (see `assembleCompanyLanePool`).
+   */
+  inPlace?: number;
 }
