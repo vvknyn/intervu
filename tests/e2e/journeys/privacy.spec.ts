@@ -2,7 +2,7 @@ import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/priva
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/36,
+ * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/37,
  * and J-JOBS-115, the front door's privacy promises that link here).
  * Read-only. What "Delete account" erases is a promise people act on, so the
  * page has to say what the server action really removes
@@ -79,7 +79,7 @@ test("the front door says the résumé stays private in its first screen and lin
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the privacy policy says searches are kept in an anonymous record, apart from your account, and analytics never see the words", { tag: ["@J-CONTENT-36"] }, async ({ page, diagnostics }) => {
+test("the privacy policy says searches are kept in an anonymous record, apart from your account, and analytics never see the words", { tag: ["@J-CONTENT-37"] }, async ({ page, diagnostics }) => {
   await page.goto("/privacy");
   const article = page.locator("article").first();
   await expect(article).toContainText("We keep an anonymous record of the searches people run");
