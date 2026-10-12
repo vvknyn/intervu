@@ -148,15 +148,9 @@ export interface EventPayloads {
      *  `null` when none was applied — mirrors `defaultedLocation` on the
      *  search response (actions/jobs.ts). Never the typed query text. */
     defaulted_location: string | null;
-    /** Typed location text the resolver could not match to anything in the
-     *  corpus and dropped (the "We have no roles in…" disclosure) — mirrors
-     *  `unmatchedPlaceMentions` on the search response. Empty when nothing
-     *  was dropped. The resolver's interpretation of a place it DID
-     *  recognize is not included: that value (`places`, query-
-     *  understanding.ts) is consumed only server-side to build the search
-     *  filter and is never returned to the client today — see
-     *  `buildZeroResultPayload`'s doc comment. */
-    unmatched_place_mentions: string[];
+    /* No `unmatched_place_mentions`: the places nobody has roles in are typed
+     * words, and this event is tied to a signed-in account. The anonymous
+     * search log keeps them (`unmatchedPlaces`, lib/jobs/search-log.ts). */
   };
   search_filter_applied: {
     facet: string;
@@ -375,23 +369,20 @@ export interface ResumeFunnelEventPayload {
 /**
  * Optional per-event props that reach ONLY the ledger (this repo's own
  * Postgres-backed telemetry store, `lib/telemetry/client.ts`) and are never
- * passed to `posthog.capture(...)` — for data too sensitive/raw for a
- * third-party analytics vendor but that we still need captured, keyed to
- * the account, server-side (privacy policy: "the searches you run,
- * including the text of what you typed").
+ * passed to `posthog.capture(...)`.
  *
- * Only events that actually have ledger-only data get an entry here.
- * `captureEvent`'s third parameter is typed against this map so passing a
- * third argument for an event with no entry here fails to compile (typed
- * `never`), rather than silently accepting an untyped bag of props.
+ * Empty on purpose. `search_submitted` used to send the typed search text
+ * here, and the ledger stamps a signed-in person's account id on every row,
+ * so a person's searches were kept against their account. A search's words
+ * now live only in the anonymous search log (`lib/jobs/search-log.ts`,
+ * written server-side with no account, IP or browser id), which is what the
+ * demand numbers read.
+ *
+ * `captureEvent`'s third parameter is typed against this map, so a third
+ * argument for an event with no entry here fails to compile (typed `never`)
+ * rather than silently accepting an untyped bag of props.
  */
-export interface LedgerOnlyPayloads {
-  search_submitted: {
-    /** The raw, unmodified search query text. Ledger-only by construction —
-     *  see `captureEvent` below — never forwarded to PostHog. */
-    query_text: string;
-  };
-}
+export type LedgerOnlyPayloads = Record<never, never>;
 
 /**
  * Pure: should this call actually reach PostHog? Kept separate from the I/O

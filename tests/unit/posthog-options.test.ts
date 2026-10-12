@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import {
   isPhoneSurveyViewport,
   maskReplayNetworkRequest,
-  stripResumeQueries,
-  withoutResumeQuery,
+  stripSearchTerms,
+  withoutSearchTerms,
   PHONE_SURVEY_BREAKPOINT,
   POSTHOG_OPTIONS,
   POSTHOG_PRODUCT,
@@ -191,26 +191,38 @@ test("session replay masks typed input and every word on the page, and /privacy 
   );
 });
 
-// Rank by fit puts the résumé's role titles in the address (`?q=...&sort=fit`),
-// and every event carries `$current_url`: analytics get the address without them.
-test("analytics addresses drop a résumé query and keep every other search", () => {
+// Analytics are tied to a signed-in account, so no address they carry keeps
+// the words searched: typed text, or the résumé's role titles under Rank by
+// fit (`?q=...&sort=fit`). The anonymous search log is the only copy.
+test("analytics addresses drop the words searched, typed or built from a résumé, and keep everything else", () => {
   const fit = 'https://velai.app/jobs?q=%22Registered+Nurse%22+OR+%22Charge+Nurse%22&sort=fit&job=abc';
-  assert.equal(withoutResumeQuery(fit), "https://velai.app/jobs?sort=fit&job=abc");
-  const typed = "https://velai.app/jobs?q=nurse&sort=newest";
-  assert.equal(withoutResumeQuery(typed), typed);
-  assert.equal(withoutResumeQuery("sort=fit is not a url"), "sort=fit is not a url");
+  assert.equal(withoutSearchTerms(fit), "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(withoutSearchTerms("https://velai.app/jobs?q=nurse&sort=newest"), "https://velai.app/jobs?sort=newest");
+  assert.equal(withoutSearchTerms("/jobs?q=nurse&country=Canada"), "/jobs?country=Canada");
+  assert.equal(withoutSearchTerms("https://velai.app/jobs?country=Canada"), "https://velai.app/jobs?country=Canada");
+  assert.equal(withoutSearchTerms("q=nurse is not an address"), "q=nurse is not an address");
 
   const event = {
     uuid: "1",
-    event: "$pageview",
-    properties: { $current_url: fit, $pathname: "/jobs", count: 3 },
+    event: "$autocapture",
+    properties: {
+      $current_url: fit,
+      $referrer: "https://velai.app/jobs?q=staff+accountant",
+      $pathname: "/jobs",
+      count: 3,
+      $elements_chain: 'a.recent:attr__href="/jobs?q=staff%20accountant&view=search"href="/jobs?q=staff%20accountant&view=search"nth-child="1"',
+      $elements: [{ tag_name: "a", attr__href: "/jobs?q=staff+accountant&view=search", href: "/jobs?q=staff+accountant&view=search" }],
+    },
     $set_once: { $initial_current_url: fit },
   };
-  const sent = stripResumeQueries(event);
+  const sent = stripSearchTerms(event);
   assert.equal(sent?.properties.$current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(sent?.properties.$referrer, "https://velai.app/jobs");
   assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs?sort=fit&job=abc");
   assert.equal(sent?.properties.count, 3);
-  assert.equal(POSTHOG_OPTIONS.before_send, stripResumeQueries);
+  assert.equal(JSON.stringify(sent).includes("accountant"), false, "a clicked search link keeps no search words");
+  assert.match(sent?.properties.$elements_chain as string, /href="\/jobs\?view=search"/);
+  assert.equal(POSTHOG_OPTIONS.before_send, stripSearchTerms);
 
   const request = maskReplayNetworkRequest({ name: fit, requestBody: '{"q":"Nurse"}', responseBody: "{}" } as never);
   assert.equal(request.name, "https://velai.app/jobs?sort=fit&job=abc");
