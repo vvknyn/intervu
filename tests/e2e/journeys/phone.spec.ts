@@ -355,3 +355,60 @@ test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets 
     }
     expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * The phone's location sheet had eleven country rows and an "Other" row to
+ * open before a city could be typed, so a nurse in Calgary picked Canada and
+ * got Edmonton and Hamilton (focus group, 2026-10-12). The sheet now opens
+ * with the desktop box's search at the top.
+ */
+test("on a phone the location sheet searches places: typing a city and tapping it filters the results to that city", { tag: ["@J-MOB-13"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "the location sheet is the phone's control");
+    await returningVisitor(page);
+    await page.goto("/jobs?q=engineer");
+    test.skip(!(await rowsIfAny(page)), "this server lists no jobs (no search backend)");
+
+    await page.getByTestId("location-picker-trigger").click();
+    const sheet = page.getByRole("dialog", { name: "Where do you want to work?" });
+    const box = sheet.getByTestId("location-sheet-input");
+    await expect(box).toBeVisible();
+    // The search sits above the country rows, where a thumb reaches it first.
+    expect((await box.boundingBox())!.y).toBeLessThan((await sheet.getByTestId("location-sheet-country-canada").boundingBox())!.y);
+
+    await box.fill("Toront");
+    const toronto = sheet.getByRole("option").filter({ hasText: /^Toronto/ }).first();
+    await expect(toronto).toBeVisible({ timeout: 15_000 });
+    await toronto.click();
+
+    await expect(sheet).toBeHidden();
+    await expect(page.getByTestId("location-picker-trigger")).toContainText("Toronto", { timeout: 15_000 });
+    await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 20_000 });
+    const places = await page.getByTestId("job-row").locator('[data-testid="job-location"]').allInnerTexts();
+    expect(places.length).toBeGreaterThan(0);
+    for (const place of places) expect(place).toMatch(/Toronto|Remote/i);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * The search box's suggestions opened over the location row stacked under
+ * it, so on a phone the row could not be reached while they showed, and a
+ * tap there picked a suggestion instead (focus group, 2026-10-12).
+ */
+test("on a phone the search suggestions leave the location row uncovered, and tapping it opens the location sheet", { tag: ["@J-MOB-28"] }, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "the rows stack only on a phone");
+    await returningVisitor(page);
+    await page.goto("/jobs");
+    const input = page.getByPlaceholder("Job title, skill, or company");
+    await input.click();
+    await input.pressSequentially("nurs");
+    const list = page.getByRole("listbox", { name: "Search suggestions" });
+    await expect(list).toBeVisible({ timeout: 15_000 });
+
+    const trigger = page.getByTestId("location-picker-trigger");
+    const row = await box(trigger);
+    const panel = await box(list);
+    expect(panel.y, "the suggestions start below the location row").toBeGreaterThanOrEqual(row.y + row.height);
+
+    await trigger.click();
+    await expect(page.getByRole("dialog", { name: "Where do you want to work?" })).toBeVisible();
+});

@@ -143,13 +143,14 @@ import {
     changedFilterFacets,
     PRISTINE_FILTER_STATE,
     applyLocationSheetDraft,
+    addPlaceToFilter,
     locationTriggerLabel,
     LOCATION_TRIGGER_PLACEHOLDER,
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
 import { pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
-import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { LocationPickerSheet, type LocationSheetContinueOpts } from "@/components/jobs/LocationPickerSheet";
 import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
@@ -271,7 +272,6 @@ import {
 } from "@/lib/jobs/result-state";
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
-import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -1220,6 +1220,9 @@ export function JobsContent({
     // The chips row renders every chosen place and can remove any one.
     const [locationDraft, setLocationDraft] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+    // The location row under the search box: the box's suggestions hang
+    // below it on a phone, where the two rows stack, so it stays tappable.
+    const locationRowRef = useRef<HTMLDivElement>(null);
     // Item 7a (2026-08-21 front-door audit): flips on FOCUS (not submit), so
     // the masthead gets out of the way the moment a mobile visitor starts
     // typing rather than after they finish. One-way ratchet (set once, never
@@ -4146,43 +4149,13 @@ export function JobsContent({
      * replaced, actively wrong once it appends.
      */
     const addLocation = useCallback((value: string, field?: SuggestField) => {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        if (field === "work_type") {
-            // The bare-work-mode suggestion ("Remote — anywhere") targets the
-            // GLOBAL work_type facet directly, not a place — see
-            // `planLocationQuery`'s `workModeOnly` branch. Add-only, matching
-            // this function's own idempotent semantics for places: a second
-            // click on an already-active mode is a no-op, never a removal
-            // (unlike `toggleFacetValue`, which the Work-mode checkbox uses).
-            const current = filterState.facets.work_type ?? [];
-            const next = [...new Set([...current, ...parseWorkTypeTokens(trimmed).workTypes])];
-            if (next.length === current.length) return;
-            applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: next } });
-            return;
-        }
-        // A suggestion carries the field it was advertised on
-        // (`SuggestField`) — write into THAT field's own bucket, so it's
-        // filtered as the exact literal it was counted as
-        // (`resolvePickedFacetValue`, query-understanding.ts) instead of
-        // being re-resolved as free text through the gazetteer, which is
-        // what let a composite value ("US CA San Diego") or an ambiguous
-        // bare name ("San Jose") mis-resolve against the wrong field/country
-        // — the advertised count and the delivered count could disagree.
-        // Free-typed text (`field` undefined) and a picked COUNTRY value
-        // both fall back to the same `location_country` bucket they always
-        // used, so neither one's behavior changes.
-        const targetKey = field ?? "location_country";
-        const current = filterState.facets[targetKey] ?? [];
-        const next = addLocationValue(current, trimmed);
-        if (next === current) return; // already filtered on this place
+        const next = addPlaceToFilter(filterState, value, field);
+        if (next === filterState) return; // already filtered on this place
         // Explicit place choice supersedes the IP default — same write path
         // the location sheet uses when the searcher commits their own place.
-        suppressLocationDefault();
-        applyFilterStateWithIntent({
-            ...filterState,
-            facets: { ...filterState.facets, [targetKey]: next },
-        });
+        // A work mode is not a place, so it leaves the default alone.
+        if (field !== "work_type") suppressLocationDefault();
+        applyFilterStateWithIntent(next);
     }, [filterState, applyFilterStateWithIntent, suppressLocationDefault]);
 
     /** Drop every chosen place — what the field's own "✕ clear location"
@@ -4198,11 +4171,14 @@ export function JobsContent({
     }, [filterState, applyFilterStateWithIntent]);
 
     const handleLocationSheetContinue = useCallback(
-        (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
+        (draft: LocationSheetDraft, opts: LocationSheetContinueOpts) => {
             if (opts.suppressDefault) suppressLocationDefault();
             else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
             const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
-            const next = applyLocationSheetDraft(draft, filterState, remoteValue);
+            const drafted = applyLocationSheetDraft(draft, filterState, remoteValue);
+            // A place picked from the sheet's search box lands in its own
+            // field's bucket, exactly as the desktop box would write it.
+            const next = opts.pick ? addPlaceToFilter(drafted, opts.pick.value, opts.pick.field) : drafted;
             // The sheet writes the FACET (via `applyLocationSheetDraft`); the
             // entry box just goes back to empty rather than mirroring it.
             setLocationDraft("");
@@ -5861,7 +5837,10 @@ export function JobsContent({
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-danger-text transition-colors hover:opacity-80",
+                // verdict-risk, not danger-text: the darker red read at 3.5:1
+                // on the dark toolbar, under the 4.5:1 small text needs
+                // (axe, focus group 2026-10-12).
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-verdict-risk transition-colors hover:opacity-80",
             )}
         >
             Clear ({activeCount})
@@ -6333,6 +6312,7 @@ export function JobsContent({
                                     }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
+                                    keepClearRef={locationRowRef}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     ariaLabel="Search"
                                     name="q"
@@ -6350,7 +6330,7 @@ export function JobsContent({
                                 SearchAutocomplete's (see its doc comment): padding
                                 is a shared tailwind-merge axis and an overlay only
                                 stays clear of the text while nobody touches it. */}
-                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                            <div ref={locationRowRef} className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
                                 <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                                     <MapPin size={16} weight="bold" />
                                 </span>
@@ -7340,7 +7320,11 @@ export function JobsContent({
                                     data-region="list"
                                     ref={resultsListRef}
                                     tabIndex={0}
-                                    role="listbox"
+                                    // A region, not a listbox: it also holds the load-more
+                                    // control, gates and the list's tail, which a listbox may
+                                    // not (axe aria-required-children). Arrow keys still move
+                                    // between rows (`handleResultsKeyDown`).
+                                    role="region"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
                                     className={cn(

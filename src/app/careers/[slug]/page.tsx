@@ -35,7 +35,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
   const related = hub.relatedSlugs
     .map((relatedSlug) => getCareerHub(relatedSlug))
     .filter((entry): entry is NonNullable<typeof entry> => entry != null);
-  const facetJobsHref = careerHubJobsHref(hub);
+  const jobsHref = careerHubJobsHref(hub);
 
   return (
     <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
@@ -49,14 +49,9 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
       </Prose>
 
       <nav aria-label="Related career topics" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        <Link href="/jobs" className="font-semibold text-brand hover:underline">
-          Search live jobs
+        <Link href={jobsHref} data-testid="career-hub-search" className="font-semibold text-brand hover:underline">
+          {hub.searchLabel}
         </Link>
-        {facetJobsHref && (
-          <Link href={facetJobsHref} className="font-semibold text-brand hover:underline">
-            Search these jobs
-          </Link>
-        )}
         {related.map((relatedHub) => (
           <Link key={relatedHub.slug} href={relatedHub.path} className="text-muted-foreground hover:text-foreground">
             {relatedHub.h1}

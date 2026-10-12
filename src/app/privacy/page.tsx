@@ -169,7 +169,7 @@ export default function PrivacyPage() {
           their normal schedule. A few values we have to look records up by, such as a sign-in username or an
           email, are kept as keyed hashes that can be matched but not read back. Your data is only ever accessed by
           our servers — never exposed directly to the browser or to other users. Until October 2026 this data was
-          held in Google Cloud Firestore; it has been moved here, and the copy in Firestore is being deleted.
+          held in Google Cloud Firestore; it has been moved here, and the copy in Firestore was deleted in October 2026.
         </p>
         <p>
           We also keep a record of what you do while searching: the searches you run (including the text of what
@@ -178,7 +178,7 @@ export default function PrivacyPage() {
           activity over time — what you&apos;re looking for, and what you actually respond to. It is stored and
           encrypted the same way as the rest of your account data. Searches Velai builds from your résumé (ranking
           by fit, For you, and Today) are not part of that record. Search records made before the move were not
-          copied; they stay in Firestore only until it is emptied.
+          copied, and were deleted with the rest of Firestore.
         </p>
         <p className="text-xs text-muted-foreground">
           For reference, the kinds of account data these storage claims cover include:

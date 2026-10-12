@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+    addPlaceToFilter,
     applyLocationSheetDraft,
     locationTriggerLabel,
     PRISTINE_FILTER_STATE,
@@ -13,7 +14,7 @@ test("applyLocationSheetDraft: detected clears explicit country", () => {
         facets: { location_country: ["Canada"] },
     };
     const next = applyLocationSheetDraft(
-        { useDetected: true, places: ["Canada"], otherText: "", showOther: false, remote: false },
+        { useDetected: true, places: ["Canada"], otherText: "", remote: false },
         state,
         "remote",
     );
@@ -29,7 +30,6 @@ test("applyLocationSheetDraft: other text is added alongside the chosen countrie
             useDetected: false,
             places: ["Canada"],
             otherText: "Toronto",
-            showOther: true,
             remote: false,
         },
         PRISTINE_FILTER_STATE,
@@ -44,7 +44,6 @@ test("applyLocationSheetDraft: commits every chosen place, not the first one", (
             useDetected: false,
             places: ["Canada", "United States", "Berlin"],
             otherText: "",
-            showOther: false,
             remote: false,
         },
         PRISTINE_FILTER_STATE,
@@ -63,7 +62,6 @@ test("applyLocationSheetDraft: free text already chosen under another spelling i
             useDetected: false,
             places: ["Montréal"],
             otherText: "montreal",
-            showOther: true,
             remote: false,
         },
         PRISTINE_FILTER_STATE,
@@ -74,7 +72,7 @@ test("applyLocationSheetDraft: free text already chosen under another spelling i
 
 test("applyLocationSheetDraft: turning every place off clears the facet rather than filtering on nothing", () => {
     const next = applyLocationSheetDraft(
-        { useDetected: false, places: [], otherText: "", showOther: false, remote: false },
+        { useDetected: false, places: [], otherText: "", remote: false },
         { ...PRISTINE_FILTER_STATE, facets: { location_country: ["Canada", "India"] } },
         undefined,
     );
@@ -83,7 +81,7 @@ test("applyLocationSheetDraft: turning every place off clears the facet rather t
 
 test("applyLocationSheetDraft: toggles remote facet value generically", () => {
     const next = applyLocationSheetDraft(
-        { useDetected: false, places: [], otherText: "", showOther: false, remote: true },
+        { useDetected: false, places: [], otherText: "", remote: true },
         PRISTINE_FILTER_STATE,
         "Remote (US)",
     );
@@ -143,5 +141,36 @@ test("extraChosenPlaces: only places with no popular row of their own, folded", 
     assert.deepEqual(
         extraChosenPlaces(["Canada", "Toronto", "united states", "Montréal"]),
         ["Toronto", "Montréal"],
+    );
+});
+
+// The phone sheet's search box and the desktop box commit a picked place the
+// same way: into the field the suggestion was counted in.
+test("addPlaceToFilter: a picked city lands in location_city, a typed one in location_country", () => {
+    const picked = addPlaceToFilter(PRISTINE_FILTER_STATE, "Calgary", "location_city");
+    assert.deepEqual(picked.facets.location_city, ["Calgary"]);
+    assert.equal(picked.facets.location_country, undefined);
+
+    const typed = addPlaceToFilter(PRISTINE_FILTER_STATE, " Calgary ");
+    assert.deepEqual(typed.facets.location_country, ["Calgary"]);
+});
+
+test("addPlaceToFilter: a place already chosen under another spelling returns the same state", () => {
+    const state = { ...PRISTINE_FILTER_STATE, facets: { location_city: ["Montréal"] } };
+    assert.equal(addPlaceToFilter(state, "montreal", "location_city"), state);
+    assert.equal(addPlaceToFilter(state, "   "), state);
+});
+
+test("addPlaceToFilter: the Remote suggestion turns on the remote work mode, not a place", () => {
+    const next = addPlaceToFilter(PRISTINE_FILTER_STATE, "Remote", "work_type");
+    assert.deepEqual(next.facets.work_type, ["remote"]);
+    assert.equal(next.facets.location_country, undefined);
+});
+
+test("locationTriggerLabel: a city picked from a suggestion names the field, not the placeholder", () => {
+    assert.equal(locationTriggerLabel({ ...PRISTINE_FILTER_STATE, facets: { location_city: ["Calgary"] } }), "Calgary");
+    assert.equal(
+        locationTriggerLabel({ ...PRISTINE_FILTER_STATE, facets: { location_city: ["Calgary"], location_country: ["Canada"] } }),
+        "Calgary +1",
     );
 });

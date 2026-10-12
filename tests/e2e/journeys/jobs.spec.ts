@@ -1418,7 +1418,7 @@ signedInTest("on a first visit Today counts every pick as this week's and marks 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("Today pins the roles the last daily picks email named at the top, each marked Emailed, and offers the daily picks email as a switch", { tag: ["@J-JOBS-118"] }, async ({ page, diagnostics }) => {
+signedInTest("Today pins the roles the last daily picks email named at the top, each marked Emailed, and offers the daily picks email as a switch", { tag: ["@J-JOBS-119"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await withResume(page, "Toronto, Ontario, Canada");

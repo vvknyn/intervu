@@ -1,5 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { CUSTOMIZE_SEALED_BADGE } from "../../../src/lib/jobs/resume-privacy-copy";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -229,7 +230,10 @@ test("sealed AI rewrites the matched lines in one request toward what the postin
   const dialog = await openCustomizeFor(page, WAREHOUSE_RESUME, DC_POSTING, "warehouse");
   // Three lines and the summary, in one request; it says where they go.
   await expect(dialog.getByText("Rewriting 4 parts for this posting")).toBeVisible({ timeout: 30_000 });
-  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server: only the matched lines are sent");
+  // In plain words first; where they go (Tinfoil's sealed server) is one tap away, on How.
+  await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText(CUSTOMIZE_SEALED_BADGE);
+  await dialog.getByRole("button", { name: "How" }).click();
+  await expect(dialog.getByTestId("customize-sealed-detail")).toContainText("Tinfoil's sealed AI server");
   await page.evaluate(() => (window as unknown as { __go: () => void }).__go());
 
   const changes = dialog.getByTestId("tailor-change");
@@ -318,7 +322,7 @@ test("where sealed AI is on but its request fails, Customize keeps the rules dra
     // What the pass-through answers when Tinfoil doesn't.
     return route.fulfill({ status: 502, json: { error: "Sealed AI didn't answer" } });
   });
-  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText(CUSTOMIZE_SEALED_BADGE);
   await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 60_000 });
   await expect(dialog.getByText("Rules", { exact: true })).toBeVisible();
   await expect(dialog.getByText("Sealed AI · Tinfoil")).toHaveCount(0);
@@ -339,7 +343,7 @@ test("on the live server, Customize's sealed-AI request reaches Tinfoil through 
     }
     return route.fulfill({ response });
   });
-  await expect(dialog.getByTestId("customize-privacy-badge")).toContainText("Rewritten on Tinfoil's sealed AI server");
+  await expect(dialog.getByTestId("customize-privacy-badge")).toHaveText(CUSTOMIZE_SEALED_BADGE);
   await expect(dialog.getByTestId("tailor-change").first()).toBeVisible({ timeout: 90_000 });
   // At least one request went through, and Tinfoil's sealed answer came back on it.
   expect(answers.length).toBeGreaterThan(0);
