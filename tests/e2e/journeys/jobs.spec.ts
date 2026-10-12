@@ -1996,3 +1996,30 @@ signedInTest("an opened pack's controls share one row under the top bar, and its
   await expect(page.getByTestId("hub-pack-chips")).toBeVisible({ timeout: 30_000 });
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("an employer search with a place says where its roles in that place end and its roles elsewhere begin", { tag: ["@J-SRCH-35"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  // The employer's roles in the asked-for place come first, the rest follow with the employer's true
+  // total; the caption says where the first group ends. The server half (a role word like "warehouse"
+  // is not an employer, the total is not a pool-size cap) is unit-tested in jobs-company-intent.test.ts
+  // and jobs-company-lane-paging.test.ts.
+  let inPlace = 2;
+  const hits = [
+    remoteRole("here-1", "Store Associate", "Toronto, ON", { company: "Walmart" }),
+    remoteRole("here-2", "Cashier", "Toronto, ON", { company: "Walmart" }),
+    remoteRole("there-1", "Store Associate", "Austin, TX", { company: "Walmart" }),
+  ];
+  await page.route("**/api/jobs/search", (route) =>
+    answerListSearch(route, { hits, total: 240, inPlace, backend: "meilisearch", configured: true, searchId: "e2e-employer-elsewhere" }),
+  );
+  const note = page.getByTestId("employer-elsewhere-note");
+
+  await page.goto("/jobs?view=search&q=walmart&country=Canada");
+  await expect(note).toHaveText("Showing 2 roles in your location first, then this employer's roles elsewhere.", { timeout: 60_000 });
+
+  // None in the place: say so rather than listing the other places' roles as if they matched.
+  inPlace = 0;
+  await page.goto("/jobs?view=search&q=walmart&country=Canada&exp=mid");
+  await expect(note).toHaveText("No roles at this employer match your location — showing its roles elsewhere.", { timeout: 60_000 });
+  expect(diagnostics.serverErrors).toEqual([]);
+});

@@ -18,7 +18,7 @@
  *
  * SECOND DEFECT, SAME BUG CLASS (found via live probe on "vp product" after
  * the first fix landed): both lane fetchers (`fetchRoleTitleLaneHits`,
- * `fetchCompanyScopedLaneHits`) cap each sub-query's hits (1000 / 100) but
+ * `searchCompanyLane`) cap each sub-query's hits (1000 / 100) but
  * spread the CALLER's params into the sub-query body, so the caller's `sort`
  * reached Meili's `sort` param on a capped fetch. A capped fetch's top-N is
  * only stable under a fixed ORDER BY — a pair whose match count exceeds the

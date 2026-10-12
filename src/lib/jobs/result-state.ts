@@ -131,6 +131,19 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
 }
 
 /**
+ * An employer search with a place asked for lists the employer's roles in that
+ * place first, then its roles elsewhere (`JobSearchResult.inPlace` marks where
+ * the first group ends). This is the caption that says so, rather than leaving
+ * out-of-place rows to read as matches for the place. `null` means render
+ * nothing: no place was asked for, or every row is in it.
+ */
+export function employerElsewhereNote(inPlace: number | undefined, total: number): string | null {
+    if (inPlace === undefined || inPlace >= total) return null;
+    if (inPlace === 0) return "No roles at this employer match your location — showing its roles elsewhere.";
+    return `Showing ${inPlace} ${inPlace === 1 ? "role" : "roles"} in your location first, then this employer's roles elsewhere.`;
+}
+
+/**
  * Pure: the `search_zero_results` analytics payload (lib/analytics/events.ts)
  * for one failed search — everything needed to reconstruct WHICH filter
  * combination produced zero hits from a dashboard, without ever carrying the

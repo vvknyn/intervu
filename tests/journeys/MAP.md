@@ -52,7 +52,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | Stage | Catalog rows | Rows | Covered | Uncovered | Known-bug | Bug noted |
 |-------|--------------|-----:|--------:|----------:|----------:|----------:|
 | [Landing on /jobs with no search](#landing-on-jobs-with-no-search) | JOBS 01, 03, 21, 24–25, 29–30, 55, 58, 60, 65–66 · SRCH 01–02, 18 · MOB 01, 14, 16–18, 23 · ALERTS 21–23 · NAV 01, 06, 21 · SPEED 05–08 | 31 | 17 | 14 | 0 | 0 |
-| [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–34 · FILT 01–26 · MOB 02, 11–13, 21, 25–27 · SPEED 01–04 | 83 | 24 | 59 | 0 | 0 |
+| [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–35 · FILT 01–26 · MOB 02, 11–13, 21, 25–27 · SPEED 01–04 | 84 | 25 | 59 | 0 | 0 |
 | [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93, 103, 107 · AUTH 31–33 · RESUME 08, 28–29, 40–44, 46–49, 51 · MODAL 01 | 33 | 27 | 6 | 0 | 0 |
 | [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–102, 105–106, 108–113 · NAV 30–32 | 39 | 35 | 4 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75, 104, 114 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–45 · ERR 07–08 | 59 | 25 | 34 | 0 | 0 |
@@ -68,7 +68,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–32 · SEO 01–09 | 40 | 7 | 33 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–11 | 11 | 6 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–42 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 49 | 15 | 34 | 0 | 0 |
-| **All stages** | | **740** | **277** | **463** | **0** | **0** |
+| **All stages** | | **741** | **278** | **463** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search
