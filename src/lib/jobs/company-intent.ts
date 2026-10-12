@@ -65,6 +65,22 @@ export const COMPANY_INTENT_MIN_EXACT = 3;
 /** Minimum share of the sample whose company name IS the query. */
 export const COMPANY_INTENT_MIN_RATIO = 0.6;
 
+/**
+ * Title-echo veto. The index carries "companies" that are really a job-title
+ * fragment the scraper split off ("Storekeeper - Warehouse" arrives with
+ * company "Warehouse"), so a role word can pass the dominance gate above:
+ * measured live 2026-10-12, "warehouse" 8/10, "mechanic" 10/10, "production"
+ * 8/10, "plumber" 6/10 of the top-10 company rows were named exactly that.
+ * What tells them apart from a real employer is the row's OWN title: every
+ * junk-company row repeats the query in its title (100% of the sample),
+ * while an employer's rows rarely do (google 40%, apple 30%, target 20%,
+ * deloitte 20%, stripe/shopify/rbc 0-10%). When at least this share of the
+ * exact-name rows carry the query in their title, the "company" is a role
+ * word and the search stays a normal title search. Evidence, not a list:
+ * nothing here names a role or an employer.
+ */
+export const COMPANY_INTENT_MAX_TITLE_ECHO = 0.5;
+
 /** One company-attribute probe's result — the raw material for the decision. */
 export interface CompanyNameSample {
   /** Total documents whose `company` matched every word of the query. */
@@ -73,6 +89,8 @@ export interface CompanyNameSample {
   companies: string[];
   /** `company_domain` per hit, same order as `companies`; empty string when absent. */
   domains: string[];
+  /** `title` per hit, same order as `companies`. Absent = no title evidence, no veto. */
+  titles?: string[];
 }
 
 /**
@@ -104,14 +122,23 @@ function companyStemMatches(queryStem: string, company: string): boolean {
   return companyNameStem(company) === queryStem;
 }
 
+/** Does `title` contain every word of the (already normalized) query stem? */
+function titleRepeatsQuery(needle: string, title: string): boolean {
+  const words = new Set(normalizeCompanyName(title).split(" "));
+  return needle.split(" ").every((w) => words.has(w));
+}
+
 export function isCompanyNameQuery(q: string, sample: CompanyNameSample): boolean {
   const needle = companyNameStem(q);
   if (!needle) return false;
   const inspected = sample.companies.length;
   if (inspected === 0) return false;
-  const exact = sample.companies.filter((c) => companyStemMatches(needle, c ?? "")).length;
-  if (exact < COMPANY_INTENT_MIN_EXACT) return false;
-  return exact / inspected >= COMPANY_INTENT_MIN_RATIO;
+  const named = sample.companies.flatMap((c, i) => (companyStemMatches(needle, c ?? "") ? [i] : []));
+  if (named.length < COMPANY_INTENT_MIN_EXACT) return false;
+  if (named.length / inspected < COMPANY_INTENT_MIN_RATIO) return false;
+  const titles = named.map((i) => sample.titles?.[i] ?? "").filter(Boolean);
+  const echoed = titles.filter((t) => titleRepeatsQuery(needle, t)).length;
+  return titles.length === 0 || echoed / titles.length < COMPANY_INTENT_MAX_TITLE_ECHO;
 }
 
 /**

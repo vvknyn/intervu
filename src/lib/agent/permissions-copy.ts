@@ -26,6 +26,10 @@ export const AGENT_PERMISSIONS: readonly { text: string; tools: readonly McpTool
         text: "Read and change your search preferences and saved application answers",
         tools: ["get_preferences", "set_preferences"],
     },
+    {
+        text: "List today's picks for your résumé, and turn the daily picks email on or off",
+        tools: ["daily_picks"],
+    },
 ];
 
 /** What it can't do. Only claims no tool contradicts. */
@@ -41,6 +45,7 @@ export const AGENT_PERMISSIONS_LIMITS = "It can't submit an application for you 
 export const CONNECT_SAMPLE_PROMPTS: readonly { text: string; tools: readonly McpToolName[] }[] = [
     { text: "Find senior product manager roles in Berlin paying over €100k, posted this week", tools: ["search_jobs"] },
     { text: "Rank jobs by fit against my résumé on Velai and save the top 3 to my tracker", tools: ["for_you", "save_job"] },
+    { text: "What are today's picks for me on Velai? Turn on the daily picks email too", tools: ["daily_picks"] },
     { text: "Is this job posting still open, or does it look stale?", tools: ["get_job"] },
     { text: "Tailor my résumé for this role, file it on Velai and give me the PDF link", tools: ["tailor_resume", "save_resume_variant"] },
     { text: "What is Stripe hiring for, and what has changed there lately?", tools: ["get_company", "get_company_timeline"] },

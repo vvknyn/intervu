@@ -105,30 +105,47 @@ export function maskReplayAttribute(name: string, value: string, element?: Eleme
 }
 
 /**
- * A `/jobs` address with `sort=fit` carries the résumé's own role titles as
- * `q` (`packFilters`, Rank by fit). Every event's `$current_url` and every
- * replay's page address used to hold them; analytics get the address without
- * `q`. Anything that isn't such an address comes back unchanged.
+ * A page or link address without the words searched. Velai keeps a search's
+ * text only in its anonymous search log (lib/jobs/search-log.ts); analytics
+ * are tied to a signed-in account, so every address they carry loses `q`:
+ * what was typed, or the résumé's own role titles under Rank by fit
+ * (`sort=fit`). Absolute and site-relative addresses are handled; anything
+ * else comes back unchanged.
  */
-export function withoutResumeQuery(value: string): string {
-  if (!value.includes("sort=fit") || !/^https?:\/\//.test(value)) return value;
+export function withoutSearchTerms(value: string): string {
+  if (!value.includes("q=")) return value;
+  const absolute = /^https?:\/\//.test(value);
+  if (!absolute && !value.startsWith("/")) return value;
   try {
-    const url = new URL(value);
-    if (url.searchParams.get("sort") !== "fit" || !url.searchParams.has("q")) return value;
+    const url = new URL(value, "https://velai.app");
+    if (!url.searchParams.has("q")) return value;
     url.searchParams.delete("q");
-    return url.toString();
+    return absolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
   } catch {
     return value;
   }
 }
 
-/** `before_send`: every URL-valued property of an event, person `$set`s included, without a résumé query. */
-export function stripResumeQueries(event: CaptureResult | null): CaptureResult | null {
+/** A click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) with each link's address searched-word free. */
+function elementsChainWithoutSearchTerms(chain: string): string {
+  return chain.replace(/(href|attr__href)="([^"]*)"/g, (_match, attr: string, href: string) => `${attr}="${withoutSearchTerms(href)}"`);
+}
+
+/** `before_send`: every address an event carries, person `$set`s and clicked links included, without the words searched. */
+export function stripSearchTerms(event: CaptureResult | null): CaptureResult | null {
   if (!event) return event;
   for (const bag of [event.properties, event.$set, event.$set_once]) {
     if (!bag) continue;
     for (const [key, value] of Object.entries(bag)) {
-      if (typeof value === "string") bag[key] = withoutResumeQuery(value);
+      if (key === "$elements_chain" && typeof value === "string") bag[key] = elementsChainWithoutSearchTerms(value);
+      else if (typeof value === "string") bag[key] = withoutSearchTerms(value);
+      else if (key === "$elements" && Array.isArray(value)) {
+        for (const element of value as Record<string, unknown>[]) {
+          for (const attr of ["attr__href", "href"]) {
+            if (typeof element?.[attr] === "string") element[attr] = withoutSearchTerms(element[attr] as string);
+          }
+        }
+      }
     }
   }
   return event;
@@ -136,11 +153,12 @@ export function stripResumeQueries(event: CaptureResult | null): CaptureResult |
 
 /**
  * Replay page addresses and network entries pass through here
- * (posthog-js `_maskUrl`): the address loses a résumé query, and a request's
- * or response's body is never kept (a search request's body is its query).
+ * (posthog-js `_maskUrl`): the address loses the words searched, and a
+ * request's or response's body is never kept (a search request's body is its
+ * query).
  */
 export function maskReplayNetworkRequest(request: CapturedNetworkRequest): CapturedNetworkRequest {
-  return { ...request, name: withoutResumeQuery(request.name), requestBody: null, responseBody: null };
+  return { ...request, name: withoutSearchTerms(request.name), requestBody: null, responseBody: null };
 }
 
 export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
@@ -211,7 +229,7 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   },
 
   // The last stop before an event leaves the browser: no résumé role titles in any address.
-  before_send: stripResumeQueries,
+  before_send: stripSearchTerms,
 
   // Cookieless, per-tab, gone when the tab closes.
   //

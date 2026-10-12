@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { buildWelcomeEmail } from "@/lib/email/templates/welcome";
 import { buildWaitlistConfirmEmail } from "@/lib/email/templates/waitlist-confirm";
 import { buildDigestEmail } from "@/lib/email/templates/digest";
+import { buildDailyPicksEmail } from "@/lib/email/templates/daily-picks";
 import { verifyFollowEmailContent } from "@/lib/email/verify-follow";
 
 /**
@@ -45,6 +46,22 @@ const TEMPLATES: Record<string, () => { html: string; text: string }> = {
                     totalNew: 1,
                     mayHaveMore: false,
                     seeAllHref: "https://intervuhq.com/jobs?q=staff+engineer",
+                },
+            ],
+        }),
+    "daily-picks": () =>
+        buildDailyPicksEmail({
+            unsubscribeUrl: "https://intervuhq.com/unsubscribe?t=x",
+            siteUrl: "https://intervuhq.com",
+            picks: [
+                {
+                    title: "Staff Engineer",
+                    employer: "Acme",
+                    location: "Remote",
+                    salary: null,
+                    fit: "Strong",
+                    why: "Your role, at your level",
+                    href: "https://intervuhq.com/jobs/1",
                 },
             ],
         }),

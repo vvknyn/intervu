@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { jobFromPage, postingKey, validThrough, type PageRead } from "../../extension/src/page-reader";
+import { jobFromPage, looksLikeJob, placeFromTitle, postingKey, validThrough, type PageRead } from "../../extension/src/page-reader";
+import { jobCountries } from "../../src/lib/jobs/resume-location";
 import { pageChecks, sameJob } from "../../extension/src/report";
 import { orderForRole } from "../../extension/src/tailor-order";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -134,5 +135,33 @@ describe("orderForRole", () => {
         assert.deepEqual(out.movedRoles, []);
         assert.deepEqual(out.leadingSkills, []);
         assert.equal(out.resume.experience[0].description, resume().experience[0].description);
+    });
+});
+
+describe("careers pages that publish no JobPosting", () => {
+    const amazonStyle: PageRead = {
+        url: "https://careers.example/en/jobs/10575719/senior-cloud-tam",
+        title: "Senior Cloud Technical Account Manager - Vancouver, CAN , AWS Enterprise Support - Job ID: 10575719 | Example Careers",
+        heading: "Senior Cloud Technical Account Manager - Vancouver, CAN , AWS Enterprise Support",
+        applyControl: true,
+        posting: null,
+        text: "Description\nWould you like to join...\nBASIC QUALIFICATIONS\n- 5+ years...\nJob details\nCAN, BC, Vancouver",
+    };
+
+    it("reads the place the heading names, so the country is known", () => {
+        assert.equal(placeFromTitle(amazonStyle.heading!), "Vancouver, CAN");
+        assert.equal(placeFromTitle("Registered Nurse | Toronto, ON"), "Toronto, ON");
+        assert.equal(placeFromTitle("Data Engineer - Bangalore, IND"), "Bangalore, IND");
+        assert.equal(placeFromTitle("Engineer, Web Platform - Acme"), null);
+        const job = jobFromPage(amazonStyle);
+        assert.equal(job.location, "Vancouver, CAN");
+        assert.deepEqual(jobCountries(job), ["Canada"]);
+    });
+
+    it("counts as a job with a heading, an Apply control and a job description's words", () => {
+        assert.equal(looksLikeJob(amazonStyle), true);
+        assert.equal(looksLikeJob({ ...amazonStyle, applyControl: false }), false, "no Apply button");
+        assert.equal(looksLikeJob({ ...amazonStyle, heading: "" }), false, "no heading");
+        assert.equal(looksLikeJob({ ...amazonStyle, text: "Our blog: ten fall hikes" }), false, "not a job's words");
     });
 });

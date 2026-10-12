@@ -4,9 +4,12 @@ import {
     buildJobOpenEntry,
     buildSearchLogEntry,
     hasExplicitFilters,
+    isSweepDue,
     shouldLogSearch,
+    SEARCH_LOG_LIST_MAX,
     SEARCH_LOG_Q_MAX,
     SEARCH_LOG_TTL_DAYS,
+    SWEEP_EVERY_MS,
 } from "../../src/lib/jobs/search-log";
 import type { JobSearchParams, JobSearchResult } from "../../src/lib/jobs/types";
 
@@ -83,6 +86,69 @@ test("the dead-link id probe is not a human search", () => {
         false,
         "a query built from a résumé never lands in search_events",
     );
+});
+
+test("a later page of the same list and a Broaden count probe are not new searches", () => {
+    assert.equal(shouldLogSearch({ q: "nurse", limit: 30, offset: 0 }), true, "the first page is the search");
+    assert.equal(shouldLogSearch({ q: "nurse", limit: 30, offset: 30 }), false, "load more is the same search");
+    assert.equal(shouldLogSearch({ q: "nurse", limit: 1, offset: 0 }), false, "Broaden's how-many-if probe");
+    assert.equal(shouldLogSearch({ q: "nurse", limit: 0 }), false, "a count-only probe");
+});
+
+test("records where the search looked and which companies it found nothing at, for the demand view", () => {
+    const e = buildSearchLogEntry(
+        {
+            q: "registered nurse",
+            facets: { location_city: ["Calgary"], location_country: ["Canada"], work_type: ["remote"], experience_level: ["mid"] },
+            companyDomain: "ahs.ca",
+        },
+        result({
+            total: 0,
+            defaultedLocation: "CA",
+            unmatchedPlaceMentions: ["Narnia"],
+            companyIntent: { domains: ["albertahealthservices.ca"], scopedTotal: 0, fallback: true },
+        } as Partial<JobSearchResult>),
+        CTX,
+    );
+    assert.deepEqual([...e.places].sort(), ["Calgary", "Canada"]);
+    assert.equal(e.defaultedCountry, "CA");
+    assert.deepEqual(e.unmatchedPlaces, ["Narnia"]);
+    assert.equal(e.company, "ahs.ca");
+    assert.deepEqual(e.missedCompanies, ["albertahealthservices.ca"]);
+    assert.deepEqual(e.filters.sort(), ["experience_level:mid", "work_type:remote"]);
+});
+
+test("a company the query matched is only a miss when the scoped search found nothing", () => {
+    const found = buildSearchLogEntry(
+        { q: "shopify" },
+        result({ companyIntent: { domains: ["shopify.com"], scopedTotal: 0, fallback: false } } as Partial<JobSearchResult>),
+        CTX,
+    );
+    assert.deepEqual(found.missedCompanies, []);
+    const plain = buildSearchLogEntry({ q: "nurse" }, result(), CTX);
+    assert.deepEqual(
+        { places: plain.places, unmatched: plain.unmatchedPlaces, company: plain.company, missed: plain.missedCompanies, filters: plain.filters, country: plain.defaultedCountry },
+        { places: [], unmatched: [], company: "", missed: [], filters: [], country: "" },
+    );
+});
+
+test("place, company and filter lists are capped, trimmed and de-duplicated", () => {
+    const many = Array.from({ length: SEARCH_LOG_LIST_MAX + 4 }, (_, i) => `City ${i}`);
+    const e = buildSearchLogEntry(
+        { q: "x", facets: { location_city: ["  Toronto ", "Toronto", "", ...many] } },
+        result({ unmatchedPlaceMentions: ["a".repeat(500)] } as Partial<JobSearchResult>),
+        CTX,
+    );
+    assert.equal(e.places.length, SEARCH_LOG_LIST_MAX);
+    assert.equal(e.places[0], "Toronto");
+    assert.equal(e.places.filter((p) => p === "Toronto").length, 1);
+    assert.ok(e.unmatchedPlaces[0].length <= 80);
+});
+
+test("expired records are swept at most every few hours per server", () => {
+    assert.equal(isSweepDue(0, NOW), true, "a fresh server sweeps on its first write");
+    assert.equal(isSweepDue(NOW, NOW + 60_000), false);
+    assert.equal(isSweepDue(NOW, NOW + SWEEP_EVERY_MS), true);
 });
 
 test("every event carries a TTL the retention policy can act on", () => {

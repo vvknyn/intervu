@@ -131,6 +131,7 @@ import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
+import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -143,13 +144,15 @@ import {
     changedFilterFacets,
     PRISTINE_FILTER_STATE,
     applyLocationSheetDraft,
+    addPlaceToFilter,
+    placeFieldFor,
     locationTriggerLabel,
     LOCATION_TRIGGER_PLACEHOLDER,
     type FilterState,
     type LocationSheetDraft,
 } from "@/components/jobs/FilterPanel";
 import { pickRemoteFacetValue } from "@/components/jobs/FilterChipsRow";
-import { LocationPickerSheet } from "@/components/jobs/LocationPickerSheet";
+import { LocationPickerSheet, type LocationSheetContinueOpts } from "@/components/jobs/LocationPickerSheet";
 import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
@@ -262,6 +265,7 @@ import {
     shouldBackOnDetailSheetClose,
     resolveDetailMountSite,
     degradedResultsNote,
+    employerElsewhereNote,
     jobsNotConnectedPanelCopy,
     isSearchUnhealthy,
     userFacingSearchErrorMessage,
@@ -271,7 +275,6 @@ import {
 } from "@/lib/jobs/result-state";
 import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
-import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
     dismissEmailNudge,
@@ -1220,6 +1223,9 @@ export function JobsContent({
     // The chips row renders every chosen place and can remove any one.
     const [locationDraft, setLocationDraft] = useState("");
     const [locationSheetOpen, setLocationSheetOpen] = useState(false);
+    // The location row under the search box: the box's suggestions hang
+    // below it on a phone, where the two rows stack, so it stays tappable.
+    const locationRowRef = useRef<HTMLDivElement>(null);
     // Item 7a (2026-08-21 front-door audit): flips on FOCUS (not submit), so
     // the masthead gets out of the way the moment a mobile visitor starts
     // typing rather than after they finish. One-way ratchet (set once, never
@@ -1414,25 +1420,19 @@ export function JobsContent({
         // category/seed chips all route through it, so a future entry point is
         // counted automatically instead of being silently invisible.
         //
-        // The raw query text goes to the ledger ONLY (this repo's own
-        // Postgres-backed telemetry store, keyed to the account server-side)
-        // via the third `ledgerOnly` argument below — it is never passed to
-        // PostHog; PostHog gets only `query_length` and the other ordinary
-        // props. `activeFilterEntries` is re-derived here rather than read
-        // from the render-scope binding so this does not depend on
-        // declaration order.
-        captureEvent(
-            "search_submitted",
-            {
-                query_length: q.trim().length,
-                // `chosenLocations` is render-scope — a draft committed by the
-                // flush above isn't in it yet, but it IS a location on this
-                // very search, so count it.
-                has_location: chosenLocations.length > 0 || Boolean(draftPlace),
-                filter_count: activeFilterEntries(filterState).length,
-            },
-            { query_text: q },
-        );
+        // The search's shape only, never its words: PostHog and the ledger
+        // both tie events to a signed-in account, so the text stays in the
+        // anonymous search log (lib/jobs/search-log.ts) the server writes.
+        // `activeFilterEntries` is re-derived here rather than read from the
+        // render-scope binding so this does not depend on declaration order.
+        captureEvent("search_submitted", {
+            query_length: q.trim().length,
+            // `chosenLocations` is render-scope — a draft committed by the
+            // flush above isn't in it yet, but it IS a location on this
+            // very search, so count it.
+            has_location: chosenLocations.length > 0 || Boolean(draftPlace),
+            filter_count: activeFilterEntries(filterState).length,
+        });
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
@@ -1712,11 +1712,14 @@ export function JobsContent({
             setEmailNudgeOpen(false);
             return;
         }
-        void getAccountEmailStateAction().then((res) => {
-            if (!res.data) return;
-            setAccountEmailState(res.data.state);
-            setAccountPendingEmail(res.data.pendingEmail);
-        });
+        // A failed read (one still queued when the page is left fails) shows no nudge, never a page error.
+        void getAccountEmailStateAction()
+            .then((res) => {
+                if (!res.data) return;
+                setAccountEmailState(res.data.state);
+                setAccountPendingEmail(res.data.pendingEmail);
+            })
+            .catch(() => {});
     }, [user?.uid]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
@@ -2490,14 +2493,11 @@ export function JobsContent({
                 // pristine mount is not a failed search).
                 if (interleavedHits.length === 0 && !isPristineLanding) {
                     // `buildZeroResultPayload` (lib/jobs/result-state.ts) is
-                    // the pure builder — `r.defaultedLocation`/
-                    // `r.unmatchedPlaceMentions` are the two location-
-                    // resolver outputs `searchJobsAction` actually returns
-                    // (see that function's doc comment for why the full
-                    // resolved-place interpretation isn't among them).
+                    // the pure builder. The places nobody has roles in are
+                    // typed words, so they go to the anonymous search log,
+                    // not here (see that function's doc comment).
                     captureEvent("search_zero_results", buildZeroResultPayload(filterState, query, {
                         defaultedLocation: r.defaultedLocation,
-                        unmatchedPlaceMentions: r.unmatchedPlaceMentions,
                     }));
                 }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, interleavedHits, { wasConfirmed });
@@ -2790,15 +2790,16 @@ export function JobsContent({
                 position: rank,
                 job_id: id,
                 source: "serp",
-                // `resultRef.current?.searchId`, NOT `lastSearchId`: a
-                // load-more page fetch mints its own `lastSearchId` but
+                // Keyed on `resultRef.current?.searchId`, NOT `lastSearchId`:
+                // a load-more page fetch mints its own `lastSearchId` but
                 // `setResult` never overwrites `searchId` when appending a
                 // page (see `loadMore`'s updater) — `result.searchId` is the
                 // stable id for the WHOLE rendered list a row's position was
-                // computed against, the same value `useResultImpressions` is
-                // armed with below. That's the id a click must carry to join
-                // back to the impression it came from (SPEC §5).
-                ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // computed against, the same list `useResultImpressions` is
+                // armed with below. Analytics get the list's own id, never
+                // `searchId` itself, which keys the search log's words
+                // (`resultSetAnalyticsId`).
+                ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
@@ -3887,8 +3888,8 @@ export function JobsContent({
     // "REFINED query" case SPEC §5 requires. This is the same value
     // `result_clicked`/`apply_clicked` read (via `resultRef.current
     // ?.searchId`) so impressions and the clicks they produce always join
-    // on one query_id.
-    useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
+    // on one query_id: the list's analytics id, not `searchId` itself.
+    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId));
     useListRenderTiming({
         searchId: result?.searchId,
         rows: result?.hits.length ?? 0,
@@ -4143,43 +4144,14 @@ export function JobsContent({
      * replaced, actively wrong once it appends.
      */
     const addLocation = useCallback((value: string, field?: SuggestField) => {
-        const trimmed = value.trim();
-        if (!trimmed) return;
-        if (field === "work_type") {
-            // The bare-work-mode suggestion ("Remote — anywhere") targets the
-            // GLOBAL work_type facet directly, not a place — see
-            // `planLocationQuery`'s `workModeOnly` branch. Add-only, matching
-            // this function's own idempotent semantics for places: a second
-            // click on an already-active mode is a no-op, never a removal
-            // (unlike `toggleFacetValue`, which the Work-mode checkbox uses).
-            const current = filterState.facets.work_type ?? [];
-            const next = [...new Set([...current, ...parseWorkTypeTokens(trimmed).workTypes])];
-            if (next.length === current.length) return;
-            applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: next } });
-            return;
-        }
-        // A suggestion carries the field it was advertised on
-        // (`SuggestField`) — write into THAT field's own bucket, so it's
-        // filtered as the exact literal it was counted as
-        // (`resolvePickedFacetValue`, query-understanding.ts) instead of
-        // being re-resolved as free text through the gazetteer, which is
-        // what let a composite value ("US CA San Diego") or an ambiguous
-        // bare name ("San Jose") mis-resolve against the wrong field/country
-        // — the advertised count and the delivered count could disagree.
-        // Free-typed text (`field` undefined) and a picked COUNTRY value
-        // both fall back to the same `location_country` bucket they always
-        // used, so neither one's behavior changes.
-        const targetKey = field ?? "location_country";
-        const current = filterState.facets[targetKey] ?? [];
-        const next = addLocationValue(current, trimmed);
-        if (next === current) return; // already filtered on this place
+        const next = addPlaceToFilter(filterState, value, field);
+        if (next === filterState) return; // already filtered on this place
         // Explicit place choice supersedes the IP default — same write path
         // the location sheet uses when the searcher commits their own place.
-        suppressLocationDefault();
-        applyFilterStateWithIntent({
-            ...filterState,
-            facets: { ...filterState.facets, [targetKey]: next },
-        });
+        // A work mode is not a place, so it leaves the default alone, typed
+        // ("Remote") or picked ("Remote — anywhere").
+        if (placeFieldFor(value, field) !== "work_type") suppressLocationDefault();
+        applyFilterStateWithIntent(next);
     }, [filterState, applyFilterStateWithIntent, suppressLocationDefault]);
 
     /** Drop every chosen place — what the field's own "✕ clear location"
@@ -4195,11 +4167,14 @@ export function JobsContent({
     }, [filterState, applyFilterStateWithIntent]);
 
     const handleLocationSheetContinue = useCallback(
-        (draft: LocationSheetDraft, opts: { suppressDefault: boolean }) => {
+        (draft: LocationSheetDraft, opts: LocationSheetContinueOpts) => {
             if (opts.suppressDefault) suppressLocationDefault();
             else if (draft.useDetected && locationDefaultSuppressed) restoreLocationDefault();
             const remoteValue = pickRemoteFacetValue(result?.facetDistribution);
-            const next = applyLocationSheetDraft(draft, filterState, remoteValue);
+            const drafted = applyLocationSheetDraft(draft, filterState, remoteValue);
+            // A place picked from the sheet's search box lands in its own
+            // field's bucket, exactly as the desktop box would write it.
+            const next = opts.pick ? addPlaceToFilter(drafted, opts.pick.value, opts.pick.field) : drafted;
             // The sheet writes the FACET (via `applyLocationSheetDraft`); the
             // entry box just goes back to empty rather than mirroring it.
             setLocationDraft("");
@@ -4426,10 +4401,10 @@ export function JobsContent({
         captureEvent("apply_clicked", {
             job_id: job.id,
             source: "serp",
-            // Same `resultRef.current?.searchId` contract as `openJob`'s
-            // `result_clicked` above — the id `useResultImpressions` is
-            // armed with for the currently-rendered result set (SPEC §5).
-            ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+            // Same contract as `openJob`'s `result_clicked` above — the id
+            // `useResultImpressions` is armed with for the currently-rendered
+            // result set (SPEC §5), never the search log's `searchId`.
+            ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
             ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);
@@ -5447,6 +5422,10 @@ export function JobsContent({
     // that, same shape as `degradedNote` above.
     const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions);
 
+    // An employer search with a place asked for lists the employer's roles in
+    // that place first; this captions where they end (`employerElsewhereNote`).
+    const elsewhereNote = result ? employerElsewhereNote(result.inPlace, result.total) : null;
+
     // Two-Panel Selector (master-detail) — single source of truth for where
     // the shared detail ternary mounts (Sheet below xl, pane at xl+, and —
     // 2026-08-14 auto-preview — the pane again for the ambient first result
@@ -5858,7 +5837,10 @@ export function JobsContent({
             onClick={panelClearAll}
             className={cn(
                 toolbarControlHeight,
-                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-danger-text transition-colors hover:opacity-80",
+                // verdict-risk, not danger-text: the darker red read at 3.5:1
+                // on the dark toolbar, under the 4.5:1 small text needs
+                // (axe, focus group 2026-10-12).
+                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap px-2 text-verdict-risk transition-colors hover:opacity-80",
             )}
         >
             Clear ({activeCount})
@@ -6330,6 +6312,7 @@ export function JobsContent({
                                     }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
+                                    keepClearRef={locationRowRef}
                                     placeholder={SEARCH_PLACEHOLDER}
                                     ariaLabel="Search"
                                     name="q"
@@ -6347,7 +6330,7 @@ export function JobsContent({
                                 SearchAutocomplete's (see its doc comment): padding
                                 is a shared tailwind-merge axis and an overlay only
                                 stays clear of the text while nobody touches it. */}
-                            <div className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
+                            <div ref={locationRowRef} className="relative flex w-full items-center sm:max-w-[210px] sm:flex-[0_1_210px]">
                                 <span aria-hidden className="pointer-events-none flex shrink-0 items-center pl-3.5 text-muted-foreground">
                                     <MapPin size={16} weight="bold" />
                                 </span>
@@ -7084,6 +7067,12 @@ export function JobsContent({
                                 </p>
                             )}
 
+                            {!loading && elsewhereNote && (
+                                <p data-testid="employer-elsewhere-note" className="mb-3 text-sm text-muted-foreground">
+                                    {elsewhereNote}
+                                </p>
+                            )}
+
                             {result?.preview && result.note && (
                                 <div className="mb-3 shrink-0 border-l-2 border-verdict-caution pl-3 text-xs text-verdict-caution">
                                     {result.note}
@@ -7337,7 +7326,11 @@ export function JobsContent({
                                     data-region="list"
                                     ref={resultsListRef}
                                     tabIndex={0}
-                                    role="listbox"
+                                    // A region, not a listbox: it also holds the load-more
+                                    // control, gates and the list's tail, which a listbox may
+                                    // not (axe aria-required-children). Arrow keys still move
+                                    // between rows (`handleResultsKeyDown`).
+                                    role="region"
                                     aria-label="Job results"
                                     onKeyDown={handleResultsKeyDown}
                                     className={cn(

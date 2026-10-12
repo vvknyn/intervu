@@ -2,36 +2,30 @@
 
 /**
  * Tracker / History switcher — sits atop both /yours and /yours/history.
- * Router-driven, not content-driven: each tab is its own route (not a
- * `TabsContent` panel), so this only ever renders the trigger row, reusing
- * the repo's one Tabs primitive (components/ui/tabs.tsx) rather than
- * inventing a second tab affordance.
+ * Router-driven, not content-driven: each tab is its own route, so this is a
+ * row of links (`TabNav` + `TabItem`, the repo's one tab look), not Radix
+ * tabs. Radix triggers point `aria-controls` at a panel this page never
+ * renders, which axe reports as a critical error (focus group, 2026-10-12).
  */
 
-import { useRouter } from "next/navigation";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from "next/link";
+import { TabItem, TabNav, tabsListVariants } from "@/components/ui/tabs";
 
 export type TrackerTab = "tracker" | "history";
 
-const ROUTE_FOR_TAB: Record<TrackerTab, string> = {
-    tracker: "/yours",
-    history: "/yours/history",
-};
+const TABS: readonly { tab: TrackerTab; href: string; label: string }[] = [
+    { tab: "tracker", href: "/yours", label: "Tracker" },
+    { tab: "history", href: "/yours/history", label: "History" },
+];
 
 export function TrackerTabs({ active }: { active: TrackerTab }) {
-    const router = useRouter();
     return (
-        <Tabs
-            value={active}
-            onValueChange={(v) => {
-                const tab = v as TrackerTab;
-                if (tab !== active) router.push(ROUTE_FOR_TAB[tab]);
-            }}
-        >
-            <TabsList variant="line">
-                <TabsTrigger value="tracker">Tracker</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
-            </TabsList>
-        </Tabs>
+        <TabNav aria-label="Tracker views" className={tabsListVariants({ variant: "line" })}>
+            {TABS.map(({ tab, href, label }) => (
+                <TabItem key={tab} asChild current={tab === active ? "page" : undefined}>
+                    <Link href={href}>{label}</Link>
+                </TabItem>
+            ))}
+        </TabNav>
     );
 }

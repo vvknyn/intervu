@@ -74,6 +74,7 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
 
     company_viewed: "company_viewed",
     company_unfollowed: "company_unfollowed",
+    daily_picks_set: "daily_picks_set",
 
     search_zero_results: "search_zero_results",
     search_filter_applied: "search_filter_applied",
@@ -425,14 +426,14 @@ test("captureEvent sends resume_uploaded with an empty payload", (t) => {
   });
 });
 
-// --- ledger-only props (query text) ---------------------------------------
+// --- ledger-only props -------------------------------------------------------
 //
-// Requirement: raw search query TEXT must reach the ledger (this repo's own
-// Postgres-backed telemetry store), keyed to the account, and must NEVER
-// reach PostHog. `captureEvent`'s optional third argument carries props that
-// only `buildLedgerProps` ever sees — the two sinks differ by construction
+// `captureEvent`'s optional third argument carries props that only
+// `buildLedgerProps` ever sees — the two sinks differ by construction
 // (separate arguments to captureEvent), not by a "remember to strip it"
-// convention. See events.ts's `LedgerOnlyPayloads` and `captureEvent`.
+// convention. No event uses it today: search text used to, and the ledger is
+// keyed to the account, so a search's words now live only in the anonymous
+// search log. The merge itself stays tested with a sample key.
 
 test("buildLedgerProps merges ledgerOnly in when given, and is a no-op passthrough without it", () => {
   const payload = { query_length: 5, has_location: false, filter_count: 0 };
@@ -575,17 +576,12 @@ test("composition proof: a ledger-only prop merged via buildLedgerProps lands in
   assert.equal("query_text" in columns, false);
 });
 
-test("captureEvent never hands ledgerOnly props to posthog.capture — the privacy-load-bearing assertion", (t) => {
+test("search_submitted carries the search's shape and no ledger-only words, so no analytics sink keeps what was typed", (t) => {
   withReadyPostHog(t, (capture) => {
-    captureEvent(
-      "search_submitted",
-      { query_length: 19, has_location: true, filter_count: 1 },
-      { query_text: "some raw query text" },
-    );
+    captureEvent("search_submitted", { query_length: 19, has_location: true, filter_count: 1 });
 
     assert.equal(capture.mock.calls.length, 1);
     const posthogPayload = capture.mock.calls[0].arguments[1] as Record<string, unknown>;
-    assert.equal("query_text" in posthogPayload, false, "raw query text must never reach PostHog");
     assert.deepEqual(posthogPayload, { query_length: 19, has_location: true, filter_count: 1 });
   });
 });

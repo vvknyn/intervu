@@ -66,3 +66,17 @@ test("selection: whitespace collapsed and capped", () => {
         site: "jobs.example.org",
     });
 });
+
+test("a place written with an ISO country code is not part of the search, on any site", () => {
+    assert.equal(q("Senior Cloud Technical Account Manager - Vancouver, CAN , AWS Enterprise Support"), "Senior Cloud Technical Account Manager");
+    assert.equal(q("Data Engineer | Bangalore, IND"), "Data Engineer");
+    assert.equal(q("Engineer, Web Platform - Acme"), "Engineer, Web Platform Acme");
+});
+
+test("a posting's reference number is not part of the search", () => {
+    assert.equal(
+        q("Senior Cloud Technical Account Manager - Vancouver, CAN , AWS Enterprise Support - Job ID: 10575719 | Careers"),
+        "Senior Cloud Technical Account Manager",
+    );
+    assert.equal(q("Payroll Specialist | Req #R-1234 | Acme"), "Payroll Specialist Acme");
+});

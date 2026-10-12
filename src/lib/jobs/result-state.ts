@@ -131,6 +131,19 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
 }
 
 /**
+ * An employer search with a place asked for lists the employer's roles in that
+ * place first, then its roles elsewhere (`JobSearchResult.inPlace` marks where
+ * the first group ends). This is the caption that says so, rather than leaving
+ * out-of-place rows to read as matches for the place. `null` means render
+ * nothing: no place was asked for, or every row is in it.
+ */
+export function employerElsewhereNote(inPlace: number | undefined, total: number): string | null {
+    if (inPlace === undefined || inPlace >= total) return null;
+    if (inPlace === 0) return "No roles at this employer match your location — showing its roles elsewhere.";
+    return `Showing ${inPlace} ${inPlace === 1 ? "role" : "roles"} in your location first, then this employer's roles elsewhere.`;
+}
+
+/**
  * Pure: the `search_zero_results` analytics payload (lib/analytics/events.ts)
  * for one failed search — everything needed to reconstruct WHICH filter
  * combination produced zero hits from a dashboard, without ever carrying the
@@ -154,22 +167,16 @@ export function unmatchedPlaceNote(mentions: string[] | undefined): string | nul
  * by name — a facet added to `FilterState` later is covered by construction,
  * the same guarantee `activeFilterEntries` already gives its other callers.
  *
- * `defaultedLocation`/`unmatchedPlaceMentions` are the two location-resolver
- * outputs that actually reach the client today (see `searchJobsAction`'s
- * return type, actions/jobs.ts): an IP-based default country, and typed
- * location text the resolver could not match to anything in the corpus. The
- * resolver's interpretation of a place it DID recognize — the over-
- * resolution bug class ("US CA San Diego" -> huge match set) — is NOT
- * included: `places` (query-understanding.ts) is consumed only inside
- * `searchJobs` to build the backend filter and is never part of
- * `JobSearchResult`, so there is nothing to read here without a new API
- * field — out of scope for this change, left as a finding rather than
- * invented.
+ * `defaultedLocation` is the IP-based default country the search response
+ * carries (actions/jobs.ts). The typed places the resolver could not match
+ * (`unmatchedPlaceMentions`) are not sent: they are words a person typed, and
+ * this event is tied to a signed-in account. The anonymous search log keeps
+ * them for the demand view (`unmatchedPlaces`, lib/jobs/search-log.ts).
  */
 export function buildZeroResultPayload(
     filterState: FilterState,
     query: string,
-    location: { defaultedLocation?: string; unmatchedPlaceMentions?: string[] },
+    location: { defaultedLocation?: string },
 ): EventPayloads["search_zero_results"] {
     return {
         query_length: query.trim().length,
@@ -179,7 +186,6 @@ export function buildZeroResultPayload(
             value: entry.label,
         })),
         defaulted_location: location.defaultedLocation ?? null,
-        unmatched_place_mentions: location.unmatchedPlaceMentions ?? [],
     };
 }
 

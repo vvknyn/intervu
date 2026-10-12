@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BoardComparisonTable } from "@/components/marketing/BoardComparisonTable";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
 import { JOB_SEARCH_FAQ } from "@/lib/faq";
+import { blogPostPath } from "@/lib/blog/posts";
+import { IS_VELAI_LEGIT } from "@/lib/blog/is-velai-legit";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
@@ -86,7 +88,8 @@ export default function AboutPage() {
 
         <SectionTitle>Contact</SectionTitle>
         <p>
-          Questions or feedback: use the <Link href="/contact">contact page</Link>.
+          Questions or feedback: use the <Link href="/contact">contact page</Link>. Wondering whether velai is
+          legit? Here&apos;s <Link href={blogPostPath(IS_VELAI_LEGIT.slug)}>how to check it yourself</Link>.
         </p>
       </Prose>
 

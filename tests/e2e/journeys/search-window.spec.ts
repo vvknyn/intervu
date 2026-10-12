@@ -317,3 +317,30 @@ test("the job page's posting check shows the later of the two check dates", { ta
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("typing Remote in the place box searches remote roles and keeps the visitor's own country, instead of switching it off", { tag: ["@J-SRCH-36"] }, async ({ page, diagnostics }) => {
+  // Focus group, 2026-10-12: a Canadian typed "Remote" and got roles in India and Colombia first ("Remote means Mumbai
+  // and Bangalore? I need remote from Canada."). Typed, it was read as a place, which switched the country default off for good.
+  test.skip(test.info().project.name === "mobile", "the place box is a text field from lg up; phones pick a place in a sheet");
+  await returningVisitor(page);
+  const bodies: { facets?: Record<string, string[]>; suppressLocationDefault?: boolean }[] = [];
+  page.on("request", (req) => {
+    if (isListSearch(req)) bodies.push(req.postDataJSON());
+  });
+  await page.goto("/jobs?q=backend%20engineer");
+  const place = page.getByRole("combobox", { name: "Location" }).first();
+  await expect(place).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => bodies.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await place.fill("Remote");
+  await place.press("Enter");
+
+  const remote = () => bodies.filter((b) => (b.facets?.work_type ?? []).includes("remote"));
+  await expect.poll(() => remote().length, { timeout: 15_000 }).toBeGreaterThan(0);
+  for (const body of remote()) {
+    expect(body.facets?.location_country ?? []).not.toContain("Remote");
+    expect(body.suppressLocationDefault ?? false).toBe(false);
+  }
+  expect(await page.evaluate(() => localStorage.getItem("intervu.jobs.suppressLocationDefault"))).toBeNull();
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});

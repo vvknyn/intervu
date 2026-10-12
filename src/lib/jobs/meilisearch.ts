@@ -18,8 +18,11 @@ import {
   type CompanyNameSample,
 } from "./company-intent";
 import {
+  assembleCompanyLanePool,
   buildCompanyScopedSearchLanes,
+  companyLaneTailWindow,
   shouldRunCompanyScopedLanes,
+  type CompanyLaneFetch,
 } from "./company-scoped-lanes";
 import { isTechSkillQuery } from "./tech-skills";
 import { decodeText, displayCompanyBrand, humanizeTenantSubdomain, isDomainSquashName, titleMatchesQuery, titleRelevanceScore } from "./presentation";
@@ -1337,22 +1340,28 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     let result: JobSearchResult;
 
     if (shouldRunCompanyScopedLanes(companyScoped, searchParams)) {
-      const { hits: laneHits, facetDistribution } = await fetchCompanyScopedLaneHits(h, searchParams, companyScoped);
-      const seen = new Set<string>();
-      const unique: PublicJob[] = [];
-      for (const hit of laneHits) {
-        if (seen.has(hit.id)) continue;
-        seen.add(hit.id);
-        unique.push(hit);
-      }
-      const ranked = isRelevance ? applyRelevanceQualityReranking(unique, p.q ?? "") : unique;
+      const { lanes, facetDistribution } = await fetchCompanyScopedLanes(h, searchParams, companyScoped);
+      const pool = assembleCompanyLanePool(lanes, (hits) =>
+        isRelevance ? applyRelevanceQualityReranking(hits, p.q ?? "") : hits,
+      );
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
+      // A page past the pooled rows is served by the tail lane (the pooled ids
+      // excluded), so the total can be the true match count instead of the pool size.
+      const tailWindow = pool.tail ? companyLaneTailWindow(pool.hits.length, offset, limit) : null;
+      const tail = pool.tail && tailWindow
+        ? await searchCompanyLane(h, pool.tail, companyScoped, {
+            ...tailWindow,
+            withFacets: false,
+            excludeIds: pool.hits.map((hit) => hit.id),
+          })
+        : null;
       // Lane-priority order IS the ranking for every sort — skip applySortIntegrityGuard
       // (same as relevance role-title lane; guard would flatten newest/salary lanes).
       return {
-        hits: pageRoleTitleHits(ranked, offset, limit),
-        total: ranked.length,
+        hits: [...pageRoleTitleHits(pool.hits, offset, limit), ...(tail?.hits ?? [])],
+        total: pool.total,
+        ...(pool.inPlace !== undefined && { inPlace: pool.inPlace }),
         backend: "meilisearch",
         configured: true,
         facetDistribution,
@@ -1443,58 +1452,72 @@ export function pageRoleTitleHits(ranked: PublicJob[], offset: number, limit: nu
 
 const COMPANY_LANE_HIT_LIMIT = 100;
 
-async function fetchCompanyScopedLaneHits(
+/**
+ * One window of one company-scoped lane. Pinned to relevance regardless of the
+ * caller's requested sort: the first fetch is capped at COMPANY_LANE_HIT_LIMIT,
+ * and a capped fetch's top-N is only stable when the ORDER BY is fixed — under
+ * newest/salary_desc the same cap would silently admit a different top-N per
+ * sort, making lane membership sort-dependent. `total` is what the lane matches
+ * in all, not the window's size; `excludeIds` drops rows already pooled.
+ */
+async function searchCompanyLane(
+  h: string,
+  laneParams: JobSearchParams,
+  companyScoped: boolean,
+  window: { limit: number; offset: number; withFacets: boolean; excludeIds?: string[] },
+  legacy = false,
+): Promise<{ hits: PublicJob[]; total: number; facetDistribution?: FacetDistribution }> {
+  const body = buildSearchBody(
+    { ...laneParams, withFacets: window.withFacets, limit: window.limit, offset: window.offset, sort: "relevance" },
+    legacy,
+    "all",
+    { companyScoped },
+  );
+  if (window.excludeIds?.length) body.filter.push(`NOT id IN ${JSON.stringify(window.excludeIds)}`);
+  const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    cache: "no-store",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok && res.status === 400) {
+    const text = await res.text().catch(() => "");
+    if (/posted_ts/i.test(text) && !legacy) {
+      return searchCompanyLane(h, laneParams, companyScoped, window, true);
+    }
+    return { hits: [], total: 0 };
+  }
+  if (!res.ok) return { hits: [], total: 0 };
+  const json = (await res.json()) as {
+    hits?: PublicJob[];
+    estimatedTotalHits?: number;
+    totalHits?: number;
+    facetDistribution?: Record<string, Record<string, number>>;
+  };
+  return {
+    hits: normalizePublicJobs(json.hits ?? []),
+    total: json.totalHits ?? json.estimatedTotalHits ?? 0,
+    facetDistribution: json.facetDistribution as FacetDistribution | undefined,
+  };
+}
+
+async function fetchCompanyScopedLanes(
   h: string,
   p: JobSearchParams,
   companyScoped: boolean,
-): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> {
-  const lanes = buildCompanyScopedSearchLanes(p);
-  const searchLane = async (
-    laneParams: JobSearchParams,
-    withFacets: boolean,
-    legacy: boolean,
-  ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
-    // Pinned to relevance regardless of the caller's requested sort: this
-    // fetch is capped at COMPANY_LANE_HIT_LIMIT, and a capped fetch's top-N
-    // is only stable when the ORDER BY is fixed — under newest/salary_desc
-    // the same cap would silently admit a different top-N per sort, making
-    // lane membership sort-dependent. The caller (searchMeili) re-orders the
-    // assembled union by the requested sort AFTER retrieval.
-    const body = buildSearchBody(
-      { ...laneParams, withFacets, limit: COMPANY_LANE_HIT_LIMIT, offset: 0, sort: "relevance" },
-      legacy,
-      "all",
-      { companyScoped },
-    );
-    const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
-      cache: "no-store",
-      body: JSON.stringify(body),
-    });
-    if (!res.ok && res.status === 400) {
-      const text = await res.text().catch(() => "");
-      if (/posted_ts/i.test(text) && !legacy) {
-        return searchLane(laneParams, withFacets, true);
-      }
-      return { hits: [] };
-    }
-    if (!res.ok) return { hits: [] };
-    const json = (await res.json()) as {
-      hits?: PublicJob[];
-      facetDistribution?: Record<string, Record<string, number>>;
-    };
-    return {
-      hits: normalizePublicJobs(json.hits ?? []),
-      facetDistribution: json.facetDistribution as FacetDistribution | undefined,
-    };
-  };
-
+): Promise<{ lanes: CompanyLaneFetch[]; facetDistribution?: FacetDistribution }> {
+  const laneParams = buildCompanyScopedSearchLanes(p);
   const batches = await Promise.all(
-    lanes.map((laneParams, i) => searchLane(laneParams, i === 0 && !!p.withFacets, false)),
+    laneParams.map((params, i) =>
+      searchCompanyLane(h, params, companyScoped, {
+        limit: COMPANY_LANE_HIT_LIMIT,
+        offset: 0,
+        withFacets: i === 0 && !!p.withFacets,
+      }),
+    ),
   );
   return {
-    hits: batches.flatMap((b) => b.hits),
+    lanes: laneParams.map((params, i) => ({ params, hits: batches[i].hits, total: batches[i].total })),
     facetDistribution: batches[0]?.facetDistribution,
   };
 }
@@ -1612,7 +1635,7 @@ async function fetchRoleTitleLaneHits(
     withFacets: boolean,
     legacy: boolean,
   ): Promise<{ hits: PublicJob[]; facetDistribution?: FacetDistribution }> => {
-    // Pinned to relevance for the same reason as fetchCompanyScopedLaneHits
+    // Pinned to relevance for the same reason as searchCompanyLane
     // above: each pair query is capped at 1000 hits, and a fixed cap is only
     // safe under a fixed order — some pairs (e.g. "director product") match
     // well over 1000 docs, so a sort-varying top-1000 would make the lane's
@@ -2280,7 +2303,7 @@ export async function fetchJobSuggestions(q: string): Promise<JobSuggestions> {
 export async function probeCompanyNames(phrase: string, sampleSize: number): Promise<CompanyNameSample> {
   const query = phrase.trim();
   const h = host();
-  const empty: CompanyNameSample = { total: 0, companies: [], domains: [] };
+  const empty: CompanyNameSample = { total: 0, companies: [], domains: [], titles: [] };
   if (!h || !query) return empty;
   try {
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -2294,12 +2317,12 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
         filter: buildFilter({ q: query }),
         hitsPerPage: sampleSize,
         page: 1,
-        attributesToRetrieve: ["company", "company_domain"],
+        attributesToRetrieve: ["company", "company_domain", "title"],
       }),
     });
     if (!res.ok) return empty;
     const body = (await res.json()) as {
-      hits?: { company?: string | null; company_domain?: string | null }[];
+      hits?: { company?: string | null; company_domain?: string | null; title?: string | null }[];
       totalHits?: number;
       estimatedTotalHits?: number;
     };
@@ -2308,6 +2331,7 @@ export async function probeCompanyNames(phrase: string, sampleSize: number): Pro
       total: body.totalHits ?? body.estimatedTotalHits ?? hits.length,
       companies: hits.map((hit) => hit.company ?? ""),
       domains: hits.map((hit) => (hit.company_domain ?? "").trim().toLowerCase()),
+      titles: hits.map((hit) => hit.title ?? ""),
     };
   } catch {
     return empty;

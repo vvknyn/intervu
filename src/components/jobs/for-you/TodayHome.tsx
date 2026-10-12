@@ -33,6 +33,8 @@ import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { HubPanel, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
 import { NeedsYouView, useNeedsYouRemote, type NeedsYouRemoteState } from "@/components/jobs/for-you/NeedsYou";
 import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
+import { DailyPicksTodayLine, useDailyPicks } from "@/components/daily-picks/DailyPicksSwitch";
+import { pinEmailed } from "@/lib/daily-picks/pick";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
 import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -287,7 +289,14 @@ export function TodayHome({
     // Ratings reorder the picks the visitor hasn't reached; the rows down to the one they rated stay put.
     const nudges = useDeckNudges();
     const [held, setHeld] = useState<readonly string[]>([]);
-    const picks = useMemo(() => tuneToday(ranked, nudges, held, nowMs), [ranked, nudges, held, nowMs]);
+    // The daily picks email (lib/daily-picks): its switch, and the last email's roles pinned at the top while it's recent.
+    const daily = useDailyPicks(auth === "signed-in" && accountKey != null, accountKey, "today");
+    const emailed = daily.view?.emailedIds;
+    const emailedIds = useMemo(() => new Set(emailed ?? []), [emailed]);
+    const picks = useMemo(
+        () => pinEmailed(tuneToday(ranked, nudges, held, nowMs), emailed ?? []),
+        [ranked, nudges, held, nowMs, emailed],
+    );
     const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
 
@@ -386,6 +395,8 @@ export function TodayHome({
             appliedWaiting={appliedWaiting}
             nowMs={nowMs}
             likedIds={liked}
+            emailedIds={emailedIds}
+            dailyEmail={auth === "signed-in" ? <DailyPicksTodayLine control={daily} /> : null}
             tuning={tuning ? tuningLine(tuning) : null}
             gate={
                 auth === "signed-out" ? (
@@ -482,6 +493,8 @@ export function TodayHomeView({
     appliedWaiting = 0,
     nowMs,
     likedIds,
+    emailedIds,
+    dailyEmail = null,
     tuning,
     rowLimit = TODAY_PICK_ROWS,
     gate = null,
@@ -525,6 +538,10 @@ export function TodayHomeView({
     nowMs: number;
     /** Picks given a thumbs up. */
     likedIds: ReadonlySet<string>;
+    /** Picks the last daily picks email named (pinned first by `pinEmailed`): each row says "Emailed". */
+    emailedIds?: ReadonlySet<string>;
+    /** The daily picks email switch (`DailyPicksTodayLine`), under the summary once picks are ranked. */
+    dailyEmail?: ReactNode;
     /** "Tuned toward …, away from …." while ratings steer the list. */
     tuning: string | null;
     /** Rows shown: `TODAY_PICK_ROWS`, or a guest's fit preview (`FIT_GUEST_PREVIEW_ROWS`). */
@@ -631,6 +648,7 @@ export function TodayHomeView({
                               : "What needs you today. Add your résumé and this week's roles that fit it show here too."}
                     </p>
                     {summaryLine}
+                    {matched && dailyEmail ? dailyEmail : null}
                     {matched && tuning ? (
                         <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground" data-testid="today-tuning">
                             <span className="min-w-0" aria-live="polite">
@@ -731,6 +749,7 @@ export function TodayHomeView({
                                         nowMs={nowMs}
                                         isNew={newIds ? newIds.has(role.job.id) : isNewSince(role.job, sinceMs)}
                                         liked={likedIds.has(role.job.id)}
+                                        emailed={emailedIds?.has(role.job.id) ?? false}
                                         onOpen={() => onOpen?.(role)}
                                         onApply={() => onApply(role)}
                                         onMore={() => onMore(role)}
@@ -766,6 +785,7 @@ function TodayRow({
     nowMs,
     isNew,
     liked,
+    emailed,
     onOpen,
     onApply,
     onMore,
@@ -775,6 +795,8 @@ function TodayRow({
     nowMs: number;
     isNew: boolean;
     liked: boolean;
+    /** Named in the last daily picks email. */
+    emailed: boolean;
     onOpen: () => void;
     onApply: () => void;
     onMore: () => void;
@@ -817,6 +839,11 @@ function TodayRow({
                                 isNew && (
                                     <span key="new" className="font-semibold text-foreground" data-testid="today-new-badge">
                                         New
+                                    </span>
+                                ),
+                                emailed && (
+                                    <span key="emailed" data-testid="today-emailed-badge">
+                                        Emailed
                                     </span>
                                 ),
                                 age && (

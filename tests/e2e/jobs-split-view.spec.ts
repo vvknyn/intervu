@@ -37,7 +37,7 @@ async function enterBrowseMode(page: Page) {
     await page.goto('/jobs?posted=any');
     await page.waitForLoadState('networkidle');
     await expect(
-        page.getByRole('listbox', { name: 'Job results' })
+        page.getByRole('region', { name: 'Job results' })
             .or(page.getByText(/Job search is being connected/i))
             .or(page.getByText(/No roles match/i))
             .or(page.getByText(/Job search is temporarily unavailable/i))
@@ -51,7 +51,7 @@ test.describe('JOBS-SPLIT-VIEW - xl+ two-panel selector', () => {
     test('(a) renders the list AND an auto-previewed first job in the pane, no sheet, no ?job=', async ({ page }) => {
         await enterBrowseMode(page);
 
-        await expect(page.getByRole('listbox', { name: 'Job results' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Job results' })).toBeVisible();
         const pane = page.getByTestId('detail-pane');
         await expect(pane).toBeVisible();
         const rows = page.getByTestId('job-row');
@@ -90,7 +90,7 @@ test.describe('JOBS-SPLIT-VIEW - xl+ two-panel selector', () => {
         // A pane, not a modal takeover — the list stays visible and
         // reachable (unlike the sheet, which marks the background
         // aria-hidden).
-        await expect(page.getByRole('listbox', { name: 'Job results' })).toBeVisible();
+        await expect(page.getByRole('region', { name: 'Job results' })).toBeVisible();
         await expect(secondRow).toBeVisible();
         await expect(page).toHaveURL(/[?&]job=/);
         await expect(page.getByRole('dialog')).toHaveCount(0);

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  COMPANY_INTENT_MAX_TITLE_ECHO,
   COMPANY_INTENT_MIN_EXACT,
   COMPANY_INTENT_MIN_RATIO,
   companyNameStem,
@@ -8,6 +9,7 @@ import {
   isCompanyNameQuery,
   normalizeCompanyName,
 } from "../../src/lib/jobs/company-intent";
+import { COMPANY_PROBES } from "../fixtures/company-intent-probes";
 
 /**
  * Every `companies` array below is a LIVE sample taken from the company
@@ -138,4 +140,101 @@ test("dominantCompanyDomains fails open when domains are missing", () => {
         dominantCompanyDomains("stripe", sample(Array(10).fill("Stripe"), 100)),
         [],
     );
+});
+
+/**
+ * Live probes (tests/fixtures/company-intent-probes.ts, index as of 2026-10-12).
+ * The index holds "companies" that are really a job-title fragment the scraper
+ * split off ("Storekeeper - Warehouse" arrives with company "Warehouse"), so a
+ * role word can dominate the company field exactly like an employer does.
+ */
+const probe = (q: string, withTitles = true) => {
+    const { total, rows } = COMPANY_PROBES[q];
+    return {
+        total,
+        companies: rows.map(([c]) => c),
+        domains: rows.map(([, d]) => d),
+        ...(withTitles && { titles: rows.map(([, , t]) => t) }),
+    };
+};
+const verdict = (q: string) => isCompanyNameQuery(q, probe(q));
+
+test("a role word that the index carries as a junk company is NOT a company query", () => {
+    for (const q of ["warehouse", "mechanic", "production", "plumber"]) {
+        assert.equal(
+            isCompanyNameQuery(q, probe(q, false)),
+            true,
+            `${q}: dominance alone passes (the pre-fix verdict), so the title evidence is what has to reject it`,
+        );
+        assert.equal(verdict(q), false, `${q} stays a title search`);
+    }
+});
+
+test("generic nouns that name rows AND titles are not company queries either", () => {
+    // Not role words, but the same shape: every row that is "named" bank/healthcare
+    // repeats the word in its own title.
+    for (const q of ["bank", "healthcare"]) {
+        assert.equal(verdict(q), false, q);
+    }
+});
+
+test("role words whose company probe names nobody stay title searches", () => {
+    for (const q of [
+        "nurse", "cashier", "welder", "driver", "teacher", "retail", "server",
+        "customer service", "electrician", "janitor", "forklift",
+    ]) {
+        assert.equal(verdict(q), false, q);
+    }
+});
+
+test("real employers keep company intent — including a multi-word name", () => {
+    const employers = [
+        "shopify", "amazon", "rbc", "walmart", "stripe", "cloudflare", "deloitte", "microsoft",
+        "jpmorgan chase", "google", "apple", "target", "starbucks", "telus", "dollarama",
+        "uber", "salesforce", "netflix", "tesla", "cisco",
+    ];
+    assert.ok(employers.some((q) => q.includes(" ")), "at least one multi-word employer");
+    for (const q of employers) {
+        assert.equal(verdict(q), true, q);
+    }
+});
+
+test("title evidence only ever withdraws company intent; it never grants it", () => {
+    for (const q of Object.keys(COMPANY_PROBES)) {
+        if (verdict(q)) assert.equal(isCompanyNameQuery(q, probe(q, false)), true, q);
+    }
+    // Employers the 10-row sample cannot establish stay as undecided as before.
+    for (const q of ["cleveland clinic", "air canada"]) {
+        assert.equal(verdict(q), isCompanyNameQuery(q, probe(q, false)), q);
+    }
+});
+
+test("the title-echo threshold is enforced at its boundary", () => {
+    const named = (echoed: number) => ({
+        total: 100,
+        companies: Array(10).fill("Acme Works"),
+        domains: Array(10).fill("acme.com"),
+        titles: Array.from({ length: 10 }, (_, i) => (i < echoed ? "Acme Works lead" : "Senior Analyst")),
+    });
+    const atLimit = COMPANY_INTENT_MAX_TITLE_ECHO * 10;
+    assert.equal(isCompanyNameQuery("acme works", named(atLimit - 1)), true);
+    assert.equal(isCompanyNameQuery("acme works", named(atLimit)), false);
+    assert.equal(isCompanyNameQuery("acme works", named(10)), false);
+});
+
+test("a title repeats the query only when it carries every word of it", () => {
+    const sampleOf = (titles: string[]) => ({
+        total: 100,
+        companies: Array(titles.length).fill("Acme Works"),
+        domains: Array(titles.length).fill("acme.com"),
+        titles,
+    });
+    assert.equal(isCompanyNameQuery("acme works", sampleOf(Array(10).fill("Acme Staff"))), true);
+    assert.equal(isCompanyNameQuery("acme works", sampleOf(Array(10).fill("Works Supervisor at ACME"))), false);
+});
+
+test("no title evidence means no veto (dominance decides, as before)", () => {
+    assert.equal(isCompanyNameQuery("warehouse", probe("warehouse", false)), true);
+    const blank = { ...probe("warehouse", false), titles: Array(10).fill("") };
+    assert.equal(isCompanyNameQuery("warehouse", blank), true);
 });

@@ -103,6 +103,34 @@ test("A failed email-preferences read ends in an error with Try again, and Try a
   await expect(page.getByRole("switch", { name: "Weekly digest" })).toBeVisible();
 });
 
+test("Daily picks are off until you turn them on, and turning them on says when none can go out yet", { tag: ["@J-SETTINGS-34"] }, async ({ page, diagnostics }) => {
+  let on = false;
+  const writes: string[] = [];
+  await answerActions(page, (body, text) => {
+    if (text.includes("Sign in to manage email preferences.")) return { data: { digestEnabled: true, needsEmail: false, blockedGlobally: false } };
+    if (!text.includes("Sign in to get daily picks.")) return undefined;
+    // getDailyPicksAction takes no arguments; setDailyPicksAction takes on/off.
+    if (body === "[]") return { data: { on, reachable: true, blockedGlobally: false, emailedIds: [], resumeReady: on ? false : null } };
+    writes.push(body);
+    on = body === "[true]";
+    return { success: true };
+  });
+  await page.goto("/mock/settings?tab=account");
+
+  const row = page.getByTestId("daily-picks-setting");
+  const toggle = row.getByRole("switch", { name: "Daily picks" });
+  await expect(toggle).toHaveAttribute("aria-checked", "false", { timeout: 30_000 });
+  await expect(row).toContainText("Up to 5 new roles a day that fit your résumé and level, each with why.");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect.poll(() => writes).toEqual(["[true]"]);
+  // The saved résumé here can't be ranked: it says no email can go out yet, and where to fix that.
+  const notReady = row.getByTestId("daily-picks-resume-not-ready");
+  await expect(notReady).toContainText("None can go out yet");
+  await expect(notReady.getByRole("link", { name: "Upload it on Jobs" })).toHaveAttribute("href", "/jobs");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("The follow-alerts bell links to the companies you follow, not the Elite board", { tag: ["@J-NAV-40"] }, async ({ page }) => {
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", displayName: "Ada Lovelace", email: "ada@example.com" };

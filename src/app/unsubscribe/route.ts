@@ -45,6 +45,7 @@ const SCOPE_LABEL: Record<UnsubscribeScope, string> = {
     // doc comment) — kept so this Record stays exhaustive over EmailKind.
     password_reset: "password reset messages",
     marketing_update: "product update emails",
+    daily_picks: "daily pick emails",
     all: "all velai emails",
 };
 

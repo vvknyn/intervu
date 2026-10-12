@@ -24,6 +24,8 @@
  *     return a fresh array reference every call and loop.
  */
 
+import { indexCategories } from "@/lib/jobs/index-categories";
+
 export const RECENT_SEARCHES_KEY = "interview-os-recent-searches";
 const DEFAULT_MAX = 3;
 
@@ -158,14 +160,13 @@ export function clearAllRecentSearches(): void {
  * fill first, this backfills the rest. Exported so it stays the one list a
  * future surface would reuse rather than a second hand-typed copy.
  */
-export const CURATED_SEARCH_SEEDS = [
-    "Remote Software Engineer",
-    "AI / Machine Learning",
-    "Product Manager",
-    "Data Scientist",
-    "Remote Frontend Developer",
-    "Product Designer",
-    "DevOps Engineer",
+export const CURATED_SEARCH_SEEDS: string[] = [
+    // One per field, from the field directory itself, then two office roles.
+    // These were seven software titles, so a teacher or a nurse whose search
+    // came back thin was offered only tech searches (focus group, 2026-10-12).
+    ...indexCategories.map((c) => c.q),
+    "Accountant",
+    "Data Analyst",
 ];
 
 const SEED_TARGET = 8;

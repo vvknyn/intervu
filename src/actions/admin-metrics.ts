@@ -2,6 +2,8 @@
 
 import { isCurrentUserAdmin } from "@/actions/admin";
 import { collectMetrics, type MetricsReport } from "@/lib/admin/metrics";
+import { collectSearchDemand } from "@/lib/admin/search-demand-collect";
+import type { SearchDemand } from "@/lib/admin/search-demand";
 
 /**
  * The only door between the metrics collector (server-only, firebase-admin)
@@ -21,5 +23,16 @@ export async function fetchAdminMetrics(): Promise<{ report: MetricsReport } | {
         // isolates into that metric's own `error`.
         console.error("[admin-metrics] collection failed:", error);
         return { error: error instanceof Error ? error.message : "Failed to read metrics." };
+    }
+}
+
+/** The admin "Search demand" lists (lib/admin/search-demand.ts), behind the same gate. */
+export async function fetchSearchDemand(): Promise<{ demand: SearchDemand } | { error: string }> {
+    if (!(await isCurrentUserAdmin())) return { error: "Forbidden" };
+    try {
+        return { demand: await collectSearchDemand() };
+    } catch (error) {
+        console.error("[admin-metrics] search demand failed:", error);
+        return { error: error instanceof Error ? error.message : "Failed to read search demand." };
     }
 }
