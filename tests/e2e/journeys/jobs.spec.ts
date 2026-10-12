@@ -1376,6 +1376,53 @@ signedInTest("a role whose title manages people reads Stretch for a résumé tha
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+test("an intern's résumé ranks entry-level roles, however long its dates run, and says the level came from their title", { tag: ["@J-JOBS-120"] }, async ({ page, diagnostics }) => {
+  // Focus group, 2026-10-12: a "Data Science Intern" since January 2021 read as mid, and the Mid filter left
+  // "Nothing matches these filters." The title held now sets the level: an intern is entry level.
+  await returningVisitor(page);
+  await page.addInitScript(([enabledKey, resumeKey]) => {
+    const resume = {
+      profile: { name: "Sample Intern", profession: "Data Science Intern", yearsOfExperience: 5, location: "Montreal, QC", email: "intern@example.com", phone: "", linkedin: "", website: "" },
+      experience: [{ id: "e1", company: "Studio", role: "Data Science Intern", dates: "Jan 2021 - Present", description: "Built churn models in Python and scikit-learn." }],
+      competencies: [{ category: "Skills", skills: ["Python", "SQL", "Pandas", "scikit-learn"] }],
+      education: [],
+      generatedSummary: "Graduate student in data science looking for an internship or new grad role.",
+    };
+    localStorage.setItem(enabledKey, "1");
+    localStorage.setItem(resumeKey, JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "e2e-journey-synthetic" }));
+  }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
+  const levels: string[][] = [];
+  page.on("request", (req) => {
+    if (!isListSearch(req)) return;
+    const level = (req.postDataJSON() as { facets?: Record<string, string[]> }).facets?.experience_level;
+    if (level) levels.push(level);
+  });
+  const hits = [remoteRole("intern", "Data Science Intern", "Remote, Canada", { tags: [], experience_level: "entry" })];
+  await page.route("**/api/jobs/search", (route) => answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "e2e-intern-level" }));
+  // A returning guest with a résumé opens /jobs on its matches (J-JOBS-54): the list asks for the résumé's level.
+  await page.goto("/jobs");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(1, { timeout: 60_000 });
+  await expect.poll(() => levels.length, { timeout: 15_000 }).toBeGreaterThan(0);
+  expect(levels.every((level) => level.length === 1 && level[0] === "entry"), JSON.stringify(levels)).toBe(true);
+  const chip = page.locator('[data-testid="job-row"][data-job-id="intern"]').getByTestId("match-chip");
+  await expect(chip).toHaveText("Strong", { timeout: 60_000 });
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("matches the entry level of your title, Data Science Intern");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 signedInTest("a fit-ranked list opened again leads with roles this device hasn't shown before, inside the same fit, and a role's reason says what the résumé's level was read from", { tag: ["@J-JOBS-111"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-06: "I keep seeing the same fucking result" and "users should be able to trust our results with why those results were returned".
   await returningVisitor(page);

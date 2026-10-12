@@ -87,7 +87,8 @@ const DUTY_SIGNALS: Readonly<Record<RoleFamilyId, ReadonlySet<string>>> = {
 /** Short retrieval titles emitted per inferred family (for Meili `q`). */
 const FAMILY_RETRIEVAL_TITLES: Readonly<Record<RoleFamilyId, readonly string[]>> = {
     product: ["Product Manager", "Technical Product Manager"],
-    engineering: ["Software Engineer", "Backend Engineer"],
+    // The family's own titles, not a specialty in it: "Backend Engineer" was a web developer's search.
+    engineering: ["Software Engineer", "Software Developer"],
     data: ["Data Analyst", "Data Engineer"],
     design: ["UX Designer", "Product Designer"],
     marketing: ["Marketing Manager", "Digital Marketing Specialist"],

@@ -54,10 +54,11 @@ describe('what the TAM résumé searches for', () => {
         assert.deepEqual(resolveCandidateSignals(TAM, null).location.value?.countries, ['Canada']);
     });
 
-    it('searches its own title first, then customer success, then product (the order its summary names them)', () => {
+    it('searches its own title first, then customer success, and not the product roles its summary also names', () => {
+        // Titles the search adds stay in the résumé's own line of work (focus group, 2026-10-12: a CSM's search added "Product Manager").
         assert.deepEqual(
             buildMatchQuery(TAM, NOW_YEAR).phrases.map((p) => p.toLowerCase()),
-            ['technical account manager', 'customer success manager', 'product manager', 'technical product manager'],
+            ['technical account manager', 'customer success manager'],
         );
         assert.deepEqual(targetRoles(TAM).families, ['customer_success', 'product']);
     });
@@ -99,11 +100,12 @@ describe('how close a posting is to the candidate\'s own role', () => {
         assert.ok(backend.total >= MATCH_BAND_STRONG_MIN, `backend scored ${backend.total}`);
     });
 
-    it('a PM résumé keeps its product roles Strong and a Program Manager role Good', () => {
+    it('a PM résumé keeps its product roles Strong; a Program Manager role, another kind of job it no longer searches, is a Stretch', () => {
         assert.equal(roleAffinity(PM, canada('Technical Product Manager', 'senior')), 'own');
         const program = score(PM, canada('Program Manager', 'senior'))!;
-        assert.equal(program.role, 'adjacent');
-        assert.ok(program.total < MATCH_BAND_STRONG_MIN);
+        assert.equal(program.role, 'off-target');
+        assert.equal(matchBand(program.total), 'stretch');
+        assert.match(explainMatch(program), /It's a different kind of role from your .* work/);
     });
 });
 

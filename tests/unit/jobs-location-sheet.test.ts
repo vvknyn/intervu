@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     addPlaceToFilter,
+    placeFieldFor,
     applyLocationSheetDraft,
     locationTriggerLabel,
     PRISTINE_FILTER_STATE,
@@ -165,6 +166,18 @@ test("addPlaceToFilter: the Remote suggestion turns on the remote work mode, not
     const next = addPlaceToFilter(PRISTINE_FILTER_STATE, "Remote", "work_type");
     assert.deepEqual(next.facets.work_type, ["remote"]);
     assert.equal(next.facets.location_country, undefined);
+});
+
+// Focus group, 2026-10-12: a Canadian typed "Remote" and got India and Colombia first, because the
+// typed word became a place and switched their country off.
+test("addPlaceToFilter: a typed work mode alone is the work mode, not a place", () => {
+    const typed = addPlaceToFilter(PRISTINE_FILTER_STATE, " remote ");
+    assert.deepEqual(typed.facets.work_type, ["remote"]);
+    assert.equal(typed.facets.location_country, undefined);
+    assert.equal(placeFieldFor("Hybrid"), "work_type");
+    // A place with a mode in it is still a place, and a picked field always wins.
+    assert.equal(placeFieldFor("Remote Canada"), undefined);
+    assert.equal(placeFieldFor("Remote", "location_country"), "location_country");
 });
 
 test("locationTriggerLabel: a city picked from a suggestion names the field, not the placeholder", () => {

@@ -145,6 +145,7 @@ import {
     PRISTINE_FILTER_STATE,
     applyLocationSheetDraft,
     addPlaceToFilter,
+    placeFieldFor,
     locationTriggerLabel,
     LOCATION_TRIGGER_PLACEHOLDER,
     type FilterState,
@@ -4146,8 +4147,9 @@ export function JobsContent({
         if (next === filterState) return; // already filtered on this place
         // Explicit place choice supersedes the IP default — same write path
         // the location sheet uses when the searcher commits their own place.
-        // A work mode is not a place, so it leaves the default alone.
-        if (field !== "work_type") suppressLocationDefault();
+        // A work mode is not a place, so it leaves the default alone, typed
+        // ("Remote") or picked ("Remote — anywhere").
+        if (placeFieldFor(value, field) !== "work_type") suppressLocationDefault();
         applyFilterStateWithIntent(next);
     }, [filterState, applyFilterStateWithIntent, suppressLocationDefault]);
 
