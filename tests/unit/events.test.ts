@@ -74,6 +74,7 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
 
     company_viewed: "company_viewed",
     company_unfollowed: "company_unfollowed",
+    daily_picks_set: "daily_picks_set",
 
     search_zero_results: "search_zero_results",
     search_filter_applied: "search_filter_applied",

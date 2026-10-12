@@ -127,6 +127,11 @@ export interface EventPayloads {
   company_unfollowed: {
     company_domain: string;
   };
+  /** The daily picks email turned on or off, and where (lib/daily-picks). */
+  daily_picks_set: {
+    on: boolean;
+    surface: "settings" | "today";
+  };
 
   search_zero_results: {
     query_length: number;

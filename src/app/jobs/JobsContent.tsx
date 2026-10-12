@@ -1709,11 +1709,14 @@ export function JobsContent({
             setEmailNudgeOpen(false);
             return;
         }
-        void getAccountEmailStateAction().then((res) => {
-            if (!res.data) return;
-            setAccountEmailState(res.data.state);
-            setAccountPendingEmail(res.data.pendingEmail);
-        });
+        // A failed read (one still queued when the page is left fails) shows no nudge, never a page error.
+        void getAccountEmailStateAction()
+            .then((res) => {
+                if (!res.data) return;
+                setAccountEmailState(res.data.state);
+                setAccountPendingEmail(res.data.pendingEmail);
+            })
+            .catch(() => {});
     }, [user?.uid]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage

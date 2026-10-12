@@ -10,17 +10,17 @@ import { checkRateLimit, rateLimitedResponse } from "@/lib/agent/rate-limit";
 import { consumeRecordBudget } from "@/lib/agent/record-budget";
 import { consumeCompanyReadBudget } from "@/lib/agent/company-read-budget";
 import {
-    toolSearchJobs, toolGetJob, toolForYou, toolSaveJob, toolMarkApplied,
+    toolSearchJobs, toolGetJob, toolForYou, toolDailyPicks, toolSaveJob, toolMarkApplied,
     toolGetResume, toolSaveResumeVariant, toolGetResumeVariant, toolSetResume,
     toolGetPreferences, toolSetPreferences, toolGetApplications, type ToolDeps,
 } from "@/lib/agent/tools";
 import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
 import { rulesTailor, toolTailorResume } from "@/lib/agent/tailor-tool";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
-import { searchJobs, locationVocabulary } from "@/lib/jobs/search";
-import { hydrateJobDescription } from "@/lib/jobs/hydrate-description";
-import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
-import { siteSearch } from "@/lib/agent/site-search";
+import { locationVocabulary } from "@/lib/jobs/search";
+import { searchAsTheSite } from "@/lib/agent/search-as-the-site";
+import { readDailyPicksSetting, writeDailyPicksSetting } from "@/lib/daily-picks/account";
+import { digestEmailForUid } from "@/lib/email/digest/send";
 import { upsertPursuitCore, findPursuitByJobId } from "@/lib/pursuits/upsert-core";
 import { saveResumeVersionForPursuit } from "@/lib/pursuits/resume-version";
 import { listPursuitsForUser } from "@/lib/pursuits/list";
@@ -152,6 +152,9 @@ function withDeps<K extends McpToolName, In, Out extends object>(
             getCompanyExhaust,
             searchCompanies: (query, limit) => searchCompanies(getExhaustPg(), query, limit),
             tailor: rulesTailor,
+            // The account's own address, as the daily email itself looks it up (digestEmailForUid).
+            getDailyPicks: async (id) => readDailyPicksSetting(id, await digestEmailForUid(id)),
+            setDailyPicksEmail: async (id, on) => writeDailyPicksSetting(id, await digestEmailForUid(id), on),
         };
         try {
             return finish(await run(deps, input));
@@ -164,16 +167,6 @@ function withDeps<K extends McpToolName, In, Out extends object>(
         }
     };
 }
-
-/** Every tool's job read, with the reads the site adds after the bare search
- *  (`site-search.ts`): description places, and a filled description for an
- *  id lookup. No client IP is passed, so no IP location default applies. */
-const searchAsTheSite = siteSearch({
-    search: (params) => searchJobs(params),
-    hydrate: (id) => hydrateJobDescription(id, null),
-    rowPlaces: (hits, opts) => withPlaceRestrictions(hits, opts),
-    wholePlace: withDescriptionPlace,
-});
 
 /**
  * One handler per catalog entry. Typed as a mapped type over `McpToolName`
@@ -189,6 +182,7 @@ const searchAsTheSite = siteSearch({
 const handlers: { [K in McpToolName]: CatalogHandler<K> } = {
     search_jobs: withDeps("search_jobs", toolSearchJobs),
     for_you: withDeps("for_you", toolForYou),
+    daily_picks: withDeps("daily_picks", toolDailyPicks),
     get_job: withDeps("get_job", toolGetJob),
     save_job: withDeps("save_job", toolSaveJob),
     mark_applied: withDeps("mark_applied", toolMarkApplied),

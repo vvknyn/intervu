@@ -43,6 +43,10 @@ import type { SetBaseResumeResult } from "../resume/set-resume";
 import type { AgentPreferences, AgentPreferencesPatch } from "./preferences";
 import { AGENT } from "./config";
 import { withPlaceCountries } from "./place-countries";
+import { collectDailyPicks } from "../daily-picks/collect";
+import { DAILY_PICKS_MAX, wasSent } from "../daily-picks/pick";
+import type { DailyPicksSetting } from "../daily-picks/account";
+import { explainMatch } from "../match/explain";
 import { jobShareUrl } from "../jobs/share-url";
 import { displayCompanyBrand } from "../jobs/presentation";
 import { getSiteUrl } from "../seo/constants";
@@ -161,6 +165,13 @@ export interface ToolDeps {
    *  the route picks the engine (`rulesTailor` today); every engine returns
    *  the same `TailorDraft`, grounded, so the tool doesn't depend on which. */
   tailor: (resume: ResumeData, job: PublicJob) => Promise<TailorDraft>;
+  /** The caller's own daily picks email setting and what it has sent
+   *  (`readDailyPicksSetting`, lib/daily-picks/account.ts) — injected so
+   *  `daily_picks` never touches the store directly. */
+  getDailyPicks: (uid: string) => Promise<DailyPicksSetting>;
+  /** Turns the caller's own daily picks email on or off
+   *  (`writeDailyPicksSetting`): the same write as the site's switch. */
+  setDailyPicksEmail: (uid: string, on: boolean) => Promise<{ ok: true } | { error: string }>;
 }
 
 /**
@@ -709,8 +720,11 @@ export const TEXT_ONLY_RESUME_ERROR = textOnlyResumeText("for_you", "ranks again
 
 /** A structured résumé with no title, role or skills to search by
  *  (`resumeIsUsable`, the same bar /jobs uses). */
-export const UNUSABLE_RESUME_ERROR =
-  "the résumé on file has no job title, role or skills to rank by — add them with set_resume, then retry for_you";
+export const UNUSABLE_RESUME_ERROR = unusableResumeText("for_you");
+
+function unusableResumeText(tool: string): string {
+  return `the résumé on file has no job title, role or skills to rank by — add them with set_resume, then retry ${tool}`;
+}
 
 function noResumeError(base: BaseResume): string {
   if (base.source === "resume_text") return TEXT_ONLY_RESUME_ERROR;
@@ -806,6 +820,68 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
     ...(note ? { note } : {}),
     ...(nextCursor ? { next_cursor: nextCursor } : {}),
     resume_source: base.source,
+  };
+}
+
+export interface DailyPicksInput {
+  email?: boolean;
+}
+
+export interface DailyPickHit extends JobDetailFields {
+  /** Why it fits, in the site's own words (`explainMatch`, the fit chip's hover). */
+  why: string;
+  /** Already sent in a daily picks email (by id, or another listing of the same opening). */
+  emailed: boolean;
+}
+
+export interface DailyPicksOut {
+  picks: DailyPickHit[];
+  email: { on: boolean; last_sent_at: string | null };
+  unavailable?: boolean;
+  note?: string;
+}
+
+/**
+ * Today's picks for the caller's own résumé, and their daily picks email
+ * setting — the SAME `collectDailyPicks` the daily email runs
+ * (lib/daily-picks/collect.ts), so a connected AI, Today on velai.app and the
+ * email name the same roles by the same rules (#855: never a Stretch, never
+ * above their level). `email` turns the email on or off first, through the
+ * site's own write.
+ */
+export async function toolDailyPicks(deps: ToolDeps, input: DailyPicksInput): Promise<DailyPicksOut | { error: string }> {
+  if (input.email !== undefined) {
+    const set = await deps.setDailyPicksEmail(deps.uid, input.email);
+    if ("error" in set) return set;
+  }
+  const setting = await deps.getDailyPicks(deps.uid);
+  const email = { on: setting.on, last_sent_at: setting.state.lastSentAt };
+
+  const result = await collectDailyPicks(deps.uid, deps, { nowMs: Date.now(), sent: setting.state.sent });
+  if (result.kind === "no-resume") {
+    if (result.reason === "text-only") return { error: textOnlyResumeText("daily_picks", "ranks against") };
+    if (result.reason === "unusable") return { error: unusableResumeText("daily_picks") };
+    return { error: noResumeText("daily_picks") };
+  }
+  if (result.kind === "unavailable") {
+    return { picks: [], email, unavailable: true, note: "search backend unavailable — treat as an error, not as zero picks" };
+  }
+
+  const top = result.ranked.slice(0, DAILY_PICKS_MAX);
+  const picks: DailyPickHit[] = top.map((role) => ({
+    ...toJobDetailFields(role.job, result.resume, result.signals),
+    why: explainMatch(role.score),
+    emailed: wasSent(role.job, setting.state.sent),
+  }));
+  const budget = await deps.consumeRecordBudget(picks.length);
+  if (!budget.ok) return { error: budget.error };
+
+  return {
+    picks,
+    email,
+    ...(picks.length === 0
+      ? { note: "No role posted this week fits your own line of work, level and place yet — for_you lists the near ones" }
+      : {}),
   };
 }
 

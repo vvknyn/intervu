@@ -104,6 +104,11 @@ export const setResumeInput = z.object({
 
 export const getPreferencesInput = z.object({});
 
+/** `daily_picks`: no input lists them; `email` turns the daily picks email on (true) or off (false) first. */
+export const dailyPicksInput = z.object({
+    email: z.boolean().optional(),
+});
+
 /** The ONE capped-string builder for every ~500-char preference/answer
  *  field below — reuses `optionalString` (lib/validation.ts, already
  *  trimmed/capped/empty-to-undefined) rather than writing new trim/cap
@@ -281,6 +286,21 @@ export const MCP_TOOL_SPECS = {
             "note. When presenting results to the user, always include the intervu_url with each one; " +
             "include apply_url too when the user is ready to apply.",
         inputSchema: forYouInput,
+    },
+    daily_picks: {
+        title: "Today's picks and the daily picks email",
+        description:
+            "Today's picks for your stored résumé: up to 5 roles posted this week in your own line of work, " +
+            "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
+            "level, never one managing people when your résumé shows no one managed. The same roles Today on " +
+            "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
+            "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
+            "words) and emailed (already sent in a daily picks email). Roles not emailed yet come first. Pass " +
+            "email: true to turn the daily picks email on (up to 5 new roles a day, nothing on days with none; " +
+            "the account needs an email address mail reaches) or email: false to turn it off; the result's " +
+            "email.on says the setting after the call. Needs a structured résumé on file, like for_you. Counts " +
+            "toward the shared daily record budget. When presenting picks, include each one's intervu_url and why.",
+        inputSchema: dailyPicksInput,
     },
     get_job: {
         title: "Get job detail",
