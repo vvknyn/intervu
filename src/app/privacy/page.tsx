@@ -297,8 +297,11 @@ export default function PrivacyPage() {
           card with your fit and what&apos;s known about the job. Pages that aren&apos;t jobs get no card. Anywhere
           else, it reads a page only when you click its button, or when you pick &ldquo;Search Velai for&rdquo; on
           text you selected. It reads the page&apos;s address, title and the job details the page publishes, plus its
-          visible text if you ask it to read the page as the job. It doesn&apos;t keep a list of pages you visit.
-          Chrome asks you before the card is turned on for another site, one site at a time.
+          visible text if you ask it to read the page as the job, or when the page publishes no job details but
+          reads as a job (a heading, an Apply button and a job description). It doesn&apos;t keep a list of pages
+          you visit. Chrome asks you before the card is turned on anywhere else: for one site, or once for every
+          site. On a site you turned it on for, the card checks each page inside your browser and tells Velai
+          nothing about pages that aren&apos;t jobs.
         </p>
         <p>
           If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
