@@ -52,9 +52,17 @@ export function resumeImportStorageNote(signedIn: boolean): string {
 export const RESUME_IMPORT_PARSE_LINE =
     "The quick read runs in this browser, not on our servers.";
 
-/** Résumé import modal, where this server has sealed AI: what it reads, and how. */
-export const RESUME_IMPORT_SEALED_LINE =
-    "If it misses something, the text without your name or contact details goes to Tinfoil's sealed AI server, encrypted so only that server can read it.";
+/**
+ * Résumé import modal, where this server has sealed AI: the plain promise
+ * first, the how one tap away (`RESUME_IMPORT_SEALED_DETAIL`). A simulated
+ * focus group (2026-10-12) found "Tinfoil's sealed AI server" lost people who
+ * aren't technical, while the technical ones still wanted it.
+ */
+export const RESUME_IMPORT_SEALED_LINE = "Your name and contact details are taken out before any AI reads it.";
+
+/** The how behind `RESUME_IMPORT_SEALED_LINE`: `withoutContactDetails` + `sealedChat` (parse-resume.ts). */
+export const RESUME_IMPORT_SEALED_DETAIL =
+    "If the quick read misses something, the text without your name or contact details goes to Tinfoil's sealed AI server, encrypted so only that server can read it. Velai can't read it on the way.";
 
 /** Auth popover body when unlocking résumé-backed features (fit/resume gates). */
 export const AUTH_GATE_RESUME_UNLOCK_BODY =
@@ -71,9 +79,13 @@ export const FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN =
 /** Packs home, once a résumé has loaded (Today header, and the welcome panel before it): results are ranked in this browser (see `RESUME_UPLOAD_PROMISE`). */
 export const PRIVATE_MATCHING_ACTIVE = "Private matching active on this device";
 
-/** Customize dialog badge when sealed AI (Tinfoil) rewrites the lines. */
+/** Customize dialog badge when sealed AI rewrites the lines: plain first, the how one tap away (`CUSTOMIZE_SEALED_DETAIL`). */
 export const CUSTOMIZE_SEALED_BADGE =
-    "Rewritten on Tinfoil's sealed AI server: only the matched lines are sent, encrypted so only that server can read them.";
+    "AI sees only the parts of your résumé that match this job, never your name or contact details.";
+
+/** The how behind `CUSTOMIZE_SEALED_BADGE` (tailor-with-engine.ts sends the matched lines through `sealedChat`). */
+export const CUSTOMIZE_SEALED_DETAIL =
+    "They're rewritten on Tinfoil's sealed AI server, encrypted so only that server can read them. Velai can't read them on the way.";
 
 /** Customize dialog badge when this server has no sealed AI: the rules draft. */
 export const CUSTOMIZE_RULES_BADGE = "Tailored in your browser by rules.";
