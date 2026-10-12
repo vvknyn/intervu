@@ -63,6 +63,8 @@ export interface CardSummary {
     velaiUrl: string | null;
     /** What "I applied" would save; null when signed out or the employer isn't known. */
     track: TrackJob | null;
+    /** Signed in with a résumé, so an application form on the page can be filled from it. */
+    canFill: boolean;
 }
 
 export interface CardInput {
@@ -161,5 +163,6 @@ export function cardSummary(input: CardInput): CardSummary {
         lines: lines.slice(0, CARD_LINE_LIMIT),
         velaiUrl: velaiJob ? `${VELAI_ORIGIN}${jobPath(velaiJob)}` : null,
         track,
+        canFill: Boolean(input.signedIn && input.resume),
     };
 }

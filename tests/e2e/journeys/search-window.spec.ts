@@ -318,7 +318,7 @@ test("the job page's posting check shows the later of the two check dates", { ta
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("typing Remote in the place box searches remote roles and keeps the visitor's own country, instead of switching it off", { tag: ["@J-SRCH-35"] }, async ({ page, diagnostics }) => {
+test("typing Remote in the place box searches remote roles and keeps the visitor's own country, instead of switching it off", { tag: ["@J-SRCH-36"] }, async ({ page, diagnostics }) => {
   // Focus group, 2026-10-12: a Canadian typed "Remote" and got roles in India and Colombia first ("Remote means Mumbai
   // and Bangalore? I need remote from Canada."). Typed, it was read as a place, which switched the country default off for good.
   test.skip(test.info().project.name === "mobile", "the place box is a text field from lg up; phones pick a place in a sheet");

@@ -131,6 +131,7 @@ import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
+import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { postedAgeAnalyticsProps } from "@/lib/analytics/posted-age-props";
 import { useResultImpressions } from "@/lib/jobs/use-result-impressions";
@@ -1418,25 +1419,19 @@ export function JobsContent({
         // category/seed chips all route through it, so a future entry point is
         // counted automatically instead of being silently invisible.
         //
-        // The raw query text goes to the ledger ONLY (this repo's own
-        // Postgres-backed telemetry store, keyed to the account server-side)
-        // via the third `ledgerOnly` argument below — it is never passed to
-        // PostHog; PostHog gets only `query_length` and the other ordinary
-        // props. `activeFilterEntries` is re-derived here rather than read
-        // from the render-scope binding so this does not depend on
-        // declaration order.
-        captureEvent(
-            "search_submitted",
-            {
-                query_length: q.trim().length,
-                // `chosenLocations` is render-scope — a draft committed by the
-                // flush above isn't in it yet, but it IS a location on this
-                // very search, so count it.
-                has_location: chosenLocations.length > 0 || Boolean(draftPlace),
-                filter_count: activeFilterEntries(filterState).length,
-            },
-            { query_text: q },
-        );
+        // The search's shape only, never its words: PostHog and the ledger
+        // both tie events to a signed-in account, so the text stays in the
+        // anonymous search log (lib/jobs/search-log.ts) the server writes.
+        // `activeFilterEntries` is re-derived here rather than read from the
+        // render-scope binding so this does not depend on declaration order.
+        captureEvent("search_submitted", {
+            query_length: q.trim().length,
+            // `chosenLocations` is render-scope — a draft committed by the
+            // flush above isn't in it yet, but it IS a location on this
+            // very search, so count it.
+            has_location: chosenLocations.length > 0 || Boolean(draftPlace),
+            filter_count: activeFilterEntries(filterState).length,
+        });
         // Searches run in this browser. Counted HERE, at the one submit
         // chokepoint, which is what stops a future search entry point from
         // being invisible to either prompt — and counted for signed-in
@@ -2497,14 +2492,11 @@ export function JobsContent({
                 // pristine mount is not a failed search).
                 if (interleavedHits.length === 0 && !isPristineLanding) {
                     // `buildZeroResultPayload` (lib/jobs/result-state.ts) is
-                    // the pure builder — `r.defaultedLocation`/
-                    // `r.unmatchedPlaceMentions` are the two location-
-                    // resolver outputs `searchJobsAction` actually returns
-                    // (see that function's doc comment for why the full
-                    // resolved-place interpretation isn't among them).
+                    // the pure builder. The places nobody has roles in are
+                    // typed words, so they go to the anonymous search log,
+                    // not here (see that function's doc comment).
                     captureEvent("search_zero_results", buildZeroResultPayload(filterState, query, {
                         defaultedLocation: r.defaultedLocation,
-                        unmatchedPlaceMentions: r.unmatchedPlaceMentions,
                     }));
                 }
                 const selection = resolveSelectionAfterRefresh(previousSelectedId, interleavedHits, { wasConfirmed });
@@ -2797,15 +2789,16 @@ export function JobsContent({
                 position: rank,
                 job_id: id,
                 source: "serp",
-                // `resultRef.current?.searchId`, NOT `lastSearchId`: a
-                // load-more page fetch mints its own `lastSearchId` but
+                // Keyed on `resultRef.current?.searchId`, NOT `lastSearchId`:
+                // a load-more page fetch mints its own `lastSearchId` but
                 // `setResult` never overwrites `searchId` when appending a
                 // page (see `loadMore`'s updater) — `result.searchId` is the
                 // stable id for the WHOLE rendered list a row's position was
-                // computed against, the same value `useResultImpressions` is
-                // armed with below. That's the id a click must carry to join
-                // back to the impression it came from (SPEC §5).
-                ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+                // computed against, the same list `useResultImpressions` is
+                // armed with below. Analytics get the list's own id, never
+                // `searchId` itself, which keys the search log's words
+                // (`resultSetAnalyticsId`).
+                ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
                 // How old the opened role was: whether searchers open fresh
                 // roles or older ones is what the posted-date window is tuned on.
                 ...postedAgeAnalyticsProps(hit),
@@ -3894,8 +3887,8 @@ export function JobsContent({
     // "REFINED query" case SPEC §5 requires. This is the same value
     // `result_clicked`/`apply_clicked` read (via `resultRef.current
     // ?.searchId`) so impressions and the clicks they produce always join
-    // on one query_id.
-    useResultImpressions(resultsListRef, "serp", result?.searchId ?? "");
+    // on one query_id: the list's analytics id, not `searchId` itself.
+    useResultImpressions(resultsListRef, "serp", resultSetAnalyticsId(result?.searchId));
     useListRenderTiming({
         searchId: result?.searchId,
         rows: result?.hits.length ?? 0,
@@ -4407,10 +4400,10 @@ export function JobsContent({
         captureEvent("apply_clicked", {
             job_id: job.id,
             source: "serp",
-            // Same `resultRef.current?.searchId` contract as `openJob`'s
-            // `result_clicked` above — the id `useResultImpressions` is
-            // armed with for the currently-rendered result set (SPEC §5).
-            ...(resultRef.current?.searchId ? { query_id: resultRef.current.searchId } : {}),
+            // Same contract as `openJob`'s `result_clicked` above — the id
+            // `useResultImpressions` is armed with for the currently-rendered
+            // result set (SPEC §5), never the search log's `searchId`.
+            ...(resultRef.current?.searchId ? { query_id: resultSetAnalyticsId(resultRef.current.searchId) } : {}),
             ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
         });
         gatedOpenPosting(job);

@@ -8,6 +8,7 @@
  * box, so a title this reads imperfectly costs one edit, never a silent wrong
  * search.
  */
+import { ISO3_COUNTRY } from "@/lib/geo/iso3-countries";
 
 export interface PageQuery {
     /** What to search Velai for; empty when nothing usable was in the title. */
@@ -29,6 +30,9 @@ export const MAX_QUERY_CHARS = 100;
 /** Segments that name a job site or a page type, never the role or employer. */
 const SITE_SEGMENT =
     /^(linkedin|indeed|glassdoor|ziprecruiter|monster|wellfound|otta|welcome to the jungle|greenhouse|lever|ashby|workday|workable|smartrecruiters|bamboohr|jobvite|icims|careers?|jobs?|job board|job details?|job description|apply|home)$/i;
+
+/** A posting's reference number: "Job ID: 10575719", "Req #R-1234", "Requisition ID 5521". */
+const JOB_ID_SEGMENT = /^(job|req|requisition|posting)\s*(id|#|number|no\.?)?\s*[:#]?\s*[\w-]*\d[\w-]*$/i;
 
 /** A segment that is a domain, such as "Indeed.com". */
 const DOMAIN_SEGMENT = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
@@ -65,11 +69,19 @@ function cleanSegment(segment: string): string {
         .trim();
 }
 
+/** "Vancouver, CAN , AWS Enterprise Support": a place written with an ISO country code (in capitals), plus what follows it. */
+function codePlaceSegment(segment: string): boolean {
+    const pieces = segment.split(",").map((piece) => piece.trim());
+    return pieces.length > 1 && /^[A-Z]/.test(pieces[0]) && pieces.slice(1).some((piece) => Boolean(ISO3_COUNTRY[piece]));
+}
+
 function keepSegment(segment: string): boolean {
     if (!segment) return false;
     if (SITE_SEGMENT.test(segment)) return false;
     if (DOMAIN_SEGMENT.test(segment)) return false;
     if (PLACE_SEGMENT.test(segment)) return false;
+    if (codePlaceSegment(segment)) return false;
+    if (JOB_ID_SEGMENT.test(segment)) return false;
     return true;
 }
 

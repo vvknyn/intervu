@@ -6,8 +6,10 @@
 import { fetchMe } from "./velai-api";
 import { resumeFromMe, type MeResponse } from "./report";
 import { ACCOUNT_CHANGED_KEY, type ToBackground } from "./messages";
+import { ALL_SITES } from "./job-sites";
 
 const account = document.getElementById("account") as HTMLElement;
+const everywhere = document.getElementById("everywhere") as HTMLElement;
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className?: string, text?: string): HTMLElementTagNameMap[K] {
     const node = document.createElement(tag);
@@ -60,7 +62,27 @@ async function render(): Promise<void> {
     }
 }
 
+/** The card on company careers sites too, not only the job sites it knows: one permission, asked once. */
+async function renderEverywhere(): Promise<void> {
+    const on = await chrome.permissions.contains({ origins: [ALL_SITES] });
+    if (on) {
+        everywhere.replaceChildren(el("h2", "card-title", "On every careers site"), el("p", "lede", "The card shows on job pages on any site, including company careers sites."));
+        return;
+    }
+    const turnOn = el("button", "secondary", "Show the card on every careers site");
+    turnOn.type = "button";
+    // Straight from the click, so Chrome asks.
+    turnOn.addEventListener("click", () => void chrome.permissions.request({ origins: [ALL_SITES] }).then(() => renderEverywhere()));
+    everywhere.replaceChildren(
+        el("h2", "card-title", "On every careers site"),
+        el("p", "lede", "The card already shows on the main job boards. Turn it on for company careers sites too."),
+        actions(turnOn),
+        el("p", "hint", "Chrome asks once. On each page the card only checks whether it's a job, and Velai hears nothing about pages that aren't."),
+    );
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes[ACCOUNT_CHANGED_KEY]) void render();
 });
 void render();
+void renderEverywhere();

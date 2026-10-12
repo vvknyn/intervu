@@ -14,12 +14,12 @@
  * jobs list uses (POST /api/jobs/search).
  */
 import { PAGE_QUERY_KEY, queryFromPage } from "./page-query";
-import { jobFromPage, validThrough, type PageRead } from "./page-reader";
+import { jobFromPage, looksLikeJob, validThrough, type PageRead } from "./page-reader";
 import { panelRow, velaiSearchUrl, VELAI_ORIGIN, type PanelRow } from "./rows";
 import { fitReport, pageChecks, resumeFromMe, sameJob, tailoredResume, velaiChecks, type CheckLine, type MeResponse } from "./report";
 import { tailoredResumePdf } from "./resume-pdf";
 import { fetchMe, searchVelai, trackApplied } from "./velai-api";
-import { isKnownJobSite, sitePattern } from "./job-sites";
+import { ALL_SITES, isKnownJobSite, sitePattern } from "./job-sites";
 import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type ToBackground } from "./messages";
 import { fitTerms } from "./card-summary";
 import type { HandOff } from "./handoff";
@@ -204,7 +204,8 @@ function applyingNode(job: PublicJob, applyUrl: string): HTMLElement | null {
 /**
  * Turning the on-page card on (or back on) for this page's site. The built-in
  * job sites have it already; any other site needs the person's say-so, which
- * Chrome asks for, for that one site.
+ * Chrome asks for: once for every site (the card only looks for a job on each
+ * page and stays silent on the rest), or for this one site.
  */
 async function cardSiteNode(ctx: PageContext): Promise<HTMLElement | null> {
     const pattern = sitePattern(ctx.read.url);
@@ -225,19 +226,27 @@ async function cardSiteNode(ctx: PageContext): Promise<HTMLElement | null> {
             }),
         );
     } else {
+        // Must be called straight from the click for Chrome to ask.
+        const turnOn = (origins: string[], done: string) => () =>
+            void chrome.permissions.request({ origins }).then((granted) => {
+                if (!granted) return;
+                hidden.delete(host);
+                void chrome.storage.local.set({ [HIDDEN_SITES_KEY]: [...hidden] });
+                send({ type: "siteEnabled", tabId });
+                note.replaceChildren(done);
+            });
+        const all = button("Show the Velai card on every careers site", "secondary", turnOn([ALL_SITES], "The Velai card now shows on job pages on any site."));
         note.append(
-            button(`Show the Velai card on ${host} job pages`, "inline", () => {
-                // Must be called straight from the click for Chrome to ask.
-                void chrome.permissions.request({ origins: [pattern] }).then((granted) => {
-                    if (!granted) return;
-                    hidden.delete(host);
-                    void chrome.storage.local.set({ [HIDDEN_SITES_KEY]: [...hidden] });
-                    send({ type: "siteEnabled", tabId });
-                    note.textContent = `The Velai card now shows on ${host} job pages.`;
-                });
-            }),
-            ` Chrome asks first; it lets Velai read ${host} pages so the card can show on its own.`,
+            all,
+            el(
+                "span",
+                undefined,
+                " Chrome asks once. On each page the card only checks whether it's a job, and Velai hears nothing about pages that aren't. Or ",
+            ),
+            button(`only on ${host}`, "inline", turnOn([pattern], `The Velai card now shows on ${host} job pages.`)),
+            ".",
         );
+        note.classList.add("card-site");
     }
     return note;
 }
@@ -367,6 +376,9 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
           }
         : undefined;
 
+    // A careers page with no structured details that still reads as a job is read as the job without asking.
+    const autoRead = !read.posting && !textIsTheJob && looksLikeJob(read);
+    if (autoRead) textIsTheJob = true;
     if (!read.posting && !velaiJob && !textIsTheJob) {
         setSource(`${where.charAt(0).toUpperCase()}${where.slice(1)} doesn't publish its job details.`);
         const parts: Node[] = [
@@ -378,6 +390,9 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
         if (hits === null) actions.append(button("Try again", "secondary", retry));
         parts.push(actions);
         if (hits?.length) parts.push(similarNode("Roles on Velai like this page's title", hits, input.value, now, fitOf));
+        const offer = await cardSiteNode(ctx).catch(() => null);
+        if (mine !== generation) return;
+        if (offer) parts.push(offer);
         results.replaceChildren(...parts);
         return;
     }
@@ -385,7 +400,9 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
         setSource(
             velaiJob
                 ? `${where.charAt(0).toUpperCase()}${where.slice(1)} doesn't publish its job details, so this is Velai's copy of the role it names.`
-                : `Read from the title and text of ${where}, as you asked.`,
+                : autoRead
+                  ? `Read from the heading and text of ${where}, which publishes no job details.`
+                  : `Read from the title and text of ${where}, as you asked.`,
         );
     }
 

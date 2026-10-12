@@ -172,13 +172,14 @@ export default function PrivacyPage() {
           held in Google Cloud Firestore; it has been moved here, and the copy in Firestore was deleted in October 2026.
         </p>
         <p>
-          We also keep a record of what you do while searching: the searches you run (including the text of what
-          you typed), which job postings come up, and which ones you click, open, save, or apply
-          to. If you&apos;re signed in, we tie this to your account and build a profile of your search
-          activity over time — what you&apos;re looking for, and what you actually respond to. It is stored and
-          encrypted the same way as the rest of your account data. Searches Velai builds from your résumé (ranking
-          by fit, For you, and Today) are not part of that record. Search records made before the move were not
-          copied, and were deleted with the rest of Firestore.
+          We keep an anonymous record of the searches people run: the words typed, the place and filters, how
+          many jobs came back, and which result was opened. It holds no account id, IP address or browser id, so a
+          search can&apos;t be traced back to you, and it is how we learn what people look for and which jobs and
+          employers we&apos;re missing. It is encrypted the same way as account data and deleted after 90 days.
+          Searches Velai builds from your résumé (ranking by fit, For you, and Today) are not recorded. If
+          you&apos;re signed in, the jobs you click, open, save, or apply to are tied to your account so we can
+          improve your results. Search records made before the move were not copied, and were deleted with the
+          rest of Firestore.
         </p>
         <p className="text-xs text-muted-foreground">
           For reference, the kinds of account data these storage claims cover include:
@@ -297,8 +298,11 @@ export default function PrivacyPage() {
           card with your fit and what&apos;s known about the job. Pages that aren&apos;t jobs get no card. Anywhere
           else, it reads a page only when you click its button, or when you pick &ldquo;Search Velai for&rdquo; on
           text you selected. It reads the page&apos;s address, title and the job details the page publishes, plus its
-          visible text if you ask it to read the page as the job. It doesn&apos;t keep a list of pages you visit.
-          Chrome asks you before the card is turned on for another site, one site at a time.
+          visible text if you ask it to read the page as the job, or when the page publishes no job details but
+          reads as a job (a heading, an Apply button and a job description). It doesn&apos;t keep a list of pages
+          you visit. Chrome asks you before the card is turned on anywhere else: for one site, or once for every
+          site. On a site you turned it on for, the card checks each page inside your browser and tells Velai
+          nothing about pages that aren&apos;t jobs.
         </p>
         <p>
           If you&apos;re signed in to Velai in that browser, the extension loads the résumé and job preferences saved
@@ -307,8 +311,17 @@ export default function PrivacyPage() {
           copy stays in your browser until you download or copy it. To check the job, the extension sends the role&apos;s
           title and employer to Velai&apos;s search. A search you start with the extension&apos;s button or a text
           selection is logged like any search on the website; the card&apos;s own check when a job page loads is
-          not logged. The extension keeps only the job it is showing, which Chrome clears when you close the
-          browser, and the sites you turned its card off on.
+          not logged. The extension keeps the job it is showing and, for two hours, the job page you last opened
+          in each tab (so an application form on a later page knows which job it&apos;s for), which Chrome clears
+          when you close the browser, and the sites you turned its card off on.
+        </p>
+        <p>
+          On an application form, when you pick &ldquo;Fill from your résumé&rdquo;, the extension types the name,
+          email, phone, location and links from your Velai résumé into the form&apos;s empty fields that ask for them,
+          and attaches your résumé tailored to the job as a PDF. That happens in your browser and sends Velai nothing.
+          The site gets those details only when you send the form yourself; the extension never sends it. After it
+          fills a form, it watches that tab for the site&apos;s confirmation that your application was sent, and then
+          adds the job to your tracker as &ldquo;I applied&rdquo; does.
         </p>
         <p>
           When you pick &ldquo;I applied&rdquo;, the extension adds the job (its title, employer and the page&apos;s
@@ -390,8 +403,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           Clicks are recorded by which button or link you pressed, never the text in it or in its labels. Every
-          analytics event carries the address of the page it happened on; when ranking by fit has put role titles
-          from your résumé into that address, they are removed before the event leaves your browser.
+          analytics event carries the address of the page it happened on, with the words you searched removed
+          before it leaves your browser.
         </p>
         <p>
           PostHog also powers heatmaps, in-app feedback surveys, and short forms when a search returns no results.

@@ -1,4 +1,5 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
+import { gunzipSync } from "node:zlib";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
@@ -16,7 +17,7 @@ import { signedInTest, withActionResult, withoutMockSignInHydration } from "./si
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
 const LOCAL_AI_RESUME_KEY = "velai.localAi.resume";
 
-/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/50/51/52/54/55/56/57/58/60/61/94/95, J-SRCH-03, J-SRCH-21, J-DETAIL-01/43). Read-only. */
+/** Journeys for the /jobs area — see tests/journeys/CATALOG.md (J-JOBS-01/23/24/25/26/27/31/37/38/39/40/41/43/44/46/47/48/50/51/52/54/55/56/57/58/60/61/94/95, J-SRCH-03, J-SRCH-21, J-SRCH-35, J-DETAIL-01/43). Read-only. */
 
 const returningVisitor = (page: Page) =>
   page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
@@ -139,6 +140,56 @@ test("list analytics fire: results_impressed on first render, search_submitted o
   await page.locator(SEARCH_INPUT).first().fill("analyst");
   await page.locator(SEARCH_INPUT).first().press("Enter");
   await expect.poll(() => events, { timeout: 15_000, message: "search_submitted after a search" }).toContain("search_submitted");
+});
+
+/**
+ * An analytics request's body as text: posthog-js sends events gzipped
+ * (`compression=gzip-js`) or base64 in a `data=` form field; the ledger sends JSON.
+ */
+function analyticsBody(req: Request): string {
+  const raw = req.postDataBuffer();
+  if (!raw) return "";
+  const compression = new URL(req.url()).searchParams.get("compression");
+  if (compression === "gzip-js") return gunzipSync(raw).toString("utf8");
+  const text = raw.toString("utf8");
+  if (compression === "base64" || text.startsWith("data=")) {
+    const data = new URLSearchParams(text).get("data") ?? "";
+    return Buffer.from(data, "base64").toString("utf8");
+  }
+  return text;
+}
+
+test("a search's words never reach analytics: events carry its shape, not what was typed", { tag: ["@J-SRCH-35"] }, async ({ page, diagnostics }) => {
+  // A common query on purpose: every prod run lands in the anonymous search
+  // log the demand view reads, and a made-up word would sit in "Nothing found".
+  const word = "accountant";
+  // The fixture aborts analytics; these page-level routes win, answer locally
+  // and keep each body, so nothing reaches PostHog or the ledger.
+  const ledgerEvents: string[] = [];
+  const bodies: string[] = [];
+  await page.route("**/api/telemetry", async (route) => {
+    const body = analyticsBody(route.request());
+    bodies.push(body);
+    for (const e of (JSON.parse(body || "{}") as { events?: { event_name: string }[] }).events ?? []) ledgerEvents.push(e.event_name);
+    await route.fulfill({ status: 204 });
+  });
+  // Event capture only: replay snapshots (/s/) and flag reads are not events.
+  await page.route(
+    (url) => /^\/ph\/(e|i\/v0\/e|batch)\/?$/.test(url.pathname),
+    async (route) => {
+      bodies.push(analyticsBody(route.request()));
+      await route.fulfill({ status: 200, json: { status: 1 } });
+    },
+  );
+
+  await searchFor(page, word);
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${word}`));
+  await expect.poll(() => ledgerEvents, { timeout: 15_000 }).toContain("search_submitted").catch(() => {});
+  test.skip(!ledgerEvents.includes("search_submitted"), "this build sends no analytics (no PostHog key), so there is nothing to check");
+
+  const leaked = bodies.filter((body) => body.toLowerCase().includes(word));
+  expect(leaked, "no analytics payload holds the words searched").toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
 });
 
 test("returning visitor searches a keyword and gets job rows", { tag: ["@J-SRCH-03"] }, async ({ page, diagnostics }) => {
