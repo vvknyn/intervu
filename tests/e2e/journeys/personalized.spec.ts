@@ -4,21 +4,22 @@ import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-i
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
-import { signedInTest, withoutMockSignInHydration } from "./signed-in";
+import { signedInTest, signInLikeProduction, withActionResult, withoutMockSignInHydration } from "./signed-in";
 
 /**
  * Personalised matching fixes, review 2026-10-13 — see tests/journeys/CATALOG.md (J-JOBS-121 to 123).
  * Read-only: the résumé and the guest tracker live in localStorage, and the list search's answer
  * is replaced in the browser (the search still runs), as in match-order.spec.ts.
  *
- * - J-JOBS-121 "The jobs I have applied to keep coming back and there is no badge": the corpus
- *   re-lists the same opening under a new id, and no list row said a role was applied to.
+ * - J-JOBS-121 / J-JOBS-126 "The jobs I have applied to keep coming back and there is no badge":
+ *   the corpus re-lists the same opening under a new id, and no list row said a role was applied
+ *   to. Applying needs an account (a guest's Apply opens "Sign in to apply", J-APPLY-01), so these
+ *   run signed in, with the account's tracker answered in the browser.
  * - J-JOBS-122 "returning recent jobs instead of jobs from 1 month ago": among roles that fit
  *   alike, the newest leads; a role over two weeks old ranks after this week's.
  * - J-JOBS-123 "the more/less like this role should give reasons and take that as input".
  */
 
-const GUEST_PURSUITS_KEY = "intervu.pursuits.guest";
 const DAY_MS = 86_400_000;
 
 const returningVisitor = (page: Page) =>
@@ -85,41 +86,70 @@ const answerResumeSearch = (page: Page, listed: object[], searchId: string) =>
     return answerListSearch(route, { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId });
   });
 
+// Route handlers still answering when a test ends must not fail it (as in job-tracked-stage.spec.ts).
+test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
+signedInTest.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
+
 const rowIds = (page: Page) => page.getByTestId("job-row").evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")));
 
-test("a role you applied to is badged Applied in the list, also when the same opening is listed again under a new id", { tag: ["@J-JOBS-121"] }, async ({ page, diagnostics }) => {
+/**
+ * The account's tracker, answered in the browser: `getApplications` (the one server action that
+ * lists it) is told apart from the other list actions by the id the page's own bundle gives it —
+ * `createServerReference("<id>", …, "getApplications")`, in dev and production builds alike.
+ * Signed in the way production is (`signInLikeProduction`); every other action keeps its answer.
+ */
+async function withAccountApplications(page: Page, applications: object[]) {
+  let actionId: string | null = null;
+  await page.route(/\/_next\/static\/chunks\/.*\.js(\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    const found = body.match(/\("([0-9a-f]{40,44})",[^)]{0,1500}?"getApplications"\)/);
+    if (found) actionId = found[1]!;
+    return route.fulfill({ response, body });
+  });
+  await signInLikeProduction(page, () => undefined);
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !actionId || req.headers()["next-action"] !== actionId) return route.fallback();
+      const res = await route.fetch();
+      return route.fulfill({ response: res, body: withActionResult(await res.text(), { data: applications }) });
+    },
+  );
+  return () => actionId;
+}
+
+/** Northstar Data's Technical Account Manager role in Toronto, applied to two days ago under the id it had then. */
+const APPLIED_AT = new Date(Date.now() - 2 * DAY_MS).toISOString();
+const NORTHSTAR_APPLICATION = {
+  id: "journey-application-1",
+  user_id: "journey-account",
+  company_name: "Northstar Data",
+  position: "Technical Account Manager",
+  status: "applied",
+  job_id: "journey-old-listing-id",
+  job_snapshot: { title: "Technical Account Manager", company: "Northstar Data", location: "Toronto, ON", description: null, apply_url: "https://example.com/apply" },
+  applied_at: APPLIED_AT,
+  created_at: APPLIED_AT,
+  updated_at: APPLIED_AT,
+};
+const RELISTED = posting("55555555-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior");
+const OTHER_TAM = posting("55555555-0000-4000-8000-000000000002", "Technical Account Manager", "Beacon Cloud", "senior");
+
+test("a role the account applied to is badged Applied in the list, also when the same opening is listed again under a new id", { tag: ["@J-JOBS-121"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await seedResume(page);
-  // Applied two days ago to Northstar Data's TAM role, under the id it had then.
-  await page.addInitScript((key) => {
-    const at = new Date(Date.now() - 2 * 86_400_000).toISOString();
-    localStorage.setItem(
-      key,
-      JSON.stringify([
-        {
-          id: "guest-journey-applied",
-          user_id: "guest",
-          company_name: "Northstar Data",
-          position: "Technical Account Manager",
-          status: "applied",
-          job_id: "journey-old-listing-id",
-          job_snapshot: { title: "Technical Account Manager", company: "Northstar Data", location: "Toronto, ON", description: null, apply_url: "" },
-          applied_at: at,
-          created_at: at,
-          updated_at: at,
-        },
-      ]),
-    );
-  }, GUEST_PURSUITS_KEY);
-  const relisted = posting("55555555-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior");
-  const other = posting("55555555-0000-4000-8000-000000000002", "Technical Account Manager", "Beacon Cloud", "senior");
-  await answerResumeSearch(page, [relisted, other], "journey-applied");
+  const applicationsActionId = await withAccountApplications(page, [NORTHSTAR_APPLICATION]);
+  await answerResumeSearch(page, [RELISTED, OTHER_TAM], "journey-applied");
   await page.goto("/jobs?view=search&sort=fit");
+  await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
 
   const row = (id: string) => page.locator(`[data-testid="job-row"][data-job-id="${id}"]`);
-  await expect(row(relisted.id)).toBeVisible({ timeout: 60_000 });
-  await expect(row(relisted.id).getByTestId("job-applied-badge")).toHaveText("Applied");
-  await expect(row(other.id).getByTestId("job-applied-badge")).toHaveCount(0);
+  await expect(row(RELISTED.id)).toBeVisible({ timeout: 60_000 });
+  expect(applicationsActionId(), "the page's bundle names its getApplications action").not.toBeNull();
+  await expect(row(RELISTED.id).getByTestId("job-applied-badge")).toHaveText("Applied", { timeout: 30_000 });
+  await expect(row(OTHER_TAM.id).getByTestId("job-applied-badge")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -203,4 +233,25 @@ signedInTest("fewer like this asks why, and the reason steers: \"This company\" 
   await page.getByTestId("deck-tuning-reset").click();
   await expect(tuned).toHaveCount(0);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+test("a pack never deals a role the account applied to, nor the same opening listed again under a new id", { tag: ["@J-JOBS-126"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await withAccountApplications(page, [NORTHSTAR_APPLICATION]);
+  const csm = posting("55555555-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Orchard CRM", "senior");
+  await answerResumeSearch(page, [RELISTED, OTHER_TAM, csm], "journey-pack-applied");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  // The other employer's TAM role leads; the applied Northstar opening is not in the deck at all.
+  await expect(front).toHaveAttribute("data-job-id", OTHER_TAM.id, { timeout: 60_000 });
+  await expect(position).toHaveText("Role 1 of 2");
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${RELISTED.id}"]`)).toHaveCount(0);
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", csm.id);
+  expect(diagnostics.pageErrors).toEqual([]);
 });
