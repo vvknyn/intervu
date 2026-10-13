@@ -132,8 +132,8 @@ function makeJob(overrides: Partial<PublicJob> = {}): PublicJob {
     tags: ['backend'],
     apply_url: 'https://acme.com/apply/job-1',
     source: 'greenhouse',
-    posted_at: '2026-07-20T00:00:00.000Z',
-    first_seen_at: '2026-07-19T00:00:00.000Z',
+    posted_at: new Date(Date.now() - 2 * 86_400_000).toISOString(), // inside a pack's window (packs leave out roles first seen over 60 days ago)
+    first_seen_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
     updated_at: '2026-07-21T00:00:00.000Z',
     vacancy_status: 'open',
     ghost_badge: 'clear',
@@ -583,7 +583,7 @@ describe('toolForYou', () => {
     // empty title/tags — an empty job vocabulary — so
     // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
     // No rank word in the title, so the listed level alone sets each role's level (`jobLevelRead`).
-    const partial = { title: 'Engineer', tags: ['backend', 'fortran', 'cobol', 'mainframe'] };
+    const partial = { title: 'Engineer', tags: ['backend', 'fortran', 'cobol', 'mainframe', 'pascal', 'ada', 'vax'], description: '' };
     // Different employers: the same title at the same company is one role
     // cross-posted, which for_you lists once (`clusterJobs`), as the site does.
     const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid', ...partial });

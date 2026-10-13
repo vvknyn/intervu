@@ -11,7 +11,11 @@
  * title-relevance.ts.
  */
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
-import { matchBand, rankBand, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+
+/** `rankTier` values: Stretch roles start at 300, roles outside reach (place unknown, abroad, unscored) at 500. */
+const STRETCH_TIER_FLOOR = 300;
+const OUT_OF_REACH_TIER = 500;
 import type { PublicJob } from "@/lib/jobs/types";
 
 const BAND_SEQUENCE: readonly MatchBand[] = ["strong", "good", "stretch"];
@@ -34,7 +38,11 @@ export const PACK_STALE_DAYS = 30;
 export const PACK_MAX_AGE_DAYS = 60;
 
 /** 0 = fresh (≤30d), 1 = stale (30–60d) or undated, 2 = too old for a pack (>60d). */
-export function packAgeTier(postedTs: number | null | undefined, nowMs: number): 0 | 1 | 2 {
+export function packAgeTier(postedTs: number | null | undefined, nowMs: number, firstSeenAt?: string | null): 0 | 1 | 2 {
+    // A re-stamped posting first seen over 60 days ago is old, whatever date it now claims
+    // ("First seen by us 138d ago, posted date refreshed", 2026-10-13).
+    const firstSeen = firstSeenAt ? Date.parse(firstSeenAt) : NaN;
+    if (Number.isFinite(firstSeen) && (nowMs - firstSeen) / PACK_DAY_MS > PACK_MAX_AGE_DAYS) return 2;
     if (typeof postedTs !== "number" || !Number.isFinite(postedTs)) return 1;
     const days = (nowMs - postedTs) / PACK_DAY_MS;
     return days <= PACK_STALE_DAYS ? 0 : days <= PACK_MAX_AGE_DAYS ? 1 : 2;
@@ -51,23 +59,37 @@ export function orderForYouJobsByBand(
 
     const bands = BAND_SEQUENCE.length + 1;
     const buckets = new Map<number, PublicJob[]>();
-    // Age outranks role tier: an own-title role posted 85 days ago led the TAM pack above
-    // this week's Customer Success roles (measured live, 2026-10-13). Over 60 days is left out.
-    const tierSpan = 10_000 * bands;
-    for (const job of jobs) {
+    // Age, then whether the role is one they can take where they are, then the fit band, then the
+    // fit itself (the whole résumé against the whole posting, plus freshness). The role's title
+    // family is inside the fit (relevance, its off-target cap), not a key of its own: "own title
+    // first" filled a PM-and-TAM résumé's deck with one family ahead of better fits (2026-10-13).
+    // Without a clock (no ranking asked for) the old tier × band × title order holds.
+    if (nowMs === undefined) {
+        const legacy = new Map<number, PublicJob[]>();
+        for (const job of jobs) {
+            const score = getScore(job);
+            const key = rankTier(score) * bands + matchBandSortKey(score);
+            const bucket = legacy.get(key);
+            if (bucket) bucket.push(job);
+            else legacy.set(key, [job]);
+        }
+        const out: PublicJob[] = [];
+        for (const key of [...legacy.keys()].sort((a, b) => a - b)) out.push(...partitionByTargetTitle(legacy.get(key)!, query));
+        return out;
+    }
+    const keyed: { job: PublicJob; key: number; value: number; raw: number; index: number }[] = [];
+    jobs.forEach((job, index) => {
         const score = getScore(job);
-        const age = nowMs !== undefined ? packAgeTier(job.posted_ts ?? null, nowMs) : 0;
-        if (age === 2) continue;
-        const band = score != null && nowMs !== undefined ? rankBand(score, job.posted_ts ?? null, nowMs) : matchBandSortKey(score);
-        const key = age * tierSpan + rankTier(score) * bands + band;
-        const bucket = buckets.get(key);
-        if (bucket) bucket.push(job);
-        else buckets.set(key, [job]);
-    }
-
-    const out: PublicJob[] = [];
-    for (const key of [...buckets.keys()].sort((a, b) => a - b)) {
-        out.push(...partitionByTargetTitle(buckets.get(key)!, query));
-    }
+        const age = packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null);
+        if (age === 2) return;
+        const tier = rankTier(score);
+        const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
+        const band = score != null ? rankBand(score, job.posted_ts ?? null, nowMs) : BAND_SEQUENCE.length;
+        // A capped total ties roles that fit differently; the components' own scores break the tie.
+        const raw = score ? score.components.reduce((sum, c) => sum + c.score, 0) : 0;
+        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs), raw, index });
+    });
+    keyed.sort((a, b) => a.key - b.key || b.value - a.value || b.raw - a.raw || a.index - b.index);
+    const out = keyed.map((k) => k.job);
     return out;
 }

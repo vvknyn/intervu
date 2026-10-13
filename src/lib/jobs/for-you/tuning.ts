@@ -445,8 +445,12 @@ export function roleNudge(
  * brings its close matches up from anywhere. A quieter signal moves roles by
  * its share of that: reading a role a while ("dwell", 0.15) a few places.
  */
+export const MAX_TUNING_SHIFT = 8;
+
 export function maxShift(remaining: number): number {
-    return Math.max(12, remaining);
+    // A nudge, never a pin: "Tuned toward Customer Success Manager" filled a PM's deck with CSM
+    // roles from a few saves and reads (2026-10-13). The résumé's order stays the backbone.
+    return Math.min(MAX_TUNING_SHIFT, Math.max(1, remaining));
 }
 
 /**
@@ -522,7 +526,7 @@ export function summarizeTuning(nudges: readonly TuningNudge[], nowMs: number): 
     for (const nudge of nudges) {
         const name = nudge.features.label;
         const key = name.toLowerCase();
-        if (!key) continue;
+        if (!key || nudge.signal === "open" || nudge.signal === "dwell") continue;
         const entry = roles.get(key) ?? { name, sum: 0 };
         entry.sum += SIGNAL_WEIGHT[nudge.signal] * decay(nowMs - nudge.at);
         roles.set(key, entry);

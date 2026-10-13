@@ -139,7 +139,11 @@ describe('the TAM list puts TAM roles first', () => {
         const search = async (): Promise<JobSearchResult> => ({ hits: listed, total: listed.length, backend: 'meilisearch', configured: true, effectiveQ: q });
         const ranked = await rankForYou({ resume: TAM, search, candidateDepth: 50, signals: resolveCandidateSignals(TAM, null) });
         const titles = ranked.hits.map((hit) => hit.job.title);
-        assert.ok(titles.slice(0, 3).every((t) => /technical account manager/i.test(t)), titles.join(' | '));
+        // Fit-first (2026-10-13): the TAM roles at their level lead; a Senior TAM above their level is a
+        // Stretch and may follow the CSM role; every PM posting still comes after the TAM and CSM ones.
+        assert.ok(titles.slice(0, 2).every((t) => /technical account manager/i.test(t)), titles.join(' | '));
+        const firstPm = titles.findIndex((t) => /product manager/i.test(t));
+        assert.ok(titles.slice(0, firstPm).length >= 4, titles.join(' | '));
     });
 
     it('no PM posting reads Strong for the TAM résumé any more', () => {

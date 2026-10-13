@@ -183,6 +183,30 @@ function summaryLeadTitle(summary: string): string {
 /** Self-description a summary's first title can open with ("Experienced software engineer"). */
 const LEAD_ADJECTIVES = /^(?:(?:highly|seasoned|experienced|accomplished|results-driven|dedicated|passionate|skilled|certified|versatile|strategic|motivated)\s+)+/i;
 
+/**
+ * Titles after the first that the summary's lead joins, kept only when the
+ * résumé's experience lines name that title word for word (case aside).
+ */
+export function evidencedSecondaryTitles(resume: ResumeData, lead: string): string[] {
+    const parts = joinedTitles(lead).slice(1);
+    if (parts.length === 0) return [];
+    const body = (resume?.experience ?? [])
+        .map((e) => `${e?.role ?? ""} ${e?.description ?? ""}`)
+        .join(" ")
+        .toLowerCase();
+    const out: string[] = [];
+    for (const part of parts) {
+        const title = cleanRoleTitle(part.replace(LEAD_ADJECTIVES, ""));
+        if (!title || !isRoleTitlePhrase(title) || familiesNamedBy([title]).length === 0) continue;
+        // Held, not described: "serve as named Technical Account Manager", "as the Product Owner".
+        const escaped = title.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const held = new RegExp(`\\b(?:as|named)\\s+(?:an?\\s+|the\\s+|named\\s+)*${escaped}\\b`);
+        const roleHeld = (resume?.experience ?? []).some((e) => cleanRoleTitle(e?.role ?? "").toLowerCase() === title.toLowerCase());
+        if (roleHeld || held.test(body)) out.push(title);
+    }
+    return out;
+}
+
 /** "Technical Account Manager and client-facing product owner" → the two titles it joins. */
 function joinedTitles(phrase: string): string[] {
     return phrase
@@ -259,7 +283,15 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     const leadIsTitle = Boolean(leadTitle) && isRoleTitlePhrase(leadTitle) && familiesNamedBy([leadTitle]).length > 0;
     const own = [...phrases];
     if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
-    return { phrases, families, own, ownFamilies: familiesInOrder(own) };
+    // A second title the summary joins counts too when the résumé's body backs it: Vivek's
+    // "Product Manager and Technical Account Manager" whose current role says "Serve as named
+    // Technical Account Manager" is both (2026-10-13: "use the ENTIRE résumé"). Without that
+    // evidence the second half describes the job, as before.
+    for (const title of evidencedSecondaryTitles(resume, lead)) {
+        if (!phrases.some((p) => p.toLowerCase() === title.toLowerCase())) phrases.push(title);
+        if (!own.some((p) => p.toLowerCase() === title.toLowerCase())) own.push(title);
+    }
+    return { phrases, families: [...new Set([...families, ...familiesInOrder(own)])], own, ownFamilies: familiesInOrder(own) };
 }
 
 /**

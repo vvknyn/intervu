@@ -343,7 +343,14 @@ const RELEVANCE_COVERAGE_FLOOR = 0.6;
  * what it ASKS (review, 2026-10-13 — see jd-match.ts for why title-only
  * relevance could not tell one "Product Manager" posting from another).
  */
-export const JD_RELEVANCE_SHARE = 0.5;
+export const JD_RELEVANCE_SHARE = 0.75;
+
+/**
+ * Below this share of what the posting asks showing on the résumé, a role is
+ * never Good: Salesforce's "Customer Success Manager - Global Public Sector"
+ * read Good at 35% (Vivek, 2026-10-13). The title alone can't make a fit.
+ */
+export const JD_GOOD_MIN_FIT = 0.5;
 
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const jobVocab = jobVocabulary(job);
@@ -981,7 +988,9 @@ export function scoreJobAgainstResume(
     const rank = familyRank(resume, job, role, preferred);
     // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
     const aboveLevel = components[1]!.reason === "level_below_ask";
-    const capped = offTarget || aboveLevel || newToManaging
+    const jdFit = components[0]!.jd?.fit;
+    const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
+    const capped = offTarget || aboveLevel || newToManaging || thinJd
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)

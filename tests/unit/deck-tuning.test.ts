@@ -91,7 +91,8 @@ describe("tuneDeck", () => {
         assert.deepEqual(new Set(ids(tuned)), new Set(ids(deck)), "a nudge never removes a role");
         assert.equal(tuned[0].id, "tam1", "the role the visitor is on stays put");
         assert.equal(tuned[1].id, "tam2", "the closest TAM role, 8th before, comes up next");
-        assert.ok(ids(tuned).indexOf("tam3") <= 4, `the last TAM role, 12th before, moves into the next few: ${ids(tuned).join(", ")}`);
+        const before = ids(deck).indexOf("tam3");
+        assert.ok(ids(tuned).indexOf("tam3") <= before - 6, `the last TAM role moves up several places, never past MAX_TUNING_SHIFT: ${ids(tuned).join(", ")}`);
     });
 
     it("fewer like this on a PM role moves the PM roles down", () => {
@@ -141,14 +142,15 @@ describe("tuneDeck", () => {
         assert.deepEqual(ids(tuned).slice(0, 3), passed);
     });
 
-    it("moves a fully nudged role by at most what is left to see (at least 12 places)", () => {
+    it("moves a fully nudged role at most MAX_TUNING_SHIFT places: a nudge, never a pin", () => {
         const deck = Array.from({ length: 40 }, (_, i) => job(`r${i}`, "Data Analyst"));
         deck[39] = job("nurse", "Registered Nurse");
         const liked = [nudge(job("x", "Registered Nurse"), "more"), nudge(job("y", "Registered Nurse"), "more")];
         const tuned = tuneDeck(deck, liked, ["r0"], NOW);
-        assert.equal(maxShift(39), 39);
-        assert.equal(maxShift(5), 12);
-        assert.equal(ids(tuned).indexOf("nurse"), 1, "from last to next");
+        assert.equal(maxShift(39), 8);
+        assert.equal(maxShift(5), 5);
+        const at = ids(tuned).indexOf("nurse");
+        assert.ok(at >= 30 && at <= 32, `about eight places up, not to the front: ${at}`);
     });
 
     it("in a deck of one role, fewer like this moves the roles that share what set it apart", () => {

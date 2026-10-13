@@ -247,12 +247,14 @@ test("a pack never deals a role the account applied to, nor the same opening lis
   const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
   const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
   const position = page.getByTestId("for-you-deck-position");
-  // The other employer's TAM role leads; the applied Northstar opening is not in the deck at all.
-  await expect(front).toHaveAttribute("data-job-id", OTHER_TAM.id, { timeout: 60_000 });
-  await expect(position).toHaveText("Role 1 of 2");
+  // The two roles not applied to make the deck, in fit order (whole résumé against whole posting,
+  // 2026-10-13); the applied Northstar opening is not in it at all.
+  await expect(position).toHaveText("Role 1 of 2", { timeout: 60_000 });
   await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${RELISTED.id}"]`)).toHaveCount(0);
+  const first = await front.getAttribute("data-job-id");
+  expect([OTHER_TAM.id, csm.id]).toContain(first);
   await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", csm.id);
+  await expect(front).toHaveAttribute("data-job-id", first === OTHER_TAM.id ? csm.id : OTHER_TAM.id);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
