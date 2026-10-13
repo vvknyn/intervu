@@ -10,6 +10,7 @@ import {
 import { reachedIds, summarizeTuning, tuneDeck, type TuningSignal } from "@/lib/jobs/for-you/tuning";
 import { clearNudge, recordNudge, resetNudges, useDeckNudges } from "@/lib/jobs/for-you/tuning-store";
 import type { PublicJob } from "@/lib/jobs/types";
+import { useTuningReason } from "@/hooks/use-tuning-reason";
 
 const NO_IDS: readonly string[] = [];
 
@@ -40,6 +41,8 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     const [passedIds, setPassedIds] = useState<readonly string[]>(NO_IDS);
     const nudges = useDeckNudges();
     const [nowMs] = useState(() => Date.now());
+    // The optional "why?" after a more/fewer tap (use-tuning-reason.ts).
+    const { prompt: tuningReason, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
 
     const unskipped = useMemo(() => packs.filter((p) => !skippedIds.has(p.id)), [packs, skippedIds]);
     const visiblePacks = useMemo(
@@ -98,7 +101,10 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
         (signal: "skip" | "fewer") => {
             if (!activeJob) return;
             const skippedId = activeJob.id;
-            const nextNudges = recordNudge(activeJob, signal, visiblePacks, { own: isOwnRole?.(activeJob) ?? false });
+            const own = isOwnRole?.(activeJob) ?? false;
+            const nextNudges = recordNudge(activeJob, signal, visiblePacks, { own });
+            if (signal === "fewer") askWhy({ job: activeJob, signal, deck: visiblePacks, own });
+            else dismissWhy();
             const before = visiblePacks.slice(0, activeIndex).map((p) => p.id);
             const remaining = tuneDeck(
                 unskipped.filter((p) => p.id !== skippedId),
@@ -110,7 +116,7 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
             setPassedIds(before);
             setActiveJobId(nextActiveIdAfterSkip(remaining, activeIndex));
         },
-        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole],
+        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole, askWhy, dismissWhy],
     );
     const handleSkip = useCallback(() => removeActive("skip"), [removeActive]);
     const handleFewer = useCallback(() => removeActive("fewer"), [removeActive]);
@@ -132,15 +138,21 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     );
     const handleMore = useCallback(() => {
         if (!activeJob) return;
-        if (likedIds.has(activeJob.id)) clearNudge(activeJob.id);
-        else nudgeActive("more");
-    }, [activeJob, likedIds, nudgeActive]);
+        if (likedIds.has(activeJob.id)) {
+            clearNudge(activeJob.id);
+            dismissWhyFor(activeJob.id);
+        } else {
+            nudgeActive("more");
+            askWhy({ job: activeJob, signal: "more", deck: visiblePacks, own: isOwnRole?.(activeJob) ?? false });
+        }
+    }, [activeJob, likedIds, nudgeActive, askWhy, dismissWhyFor, visiblePacks, isOwnRole]);
 
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
     const resetTuning = useCallback(() => {
         setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
         resetNudges();
-    }, [visiblePacks, passedIds, activeIndex]);
+        dismissWhy();
+    }, [visiblePacks, passedIds, activeIndex, dismissWhy]);
 
     return {
         visiblePacks,
@@ -155,5 +167,7 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
         likedIds,
         tuning,
         resetTuning,
+        /** "Fewer / more like {role} — why?", or null (TuningReasonPrompt). */
+        tuningReason,
     };
 }

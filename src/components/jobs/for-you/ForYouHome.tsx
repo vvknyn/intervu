@@ -26,6 +26,8 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { RoleStack, focusedStackControl, restoreStackFocus } from "@/components/jobs/for-you/RoleStack";
 import { StackedRoleCard } from "@/components/jobs/for-you/StackedRoleCard";
 import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
+import { TuningReasonPrompt } from "@/components/jobs/for-you/TuningReasonPrompt";
+import type { TuningReasonPrompt as TuningReasonPromptState } from "@/hooks/use-tuning-reason";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { hasMeaningfulDiff } from "@/lib/jobs/for-you/tailor-diff";
 import { resumeForPackApply } from "@/lib/jobs/for-you/pack-apply-location";
@@ -86,6 +88,8 @@ export interface ForYouHomeProps {
     /** What the nudges lean toward and away from, with a way to drop them. */
     tuning?: TuningSummary | null;
     onResetTuning?: () => void;
+    /** "Fewer / more like {role} — why?" after a tap (use-tuning-reason.ts); null when nothing is asked. */
+    tuningReason?: TuningReasonPromptState | null;
     matchScores: Map<string, MatchScore | null> | null;
     resume: ResumeData | null;
     /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
@@ -169,6 +173,7 @@ export function ForYouHome({
     onRoleSignal,
     tuning = null,
     onResetTuning,
+    tuningReason = null,
     matchScores,
     resume,
     signals,
@@ -816,21 +821,26 @@ export function ForYouHome({
                     <div className="role-stack-screen">
                         {thinBlock}
                         {tuning ? (
-                            <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
-                                <span className="min-w-0 truncate" aria-live="polite">
-                                    {tuningLine(tuning)}
-                                </span>
-                                {onResetTuning ? (
-                                    <button
-                                        type="button"
-                                        data-testid="deck-tuning-reset"
-                                        onClick={onResetTuning}
-                                        className={cn(REPLACE_RESUME_CLASS, "shrink-0")}
-                                    >
-                                        Reset
-                                    </button>
-                                ) : null}
-                            </p>
+                            <>
+                                <TuningReasonPrompt prompt={tuningReason} className="mb-2 shrink-0" />
+                                <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
+                                    <span className="min-w-0 truncate" aria-live="polite">
+                                        {tuningLine(tuning)}
+                                    </span>
+                                    {onResetTuning ? (
+                                        <button
+                                            type="button"
+                                            data-testid="deck-tuning-reset"
+                                            onClick={onResetTuning}
+                                            className={cn(REPLACE_RESUME_CLASS, "shrink-0")}
+                                        >
+                                            Reset
+                                        </button>
+                                    ) : null}
+                                </p>
+                            </>
+                        ) : tuningReason ? (
+                            <TuningReasonPrompt prompt={tuningReason} className="mb-2 shrink-0" />
                         ) : null}
                         <RoleStack
                             className="flex-1"

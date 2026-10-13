@@ -2,7 +2,10 @@
  * "More / fewer like this" for an opened pack's role stack (Vivek, 2026-09-30:
  * like a feed, "gently nudging", "akin to a filter knob they dont have to
  * manually tweak"). One tap on a role nudges which roles come next. It never
- * hides a role and never asks a question. Apply, Save, opening the posting,
+ * hides a role. After a tap the visitor MAY say why (`TuningReason`, review
+ * 2026-10-13: "more/less like this should give reasons and take that as
+ * input"): the tap works on its own, a reason only narrows what the nudge
+ * steers by (`REASON_KINDS`). Apply, Save, opening the posting,
  * Skip and time spent reading a role nudge too, more gently. Nudges stay on
  * this device and fade (half-life `HALF_LIFE_MS`), so an old preference stops
  * steering on its own, and "Reset" drops them all.
@@ -28,6 +31,7 @@
  */
 import { familiesNamedBy, RANK_WORDS } from "@/lib/match/duty-signals";
 import { decodeText, evidencedSkills, meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { titleLevel } from "@/lib/jobs/role-level";
 import type { PublicJob } from "@/lib/jobs/types";
 
 export type TuningSignal = "more" | "fewer" | "apply" | "save" | "open" | "dwell" | "skip";
@@ -59,7 +63,8 @@ export interface RoleFeatures {
      *  word of its title ("Security"), its company or a skill. */
     label: string;
     /** Kind-prefixed terms: `w:` title word, `g:` tag, `s:` skill, `f:` role family,
-     *  `c:` company, `l:` level, `t:` work type, `k:` country. */
+     *  `c:` company, `l:` listed level, `v:` level its title names, `t:` work type,
+     *  `k:` country, `p:` city. */
     terms: string[];
     /** The role was the candidate's own kind of role (match/score.ts `roleAffinity`
      *  "own"). A thumbs-down or skip on it then steers by what else set it apart,
@@ -67,13 +72,70 @@ export interface RoleFeatures {
     own?: boolean;
 }
 
+/**
+ * Why the visitor tapped "more" or "fewer", when they say. Without one the
+ * nudge guesses from what set the role apart in its deck; with one it steers
+ * by exactly that and nothing else:
+ *  - `role`    the kind of job (its title words and role family)
+ *  - `level`   its seniority (listed level, the level its title names)
+ *  - `place`   where it is (country, city) and how (remote / hybrid / onsite)
+ *  - `company` the employer
+ *  - `field`   the area or skills inside the job ("Security", "Salesforce")
+ *  - `done`    "fewer" only: already applied, seen it, or the posting looks stale —
+ *              this posting goes, nothing about it steers what comes next
+ */
+export type TuningReason = "role" | "level" | "place" | "company" | "field" | "done";
+
+export const TUNING_REASONS: readonly TuningReason[] = ["role", "level", "place", "company", "field", "done"];
+
+/** The reasons offered after each tap, in the order shown. */
+export const REASONS_FOR: Readonly<Record<"more" | "fewer", readonly TuningReason[]>> = {
+    fewer: ["role", "level", "place", "company", "field", "done"],
+    more: ["role", "level", "place", "company", "field"],
+};
+
+/** How each reason reads on its button, per tap. */
+export const REASON_TEXT: Readonly<Record<"more" | "fewer", Partial<Record<TuningReason, string>>>> = {
+    fewer: {
+        role: "Not my kind of role",
+        level: "Wrong level",
+        place: "Location or remote",
+        company: "This company",
+        field: "The field or skills",
+        done: "Applied or stale",
+    },
+    more: {
+        role: "My kind of role",
+        level: "Right level",
+        place: "Location or remote",
+        company: "This company",
+        field: "The field or skills",
+    },
+};
+
 export interface TuningNudge {
     jobId: string;
     signal: TuningSignal;
     /** Epoch ms. */
     at: number;
     features: RoleFeatures;
+    /** Why, when the visitor said (`TuningReason`). */
+    reason?: TuningReason;
 }
+
+/**
+ * Which kinds of term (`RoleFeatures.terms`) each reason steers by. `naming`:
+ * only the words that name the role; `notNaming`: only the title words that
+ * don't (the "Security" in "Technical Account Manager, Security").
+ */
+const REASON_KINDS: Readonly<Record<TuningReason, { kinds: ReadonlySet<string>; words?: "naming" | "notNaming" }>> = {
+    role: { kinds: new Set(["w", "f"]), words: "naming" },
+    level: { kinds: new Set(["l", "v"]) },
+    place: { kinds: new Set(["k", "p", "t"]) },
+    company: { kinds: new Set(["c"]) },
+    field: { kinds: new Set(["w", "g", "s"]), words: "notNaming" },
+    done: { kinds: new Set() },
+};
 
 const QUALIFIER_SPLIT = /\s+[-–—|]\s+|\s*[,(|:]\s*/;
 
@@ -129,8 +191,11 @@ export function roleTerms(job: PublicJob): string[] {
         ...[
             ["c", job.company],
             ["l", job.experience_level],
+            // The level its title names ("Senior", "Manager, …", "Intern"), which a listing often leaves "unknown".
+            ["v", titleLevel(job.title)?.level ?? null],
             ["t", job.work_type],
             ["k", country],
+            ["p", job.location_city],
         ]
             .map(([kind, value]) => (lower(value) ? `${kind}:${lower(value)}` : null))
             .filter(Boolean),
@@ -144,7 +209,7 @@ export function roleTerms(job: PublicJob): string[] {
  * "Software Engineer, Backend" is about backend roles more than about that
  * employer); level, work type and country least.
  */
-const KIND_WEIGHT: Readonly<Record<string, number>> = { w: 1, g: 0.6, s: 0.5, c: 0.35, f: 0.3, l: 0.2, t: 0.2, k: 0.2 };
+const KIND_WEIGHT: Readonly<Record<string, number>> = { w: 1, g: 0.6, s: 0.5, c: 0.35, f: 0.3, l: 0.2, v: 0.2, t: 0.2, k: 0.2, p: 0.15 };
 
 /**
  * Term weights for one deck: a kind's weight times how rare the term is among
@@ -193,10 +258,14 @@ function roleNamingTerms(role: string, terms: readonly string[]): Set<string> {
 export function roleFeatures(
     job: PublicJob,
     deck: readonly PublicJob[] = [],
-    { own = false, signal }: { own?: boolean; signal?: TuningSignal } = {},
+    { own = false, signal, reason }: { own?: boolean; signal?: TuningSignal; reason?: TuningReason } = {},
 ): RoleFeatures {
     const role = roleName(job.title);
     const terms = roleTerms(job);
+    if (reason) {
+        const label = reasonLabel(job, role, terms, deck, reason);
+        return own ? { role, label, terms, own } : { role, label, terms };
+    }
     const ownDown = own && signal != null && SIGNAL_WEIGHT[signal] < 0;
     let label = ownDown ? "" : role;
     const others = deck.filter((other) => other.id !== job.id);
@@ -216,6 +285,47 @@ export function roleFeatures(
         }
     }
     return own ? { role, label, terms, own } : { role, label, terms };
+}
+
+const LEVEL_WORDS: Readonly<Record<string, string>> = {
+    intern: "intern",
+    entry: "entry-level",
+    mid: "mid-level",
+    senior: "senior",
+    lead: "lead",
+    executive: "executive",
+};
+
+/** What the tuning line names for a nudge with a reason: "Acme", "senior roles", "remote roles", "Security". */
+function reasonLabel(job: PublicJob, role: string, terms: readonly string[], deck: readonly PublicJob[], reason: TuningReason): string {
+    switch (reason) {
+        case "done":
+            return "";
+        case "role":
+            return role;
+        case "company":
+            return decodeText(job.company ?? "").trim();
+        case "level": {
+            const level = terms.find((t) => t.startsWith("v:"))?.slice(2) ?? terms.find((t) => t.startsWith("l:"))?.slice(2);
+            return level && LEVEL_WORDS[level] ? `${LEVEL_WORDS[level]} roles` : "";
+        }
+        case "place": {
+            if (/remote/i.test(job.work_type ?? "")) return "remote roles";
+            const city = decodeText(job.location_city ?? "").trim();
+            const country = Array.isArray(job.location_country) ? job.location_country[0] : job.location_country;
+            return city || (country ?? "").trim() || (/hybrid/i.test(job.work_type ?? "") ? "hybrid roles" : "");
+        }
+        case "field": {
+            const naming = roleNamingTerms(role, terms);
+            const others = deck.filter((other) => other.id !== job.id);
+            const weight = others.length > 0 ? deckTermWeights(others.map(roleTerms)) : () => 1;
+            const best = terms
+                .filter((t) => /^[wgs]:/.test(t) && !naming.has(t))
+                .sort((a, b) => weight(b) - weight(a))[0];
+            if (!best) return "";
+            return best.startsWith("w:") ? titleCase(best.slice(2), job.title ?? "") : best.slice(2);
+        }
+    }
 }
 
 /** How much a nudge given `ageMs` ago still counts. */
@@ -264,7 +374,13 @@ const namingTermsOf = new WeakMap<RoleFeatures, Set<string>>();
  * candidate's own role, `weight` without the role's own words. Null when such
  * a nudge has too little else to steer by.
  */
-function nudgeWeight(features: RoleFeatures, strength: number, weight: (term: string) => number): ((term: string) => number) | null {
+function nudgeWeight(
+    features: RoleFeatures,
+    strength: number,
+    weight: (term: string) => number,
+    reason?: TuningReason,
+): ((term: string) => number) | null {
+    if (reason) return reasonWeight(features, reason, weight);
     if (!features.own || strength >= 0) return weight;
     let naming = namingTermsOf.get(features);
     if (!naming) {
@@ -275,6 +391,31 @@ function nudgeWeight(features: RoleFeatures, strength: number, weight: (term: st
     const steering = (term: string) => (dropped.has(term) ? 0 : weight(term));
     const left = features.terms.reduce((sum, term) => sum + steering(term) ** 2, 0);
     return left < OWN_DOWN_MIN_WEIGHT ? null : steering;
+}
+
+/**
+ * A nudge with a reason steers by that reason's terms only (`REASON_KINDS`),
+ * each still weighed by how rare it is in the deck: "fewer — wrong level" on
+ * a senior posting in a mostly mid-level deck moves the senior roles, and
+ * nothing else about the posting (its company, its field) counts. Null when
+ * the reason leaves nothing to steer by ("done", or a level no other role
+ * differs on).
+ */
+function reasonWeight(features: RoleFeatures, reason: TuningReason, weight: (term: string) => number): ((term: string) => number) | null {
+    const { kinds, words } = REASON_KINDS[reason];
+    if (kinds.size === 0) return null;
+    const naming = words ? roleNamingTerms(features.role, features.terms) : null;
+    const steering = (term: string) => {
+        const kind = term.slice(0, 1);
+        if (!kinds.has(kind)) return 0;
+        if (kind === "w" && naming) {
+            const isNaming = naming.has(term);
+            if (words === "naming" ? !isNaming : isNaming) return 0;
+        }
+        return weight(term);
+    };
+    const left = features.terms.reduce((sum, term) => sum + steering(term) ** 2, 0);
+    return left > 0 ? steering : null;
 }
 
 /** The net nudge on one role, from -1 (fewer) to 1 (more). */
@@ -288,7 +429,7 @@ export function roleNudge(
     for (const nudge of nudges) {
         const strength = SIGNAL_WEIGHT[nudge.signal] * decay(nowMs - nudge.at);
         if (Math.abs(strength) < 0.01) continue;
-        const steering = nudgeWeight(nudge.features, strength, weight);
+        const steering = nudgeWeight(nudge.features, strength, weight, nudge.reason);
         if (!steering) continue;
         const alike = similarity(terms, nudge.features.terms, steering);
         if (alike <= SIMILARITY_FLOOR) continue;
@@ -356,6 +497,11 @@ export function addNudge(list: readonly TuningNudge[], nudge: TuningNudge, nowMs
     return [nudge, ...list.filter((item) => item.jobId !== nudge.jobId)]
         .filter((item) => nowMs - item.at < NUDGE_MAX_AGE_MS)
         .slice(0, MAX_NUDGES);
+}
+
+/** The visitor said why they tapped: the role's nudge now steers by that reason (`reasonWeight`). */
+export function withReason(list: readonly TuningNudge[], jobId: string, reason: TuningReason, features?: RoleFeatures): TuningNudge[] {
+    return list.map((item) => (item.jobId === jobId ? { ...item, reason, ...(features ? { features } : {}) } : item));
 }
 
 export function removeNudge(list: readonly TuningNudge[], jobId: string): TuningNudge[] {

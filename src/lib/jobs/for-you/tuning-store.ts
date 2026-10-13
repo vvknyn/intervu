@@ -3,7 +3,8 @@
  * browser only. Same layers as recently-viewed.ts: localStorage wrappers that
  * degrade to "no nudges" on any failure, and a module store for
  * `useSyncExternalStore`. A nudge holds the role's title words, skills and
- * company, never the résumé.
+ * company, and the reason the visitor gave when they gave one — never the
+ * résumé.
  */
 import { useSyncExternalStore } from "react";
 import { readBrowserValue, writeBrowserValue } from "@/lib/jobs/browser-storage";
@@ -15,7 +16,10 @@ import {
     removeNudge,
     roleFeatures,
     SIGNAL_WEIGHT,
+    TUNING_REASONS,
+    withReason,
     type TuningNudge,
+    type TuningReason,
     type TuningSignal,
 } from "@/lib/jobs/for-you/tuning";
 
@@ -36,7 +40,8 @@ function isNudge(value: unknown): value is TuningNudge {
         typeof f.label === "string" &&
         Array.isArray(f.terms) &&
         f.terms.every((term) => typeof term === "string") &&
-        (f.own === undefined || typeof f.own === "boolean")
+        (f.own === undefined || typeof f.own === "boolean") &&
+        (v.reason === undefined || (typeof v.reason === "string" && (TUNING_REASONS as readonly string[]).includes(v.reason)))
     );
 }
 
@@ -95,6 +100,24 @@ export function recordNudge(
     const next = addNudge(current, { jobId: job.id, signal, at: nowMs, features: roleFeatures(job, deck, { own, signal }) }, nowMs);
     if (next.length === current.length && next.every((nudge, index) => nudge === current[index])) return current;
     return commit(next);
+}
+
+/**
+ * The visitor said why they tapped "more" or "fewer" on `job`: its nudge now
+ * steers by that reason only, and the tuning line names it ("away from
+ * senior roles", "toward Acme"). A no-op when the role has no nudge (the tap
+ * was taken back first).
+ */
+export function setNudgeReason(
+    job: PublicJob,
+    reason: TuningReason,
+    deck: readonly PublicJob[],
+    { own = false }: { own?: boolean } = {},
+): TuningNudge[] {
+    const current = getNudgesSnapshot();
+    const nudge = current.find((item) => item.jobId === job.id);
+    if (!nudge || nudge.reason === reason) return current;
+    return commit(withReason(current, job.id, reason, roleFeatures(job, deck, { own, signal: nudge.signal, reason })));
 }
 
 /** Take back the nudge a role was given (tapping "more like this" again). */

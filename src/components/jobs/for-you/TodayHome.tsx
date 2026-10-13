@@ -33,6 +33,8 @@ import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { HubPanel, HUB_PANEL_LINK_CLASS } from "@/components/jobs/for-you/HubPanel";
 import { NeedsYouView, useNeedsYouRemote, type NeedsYouRemoteState } from "@/components/jobs/for-you/NeedsYou";
 import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
+import { TuningReasonPrompt } from "@/components/jobs/for-you/TuningReasonPrompt";
+import { useTuningReason, type TuningReasonPrompt as TuningReasonPromptState } from "@/hooks/use-tuning-reason";
 import { DailyPicksTodayLine, useDailyPicks } from "@/components/daily-picks/DailyPicksSwitch";
 import { pinEmailed } from "@/lib/daily-picks/pick";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
@@ -302,6 +304,8 @@ export function TodayHome({
     );
     const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
+    // The optional "why?" after a more/fewer tap, shared with the packs' deck (use-tuning-reason.ts).
+    const { prompt: tuningReason, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
 
     const newPicks = useMemo(
         () => picks.filter((r) => isNewPick(r.job, visit.seenBefore, visit.sinceMs)),
@@ -375,10 +379,11 @@ export function TodayHome({
     };
     // An own-role pick is rated like the packs rate one (#747): a thumbs down steers by employer, not the whole title.
     const nudge = (role: TodayRole, signal: TuningSignal) => recordNudge(role.job, signal, deck, { own: role.score.role === "own" });
-    /** A thumbs down: the pick leaves (kept out on this device) and roles like it move down. */
+    /** A thumbs down: the pick leaves (kept out on this device) and roles like it move down; then "why?" (optional). */
     const turnDown = (role: TodayRole) => {
         holdThrough(role.job.id, false);
         nudge(role, "fewer");
+        askWhy({ job: role.job, signal: "fewer", deck, own: role.score.role === "own" });
         const next = new Set(skipped).add(role.job.id);
         setSkipped(next);
         writeTodaySkipped(next);
@@ -426,8 +431,13 @@ export function TodayHome({
             onMore={(role) => {
                 track("new_role_more", role);
                 holdThrough(role.job.id, true);
-                if (liked.has(role.job.id)) clearNudge(role.job.id);
-                else nudge(role, "more");
+                if (liked.has(role.job.id)) {
+                    clearNudge(role.job.id);
+                    dismissWhyFor(role.job.id);
+                } else {
+                    nudge(role, "more");
+                    askWhy({ job: role.job, signal: "more", deck, own: role.score.role === "own" });
+                }
             }}
             onFewer={(role) => {
                 track("new_role_fewer", role);
@@ -437,7 +447,9 @@ export function TodayHome({
                 track("tuning_reset");
                 setHeld(shownIds);
                 resetNudges();
+                dismissWhy();
             }}
+            tuningReason={tuningReason}
             onOpenPack={(id) => {
                 track("see_more");
                 onOpenPack(id);
@@ -506,6 +518,7 @@ export function TodayHomeView({
     onApply,
     onMore,
     onFewer,
+    tuningReason = null,
     onResetTuning,
     onOpenPack,
     onAddResume,
@@ -556,6 +569,8 @@ export function TodayHomeView({
     onApply: (role: TodayRole) => void;
     onMore: (role: TodayRole) => void;
     onFewer: (role: TodayRole) => void;
+    /** "Fewer / more like {role} — why?" after a tap; null when nothing is asked. */
+    tuningReason?: TuningReasonPromptState | null;
     onResetTuning: () => void;
     onOpenPack: (id: TodayPackId) => void;
     onAddResume: () => void;
@@ -652,6 +667,7 @@ export function TodayHomeView({
                     </p>
                     {summaryLine}
                     {matched && dailyEmail ? dailyEmail : null}
+                    {matched ? <TuningReasonPrompt prompt={tuningReason} /> : null}
                     {matched && tuning ? (
                         <p className="flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground" data-testid="today-tuning">
                             <span className="min-w-0" aria-live="polite">

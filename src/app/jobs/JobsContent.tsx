@@ -6833,6 +6833,7 @@ export function JobsContent({
                                 onRoleSignal={forYouDeck.nudgeActive}
                                 tuning={forYouDeck.tuning}
                                 onResetTuning={forYouDeck.resetTuning}
+                                tuningReason={forYouDeck.tuningReason}
                                 matchScores={matchScores}
                                 resume={resume}
                                 signals={signals}
