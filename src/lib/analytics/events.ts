@@ -287,6 +287,18 @@ export interface EventPayloads {
     /** The starter step used (`kind: "starter_step"`). */
     step?: "apply" | "save_search" | "follow";
   } & Partial<MatchQualityAnalyticsProps>;
+  /**
+   * The visitor said why they tapped "more" or "fewer like this" (tuning.ts
+   * `TuningReason`). Aggregated, it says where fit is miscalibrated: many
+   * "level" answers on "fewer" mean the seniority read is off, many "role"
+   * answers that the pack searches the wrong titles. Nothing from the résumé.
+   */
+  tuning_reason_chosen: {
+    signal: "more" | "fewer";
+    reason: "role" | "level" | "place" | "company" | "field" | "done";
+    surface: "deck" | "today";
+    job_id: string;
+  };
   /** A pack opened from the packs home: a tile, "Browse all matches", or Today's "All of this week". */
   pack_opened: {
     pack: string;

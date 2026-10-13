@@ -305,7 +305,7 @@ export function TodayHome({
     const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
     // The optional "why?" after a more/fewer tap, shared with the packs' deck (use-tuning-reason.ts).
-    const { prompt: tuningReason, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
+    const { prompt: tuningReason, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason("today");
 
     const newPicks = useMemo(
         () => picks.filter((r) => isNewPick(r.job, visit.seenBefore, visit.sinceMs)),

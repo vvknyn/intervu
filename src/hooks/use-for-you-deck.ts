@@ -42,7 +42,7 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     const nudges = useDeckNudges();
     const [nowMs] = useState(() => Date.now());
     // The optional "why?" after a more/fewer tap (use-tuning-reason.ts).
-    const { prompt: whyPrompt, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
+    const { prompt: whyPrompt, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason("deck");
 
     const unskipped = useMemo(() => packs.filter((p) => !skippedIds.has(p.id)), [packs, skippedIds]);
     const visiblePacks = useMemo(
@@ -77,17 +77,22 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     const setActiveIndex = useCallback(
         (index: number) => {
             const clamped = clampDeckIndex(index, visiblePacks.length);
-            setActiveJobId(visiblePacks[clamped]?.id ?? null);
+            const nextId = visiblePacks[clamped]?.id ?? null;
+            // Moving to another role drops an unanswered "why?": it shows on the open role's card,
+            // and would otherwise ask about the role left behind on the next one's.
+            if (nextId !== activeJobId) dismissWhy();
+            setActiveJobId(nextId);
             if (clamped > 0 || passedIds.length > 0) setPassedIds(reachedIds(visiblePacks, passedIds, clamped));
         },
-        [visiblePacks, passedIds],
+        [visiblePacks, passedIds, activeJobId, dismissWhy],
     );
 
     /** Back to the top of a newly opened pack. */
     const restart = useCallback(() => {
         setActiveJobId(null);
         setPassedIds(NO_IDS);
-    }, []);
+        dismissWhy();
+    }, [dismissWhy]);
 
     // Skipping removes the active card from `visiblePacks`. The job that
     // slides into its former slot becomes active by id -- not the first

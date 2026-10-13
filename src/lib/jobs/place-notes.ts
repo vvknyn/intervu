@@ -15,6 +15,7 @@
 import { loadGazetteer, type Gazetteer } from "@/lib/geo/gazetteer";
 import { readLocationCountry } from "@/lib/geo/location-country";
 import { descriptionNeedsFill } from "./fill-description";
+import { withCorrectedCountry } from "./misfiled-job-country";
 import { buildJobSearchUrl } from "./get-job";
 import { host, meiliFetch, searchKey } from "./meilisearch";
 import { needsPlaceCheck, PLACE_NOTES_MAX_IDS, readPlaceRestriction, type ResolvePlace } from "./place-restriction";
@@ -120,8 +121,10 @@ export const MAX_LATE_PLACE_READS = 2;
 let latePlaceReads = 0;
 
 /**
- * A search's rows, each row that names no place of its own carrying what its
- * description says (`place_restriction`: a place, or `null` for none). One
+ * A search's rows, each row's country read back from its own place text when
+ * the tag contradicts it (`withCorrectedCountry`), and each row that names no
+ * place of its own carrying what its description says (`place_restriction`: a
+ * place, or `null` for none). One
  * read for the page, bounded by `deadlineMs`: on a slow or failed read the
  * rows come back as they were, and the browser reads the ones it shows.
  */
@@ -132,6 +135,12 @@ export async function withPlaceRestrictions<T extends PublicJob>(
         deadlineMs = SEARCH_PLACE_READ_DEADLINE_MS,
     }: { read?: (ids: string[], signal: AbortSignal) => Promise<Record<string, PlaceRestriction | null>>; deadlineMs?: number } = {},
 ): Promise<T[]> {
+    // A tag that contradicts the row's own place text ("Den Haag, NL" tagged Canada) is read back
+    // first (misfiled-job-country.ts), so the row is checked, scored and labelled where it really is.
+    const gazetteer = loadGazetteer();
+    const corrected = hits.map((hit) => withCorrectedCountry(hit, gazetteer));
+    // The same array when nothing was misfiled, so "the rows as they were" stays the very same rows.
+    if (corrected.some((hit, i) => hit !== hits[i])) hits = corrected;
     const ids = hits
         .filter(needsPlaceCheck)
         .slice(0, SEARCH_PLACE_READ_MAX_IDS)
@@ -166,6 +175,7 @@ export async function withPlaceRestrictions<T extends PublicJob>(
  * description, or one already read, is returned as it is.
  */
 export function withDescriptionPlace(job: PublicJob): PublicJob {
-    if (job.place_restriction !== undefined || typeof job.description !== "string") return job;
-    return { ...job, place_restriction: descriptionPlace(job.description) };
+    const placed = withCorrectedCountry(job, loadGazetteer());
+    if (placed.place_restriction !== undefined || typeof placed.description !== "string") return placed;
+    return { ...placed, place_restriction: descriptionPlace(placed.description) };
 }

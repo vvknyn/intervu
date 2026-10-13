@@ -72,6 +72,7 @@ export function StackedRoleCard({
     onOpenPosting,
     actions,
     tuning = null,
+    tuningNote = null,
 }: {
     job: PublicJob;
     active: boolean;
@@ -84,6 +85,8 @@ export function StackedRoleCard({
     actions: ReactNode;
     /** "More / fewer like this", beside the match label (RoleTuningButtons). */
     tuning?: ReactNode;
+    /** Under the header row, beside where the thumbs were tapped: "Fewer like {role} — why?" (TuningReasonPrompt). */
+    tuningNote?: ReactNode;
 }) {
     const presented = presentJob(job);
     const company = displayCompanyBrand(job.company, job.company_domain, job.title);
@@ -134,6 +137,7 @@ export function StackedRoleCard({
                     ) : null}
                     {tuning}
                 </div>
+                {tuningNote}
 
                 <div>
                     {/* page-scale-allow: a job's title heads its role card at the page-title step; the h1 is the page masthead */}

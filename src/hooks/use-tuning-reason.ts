@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { REASONS_FOR, roleName, type TuningReason } from "@/lib/jobs/for-you/tuning";
 import { setNudgeReason } from "@/lib/jobs/for-you/tuning-store";
+import { captureEvent } from "@/lib/analytics/events";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** A "more" or "fewer" tap waiting for the visitor to say why (or not). */
@@ -32,7 +33,7 @@ export interface TuningReasonPrompt {
  * question at a time: a newer tap replaces it, any other move on the list
  * (`dismiss`) clears it.
  */
-export function useTuningReason() {
+export function useTuningReason(surface: "deck" | "today") {
     const [pending, setPending] = useState<PendingTuningReason | null>(null);
 
     const ask = useCallback((next: PendingTuningReason) => setPending(next), []);
@@ -43,9 +44,10 @@ export function useTuningReason() {
         (reason: TuningReason) => {
             if (!pending) return;
             setNudgeReason(pending.job, reason, pending.deck, { own: pending.own });
+            captureEvent("tuning_reason_chosen", { signal: pending.signal, reason, surface, job_id: pending.job.id });
             setPending(null);
         },
-        [pending],
+        [pending, surface],
     );
 
     const prompt = useMemo<TuningReasonPrompt | null>(

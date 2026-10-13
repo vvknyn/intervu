@@ -548,6 +548,9 @@ export function ForYouHome({
                         />
                     ) : null
                 }
+                // On the card, by the thumbs that were tapped: in the deck's header it could be
+                // scrolled off by the page's fit-to-screen scroll (review, 2026-10-13).
+                tuningNote={active ? <TuningReasonPrompt prompt={tuningReason} layout="stacked" /> : null}
             />
         );
     };
@@ -821,26 +824,21 @@ export function ForYouHome({
                     <div className="role-stack-screen">
                         {thinBlock}
                         {tuning ? (
-                            <>
-                                <TuningReasonPrompt prompt={tuningReason} className="mb-2 shrink-0" />
-                                <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
-                                    <span className="min-w-0 truncate" aria-live="polite">
-                                        {tuningLine(tuning)}
-                                    </span>
-                                    {onResetTuning ? (
-                                        <button
-                                            type="button"
-                                            data-testid="deck-tuning-reset"
-                                            onClick={onResetTuning}
-                                            className={cn(REPLACE_RESUME_CLASS, "shrink-0")}
-                                        >
-                                            Reset
-                                        </button>
-                                    ) : null}
-                                </p>
-                            </>
-                        ) : tuningReason ? (
-                            <TuningReasonPrompt prompt={tuningReason} className="mb-2 shrink-0" />
+                            <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
+                                <span className="min-w-0 truncate" aria-live="polite">
+                                    {tuningLine(tuning)}
+                                </span>
+                                {onResetTuning ? (
+                                    <button
+                                        type="button"
+                                        data-testid="deck-tuning-reset"
+                                        onClick={onResetTuning}
+                                        className={cn(REPLACE_RESUME_CLASS, "shrink-0")}
+                                    >
+                                        Reset
+                                    </button>
+                                ) : null}
+                            </p>
                         ) : null}
                         <RoleStack
                             className="flex-1"
