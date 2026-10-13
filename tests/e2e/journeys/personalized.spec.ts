@@ -159,7 +159,7 @@ const PACK = [
   posting("77777777-0000-4000-8000-000000000005", "Technical Support Manager", "Fernway", "senior"),
   posting("77777777-0000-4000-8000-000000000006", "Technical Support Manager", "Kestrel IO", "senior"),
 ];
-const [TAM, ORCHARD_CSM, JUNIPER_CSM, ORCHARD_SE] = PACK.map((p) => p.id);
+const [TAM, ORCHARD_CSM, JUNIPER_CSM] = PACK.map((p) => p.id);
 
 signedInTest("fewer like this asks why, and the reason steers: \"This company\" turns the deck away from the employer, not the role", { tag: ["@J-JOBS-123"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
@@ -181,20 +181,22 @@ signedInTest("fewer like this asks why, and the reason steers: \"This company\" 
   await expect(why).toHaveCount(0);
 
   // The tap works on its own: the role goes, the deck guesses (the other customer success role
-  // moves away), and the deck asks why.
+  // moves away), and the deck asks why. Which role comes next can also move with a "dwell" nudge
+  // (20 s on a role, ForYouHome) on a slow run, so this reads what holds either way.
   await front.getByTestId("role-fewer-like-this").click();
   await expect(position).toHaveText("Role 2 of 5");
-  await expect(front).toHaveAttribute("data-job-id", ORCHARD_SE);
+  await expect(front).not.toHaveAttribute("data-job-id", ORCHARD_CSM);
   await expect(why).toContainText("Fewer like Customer Success Manager — why?");
   await expect(tuned).toContainText("Tuned away from Customer Success Manager.");
   await expect(upcoming).not.toHaveAttribute("data-job-id", JUNIPER_CSM);
+  const onScreen = await front.getAttribute("data-job-id");
 
   // "This company": it was Orchard CRM, not customer success. The role on screen stays put; the
   // other customer success role comes back next, and the line names the employer.
   await page.getByTestId("tuning-reason-company").click();
   await expect(why).toHaveCount(0);
   await expect(tuned).toContainText("Tuned away from Orchard CRM.");
-  await expect(front).toHaveAttribute("data-job-id", ORCHARD_SE);
+  await expect(front).toHaveAttribute("data-job-id", onScreen!);
   await expect(upcoming).toHaveAttribute("data-job-id", JUNIPER_CSM);
 
   // Reset clears the reason with the nudge.
