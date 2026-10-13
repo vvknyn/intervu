@@ -35,6 +35,7 @@ import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
 import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { SEARCH_JD_TYPED_READ_DEADLINE_MS, withJdTerms } from "@/lib/jobs/jd-terms";
 import { isInternalPosting } from "@/lib/jobs/presentation";
 import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
@@ -179,7 +180,24 @@ export async function searchJobsAction(
 
   // What each row's description says about where the person must be, so a
   // role for people in another country never reads as a fit in any list.
-  const hits = await withPlaceRestrictions(result.hits);
+  // A résumé-ranked search (a pack, Rank by fit, the hub probe) also gets each
+  // row's requirement and duty terms, so the browser scores the whole posting
+  // against the résumé it holds, not the title alone (jd-terms.ts). Both reads
+  // run together; each answers within its own deadline.
+  const [placed, withTerms] = await Promise.all([
+    withPlaceRestrictions(result.hits),
+    // A résumé-built search waits a little longer for the terms (its whole
+    // order depends on them); a typed search by someone holding a résumé gets
+    // them within the place read's own budget, so it is no slower.
+    params.fromResume
+      ? withJdTerms(result.hits)
+      : params.jdTerms
+        ? withJdTerms(result.hits, { deadlineMs: SEARCH_JD_TYPED_READ_DEADLINE_MS })
+        : Promise.resolve(null),
+  ]);
+  const hits = withTerms
+    ? placed.map((hit, i) => (withTerms[i]?.jd_terms !== undefined ? { ...hit, jd_terms: withTerms[i]!.jd_terms } : hit))
+    : placed;
   return { ...result, hits, searchId };
 }
 

@@ -13,8 +13,9 @@
  * filters (for-you/pack-filters.ts), `rankForYou` and `scoreJobAgainstResume`.
  */
 import type { AgentPreferences } from "@/lib/agent/preferences";
+import { statedSearch } from "@/lib/agent/preference-sources";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
-import { resumeSeniorityBasis, topSkills, type Seniority, type SeniorityBasis } from "@/lib/jobs/resume-match";
+import { resumeSeniorityBasis, splitPreferredRoles, topSkills, type Seniority, type SeniorityBasis } from "@/lib/jobs/resume-match";
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { locationFromResumePlainText } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
@@ -49,6 +50,8 @@ export interface CandidateSignals {
     seniority: Signal<Seniority> & { basis?: SeniorityBasis };
     roleFamily: Signal<string>;
     skills: Signal<string[]>;
+    /** Only ever `explicit`: how recent a role they want to see (Settings › Posted within), in days. */
+    postedWithinDays?: Signal<number>;
 }
 
 const SKILLS_CAP = 12;
@@ -180,7 +183,8 @@ export function resolveCandidateSignals(
     resume: ResumeData | null | undefined,
     agentPreferences?: AgentPreferences | null,
 ): CandidateSignals {
-    const prefs = agentPreferences?.configured ? agentPreferences : null;
+    // Only what the person stated: a field their résumé filled is read from the résumé itself.
+    const prefs = agentPreferences?.configured ? { ...agentPreferences, search: statedSearch(agentPreferences) } : null;
     const r = resume ?? null;
     const skills = r ? topSkills(r, SKILLS_CAP) : [];
     return {
@@ -189,8 +193,20 @@ export function resolveCandidateSignals(
         relocation: resolveRelocation(prefs),
         seniority: resolveSeniority(r, prefs),
         roleFamily: resolveRoleFamily(r, prefs),
+        ...(typeof prefs?.search.postedWithinDays === "number" && prefs.search.postedWithinDays > 0
+            ? { postedWithinDays: signal(prefs.search.postedWithinDays, "explicit") }
+            : {}),
         skills: skills.length > 0 ? signal(skills, "resume") : unknown(),
     };
+}
+
+/**
+ * The roles the candidate said they want (Settings › Roles, setup's roles
+ * step, an agent's `set_preferences`), as titles; `[]` when they said none.
+ * A role read off the résumé is not a statement of intent and is not listed.
+ */
+export function preferredRoles(signals: Pick<CandidateSignals, "roleFamily"> | null | undefined): string[] {
+    return signals?.roleFamily.source === "explicit" ? splitPreferredRoles(signals.roleFamily.value) : [];
 }
 
 /** The candidate's countries, or `[]` when the location is unknown or names no country. */

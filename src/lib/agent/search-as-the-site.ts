@@ -10,6 +10,7 @@
 import { searchJobs } from "@/lib/jobs/search";
 import { hydrateJobDescription } from "@/lib/jobs/hydrate-description";
 import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { withJdTerms } from "@/lib/jobs/jd-terms";
 import { siteSearch } from "./site-search";
 
 export const searchAsTheSite = siteSearch({
@@ -17,4 +18,5 @@ export const searchAsTheSite = siteSearch({
     hydrate: (id) => hydrateJobDescription(id, null),
     rowPlaces: (hits, opts) => withPlaceRestrictions(hits, opts),
     wholePlace: withDescriptionPlace,
+    rowTerms: (hits, opts) => withJdTerms(hits, opts),
 });

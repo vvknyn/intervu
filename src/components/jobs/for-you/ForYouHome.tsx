@@ -53,6 +53,7 @@ import {
     FOR_YOU_UPLOAD_PDF_EMPTY,
 } from "@/lib/jobs/resume-cta-copy";
 import type { Pursuit } from "@/lib/pursuits/types";
+import { AppliedBadge } from "@/components/jobs/AppliedBadge";
 
 export { JOBS_SESSION_FRAME_CLASS, JOBS_SESSION_FRAME_CLASS as FOR_YOU_HOME_FRAME_CLASS };
 
@@ -603,6 +604,7 @@ export function ForYouHome({
                         </Button>
                     )
                 ) : null}
+                {active ? <AppliedBadge pursuit={activePursuit} className="shrink-0 self-center" /> : null}
                 {active ? (
                     <span data-testid="for-you-deck-save" className="shrink-0">
                         <RowBookmarkButton

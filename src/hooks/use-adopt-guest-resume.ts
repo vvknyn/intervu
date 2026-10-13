@@ -5,11 +5,12 @@ import { hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
 import { captureEvent } from "@/lib/analytics/events";
 import { clearLocalAiResume, readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { shouldAdoptGuestResume } from "@/lib/resume/adopt-guest-resume";
 
 /**
  * Moves a résumé a visitor parsed as a guest into their account once they
- * sign in, when the account has no résumé yet; it never overwrites a saved
- * one. Same rule and write as JobsContent's adoption effect, for surfaces
+ * sign in, when the account has no résumé yet or an older one
+ * (`shouldAdoptGuestResume`): the newer résumé wins. Same rule and write as JobsContent's adoption effect, for surfaces
  * other than /jobs (a guest who uploads on /resume and then signs up used
  * to land on "No resume on file"). Calls `onAdopted` after the write lands
  * and the browser copy is cleared.
@@ -18,20 +19,29 @@ import { resumeIsUsable } from "@/lib/resume/resume-usable";
  * folders may import a server action (tests/unit/local-ai-no-cloud-imports);
  * this hook only saves a résumé the browser already parsed.
  */
-export function useAdoptGuestResume(uid: string | null, surface: string, onAdopted: () => void): void {
+export function useAdoptGuestResume(
+    uid: string | null,
+    surface: string,
+    onAdopted: (adopted: NonNullable<ReturnType<typeof readLocalAiResume>>) => void,
+): void {
     useEffect(() => {
         if (!uid) return;
         const stored = readLocalAiResume();
         if (!stored || !resumeIsUsable(stored.data)) return;
         let cancelled = false;
         void hasUsableResumeOnFile()
-            .then(async ({ hasResume }) => {
-                if (cancelled || hasResume) return;
+            .then(async ({ hasResume, updatedAt }) => {
+                if (cancelled) return;
+                if (!shouldAdoptGuestResume({ serverHasResume: hasResume, serverUpdatedAt: updatedAt, localUpdatedAt: stored.updatedAt })) {
+                    // The account's copy is newer: this browser's is stale, so it can't stand in for it later.
+                    if (hasResume) clearLocalAiResume();
+                    return;
+                }
                 const res = await saveResumeData(stored.data, "pdf", 1);
                 if (cancelled || res.error) return;
                 clearLocalAiResume();
                 captureEvent("resume_uploaded", { surface });
-                onAdopted();
+                onAdopted(stored);
             })
             .catch(() => {});
         return () => {

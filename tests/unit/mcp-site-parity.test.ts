@@ -321,6 +321,13 @@ describe('the MCP reads a job the way the site serves it', () => {
         for (const name of site) assert.ok(mcp.includes(name), `the site's search action uses ${name}; the MCP search (${MCP_SEARCH}) does not`);
     });
 
+    it('the MCP search reads description terms the way the site\'s search action does', () => {
+        // A résumé-ranked list scores the whole posting (jd-terms.ts); the for_you tool and the
+        // daily picks email must read the same terms or a role scores differently there.
+        assert.ok(namedImports('src/actions/jobs.ts', '@/lib/jobs/jd-terms').includes('withJdTerms'));
+        assert.ok(readFileSync(path.join(process.cwd(), 'src/lib/agent/search-as-the-site.ts'), 'utf8').includes('withJdTerms'));
+    });
+
     it('the MCP search looks a job up through the same seam as the site\'s job pane', () => {
         assert.ok(namedImports('src/actions/jobs.ts', '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));
         assert.ok(namedImports(MCP_SEARCH, '@/lib/jobs/hydrate-description').includes('hydrateJobDescription'));

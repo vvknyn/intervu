@@ -49,6 +49,7 @@ import {
     resolveCandidateSignals,
     seniorityOfLevel,
     type CandidateSignals,
+    preferredRoles,
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { payPlace } from "@/lib/jobs/pay-place";
@@ -56,6 +57,7 @@ import { resumeManagedPeople, titleLevel, titleManagesPeople, yearsAsked } from 
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
+import { jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -77,6 +79,12 @@ export interface MatchComponent {
     reason?: MatchReason;
     /** Relevance only: how many of the posting's terms the résumé has, of how many. */
     terms?: { matched: number; of: number };
+    /**
+     * Relevance only, when the posting's description was read (`jd-match.ts`):
+     * how much of what it asks for the résumé shows (0..1 after calibration),
+     * and the posting's own terms the résumé has / lacks, requirements first.
+     */
+    jd?: { fit: number; matched: string[]; missing: string[] };
     /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
     place?: { where: string; currency?: string };
     /** Seniority only, when both levels are known: what each was read from, for the reason a role shows (match/explain.ts). */
@@ -328,6 +336,15 @@ function resumeVocabulary(resume: ResumeData): Set<string> {
  */
 const RELEVANCE_COVERAGE_FLOOR = 0.6;
 
+/**
+ * How much the title says vs. what the whole posting says, when its
+ * description has been read. Half and half: the title is still the clearest
+ * statement of what the job IS, the description is the only statement of
+ * what it ASKS (review, 2026-10-13 — see jd-match.ts for why title-only
+ * relevance could not tell one "Product Manager" posting from another).
+ */
+export const JD_RELEVANCE_SHARE = 0.5;
+
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const jobVocab = jobVocabulary(job);
     const resumeVocab = resumeVocabulary(resume);
@@ -335,13 +352,24 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
 
     const matched = [...jobVocab].filter((token) => vocabHasToken(resumeVocab, token));
     const coverage = matched.length / jobVocab.size;
-    const score = Math.min(1, coverage / RELEVANCE_COVERAGE_FLOOR);
+    const titleScore = Math.min(1, coverage / RELEVANCE_COVERAGE_FLOOR);
+    const titleDetail = `${matched.length} of ${jobVocab.size} terms this role names`;
+
+    // The whole posting, when its description (or the terms read from it) is on hand.
+    const terms = jdTermsOf(job);
+    const jd = terms ? jdCoverage(resume, terms) : null;
+    if (!jd) {
+        return { key: "relevance", label: "Relevance to this role", detail: titleDetail, score: titleScore, terms: { matched: matched.length, of: jobVocab.size } };
+    }
+    const fit = jdFitScore(jd.coverage, resumeTermSet(resume).size);
+    const shown = jd.matched.slice(0, 4);
     return {
         key: "relevance",
         label: "Relevance to this role",
-        detail: `${matched.length} of ${jobVocab.size} terms this role names`,
-        score,
+        detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}`,
+        score: (1 - JD_RELEVANCE_SHARE) * titleScore + JD_RELEVANCE_SHARE * fit,
         terms: { matched: matched.length, of: jobVocab.size },
+        jd: { fit, matched: jd.matched.slice(0, 12), missing: jd.missing.slice(0, 12) },
     };
 }
 
@@ -623,16 +651,19 @@ interface ResumeTargets {
     managed: boolean;
 }
 
-/** Per résumé object: the role families it targets, the titles its packs search for, its own role, and whether it shows managing people. */
-const TARGETS = new WeakMap<ResumeData, ResumeTargets>();
+/** Per résumé object and stated roles: the role families it targets, the titles its packs search for, its own role, and whether it shows managing people. */
+const TARGETS = new WeakMap<ResumeData, Map<string, ResumeTargets>>();
 
-function resumeTargets(resume: ResumeData): ResumeTargets {
-    let targets = TARGETS.get(resume);
+function resumeTargets(resume: ResumeData, preferred: readonly string[] = []): ResumeTargets {
+    const key = preferred.join("\u0000").toLowerCase();
+    let byRoles = TARGETS.get(resume);
+    if (!byRoles) TARGETS.set(resume, (byRoles = new Map()));
+    let targets = byRoles.get(key);
     if (!targets) {
-        const roles = targetRoles(resume);
+        const roles = targetRoles(resume, preferred);
         targets = {
             families: roles.families,
-            searched: buildMatchQuery(resume).phrases.map((phrase) => phrase.toLowerCase()),
+            searched: buildMatchQuery(resume, undefined, preferred).phrases,
             own: roles.own,
             ownFamilies: roles.ownFamilies,
             leading: [
@@ -641,7 +672,7 @@ function resumeTargets(resume: ResumeData): ResumeTargets {
             ],
             managed: resumeManagedPeople(resume),
         };
-        TARGETS.set(resume, targets);
+        byRoles.set(key, targets);
     }
     return targets;
 }
@@ -660,10 +691,12 @@ function resumeTargets(resume: ResumeData): ResumeTargets {
  */
 export type RoleFit = "target" | "unverified" | "off-target";
 
-export function roleFit(resume: ResumeData, job: PublicJob): RoleFit {
-    const { families, searched } = resumeTargets(resume);
-    const title = (job.title ?? "").toLowerCase();
-    if (searched.some((phrase) => title.includes(phrase))) return "target";
+export function roleFit(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleFit {
+    const { families, searched } = resumeTargets(resume, preferred);
+    const title = job.title ?? "";
+    // Whole words, in order (`jobTitleMatchesTarget`): a substring test read
+    // "Nursery Teacher" as a "Nurse" posting.
+    if (searched.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "target";
     const jobFamilies = familiesNamedBy([job.title ?? ""]);
     if (jobFamilies.length === 0 || families.length === 0) return "unverified";
     return jobFamilies.some((family) => families.includes(family)) ? "target" : "off-target";
@@ -686,10 +719,10 @@ export function roleFit(resume: ResumeData, job: PublicJob): RoleFit {
  */
 export type RoleAffinity = "own" | "family" | "adjacent" | "unverified" | "off-target";
 
-export function roleAffinity(resume: ResumeData, job: PublicJob): RoleAffinity {
-    const fit = roleFit(resume, job);
+export function roleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleAffinity {
+    const fit = roleFit(resume, job, preferred);
     if (fit === "off-target") return fit;
-    const { own, ownFamilies } = resumeTargets(resume);
+    const { own, ownFamilies } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
     if (own.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "own";
     if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
@@ -699,8 +732,8 @@ export function roleAffinity(resume: ResumeData, job: PublicJob): RoleAffinity {
 }
 
 /** The candidate's role a posting is explained against: the own title it matched, else their first one. */
-function yourRoleFor(resume: ResumeData, job: PublicJob): string | null {
-    const { own } = resumeTargets(resume);
+function yourRoleFor(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): string | null {
+    const { own } = resumeTargets(resume, preferred);
     return own.find((phrase) => jobTitleMatchesTarget(job.title ?? "", phrase)) ?? own[0] ?? null;
 }
 
@@ -719,8 +752,8 @@ function yourRoleFor(resume: ResumeData, job: PublicJob): string | null {
  * and TAM postings come before its Product Manager ones, which still count as
  * its own role. A résumé with one kind of role is unchanged.
  */
-function familyRank(resume: ResumeData, job: PublicJob, role: RoleAffinity): number {
-    const { leading } = resumeTargets(resume);
+function familyRank(resume: ResumeData, job: PublicJob, role: RoleAffinity, preferred: readonly string[] = []): number {
+    const { leading } = resumeTargets(resume, preferred);
     const ranks = familiesNamedBy([job.title ?? ""])
         .map((family) => leading.indexOf(family))
         .filter((rank) => rank >= 0);
@@ -759,9 +792,93 @@ export function roleTier(score: MatchScore | null | undefined): number {
     return placeUnknown(score) ? PLACE_UNKNOWN_TIER + tier : tier;
 }
 
-/** Ranked-list order: role tier, then the higher total. Stable sorts keep the incoming order on a tie. */
-export function compareFit(a: MatchScore | null | undefined, b: MatchScore | null | undefined): number {
-    return roleTier(a) - roleTier(b) || (b?.total ?? -1) - (a?.total ?? -1);
+/**
+ * A role that reads Stretch because it manages people the candidate hasn't
+ * managed (`newToManaging`), or because it simply matches weakly, ranks after
+ * every role they can take in their own countries, whatever its role tier:
+ * role tier alone put the TAM résumé's Stretch "Manager, Technical Account
+ * Management" above nine Strong Customer Success roles (review, 2026-10-13).
+ * A role that is Stretch ONLY for asking one level more than the résumé shows
+ * keeps its tier — the candidate's own title one step up is a stretch worth
+ * seeing early (own-role-first.test.ts). Roles whose place is unknown or
+ * outside their countries keep their own, later tiers.
+ */
+const STRETCH_TIER = 300;
+
+function aboveLevelOnly(score: MatchScore): boolean {
+    return !score.newToManaging && score.components.some((c) => c.key === "seniority" && c.reason === "level_below_ask");
+}
+
+/** `roleTier`, with in-country Stretch roles (other than own-role-one-level-up) after every in-country Good or Strong one. */
+export function rankTier(score: MatchScore | null | undefined): number {
+    const tier = roleTier(score);
+    if (!score || tier >= PLACE_UNKNOWN_TIER) return tier;
+    return matchBand(score.total) === "stretch" && !aboveLevelOnly(score) ? STRETCH_TIER + tier : tier;
+}
+
+const DAY_MS = 86_400_000;
+
+/** Days for a posting's freshness credit to halve. */
+export const FRESHNESS_HALF_LIFE_DAYS = 7;
+
+/**
+ * Fit points a posting gets for being new, halving every
+ * `FRESHNESS_HALF_LIFE_DAYS`: +12 today, +6 at a week, +3 at two, under +1 at
+ * a month. Early applicants are read first, so among roles that fit about as
+ * well the newer one leads: yesterday's 90 now ranks above a 25-day-old 98,
+ * while a 95 still ranks above a same-day 82. Ranking only — the fit score
+ * and its band never change with age.
+ */
+export const FRESHNESS_RANK_POINTS = 12;
+
+export function freshnessPoints(postedTs: number | null | undefined, nowMs: number): number {
+    if (typeof postedTs !== "number" || !Number.isFinite(postedTs)) return 0;
+    const days = Math.max(0, (nowMs - postedTs) / DAY_MS);
+    return FRESHNESS_RANK_POINTS * Math.pow(0.5, days / FRESHNESS_HALF_LIFE_DAYS);
+}
+
+/**
+ * Which week a posting is in: this week (0), last week (1), or older (2, or
+ * unknown). Inside a fit band, a ranked list leads with this week's roles:
+ * fit totals inside one band differ by title-word noise as often as by real
+ * fit (a résumé that lacks the word "Enterprise" reads 2 of 3 terms), and
+ * that noise put 21–28-day-old Strong roles above 6-day-old Strong ones for
+ * the TAM résumé even with the freshness credit (review, 2026-10-13).
+ */
+export function postingWeek(postedTs: number | null | undefined, nowMs: number): number {
+    if (typeof postedTs !== "number" || !Number.isFinite(postedTs)) return 2;
+    const days = (nowMs - postedTs) / DAY_MS;
+    return days <= 7 ? 0 : days <= 14 ? 1 : 2;
+}
+
+/**
+ * The band a ranked list places a role in: its fit band, one band lower once
+ * it is over two weeks old (`postingWeek` 2). A Strong role posted 28 days ago
+ * ranks with this week's Good roles, not above them — by then most of its
+ * applicants are in and many such roles are being filled. The label the role
+ * shows never changes; only where it sits. Without a posting date the fit
+ * band alone, as before.
+ */
+export function rankBand(score: MatchScore | null | undefined, postedTs?: number | null, nowMs: number = Date.now()): number {
+    const band = BAND_RANK[matchBand(score?.total ?? -1)];
+    if (postedTs === undefined || !score) return band;
+    return Math.min(BAND_RANK.stretch, band + (postingWeek(postedTs, nowMs) === 2 ? 1 : 0));
+}
+
+/** The value a ranked list orders by inside a role tier and fit band: the fit total plus freshness. */
+export function rankingValue(score: MatchScore | null | undefined, postedTs: number | null | undefined, nowMs: number): number {
+    return (score?.total ?? -1) + (score ? freshnessPoints(postedTs, nowMs) : 0);
+}
+
+/** Ranked-list order: role tier (Stretch after the rest), then the higher total plus freshness. Stable sorts keep the incoming order on a tie. */
+export function compareFit(
+    a: MatchScore | null | undefined,
+    b: MatchScore | null | undefined,
+    aPostedTs?: number | null,
+    bPostedTs?: number | null,
+    nowMs: number = Date.now(),
+): number {
+    return rankTier(a) - rankTier(b) || rankingValue(b, bPostedTs, nowMs) - rankingValue(a, aPostedTs, nowMs);
 }
 
 const BAND_RANK: Record<MatchBand, number> = { strong: 0, good: 1, stretch: 2 };
@@ -772,19 +889,26 @@ const BAND_RANK: Record<MatchBand, number> = { strong: 0, good: 1, stretch: 2 };
  * before a Good one shown on earlier visits, never before a Strong one. In
  * score order alone the same top roles led every visit until they aged out
  * of the window ("I keep seeing the same result", 2026-10-06). With nothing
- * seen it is `compareFit`.
+ * seen it is `compareFit` inside each band. Pass the postings' `posted_ts`
+ * so this week's roles lead inside a band (`postingWeek`) and a newer role
+ * leads among roles that fit about as well (`rankingValue`); without them the
+ * order is by total alone, as before.
  */
 export function compareFitUnseenFirst(
     a: MatchScore | null | undefined,
     b: MatchScore | null | undefined,
     aSeen: boolean,
     bSeen: boolean,
+    aPostedTs?: number | null,
+    bPostedTs?: number | null,
+    nowMs: number = Date.now(),
 ): number {
     return (
-        roleTier(a) - roleTier(b) ||
-        BAND_RANK[matchBand(a?.total ?? -1)] - BAND_RANK[matchBand(b?.total ?? -1)] ||
+        rankTier(a) - rankTier(b) ||
+        rankBand(a, aPostedTs, nowMs) - rankBand(b, bPostedTs, nowMs) ||
         Number(aSeen) - Number(bSeen) ||
-        (b?.total ?? -1) - (a?.total ?? -1)
+        (aPostedTs !== undefined || bPostedTs !== undefined ? postingWeek(aPostedTs, nowMs) - postingWeek(bPostedTs, nowMs) : 0) ||
+        rankingValue(b, bPostedTs, nowMs) - rankingValue(a, aPostedTs, nowMs)
     );
 }
 
@@ -831,8 +955,9 @@ export function scoreJobAgainstResume(
 ): MatchScore | null {
     const overlap = scoreRelevance(resume, job);
     if (!overlap) return null;
-    const role = roleAffinity(resume, job);
-    const yourRole = yourRoleFor(resume, job);
+    const preferred = preferredRoles(signals);
+    const role = roleAffinity(resume, job, preferred);
+    const yourRole = yourRoleFor(resume, job, preferred);
     const offTarget = role === "off-target";
     const relevance = offTarget
         ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` }
@@ -853,7 +978,7 @@ export function scoreJobAgainstResume(
     const location = components[2]!;
     const abroad = location.reason != null && OUTSIDE_REASONS.has(location.reason);
 
-    const rank = familyRank(resume, job, role);
+    const rank = familyRank(resume, job, role, preferred);
     // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
     const aboveLevel = components[1]!.reason === "level_below_ask";
     const capped = offTarget || aboveLevel || newToManaging

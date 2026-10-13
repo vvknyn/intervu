@@ -56,10 +56,11 @@ function extractStorageNotes(source: string): string[] {
     });
 }
 
+/** Imports the account save: the action itself, or `saveResumeToAccount` (lib/jobs/save-resume-to-account.ts), its one wrapper. */
 function importsSaveResumeData(source: string): boolean {
     return source
         .split("\n")
-        .some((line) => line.trim().startsWith("import") && /\bsaveResumeData\b/.test(line));
+        .some((line) => line.trim().startsWith("import") && /\b(saveResumeData|saveResumeToAccount)\b/.test(line));
 }
 
 const callSites = walkTsxFiles(APP_ROOT).filter((file) => readFileSync(file, "utf8").includes("<ResumeImportModal"));

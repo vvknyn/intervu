@@ -16,6 +16,7 @@
  * I/O is injected (`DailyPicksDeps`, a subset of the MCP tools' `ToolDeps`),
  * so the daily run and the `daily_picks` tool share this and tests can feed it.
  */
+import { trackedIndex } from "@/lib/pursuits/applied";
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
@@ -101,6 +102,7 @@ export async function collectDailyPicks(
     }
 
     const tracked = new Set(applications.map((a) => a.job_id).filter((id): id is string => Boolean(id)));
-    const ranked = rankDailyPicks(roles, { tracked, sent: opts.sent });
+    // Applied roles stay out when the same opening comes back under a new id, too (lib/pursuits/applied.ts).
+    const ranked = rankDailyPicks(roles, { tracked, sent: opts.sent, applied: trackedIndex(applications) });
     return { kind: "ready", resume, signals, ranked, picks: chooseDailyPicks(ranked, opts.sent) };
 }

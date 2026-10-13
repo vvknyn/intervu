@@ -225,21 +225,26 @@ export interface TargetRoles {
  * groups name. An old role, or a duty that sounds like another job ("API",
  * "incident" in a product manager's bullets), is not a target.
  */
-export function targetRoles(resume: ResumeData): TargetRoles {
+export function targetRoles(resume: ResumeData, preferred: readonly string[] = []): TargetRoles {
     const current = (resume?.experience ?? []).map((e) => (e?.role ?? "").trim()).find(Boolean) ?? "";
     const profession = (resume?.profile?.profession ?? "").trim();
     const headlineIsJobTitle = Boolean(current) && profession.toLowerCase() === current.toLowerCase();
     const headline = profession && !headlineIsJobTitle ? splitRoleTitles(profession).map(headlineRoleTitle) : [];
     const currentTitle = current ? cleanRoleTitle(current) : "";
+    // Roles the candidate SAID they want (Settings › Roles, setup's roles step) lead: they are the
+    // clearest statement of intent there is. Before 2026-10-13 they were saved, shown as a chip on
+    // For you, and read by nothing that searched or scored.
+    const stated = preferred.map((p) => stripWorkMode(p)).filter(Boolean);
 
     const phrases: string[] = [];
-    for (const phrase of [...headline, currentTitle]) {
+    for (const phrase of [...stated, ...headline, currentTitle].map(stripWorkMode)) {
         if (phrase && !phrases.some((p) => p.toLowerCase() === phrase.toLowerCase())) phrases.push(phrase);
     }
     const lead = summaryLeadTitle(resume?.generatedSummary ?? "");
     const categories = (resume?.competencies ?? []).map((group) => (group?.category ?? "").trim()).filter(Boolean);
     const families = [
         ...new Set([
+            ...familiesInOrder(stated),
             ...familiesInOrder(headline),
             ...familiesInOrder(lead ? [lead] : []),
             ...familiesInOrder(categories),
@@ -255,6 +260,41 @@ export function targetRoles(resume: ResumeData): TargetRoles {
     const own = [...phrases];
     if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
     return { phrases, families, own, ownFamilies: familiesInOrder(own) };
+}
+
+/**
+ * Work-mode words are where a job is done, not what it is: "Remote Customer
+ * Support Specialist" searched as a phrase made every pack lane require the
+ * word "remote" in the title, and the search's query understanding read it
+ * as a work_type=remote filter on the WHOLE pack (review, 2026-10-13). The
+ * candidate's remote preference is its own signal (`remotePreference`).
+ */
+const WORK_MODE_WORDS = /\b(?:remote|hybrid|on[- ]?site|in[- ]office|work[- ]from[- ]home|wfh|telecommute|virtual)\b/gi;
+
+export function stripWorkMode(title: string): string {
+    const stripped = (title ?? "")
+        .replace(WORK_MODE_WORDS, " ")
+        .replace(/[()[\]]\s*[()[\]]/g, " ")
+        .replace(/\s*[-–—|,/]\s*$/g, "")
+        .replace(/^\s*[-–—|,/]\s*/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+    return stripped || (title ?? "").trim();
+}
+
+/**
+ * A stated roles answer as a list of titles: "Data Analyst, BI Analyst or
+ * Analytics Engineer" → the three. Split on commas, semicolons, slashes,
+ * bars, new lines and a standalone "or"; never on "and", which joins words
+ * inside one title ("Sales and Marketing Manager").
+ */
+export function splitPreferredRoles(text: string | null | undefined): string[] {
+    const out: string[] = [];
+    for (const part of (text ?? "").split(/[,;|\n/]+|\s+or\s+/i)) {
+        const role = stripWorkMode(part.replace(/^["'\s]+|["'\s.]+$/g, ""));
+        if (role && !out.some((r) => r.toLowerCase() === role.toLowerCase())) out.push(role);
+    }
+    return out;
 }
 
 /**
@@ -295,11 +335,15 @@ const ADJACENCY_INDUSTRIES: ReadonlySet<IndustryId> = new Set(["tech", "business
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
-export function buildMatchQuery(resume: ResumeData, nowYear: number = new Date().getFullYear()): DerivedQuery {
+export function buildMatchQuery(
+    resume: ResumeData,
+    nowYear: number = new Date().getFullYear(),
+    preferred: readonly string[] = [],
+): DerivedQuery {
     const skills = topSkills(resume, 6);
-    const target = targetRoles(resume);
+    const target = targetRoles(resume, preferred);
     const ownTitles = target.phrases.filter(isJobTitle);
-    const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle).filter(isJobTitle);
+    const recentTitles = experienceRoleTitles(resume, nowYear).map(cleanRoleTitle).map(stripWorkMode).filter(isJobTitle);
     const close = closeToOwn([...ownTitles, ...recentTitles], target.ownFamilies);
     const ownFamilyTitles = new Set(familyRetrievalTitles(target.ownFamilies));
 

@@ -25,7 +25,7 @@ import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { LocationReport } from "@/lib/jobs/broaden";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
-import { compareFit, levelUnverified, roleTier, type MatchScore } from "@/lib/match/score";
+import { compareFit, levelUnverified, rankTier, type MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { ResumeData } from "@/types/resume";
 
@@ -102,13 +102,20 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     // total, unscored jobs last
     // (Array.prototype.sort is stable per spec). Band order below keeps this order inside a band.
     const unverified = (job: PublicJob) => (levelUnverified(signals, job) ? 1 : 0);
-    scored.sort((a, b) => roleTier(a.match) - roleTier(b.match) || unverified(a.job) - unverified(b.job) || compareFit(a.match, b.match));
+    const nowMs = Date.now();
+    scored.sort(
+        (a, b) =>
+            rankTier(a.match) - rankTier(b.match) ||
+            unverified(a.job) - unverified(b.job) ||
+            compareFit(a.match, b.match, a.job.posted_ts, b.job.posted_ts, nowMs),
+    );
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const orderedJobs = orderForYouJobsByBand(
         scored.map((s) => s.job),
         (job) => byId.get(job.id)?.match ?? null,
         queryUsed,
+        nowMs,
     );
     const targets = targetTitlesFromQuery(queryUsed);
 

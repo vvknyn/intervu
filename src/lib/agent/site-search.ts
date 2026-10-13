@@ -24,6 +24,8 @@ export interface SiteSearchDeps {
     hydrate: (id: string) => Promise<JobSearchResult>;
     rowPlaces: (hits: PublicJob[], opts: { deadlineMs: number }) => Promise<PublicJob[]>;
     wholePlace: (job: PublicJob) => PublicJob;
+    /** A résumé-ranked list's rows with their descriptions' requirement and duty terms (`withJdTerms`), as `searchJobsAction` adds them. Optional: a caller without it scores titles only. */
+    rowTerms?: (hits: PublicJob[], opts: { deadlineMs: number }) => Promise<PublicJob[]>;
 }
 
 export function siteSearch(deps: SiteSearchDeps): (params: JobSearchParams) => Promise<JobSearchResult> {
@@ -35,6 +37,13 @@ export function siteSearch(deps: SiteSearchDeps): (params: JobSearchParams) => P
         }
         const result = await deps.search(params);
         if (result.unavailable === true || !result.configured || result.hits.length === 0) return result;
-        return { ...result, hits: await deps.rowPlaces(result.hits, { deadlineMs: AGENT.PLACE_READ_DEADLINE_MS }) };
+        const [placed, termed] = await Promise.all([
+            deps.rowPlaces(result.hits, { deadlineMs: AGENT.PLACE_READ_DEADLINE_MS }),
+            params.fromResume && deps.rowTerms ? deps.rowTerms(result.hits, { deadlineMs: AGENT.PLACE_READ_DEADLINE_MS }) : null,
+        ]);
+        const hits = termed
+            ? placed.map((hit, i) => (termed[i]?.jd_terms !== undefined ? { ...hit, jd_terms: termed[i]!.jd_terms } : hit))
+            : placed;
+        return { ...result, hits };
     };
 }

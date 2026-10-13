@@ -9,6 +9,7 @@
  * same baseline, so what reads as new doesn't change the moment it is read.
  */
 import { decodeText, locationText } from "@/lib/jobs/presentation";
+import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
@@ -141,15 +142,29 @@ export function sameRoleKey(job: PublicJob): string {
  */
 export function pickToday(
     roles: TodayRole[],
-    opts: { skipped: ReadonlySet<string>; tracked: ReadonlySet<string>; seenBefore?: ReadonlySet<string> | null },
+    opts: {
+        skipped: ReadonlySet<string>;
+        tracked: ReadonlySet<string>;
+        seenBefore?: ReadonlySet<string> | null;
+        nowMs?: number;
+        /** Roles applied to, so the same opening listed again under a new id stays out too (lib/pursuits/applied.ts). */
+        applied?: TrackedIndex<TrackedLike>;
+    },
 ): TodayRole[] {
     const seen = new Set<string>();
+    const nowMs = opts.nowMs ?? Date.now();
     const listed = (r: TodayRole) => opts.seenBefore?.has(r.job.id) ?? false;
     return roles
-        .filter((r) => !opts.skipped.has(r.job.id) && !opts.tracked.has(r.job.id) && todayLeftOut(r.score) == null)
+        .filter(
+            (r) =>
+                !opts.skipped.has(r.job.id) &&
+                !opts.tracked.has(r.job.id) &&
+                !(opts.applied && trackedPursuitFor(r.job, opts.applied)) &&
+                todayLeftOut(r.score) == null,
+        )
         .sort(
             (a, b) =>
-                compareFitUnseenFirst(a.score, b.score, listed(a), listed(b)) ||
+                compareFitUnseenFirst(a.score, b.score, listed(a), listed(b), derivePostedTs(a.job), derivePostedTs(b.job), nowMs) ||
                 (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0),
         )
         .filter((r) => {

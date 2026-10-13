@@ -99,12 +99,14 @@ describe("preferNewerAmongCloseMatches — the pure reorder", () => {
 
     it("a caution hit sorts after a fresh non-ghost hit in the same tie group, even when the rerank put it first", () => {
         // Upstream may relabel age-only likely-ghost roles as `caution`. The
-        // rerank's salary key puts the old caution role (salary shown) ahead
-        // of the fresh clear one; within the close-match group recency wins.
+        // rerank used to put the old caution role (salary shown) ahead of the
+        // fresh clear one, salary outranking age; since 2026-10-13 posting age
+        // comes before salary in the rerank itself, and the close-match pass
+        // keeps that order.
         const caution = hit("caution-old", 75, { ghost_badge: "caution", salary_min: 90_000, salary_max: 110_000 });
         const fresh = hit("clear-fresh", 2, { ghost_badge: "clear" });
-        const reranked = applyRelevanceQualityReranking([fresh, caution], "data analyst");
-        assert.deepEqual(ids(reranked), ["caution-old", "clear-fresh"], "precondition: the rerank alone leads with the caution role");
+        const reranked = applyRelevanceQualityReranking([fresh, caution], "data analyst", NOW);
+        assert.deepEqual(ids(reranked), ["clear-fresh", "caution-old"], "the rerank alone leads with the fresh role");
         const out = preferNewerAmongCloseMatches(reranked, "data analyst");
         assert.deepEqual(ids(out), ["clear-fresh", "caution-old"]);
         assert.equal(out[1]!.ghost_badge, "caution", "the caution role stays on the page with its badge value intact");

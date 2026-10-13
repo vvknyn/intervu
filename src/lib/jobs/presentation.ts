@@ -374,8 +374,9 @@ export function meaningfulTitleTokens(s: string): string[] {
 
 /**
  * Graded title alignment for relevance reranking: fraction of meaningful query
- * tokens (stopwords stripped via `FUNCTION_WORDS`) matched in the title via the
- * same startsWith rule as `titleMatchesQuery`, plus up to +0.2 for in-order,
+ * tokens (stopwords stripped via `FUNCTION_WORDS`) matched in the title — a
+ * whole word in full, a word the title word only starts with at half
+ * (`titleMatchesQuery`'s startsWith rule) — plus up to +0.2 for in-order,
  * compact matches. Score range 0..1.2. Empty/whitespace q or no meaningful
  * query tokens → 0.
  */
@@ -386,14 +387,24 @@ export function titleRelevanceScore(title: string, q: string): number {
     const titleTokens = meaningfulTitleTokens(title);
     if (titleTokens.length === 0) return 0;
 
+    // A whole word (or its plural) is a full match; a title word that only
+    // STARTS with the query word ("production" for "product", "salesforce"
+    // for "sales") counts half, so partly typed words still find titles but
+    // a real match always outranks a lookalike (review, 2026-10-13).
+    const wholeWord = (tt: string, qt: string) => tt === qt || tt === `${qt}s` || tt === `${qt}es`;
     const matchedTitleIndices: number[] = [];
+    let credit = 0;
     for (const qt of queryTokens) {
-        const idx = titleTokens.findIndex((tt) => tt.startsWith(qt));
-        if (idx >= 0) matchedTitleIndices.push(idx);
+        const whole = titleTokens.findIndex((tt) => wholeWord(tt, qt));
+        const idx = whole >= 0 ? whole : titleTokens.findIndex((tt) => tt.startsWith(qt));
+        if (idx >= 0) {
+            matchedTitleIndices.push(idx);
+            credit += whole >= 0 ? 1 : 0.5;
+        }
     }
     if (matchedTitleIndices.length === 0) return 0;
 
-    const coverage = matchedTitleIndices.length / queryTokens.length;
+    const coverage = credit / queryTokens.length;
 
     const inOrder =
         matchedTitleIndices.length >= 2 &&

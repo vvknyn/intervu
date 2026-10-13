@@ -1717,21 +1717,42 @@ function compareTierKeys(a: readonly number[], b: readonly number[]): number {
   return 0;
 }
 
+/** Posting-age buckets the rerank prefers newer within: up to 3 days, a week, two weeks, a month, older. */
+const FRESHNESS_BUCKET_DAYS = [3, 7, 14, 30] as const;
+const DAY_MS = 86_400_000;
+
+/** Lower = fresher. Unknown age sorts with the oldest. */
+export function freshnessBucket(job: PublicJob, nowMs: number = Date.now()): number {
+    const ts = job.posted_ts;
+    if (typeof ts !== "number" || !Number.isFinite(ts)) return FRESHNESS_BUCKET_DAYS.length;
+    const days = Math.max(0, (nowMs - ts) / DAY_MS);
+    const i = FRESHNESS_BUCKET_DAYS.findIndex((limit) => days <= limit);
+    return i === -1 ? FRESHNESS_BUCKET_DAYS.length : i;
+}
+
 /**
  * Post-search relevance & quality reranking for default/relevance searches:
- * Subtly elevates high-signal postings that candidates prioritize:
  * 0. Demotes non-tech titles on tech queries (e.g. "Therapist at Rust Medical Center" when searching "Rust").
  * 1. Title-token coverage score (`titleRelevanceScore`).
- * 2. Transparent compensation disclosure (salary_min > 0 or salary_max > 0).
- * 3. Verified clear ghost badge (ghost_badge === "clear").
- * 4. Recency tie-breaker.
+ * 2. Posting age, in buckets (`freshnessBucket`): among equally relevant
+ *    titles a role posted this week leads one posted last month.
+ * 3. Transparent compensation disclosure (salary_min > 0 or salary_max > 0).
+ * 4. Ghost tier: a likely ghost last, a caution after the rest. A posting not
+ *    checked yet ranks with a checked-clear one.
+ * 5. Recency tie-breaker.
+ *
+ * Before 2026-10-13 salary and a "clear" ghost check came BEFORE age. New
+ * postings are the ones not ghost-checked yet, and about half list no pay,
+ * so a Product Manager pack in Canada led with 35 salaried roles up to 28
+ * days old and put a 2-day-old Intact posting at #38 — past the 60 rows a
+ * pack loads, for most of the pool (measured live, review 2026-10-13).
  */
-export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): PublicJob[] {
+export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string, nowMs: number = Date.now()): PublicJob[] {
   if (!hits || hits.length <= 1) return hits;
   const ctx = relevanceRerankContext(q);
-  const ghostScore = (g: string) => (g === "clear" ? 2 : g === "likely_ghost" ? 0 : 1);
+  const ghostScore = (g: string) => (g === "likely_ghost" ? 0 : g === "caution" ? 1 : 2);
   const hasSalary = (j: PublicJob) => ((j.salary_min != null && j.salary_min > 0) || (j.salary_max != null && j.salary_max > 0) ? 1 : 0);
-  const keyed = hits.map((hit) => ({ hit, tier: relevanceTierKey(hit, ctx) }));
+  const keyed = hits.map((hit) => ({ hit, tier: relevanceTierKey(hit, ctx), fresh: freshnessBucket(hit, nowMs) }));
 
   keyed.sort((x, y) => {
     const a = x.hit;
@@ -1740,15 +1761,18 @@ export function applyRelevanceQualityReranking(hits: PublicJob[], q?: string): P
     const tier = compareTierKeys(x.tier, y.tier);
     if (tier !== 0) return tier;
 
-    // 2. Salary disclosure boost (disclosed pay is high signal for job seekers)
+    // 2. Posting age bucket (fresher first).
+    if (x.fresh !== y.fresh) return x.fresh - y.fresh;
+
+    // 3. Salary disclosure boost (disclosed pay is high signal for job seekers)
     const salary = hasSalary(b) - hasSalary(a);
     if (salary !== 0) return salary;
 
-    // 3. Ghost status tiering (clear > unscored/caution > likely_ghost)
+    // 4. Ghost status tiering (clear/unchecked > caution > likely_ghost)
     const ghost = ghostScore(b.ghost_badge) - ghostScore(a.ghost_badge);
     if (ghost !== 0) return ghost;
 
-    // 4. Recency tie-break (posted_ts)
+    // 5. Recency tie-break (posted_ts)
     return (b.posted_ts ?? 0) - (a.posted_ts ?? 0);
   });
   return keyed.map((k) => k.hit);

@@ -1,6 +1,7 @@
 /**
  * For-you / postcard pack ordering — the candidate's own role first, then the
- * same kind of role, then neighbours (`roleTier`, match/score.ts); inside each,
+ * same kind of role, then neighbours, with every Stretch role after all the
+ * roles they can take (`rankTier`, match/score.ts); inside each,
  * Strong (≥80) first, then Good (60–79), then Stretch (<60), then unscored.
  * Within each band, target-title relevance (`partitionByTargetTitle`) runs
  * before adjacent cards; relative order inside each (tier × band × title)
@@ -10,7 +11,7 @@
  * title-relevance.ts.
  */
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
-import { matchBand, roleTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { matchBand, rankBand, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const BAND_SEQUENCE: readonly MatchBand[] = ["strong", "good", "stretch"];
@@ -30,6 +31,8 @@ export function orderForYouJobsByBand(
     jobs: readonly PublicJob[],
     getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
     query?: string | null,
+    /** Pass to place a role over two weeks old one band lower (`rankBand`), as every ranked list does. */
+    nowMs?: number,
 ): PublicJob[] {
     if (!getScore) return [...jobs];
 
@@ -37,7 +40,8 @@ export function orderForYouJobsByBand(
     const buckets = new Map<number, PublicJob[]>();
     for (const job of jobs) {
         const score = getScore(job);
-        const key = roleTier(score) * bands + matchBandSortKey(score);
+        const band = score != null && nowMs !== undefined ? rankBand(score, job.posted_ts ?? null, nowMs) : matchBandSortKey(score);
+        const key = rankTier(score) * bands + band;
         const bucket = buckets.get(key);
         if (bucket) bucket.push(job);
         else buckets.set(key, [job]);

@@ -289,10 +289,14 @@ describe("saveResumeData", () => {
         assert.ok(start >= 0 && end > start);
         const fn = src.slice(start, end);
         const successAt = fn.indexOf("resume_text: FieldValue.delete()");
-        const fallbackAt = fn.indexOf("resume_text: resumeDataToText(resumeData)");
+        const fallbackAt = fn.indexOf("resume_text: resumeDataToText(");
         assert.ok(successAt >= 0, "successful structured save must delete resume_text");
         assert.ok(fallbackAt > successAt, "text-only fallback must still store resume_text");
         assert.match(fn, /\.set\(updateData, \{ merge: true \}\)/);
+        // 2026-10-13: the fallback must also drop the OLDER structured copy, or every read
+        // (`fetchResumeData` prefers resume_data) keeps returning the previous résumé.
+        assert.ok(fn.indexOf("resume_data: FieldValue.delete()", fallbackAt) > fallbackAt, "text-only fallback must remove the stale resume_data");
+        assert.match(fn.slice(fallbackAt), /resume_last_updated: savedAt/);
     });
 });
 

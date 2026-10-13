@@ -1,3 +1,4 @@
+import { jdTermsFromDescription } from '../../src/lib/match/jd-match';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -586,10 +587,15 @@ describe('scoreJobAgainstResume', () => {
 describe('a role scores the same on its page as in a list', () => {
     const fixture = (name: string) =>
         resumeDataFromPlainText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8'));
+    // A list row as a résumé-holder's search serves it: the list attributes,
+    // plus the description's terms the server attaches (`withJdTerms`).
     const asListRow = (job: PublicJob): PublicJob =>
-        Object.fromEntries(
-            JOB_LIST_ATTRIBUTES_TO_RETRIEVE.filter((key) => key in job).map((key) => [key, job[key as keyof PublicJob]]),
-        ) as unknown as PublicJob;
+        ({
+            ...Object.fromEntries(
+                JOB_LIST_ATTRIBUTES_TO_RETRIEVE.filter((key) => key in job).map((key) => [key, job[key as keyof PublicJob]]),
+            ),
+            jd_terms: jdTermsFromDescription(job.description, job),
+        }) as unknown as PublicJob;
     const pages: PublicJob[] = [
         mkJob({
             title: 'Technical Account Manager',

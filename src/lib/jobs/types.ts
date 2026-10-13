@@ -35,6 +35,8 @@ export interface PlaceRestriction {
   countries: string[];
 }
 
+import type { JdTerms } from "../match/jd-match";
+
 export interface PublicJob {
   id: string;
   title: string;
@@ -57,6 +59,15 @@ export interface PublicJob {
    * open to people anywhere (`OPEN_ANYWHERE`).
    */
   place_restriction?: PlaceRestriction | null;
+  /**
+   * The posting's requirement and duty terms, read from its description on
+   * the server (`withJdTerms`, jd-terms.ts) for résumé-ranked lists, so the
+   * browser can score the whole posting against the résumé it holds without
+   * the description itself riding on every row. Not on the index. Absent on
+   * rows nobody read; a page holding the whole description derives the same
+   * terms from it (`jdTermsOf`, match/jd-match.ts).
+   */
+  jd_terms?: JdTerms | null;
   /** e.g. "full_time" | "contract" | "unknown" */
   employment_type: string;
   /** e.g. "senior" | "mid" | "entry" | "unknown" */
@@ -417,6 +428,13 @@ export interface JobSearchParams {
    * (`shouldLogSearch`) so `search_events` never holds words from a résumé.
    */
   fromResume?: boolean;
+  /**
+   * The browser holds a résumé and scores these rows against it: attach each
+   * row's description terms (`jd_terms`, jd-terms.ts) so a list chip scores
+   * the whole posting, as the role's own page does. Implied by `fromResume`.
+   * Carries nothing from the résumé.
+   */
+  jdTerms?: boolean;
 }
 
 /** One parsed place: which location field it lives in, and the corpus's own

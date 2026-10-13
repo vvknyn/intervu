@@ -66,7 +66,9 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData, saveResumeData } from "@/actions/resume";
+import { fetchResumeData } from "@/actions/resume";
+import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
+import { trackedIndex, trackedPursuitFor, type TrackedIndex } from "@/lib/pursuits/applied";
 import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
@@ -1059,8 +1061,10 @@ function ListTail({
 
 
 /** A fit-ranked or pack search's query is the résumé's own role titles: marked so the search log leaves it out (`shouldLogSearch`). */
-function resumeSearchMark(fromResume: boolean): { fromResume?: true } {
-    return fromResume ? { fromResume: true } : {};
+function resumeSearchMark(fromResume: boolean, holdsResume = false): { fromResume?: true; jdTerms?: true } {
+    if (fromResume) return { fromResume: true };
+    // Rows this browser will score against a résumé carry their description's terms (jd-terms.ts).
+    return holdsResume ? { jdTerms: true } : {};
 }
 
 /** The résumé a guest parsed in this browser, when it is usable for ranking. */
@@ -1787,6 +1791,12 @@ export function JobsContent({
         }
         return merged;
     }, [pursuitsByJobId, optimisticPursuits]);
+    // Roles already applied to — by id, or the same opening listed again (lib/pursuits/applied.ts):
+    // badged on every row, and left out of a pack's deck.
+    const appliedIndex = useMemo(
+        () => trackedIndex([...pursuits, ...pursuitsByJobIdMerged.values()]),
+        [pursuits, pursuitsByJobIdMerged],
+    );
     const { viewedIds, markViewed } = useViewed();
     const saveInFlightRef = useRef<Set<string>>(new Set());
     const [savePulseJobIds, setSavePulseJobIds] = useState<Set<string>>(() => new Set());
@@ -1819,6 +1829,9 @@ export function JobsContent({
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
+    // Read by the search effects (refs, so holding a résumé never re-runs a search by itself).
+    const resumeHeldRef = useRef(false);
+    resumeHeldRef.current = resume != null;
     // Timestamp for match-score chips (see `fetchResumeData`, actions/resume.ts)
     // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
@@ -2068,21 +2081,13 @@ export function JobsContent({
     // résumé only in this browser. Adopt it into the account once — otherwise the
     // signup the gate asked for returns them to a page that has forgotten what
     // they uploaded. Only when the server has none: never overwrite a saved résumé.
-    useEffect(() => {
-        if (!user || resumeKnownOnServer !== false) return;
-        const stored = readUsableLocalResume();
-        if (!stored) return;
-        void saveResumeData(stored.data, "pdf", 1)
-            .then((res) => {
-                if (res.error) return;
-                clearLocalAiResume();
-                setResume(stored.data);
-                setResumeUpdatedAt(stored.updatedAt);
-                setResumeSourceLabel(stored.sourceLabel ?? null);
-                captureEvent("resume_uploaded", { surface: "jobs" });
-            })
-            .catch(() => {});
-    }, [user, resumeKnownOnServer]);
+    // The newer of the two wins (`shouldAdoptGuestResume`, inside the shared hook): a résumé uploaded
+    // while signed out used to be dropped whenever the account already had one.
+    useAdoptGuestResume(user?.uid ?? null, "jobs", (adopted) => {
+        setResume(adopted.data);
+        setResumeUpdatedAt(adopted.updatedAt);
+        setResumeSourceLabel(adopted.sourceLabel ?? null);
+    });
 
     // Whether the sort control's résumé-aware "Best match" segment (below)
     // should treat a résumé as on file — `hasUsableResume` (session-local:
@@ -2399,7 +2404,7 @@ export function JobsContent({
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current),
+                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -2974,7 +2979,15 @@ export function JobsContent({
             !fitActive || !matchScores
                 ? clusters
                 : [...clusters].sort((a, b) =>
-                      compareFitUnseenFirst(matchScores.get(a.primary.id), matchScores.get(b.primary.id), listed(a.primary.id), listed(b.primary.id)),
+                      compareFitUnseenFirst(
+                          matchScores.get(a.primary.id),
+                          matchScores.get(b.primary.id),
+                          listed(a.primary.id),
+                          listed(b.primary.id),
+                          a.primary.posted_ts,
+                          b.primary.posted_ts,
+                          nowMs,
+                      ),
                   );
         if (!rowTileOpen) return ranked;
         const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
@@ -3020,6 +3033,14 @@ export function JobsContent({
     // flight the deck loads rather than showing the previous search's roles.
     const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
     const deckRowsLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
+    // What the tracker held when this search's rows arrived: a pack never deals a role the person
+    // already applied to ("the jobs I applied to keep coming back", review 2026-10-13). Taken once per
+    // search, so a role marked Applied from the deck stays where it is until the next search.
+    const [deckApplied, setDeckApplied] = useState<{ key: string; index: TrackedIndex } | null>(null);
+    useEffect(() => {
+        if (pursuitsLoading || deckApplied?.key === searchKey) return;
+        setDeckApplied({ key: searchKey, index: appliedIndex });
+    }, [searchKey, pursuitsLoading, appliedIndex, deckApplied?.key]);
     const rankedPacks = useMemo(
         () =>
             deckResultStale
@@ -3027,11 +3048,13 @@ export function JobsContent({
                 : orderForYouJobsByBand(
                       renderedClusters
                           .map((c) => c.primary)
-                          .filter(hasLiveApplyUrl),
+                          .filter(hasLiveApplyUrl)
+                          .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
                       matchScores ? (job) => matchScores.get(job.id) ?? null : null,
                       result?.effectiveQ,
+                      nowMs,
                   ),
-        [deckResultStale, renderedClusters, result?.effectiveQ, matchScores],
+        [deckResultStale, renderedClusters, result?.effectiveQ, matchScores, deckApplied, nowMs],
     );
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
@@ -3928,7 +3951,7 @@ export function JobsContent({
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current),
+                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -5228,18 +5251,18 @@ export function JobsContent({
             // A failed save keeps the résumé in this browser, as a guest's is,
             // so it still ranks here and the next visit can carry it into the
             // account (the adoption effect above); a later save clears it.
-            let keptHere = false;
             // Setup's first step reads answered from here on (hooks/use-onboarding.ts).
             noteResumeOnFile();
             saveResumeToAccount(data, source, confidence, {
                 onSaved: () => {
-                    if (keptHere) clearLocalAiResume();
+                    // Any copy left in this browser (this upload's after a failed try, or an
+                    // older guest one) is now stale; a slow account read must never fall back to it.
+                    clearLocalAiResume();
                     captureEvent("resume_uploaded", {
                         surface: importFunnelContext.surface ?? "jobs",
                     });
                 },
                 onFailed: () => {
-                    keptHere = true;
                     writeLocalAiResume(data, updatedAt, sourceLabel);
                 },
             });
@@ -5481,6 +5504,7 @@ export function JobsContent({
                 onMatchTeaserClick={handleUploadClick}
                 matchAsOfDate={resumeAsOfDate}
                 pursuit={pursuitsByJobIdMerged.get(j.id)}
+                appliedPursuit={trackedPursuitFor(j, appliedIndex)}
                 onGoAfter={() => handleGoAfter(j)}
                 saveSuccessPulse={savePulseJobIds.has(j.id)}
                 position={rank >= 0 ? rank + 1 : undefined}

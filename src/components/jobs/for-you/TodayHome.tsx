@@ -85,6 +85,7 @@ import { scoreJobAgainstResume } from "@/lib/match/score";
 import { presentJob } from "@/lib/presentation";
 import { countAppliedToday } from "@/lib/pursuits/daily-apply-plan";
 import { boardColumn, type Pursuit } from "@/lib/pursuits/types";
+import { trackedIndex } from "@/lib/pursuits/applied";
 import { cn } from "@/lib/utils";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import type { ResumeData } from "@/types/resume";
@@ -282,9 +283,11 @@ export function TodayHome({
         () => new Set(pursuits.map((p) => p.job_id).filter((id): id is string => Boolean(id))),
         [pursuits],
     );
+    const appliedIndex = useMemo(() => trackedIndex(pursuits), [pursuits]);
     const ranked = useMemo(
-        () => (search.kind === "ready" ? pickToday(search.roles, { skipped, tracked, seenBefore: visit.seenBefore }) : []),
-        [search, skipped, tracked, visit.seenBefore],
+        () =>
+            search.kind === "ready" ? pickToday(search.roles, { skipped, tracked, seenBefore: visit.seenBefore, applied: appliedIndex }) : [],
+        [search, skipped, tracked, visit.seenBefore, appliedIndex],
     );
     // Ratings reorder the picks the visitor hasn't reached; the rows down to the one they rated stay put.
     const nudges = useDeckNudges();

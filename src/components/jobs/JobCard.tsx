@@ -43,6 +43,7 @@ import { jobPath } from "@/lib/jobs/job-slug";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { MatchScore } from "@/lib/match/score";
 import type { Pursuit } from "@/lib/pursuits/types";
+import { AppliedBadge } from "@/components/jobs/AppliedBadge";
 import { cn } from "@/lib/utils";
 
 export function JobCard({
@@ -63,6 +64,7 @@ export function JobCard({
     onMatchTeaserClick,
     matchAsOfDate = null,
     pursuit,
+    appliedPursuit,
     onGoAfter,
     saveSuccessPulse = false,
     position,
@@ -103,6 +105,10 @@ export function JobCard({
      *  `JobCard` without wiring pursuits, and the row's bookmark control
      *  simply doesn't render without a save handler rather than faking one. */
     pursuit?: Pursuit;
+    /** A pursuit at Applied or later for this role or the same opening listed again
+     *  (`trackedPursuitFor`) — shows the "Applied" badge. Separate from `pursuit`,
+     *  which drives this row's own bookmark and must belong to this exact posting. */
+    appliedPursuit?: Pursuit;
     onGoAfter?: () => void;
     saveSuccessPulse?: boolean;
     /** 1-based index of this row in the current search's rendered list
@@ -351,6 +357,7 @@ export function JobCard({
                         </span>
                     )}
                 </span>
+                <AppliedBadge pursuit={appliedPursuit ?? pursuit} />
                 {matchScore ? (
                     <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                 ) : showMatchTeaser && onMatchTeaserClick ? (

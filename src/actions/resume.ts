@@ -7,6 +7,7 @@ import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
+import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -15,11 +16,14 @@ import { hasResumeContent } from "@/lib/resume/has-content";
  * `resumeIsUsable` bar rather than a second usability check — the client
  * gets a boolean, never the document.
  */
-export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean }> {
-    const { data, text } = await fetchResumeData();
+export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null }> {
+    const { data, text, updatedAt } = await fetchResumeData();
     // A text-only résumé counts as on file without reading it here: the
     // browser structures it (`storedResumeData`), never this server.
-    return { hasResume: resumeIsUsable(data) || Boolean(text) };
+    // `updatedAt` (a timestamp, nothing from the résumé) lets a guest copy
+    // parsed more recently replace it on sign-in (`shouldAdoptGuestResume`).
+    const hasResume = resumeIsUsable(data) || Boolean(text);
+    return { hasResume, ...(hasResume ? { updatedAt: updatedAt ?? null } : {}) };
 }
 
 /**
@@ -84,13 +88,33 @@ export async function fetchResumeData(): Promise<{
 }
 
 /**
- * Save structured resume data to database
+ * The résumé as Firestore will take it: no `undefined` anywhere. The Admin
+ * SDK rejects an `undefined` field value outright (`ignoreUndefinedProperties`
+ * is not set — see actions/application.ts), and a parsed résumé carries them
+ * (an absent `linkedin`, `gpa`, `unconfirmedPlaces`…), so the structured save
+ * could throw on a perfectly good upload. A JSON round trip drops them, the
+ * same as the Postgres docstore already does (docstore/values.ts).
+ */
+export async function firestoreSafeResume(resumeData: ResumeData): Promise<ResumeData> {
+    return JSON.parse(JSON.stringify(resumeData)) as ResumeData;
+}
+
+/**
+ * Save structured resume data to database.
+ *
+ * On success the structured copy replaces any older one and the person's
+ * search preferences pick up what the new résumé says where they never set
+ * them themselves (`syncPreferencesFromResume`). If the structured write
+ * fails, the plain-text copy is written AND the old structured copy is
+ * removed: before 2026-10-13 the fallback left the previous `resume_data` in
+ * place, and every read prefers that copy (`fetchResumeData`), so a new
+ * upload "saved" and the old résumé came back on the next visit.
  */
 export async function saveResumeData(
     resumeData: ResumeData,
     importSource?: 'pdf' | 'docx' | 'text' | 'manual',
     confidence?: number
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; textOnly?: boolean }> {
     try {
         const user = await getServerUser();
 
@@ -101,20 +125,29 @@ export async function saveResumeData(
         console.log("[Resume] Saving resume data for:", user.uid);
 
         const db = getAdminDb();
+        const savedAt = new Date().toISOString();
+        const clean = await firestoreSafeResume(resumeData);
 
         // Structured save is the canonical copy. Drop any plain-text twin
         // from an earlier save so both are not kept after this succeeds.
         try {
             const updateData: Record<string, any> = {
-                resume_data: resumeData,
+                resume_data: clean,
                 resume_text: FieldValue.delete(),
-                resume_last_updated: new Date().toISOString()
+                resume_last_updated: savedAt
             };
 
             if (importSource) updateData.resume_import_source = importSource;
             if (confidence !== undefined) updateData.resume_import_confidence = confidence;
 
             await db.collection("profiles").doc(user.uid).set(updateData, { merge: true });
+
+            // Best effort, never fails the save: the résumé is on file either way.
+            try {
+                await syncPreferencesFromResume(user.uid, clean);
+            } catch (e: unknown) {
+                console.warn("[Resume] Preference sync from résumé failed:", e instanceof Error ? e.message : e);
+            }
 
             return {}; // Success
 
@@ -125,7 +158,11 @@ export async function saveResumeData(
         try {
             await db.collection("profiles").doc(user.uid).set(
                 {
-                    resume_text: resumeDataToText(resumeData),
+                    resume_text: resumeDataToText(clean),
+                    // The new résumé must win the next read: remove the older structured copy.
+                    resume_data: FieldValue.delete(),
+                    resume_last_updated: savedAt,
+                    ...(importSource ? { resume_import_source: importSource } : {}),
                 },
                 { merge: true },
             );
@@ -134,7 +171,7 @@ export async function saveResumeData(
             return { error: fallbackError.message };
         }
 
-        return {};
+        return { textOnly: true };
     } catch (e: any) {
         console.error("[Resume] Save Exception:", e);
         return { error: e.message };

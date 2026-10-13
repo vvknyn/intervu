@@ -14,6 +14,7 @@
  * Pure, no I/O: the daily run (collect.ts), the MCP `daily_picks` tool and
  * Today's pinning (`pinEmailed`) all use it.
  */
+import { type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
 import { pickToday, sameRoleKey, type TodayRole } from "@/lib/jobs/for-you/today";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -48,8 +49,11 @@ export function sentKey(job: PublicJob): string {
  * dropped here, only ordered after the rest (`seenBefore`), so a list of the
  * day's picks (the MCP tool) still shows them.
  */
-export function rankDailyPicks(roles: TodayRole[], opts: { tracked: ReadonlySet<string>; sent: DailyPicksSent }): TodayRole[] {
-    return pickToday(roles, { skipped: new Set(), tracked: opts.tracked, seenBefore: new Set(opts.sent.ids) });
+export function rankDailyPicks(
+    roles: TodayRole[],
+    opts: { tracked: ReadonlySet<string>; sent: DailyPicksSent; applied?: TrackedIndex<TrackedLike> },
+): TodayRole[] {
+    return pickToday(roles, { skipped: new Set(), tracked: opts.tracked, seenBefore: new Set(opts.sent.ids), applied: opts.applied });
 }
 
 /** Whether a role, or another listing of the same opening, has been emailed to this account. */

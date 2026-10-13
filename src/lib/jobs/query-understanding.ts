@@ -29,6 +29,7 @@ import { MAX_REGION_CLAUSE_TERMS, regionLabel } from "../geo/regions";
 import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
+import { parseQuotedOrPhrases } from "./fit-phrases";
 import { isNeutralLocationFacetValue, LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
@@ -608,6 +609,12 @@ export async function applyQueryUnderstanding(
 ): Promise<JobSearchParams> {
   const q = (p.q ?? "").trim();
   if (!q) return p;
+  // A list of quoted titles (`"A" OR "B"`, the form a pack and Rank by fit
+  // send) is exact titles, not free text: a work-mode or place word INSIDE a
+  // title ("Remote Support Specialist", "Toronto Account Manager") is part of
+  // that title, never a filter on every lane of the search (review,
+  // 2026-10-13). Those searches carry their own location and work-mode facets.
+  if (parseQuotedOrPhrases(q)) return p;
 
   const explicitWorkType = (p.facets?.work_type?.length ?? 0) > 0;
   let next = p;

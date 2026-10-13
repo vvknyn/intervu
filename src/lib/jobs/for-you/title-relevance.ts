@@ -49,22 +49,74 @@ function titleMatchTokens(title: string): string[] {
 }
 
 /**
- * True iff every significant token of `targetTitle` appears, order-
- * insensitive, as some significant token of `jobTitle` — same startsWith
- * tolerance `titleMatchesQuery` (presentation.ts) uses for the SERP's own
- * title match, so e.g. "manager" tolerates "managers". That tolerance is by
- * prefix, not a stemmer: "engineer" also prefix-matches "engineering" (a
- * known, accepted breadth of the existing rule, not new here) — so
- * "Software Engineer" matches a "Software Engineering Manager" job title
- * under this function. An empty target (nothing significant left after
- * stripping function/rank words) never matches — there's nothing left to
- * require.
+ * One title word against one target word: the same word, or a plural of it
+ * either way ("manager"/"managers", "analyst"/"analysts", "class"/"classes").
+ * Deliberately NOT a prefix match: a target is a whole role title the
+ * candidate named (their headline, their role, a title they asked for), never
+ * a word still being typed, and prefix tolerance read "Production Manager" as
+ * a Product Manager's own role, "Salesforce Administrator" as a Sales
+ * Associate's, "Nursery Teacher" as a Nurse's and "Database Analyst" as a
+ * Data Analyst's (review, 2026-10-13).
+ */
+function sameTitleWord(jobToken: string, targetToken: string): boolean {
+    return (
+        jobToken === targetToken ||
+        jobToken === `${targetToken}s` ||
+        jobToken === `${targetToken}es` ||
+        targetToken === `${jobToken}s` ||
+        targetToken === `${jobToken}es`
+    );
+}
+
+/** `target` appears as a contiguous, in-order run inside `tokens`. */
+function containsRun(tokens: readonly string[], target: readonly string[]): boolean {
+    for (let start = 0; start + target.length <= tokens.length; start++) {
+        if (target.every((t, i) => sameTitleWord(tokens[start + i]!, t))) return true;
+    }
+    return false;
+}
+
+/**
+ * The orders a title can be read in: as written, and each comma rotation of
+ * it, so an inverted title reads the way it is said — "Engineer, Software" is
+ * a Software Engineer, "Customer Success Manager, Technical" a Technical
+ * Customer Success Manager, "Senior Manager, Product" a Product Manager.
+ */
+function titleReadings(jobTitle: string): string[][] {
+    const segments = jobTitle.split(",").map((s) => s.trim()).filter(Boolean);
+    const readings = [titleMatchTokens(jobTitle)];
+    for (let k = 1; k < segments.length; k++) {
+        readings.push(titleMatchTokens([...segments.slice(k), ...segments.slice(0, k)].join(" ")));
+    }
+    return readings;
+}
+
+/**
+ * True iff the significant tokens of `targetTitle` appear in `jobTitle` as a
+ * contiguous, in-order run of whole words (plurals tolerated), in the title as
+ * written or read with a comma inversion undone (`titleReadings`). Rank words
+ * are dropped from both sides first (`titleMatchTokens`), so "Sr. Product
+ * Manager II" is a Product Manager and a "Senior" target still finds an
+ * unranked title.
+ *
+ * Before 2026-10-13 this was an order-insensitive, prefix-tolerant bag of
+ * words, so every title that merely CONTAINED the target's words counted as
+ * the candidate's own role: "Product Marketing Manager", "Product Operations
+ * Manager" and "Product Development Manager" for a Product Manager (all three
+ * are retrieved by the Product Manager lane, which matches words, not
+ * phrases), "Manager, Technical Account Management" for a Technical Account
+ * Manager, "Registered Practical Nurse" (a different licence) for a
+ * Registered Nurse, and "Software Engineering Manager" for a Software
+ * Engineer. An own-role match ranks first in every pack (`roleTier`), so each
+ * of those led the list.
+ *
+ * An empty target (nothing significant left after stripping function/rank
+ * words) never matches — there's nothing left to require.
  */
 export function jobTitleMatchesTarget(jobTitle: string, targetTitle: string): boolean {
     const targetTokens = titleMatchTokens(targetTitle);
     if (targetTokens.length === 0) return false;
-    const jobTokens = titleMatchTokens(jobTitle);
-    return targetTokens.every((qt) => jobTokens.some((jt) => jt.startsWith(qt)));
+    return titleReadings(jobTitle).some((tokens) => containsRun(tokens, targetTokens));
 }
 
 /**
