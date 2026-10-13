@@ -4864,14 +4864,24 @@ export function JobsContent({
         const derived = { ...packFacets };
         if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
         const merged = mergeFacets(facets, derived);
+        // Every fit-ranked pack uses the pack's own window (30 days, or Settings › Posted within),
+        // not the board's 90-day default: opening For you from a résumé upload or the guest home
+        // passed no tile and so kept 90 days, ~half of the pack older than 30 days (2026-10-13).
+        // A window the person picked by hand on the board stays theirs.
+        const keepUserWindow = !tileId && postedExplicit;
         const tileWindow = tileId
             ? { postedBucket: tile.postedBucket, postedExplicit: tile.postedExplicit, salaryMin: tile.salaryMin }
-            : {};
+            : keepUserWindow
+              ? {}
+              : { postedBucket: tile.postedBucket, postedExplicit: true };
         setFacets(merged);
         if (tileId) {
             setPostedBucket(tile.postedBucket);
             setPostedExplicit(tile.postedExplicit ?? false);
             setSalaryMin(tile.salaryMin);
+        } else if (!keepUserWindow) {
+            setPostedBucket(tile.postedBucket);
+            setPostedExplicit(true);
         }
         setQueryDraft(q);
         setQuery(q);

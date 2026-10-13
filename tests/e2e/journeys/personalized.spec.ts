@@ -255,3 +255,25 @@ test("a pack never deals a role the account applied to, nor the same opening lis
   await expect(front).toHaveAttribute("data-job-id", csm.id);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("a pack leads with this month's roles over an older own-title one, and leaves out roles over 60 days old", { tag: ["@J-JOBS-127"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  // Sent own-title first, the order the role tier alone gave them (live TAM pack, 2026-10-13).
+  const ancient = posting("88888888-0000-4000-8000-000000000001", "Technical Account Manager", "Braze Cloud", "senior", 85);
+  const stale = posting("88888888-0000-4000-8000-000000000002", "Technical Account Manager", "Docent Labs", "senior", 45);
+  const fresh = posting("88888888-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Maple CRM", "senior", 3);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [ancient, stale, fresh], "journey-pack-age");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", fresh.id, { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${ancient.id}"]`)).toHaveCount(0);
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", stale.id);
+  expect(diagnostics.pageErrors).toEqual([]);
+});

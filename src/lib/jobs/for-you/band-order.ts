@@ -27,6 +27,19 @@ export function matchBandSortKey(score: MatchScore | null | undefined): number {
  * (no résumé / caller opts out), returns a shallow copy in incoming order —
  * anonymous Search browsing is unchanged.
  */
+const PACK_DAY_MS = 86_400_000;
+/** Past this age a pack demotes a role below every fresher one (Vivek, 2026-10-13: "really old jobs in my For you pack"). */
+export const PACK_STALE_DAYS = 30;
+/** Past this age a pack leaves the role out entirely: by two months most such roles are filled or ghosted. */
+export const PACK_MAX_AGE_DAYS = 60;
+
+/** 0 = fresh (≤30d), 1 = stale (30–60d) or undated, 2 = too old for a pack (>60d). */
+export function packAgeTier(postedTs: number | null | undefined, nowMs: number): 0 | 1 | 2 {
+    if (typeof postedTs !== "number" || !Number.isFinite(postedTs)) return 1;
+    const days = (nowMs - postedTs) / PACK_DAY_MS;
+    return days <= PACK_STALE_DAYS ? 0 : days <= PACK_MAX_AGE_DAYS ? 1 : 2;
+}
+
 export function orderForYouJobsByBand(
     jobs: readonly PublicJob[],
     getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
@@ -38,10 +51,15 @@ export function orderForYouJobsByBand(
 
     const bands = BAND_SEQUENCE.length + 1;
     const buckets = new Map<number, PublicJob[]>();
+    // Age outranks role tier: an own-title role posted 85 days ago led the TAM pack above
+    // this week's Customer Success roles (measured live, 2026-10-13). Over 60 days is left out.
+    const tierSpan = 10_000 * bands;
     for (const job of jobs) {
         const score = getScore(job);
+        const age = nowMs !== undefined ? packAgeTier(job.posted_ts ?? null, nowMs) : 0;
+        if (age === 2) continue;
         const band = score != null && nowMs !== undefined ? rankBand(score, job.posted_ts ?? null, nowMs) : matchBandSortKey(score);
-        const key = rankTier(score) * bands + band;
+        const key = age * tierSpan + rankTier(score) * bands + band;
         const bucket = buckets.get(key);
         if (bucket) bucket.push(job);
         else buckets.set(key, [job]);
