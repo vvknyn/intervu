@@ -1,0 +1,204 @@
+import type { Page } from "@playwright/test";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
+import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
+import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { expect, test } from "./fixtures";
+import { answerListSearch, isListSearch } from "./list-search";
+import { signedInTest, withoutMockSignInHydration } from "./signed-in";
+
+/**
+ * Personalised matching fixes, review 2026-10-13 — see tests/journeys/CATALOG.md (J-JOBS-121 to 123).
+ * Read-only: the résumé and the guest tracker live in localStorage, and the list search's answer
+ * is replaced in the browser (the search still runs), as in match-order.spec.ts.
+ *
+ * - J-JOBS-121 "The jobs I have applied to keep coming back and there is no badge": the corpus
+ *   re-lists the same opening under a new id, and no list row said a role was applied to.
+ * - J-JOBS-122 "returning recent jobs instead of jobs from 1 month ago": among roles that fit
+ *   alike, the newest leads; a role over two weeks old ranks after this week's.
+ * - J-JOBS-123 "the more/less like this role should give reasons and take that as input".
+ */
+
+const GUEST_PURSUITS_KEY = "intervu.pursuits.guest";
+const DAY_MS = 86_400_000;
+
+const returningVisitor = (page: Page) =>
+  page.addInitScript((key) => localStorage.setItem(key, "1"), ONBOARDING_COMPLETED_STORAGE_KEY);
+
+/** Fabricated candidate (no real person): a Toronto Technical Account Manager — the same one as match-order.spec.ts. */
+const TAM_RESUME = {
+  profile: { name: "Morgan Lee", profession: "Technical Account Manager", yearsOfExperience: 9, location: "Toronto, Ontario, Canada", email: "morgan.lee.e2e@example.com", phone: "555-010-4477", linkedin: "", website: "" },
+  experience: [
+    { id: "exp1", company: "Northwind Cloud", role: "Technical Account Manager", dates: "2019 - Present", description: "Owned adoption, renewals and technical escalations for 40 enterprise accounts; worked with product managers on the roadmap." },
+    { id: "exp2", company: "Maple Systems", role: "Technical Support Engineer", dates: "2015 - 2019", description: "Resolved API and integration issues for enterprise customers." },
+  ],
+  competencies: [{ category: "Skills", skills: ["Customer Success", "Product Management", "SQL", "REST APIs", "Salesforce"] }],
+  education: [{ id: "edu1", degree: "B.Eng. Computer Engineering", institution: "State University", year: "2015" }],
+  generatedSummary: "Technical Account Manager with nine years in customer success and product delivery for enterprise SaaS customers.",
+};
+
+const seedResume = (page: Page) =>
+  page.addInitScript(
+    ([resumeKey, data]) => {
+      localStorage.setItem(resumeKey as string, JSON.stringify({ data, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
+    },
+    [LOCAL_AI_RESUME_KEY, TAM_RESUME] as const,
+  );
+
+const posting = (id: string, title: string, company: string, experience_level: string, daysOld = 1) => {
+  const posted = new Date(Date.now() - daysOld * DAY_MS).toISOString();
+  return {
+    id,
+    title,
+    company,
+    company_domain: null,
+    location: "Toronto, ON",
+    location_city: "Toronto",
+    location_state: "Ontario",
+    location_country: "Canada",
+    work_type: "hybrid",
+    description: null,
+    employment_type: "full_time",
+    experience_level,
+    salary_min: null,
+    salary_max: null,
+    salary_currency: null,
+    salary_period: null,
+    visa_sponsorship: null,
+    tags: [],
+    apply_url: "https://example.com/apply",
+    source: "journey",
+    posted_at: posted,
+    posted_ts: Date.parse(posted),
+    first_seen_at: null,
+    updated_at: null,
+    vacancy_status: "open",
+    ghost_badge: "unscored",
+  };
+};
+
+/** The list's first page answers with `listed`, in the browser only. */
+const answerResumeSearch = (page: Page, listed: object[], searchId: string) =>
+  page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    return answerListSearch(route, { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId });
+  });
+
+const rowIds = (page: Page) => page.getByTestId("job-row").evaluateAll((els) => els.map((el) => el.getAttribute("data-job-id")));
+
+test("a role you applied to is badged Applied in the list, also when the same opening is listed again under a new id", { tag: ["@J-JOBS-121"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page);
+  // Applied two days ago to Northstar Data's TAM role, under the id it had then.
+  await page.addInitScript((key) => {
+    const at = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    localStorage.setItem(
+      key,
+      JSON.stringify([
+        {
+          id: "guest-journey-applied",
+          user_id: "guest",
+          company_name: "Northstar Data",
+          position: "Technical Account Manager",
+          status: "applied",
+          job_id: "journey-old-listing-id",
+          job_snapshot: { title: "Technical Account Manager", company: "Northstar Data", location: "Toronto, ON", description: null, apply_url: "" },
+          applied_at: at,
+          created_at: at,
+          updated_at: at,
+        },
+      ]),
+    );
+  }, GUEST_PURSUITS_KEY);
+  const relisted = posting("55555555-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior");
+  const other = posting("55555555-0000-4000-8000-000000000002", "Technical Account Manager", "Beacon Cloud", "senior");
+  await answerResumeSearch(page, [relisted, other], "journey-applied");
+  await page.goto("/jobs?view=search&sort=fit");
+
+  const row = (id: string) => page.locator(`[data-testid="job-row"][data-job-id="${id}"]`);
+  await expect(row(relisted.id)).toBeVisible({ timeout: 60_000 });
+  await expect(row(relisted.id).getByTestId("job-applied-badge")).toHaveText("Applied");
+  await expect(row(other.id).getByTestId("job-applied-badge")).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("among roles that fit alike, the résumé's ranked list leads with this week's and puts one over two weeks old after them", { tag: ["@J-JOBS-122"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page);
+  // Same role, same level, same place: they fit alike. Sent oldest first, the order relevance gave them.
+  const old = posting("66666666-0000-4000-8000-000000000001", "Technical Account Manager", "Harbor Pay", "senior", 25);
+  const lastWeek = posting("66666666-0000-4000-8000-000000000002", "Technical Account Manager", "Lumen Analytics", "senior", 10);
+  const thisWeek = posting("66666666-0000-4000-8000-000000000003", "Technical Account Manager", "Cedar Health", "senior", 2);
+  await answerResumeSearch(page, [old, lastWeek, thisWeek], "journey-fresh");
+  await page.goto("/jobs?view=search&sort=fit");
+
+  await expect(page.getByTestId("job-row")).toHaveCount(3, { timeout: 60_000 });
+  await expect.poll(() => rowIds(page), { timeout: 30_000 }).toEqual([thisWeek.id, lastWeek.id, old.id]);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** Open the packs hub's "all" pack. The hub paints before it hydrates, so tap until the pack opens. */
+async function openPack(page: Page) {
+  await page.goto("/jobs?view=for-you");
+  const card = page.getByTestId("hub-pack-card-all");
+  const back = page.getByTestId("jobs-back-to-packs");
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(async () => {
+    if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
+    await expect(back).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
+/** As ranked for the TAM résumé: its own role, two customer success roles, then the rest. */
+const PACK = [
+  posting("77777777-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
+  posting("77777777-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior"),
+  posting("77777777-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Juniper Labs", "senior"),
+  posting("77777777-0000-4000-8000-000000000004", "Solutions Engineer", "Orchard CRM", "senior"),
+  posting("77777777-0000-4000-8000-000000000005", "Technical Support Manager", "Fernway", "senior"),
+  posting("77777777-0000-4000-8000-000000000006", "Technical Support Manager", "Kestrel IO", "senior"),
+];
+const [TAM, ORCHARD_CSM, JUNIPER_CSM, ORCHARD_SE] = PACK.map((p) => p.id);
+
+signedInTest("fewer like this asks why, and the reason steers: \"This company\" turns the deck away from the employer, not the role", { tag: ["@J-JOBS-123"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await answerResumeSearch(page, PACK, "journey-reasons");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const upcoming = stack.locator('[data-testid="role-stack-card"][data-stack-pose="upcoming"]');
+  const position = page.getByTestId("for-you-deck-position");
+  const tuned = page.getByTestId("deck-tuning");
+  const why = page.getByTestId("tuning-reason-prompt");
+
+  await expect(front).toHaveAttribute("data-job-id", TAM, { timeout: 60_000 });
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", ORCHARD_CSM);
+  await expect(why).toHaveCount(0);
+
+  // The tap works on its own: the role goes, the deck guesses (the other customer success role
+  // moves away), and the deck asks why.
+  await front.getByTestId("role-fewer-like-this").click();
+  await expect(position).toHaveText("Role 2 of 5");
+  await expect(front).toHaveAttribute("data-job-id", ORCHARD_SE);
+  await expect(why).toContainText("Fewer like Customer Success Manager — why?");
+  await expect(tuned).toContainText("Tuned away from Customer Success Manager.");
+  await expect(upcoming).not.toHaveAttribute("data-job-id", JUNIPER_CSM);
+
+  // "This company": it was Orchard CRM, not customer success. The role on screen stays put; the
+  // other customer success role comes back next, and the line names the employer.
+  await page.getByTestId("tuning-reason-company").click();
+  await expect(why).toHaveCount(0);
+  await expect(tuned).toContainText("Tuned away from Orchard CRM.");
+  await expect(front).toHaveAttribute("data-job-id", ORCHARD_SE);
+  await expect(upcoming).toHaveAttribute("data-job-id", JUNIPER_CSM);
+
+  // Reset clears the reason with the nudge.
+  await page.getByTestId("deck-tuning-reset").click();
+  await expect(tuned).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});

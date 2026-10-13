@@ -42,7 +42,7 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     const nudges = useDeckNudges();
     const [nowMs] = useState(() => Date.now());
     // The optional "why?" after a more/fewer tap (use-tuning-reason.ts).
-    const { prompt: tuningReason, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
+    const { prompt: whyPrompt, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason();
 
     const unskipped = useMemo(() => packs.filter((p) => !skippedIds.has(p.id)), [packs, skippedIds]);
     const visiblePacks = useMemo(
@@ -148,6 +148,22 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
     }, [activeJob, likedIds, nudgeActive, askWhy, dismissWhyFor, visiblePacks, isOwnRole]);
 
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
+    // A reason arrives after the deck has moved on to the next role: that role and everything
+    // before it stay where they are, so the re-tune can never slip a role in behind the one on
+    // screen, where it would be passed unseen. Only the roles still to come move.
+    const tuningReason = useMemo(
+        () =>
+            whyPrompt
+                ? {
+                      ...whyPrompt,
+                      choose: (reason: Parameters<typeof whyPrompt.choose>[0]) => {
+                          setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
+                          whyPrompt.choose(reason);
+                      },
+                  }
+                : null,
+        [whyPrompt, visiblePacks, passedIds, activeIndex],
+    );
     const resetTuning = useCallback(() => {
         setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
         resetNudges();
