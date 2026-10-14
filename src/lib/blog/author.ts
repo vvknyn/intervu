@@ -5,11 +5,11 @@
  * under "Who runs it".
  */
 export const BLOG_AUTHOR = {
-    name: "Arun",
+    name: "Alex",
     role: "founder of Velai",
-    byline: "By Arun, founder of Velai",
+    byline: "By Alex, founder of Velai",
     avatar: "/blog/author.svg",
-    avatarAlt: "Drawn portrait of Arun",
+    avatarAlt: "Drawn portrait of Alex",
 } as const;
 
 export const BLOG_BYLINE = BLOG_AUTHOR.byline;

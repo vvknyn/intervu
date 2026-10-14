@@ -102,7 +102,7 @@ test("every blog post is signed with the founder's pen name and drawn avatar, wi
   for (const path of [POST_PATH, TEST_POST_PATH, LEGIT_POST_PATH, JOBSHIFU_POST_PATH]) {
     await page.goto(path);
     const post = page.getByTestId("blog-post");
-    await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
+    await expect(post.getByText("By Alex, founder of Velai", { exact: true })).toBeVisible();
     const avatar = post.getByTestId("blog-author-avatar");
     await expect(avatar).toHaveAttribute("src", "/blog/author.svg");
     await expect.poll(() => avatar.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
@@ -128,11 +128,11 @@ test("the is-Velai-legit post opens from /about with its pictures, seven checks,
 
   const post = page.getByTestId("blog-post");
   await expect(post.getByRole("heading", { level: 1 })).toHaveText("Is Velai legit? What it is, who runs it, and how to check");
-  await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
+  await expect(post.getByText("By Alex, founder of Velai", { exact: true })).toBeVisible();
   for (const name of ["Who runs it", "How Velai pays for itself", "What Velai will never do", "Seven ways to check it yourself"]) {
     await expect(post.getByRole("heading", { level: 2, name })).toBeVisible();
   }
-  await expect(post.getByText(/writes on this blog under the pen name Arun, with a drawn picture rather than a photo/)).toBeVisible();
+  await expect(post.getByText(/writes on this blog under the pen name Alex, with a drawn picture rather than a photo/)).toBeVisible();
 
   // The checklist cover and the privacy promises screenshot, each loaded and described.
   const pictures = post.locator("img.blog-figure");
@@ -165,7 +165,7 @@ test("the Velai-vs-JobShifu post opens from /blog with its comparison table pict
 
   const post = page.getByTestId("blog-post");
   await expect(post.getByRole("heading", { level: 1 })).toHaveText("Velai and JobShifu: how the two job tools compare");
-  await expect(post.getByText("By Arun, founder of Velai", { exact: true })).toBeVisible();
+  await expect(post.getByText("By Alex, founder of Velai", { exact: true })).toBeVisible();
   for (const name of [
     "Where the jobs come from, and how you search",
     "Tailoring your résumé without making things up",
