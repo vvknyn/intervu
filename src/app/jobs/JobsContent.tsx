@@ -5599,6 +5599,7 @@ export function JobsContent({
                     now={nowMs}
                     source="serp"
                     signedIn={Boolean(user)}
+                    signedOut={signedOut}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     onOpenRelated={openJob}
@@ -5629,6 +5630,7 @@ export function JobsContent({
                 <JobDetailActionBar
                     job={detailJob}
                     signedIn={Boolean(user)}
+                    signedOut={signedOut}
                     onOpenPosting={() => handleOpenPosting(detailJob)}
                     onGoAfter={() => handleGoAfter(detailJob)}
                     pursuit={detailPursuit}

@@ -322,7 +322,7 @@ Enforced by `scripts/check-journey-coverage.mjs` at three points: the Claude Cod
 | J-APPLY-08 | A persisted action older than 15 minutes is discarded on load | signed-in | JOB_PATH with seeded sessionStorage | signed-in | no | uncovered | — |
 | J-APPLY-09 | A persisted record with an unknown action kind opens nothing and logs no console error | anon | /jobs?q=engineer with seeded sessionStorage | signed-out | no | uncovered | — |
 | J-APPLY-10 | Signed-in Apply opens the employer posting in a new tab and arms the return prompt | signed-in | JOB_PATH at 1440x900 | signed-in | no | uncovered | — |
-| J-APPLY-11 | Apply button label is "Apply on employer site" on the desktop card and the mobile bar | anon | JOB_PATH | signed-out | no | uncovered | — |
+| J-APPLY-11 | A signed-out visitor's Apply button says "Sign in to apply" on the desktop card and the mobile bar, never "Apply on employer site" (signed in it keeps the employer-site label: unit-tested) | anon | JOB_PATH | signed-out | no | covered | apply-gate.spec.ts |
 | J-APPLY-12 | Job without an apply_url renders no Apply button | anon | JOB_PATH of a job with empty apply_url | signed-out | no | uncovered | — |
 | J-APPLY-13 | Closed job shows "This role is closed" and, when the company has a domain, "See open roles at <Company>"; no Apply button | anon | closed JOB_PATH | signed-out | no | uncovered | — |
 | J-APPLY-14 | Opt-in intent dialog appears before the employer posting when enabled | signed-in | JOB_PATH with localStorage intervu.apply-intent-enabled=1 | signed-in | no | uncovered | — |

@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { APPLY_BUTTON_LABEL } from "../../../src/components/jobs/job-detail-facts";
+import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
@@ -176,10 +176,10 @@ test("on a 320px phone an opened job shows Apply and Save once each, in the bar 
     const bar = sheet.getByTestId("job-detail-action-bar");
     await expect(bar).toBeVisible();
     // The pane above the bar had its own white Apply and outlined Save: two of each, in two styles (2026-10-02).
-    const apply = sheet.getByRole("button", { name: APPLY_BUTTON_LABEL });
+    const apply = sheet.getByRole("button", { name: APPLY_SIGNED_OUT_LABEL });
     if (await apply.count()) {
         await expect(apply).toHaveCount(1);
-        await expect(bar.getByRole("button", { name: APPLY_BUTTON_LABEL })).toBeVisible();
+        await expect(bar.getByRole("button", { name: APPLY_SIGNED_OUT_LABEL })).toBeVisible();
     }
     const save = sheet.getByRole("button", { name: /^(Save this job|Saved)/ });
     await expect(save).toHaveCount(1);

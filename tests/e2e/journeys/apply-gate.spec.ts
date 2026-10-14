@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { authCardCopy, authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
+import { APPLY_BUTTON_LABEL, APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 
@@ -26,7 +27,8 @@ async function openJobPage(page: Page): Promise<string> {
   return new URL(page.url()).pathname;
 }
 
-const applyButton = (page: Page) => page.getByRole("button", { name: /^apply/i }).and(page.locator(":visible")).first();
+// A signed-out visitor's button reads "Sign in to apply" (J-APPLY-11); the label flips once the session check settles.
+const applyButton = (page: Page) => page.getByRole("button", { name: /^(apply|sign in to apply)/i }).and(page.locator(":visible")).first();
 
 /** Clicks Apply and returns the sign-in dialog it opens. */
 async function openApplyGate(page: Page) {
@@ -55,6 +57,13 @@ test("Apply on a job page opens \"Sign in to apply\", not the employer site", { 
   test.skip(testInfo.project.name !== "desktop", "J-APPLY-05 covers the phone action bar");
   await openJobPage(page);
   await openApplyGate(page);
+});
+
+test("A signed-out visitor's Apply button says \"Sign in to apply\", on the desktop card and the phone's bar", { tag: ["@J-APPLY-11"] }, async ({ page }) => {
+  await openJobPage(page);
+  const apply = page.getByRole("button", { name: APPLY_SIGNED_OUT_LABEL }).and(page.locator(":visible"));
+  await expect(apply).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.getByRole("button", { name: APPLY_BUTTON_LABEL })).toHaveCount(0);
 });
 
 test("Apply from the phone's sticky action bar opens the same \"Sign in to apply\"", { tag: ["@J-APPLY-05"] }, async ({ page }, testInfo) => {

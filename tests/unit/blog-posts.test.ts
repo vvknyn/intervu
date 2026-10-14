@@ -15,7 +15,7 @@ import {
 } from "@/lib/blog/posts";
 import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
-import { APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
+import { APPLY_BUTTON_LABEL, APPLY_SIGNED_OUT_LABEL } from "@/components/jobs/job-detail-facts";
 
 const PUBLIC = path.join(process.cwd(), "public");
 
@@ -98,6 +98,7 @@ describe("blog posts", () => {
     assert.ok(post);
     // Checks a reader runs must name the button they will actually see.
     assert.ok(post.body.includes(`**${APPLY_BUTTON_LABEL}**`));
+    assert.ok(post.body.includes(`**${APPLY_SIGNED_OUT_LABEL}**`), "a signed-out reader sees this label first");
     for (const fact of [PRO_MONTHLY_PRICE, FOUNDING_SEAT_PRICE, String(FOUNDING_SEAT_COUNT), PUBLIC_SUPPORT_EMAIL]) {
       assert.ok(post.body.includes(fact), fact);
     }

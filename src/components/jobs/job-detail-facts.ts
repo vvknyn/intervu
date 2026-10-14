@@ -352,16 +352,31 @@ export function pairedKpiChips(record: TrackRecord): KpiStatChip[] {
 }
 
 /**
- * The Apply button's copy — ONE string for every surface that renders it
- * (SERP desktop split pane, standalone `/jobs/[slug]` page, mobile sticky
- * action bar) so they cannot drift apart again (launch-consistency sweep,
- * 2026-09: the desktop split pane read a bare "Apply" while the other two
- * surfaces already said "Apply on Company Site"). The longer form is the
- * more honest one — the button always navigates to the employer's own
- * posting, never an in-app application flow, and applying stays fully
- * self-serve for guests with no sign-in gate.
+ * The Apply button's copy — ONE string per state for every surface that
+ * renders it (SERP desktop split pane, standalone `/jobs/[slug]` page, mobile
+ * sticky action bar) so they cannot drift apart again (launch-consistency
+ * sweep, 2026-09: the desktop split pane read a bare "Apply" while the other
+ * two surfaces already said "Apply on Company Site"). The longer form is the
+ * more honest one — for someone signed in the button always navigates to the
+ * employer's own posting, never an in-app application flow.
  */
 export const APPLY_BUTTON_LABEL = "Apply on employer site";
+
+/**
+ * What the same button says once the session is CONFIRMED signed out. A tap
+ * opens the "Sign in to apply" dialog first (`resolveApplyClickDecision`), and
+ * a label that promised the employer's site sent the focus group's signed-out
+ * people into a screen they did not expect (2026-10-12). Matches the dialog's
+ * own title, so the button and what it opens read as one step.
+ */
+export const APPLY_SIGNED_OUT_LABEL = "Sign in to apply";
+
+/** `signedOut` is the CONFIRMED state (`isConfirmedSignedOut`), never just
+ *  "no user yet": a signed-in visitor must not see this while the session
+ *  check is still running. */
+export function applyButtonLabel(signedOut: boolean): string {
+    return signedOut ? APPLY_SIGNED_OUT_LABEL : APPLY_BUTTON_LABEL;
+}
 
 /** First comma segment of a job's full location text ("Redmond, WA, US" →
  *  "Redmond") — keeps the "also in" chip compact instead of wrapping full

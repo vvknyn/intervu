@@ -230,6 +230,24 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(html, /job-detail-upload-to-customize/);
     });
 
+    it("SSR action bar says \"Sign in to apply\" once the visitor is confirmed signed out, and only then", () => {
+        const bar = (signedOut?: boolean) =>
+            renderToStaticMarkup(
+                React.createElement(JobDetailActionBar, {
+                    job: baseJob(),
+                    onOpenPosting: noop,
+                    onGoAfter: noop,
+                    pursuit: undefined,
+                    ...(signedOut === undefined ? {} : { signedOut }),
+                }),
+            );
+        assert.match(bar(true), /Sign in to apply/);
+        assert.doesNotMatch(bar(true), /Apply on employer site/);
+        // Unknown (session still loading) or signed in: never the sign-in label.
+        assert.match(bar(false), /Apply on employer site/);
+        assert.doesNotMatch(bar(), /Sign in to apply/);
+    });
+
     it("SSR compact trigger uses the short Customize label", () => {
         const html = renderToStaticMarkup(
             React.createElement(LocalCustomizePanel, { job: baseJob(), resume, compactTrigger: true, signedIn: true }),
