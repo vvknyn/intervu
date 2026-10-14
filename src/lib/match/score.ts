@@ -57,7 +57,7 @@ import { resumeManagedPeople, titleLevel, titleManagesPeople, yearsAsked } from 
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
-import { jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
+import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -345,6 +345,9 @@ const RELEVANCE_COVERAGE_FLOOR = 0.6;
  */
 export const JD_RELEVANCE_SHARE = 0.75;
 
+/** Concept coverage reads a little under word coverage at the same share: kinds of work are broader than words. */
+export const CONCEPT_FIT_SCALE = 0.9;
+
 /**
  * Below this share of what the posting asks showing on the résumé, a role is
  * never Good: Salesforce's "Customer Success Manager - Global Public Sector"
@@ -368,7 +371,10 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     if (!jd) {
         return { key: "relevance", label: "Relevance to this role", detail: titleDetail, score: titleScore, terms: { matched: matched.length, of: jobVocab.size } };
     }
-    const fit = jdFitScore(jd.coverage, resumeTermSet(resume).size);
+    // The posting's words, or the kinds of work it asks for, whichever the résumé shows more of:
+    // a PM résumé that says "backlog grooming" covers a posting's "prioritize the roadmap".
+    const concepts = conceptCoverage(resume, terms!);
+    const fit = Math.max(jdFitScore(jd.coverage, resumeTermSet(resume).size), concepts ? concepts.share * CONCEPT_FIT_SCALE : 0);
     const shown = jd.matched.slice(0, 4);
     return {
         key: "relevance",

@@ -127,6 +127,16 @@ export function clearNudge(jobId: string): TuningNudge[] {
     return commit(removeNudge(current, jobId));
 }
 
+/**
+ * A new résumé: the deck's passive signals (opens, reads, saves, applies) were about roles ranked
+ * for the old one, so they go; the person's own taps (more / fewer like this) stay.
+ */
+export function keepExplicitNudges(): TuningNudge[] {
+    const now = getNudgesSnapshot();
+    const kept = now.filter((nudge) => nudge.signal === "more" || nudge.signal === "fewer");
+    return kept.length === now.length ? now : commit(kept);
+}
+
 export function resetNudges(): TuningNudge[] {
     return getNudgesSnapshot().length === 0 ? getNudgesSnapshot() : commit([]);
 }

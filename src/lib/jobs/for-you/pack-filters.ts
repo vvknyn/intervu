@@ -21,7 +21,7 @@ export function packFilters(resume: ResumeData, signals: CandidateSignals): Jobs
     // Roles they said they want lead the search; the résumé fills the rest (`buildMatchQuery`).
     const { q, facets: derived } = buildMatchQuery(resume, undefined, preferredRoles(signals));
     const facets = { ...derived };
-    const levels = experienceLevelFacet(signals.seniority.value);
+    const levels = experienceLevelFacet(signals.seniority.value, signals.seniority.source === "resume" ? resume : null);
     if (levels) facets.experience_level = levels;
     const countries = candidateCountries(signals);
     if (countries.length > 0) facets.location_country = countries;

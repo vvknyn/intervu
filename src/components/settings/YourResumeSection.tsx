@@ -9,6 +9,8 @@ import { WaitState } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
+import { reloadSignedInAgentPreferences } from "@/hooks/use-agent-preferences";
+import { keepExplicitNudges } from "@/lib/jobs/for-you/tuning-store";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdf, exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
@@ -415,6 +417,9 @@ function ResumeUploadForm({
                 return;
             }
             captureEvent("resume_uploaded", { surface: "settings" });
+            // The next For you visit reads the new résumé's roles and tuning, not the old one's.
+            keepExplicitNudges();
+            reloadSignedInAgentPreferences();
             onSaved();
         });
     };

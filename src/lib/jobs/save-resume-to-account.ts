@@ -1,4 +1,6 @@
 import { saveResumeData } from "@/actions/resume";
+import { reloadAgentPreferences } from "@/hooks/use-agent-preferences";
+import { keepExplicitNudges } from "@/lib/jobs/for-you/tuning-store";
 import { toast } from "@/lib/toast";
 import type { ResumeData } from "@/types/resume";
 
@@ -16,14 +18,18 @@ export function saveResumeToAccount(
     data: ResumeData,
     source: "pdf" | "docx" | "text",
     confidence: number,
-    handlers: { onSaved?: () => void; onFailed?: () => void } = {},
+    handlers: { onSaved?: () => void; onFailed?: () => void; uid?: string | null } = {},
     retry = false,
 ): void {
+    // Every upload path ends here: what the old résumé tuned goes now, so the next pack is the new one's.
+    keepExplicitNudges();
     void saveResumeData(data, source, confidence)
         .catch((): { error?: string } => ({ error: "network" }))
         .then((res) => {
             if (!res.error) {
                 if (retry) toast.success("Résumé saved to your account.");
+                // The save rewrote the preferences the old résumé filled; read them again.
+                if (handlers.uid) void reloadAgentPreferences(handlers.uid);
                 handlers.onSaved?.();
                 return;
             }

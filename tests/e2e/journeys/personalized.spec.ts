@@ -279,3 +279,68 @@ test("a pack leads with this month's roles over an older own-title one, and leav
   await expect(front).toHaveAttribute("data-job-id", stale.id);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/** Fabricated (no real person): the résumé that replaces the TAM one — a Toronto registered nurse. */
+const NURSE_RESUME_TEXT = `Jordan Reyes
+Registered Nurse
+Toronto, Ontario, Canada · jordan.reyes.e2e@example.com · 555-010-9911
+
+Summary
+Registered Nurse with seven years of acute care and ICU nursing.
+
+Experience
+Registered Nurse, Lakeshore General Hospital — 2019 - Present
+Critical care nursing for a 24-bed ICU; patient assessment, medication administration, charting in Epic.
+
+Registered Practical Nurse, Maple Long Term Care — 2017 - 2019
+Resident care, wound care and family education.
+
+Education
+BScN, Nursing, Toronto Metropolitan University, 2017
+
+Skills
+Critical Care, Patient Assessment, Epic, BLS, ACLS`;
+
+test("replacing the résumé refreshes the pack at once, with no reload: a TAM's deck becomes a nurse's", { tag: ["@J-JOBS-128"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-13: "every time I upload a new resume the recommendations do not auto refresh".
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const tam = posting("99999999-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior");
+  const nurse = posting("99999999-0000-4000-8000-000000000002", "Registered Nurse, ICU", "Lakeshore Health", "mid");
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const listed = /nurs/i.test(body) ? [nurse] : [tam];
+    return answerListSearch(route, { hits: listed, total: 1, backend: "meilisearch", configured: true, searchId: "journey-replace" });
+  });
+
+  await openPack(page);
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", tam.id, { timeout: 60_000 });
+  // A reload would drop this mark.
+  await page.evaluate(() => { (window as unknown as { __sameDocument?: boolean }).__sameDocument = true; });
+
+  // Replace from the packs hub (the deck's own Replace is desktop-only).
+  await page.locator('[data-testid="jobs-back-to-packs"]:visible').first().click();
+  await page.getByRole("region", { name: "Job categories" }).getByRole("button", { name: "Replace", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.locator('input[type="file"]').setInputFiles({ name: "jordan.txt", mimeType: "text/plain", buffer: Buffer.from(NURSE_RESUME_TEXT) });
+  await dialog.getByTestId("resume-import-parse-primary").click();
+  const confirm = dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last();
+  await expect(confirm).toBeEnabled({ timeout: 15_000 });
+  await confirm.click();
+
+  // The pack is dealt again from the new résumé, in place.
+  await expect(async () => {
+    if (!(await front.isVisible())) {
+      const back = page.getByTestId("jobs-back-to-packs");
+      if (!(await back.isVisible())) await page.getByTestId("hub-pack-card-all").click({ timeout: 5_000 });
+    }
+    await expect(front).toHaveAttribute("data-job-id", nurse.id, { timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+  expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument), "no page reload").toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});

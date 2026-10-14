@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
+import { reloadAgentPreferences } from "@/hooks/use-agent-preferences";
 import { captureEvent } from "@/lib/analytics/events";
 import { clearLocalAiResume, readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -40,6 +41,7 @@ export function useAdoptGuestResume(
                 const res = await saveResumeData(stored.data, "pdf", 1);
                 if (cancelled || res.error) return;
                 clearLocalAiResume();
+                void reloadAgentPreferences(uid);
                 captureEvent("resume_uploaded", { surface });
                 onAdopted(stored);
             })

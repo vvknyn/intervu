@@ -55,6 +55,10 @@ export interface JdTerms {
 export const JD_TERMS_PER_SECTION = 40;
 
 const STOP = new Set([
+    // French function words: a bilingual posting's French half is not a list of asks.
+    "de", "des", "et", "les", "la", "le", "du", "une", "un", "en", "vous", "sur", "ou", "au", "aux", "pour", "que", "qui", "avec", "dans", "nous", "est", "par", "plus", "votre", "vos", "nos", "notre", "ce", "cette", "ces", "son", "sa", "ses", "il", "elle",
+    // Boilerplate around the asks (measured on PM postings, 2026-10-13).
+    "click", "find", "offer", "requires", "know", "possible", "complete", "reasonable", "law", "information", "millions", "during", "ambitious", "compelling", "ubiquitous", "daily", "major", "first",
     // English function words.
     "a", "an", "and", "or", "but", "nor", "so", "yet", "for", "of", "on", "in", "into", "onto", "at", "by", "to", "from",
     "with", "without", "within", "about", "as", "than", "then", "that", "this", "these", "those", "there", "here", "the",
@@ -346,4 +350,52 @@ export function jdTermsOf(job: JdSourceJob & { jd_terms?: JdTerms | null; descri
     const terms = jdTermsFromDescription(job.description, job);
     JD_CACHE.set(job, terms);
     return terms;
+}
+
+
+/**
+ * What a posting asks, read as kinds of work rather than words: "own the product roadmap and
+ * lifecycle", "prioritize the backlog", "translate business needs into requirements". Word overlap
+ * alone read Q2's and KOHO's Senior PM roles at 12% for a PM résumé that names roadmaps, backlog
+ * grooming and requirements in other words (2026-10-13), while two portals rated them 77-78%.
+ */
+const CONCEPTS: Readonly<Record<string, RegExp>> = {
+    roadmap: /\broad ?maps?\b|\bproduct (?:vision|strategy|strategies|direction)\b|\bvision\b/,
+    prioritization: /\bprioriti[sz]\w*|\bbacklogs?\b|\btrade-?offs?\b/,
+    requirements: /\brequirements?\b|\bspecs?\b|\buser stories\b|\bscop(?:e|ing)\b|\bprds?\b/,
+    lifecycle: /\blifecycle\b|\blaunch\w*|\brelease\w*|\bship\w*|\bdelivery\b|\bgo-to-market\b|\bgtm\b/,
+    stakeholders: /\bstakeholders?\b|\bcross-functional\b|\bexecutives?\b|\bpartner(?:ing)? (?:closely|with)\b|\balignment\b/,
+    customers: /\bcustomer (?:feedback|needs|discovery|insights?)\b|\bdiscovery\b|\buser research\b|\bclients?\b/,
+    metrics: /\bmetrics?\b|\bkpis?\b|\bokrs?\b|\banalytics\b|\bdata-driven\b|\bexperiment\w*|\ba\/b\b/,
+    agile: /\bagile\b|\bscrum\b|\bsprints?\b|\bjira\b/,
+    apis: /\bapis?\b|\bintegrations?\b|\bplatforms?\b|\bsaas\b/,
+    business: /\bbusiness cases?\b|\bpricing\b|\brevenue\b|\barr\b|\bp&l\b|\bforecasts?\b/,
+    accounts: /\baccount management\b|\brenewals?\b|\bslas?\b|\bescalations?\b|\bonboarding\b|\badoption\b/,
+    reliability: /\bincidents?\b|\buptime\b|\bobservability\b|\bmonitoring\b|\breliability\b/,
+    leadership: /\blead\w*|\bmentor\w*|\bteams?\b/,
+    data: /\bsql\b|\bdata\b|\bmachine learning\b|\bml\b|\bpython\b|\bai\b/,
+    compliance: /\bcompliance\b|\bregulat\w*|\bsecurity\b|\brisk\b/,
+};
+
+function conceptsIn(text: string): Set<string> {
+    const lower = text.toLowerCase();
+    const out = new Set<string>();
+    for (const [name, re] of Object.entries(CONCEPTS)) if (re.test(lower)) out.add(name);
+    return out;
+}
+
+const RESUME_CONCEPTS = new WeakMap<ResumeData, Set<string>>();
+
+/** Share of the kinds of work a posting asks for that the résumé shows, or null when it names under three. */
+export function conceptCoverage(resume: ResumeData, jd: JdTerms): { share: number; matched: string[]; missing: string[] } | null {
+    const asked = conceptsIn([...jd.req, ...jd.duty].join(" . "));
+    if (asked.size < 3) return null;
+    let have = RESUME_CONCEPTS.get(resume);
+    if (!have) {
+        have = conceptsIn([...resumeTermSet(resume)].join(" "));
+        RESUME_CONCEPTS.set(resume, have);
+    }
+    const matched = [...asked].filter((c) => have!.has(c));
+    // One phantom unmatched kind: three of three is not a certainty.
+    return { share: matched.length / (asked.size + 1), matched, missing: [...asked].filter((c) => !have!.has(c)) };
 }

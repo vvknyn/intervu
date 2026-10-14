@@ -96,6 +96,11 @@ export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now:
     return { ...basis, level: titled.level, title: held };
 }
 
+/** A title that led people or work: "Team Lead", "Technology Lead", "Senior Software Engineer". */
+const LED_TITLE = /\b(?:lead|senior|sr\.?|principal|staff|head|manager|director)\b/i;
+/** A career this long with such a title in it carries a level up into a new line of work. */
+const LED_CAREER_MIN_YEARS = 8;
+
 /** The level from years alone: in the candidate's line of work, never above their whole career. */
 function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): SeniorityBasis | null {
     const careerYears = resume?.profile?.yearsOfExperience ?? 0;
@@ -121,9 +126,20 @@ function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): 
  * Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
  * would hide most of those titles from Rank retrieval.
  */
-export function experienceLevelFacet(seniority: Seniority | null): string[] | null {
+export function experienceLevelFacet(seniority: Seniority | null, resume?: ResumeData | null): string[] | null {
+    // A long career that already led people or work also retrieves one level up when the level comes
+    // from fewer years in a new line of work: 5 years as a PM after Senior Engineer, Team Lead and
+    // Technology Lead roles (13 years in all). Vivek, 2026-10-13: every pick other portals sent him was
+    // Senior, Staff or Head of Product, and the mid-only search hid them all. Scoring keeps its level.
+    if (seniority === "mid" && resume && ledLongCareer(resume)) return ["mid", "senior"];
     if (seniority === "senior") return ["mid", "senior"];
     return seniority ? [seniority] : null;
+}
+
+/** A career of `LED_CAREER_MIN_YEARS` or more with a title that led people or work in it. */
+export function ledLongCareer(resume: ResumeData): boolean {
+    if ((resume.profile?.yearsOfExperience ?? 0) < LED_CAREER_MIN_YEARS) return false;
+    return (resume.experience ?? []).slice(1).some((entry) => LED_TITLE.test(entry.role ?? ""));
 }
 
 /** A past role that ended this many years ago no longer says what the candidate does now. */

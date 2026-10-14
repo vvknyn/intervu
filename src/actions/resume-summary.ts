@@ -3,6 +3,9 @@
 import { getBaseResumeSummaryForUser, type BaseResume } from "@/lib/resume/base-resume";
 import { setBaseResumeForUser, clearBaseResumeForUser, validateResumeUploadText, type SetBaseResumeResult } from "@/lib/resume/set-resume";
 import { getServerUser } from "@/lib/auth/server-user";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
+import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
 
 export type ResumeSummary = BaseResume & { updatedAt: string | null };
 
@@ -31,7 +34,20 @@ export async function uploadBaseResumeAction(input: { text: string; label?: stri
     if (!user) return { error: "Unauthorized" };
     const validation = validateResumeUploadText(input.text);
     if (!validation.ok) return { error: validation.error };
-    return { data: await setBaseResumeForUser(user.uid, { text: validation.text, label: input.label }) };
+    const previous = await getAdminDb()
+        .collection("profiles")
+        .doc(user.uid)
+        .get()
+        .then((doc) => (doc.data()?.resume_data ?? null) as ResumeData | null)
+        .catch(() => null);
+    const data = await setBaseResumeForUser(user.uid, { text: validation.text, label: input.label });
+    // A replaced résumé replaces what the old one filled in the preferences, as an upload on /jobs does.
+    try {
+        await syncPreferencesFromResume(user.uid, resumeDataFromPlainText(validation.text) as ResumeData, previous);
+    } catch (e: unknown) {
+        console.warn("[Resume] Preference sync from résumé failed:", e instanceof Error ? e.message : e);
+    }
+    return { data };
 }
 
 /** Delete for the account "Resume" section — clears the current résumé

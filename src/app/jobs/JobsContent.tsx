@@ -1829,6 +1829,11 @@ export function JobsContent({
     // vs the now-removed "explore") and the in-flight Explore call's state
     // (`exploringRaw`/`exploreFailed`) are gone — MCP handoff, 2026-08-02.
     const [resume, setResume] = useState<ResumeData | null>(null);
+    /** Bumped by every new résumé in this page (upload, edit), so a read that started before it is dropped. */
+    const resumeGenerationRef = useRef(0);
+    /** A new résumé is in and its packs are being worked out again: the hub says so until they land. */
+    const [resumeRefreshing, setResumeRefreshing] = useState(false);
+    const refreshFromKeyRef = useRef("");
     // Read by the search effects (refs, so holding a résumé never re-runs a search by itself).
     const resumeHeldRef = useRef(false);
     resumeHeldRef.current = resume != null;
@@ -3188,6 +3193,17 @@ export function JobsContent({
         resume && hasUsableResume && hubIndustry
             ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}\0${hubIndustry}`
             : "";
+
+    // "Updating your matches" stays until the new résumé's packs have been probed (or 8s at most).
+    useEffect(() => {
+        if (!resumeRefreshing) return;
+        if (hubResumeKey && hubResumeKey !== refreshFromKeyRef.current && !hubFitProbe.loading && !hubFitProbe.probing && hubFitProbe.total != null) {
+            setResumeRefreshing(false);
+            return;
+        }
+        const t = window.setTimeout(() => setResumeRefreshing(false), 8_000);
+        return () => window.clearTimeout(t);
+    }, [resumeRefreshing, hubResumeKey, hubFitProbe.loading, hubFitProbe.probing, hubFitProbe.total]);
 
     // No usable résumé (missing, junk, or still loading): paint pack counts
     // from the browse hits already on the hub. Stop updating once a fit key
@@ -4760,6 +4776,8 @@ export function JobsContent({
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
+        // A read that started before an upload must not put the old résumé back when it lands.
+        const generation = resumeGenerationRef.current;
         const readLocalFallback = (): ResumeData | null => {
             const stored = readUsableLocalResume();
             if (stored) {
@@ -4784,6 +4802,7 @@ export function JobsContent({
                 }),
             ]);
             const cloud = fetched ? storedResumeData(fetched.data, fetched.text) : undefined;
+            if (resumeGenerationRef.current !== generation) return null;
             if (cloud && resumeIsUsable(cloud)) {
                 setResume(cloud);
                 setResumeUpdatedAt(fetched?.updatedAt ?? null);
@@ -5221,10 +5240,11 @@ export function JobsContent({
 
     /** The one save path for an edit to the résumé already on file. */
     const updateResume = (updatedResume: ResumeData) => {
+        resumeGenerationRef.current += 1;
         setResume(updatedResume);
         const updatedAt = new Date().toISOString();
         setResumeUpdatedAt(updatedAt);
-        if (user) saveResumeToAccount(updatedResume, "pdf", 1);
+        if (user) saveResumeToAccount(updatedResume, "pdf", 1, { uid: user.uid });
         writeLocalAiResume(updatedResume, updatedAt, "Adjusted parameters");
     };
 
@@ -5234,7 +5254,10 @@ export function JobsContent({
         confidence: number,
         sourceLabel: string,
     ) => {
+        resumeGenerationRef.current += 1;
+        refreshFromKeyRef.current = hubResumeKey;
         setResume(data);
+        setResumeRefreshing(true);
         const updatedAt = new Date().toISOString();
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
@@ -5264,6 +5287,7 @@ export function JobsContent({
             // Setup's first step reads answered from here on (hooks/use-onboarding.ts).
             noteResumeOnFile();
             saveResumeToAccount(data, source, confidence, {
+                uid: user.uid,
                 onSaved: () => {
                     // Any copy left in this browser (this upload's after a failed try, or an
                     // older guest one) is now stale; a slow account read must never fall back to it.
@@ -6783,6 +6807,11 @@ export function JobsContent({
                         <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
                         {!showAdvancedSearch && !forYouPackDeckOpen ? (
                             <>
+                                {resumeRefreshing ? (
+                                    <p role="status" data-testid="resume-refreshing" className="mb-3 text-sm text-muted-foreground">
+                                        Updating your matches for your new résumé…
+                                    </p>
+                                ) : null}
                                 <CategoryHubGrid
                                     categories={hubCategories}
                                     userName={user?.displayName}

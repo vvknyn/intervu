@@ -128,6 +128,9 @@ export async function saveResumeData(
         const savedAt = new Date().toISOString();
         const clean = await firestoreSafeResume(resumeData);
 
+        // The résumé this one replaces: what it filled in the preferences is replaced too.
+        const previous = ((await db.collection("profiles").doc(user.uid).get().catch(() => null))?.data()?.resume_data ?? null) as ResumeData | null;
+
         // Structured save is the canonical copy. Drop any plain-text twin
         // from an earlier save so both are not kept after this succeeds.
         try {
@@ -144,7 +147,7 @@ export async function saveResumeData(
 
             // Best effort, never fails the save: the résumé is on file either way.
             try {
-                await syncPreferencesFromResume(user.uid, clean);
+                await syncPreferencesFromResume(user.uid, clean, previous);
             } catch (e: unknown) {
                 console.warn("[Resume] Preference sync from résumé failed:", e instanceof Error ? e.message : e);
             }

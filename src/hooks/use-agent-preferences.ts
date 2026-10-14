@@ -57,6 +57,18 @@ async function load(uid: string) {
     if (loading === uid) publish({ uid, prefs });
 }
 
+/** Read the account's preferences again (a new résumé just rewrote what the old one filled). */
+export function reloadAgentPreferences(uid: string): Promise<void> {
+    if (current?.uid === uid) current = null;
+    loading = null;
+    return load(uid);
+}
+
+/** `reloadAgentPreferences` for whoever's preferences this visit holds; nothing when none were read yet. */
+export function reloadSignedInAgentPreferences(): void {
+    if (current?.uid) void reloadAgentPreferences(current.uid);
+}
+
 /** What Settings just saved, so the next fit label uses it without a reload. */
 export function rememberAgentPreferences(uid: string, prefs: AgentPreferences) {
     publish({ uid, prefs });
