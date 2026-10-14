@@ -344,3 +344,25 @@ test("replacing the résumé refreshes the pack at once, with no reload: a TAM's
   expect(await page.evaluate(() => (window as unknown as { __sameDocument?: boolean }).__sameDocument), "no page reload").toBe(true);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("a pack reaches a month of roles: the deck asks for 150 résumé-ranked rows, not the newest 60", { tag: ["@J-JOBS-129"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-13: the index orders a broad role query newest first, so 60 rows held only ~2 weeks
+  // of PM roles and missed Thumbtack's 29-day-old PM, Growth, which other portals recommended.
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const limits: number[] = [];
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const parsed = JSON.parse(body) as { limit?: number; fromResume?: boolean };
+    if (parsed.fromResume) limits.push(parsed.limit ?? 0);
+    const tam = posting("99999999-0000-4000-8000-000000000011", "Technical Account Manager", "Northstar Data", "senior");
+    return answerListSearch(route, { hits: [tam], total: 1, backend: "meilisearch", configured: true, searchId: "journey-depth" });
+  });
+  await openPack(page);
+  await expect.poll(() => Math.max(0, ...limits), { timeout: 30_000 }).toBe(150);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
