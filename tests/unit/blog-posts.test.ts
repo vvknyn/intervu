@@ -80,14 +80,21 @@ describe("blog posts", () => {
     }
   });
 
-  it("signs posts with a humble pen name and a drawn SVG avatar, never the founder's real name", () => {
+  it("signs posts with a humble pen name and a small illustrated avatar, never the founder's real name or a photo", () => {
     assert.equal(BLOG_BYLINE, `By ${BLOG_AUTHOR.name}, ${BLOG_AUTHOR.role}`);
     assert.doesNotMatch(BLOG_AUTHOR.name, /vivek|narayanan/i);
     const avatarFile = path.join(PUBLIC, BLOG_AUTHOR.avatar);
     assert.ok(existsSync(avatarFile), `${BLOG_AUTHOR.avatar} exists`);
-    const svg = readFileSync(avatarFile, "utf8");
-    assert.match(svg, /^<svg\b/);
-    assert.doesNotMatch(svg, /<image\b/i);
+    const bytes = readFileSync(avatarFile);
+    assert.equal(bytes.subarray(1, 4).toString("latin1"), "PNG", `${BLOG_AUTHOR.avatar} is a PNG`);
+    // An illustration, never a photo: a small square in indexed (palette) colour, which is how flat ink-and-colour art
+    // is stored and not how a photograph is. The byline shows it at 28 px, so this is already two to three times as much
+    // pixel as it needs.
+    const { width, height } = pngSize(avatarFile);
+    assert.equal(width, height);
+    assert.ok(width >= 56 && width <= 160, `${BLOG_AUTHOR.avatar} is ${width}px wide`);
+    assert.equal(bytes[25], 3, `${BLOG_AUTHOR.avatar} is palette-coloured`);
+    assert.ok(bytes.length < 20_000, `${BLOG_AUTHOR.avatar} is ${bytes.length} bytes`);
     for (const post of BLOG_POSTS) {
       assert.doesNotMatch(post.body, /vivek|narayanan/i);
     }

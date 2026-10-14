@@ -8,7 +8,7 @@ export const BLOG_AUTHOR = {
     name: "Alex",
     role: "founder of Velai",
     byline: "By Alex, founder of Velai",
-    avatar: "/blog/author.svg",
+    avatar: "/blog/author.png",
     avatarAlt: "Drawn portrait of Alex",
 } as const;
 
