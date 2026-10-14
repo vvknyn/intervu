@@ -18,6 +18,10 @@ const STRETCH_TIER_FLOOR = 300;
 const OUT_OF_REACH_TIER = 500;
 import type { PublicJob } from "@/lib/jobs/types";
 
+/** The ranking lift inside a band for the résumé's own role and for its family (`orderForYouJobsByBand`). */
+export const OWN_ROLE_LIFT = 6;
+export const FAMILY_ROLE_LIFT = 3;
+
 const BAND_SEQUENCE: readonly MatchBand[] = ["strong", "good", "stretch"];
 
 /** Sort key for band-first ordering; unscored sorts after every band. */
@@ -87,7 +91,11 @@ export function orderForYouJobsByBand(
         const band = score != null ? rankBand(score, job.posted_ts ?? null, nowMs) : BAND_SEQUENCE.length;
         // A capped total ties roles that fit differently; the components' own scores break the tie.
         const raw = score ? score.components.reduce((sum, c) => sum + c.score, 0) : 0;
-        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs), raw, index });
+        // Inside a band the résumé's primary line of work still leads (2026-10-13, senior-aware fit: a
+        // TAM résumé read senior must not see Senior PM roles ahead of its TAM ones): a small lift for
+        // its own role and its family, not a key of its own, so a much better fit elsewhere still wins.
+        const lift = score?.role === "own" ? OWN_ROLE_LIFT : score?.role === "family" ? FAMILY_ROLE_LIFT : 0;
+        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs) + lift, raw, index });
     });
     keyed.sort((a, b) => a.key - b.key || b.value - a.value || b.raw - a.raw || a.index - b.index);
     const out = keyed.map((k) => k.job);

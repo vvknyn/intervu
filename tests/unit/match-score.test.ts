@@ -124,6 +124,15 @@ const NURSE_RESUME = mkResume(
     [{ category: 'Skills', skills: ['Patient Care', 'Phlebotomy'] }],
 );
 
+/**
+ * The TAM career without its lead and senior titles: 5 years as a TAM read mid. The real one reads
+ * senior (senior-aware fit, 2026-10-13), so the above-level rules are shown on this one.
+ */
+const midTam = (): ResumeData => {
+    const r = resumeDataFromPlainText(readFileSync(path.join(process.cwd(), 'tests/fixtures/vivek-tam-resume.txt'), 'utf8'));
+    return { ...r, experience: r.experience.map((e, i) => (i === 0 ? e : { ...e, role: 'Software Engineer' })) };
+};
+
 describe('scoreJobAgainstResume', () => {
     describe('root cause: seniority alone can no longer reach a high score', () => {
         it('full topical overlap + matching seniority scores 100', () => {
@@ -644,23 +653,22 @@ describe('a role scores the same on its page as in a list', () => {
     }
     it("a Technical Account Manager's résumé reads Expel's senior TAM role as above its level in the US, and as likely for people in the US in Canada", () => {
         // Remote, no country in its title, place or description, paid in USD (Vivek, 2026-10-03, in Canada: "this is a US job").
-        const resume = fixture('vivek-tam-resume');
+        const resume = midTam();
         const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
         assert.equal(matchLabel(inCanada), 'Outside Canada');
         assert.equal(matchBand(inCanada.total), 'stretch');
-        // Before the place cap it is a reach, Good at most: a senior TAM, one step above his mid level, for a career that led teams.
-        assert.notEqual(matchBand(inCanada.outside!.total), 'strong');
+        // Before the place cap it is still a Stretch: the listing asks for a senior TAM, above his mid level.
+        assert.equal(matchBand(inCanada.outside!.total), 'stretch');
         assert.equal(inCanada.components.find((c) => c.key === 'location')!.reason, 'remote_pay_abroad');
         assert.equal(
             explainMatch(inCanada).split('. ')[0],
             "It's remote with no country listed, but it pays in USD, so it's likely for people in the United States, outside Canada, where your résumé places you",
         );
         const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
-        // Above level: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level; a reach, not Strong.
+        // A Stretch: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level.
         const usScore = scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!;
         assert.equal(usScore.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask');
-        assert.notEqual(matchBand(usScore.total), 'strong');
-        assert.equal(usScore.reach, true);
+        assert.equal(matchBand(usScore.total), 'stretch');
     });
 });
 
@@ -839,7 +847,10 @@ describe('the seniority reason agrees with the role\'s details', () => {
     });
 
     it('a level read from the résumé names the years and the role it came from', () => {
-        const resume = fixture('vivek-tam-resume');
+        const led = scoreJobAgainstResume(fixture('vivek-tam-resume'), mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
+            .components.find((c) => c.key === 'seniority')!;
+        assert.equal(led.detail, 'senior role — matches your senior level (13 years of experience, including lead and senior roles)');
+        const resume = midTam();
         const seniority = scoreJobAgainstResume(resume, mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
             .components.find((c) => c.key === 'seniority')!;
         assert.match(seniority.detail, /^senior role — above your mid level \(\d+ years as a Technical Account Manager\)$/);
@@ -875,7 +886,7 @@ describe('the seniority reason agrees with the role\'s details', () => {
     });
 
     it('with no listed level, the title\'s rank word says it, and the reason says so', () => {
-        const seniority = scoreJobAgainstResume(fixture('vivek-tam-resume'), mkJob({ title: 'Senior Technical Account Manager', experience_level: 'unknown' }))!
+        const seniority = scoreJobAgainstResume(midTam(), mkJob({ title: 'Senior Technical Account Manager', experience_level: 'unknown' }))!
             .components.find((c) => c.key === 'seniority')!;
         assert.match(seniority.detail, /^senior role by its title — above your mid level/);
     });

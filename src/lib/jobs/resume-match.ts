@@ -85,6 +85,11 @@ export interface SeniorityBasis {
     roles?: number[];
     /** The title held now, when it names a level other than the years' and so sets `level` (`titleLevel`). */
     title?: string;
+    /**
+     * Carried up one level by a long career that led people or work (`ledLongCareer`): the candidate
+     * also fits the level below, the one their years in the line held now read.
+     */
+    led?: true;
 }
 
 export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now: Date = new Date()): SeniorityBasis | null {
@@ -118,6 +123,14 @@ function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): 
     if (years == null) return career;
     const own = seniorityFromYears(Math.max(years, 1))!;
     if (SENIORITY_ORDER.indexOf(own) >= SENIORITY_ORDER.indexOf(overall)) return career;
+    // Total years plus leadership: a long career that already led people or work carries a level up
+    // into a new line of work. 5 years as a PM after Senior Engineer, Team Lead and Technology Lead
+    // roles (13 years in all) is a senior candidate (Vivek, 2026-10-13: the other portals' picks were
+    // all Senior, Staff or Head of Product).
+    if (resume && ledLongCareer(resume)) {
+        const up = SENIORITY_ORDER[Math.min(SENIORITY_ORDER.indexOf(own) + 1, SENIORITY_ORDER.indexOf(overall))]!;
+        return { level: up, years: careerYears, role: null, led: true };
+    }
     return { level: own, years, role: (inLine[0]?.role ?? "").trim() || null, roles };
 }
 

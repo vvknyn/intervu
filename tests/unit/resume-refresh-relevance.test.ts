@@ -31,10 +31,10 @@ describe('a new résumé replaces the roles the old one filled', () => {
 });
 
 describe('a long career carries a level into a new line of work', () => {
-    it('5 years as a PM after lead and senior roles, 13 in all, scores mid but also retrieves senior roles', () => {
+    it('5 years as a PM after lead and senior roles, 13 in all, reads senior: total years plus lead roles', () => {
         const pm = resumeDataFromPlainText(fixture('vivek-tam-resume'));
         // The fixture is the same career; its level must not drop to mid for the line-of-work years alone.
-        assert.equal(resumeSeniority(pm), 'mid');
+        assert.equal(resumeSeniority(pm), 'senior');
         assert.deepEqual(experienceLevelFacet('mid', pm), ['mid', 'senior']);
         assert.deepEqual(experienceLevelFacet('mid', r('Nurse', 'Nurse')), ['mid']);
     });

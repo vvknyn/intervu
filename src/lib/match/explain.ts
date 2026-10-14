@@ -60,6 +60,8 @@ function levelText(c: MatchComponent): string | null {
     const read = c.level;
     if (!read) return null;
     const role = roleLevel(read);
+    if (c.reason === "level_fits" && read.fitsBelow && read.years != null)
+        return `${role}, which fits your experience: ${read.years} years, including lead and senior roles`;
     if (c.reason === "level_fits") return `${role}, which matches ${yourLevel(read)}`;
     if (c.reason === "level_below_ask") return `${role}, above ${yourLevel(read)}`;
     if (c.reason === "level_above_ask") return `${role}, below ${yourLevel(read)}`;
@@ -247,9 +249,7 @@ export function explainMatch(score: MatchScore): string {
         parts.push(
             heldByRole
                 ? sentence([reasons])
-                : score.reach && managing.length === 0
-                  ? `It's a reach: ${reasons}, but your longer career includes leading people or work, so it's Good at most.`
-                  : `It's a Stretch because ${reasons}.`,
+                : `It's a Stretch because ${reasons}.`,
         );
         if (terms) parts.push(sentence([terms]));
     } else {

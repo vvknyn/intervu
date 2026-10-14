@@ -39,6 +39,12 @@ const golden = (name: string): ResumeData => structureResumeText(fixture(name).r
 /** Structured the way the site structures an uploaded file (stored-resume-data.ts). */
 const TAM = resumeDataFromPlainText(fixture('vivek-tam-resume'));
 const PM = golden('vivek-pm-resume');
+/**
+ * The same TAM career without its lead and senior titles (Team Lead, Senior Software Engineer…): its
+ * 5 years as a TAM read mid. The real one reads senior (senior-aware fit, 2026-10-13: total years plus
+ * lead roles carry the level up one step), so the above-level rules are shown on this one.
+ */
+const TAM_MID: ResumeData = { ...TAM, experience: TAM.experience.map((e, i) => (i === 0 ? e : { ...e, role: 'Software Engineer' })) };
 const CSM = golden('vivek-csm-golden-resume');
 // The sample résumé gives no location, which alone caps a score below Strong.
 const SWE: ResumeData = (() => { const r = golden('sample-resume'); return { ...r, profile: { ...r.profile, location: 'Toronto, Ontario' } }; })();
@@ -83,12 +89,12 @@ describe('how close a posting is to the candidate\'s own role', () => {
     });
 
     it('a neighbouring role is Good at best; the own role can be Strong', () => {
-        const pm = score(TAM, canada('Product Manager', 'mid'))!;
+        const pm = score(TAM_MID, canada('Product Manager', 'mid'))!;
         assert.ok(pm.total < MATCH_BAND_STRONG_MIN, `PM scored ${pm.total}`);
         assert.ok(pm.total >= MATCH_BAND_GOOD_MIN, `PM scored ${pm.total}`);
         // Above the TAM's mid level as well: a Stretch.
-        assert.ok(score(TAM, canada('Senior Product Manager', 'senior'))!.total < MATCH_BAND_GOOD_MIN);
-        const tam = score(TAM, canada('Technical Account Manager', 'mid'))!;
+        assert.ok(score(TAM_MID, canada('Senior Product Manager', 'senior'))!.total < MATCH_BAND_GOOD_MIN);
+        const tam = score(TAM_MID, canada('Technical Account Manager', 'mid'))!;
         assert.ok(tam.total >= MATCH_BAND_STRONG_MIN, `TAM scored ${tam.total}`);
         assert.equal(tam.role, 'own');
         assert.equal(tam.yourRole, 'Technical Account Manager');
@@ -106,6 +112,21 @@ describe('how close a posting is to the candidate\'s own role', () => {
         assert.equal(program.role, 'off-target');
         assert.equal(matchBand(program.total), 'stretch');
         assert.match(explainMatch(program), /It's a different kind of role from your .* work/);
+    });
+});
+
+describe('senior-aware fit for the real TAM career (13 years, lead and senior roles before 5 as a TAM)', () => {
+    it('reads senior, fits mid and senior TAM roles alike as Strong, and says why', () => {
+        const mid = score(TAM, canada('Technical Account Manager', 'mid'))!;
+        const senior = score(TAM, canada('Senior Technical Account Manager', 'senior'))!;
+        assert.equal(matchBand(mid.total), 'strong');
+        assert.equal(matchBand(senior.total), 'strong');
+        assert.match(explainMatch(mid), /it's a mid-level role, which fits your experience: 13 years, including lead and senior roles/);
+        assert.match(explainMatch(senior), /it's a senior role, which matches the senior level of your 13 years of experience/);
+    });
+    it('a Senior PM role next to the TAM role is Good at most, never ahead of the TAM roles', () => {
+        const pm = score(TAM, canada('Senior Product Manager', 'senior'))!;
+        assert.equal(matchBand(pm.total), 'good');
     });
 });
 
@@ -139,11 +160,11 @@ describe('the TAM list puts TAM roles first', () => {
         const search = async (): Promise<JobSearchResult> => ({ hits: listed, total: listed.length, backend: 'meilisearch', configured: true, effectiveQ: q });
         const ranked = await rankForYou({ resume: TAM, search, candidateDepth: 50, signals: resolveCandidateSignals(TAM, null) });
         const titles = ranked.hits.map((hit) => hit.job.title);
-        // Fit-first (2026-10-13): the TAM roles at their level lead; a Senior TAM above their level is a
-        // Stretch and may follow the CSM role; every PM posting still comes after the TAM and CSM ones.
-        assert.ok(titles.slice(0, 2).every((t) => /technical account manager/i.test(t)), titles.join(' | '));
+        // Senior-aware fit (2026-10-13): read senior, the résumé's own line still leads — every TAM role,
+        // the Senior TAM included, comes before any PM posting.
         const firstPm = titles.findIndex((t) => /product manager/i.test(t));
-        assert.ok(titles.slice(0, firstPm).length >= 4, titles.join(' | '));
+        assert.ok(titles.slice(0, 3).every((t) => /technical account manager/i.test(t)), titles.join(' | '));
+        assert.ok(firstPm >= 3, titles.join(' | '));
     });
 
     it('no PM posting reads Strong for the TAM résumé any more', () => {
@@ -177,31 +198,29 @@ describe('a remote posting that names its region in the title', () => {
 
 describe('the plain-English reason behind the label', () => {
     it('says a TAM posting is the candidate\'s own role, and why an unlabelled one is only Good', () => {
-        const unknownLevel = score(TAM, canada('Technical Account Manager II', 'unknown'))!;
+        const unknownLevel = score(TAM_MID, canada('Technical Account Manager II', 'unknown'))!;
         const text = explainMatch(unknownLevel);
         assert.match(text, /your own role: the title matches Technical Account Manager/);
         assert.match(text, /isn't a Strong match because the posting doesn't say what level it is/);
     });
 
     it('says a PM posting is next to the TAM role, not the same job', () => {
-        const text = explainMatch(score(TAM, canada('Product Manager', 'mid'))!);
+        const text = explainMatch(score(TAM_MID, canada('Product Manager', 'mid'))!);
         assert.match(text, /role next to yours \(Technical Account Manager\)/);
         // The level says what it was read from: 5 years as a TAM, not the whole 13-year career.
         assert.match(text, /it's a mid-level role, which matches the mid level of your 5 years as a Technical Account Manager/i);
     });
 
     it('names the region a remote role is based in', () => {
-        const text = explainMatch(score(TAM, mkJob('eu', { title: 'Technical Account Manager - Europe', experience_level: 'senior', work_type: 'remote', location_country: null, tags: [] }))!);
+        const text = explainMatch(score(TAM_MID, mkJob('eu', { title: 'Technical Account Manager - Europe', experience_level: 'senior', work_type: 'remote', location_country: null, tags: [] }))!);
         assert.match(text, /remote but based in Europe/);
     });
 
-    it('says when a role is above their level, and what each level was read from; one step up for a career that led teams is a reach, Good at most', () => {
-        // 13 years with Team Lead and Senior Engineer roles before 5 as a TAM (Vivek, 2026-10-13: other portals' picks were all Senior).
-        const listed = score(TAM, canada('Senior Technical Account Manager', 'senior'))!;
-        assert.match(explainMatch(listed), /It's a reach: it's a senior role, above the mid level of your 5 years as a Technical Account Manager, but your longer career includes leading people or work/);
-        assert.equal(matchBand(listed.total), 'good');
-        assert.equal(listed.reach, true);
-        const titled = score(TAM, canada('Senior Technical Account Manager, Enterprise', 'unknown'))!;
+    it('says when a role is above their level, and what each level was read from; such a role is a Stretch', () => {
+        const listed = score(TAM_MID, canada('Senior Technical Account Manager', 'senior'))!;
+        assert.match(explainMatch(listed), /It's a Stretch because it's a senior role, above the mid level of your 5 years as a Technical Account Manager/);
+        assert.equal(matchBand(listed.total), 'stretch');
+        const titled = score(TAM_MID, canada('Senior Technical Account Manager, Enterprise', 'unknown'))!;
         assert.match(explainMatch(titled), /its title makes it a senior role, above the mid level of your 5 years as a Technical Account Manager/i);
     });
 
@@ -289,7 +308,7 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
 
     it('reads "Manager, Customer Success" as a team manager\'s role above a mid-level TAM, listed or not', () => {
         for (const level of ['unknown', 'mid']) {
-            const sophos = score(TAM, remote('Manager, Customer Success (Enterprise)', level))!;
+            const sophos = score(TAM_MID, remote('Manager, Customer Success (Enterprise)', level))!;
             assert.equal(sophos.role, 'family');
             assert.equal(seniority(sophos).reason, 'level_below_ask');
             assert.equal(matchBand(sophos.total), 'stretch', `${level}: ${sophos.total}`);
@@ -306,31 +325,30 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
     });
 
     it('reads the years a role asks for: 7+ is senior, above 5 years as a TAM; 5+ is at their level', () => {
-        const asks7 = score(TAM, remote('Technical Account Manager', 'mid', { min_years_experience: 7 }))!;
-        // A reach for his 13-year career that led teams: Good at most, not Strong.
-        assert.notEqual(matchBand(asks7.total), 'strong');
+        const asks7 = score(TAM_MID, remote('Technical Account Manager', 'mid', { min_years_experience: 7 }))!;
+        assert.equal(matchBand(asks7.total), 'stretch');
         assert.equal(seniority(asks7).detail, 'senior role by the 7+ years it asks for — above your mid level (5 years as a Technical Account Manager)');
         assert.match(explainMatch(asks7), /it asks for 7\+ years, which makes it a senior role, above the mid level of your 5 years/);
-        const asks5 = score(TAM, remote('Technical Account Manager', 'mid', { min_years_experience: 5 }))!;
+        const asks5 = score(TAM_MID, remote('Technical Account Manager', 'mid', { min_years_experience: 5 }))!;
         assert.equal(seniority(asks5).reason, 'level_fits');
         assert.equal(matchBand(asks5.total), 'strong');
         assert.equal(todayLeftOut(asks5), null);
     });
 
     it('ranks an at-level role of the same kind before an above-level one', () => {
-        const manager = score(TAM, remote('Manager, Customer Success (Enterprise)', 'mid'))!;
-        const csm = score(TAM, remote('Customer Success Manager', 'mid'))!;
+        const manager = score(TAM_MID, remote('Manager, Customer Success (Enterprise)', 'mid'))!;
+        const csm = score(TAM_MID, remote('Customer Success Manager', 'mid'))!;
         assert.ok(compareFit(csm, manager) < 0, `CSM ${csm.total} vs manager ${manager.total}`);
     });
 
     it('a candidate set to senior in Settings, or who holds such a title now, is at that level', () => {
-        const settings = resolveCandidateSignals(TAM, { configured: true, search: { experienceLevel: 'senior' }, answers: { custom: {} } });
-        const asSenior = scoreJobAgainstResume(TAM, remote('Senior Customer Success Manager', 'unknown'), settings)!;
+        const settings = resolveCandidateSignals(TAM_MID, { configured: true, search: { experienceLevel: 'senior' }, answers: { custom: {} } });
+        const asSenior = scoreJobAgainstResume(TAM_MID, remote('Senior Customer Success Manager', 'unknown'), settings)!;
         assert.equal(seniority(asSenior).reason, 'level_fits');
         assert.notEqual(matchBand(asSenior.total), 'stretch');
         const manager: ResumeData = {
-            ...TAM,
-            experience: [{ ...TAM.experience[0]!, role: 'Manager, Customer Success' }, ...TAM.experience.slice(1)],
+            ...TAM_MID,
+            experience: [{ ...TAM_MID.experience[0]!, role: 'Manager, Customer Success' }, ...TAM_MID.experience.slice(1)],
         };
         const own = score(manager, remote('Manager, Customer Success (Enterprise)', 'unknown'))!;
         assert.equal(seniority(own).reason, 'level_fits');

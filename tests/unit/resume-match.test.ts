@@ -58,14 +58,21 @@ describe('resumeSeniority', () => {
             generatedSummary: '',
         }) as unknown as ResumeData;
 
-    it('reads the years in the line of work held now, not the whole career, for a career changer', () => {
-        // 13 years in all, 5 of them as a TAM after 8 in engineering: a mid-level TAM.
+    it('reads the years in the line of work held now, carried up one step by a long career with lead or senior roles', () => {
+        // Senior-aware fit (Vivek, 2026-10-13): total years plus lead and senior roles carry the level up one step.
+        // 13 years in all, 5 of them as a TAM after 8 as a Senior Software Engineer: senior, and also fits mid.
+        const changer = resume(13, [
+            ['Technical Account Manager', 'September 2021 - Present'],
+            ['Software Engineer', 'February 2013 - April 2018'],
+        ]);
+        assert.equal(resumeSeniority(changer, NOW), 'mid', 'no lead or senior title before: the years in the line set it');
         const tam = resume(13, [
             ['Technical Account Manager', 'September 2021 - Present'],
             ['Senior Software Engineer', 'February 2013 - April 2018'],
         ]);
-        assert.equal(resumeSeniority(tam, NOW), 'mid');
-        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid']);
+        assert.equal(resumeSeniority(tam, NOW), 'senior');
+        assert.equal(resumeSeniorityBasis(tam, NOW)?.led, true);
+        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid', 'senior']);
     });
     it('counts every role of the same kind, so a promotion path stays senior', () => {
         const swe = resume(10, [
@@ -89,7 +96,7 @@ describe('resumeSeniority', () => {
         const lead = resume(5, [['Manager, Customer Success', 'Jan 2023 - Present'], ['Customer Success Manager', 'Jan 2021 - Dec 2022']]);
         assert.equal(resumeSeniority(lead, NOW), 'senior');
         // A rank-free title leaves the years' level alone.
-        assert.equal(resumeSeniority(resume(13, [['Technical Account Manager', 'September 2021 - Present'], ['Senior Software Engineer', 'February 2013 - April 2018']]), NOW), 'mid');
+        assert.equal(resumeSeniority(resume(13, [['Technical Account Manager', 'September 2021 - Present'], ['Software Engineer', 'February 2013 - April 2018']]), NOW), 'mid');
         // An intern, junior or co-op student now is entry level, however long the dates run (focus group, 2026-10-12:
         // a "Data Science Intern" since 2021 read as mid, and the Mid filter emptied their list).
         assert.equal(resumeSeniority(resume(8, [['Junior Developer', '2018 - Present']]), NOW), 'entry');

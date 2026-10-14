@@ -34,7 +34,9 @@ const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 function yearsBasisText(basis: SeniorityBasis): string {
     return basis.role
         ? `your ${yearsText(basis.years)} as ${article(basis.role)} ${basis.role}`
-        : `your ${yearsText(basis.years)} of experience`;
+        : basis.led
+          ? `your ${yearsText(basis.years)} of experience, including lead and senior roles, which carry your level up into the role you hold now`
+          : `your ${yearsText(basis.years)} of experience`;
 }
 
 /** `yearsBasisText`, or "your title, Senior Accountant" when the title held now set the level. */

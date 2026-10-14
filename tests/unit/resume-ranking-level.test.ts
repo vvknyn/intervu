@@ -45,14 +45,14 @@ const CAREER_CHANGER = resume(
 );
 
 describe('rankingLevel', () => {
-    it('a career changer reads at the level of their years in the role they hold now, and the review marks those roles', () => {
+    it('a career changer whose earlier roles led teams reads a step up, and the review says why', () => {
+        // Senior-aware fit (Vivek, 2026-10-13): total years plus lead and senior roles carry the level up one step.
         const level = rankingLevel(CAREER_CHANGER, null, NOW);
-        assert.equal(level.level, 'mid');
+        assert.equal(level.level, 'senior');
         assert.equal(level.from, 'resume');
-        assert.deepEqual(level.countedRoles, [0]);
         assert.equal(
             level.detail,
-            'From your 5 years as a Technical Account Manager, the role marked below. Employers ask for years in the role, so your other roles count toward your 13 years in total, not this level.',
+            'From your 13 years of experience, including lead and senior roles, which carry your level up into the role you hold now.',
         );
     });
 
@@ -99,7 +99,7 @@ describe('rankingLevel', () => {
         assert.deepEqual(level.countedRoles, []);
         assert.equal(
             level.detail,
-            'From the Experience level you set in Settings (Senior), which comes before your résumé. Your résumé alone reads mid level, from your 5 years as a Technical Account Manager.',
+            'From the Experience level you set in Settings (Senior), which comes before your résumé. Your résumé alone reads senior level, from your 13 years of experience, including lead and senior roles, which carry your level up into the role you hold now.',
         );
     });
 

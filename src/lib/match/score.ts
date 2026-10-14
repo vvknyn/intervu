@@ -58,7 +58,7 @@ import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
-import { buildMatchQuery, ledLongCareer, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -111,6 +111,10 @@ export interface SeniorityRead {
     role?: string | null;
     /** The title the candidate holds now, when it set their level. */
     title?: string;
+    /** Their level was carried up by a long career that led people or work (`SeniorityBasis.led`). */
+    led?: true;
+    /** The role is one level below that carried-up level, which they also fit. */
+    fitsBelow?: true;
 }
 
 /** The verdict behind a seniority or location component's `detail`. */
@@ -151,11 +155,6 @@ export interface MatchScore {
      * its owner managing people (`resumeManagedPeople`). Such a role is a Stretch whatever their level.
      */
     newToManaging?: true;
-    /**
-     * One level above a mid-level read from a new line of work, for a long career that already led
-     * people or work (`ledLongCareer`): a reach, Good at best, not a Stretch.
-     */
-    reach?: true;
 }
 
 /**
@@ -594,7 +593,7 @@ function ownLevelText(read: SeniorityRead): string {
     if (read.title) return `${level} (your title, ${read.title})`;
     if (read.years == null) return level;
     const years = `${read.years} ${read.years === 1 ? "year" : "years"}`;
-    if (!read.role) return `${level} (${years} of experience)`;
+    if (!read.role) return read.led ? `${level} (${years} of experience, including lead and senior roles)` : `${level} (${years} of experience)`;
     return `${level} (${years} as ${/^[aeiou]/i.test(read.role) ? "an" : "a"} ${read.role})`;
 }
 
@@ -618,8 +617,13 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
     if (!own) return unknown("no_years", "no years of experience on your résumé");
     if (jobIndex === -1) return unknown("level_unlisted", "this role's level isn't listed");
 
-    const diff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
+    const basis0 = signals.seniority.source === "explicit" ? undefined : signals.seniority.basis;
+    const rawDiff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
+    // A level carried up by leadership also fits the level below it: 5 years as a TAM after leading teams
+    // fits a mid TAM role as well as a senior one, so the résumé's own line still leads.
+    const diff = basis0?.led && rawDiff === 1 ? 0 : rawDiff;
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
+    const fitsBelow = diff !== rawDiff;
     const verdict = diff === 0 ? "matches" : diff > 0 ? "below" : "above";
     const reason: MatchReason = diff === 0 ? "level_fits" : diff > 0 ? "level_above_ask" : "level_below_ask";
     const basis = signals.seniority.basis;
@@ -631,9 +635,14 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
         ...(read!.runsTeam ? { jobRunsTeam: true as const } : {}),
         ownFrom: signals.seniority.source === "explicit" ? "settings" : "resume",
         ...(basis && signals.seniority.source !== "explicit"
-            ? { years: basis.years, role: basis.role, ...(basis.title ? { title: basis.title } : {}) }
+            ? { years: basis.years, role: basis.role, ...(basis.title ? { title: basis.title } : {}), ...(basis.led ? { led: true as const } : {}) }
             : {}),
+        ...(fitsBelow ? { fitsBelow: true as const } : {}),
     };
+    if (fitsBelow) {
+        const fits = `matches your experience (${basis!.years} years, including lead and senior roles)`;
+        return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${fits}`, score, reason, level };
+    }
     return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${verdict} ${ownLevelText(level)}`, score, reason, level };
 }
 
@@ -998,20 +1007,15 @@ export function scoreJobAgainstResume(
 
     const rank = familyRank(resume, job, role, preferred);
     // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
-    // One step up for a long career that already led people or work (13 years, Team Lead and Senior
-    // Engineer before 5 as a PM) is a reach, not a Stretch: Good at best (Vivek, 2026-10-13: the other
-    // portals' picks for him were Senior PM roles, all of which read Stretch here).
-    const reach = components[1]!.reason === "level_below_ask" && signals.seniority.source === "resume"
-        && (role === "own" || role === "family") && signals.seniority.value === "mid" && jobLevelRead(job)?.level === "senior" && ledLongCareer(resume);
-    const aboveLevel = components[1]!.reason === "level_below_ask" && !reach;
+    const aboveLevel = components[1]!.reason === "level_below_ask";
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
     const capped = offTarget || aboveLevel || newToManaging || thinJd
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent" || reach
+        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
-    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}), ...(reach ? { reach: true as const } : {}) };
+    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}) };
     if (!abroad || !location.place) return score;
     return {
         ...score,
