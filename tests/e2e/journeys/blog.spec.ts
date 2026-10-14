@@ -104,7 +104,7 @@ test("every blog post is signed with the founder's pen name and drawn avatar, wi
     const post = page.getByTestId("blog-post");
     await expect(post.getByText("By Alex, founder of Velai", { exact: true })).toBeVisible();
     const avatar = post.getByTestId("blog-author-avatar");
-    await expect(avatar).toHaveAttribute("src", "/blog/author.svg");
+    await expect(avatar).toHaveAttribute("src", "/blog/author.png");
     await expect.poll(() => avatar.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
     await expect(post).not.toContainText(/vivek|narayanan/i);
 
