@@ -15,6 +15,7 @@ import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { orderForYouJobsByBand } from '../../src/lib/jobs/for-you/band-order';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
+import { resumeSearchMark } from '../../src/lib/jobs/search-payload';
 import { buildMatchQuery, targetRoles } from '../../src/lib/jobs/resume-match';
 import { titlePlace } from '../../src/lib/jobs/resume-location';
 import { explainMatch } from '../../src/lib/match/explain';
@@ -23,6 +24,8 @@ import {
     MATCH_BAND_GOOD_MIN,
     MATCH_BAND_STRONG_MIN,
     matchBand,
+    outsideLevel,
+    pastSeniorRole,
     roleAffinity,
     scoreJobAgainstResume,
     type MatchScore,
@@ -30,7 +33,7 @@ import {
 import { resumeDataFromPlainText, structureResumeText } from '../../src/lib/resume/structure-resume-text';
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
-import { mkJob } from '../support/jobs-corpus-stub';
+import { corpusStub, mkJob, NOW } from '../support/jobs-corpus-stub';
 
 const NOW_YEAR = 2026;
 const fixture = (name: string) => readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8');
@@ -369,18 +372,28 @@ describe('a role that manages people is a Stretch for a résumé that shows no o
     const remote = (title: string, experience_level: string) => canada(title, experience_level, { work_type: 'remote' });
     const asSenior = resolveCandidateSignals(TAM, { configured: true, search: { experienceLevel: 'senior' }, answers: { custom: {} } });
 
-    it('holds a manager\'s or director\'s role under Good for the TAM résumé, even set to senior, and says why', () => {
-        for (const title of ['Manager, Customer Success (Enterprise)', 'Director, Customer Success', 'Head of Customer Success']) {
-            const s = scoreJobAgainstResume(TAM, remote(title, 'senior'), asSenior)!;
-            assert.equal(s.newToManaging, true, title);
-            assert.equal(s.components.find((c) => c.key === 'seniority')!.reason, 'level_fits', title);
-            assert.equal(matchBand(s.total), 'stretch', `${title}: ${s.total}`);
-            assert.match(explainMatch(s), /It's a Stretch because (its title manages people, which no role on your résumé shows you doing|.*, and no role on your résumé shows you managing people)/, title);
-            assert.equal(todayLeftOut(s), 'level', title);
-        }
+    it('holds a manager\'s role under Good for the TAM résumé, even set to senior, and says why', () => {
+        const title = 'Manager, Customer Success (Enterprise)';
+        const s = scoreJobAgainstResume(TAM, remote(title, 'senior'), asSenior)!;
+        assert.equal(s.newToManaging, true, title);
+        assert.equal(s.components.find((c) => c.key === 'seniority')!.reason, 'level_fits', title);
+        assert.equal(matchBand(s.total), 'stretch', `${title}: ${s.total}`);
+        assert.match(explainMatch(s), /It's a Stretch because (its title manages people, which no role on your résumé shows you doing|.*, and no role on your résumé shows you managing people)/, title);
+        assert.equal(todayLeftOut(s), 'level', title);
         const csm = scoreJobAgainstResume(TAM, remote('Senior Customer Success Manager', 'senior'), asSenior)!;
         assert.equal(csm.newToManaging, undefined);
         assert.equal(todayLeftOut(csm), null);
+    });
+
+    it('holds a director\'s or head\'s role past senior, so above a TAM set to senior, and says both', () => {
+        for (const title of ['Director, Customer Success', 'Head of Customer Success']) {
+            const s = scoreJobAgainstResume(TAM, remote(title, 'senior'), asSenior)!;
+            assert.equal(s.newToManaging, true, title);
+            assert.equal(s.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask', title);
+            assert.equal(matchBand(s.total), 'stretch', `${title}: ${s.total}`);
+            assert.match(explainMatch(s), /It's a Stretch because its title \(staff, principal, director or head level\) puts it past senior, above the senior level you set in Settings, and its title manages people/, title);
+            assert.equal(todayLeftOut(s), 'level', title);
+        }
     });
 
     it('holds an Engineering Manager role for a senior engineer who never managed, not for one who did', () => {
@@ -394,5 +407,95 @@ describe('a role that manages people is a Stretch for a résumé that shows no o
             experience: [{ ...SWE.experience[0]!, description: `${SWE.experience[0]!.description}\nManaged a team of 6 engineers.` }, ...SWE.experience.slice(1)],
         };
         assert.equal(score(managed, em)!.newToManaging, undefined);
+    });
+});
+
+/**
+ * Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
+ * senior, so Staff, Principal and Director titles and Executive listings read senior and fit a senior résumé.
+ * They are a rung above it: held under Good, left out of the list and of Today, and kept out of the search
+ * pool, unless the résumé itself shows a role at that rank.
+ */
+describe('a role past Senior is never recommended to a résumé that shows none', () => {
+    const PAST = [
+        canada('Staff Technical Account Manager', 'senior'),
+        canada('Principal Customer Success Manager', 'senior'),
+        canada('Director, Customer Success', 'senior'),
+        canada('Technical Account Manager', 'executive', { id: 'tam-executive' }),
+    ];
+    const WITHIN = [
+        canada('Senior Technical Account Manager', 'senior'),
+        canada('Technical Account Manager', 'lead', { id: 'tam-lead' }),
+        canada('Customer Success Manager', 'mid'),
+    ];
+    const scoreOf = (resume: ResumeData, job: PublicJob, prefs: Parameters<typeof resolveCandidateSignals>[1] = null) => scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs))!;
+    const listFor = (resume: ResumeData, jobs: PublicJob[], prefs: Parameters<typeof resolveCandidateSignals>[1] = null) => {
+        const scores = new Map(jobs.map((job) => [job.id, scoreOf(resume, job, prefs)]));
+        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, buildMatchQuery(resume, NOW_YEAR).q, NOW).map((job) => job.title);
+    };
+
+    it('holds each under Good with the rung named, whatever the title\'s own words match', () => {
+        for (const job of PAST) {
+            const s = scoreOf(TAM, job);
+            assert.equal(pastSeniorRole(s), true, job.title);
+            assert.equal(s.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask', job.title);
+            assert.equal(matchBand(s.total), 'stretch', `${job.title}: ${s.total}`);
+            assert.equal(todayLeftOut(s), 'level', job.title);
+            assert.match(explainMatch(s), /past senior/, job.title);
+        }
+    });
+
+    it('holds the posting Vivek sent (a Staff Product Manager listed Senior, read Strong) under Good for a senior Product Manager résumé', () => {
+        const staffPm = canada('Staff Product Manager (B2B Solutions)', 'senior', { work_type: 'remote' });
+        const s = scoreJobAgainstResume(PM, staffPm, resolveCandidateSignals(PM, null))!;
+        assert.equal(pastSeniorRole(s), true);
+        assert.equal(matchBand(s.total), 'stretch', String(s.total));
+        assert.equal(todayLeftOut(s), 'level');
+        assert.deepEqual(orderForYouJobsByBand([staffPm], () => s, 'Product Manager', NOW), []);
+        const plain = scoreJobAgainstResume(PM, canada('Senior Product Manager', 'senior', { work_type: 'remote' }), resolveCandidateSignals(PM, null))!;
+        assert.notEqual(matchBand(plain.total), 'stretch', 'the same role without the Staff rank still reads Good or Strong');
+    });
+
+    it('lists Senior and Lead roles, and drops these from the list', () => {
+        const ordered = listFor(TAM, [...PAST, ...WITHIN]);
+        assert.deepEqual([...ordered].sort(), WITHIN.map((job) => job.title).sort(), ordered.join(' | '));
+    });
+
+    it('does the same for a mid résumé, and Senior roles stay a Stretch for it', () => {
+        for (const job of PAST) assert.equal(outsideLevel(scoreOf(TAM_MID, job)), true, job.title);
+        assert.equal(outsideLevel(scoreOf(TAM_MID, canada('Senior Technical Account Manager', 'senior'))), false);
+    });
+
+    it('reads the listing alone: an Executive listing with a plain title, and a plain listing with a Staff title', () => {
+        assert.equal(outsideLevel(scoreOf(TAM, canada('Technical Account Manager', 'executive'))), true);
+        assert.equal(outsideLevel(scoreOf(TAM, canada('Staff Technical Account Manager', 'unknown'))), true);
+        assert.equal(outsideLevel(scoreOf(TAM, canada('Technical Account Manager', 'unknown'))), false);
+    });
+
+    it('a résumé that shows a Staff or Director title, or a Settings level of Lead or Executive, keeps them', () => {
+        const staff: ResumeData = { ...SWE, experience: SWE.experience.map((e, i) => (i === 0 ? { ...e, role: 'Staff Software Engineer' } : e)) };
+        assert.equal(resolveCandidateSignals(staff, null).seniority.pastSenior, true);
+        assert.equal(outsideLevel(scoreOf(staff, canada('Staff Software Engineer', 'lead'))), false);
+        const lead = { configured: true, search: { experienceLevel: 'lead' }, answers: { custom: {} } } as Parameters<typeof resolveCandidateSignals>[1];
+        assert.equal(resolveCandidateSignals(TAM, lead).seniority.pastSenior, true);
+        assert.equal(outsideLevel(scoreOf(TAM, canada('Director, Customer Success', 'senior'), lead)), false);
+        assert.equal(listFor(TAM, PAST, lead).length, PAST.length);
+    });
+
+    it('keeps them out of the search pool for a résumé that shows none, and leaves the pool alone for one that does', async () => {
+        const stub = corpusStub([...PAST, ...WITHIN]);
+        await rankForYou({ resume: TAM, search: stub.search, candidateDepth: 50, signals: resolveCandidateSignals(TAM, null) });
+        assert.equal(stub.calls[0]!.omitPastSenior, true);
+        const staffStub = corpusStub([...PAST, ...WITHIN]);
+        const lead = { configured: true, search: { experienceLevel: 'lead' }, answers: { custom: {} } } as Parameters<typeof resolveCandidateSignals>[1];
+        await rankForYou({ resume: TAM, search: staffStub.search, candidateDepth: 50, signals: resolveCandidateSignals(TAM, lead) });
+        assert.equal(staffStub.calls[0]!.omitPastSenior, undefined);
+    });
+
+    it('the board marks a résumé-built search the same way, and a typed search not at all', () => {
+        assert.deepEqual(resumeSearchMark(true), { fromResume: true, omitPastSenior: true });
+        assert.deepEqual(resumeSearchMark(true, true, true), { fromResume: true });
+        assert.deepEqual(resumeSearchMark(false, true, false), { jdTerms: true });
+        assert.deepEqual(resumeSearchMark(false), {});
     });
 });

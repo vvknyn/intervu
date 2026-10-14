@@ -33,6 +33,16 @@ describe('pack total comes from the pack search', () => {
         });
     }
 
+    it('a pack\'s count leaves out roles past Senior as its deck does, unless the résumé shows one', async () => {
+        const filters = packFilters(personas[0].resume, resolveCandidateSignals(personas[0].resume));
+        const mine = corpusStub(CORPUS);
+        await countResults(filters, mine.search);
+        assert.equal(mine.calls[0].omitPastSenior, true);
+        const staff = corpusStub(CORPUS);
+        await countResults(filters, staff.search, { keepPastSenior: true });
+        assert.equal(staff.calls[0].omitPastSenior, undefined);
+    });
+
     it('a failed or unavailable search is unknown (null), never a made-up number', async () => {
         const filters = packFilters(personas[0].resume, resolveCandidateSignals(personas[0].resume));
         const result = (patch: Partial<JobSearchResult>): JobSearchResult => ({ hits: [], total: 7, configured: true, ...patch }) as JobSearchResult;

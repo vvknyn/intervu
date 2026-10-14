@@ -37,12 +37,12 @@ const TAM_RESUME = {
   generatedSummary: "Technical Account Manager with nine years in customer success and product delivery for enterprise SaaS customers.",
 };
 
-const seedResume = (page: Page) =>
+const seedResume = (page: Page, resume: object = TAM_RESUME) =>
   page.addInitScript(
     ([resumeKey, data]) => {
       localStorage.setItem(resumeKey as string, JSON.stringify({ data, updatedAt: new Date().toISOString(), sourceLabel: "e2e-synthetic" }));
     },
-    [LOCAL_AI_RESUME_KEY, TAM_RESUME] as const,
+    [LOCAL_AI_RESUME_KEY, resume] as const,
   );
 
 const posting = (id: string, title: string, company: string, experience_level: string, daysOld = 1) => {
@@ -366,3 +366,69 @@ test("a pack reaches a month of roles: the deck asks for 150 résumé-ranked row
   await expect.poll(() => Math.max(0, ...limits), { timeout: 30_000 }).toBe(150);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("a pack never deals a Staff, Principal or Director role to a résumé that shows none, and asks the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
+  // Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
+  // senior, so these read senior and fitted; a role past Senior is now left out of the pool and of the deck.
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const marks: { omitPastSenior?: boolean }[] = [];
+  const own = posting("55555555-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior", 2);
+  const senior = posting("55555555-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior", 3);
+  const staff = posting("55555555-0000-4000-8000-000000000003", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  const principal = posting("55555555-0000-4000-8000-000000000004", "Principal Customer Success Manager", "Fernway", "senior", 1);
+  const director = posting("55555555-0000-4000-8000-000000000005", "Director, Customer Success", "Kestrel IO", "senior", 1);
+  const executive = posting("55555555-0000-4000-8000-000000000006", "Customer Success Manager", "Harbor Pay", "executive", 1);
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const parsed = JSON.parse(body) as { fromResume?: boolean; omitPastSenior?: boolean };
+    if (parsed.fromResume) marks.push({ omitPastSenior: parsed.omitPastSenior });
+    // Sent anyway, as a cached or older answer could: the deck still leaves them out.
+    const hits = [staff, principal, director, executive, own, senior];
+    return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-past-senior" });
+  });
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  for (const gone of [staff, principal, director, executive]) {
+    await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${gone.id}"]`)).toHaveCount(0);
+  }
+  expect(marks.length).toBeGreaterThan(0);
+  expect(marks.every((m) => m.omitPastSenior === true), "every résumé-built search asks to leave out roles past Senior").toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a résumé whose own title is Staff keeps Staff roles: the pack does not ask the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  const staffResume = {
+    ...TAM_RESUME,
+    profile: { ...TAM_RESUME.profile, profession: "Staff Technical Account Manager" },
+    experience: [{ ...TAM_RESUME.experience[0]!, role: "Staff Technical Account Manager" }, ...TAM_RESUME.experience.slice(1)],
+  };
+  await seedResume(page, staffResume);
+  const marks: { omitPastSenior?: boolean }[] = [];
+  const staff = posting("44444444-0000-4000-8000-000000000001", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const parsed = JSON.parse(body) as { fromResume?: boolean; omitPastSenior?: boolean };
+    if (parsed.fromResume) marks.push({ omitPastSenior: parsed.omitPastSenior });
+    return answerListSearch(route, { hits: [staff], total: 1, backend: "meilisearch", configured: true, searchId: "journey-staff-keeps" });
+  });
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", staff.id, { timeout: 60_000 });
+  expect(marks.length).toBeGreaterThan(0);
+  expect(marks.every((m) => m.omitPastSenior === undefined), "no leave-out flag for a Staff résumé").toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+

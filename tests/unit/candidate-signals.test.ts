@@ -82,7 +82,9 @@ describe('resolveCandidateSignals: explicit preferences override the resume', ()
 
     it('explicit experience level beats years on the resume', () => {
         const signals = resolveCandidateSignals(mkResume({ yearsOfExperience: 1 }), prefs({ experienceLevel: 'lead' }));
-        assert.deepEqual(signals.seniority, { value: 'senior', source: 'explicit' });
+        // A stated Lead is a level past Senior's own: Staff, Principal and Director roles are then this person's class.
+        assert.deepEqual(signals.seniority, { value: 'senior', source: 'explicit', pastSenior: true });
+        assert.equal(resolveCandidateSignals(mkResume({ yearsOfExperience: 1 }), prefs({ experienceLevel: 'senior' })).seniority.pastSenior, undefined);
     });
 
     it('seniority falls back to years on the resume', () => {

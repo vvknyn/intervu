@@ -41,7 +41,35 @@ describe('semantic fit', () => {
     });
     it('leaves the hits as they were when the sidecar fails', async () => {
         const hits = [mkJob('a', { title: 'Product Manager' })];
-        const out = await withSemanticFit(hits, RESUME, { fetchImpl: (async () => { throw new Error('down'); }) as unknown as typeof fetch });
+        const out = await withSemanticFit(hits, RESUME, { url: 'http://sidecar.test', fetchImpl: (async () => { throw new Error('down'); }) as unknown as typeof fetch });
         assert.equal(out[0]!.semantic_fit, undefined);
+    });
+    it('with no sidecar configured, returns the hits at once and calls nothing', async () => {
+        const saved = process.env.VELAI_EMBED_URL;
+        delete process.env.VELAI_EMBED_URL;
+        try {
+            let calls = 0;
+            const hits = [mkJob('a', { title: 'Product Manager' })];
+            const started = Date.now();
+            const out = await withSemanticFit(hits, RESUME, { fetchImpl: (async () => { calls += 1; throw new Error('should not be called'); }) as unknown as typeof fetch });
+            assert.equal(out, hits);
+            assert.equal(calls, 0);
+            assert.ok(Date.now() - started < 50, 'no read, no wait');
+        } finally {
+            if (saved !== undefined) process.env.VELAI_EMBED_URL = saved;
+        }
+    });
+    it('reads the sidecar address from VELAI_EMBED_URL, without a trailing slash', async () => {
+        const saved = process.env.VELAI_EMBED_URL;
+        process.env.VELAI_EMBED_URL = 'http://sidecar.test:8080/';
+        try {
+            const seen: string[] = [];
+            const hits = [mkJob('a', { title: 'Product Manager' })];
+            await withSemanticFit(hits, RESUME, { fetchImpl: (async (input: RequestInfo | URL) => { seen.push(String(input)); throw new Error('down'); }) as unknown as typeof fetch });
+            assert.deepEqual(seen, ['http://sidecar.test:8080/similarity']);
+        } finally {
+            if (saved === undefined) delete process.env.VELAI_EMBED_URL;
+            else process.env.VELAI_EMBED_URL = saved;
+        }
     });
 });

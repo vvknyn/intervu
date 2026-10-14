@@ -53,7 +53,7 @@ import {
 } from "@/lib/jobs/candidate-signals";
 import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { payPlace } from "@/lib/jobs/pay-place";
-import { resumeManagedPeople, titleLevel, titleManagesPeople, yearsAsked } from "@/lib/jobs/role-level";
+import { listedPastSenior, resumeManagedPeople, titleLevel, titleManagesPeople, titlePastSenior, yearsAsked } from "@/lib/jobs/role-level";
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
@@ -117,6 +117,8 @@ export interface SeniorityRead {
     led?: true;
     /** The role is one level below that carried-up level, which they also fit. */
     fitsBelow?: true;
+    /** The role ranks past Senior (Staff, Principal, Director, Head of, VP, Chief, or listed Executive) and the résumé shows no such role. */
+    jobPastSenior?: true;
 }
 
 /** The verdict behind a seniority or location component's `detail`. */
@@ -559,6 +561,8 @@ export interface JobLevelRead {
     years?: number;
     /** The title runs a team ("Manager, Customer Success"), when it set the level. */
     runsTeam?: true;
+    /** The title or listing ranks past Senior (`titlePastSenior`, `listedPastSenior`): `level` is then "senior", the top of the scale. */
+    pastSenior?: true;
 }
 
 /**
@@ -585,10 +589,17 @@ export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title" |
     const years = yearsAsked(job.min_years_experience);
     const byYears = years == null ? null : seniorityFromYears(years);
     if (byYears) reads.push({ level: byYears, from: "years", years: years! });
-    return reads.reduce<JobLevelRead | null>(
-        (top, read) => (!top || EXPERIENCE_LEVEL_ORDER.indexOf(read.level) > EXPERIENCE_LEVEL_ORDER.indexOf(top.level) ? read : top),
+    const top = reads.reduce<JobLevelRead | null>(
+        (best, read) => (!best || EXPERIENCE_LEVEL_ORDER.indexOf(read.level) > EXPERIENCE_LEVEL_ORDER.indexOf(best.level) ? read : best),
         null,
     );
+    // Staff, Principal, Director and Head of rank past Senior, which the three-step scale tops out at: the
+    // read stays "senior" and says so, and `scoreSeniority` weighs it against whether the résumé shows such a role.
+    const pastByTitle = titlePastSenior(job.title);
+    if (pastByTitle || listedPastSenior(job.experience_level)) {
+        return { ...(top ?? { level: "senior" as const }), level: "senior", from: pastByTitle ? "title" : "listing", pastSenior: true };
+    }
+    return top;
 }
 
 /**
@@ -596,6 +607,7 @@ export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title" |
  * ("senior role by its title", "senior role: its title runs a team") or the years ("senior role by the 7+ years it asks for").
  */
 function roleLevelText(job: Pick<PublicJob, "experience_level">, read: JobLevelRead): string {
+    if (read.pastSenior) return read.from === "title" ? "staff, principal or director-level role by its title" : "executive role";
     if (read.from === "title") return read.runsTeam ? `${SENIORITY_LABEL[read.level]} role: its title runs a team` : `${SENIORITY_LABEL[read.level]} role by its title`;
     if (read.from === "years") return `${SENIORITY_LABEL[read.level]} role by the ${read.years}+ years it asks for`;
     const listed = normalize(job.experience_level ?? "");
@@ -621,7 +633,10 @@ function ownLevelText(read: SeniorityRead): string {
 function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const own = signals.seniority.value;
     const read = jobLevelRead(job);
-    const jobIndex = read ? EXPERIENCE_LEVEL_ORDER.indexOf(read.level) : -1;
+    // A role past Senior (Staff, Principal, Director, Head of, VP, Chief, or listed Executive) is a rung above
+    // the top of the scale for anyone whose résumé shows no such role, a Senior candidate included.
+    const pastSenior = read?.pastSenior === true && !signals.seniority.pastSenior;
+    const jobIndex = read ? (pastSenior ? EXPERIENCE_LEVEL_ORDER.length : EXPERIENCE_LEVEL_ORDER.indexOf(read.level)) : -1;
     const unknown = (reason: MatchReason, detail: string): MatchComponent => ({
         key: "seniority",
         label: "Seniority",
@@ -651,6 +666,7 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
         jobFrom: read!.from,
         ...(read!.years != null ? { jobYears: read!.years } : {}),
         ...(read!.runsTeam ? { jobRunsTeam: true as const } : {}),
+        ...(pastSenior ? { jobPastSenior: true as const } : {}),
         ownFrom: signals.seniority.source === "explicit" ? "settings" : "resume",
         ...(basis && signals.seniority.source !== "explicit"
             ? { years: basis.years, role: basis.role, ...(basis.title ? { title: basis.title } : {}), ...(basis.led ? { led: true as const } : {}) }
@@ -671,6 +687,16 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
 export function farBelowLevel(score: MatchScore | null | undefined): boolean {
     const level = score?.components.find((c) => c.key === "seniority")?.level;
     return level?.own === "senior" && level.job === "entry";
+}
+
+/** A role past Senior (Staff, Principal, Director, Head of, VP, Chief, Executive) for a résumé that shows no such role: out of their packs and Today, not just a Stretch at the end. */
+export function pastSeniorRole(score: MatchScore | null | undefined): boolean {
+    return score?.components.find((c) => c.key === "seniority")?.level?.jobPastSenior === true;
+}
+
+/** A role in a different class from the candidate's: two levels below a senior one, or past Senior for one who has held no such role. Out of For You altogether. */
+export function outsideLevel(score: MatchScore | null | undefined): boolean {
+    return farBelowLevel(score) || pastSeniorRole(score);
 }
 
 /**

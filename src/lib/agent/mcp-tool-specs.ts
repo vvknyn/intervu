@@ -219,6 +219,9 @@ export const FIT_FIELDS_NOTE =
     "a role's fit; never call a role labelled Outside or Country unclear a fit. A role above their level is " +
     "always Stretch: a role's level is the highest of its listed level, its title (a rank word like Senior, or a " +
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
+    "A role whose title is Staff, Principal, Distinguished, Director, Head of, VP or Chief, or that is listed as Executive, " +
+    "is past senior: Stretch for anyone whose résumé shows no role at that rank, and left out of the lists velai " +
+    "recommends (For You, Today, daily picks). " +
     "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
     "Intern, Junior, Trainee or Apprentice is entry, however long its dates run), else their years in that line of work. " +
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
@@ -274,7 +277,8 @@ export const MCP_TOOL_SPECS = {
         title: "Jobs ranked by fit",
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
-            "pipeline behind the site's For-you view. Requires a structured résumé on file: when get_resume " +
+            "pipeline behind the site's For-you view, which leaves out roles past your level (Staff, Principal, " +
+            "Director or Executive roles, unless your résumé shows one). Requires a structured résumé on file: when get_resume " +
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
             "Ranks purely by fit, not recency — postedWithinDays/sort/facet " +
@@ -294,7 +298,8 @@ export const MCP_TOOL_SPECS = {
         description:
             "Today's picks for your stored résumé: up to 5 roles posted this week in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
-            "level, never one managing people when your résumé shows no one managed. The same roles Today on " +
+            "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
+            "managing people when your résumé shows no one managed. The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words) and emailed (already sent in a daily picks email). Roles not emailed yet come first. Pass " +

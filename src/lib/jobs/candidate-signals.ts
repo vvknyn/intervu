@@ -15,6 +15,7 @@
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { statedSearch } from "@/lib/agent/preference-sources";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
+import { resumeHoldsPastSenior } from "@/lib/jobs/role-level";
 import { resumeSeniorityBasis, splitPreferredRoles, topSkills, type Seniority, type SeniorityBasis } from "@/lib/jobs/resume-match";
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { locationFromResumePlainText } from "@/lib/resume/structure-resume-text";
@@ -47,7 +48,8 @@ export interface CandidateSignals {
     /** Only ever `explicit`: a résumé does not state willingness to relocate. */
     relocation: Signal<CandidateRelocation>;
     /** With what the résumé's level was read from (`resumeSeniorityBasis`), when it was. */
-    seniority: Signal<Seniority> & { basis?: SeniorityBasis };
+    /** `pastSenior`: the person holds or held a role past Senior (Staff, Principal, Director...), so such roles are their own class. */
+    seniority: Signal<Seniority> & { basis?: SeniorityBasis; pastSenior?: true };
     roleFamily: Signal<string>;
     skills: Signal<string[]>;
     /** Only ever `explicit`: how recent a role they want to see (Settings › Posted within), in days. */
@@ -160,6 +162,15 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
 }
 
 function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
+    const level = resolveSeniorityLevel(resume, prefs);
+    // A Lead or Executive level set in Settings, or a Staff, Principal or Director title on the résumé, is a person
+    // for whom those roles are their own class; everyone else is not a fit for them (`pastSenior`, match/score.ts).
+    const statedLevel = (prefs?.search.experienceLevel ?? "").trim().toLowerCase();
+    const holdsPast = statedLevel === "lead" || statedLevel === "executive" || resumeHoldsPastSenior(resume);
+    return holdsPast ? { ...level, pastSenior: true as const } : level;
+}
+
+function resolveSeniorityLevel(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
     const stated = seniorityOfLevel(prefs?.search.experienceLevel);
     const basis = resumeSeniorityBasis(resume);
     // A stated "mid" beside a long career that led people or work reads as the résumé does (senior, which fits
