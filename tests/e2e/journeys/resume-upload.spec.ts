@@ -335,13 +335,13 @@ test("A résumé the quick read gets fully is never sent to sealed AI, and the r
   expect(await page.evaluate(() => (window as unknown as { __modelPrompts: number }).__modelPrompts)).toBe(0);
 
   const level = dialog.getByTestId("resume-review-level");
-  await expect(level).toContainText("Level used for ranking: Mid level");
-  await expect(level).toContainText("From your 5 years as a Technical Account Manager, the role marked below.");
-  await expect(level).toContainText("your other roles count toward your 13 years in total, not this level");
+  // Senior-aware fit (Vivek, 2026-10-13): 5 years as a TAM after Team Lead and Senior Engineer roles, 13 in
+  // all, reads senior, and the review says the lead and senior roles carried it up.
+  await expect(level).toContainText("Level used for ranking: Senior level");
+  await expect(level).toContainText("From your 13 years of experience, including lead and senior roles, which carry your level up into the role you hold now.");
   await expect(dialog.getByLabel("Years of experience in total", { exact: true })).toHaveValue("13");
   const counted = dialog.getByTestId("resume-review-counted");
-  await expect(counted).toHaveCount(1);
-  await expect(counted.locator("xpath=..").getByPlaceholder("Role")).toHaveValue("Technical Account Manager");
+  await expect(counted).toHaveCount(0);
 
   // The level follows the review's edits: ten years in the role is senior, the same as the whole career.
   await dialog.getByPlaceholder("Dates").first().fill(`January ${YEAR - 10} — Present`);
