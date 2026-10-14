@@ -2,14 +2,14 @@
 
 import { useEffect, useId, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowSquareOut, Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
+import { Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
-import { fetchRelatedJobs, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
+import { ApplyButtonIcon, fetchRelatedJobs, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
@@ -21,7 +21,7 @@ import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { PostingCheckSummary } from "@/components/jobs/PostingCheckSummary";
 import {
-    APPLY_BUTTON_LABEL,
+    applyButtonLabel,
     buildFactChips,
     deriveExposureBadges,
     deriveGhostSignals,
@@ -249,6 +249,8 @@ export interface JobDetailDocumentProps {
     pursuit: Pursuit | undefined;
     saveSuccessPulse?: boolean;
     signedIn?: boolean;
+    /** CONFIRMED signed out: Apply reads "Sign in to apply" (see `JobDetailActionBar`). */
+    signedOut?: boolean;
     reportJobEnabled?: boolean;
     /** `scoreJobAgainstResume`'s output for this job, or `null` when there's
      *  no signed-in résumé or no comparable field — renders no chip, never a
@@ -292,6 +294,7 @@ export function JobDetailDocument({
     pursuit,
     saveSuccessPulse = false,
     signedIn = true,
+    signedOut = false,
     reportJobEnabled = false,
     matchScore = null,
     matchAsOfDate = null,
@@ -489,8 +492,8 @@ export function JobDetailDocument({
             <div className="hidden items-center gap-2 lg:flex">
                 {job.apply_url && (
                     <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand">
-                        <ArrowSquareOut size={16} />
-                        {APPLY_BUTTON_LABEL}
+                        <ApplyButtonIcon signedOut={signedOut} size={16} />
+                        {applyButtonLabel(signedOut)}
                     </Button>
                 )}
                 {/* Rulebook item f: Save outline → the same icon-only
@@ -537,7 +540,7 @@ export function JobDetailDocument({
             ) : (
                 <p className="max-w-[640px] text-base leading-normal text-foreground">
                     No description was captured for this role.{" "}
-                    {job.apply_url ? `Use ${APPLY_BUTTON_LABEL} to read the full details on the employer's site.` : "Try the original posting for full details."}
+                    {job.apply_url ? `Use ${applyButtonLabel(signedOut)} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>
             )}
             {visibleTags(job.tags, 16).length > 0 && (
@@ -654,6 +657,7 @@ export function JobDetailDocument({
                 <JobDetailActionBar
                     job={job}
                     signedIn={signedIn}
+                    signedOut={signedOut}
                     onOpenPosting={onOpenPosting}
                     onGoAfter={onGoAfter}
                     pursuit={pursuit}

@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { APPLY_BUTTON_LABEL } from "../../../src/components/jobs/job-detail-facts";
+import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
 
@@ -120,7 +120,7 @@ test("no row in an open job mixes control steps: the /jobs detail (split pane at
     );
     test.skip(!listed, "this server lists no jobs (no search backend), so there is no job to open");
     const href = await row.getByTestId("job-title").getAttribute("href");
-    const apply = page.getByRole("button", { name: APPLY_BUTTON_LABEL }).filter({ visible: true }).first();
+    const apply = page.getByRole("button", { name: APPLY_SIGNED_OUT_LABEL }).filter({ visible: true }).first();
     // The job actions sit on the md step (the 44px touch target is the hit area, not the visual) and no row mixes steps.
     const actionsOnOneMdStep = async () => {
         await expect(apply).toBeVisible({ timeout: 15_000 });
@@ -237,7 +237,7 @@ test("an open job's actions take their type from their step: the /jobs detail an
     );
     test.skip(!listed, "this server lists no jobs (no search backend), so there is no job to open");
     const href = await row.getByTestId("job-title").getAttribute("href");
-    const apply = page.getByRole("button", { name: APPLY_BUTTON_LABEL }).filter({ visible: true }).first();
+    const apply = page.getByRole("button", { name: APPLY_SIGNED_OUT_LABEL }).filter({ visible: true }).first();
     const facesTakeTheirStep = async () => {
         await expect(apply).toBeVisible({ timeout: 15_000 });
         await expect.poll(() => apply.evaluate((el) => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight])).toEqual(["14px", "500"]);

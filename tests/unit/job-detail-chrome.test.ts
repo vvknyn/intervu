@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { APPLY_BUTTON_LABEL } from "@/components/jobs/job-detail-facts";
+import { APPLY_BUTTON_LABEL, APPLY_SIGNED_OUT_LABEL } from "@/components/jobs/job-detail-facts";
 
 const JOB_DETAIL = join(__dirname, "..", "..", "src", "components", "jobs", "JobDetail.tsx");
 const JOB_PAGE = join(__dirname, "..", "..", "src", "app", "jobs", "[slug]", "page.tsx");
@@ -28,18 +28,20 @@ function findJobArrayLengthGates(src: string): Array<{ raw: string; wrapped: boo
 }
 
 describe("JobDetail guest chrome", () => {
-    it("uses one shared Apply label for guests and signed-in users alike", () => {
+    it("reads the Apply label from the one shared helper, never a literal", () => {
         // Was: a bare ">Apply<" on the desktop split pane vs. a separately
         // hardcoded "Apply on Company Site" elsewhere in this same file — the
-        // exact defect [3] inconsistency this test now guards against. Both
-        // sites must read the one exported APPLY_BUTTON_LABEL constant
-        // instead of re-typing (a different copy of) its text.
+        // exact defect [3] inconsistency this test now guards against. Every
+        // site reads `applyButtonLabel(signedOut)` instead of re-typing (a
+        // different copy of) either label. Signed-out people see "Sign in to
+        // apply" (focus group, 2026-10-12); it lives only in job-detail-facts.
         const src = readFileSync(JOB_DETAIL, "utf8");
         assert.doesNotMatch(src, /Sign in to apply/);
         assert.doesNotMatch(src, />\s*Apply\s*</, "no surface should hardcode a bare, unlabeled Apply string");
         assert.doesNotMatch(src, /"Apply on Company Site"/, "no surface should re-type the label literal instead of importing it");
-        assert.match(src, /\{APPLY_BUTTON_LABEL\}/, "every Apply surface must render the shared constant");
+        assert.match(src, /\{applyButtonLabel\(signedOut\)\}/, "every Apply surface must render the shared label");
         assert.equal(APPLY_BUTTON_LABEL, "Apply on employer site");
+        assert.equal(APPLY_SIGNED_OUT_LABEL, "Sign in to apply");
     });
 
     it("save control is the shared row bookmark, not a labeled Save button", () => {

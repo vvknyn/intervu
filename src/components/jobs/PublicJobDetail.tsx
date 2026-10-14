@@ -7,6 +7,7 @@ import { markJobAppliedAction } from "@/actions/jobs";
 import { reportJobEnabledAction } from "@/actions/report-job";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
+import { isConfirmedSignedOut } from "@/lib/auth/jobs-chrome-gates";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
@@ -473,6 +474,7 @@ export function PublicJobDetail({
                     now={nowMs}
                     source={effectiveSource}
                     signedIn={Boolean(user)}
+                    signedOut={isConfirmedSignedOut(authReady, user)}
                     pursuit={pursuitsByJobId.get(job.id)}
                     saveSuccessPulse={savePulse}
                     reportJobEnabled={reportJobEnabled}
@@ -505,6 +507,7 @@ export function PublicJobDetail({
                         now={nowMs}
                         source={effectiveSource}
                         signedIn={Boolean(user)}
+                        signedOut={isConfirmedSignedOut(authReady, user)}
                         pursuit={pursuitsByJobId.get(job.id)}
                         saveSuccessPulse={savePulse}
                         reportJobEnabled={reportJobEnabled}
@@ -537,6 +540,7 @@ export function PublicJobDetail({
                 <JobDetailActionBar
                     job={job}
                     signedIn={Boolean(user)}
+                    signedOut={isConfirmedSignedOut(authReady, user)}
                     onOpenPosting={() => handleOpenPosting(job)}
                     onGoAfter={() => handleGoAfter(job)}
                     pursuit={pursuitsByJobId.get(job.id)}
