@@ -15,7 +15,7 @@ import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import { packAgeTier } from "@/lib/jobs/for-you/band-order";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
-import { compareFitUnseenFirst, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
+import { compareFitUnseenFirst, farBelowLevel, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -120,7 +120,7 @@ export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
     if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
     if (placeUnknown(score)) return "unplaced";
     // Before the band: a role above their level, or managing people when they haven't, is a Stretch for that reason (score.ts).
-    if (score.newToManaging || score.components.some((c) => c.reason === "level_below_ask")) return "level";
+    if (score.newToManaging || farBelowLevel(score) || score.components.some((c) => c.reason === "level_below_ask")) return "level";
     if (matchBand(score.total) === "stretch") return "stretch";
     if (score.role !== "own" && score.role !== "family") return "other-role";
     return null;

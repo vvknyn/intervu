@@ -11,7 +11,7 @@
  * title-relevance.ts.
  */
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
-import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { farBelowLevel, matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 
 /** `rankTier` values: Stretch roles start at 300, roles outside reach (place unknown, abroad, unscored) at 500. */
 const STRETCH_TIER_FLOOR = 300;
@@ -85,7 +85,7 @@ export function orderForYouJobsByBand(
     jobs.forEach((job, index) => {
         const score = getScore(job);
         const age = packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null);
-        if (age === 2) return;
+        if (age === 2 || farBelowLevel(score)) return;
         const tier = rankTier(score);
         const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
         const band = score != null ? rankBand(score, job.posted_ts ?? null, nowMs) : BAND_SEQUENCE.length;

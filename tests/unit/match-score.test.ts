@@ -832,12 +832,12 @@ describe('the seniority reason agrees with the role\'s details', () => {
         resumeDataFromPlainText(readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8'));
     const settings = (experienceLevel: string): AgentPreferences => ({ configured: true, search: { experienceLevel }, answers: { custom: {} } });
 
-    it('a Mid listing for a candidate set to senior says the role is below them, a Senior one that it matches', () => {
+    it('a Mid listing for a candidate set to senior fits (one level below counts, 2026-10-14), a Senior one matches', () => {
         const resume = fixture('vivek-tam-resume');
         const signals = resolveCandidateSignals(resume, settings('senior'));
         const at = (experience_level: string, title: string) =>
             scoreJobAgainstResume(resume, mkJob({ title, experience_level }), signals)!.components.find((c) => c.key === 'seniority')!;
-        assert.equal(at('mid', 'Enterprise Customer Success Manager').detail, 'mid-level role — below your senior level (set in Settings)');
+        assert.equal(at('mid', 'Enterprise Customer Success Manager').detail, 'mid-level role — fits your senior level (set in Settings): one level below counts');
         // Its level matches; that his résumé shows no one managed is said beside it (newToManaging).
         assert.equal(
             at('senior', 'Manager, Customer Success (Enterprise)').detail,

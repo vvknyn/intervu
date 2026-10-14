@@ -96,3 +96,37 @@ describe('Today follows the packs', () => {
         assert.equal(s.picks, '2 roles posted this week fit you.');
     });
 });
+
+describe('a senior candidate gets mid-level roles too', async () => {
+    const { matchBand } = await import('../../src/lib/match/score');
+    const { orderForYouJobsByBand } = await import('../../src/lib/jobs/for-you/band-order');
+    const { todayLeftOut } = await import('../../src/lib/jobs/for-you/today');
+    const NOW = Date.now();
+    const SENIOR = prefs({ query: 'Product Manager, Technical Product Manager, Product Owner', experienceLevel: 'senior', remoteOnly: true, location: 'Toronto' });
+    const signals = resolveCandidateSignals(TAM_PO, SENIOR);
+    const job = (id: string, title: string, level: string) =>
+        mkJob(id, { title, location: 'Remote - Canada', location_country: 'Canada', work_type: 'remote', experience_level: level, posted_ts: NOW - 2 * 86_400_000 });
+    const score = (j: ReturnType<typeof job>) => scoreJobAgainstResume(TAM_PO, j, signals)!;
+
+    it('retrieves mid and senior', () => {
+        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior']);
+    });
+
+    it('a mid-level role fits: same seniority score as a senior one, not capped under Good', () => {
+        const mid = score(job('m', 'Product Manager', 'mid'));
+        const sen = score(job('s', 'Senior Product Manager', 'senior'));
+        const seniority = (s: typeof mid) => s.components.find((c) => c.key === 'seniority')!;
+        assert.equal(seniority(mid).reason, 'level_fits');
+        assert.equal(seniority(mid).score, seniority(sen).score);
+        assert.notEqual(matchBand(mid.total), 'stretch');
+    });
+
+    it('a mid role is ranked among senior ones, and an entry or intern role is left out', () => {
+        const jobs = [job('s', 'Senior Product Manager', 'senior'), job('m', 'Product Manager', 'mid'), job('j', 'Junior Product Manager', 'entry'), job('i', 'Product Manager Intern', 'intern')];
+        const scores = new Map(jobs.map((j) => [j.id, score(j)]));
+        const out = orderForYouJobsByBand(jobs, (j) => scores.get(j.id), null, NOW).map((j) => j.id);
+        assert.deepEqual(out.filter((id) => id === 's' || id === 'm').length, 2);
+        assert.ok(!out.includes('j') && !out.includes('i'), JSON.stringify(out));
+        assert.equal(todayLeftOut(scores.get('j')!), 'level');
+    });
+});

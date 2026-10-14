@@ -637,7 +637,9 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
     const rawDiff = EXPERIENCE_LEVEL_ORDER.indexOf(own) - jobIndex;
     // A level carried up by leadership also fits the level below it: 5 years as a TAM after leading teams
     // fits a mid TAM role as well as a senior one, so the résumé's own line still leads.
-    const diff = basis0?.led && rawDiff === 1 ? 0 : rawDiff;
+    // A senior candidate fits a mid-level role too (Vivek, 2026-10-14: "adjust the logic to return mid level roles"),
+    // however the level was set; two levels below (entry, intern) still doesn't.
+    const diff = (basis0?.led || own === "senior") && rawDiff === 1 ? 0 : rawDiff;
     const score = diff === 0 ? 1 : diff > 0 ? 0.65 : 0.25;
     const fitsBelow = diff !== rawDiff;
     const verdict = diff === 0 ? "matches" : diff > 0 ? "below" : "above";
@@ -656,10 +658,19 @@ function scoreSeniority(signals: CandidateSignals, job: PublicJob): MatchCompone
         ...(fitsBelow ? { fitsBelow: true as const } : {}),
     };
     if (fitsBelow) {
-        const fits = `matches your experience (${basis!.years} years, including lead and senior roles)`;
+        const fits =
+            basis && basis.years != null && signals.seniority.source !== "explicit"
+                ? `matches your experience (${basis.years} years${basis.led ? ", including lead and senior roles" : ""})`
+                : `fits your senior level (${signals.seniority.source === "explicit" ? "set in Settings" : "from your résumé"}): one level below counts`;
         return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${fits}`, score, reason, level };
     }
     return { key: "seniority", label: "Seniority", detail: `${roleLevelText(job, read!)} — ${verdict} ${ownLevelText(level)}`, score, reason, level };
+}
+
+/** Two levels below a senior candidate (an entry-level or intern role): out of their packs and Today, not just ranked last. */
+export function farBelowLevel(score: MatchScore | null | undefined): boolean {
+    const level = score?.components.find((c) => c.key === "seniority")?.level;
+    return level?.own === "senior" && level.job === "entry";
 }
 
 /**
