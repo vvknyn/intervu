@@ -234,7 +234,7 @@ export function TodayHome({
             const { resume, signals, pack } = matching;
             // The pack's own search and order (most relevant first), limited to the week.
             const params = {
-                ...packSearchParams(pack),
+                ...packSearchParams(pack, signals),
                 postedSinceMs: windowFloorMs,
                 limit: TODAY_PICKS_FETCH_LIMIT,
                 offset: 0,

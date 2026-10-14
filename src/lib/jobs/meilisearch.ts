@@ -32,6 +32,7 @@ import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
+import { listedPastSenior, titlePastSenior } from "./role-level";
 import { facetFilterClause } from "./unknown-inclusive-facets";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -1370,7 +1371,9 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
 
     if (shouldRunFitPhraseLane(searchParams)) {
       const fitPhrases = resolveFitPhrases(searchParams)!;
-      const { lanes, facetDistribution } = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
+      const fetched = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
+      const { facetDistribution } = fetched;
+      const lanes = p.omitPastSenior ? fetched.lanes.map((lane) => lane.filter(isWithinSenior)) : fetched.lanes;
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
       for (const hit of lanes.flat()) {
@@ -1520,6 +1523,11 @@ async function fetchCompanyScopedLanes(
     lanes: laneParams.map((params, i) => ({ params, hits: batches[i].hits, total: batches[i].total })),
     facetDistribution: batches[0]?.facetDistribution,
   };
+}
+
+/** Not a role past Senior (`omitPastSenior`, types.ts). */
+function isWithinSenior(hit: PublicJob): boolean {
+  return !titlePastSenior(hit.title) && !listedPastSenior(hit.experience_level);
 }
 
 function fitPhraseTitleScoped(phrase: string): boolean {

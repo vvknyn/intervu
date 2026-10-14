@@ -17,7 +17,8 @@ import type { ResumeData } from "@/types/resume";
 
 export const SEMANTIC_DEADLINE_MS = 1500;
 export const SEMANTIC_MAX_IDS = 150;
-const EMBED_URL = () => process.env.VELAI_EMBED_URL || "http://velai-embed:8080";
+/** The sidecar's address, or "" when none is configured: with none, a search does not look for one (`withSemanticFit`). */
+const embedUrl = () => (process.env.VELAI_EMBED_URL ?? "").trim().replace(/\/+$/, "");
 
 const sha = (s: string) => createHash("sha1").update(s).digest("hex").slice(0, 12);
 
@@ -48,24 +49,42 @@ async function readDescriptions(ids: string[]): Promise<Record<string, string>> 
     return Object.fromEntries((body.hits ?? []).map((hit) => [hit.id, hit.description ?? ""]));
 }
 
-/** `hits` with `semantic_fit` set where the sidecar answered in time; unchanged on any failure. */
+/**
+ * `hits` with `semantic_fit` set where the sidecar answered in time; unchanged on any failure. With no
+ * `VELAI_EMBED_URL` it returns at once, before reading a single description: a host without the sidecar
+ * ranks on the rules alone, at no cost to the search. Reading the descriptions shares the deadline, so a
+ * configured sidecar that is down or slow adds at most `deadlineMs` to a search, not the 8 s a slow
+ * Meilisearch read would.
+ */
 export async function withSemanticFit<T extends PublicJob>(
     hits: T[],
     resume: ResumeData,
-    { deadlineMs = SEMANTIC_DEADLINE_MS, fetchImpl = fetch }: { deadlineMs?: number; fetchImpl?: typeof fetch } = {},
+    {
+        deadlineMs = SEMANTIC_DEADLINE_MS,
+        fetchImpl = fetch,
+        url = embedUrl(),
+    }: { deadlineMs?: number; fetchImpl?: typeof fetch; url?: string } = {},
 ): Promise<T[]> {
+    if (!url) return hits;
     const started = Date.now();
     try {
         const ids = hits.slice(0, SEMANTIC_MAX_IDS).map((hit) => hit.id);
         const queryText = resumeEmbedText(resume);
         if (ids.length === 0 || queryText.length < 40) return hits;
-        const descriptions = await readDescriptions(ids);
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const descriptions = await Promise.race([
+            readDescriptions(ids),
+            new Promise<null>((resolve) => {
+                timer = setTimeout(() => resolve(null), Math.max(300, deadlineMs - 300));
+            }),
+        ]).finally(() => clearTimeout(timer));
+        if (!descriptions) return hits;
         const docs = hits.slice(0, SEMANTIC_MAX_IDS).map((hit) => {
             const text = `${hit.title} at ${hit.company}.\n${(descriptions[hit.id] ?? hit.description ?? "").slice(0, 3000)}`;
             return { key: `${hit.id}:${sha(text)}`, id: hit.id, text };
         });
         const left = Math.max(300, deadlineMs - (Date.now() - started));
-        const res = await fetchImpl(`${EMBED_URL()}/similarity`, {
+        const res = await fetchImpl(`${url}/similarity`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ query: { key: sha(queryText), text: queryText }, docs: docs.map(({ key, text }) => ({ key, text })), deadlineMs: left - 150 }),

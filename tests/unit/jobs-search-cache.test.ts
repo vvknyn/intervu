@@ -46,6 +46,7 @@ test("normalizeSearchCacheKey: distinguishes requests that would hit Meilisearch
     { q: "engineer", offset: 40 },
     { q: "engineer", board: "elite" },
     { q: "engineer", companyDomain: "stripe.com" },
+    { q: "engineer", omitPastSenior: true },
     { q: "designer" },
   ];
   const baseKey = normalizeSearchCacheKey(base);

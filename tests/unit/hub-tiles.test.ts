@@ -4,7 +4,7 @@ import { countResults } from '../../src/lib/jobs/broaden';
 import { HUB_PACK_CORPUS_COUNT_LOADING } from '../../src/lib/jobs/for-you/hub-counts';
 import { HUB_PACK_IDS } from '../../src/lib/jobs/for-you/hub-pack-filters';
 import { hubTile, hubTileRows, isHubPackId, resumeTileLabels } from '../../src/lib/jobs/for-you/hub-tiles';
-import { searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
+import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
 import { DEFAULT_URL_STATE, type JobsUrlState } from '../../src/lib/jobs/url-state';
 import { NOW, corpusStub, mkJob } from '../support/jobs-corpus-stub';
 
@@ -63,8 +63,10 @@ describe('a filter tile counts the search its list sends', () => {
         const freshTotal = await countResults(hubTile(pack, 'fresh').state, search);
         assert.deepEqual([packTotal, remoteTotal, freshTotal], [6, 2, 1]);
 
-        // The count call is the list's own payload, only with limit 1.
-        const listParams = searchParamsFromUrlState(hubTile(pack, 'remote').state);
+        // The count call is the list's own payload, only with limit 1: a fit-sorted list is a résumé's own, so it
+        // leaves out roles past Senior unless the résumé shows one (`resumeSearchMark`).
+        const remote = hubTile(pack, 'remote').state;
+        const listParams = { ...searchParamsFromUrlState(remote), ...(remote.sort === 'fit' ? resumeSearchMark(true, false, false) : {}) };
         const countCall = calls[1];
         assert.deepEqual({ ...countCall, limit: undefined, offset: undefined }, { ...listParams, limit: undefined, offset: undefined });
     });

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { packFilters } from '../../src/lib/jobs/for-you/pack-filters';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
-import { searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
+import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
 import { resolveJobsHomeView } from '../../src/lib/jobs/for-you/home-view';
 import { jobsBoardHref, parseJobsUrl } from '../../src/lib/jobs/url-state';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
@@ -60,10 +60,16 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
             const pack = corpusStub(CORPUS);
             const ranked = await rankForYou({ resume: persona.resume, search: pack.search, candidateDepth: DEPTH, signals });
 
-            // What a person gets: open the link, the board parses the URL, then searches.
+            // What a person gets: open the link, the board parses the URL, then searches (marked as a résumé's own
+            // list, which also leaves out roles past Senior unless the résumé shows one: `resumeSearchMark`).
             const manual = corpusStub(CORPUS);
             const linkState = parseJobsUrl(new URL(jobsBoardHref(filters), 'https://velai.test').searchParams);
-            const byHand = await manual.search({ ...searchParamsFromUrlState(linkState), limit: DEPTH, offset: 0 });
+            const byHand = await manual.search({
+                ...searchParamsFromUrlState(linkState),
+                ...resumeSearchMark(true, true, signals.seniority.pastSenior === true),
+                limit: DEPTH,
+                offset: 0,
+            });
 
             assert.deepEqual(new Set(ranked.hits.map((h) => h.job.id)), new Set(byHand.hits.map((j) => j.id)));
             assert.equal(ranked.hits.length, byHand.hits.length, 'fit never removes a job');
