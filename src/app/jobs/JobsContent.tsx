@@ -3353,7 +3353,7 @@ export function JobsContent({
                 // time after the probe so the hub stays inside the search rate limit.
                 const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
                 for (const id of industryFilterTileIds(industry)) {
-                    const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true });
+                    const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true, keepPastSenior: signals.seniority.pastSenior === true });
                     if (cancelled) return;
                     tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
                     setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
@@ -5348,6 +5348,7 @@ export function JobsContent({
                         ? detectedLocationLabel(result.defaultedLocation!, result.remoteAnywhere)
                         : undefined,
                     relocation: signals?.relocation.value,
+                    keepPastSenior: signals?.seniority.pastSenior === true,
                 }}
                 // The raw action: a count probe must not become `lastSearchId` (open attribution).
                 search={searchJobsActionRaw}

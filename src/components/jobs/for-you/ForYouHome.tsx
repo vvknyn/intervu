@@ -502,7 +502,7 @@ export function ForYouHome({
         if (!filters) return;
         let live = true;
         setPackTotal(null);
-        void countResults(filters, searchJobs, { locationRequired: true }).then((total) => {
+        void countResults(filters, searchJobs, { locationRequired: true, keepPastSenior: signals?.seniority.pastSenior === true }).then((total) => {
             if (live) setPackTotal(total);
         });
         return () => {
@@ -654,7 +654,7 @@ export function ForYouHome({
                 <BroadenOptions
                     state={filters}
                     total={packTotal}
-                    ctx={{ relocation: signals?.relocation.value, locationRequired: true }}
+                    ctx={{ relocation: signals?.relocation.value, locationRequired: true, keepPastSenior: signals?.seniority.pastSenior === true }}
                     search={searchJobs}
                 />
             </div>
