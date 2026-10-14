@@ -161,8 +161,12 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
 
 function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
     const stated = seniorityOfLevel(prefs?.search.experienceLevel);
-    if (stated) return signal(stated, "explicit");
     const basis = resumeSeniorityBasis(resume);
+    // A stated "mid" beside a long career that led people or work reads as the résumé does (senior, which fits
+    // mid too): Vivek's Settings said mid beside 13 years with lead roles, and every Senior PM role read Stretch
+    // (2026-10-14). Any other stated level stands as said.
+    if (stated === "mid" && basis?.led && basis.level === "senior") return { ...signal(basis.level, "resume"), basis };
+    if (stated) return signal(stated, "explicit");
     return basis ? { ...signal(basis.level, "resume"), basis } : unknown();
 }
 

@@ -7,6 +7,7 @@
  * Server-only (touches server env + the Subspace client). Call via the
  * `@/actions/jobs` server actions from client components.
  */
+import { withoutNonPlaceLocation } from "@/lib/jobs/non-place-location";
 import {
   fetchFacetSearch,
   fetchJobSuggestions,
@@ -182,7 +183,9 @@ export async function searchJobs(
       // last-good response for its exact query/filter shape (and, if it's the
       // default browse, as the outage fallback too) — see search-cache.ts.
       // Only the success path ever teaches the cache.
-      const result = { ...(await sharedLiveSearch(p, () => searchMeili(p))), effectiveQ: p.q ?? "" };
+      const live = await sharedLiveSearch(p, () => searchMeili(p));
+      // A city that is a language ("Spanish") is no place: the row's place reads unknown (non-place-location.ts).
+      const result = { ...live, hits: live.hits.map(withoutNonPlaceLocation), effectiveQ: p.q ?? "" };
       return {
         ...result,
         meta: { degraded: false, servedFrom: "live" },

@@ -583,6 +583,8 @@ export function TodayHomeView({
     const matched = !status.startsWith("no-resume");
     const ranking = matched || status === "no-resume-loading";
     const shown = roles.slice(0, rowLimit);
+    // Nothing this week passed the packs' rules: no "Roles to look at" at all, rather than a box that says so.
+    const hidePicks = status === "ready" && shown.length === 0 && !whereUnknown;
     const gated = gate != null && roles.length > rowLimit;
     // One plain line: what the numbers count and the next thing to do ("the UI needs to almost nudge the user to do
     // the next natural thing", Vivek 2026-10-07, after "0 new picks · 0 of 12 applied today" beside 11 applications).
@@ -645,7 +647,7 @@ export function TodayHomeView({
             titleId="today-title"
             testId="today-home"
             link={
-                matched ? (
+                matched && !hidePicks ? (
                     <button
                         type="button"
                         data-testid="today-see-more"
@@ -687,6 +689,7 @@ export function TodayHomeView({
             }
         >
             <div className={cn("mt-4 grid gap-y-8", needsYou && "lg:grid-cols-[minmax(0,1fr)_20rem] lg:gap-x-2")}>
+                {hidePicks ? null : (
                 <div id="today-new" data-testid="today-new" className="min-w-0 scroll-mt-24">
                     <div className="flex items-baseline justify-between gap-3 border-b border-border poster-list-inset-x py-2 text-sm text-muted-foreground">
                         <SubTitle>Roles to look at</SubTitle>
@@ -780,6 +783,7 @@ export function TodayHomeView({
                         </>
                     )}
                 </div>
+                )}
                 {needsYou}
             </div>
         </HubPanel>

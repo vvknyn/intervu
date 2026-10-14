@@ -688,6 +688,8 @@ interface ResumeTargets {
     searched: string[];
     own: string[];
     ownFamilies: RoleFamilyId[];
+    /** Stated roles the résumé shows no one holding (`targetRoles().statedUnheld`). */
+    statedUnheld: string[];
     /** `ownFamilies` in the whole résumé's order of strength (`families`): which of its own roles leads. */
     leading: RoleFamilyId[];
     /** A role or line on the résumé shows its owner managing people (`resumeManagedPeople`). */
@@ -709,6 +711,7 @@ function resumeTargets(resume: ResumeData, preferred: readonly string[] = []): R
             searched: buildMatchQuery(resume, undefined, preferred).phrases,
             own: roles.own,
             ownFamilies: roles.ownFamilies,
+            statedUnheld: roles.statedUnheld,
             leading: [
                 ...roles.families.filter((family) => roles.ownFamilies.includes(family)),
                 ...roles.ownFamilies.filter((family) => !roles.families.includes(family)),
@@ -768,6 +771,9 @@ export function roleAffinity(resume: ResumeData, job: PublicJob, preferred: read
     const { own, ownFamilies } = resumeTargets(resume, preferred);
     const title = job.title ?? "";
     if (own.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "own";
+    // A role they asked for but have not held is next to theirs, not one more of their own (2026-10-14).
+    const { statedUnheld } = resumeTargets(resume, preferred);
+    if (statedUnheld.some((phrase) => jobTitleMatchesTarget(title, phrase))) return "adjacent";
     if (familiesNamedBy([title]).some((family) => ownFamilies.includes(family))) return "family";
     // A résumé that names no role of its own (skills only) has nothing to be "next to".
     if (fit === "target") return own.length > 0 ? "adjacent" : "family";

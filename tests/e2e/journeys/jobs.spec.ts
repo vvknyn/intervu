@@ -566,11 +566,11 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
   // with Apply and the thumbs (a thumbs down is the way to drop one; there is no separate Skip); "All of this week"
   // opens the week's pack; no sign-in card.
   const rows = today.getByTestId("today-new-row");
-  const empty = today.getByTestId("today-new-empty");
-  await expect(rows.first().or(empty)).toBeVisible({ timeout: 60_000 });
-  if (await empty.isVisible()) {
-    await expect(rows).toHaveCount(0);
-    await expect(empty.getByTestId("today-new-empty-action")).toHaveCount(1);
+  // No pick passed the packs' rules: "Roles to look at" is not shown at all (2026-10-14).
+  await expect(today.getByTestId("today-new-loading")).toHaveCount(0, { timeout: 60_000 });
+  if ((await rows.count()) === 0) {
+    await expect(today.getByTestId("today-new")).toHaveCount(0);
+    await expect(today.getByTestId("today-see-more")).toHaveCount(0);
   } else {
     expect(await rows.count()).toBeLessThanOrEqual(TODAY_PICK_ROWS);
     await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(No new roles fit you|\d+ new roles? fits? you) since \w+\.$/);

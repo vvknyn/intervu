@@ -12,6 +12,7 @@ import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
+import { packAgeTier } from "@/lib/jobs/for-you/band-order";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { compareFitUnseenFirst, matchBand, OUTSIDE_REASONS, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
@@ -160,7 +161,9 @@ export function pickToday(
                 !opts.skipped.has(r.job.id) &&
                 !opts.tracked.has(r.job.id) &&
                 !(opts.applied && trackedPursuitFor(r.job, opts.applied)) &&
-                todayLeftOut(r.score) == null,
+                todayLeftOut(r.score) == null &&
+                // The packs' own age rule: a role first seen over two months ago is out, whatever date it now claims.
+                packAgeTier(derivePostedTs(r.job), nowMs, r.job.first_seen_at ?? null) !== 2,
         )
         .sort(
             (a, b) =>
@@ -358,7 +361,9 @@ export function todaySummary(input: {
     if (ready && shown > 0) {
         const sinceText = since === "today" ? "since you were here earlier today" : since;
         if (firstVisit) {
-            picks = `${newCount} ${s(newCount, "role", "roles")} posted this week ${s(newCount, "fits", "fit")} you.`;
+            // Every pick on a first visit is this week's: count the rows listed, so the line never reads 0 above two roles
+            // (2026-10-14: "0 roles posted this week fit you" over two picks this device had listed before).
+            picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you.`;
             next = shown === 1 ? "Look at it below and apply if it suits you." : "Look at them below and apply to the ones that suit you.";
         } else if (newCount > 0) {
             picks = `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`;

@@ -31,6 +31,7 @@ import { resumeIndustry, type IndustryId } from "./resume-industry";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { titleLevel } from "./role-level";
 import { meaningfulTitleTokens } from "./presentation";
+import { jobTitleMatchesTarget } from "./for-you/title-relevance";
 
 export interface DerivedQuery {
     q: string;
@@ -269,6 +270,13 @@ export interface TargetRoles {
     own: string[];
     /** The families `own` names, strongest first. */
     ownFamilies: RoleFamilyId[];
+    /**
+     * Roles the candidate said they want that nothing on the résumé shows them
+     * holding (Vivek, 2026-10-14: "Customer Success Manager" stated beside a
+     * TAM and product-owner career). They are still searched; a posting with
+     * one of these titles is a neighbour, not their own role.
+     */
+    statedUnheld: string[];
 }
 
 /**
@@ -310,7 +318,22 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     // the job, it is not a second job they are after.
     const leadTitle = cleanRoleTitle((joinedTitles(lead)[0] ?? "").replace(LEAD_ADJECTIVES, ""));
     const leadIsTitle = Boolean(leadTitle) && isRoleTitlePhrase(leadTitle) && familiesNamedBy([leadTitle]).length > 0;
-    const own = [...phrases];
+    // A stated role is their own only when the résumé shows them holding it (`heldTitles`);
+    // the headline and current role are theirs by definition.
+    // A stated role in another line of work is a move they are making (a PM asking for Data Analyst) and leads as
+    // their own; one next to a role they hold, in the same family, that they have never held (Customer Success
+    // Manager beside Technical Account Manager) is a neighbour.
+    const held = heldTitles(resume, leadIsTitle ? leadTitle : "");
+    const heldFamilies = new Set(held.flatMap((h) => familiesNamedBy([h])));
+    const statedUnheld = stated.filter(
+        (p) => !titleIsHeld(p, held) && familiesNamedBy([p]).some((family) => heldFamilies.has(family)),
+    );
+    const own = phrases.filter((p) => !statedUnheld.some((u) => u.toLowerCase() === p.toLowerCase()));
+    // A title held for years inside a joined current role ("Technical Account Manager (Client-Facing
+    // Product Owner)", five years) is theirs as much as the headline's first title (2026-10-14).
+    for (const title of yearsBackedTitles(resume)) {
+        if (!own.some((p) => p.toLowerCase() === title.toLowerCase())) own.push(title);
+    }
     if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
     // A second title the summary joins counts too when the résumé's body backs it: Vivek's
     // "Product Manager and Technical Account Manager" whose current role says "Serve as named
@@ -320,7 +343,92 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
         if (!phrases.some((p) => p.toLowerCase() === title.toLowerCase())) phrases.push(title);
         if (!own.some((p) => p.toLowerCase() === title.toLowerCase())) own.push(title);
     }
-    return { phrases, families: [...new Set([...families, ...familiesInOrder(own)])], own, ownFamilies: familiesInOrder(own) };
+    return {
+        phrases,
+        families: [...new Set([...families, ...familiesInOrder(own)])],
+        own,
+        ownFamilies: familiesByYears(resume, familiesInOrder(own)),
+        statedUnheld,
+    };
+}
+
+/** Titles that name the same job: a posting says one, a résumé the other. */
+const SAME_JOB_TITLES: readonly [RegExp, string][] = [
+    [/\bproduct owner\b/i, "product manager"],
+    [/\bproduct manager\b/i, "product owner"],
+];
+
+/** The titles the résumé shows the candidate holding: every role (and the title it joins in brackets), the headline, the summary's lead. */
+function heldTitles(resume: ResumeData, leadTitle: string): string[] {
+    const out: string[] = [];
+    const add = (t: string) => {
+        const title = cleanRoleTitle(stripWorkMode(t));
+        if (title && !out.some((o) => o.toLowerCase() === title.toLowerCase())) out.push(title);
+    };
+    for (const entry of resume?.experience ?? []) for (const part of roleTitleParts(entry?.role ?? "")) add(part);
+    for (const part of splitRoleTitles(resume?.profile?.profession ?? "").flatMap(roleTitleParts)) add(headlineRoleTitle(part));
+    if (leadTitle) add(leadTitle);
+    return out;
+}
+
+/** "Technical Account Manager (Client-Facing Product Owner)" → it and the two titles it joins. */
+function roleTitleParts(role: string): string[] {
+    const whole = role.trim();
+    if (!whole) return [];
+    const inner = [...whole.matchAll(/\(([^)]+)\)/g)].map((m) => m[1]!.trim());
+    const outer = whole.replace(/\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
+    return [...new Set([whole, outer, ...inner, ...joinedTitles(outer), ...inner.flatMap(joinedTitles)].filter(Boolean))];
+}
+
+/** Whether a stated role names a title the candidate holds (or the same job under another name). */
+function titleIsHeld(stated: string, held: readonly string[]): boolean {
+    const variants = [stated, ...SAME_JOB_TITLES.filter(([re]) => re.test(stated)).map(([re, to]) => stated.replace(re, to))];
+    return held.some((h) => variants.some((v) => jobTitleMatchesTarget(h, v) || jobTitleMatchesTarget(v, h)));
+}
+
+/** A joined title held this long counts as the candidate's own role. */
+export const OWN_TITLE_MIN_YEARS = 2;
+
+/** Whole years a role's dates span ("September 2021 — Present" → 5 in 2026); null when they name no start year. */
+export function roleSpanYears(dates: string, nowYear: number): number | null {
+    const years = [...(dates ?? "").matchAll(/\b(?:19|20)\d{2}\b/g)].map((m) => Number(m[0]));
+    if (years.length === 0) return null;
+    const end = roleEndYear(dates, nowYear) ?? years[years.length - 1]!;
+    return Math.max(0, end - Math.min(...years));
+}
+
+/** Bracketed or joined titles in a recent role held `OWN_TITLE_MIN_YEARS` or more, with the posting-side name for the same job. */
+function yearsBackedTitles(resume: ResumeData): string[] {
+    const nowYear = new Date().getFullYear();
+    const out: string[] = [];
+    for (const entry of (resume?.experience ?? []).slice(0, 1)) {
+        const span = roleSpanYears(entry?.dates ?? "", nowYear);
+        if (span == null || span < OWN_TITLE_MIN_YEARS) continue;
+        const parts = roleTitleParts(entry?.role ?? "").slice(1).map((p) => cleanRoleTitle(p)).filter((p) => isRoleTitlePhrase(p) && familiesNamedBy([p]).length > 0);
+        for (const part of parts) {
+            for (const t of [part, ...SAME_JOB_TITLES.filter(([re]) => re.test(part)).map(([re, to]) => part.replace(re, to))]) {
+                const title = t.replace(/\b\w/g, (c) => c.toUpperCase());
+                if (!out.some((o) => o.toLowerCase() === title.toLowerCase())) out.push(title);
+            }
+        }
+    }
+    return out;
+}
+
+/** The own families, the one held longest first (a tie keeps the résumé's order): years in the role, not the headline alone. */
+function familiesByYears(resume: ResumeData, families: RoleFamilyId[]): RoleFamilyId[] {
+    if (families.length < 2) return families;
+    const nowYear = new Date().getFullYear();
+    const years = new Map<RoleFamilyId, number>();
+    for (const entry of resume?.experience ?? []) {
+        const span = roleSpanYears(entry?.dates ?? "", nowYear) ?? 0;
+        const named = new Set(roleTitleParts(entry?.role ?? "").flatMap((p) => familiesNamedBy([p])));
+        for (const f of named) years.set(f, (years.get(f) ?? 0) + span);
+    }
+    return families
+        .map((f, i) => ({ f, i, y: years.get(f) ?? 0 }))
+        .sort((a, b) => b.y - a.y || a.i - b.i)
+        .map((x) => x.f);
 }
 
 /**
@@ -352,10 +460,45 @@ export function stripWorkMode(title: string): string {
 export function splitPreferredRoles(text: string | null | undefined): string[] {
     const out: string[] = [];
     for (const part of (text ?? "").split(/[,;|\n/]+|\s+or\s+/i)) {
-        const role = stripWorkMode(part.replace(/^["'\s]+|["'\s.]+$/g, ""));
+        const role = correctRoleTypos(stripWorkMode(part.replace(/^["'\s]+|["'\s.]+$/g, "")));
         if (role && !out.some((r) => r.toLowerCase() === role.toLowerCase())) out.push(role);
     }
     return out;
+}
+
+/** Words job titles are made of, to set a misspelt stated role right ("Product Mangager", 2026-10-14). */
+const TITLE_WORDS = [
+    "manager", "management", "product", "technical", "account", "customer", "success", "engineer", "engineering",
+    "analyst", "developer", "designer", "director", "owner", "program", "project", "solutions", "specialist",
+    "consultant", "architect", "coordinator", "administrator", "representative", "scientist", "marketing",
+    "operations", "support", "executive", "associate", "principal", "platform", "software", "security",
+    "implementation", "delivery", "partner", "strategist", "researcher",
+];
+
+function editDistance(a: string, b: string): number {
+    const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array<number>(b.length).fill(0)]);
+    for (let j = 1; j <= b.length; j++) d[0]![j] = j;
+    for (let i = 1; i <= a.length; i++)
+        for (let j = 1; j <= b.length; j++)
+            d[i]![j] = Math.min(d[i - 1]![j]! + 1, d[i]![j - 1]! + 1, d[i - 1]![j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[a.length]![b.length]!;
+}
+
+/** A stated role with each misspelt title word (six letters or more) set right when one edit away: "Producer" stays. */
+export function correctRoleTypos(role: string): string {
+    return role.replace(/[A-Za-z]{6,}/g, (word) => {
+        const lower = word.toLowerCase();
+        if (TITLE_WORDS.includes(lower)) return word;
+        const max = 1;
+        let best: string | null = null;
+        let bestD = max + 1;
+        for (const w of TITLE_WORDS) {
+            const dist = Math.abs(w.length - lower.length) > max ? max + 1 : editDistance(lower, w);
+            if (dist < bestD) [best, bestD] = [w, dist];
+        }
+        if (!best) return word;
+        return word[0] === word[0]!.toUpperCase() ? best[0]!.toUpperCase() + best.slice(1) : best;
+    });
 }
 
 /**
