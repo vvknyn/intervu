@@ -244,7 +244,13 @@ export function explainMatch(score: MatchScore): string {
         const held = [...weak, ...managing];
         // Those clauses carry commas of their own, so a comma comes before the last "and".
         const reasons = held.length > 1 ? `${held.slice(0, -1).join(", ")}, and ${held[held.length - 1]}` : held[0]!;
-        parts.push(heldByRole ? sentence([reasons]) : `It's a Stretch because ${reasons}.`);
+        parts.push(
+            heldByRole
+                ? sentence([reasons])
+                : score.reach && managing.length === 0
+                  ? `It's a reach: ${reasons}, but your longer career includes leading people or work, so it's Good at most.`
+                  : `It's a Stretch because ${reasons}.`,
+        );
         if (terms) parts.push(sentence([terms]));
     } else {
         const against = [...(terms ? [terms] : []), ...weak];

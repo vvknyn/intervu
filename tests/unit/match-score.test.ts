@@ -648,18 +648,19 @@ describe('a role scores the same on its page as in a list', () => {
         const inCanada = scoreJobAgainstResume(resume, pages[0], resolveCandidateSignals(resume))!;
         assert.equal(matchLabel(inCanada), 'Outside Canada');
         assert.equal(matchBand(inCanada.total), 'stretch');
-        // Before the place cap it is still a Stretch: the listing asks for a senior TAM, above his mid level.
-        assert.equal(matchBand(inCanada.outside!.total), 'stretch');
+        // Before the place cap it is a reach, Good at most: a senior TAM, one step above his mid level, for a career that led teams.
+        assert.notEqual(matchBand(inCanada.outside!.total), 'strong');
         assert.equal(inCanada.components.find((c) => c.key === 'location')!.reason, 'remote_pay_abroad');
         assert.equal(
             explainMatch(inCanada).split('. ')[0],
             "It's remote with no country listed, but it pays in USD, so it's likely for people in the United States, outside Canada, where your résumé places you",
         );
         const inUs = { ...resume, profile: { ...resume.profile, location: 'Austin, Texas, United States' } };
-        // A Stretch: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level.
+        // Above level: the listing asks for a senior TAM and the résumé's 5 years as one read mid-level; a reach, not Strong.
         const usScore = scoreJobAgainstResume(inUs, pages[0], resolveCandidateSignals(inUs))!;
         assert.equal(usScore.components.find((c) => c.key === 'seniority')!.reason, 'level_below_ask');
-        assert.equal(matchBand(usScore.total), 'stretch');
+        assert.notEqual(matchBand(usScore.total), 'strong');
+        assert.equal(usScore.reach, true);
     });
 });
 

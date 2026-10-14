@@ -195,10 +195,12 @@ describe('the plain-English reason behind the label', () => {
         assert.match(text, /remote but based in Europe/);
     });
 
-    it('says when a role is above their level, and what each level was read from; such a role is a Stretch', () => {
+    it('says when a role is above their level, and what each level was read from; one step up for a career that led teams is a reach, Good at most', () => {
+        // 13 years with Team Lead and Senior Engineer roles before 5 as a TAM (Vivek, 2026-10-13: other portals' picks were all Senior).
         const listed = score(TAM, canada('Senior Technical Account Manager', 'senior'))!;
-        assert.match(explainMatch(listed), /It's a Stretch because it's a senior role, above the mid level of your 5 years as a Technical Account Manager/);
-        assert.equal(matchBand(listed.total), 'stretch');
+        assert.match(explainMatch(listed), /It's a reach: it's a senior role, above the mid level of your 5 years as a Technical Account Manager, but your longer career includes leading people or work/);
+        assert.equal(matchBand(listed.total), 'good');
+        assert.equal(listed.reach, true);
         const titled = score(TAM, canada('Senior Technical Account Manager, Enterprise', 'unknown'))!;
         assert.match(explainMatch(titled), /its title makes it a senior role, above the mid level of your 5 years as a Technical Account Manager/i);
     });
@@ -305,7 +307,8 @@ describe('a role above the candidate\'s level is a Stretch, whatever says so', (
 
     it('reads the years a role asks for: 7+ is senior, above 5 years as a TAM; 5+ is at their level', () => {
         const asks7 = score(TAM, remote('Technical Account Manager', 'mid', { min_years_experience: 7 }))!;
-        assert.equal(matchBand(asks7.total), 'stretch');
+        // A reach for his 13-year career that led teams: Good at most, not Strong.
+        assert.notEqual(matchBand(asks7.total), 'strong');
         assert.equal(seniority(asks7).detail, 'senior role by the 7+ years it asks for — above your mid level (5 years as a Technical Account Manager)');
         assert.match(explainMatch(asks7), /it asks for 7\+ years, which makes it a senior role, above the mid level of your 5 years/);
         const asks5 = score(TAM, remote('Technical Account Manager', 'mid', { min_years_experience: 5 }))!;

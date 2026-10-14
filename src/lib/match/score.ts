@@ -58,7 +58,7 @@ import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
-import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, ledLongCareer, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -151,6 +151,11 @@ export interface MatchScore {
      * its owner managing people (`resumeManagedPeople`). Such a role is a Stretch whatever their level.
      */
     newToManaging?: true;
+    /**
+     * One level above a mid-level read from a new line of work, for a long career that already led
+     * people or work (`ledLongCareer`): a reach, Good at best, not a Stretch.
+     */
+    reach?: true;
 }
 
 /**
@@ -993,15 +998,20 @@ export function scoreJobAgainstResume(
 
     const rank = familyRank(resume, job, role, preferred);
     // A role above the candidate's level is a Stretch: a fit word would say they can take what its reason says they can't.
-    const aboveLevel = components[1]!.reason === "level_below_ask";
+    // One step up for a long career that already led people or work (13 years, Team Lead and Senior
+    // Engineer before 5 as a PM) is a reach, not a Stretch: Good at best (Vivek, 2026-10-13: the other
+    // portals' picks for him were Senior PM roles, all of which read Stretch here).
+    const reach = components[1]!.reason === "level_below_ask" && signals.seniority.source === "resume"
+        && (role === "own" || role === "family") && signals.seniority.value === "mid" && jobLevelRead(job)?.level === "senior" && ledLongCareer(resume);
+    const aboveLevel = components[1]!.reason === "level_below_ask" && !reach;
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
     const capped = offTarget || aboveLevel || newToManaging || thinJd
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
+        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent" || reach
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
-    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}) };
+    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}), ...(reach ? { reach: true as const } : {}) };
     if (!abroad || !location.place) return score;
     return {
         ...score,
