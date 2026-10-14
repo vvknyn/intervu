@@ -434,6 +434,15 @@ export interface JobSearchParams {
    */
   fromResume?: boolean;
   /**
+   * Leave out roles that rank past Senior (Staff, Principal, Director, Head of, VP, Chief, or listed
+   * Executive; `titlePastSenior`) before the list is cut to a page, so a résumé-built list fills with
+   * roles the person can take instead of spending its first rows on ones that are a rung above them
+   * (Vivek, 2026-10-14). Set for a person whose résumé shows no such role. Applied where the search
+   * pools a résumé's phrase lanes (`fit-phrases.ts`), never to a query someone typed; a single-phrase
+   * search is trimmed when it is ranked (`orderForYouJobsByBand`).
+   */
+  omitPastSenior?: boolean;
+  /**
    * The browser holds a résumé and scores these rows against it: attach each
    * row's description terms (`jd_terms`, jd-terms.ts) so a list chip scores
    * the whole posting, as the role's own page does. Implied by `fromResume`.

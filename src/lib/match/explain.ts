@@ -45,6 +45,11 @@ function yourLevel(read: SeniorityRead): string {
 
 /** What made the role the level it is: "it's a senior role", "it asks for 7+ years, which makes it a senior role". */
 function roleLevel(read: SeniorityRead): string {
+    if (read.jobPastSenior) {
+        return read.jobFrom === "title"
+            ? "its title (staff, principal, director or head level) puts it past senior"
+            : "it's listed as an executive role, which is past senior";
+    }
     if (read.jobFrom === "years") return `it asks for ${read.jobYears}+ years, which makes it ${ROLE_AT[read.job]}`;
     if (read.jobFrom !== "title") return `it's ${ROLE_AT[read.job]}`;
     return read.jobRunsTeam ? `its title runs a team, which makes it ${ROLE_AT[read.job]}` : `its title makes it ${ROLE_AT[read.job]}`;

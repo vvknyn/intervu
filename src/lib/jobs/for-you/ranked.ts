@@ -75,7 +75,9 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     const filters = packFilters(resume, signals);
     const q = filters.q;
 
-    const result = await search({ ...packSearchParams(filters), limit: candidateDepth, offset: 0 });
+    // Roles past Senior (Staff, Principal, Director...) are left out of the pool, not just ranked last, unless
+    // the résumé shows such a role: they would otherwise fill the first rows the pool is cut to.
+    const result = await search({ ...packSearchParams(filters, signals), limit: candidateDepth, offset: 0 });
 
     // A real backend failure (never wired up, or a configured backend that
     // threw) must not read like a true zero-match ranked list — same

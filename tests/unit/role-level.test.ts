@@ -7,7 +7,7 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resumeManagedPeople, titleManagesPeople } from '../../src/lib/jobs/role-level';
+import { listedPastSenior, resumeHoldsPastSenior, resumeManagedPeople, titleManagesPeople, titlePastSenior } from '../../src/lib/jobs/role-level';
 import type { ResumeData } from '../../src/types/resume';
 
 const resume = (description: string, role = 'Engineer'): ResumeData =>
@@ -84,5 +84,64 @@ describe('resumeManagedPeople', () => {
             'Stakeholder Management, SLA Management',
         ]) assert.equal(resumeManagedPeople(resume(line)), false, line);
         assert.equal(resumeManagedPeople(resume('Led the release train.', 'Team Lead')), false);
+    });
+});
+
+describe('a title that ranks past Senior (Staff, Principal, Director...)', () => {
+    it('reads the individual-contributor and leadership rungs above Senior', () => {
+        for (const title of [
+            'Staff Software Engineer',
+            'Staff Product Manager',
+            'Staff Technical Account Manager',
+            'Staff Product Manager (B2B Solutions)',
+            'Senior Staff Engineer',
+            'Software Engineer, Staff',
+            'Principal Product Manager',
+            'Distinguished Engineer',
+            'Group Product Manager',
+            'Director, Customer Success',
+            'Head of Support',
+            'VP Sales',
+            'Vice President of Engineering',
+            'Engineering - Staff Machine Learning Engineer',
+        ]) {
+            assert.equal(titlePastSenior(title), true, title);
+        }
+    });
+
+    it('leaves ordinary grades and senior titles alone', () => {
+        for (const title of [
+            'Staff Accountant',
+            'Staff Nurse',
+            'Staff Attorney',
+            'Staff Services Manager',
+            'Staff Development Manager',
+            'Support Staff Manager',
+            'Vice Principal',
+            'Assistant Principal',
+            'Principal Investigator',
+            'Research Fellow',
+            'Senior Manager, Customer Success',
+            'Senior Product Manager',
+            'Lead Software Engineer',
+            'Technical Account Manager',
+            'Software Engineer III',
+        ]) {
+            assert.equal(titlePastSenior(title), false, title);
+        }
+    });
+
+    it('a listing marked Executive is past Senior whatever its title says', () => {
+        assert.equal(listedPastSenior('executive'), true);
+        assert.equal(listedPastSenior(' Executive '), true);
+        for (const level of ['senior', 'lead', 'mid', 'unknown', null, undefined]) assert.equal(listedPastSenior(level), false, String(level));
+    });
+
+    it('a résumé shows such a role only by a title it held', () => {
+        assert.equal(resumeHoldsPastSenior(resume('Led the account team', 'Staff Engineer')), true);
+        assert.equal(resumeHoldsPastSenior(resume('Led the account team', 'Director of Customer Success')), true);
+        assert.equal(resumeHoldsPastSenior(resume('Led the account team', 'Team Lead')), false);
+        assert.equal(resumeHoldsPastSenior(resume('Worked alongside the Director of Sales', 'Technical Account Manager')), false);
+        assert.equal(resumeHoldsPastSenior(null), false);
     });
 });

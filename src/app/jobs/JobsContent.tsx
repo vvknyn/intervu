@@ -388,7 +388,7 @@ import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
-import { buildJobSearchPayload, urlSortToBackendSort } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
@@ -1061,14 +1061,6 @@ function ListTail({
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
         </div>
     );
-}
-
-
-/** A fit-ranked or pack search's query is the résumé's own role titles: marked so the search log leaves it out (`shouldLogSearch`). */
-function resumeSearchMark(fromResume: boolean, holdsResume = false): { fromResume?: true; jdTerms?: true } {
-    if (fromResume) return { fromResume: true };
-    // Rows this browser will score against a résumé carry their description's terms (jd-terms.ts).
-    return holdsResume ? { jdTerms: true } : {};
 }
 
 /** The résumé a guest parsed in this browser, when it is usable for ranking. */
@@ -1841,6 +1833,7 @@ export function JobsContent({
     // Read by the search effects (refs, so holding a résumé never re-runs a search by itself).
     const resumeHeldRef = useRef(false);
     resumeHeldRef.current = resume != null;
+    const keepPastSeniorRef = useRef(false);
     // Timestamp for match-score chips (see `fetchResumeData`, actions/resume.ts)
     // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
@@ -1851,6 +1844,7 @@ export function JobsContent({
     const uid = user?.uid ?? null;
     const { prefs: agentPrefs } = useAgentPreferences(uid);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
+    keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
     const [importOpen, setImportOpen] = useState(false);
@@ -2413,7 +2407,7 @@ export function JobsContent({
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current),
+                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -3275,7 +3269,7 @@ export function JobsContent({
             try {
                 const previous = readHubCountBaseline();
                 // The pack's own search params: the probe counts what the packs retrieve.
-                const packParams = packSearchParams(pack);
+                const packParams = packSearchParams(pack, signals);
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let allCount: CorpusCount | null = null;
@@ -3971,7 +3965,7 @@ export function JobsContent({
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current),
+                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
