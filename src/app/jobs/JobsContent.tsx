@@ -778,8 +778,12 @@ function DeadJobUnresolved({
  *  The early first search JobsRouteGate sends uses the same size
  *  (`SEARCH_FIRST_PAGE_SIZE`, pinned equal by early-first-search.test.ts). */
 const PAGE = 20;
-/** Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). */
-const FOR_YOU_PAGE = 60;
+/**
+ * Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). The index orders a
+ * broad role query newest first, so 60 rows held only the last ~2 weeks of PM roles and missed fits
+ * a month old (Thumbtack's PM, Growth, 2026-10-13). Guests stay windowed by the depth cap.
+ */
+const FOR_YOU_PAGE = 150;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
 /** How long a ranked list's read of its roles' description places may take

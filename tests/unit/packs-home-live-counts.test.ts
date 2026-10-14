@@ -17,10 +17,10 @@ describe("packs home live counts + deeper deck", () => {
         assert.doesNotMatch(hubs, /\b\d+\+? (jobs|roles)\b/);
     });
 
-    it("page keeps PAGE=20 for SERP and FOR_YOU_PAGE=60 for pack deck", () => {
+    it("page keeps PAGE=20 for SERP and FOR_YOU_PAGE=150 for pack deck (2026-10-13: 60 held only ~2 weeks of PM roles)", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /const PAGE = 20/);
-        assert.match(src, /const FOR_YOU_PAGE = 60/);
+        assert.match(src, /const FOR_YOU_PAGE = 150/);
         assert.match(src, /firstPageLimit = deepForYou \? FOR_YOU_PAGE : PAGE/);
         assert.match(src, /hubCountLabels=\{hubCountLabels\}/);
         // Today takes the daily tip's place whenever it shows (signed in, or a résumé on the device).

@@ -36,6 +36,9 @@ import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
 import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
 import { SEARCH_JD_TYPED_READ_DEADLINE_MS, withJdTerms } from "@/lib/jobs/jd-terms";
+import { withSemanticFit } from "@/lib/match/semantic-fit";
+import { getAdminDb } from "@/lib/firebase/admin";
+import type { ResumeData } from "@/types/resume";
 import { isInternalPosting } from "@/lib/jobs/presentation";
 import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
@@ -195,9 +198,12 @@ export async function searchJobsAction(
         ? withJdTerms(result.hits, { deadlineMs: SEARCH_JD_TYPED_READ_DEADLINE_MS })
         : Promise.resolve(null),
   ]);
-  const hits = withTerms
+  const termed = withTerms
     ? placed.map((hit, i) => (withTerms[i]?.jd_terms !== undefined ? { ...hit, jd_terms: withTerms[i]!.jd_terms } : hit))
     : placed;
+  // A résumé-built search by an account also gets the meaning match against the résumé saved to
+  // that account (semantic-fit.ts). Guests' résumés stay on their device, so they rank without it.
+  const hits = params.fromResume && user ? await semanticForAccount(termed, user.uid) : termed;
   return { ...result, hits, searchId };
 }
 
@@ -725,4 +731,16 @@ export async function markJobAppliedAction(input: {
   if (res.error) return { error: res.error };
   const id = (res.data as { id?: string } | undefined)?.id ?? "";
   return { data: { id } };
+}
+
+
+/** `withSemanticFit` against the account's saved résumé; the hits unchanged when there is none. */
+async function semanticForAccount<T extends PublicJob>(hits: T[], uid: string): Promise<T[]> {
+  try {
+    const doc = await getAdminDb().collection("profiles").doc(uid).get();
+    const resume = doc.get("resume_data") as ResumeData | undefined;
+    return resume ? await withSemanticFit(hits, resume) : hits;
+  } catch {
+    return hits;
+  }
 }

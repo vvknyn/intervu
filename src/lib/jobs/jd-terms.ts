@@ -22,8 +22,8 @@ import type { PublicJob } from "./types";
 export const SEARCH_JD_READ_DEADLINE_MS = 900;
 /** A typed search by someone holding a résumé (`JobSearchParams.jdTerms`): the place read's own budget (`SEARCH_PLACE_READ_DEADLINE_MS`), so it is no slower. */
 export const SEARCH_JD_TYPED_READ_DEADLINE_MS = 250;
-/** The most rows one search reads (a pack's first page is 60; the hub's deepest probe 120). */
-export const SEARCH_JD_READ_MAX_IDS = 120;
+/** The most rows one search reads (a pack's first page is 150; the hub's deepest probe 120). */
+export const SEARCH_JD_READ_MAX_IDS = 150;
 
 const JD_CACHE_MAX = 20_000;
 const JD_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
