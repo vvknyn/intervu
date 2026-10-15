@@ -178,8 +178,19 @@ function unclearExplanation(score: MatchScore): string {
         .join(" ");
 }
 
+/**
+ * A title the résumé doesn't name whose posting asks for what the résumé shows (`MatchScore.contentLed`):
+ * say so, with the posting's own terms the résumé has, instead of holding it under Strong for the title.
+ */
+function contentLedSentence(score: MatchScore): string {
+    const terms = component(score, "relevance")?.jd?.evidenceTerms ?? [];
+    const shown = terms.length > 0 ? ` (${listed(terms.slice(0, 3))})` : "";
+    return `It's a title you haven't held, but the posting asks for what your résumé shows${shown}.`;
+}
+
 function roleSentence(score: MatchScore): string | null {
     const yours = score.yourRole?.trim();
+    if (score.contentLed && (score.role === "adjacent" || score.role === "unverified")) return contentLedSentence(score);
     switch (score.role) {
         case "own":
             return yours ? `It's your own role: the title matches ${yours} on your résumé.` : "It's your own role.";
@@ -247,7 +258,7 @@ export function explainMatch(score: MatchScore): string {
     if (support.length > 0) parts.push(sentence(support));
     // The role sentence already says why an adjacent, unverified or off-target role
     // is held down; otherwise a below-Strong label is explained by what's against it.
-    const heldByRole = score.role === "adjacent" || score.role === "unverified" || score.role === "off-target";
+    const heldByRole = !score.contentLed && (score.role === "adjacent" || score.role === "unverified" || score.role === "off-target");
     // A role above the candidate's level, or managing people when they haven't, is a Stretch for that
     // reason (score.ts), whatever else it has: say that first, and the key words after it on their own.
     if (level === "level_below_ask" || managing.length > 0) {

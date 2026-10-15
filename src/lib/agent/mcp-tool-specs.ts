@@ -283,7 +283,11 @@ export const MCP_TOOL_SPECS = {
         title: "Jobs ranked by fit",
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
-            "pipeline behind the site's For-you view, which lists only roles you could take: it leaves out roles " +
+            "pipeline behind the site's For-you view. It finds roles by what the posting asks for, not only by " +
+            "title: a role whose title your résumé never names but whose description asks for what your résumé " +
+            "shows is listed (group \"adjacent\", Strong when the posting is covered), and a remote role that " +
+            "names no country is listed last with a note to check where it hires. It lists only roles you could " +
+            "take: it leaves out roles " +
             "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
             "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
             "a clearance, a certification, managing people, selling, most of the skills they require), a different " +

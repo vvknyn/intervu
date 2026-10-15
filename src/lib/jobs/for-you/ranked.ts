@@ -81,7 +81,8 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
 
     // Roles past Senior (Staff, Principal, Director...) are left out of the pool, not just ranked last, unless
     // the résumé shows such a role: they would otherwise fill the first rows the pool is cut to.
-    const result = await search({ ...packSearchParams(filters, signals), limit: candidateDepth, offset: 0 });
+    // The pool also holds the postings that ask for what the résumé shows whatever their title, and remote roles that name no country (listed last).
+    const result = await search({ ...packSearchParams(filters, signals, { resume, unplacedRemote: true }), limit: candidateDepth, offset: 0 });
 
     // A real backend failure (never wired up, or a configured backend that
     // threw) must not read like a true zero-match ranked list — same

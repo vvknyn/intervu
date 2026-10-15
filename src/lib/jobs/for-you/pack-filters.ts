@@ -7,7 +7,9 @@
  */
 import { candidateCountries, preferredRoles, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { buildMatchQuery, experienceLevelFacet } from "@/lib/jobs/resume-match";
-import { resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
+import { contentPhrasesFor } from "@/lib/jobs/for-you/content-phrases";
+import { parseQuotedOrPhrases } from "@/lib/jobs/fit-phrases";
+import { packContentMark, resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
 import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, PostedBucket } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -51,7 +53,25 @@ export function packPostedBucket(signals: Pick<CandidateSignals, "postedWithinDa
  * The exact `searchJobsAction` params `/jobs` sends for this pack's filters: marked as a résumé's own list
  * (`resumeSearchMark`), which also leaves roles past Senior out of the pool unless `signals` show the
  * résumé holds one. Every pack search (the deck, the hub's counts, Today, For-you over MCP) shares this.
+ *
+ * With `content`, the search also looks for what the résumé's skills show in a posting's whole text, so the
+ * pool is not only the roles whose title the résumé names (`packContentMark`). A deck and the agent's
+ * `for_you` also ask for remote roles that name no country (`unplacedRemote`), which they list last with
+ * the caveat; Today and the daily picks do not.
  */
-export function packSearchParams(filters: JobsUrlState, signals?: Pick<CandidateSignals, "seniority">): JobSearchParams {
-    return { ...searchParamsFromUrlState(filters), ...resumeSearchMark(true, false, signals?.seniority.pastSenior === true) };
+export function packSearchParams(
+    filters: JobsUrlState,
+    signals?: Pick<CandidateSignals, "seniority">,
+    content?: { resume: ResumeData; unplacedRemote?: boolean },
+): JobSearchParams {
+    const base = { ...searchParamsFromUrlState(filters), ...resumeSearchMark(true, false, signals?.seniority.pastSenior === true) };
+    if (!content) return base;
+    return { ...base, ...packContentMark(packContentPhrases(content.resume, filters.q), content.unplacedRemote === true) };
+}
+
+/** The content phrases a pack's search adds: the résumé's skills, minus the words of the title phrases the search already carries. */
+export function packContentPhrases(resume: ResumeData, q: string | null | undefined): string[] {
+    const text = (q ?? "").trim();
+    const phrases = parseQuotedOrPhrases(text) ?? (text ? [text.replace(/"/g, "")] : []);
+    return contentPhrasesFor(resume, phrases);
 }

@@ -94,6 +94,9 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     fitPhrases: p.fitPhrases ?? [],
     // Changes which rows the lanes pool, so a résumé-built list never shares an entry with the same words searched plain.
     omitPastSenior: Boolean(p.omitPastSenior),
+    // Phrases a résumé-built list also searched for, and whether it pooled roles with no country: each changes the rows.
+    contentPhrases: p.contentPhrases ?? [],
+    unplacedRemote: Boolean(p.unplacedRemote),
     limit: p.limit ?? 40,
     offset: p.offset ?? 0,
     withFacets: Boolean(p.withFacets),

@@ -109,6 +109,11 @@ const STOP = new Set([
     "needs", "solution", "industry", "excellence", "opportunity to", "part of", "way", "ways", "lot", "lots",
 ]);
 
+/** A word every posting uses about itself (or a function word), so it cannot tell two postings apart (`STOP`). */
+export function isGenericJdWord(word: string): boolean {
+    return STOP.has(word.trim().toLowerCase());
+}
+
 /** Conjunction tokens: always end a phrase ("sales and marketing" is two terms, not "sales marketing"). */
 const ALWAYS_SPLIT = new Set(["and", "or", "&", "/"]);
 

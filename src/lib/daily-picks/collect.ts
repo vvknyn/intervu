@@ -78,7 +78,7 @@ export async function collectDailyPicks(
     const pack = packFilters(resume, signals);
 
     const result = await deps.search({
-        ...packSearchParams(pack, signals),
+        ...packSearchParams(pack, signals, { resume }),
         postedSinceMs: opts.nowMs - TODAY_PICKS_WINDOW_MS,
         limit: TODAY_PICKS_FETCH_LIMIT,
         offset: 0,
