@@ -68,16 +68,38 @@ describe("what the posting asks for, in the reason", () => {
         assert.doesNotMatch(text, /The posting asks for/);
     });
 
+    const level: MatchComponent = { key: "seniority", label: "Seniority", detail: "", score: 0, reason: "level_below_ask" };
+    const unplaced: MatchComponent = { key: "location", label: "Location", detail: "", score: 0.6, reason: "remote_unplaced", unknown: true };
+
     it("leaves a Stretch to say what holds it", () => {
-        const level: MatchComponent = { key: "seniority", label: "Seniority", detail: "", score: 0, reason: "level_below_ask" };
         const text = explainMatch(scored({ total: 59, components: [relevance(["roadmap", "saas"]), location, level] }, undefined));
         assert.match(text, /It's a Stretch because/);
         assert.doesNotMatch(text, /The posting asks for/);
     });
 
+    it("gives a Stretch short of full marks the terms in its share, after what holds it", () => {
+        const text = explainMatch(scored({ total: 59, components: [relevance(["roadmap", "saas"], 0.91), location, level] }, undefined));
+        assert.match(text, /It's a Stretch because .*\. Your résumé shows 91% of what the posting asks for \(roadmap and saas\)\.$/);
+        assert.doesNotMatch(text, /The posting asks for roadmap/);
+    });
+
     it("says it for a role that doesn't say where it hires, whose label is no fit word", () => {
-        const unplaced: MatchComponent = { key: "location", label: "Location", detail: "", score: 0.6, reason: "remote_unplaced", unknown: true };
         const text = explainMatch(scored({ total: 79, components: [relevance(["postgres", "api", "product management"]), unplaced] }, undefined));
         assert.match(text, /It's your own role: the title matches Product Manager on your résumé\. The posting asks for postgres, api and product management, which your résumé shows\. On your résumé alone it would be Good\./);
+    });
+
+    it("holds a role that doesn't say where it hires to the same rule: no sentence as a Stretch, a share with the terms when short of full marks", () => {
+        const stretchLevel = explainMatch(scored({ total: 59, components: [relevance(["postgres", "api"]), unplaced, level] }, undefined));
+        const stretchManaging = explainMatch(scored({ total: 59, newToManaging: true, components: [relevance(["postgres", "api"]), unplaced] }, undefined));
+        for (const text of [stretchLevel, stretchManaging]) {
+            assert.match(text, /^It's remote but doesn't say which countries it hires in/);
+            assert.doesNotMatch(text, /posting asks for/);
+        }
+        const short = explainMatch(scored({ total: 70, components: [relevance(["postgres", "api"], 0.8), unplaced] }, undefined));
+        assert.match(short, /It's your own role: the title matches Product Manager on your résumé\. Your résumé shows 80% of what the posting asks for \(postgres and api\)\. On your résumé alone it would be/);
+        assert.doesNotMatch(short, /The posting asks for/);
+        // A Stretch short of full marks says its share where the country is known, so it does here too.
+        const stretchShort = explainMatch(scored({ total: 55, components: [relevance(["postgres", "api"], 0.8), unplaced, level] }, undefined));
+        assert.match(stretchShort, /Your résumé shows 80% of what the posting asks for \(postgres and api\)\./);
     });
 });
