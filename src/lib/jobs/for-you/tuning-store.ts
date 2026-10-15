@@ -15,6 +15,7 @@ import {
     NUDGE_MAX_AGE_MS,
     removeNudge,
     roleFeatures,
+    sanitizeNudge,
     SIGNAL_WEIGHT,
     TUNING_REASONS,
     withReason,
@@ -53,6 +54,7 @@ export function loadNudges(nowMs = Date.now()): TuningNudge[] {
         if (!Array.isArray(parsed)) return [];
         return parsed
             .filter(isNudge)
+            .map(sanitizeNudge)
             .filter((nudge) => nowMs - nudge.at < NUDGE_MAX_AGE_MS)
             .slice(0, MAX_NUDGES);
     } catch {

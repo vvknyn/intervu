@@ -23,7 +23,11 @@
  *
  * The deck moves a nudged role by its nudge times what is left to see
  * (`maxShift`): a close match from far down comes up next, a loose one edges
- * forward, and nothing the visitor has already passed moves.
+ * forward, and nothing the visitor has already passed moves. A nudge never
+ * takes a role out of its fit band, and never lifts a title the résumé does
+ * not hold above one it does (`TuneRank`): "fewer like this" on a Product
+ * Manager role put SecOps and Salesforce administration roles above a Product
+ * Manager résumé's own roles on a list of eleven (Vivek, 2026-10-15).
  *
  * Works for any role or industry: it reads titles, skills and the posting's
  * own fields, with no role list of its own. Pure, no I/O; the store is
@@ -143,6 +147,35 @@ function rankWord(word: string): boolean {
     return RANK_WORDS.has(word.toLowerCase().replace(/[^a-z-]/g, ""));
 }
 
+/**
+ * Words of a title or a tag that say where or how a role is worked, or on what terms, not what the work is:
+ * "Remote" in "Product Manager (Remote)" read as a kind of role, and "away from Product Manager and Remote"
+ * was the line a Product Manager's own taps produced (Vivek, 2026-10-15). They are never a tune term or a
+ * label: where a role is stays with its own terms (`k:` country, `p:` city, `t:` work type), steered by the
+ * "Location or remote" reason. Region words are listed here; a city, state or country in a title is read from
+ * the posting's own location (`locationWords`), so no list of places is needed.
+ */
+const NON_ROLE_WORDS: ReadonlySet<string> = new Set([
+    // How it is worked.
+    "remote", "remotely", "remote-first", "hybrid", "onsite", "on-site", "wfh", "anywhere",
+    // On what terms (not "contract": a Contract Manager is a kind of role).
+    "permanent", "temporary", "temp", "freelance", "part-time", "parttime", "full-time", "fulltime", "seasonal", "casual",
+    // Where (not "global" or "international": a Global Mobility Manager is a kind of role).
+    "emea", "apac", "latam", "amer", "americas", "nordics", "dach", "anz", "europe", "european", "asia", "africa", "usa", "us", "uk", "canada", "canadian",
+]);
+
+const nonRoleWord = (word: string): boolean => NON_ROLE_WORDS.has(word.toLowerCase().replace(/[^a-z-]/g, ""));
+
+/** The words of the places a posting names (its city, state, country, location line). */
+function locationWords(job: PublicJob): Set<string> {
+    const country = Array.isArray(job.location_country) ? job.location_country.join(" ") : job.location_country;
+    return new Set(
+        [job.location, job.location_city, job.location_state, country]
+            .flatMap((place) => meaningfulTitleTokens(decodeText(place ?? "")))
+            .filter((word) => word.length >= 3),
+    );
+}
+
 /** Titles that open on the post and name the work after it: "Director, Technical Account Management". */
 const POST_FIRST = new Set(["director", "head", "manager", "supervisor", "officer", "president", "vice president", "vp", "svp", "evp", "avp"]);
 
@@ -159,8 +192,8 @@ export function roleName(title: string | null | undefined): string {
     const words = head.split(/\s+/).filter(Boolean);
     let start = 0;
     let end = words.length;
-    while (start < end && rankWord(words[start])) start += 1;
-    while (end > start && rankWord(words[end - 1])) end -= 1;
+    while (start < end && (rankWord(words[start]) || nonRoleWord(words[start]))) start += 1;
+    while (end > start && (rankWord(words[end - 1]) || nonRoleWord(words[end - 1]))) end -= 1;
     const core = words.slice(start, end).join(" ");
     if (parts[1] && POST_FIRST.has(core.toLowerCase().replace(/\./g, ""))) return `${core}, ${parts[1]}`;
     return core || head;
@@ -172,15 +205,16 @@ function lower(value: string | null | undefined): string | null {
 }
 
 function titleWords(title: string): string[] {
-    return meaningfulTitleTokens(title).filter((word) => !RANK_WORDS.has(word));
+    return meaningfulTitleTokens(title).filter((word) => !RANK_WORDS.has(word) && !NON_ROLE_WORDS.has(word));
 }
 
 /** A posting's terms, as `RoleFeatures.terms`. */
 export function roleTerms(job: PublicJob): string[] {
     const country = Array.isArray(job.location_country) ? job.location_country[0] : job.location_country;
+    const places = locationWords(job);
     const terms = [
-        ...titleWords(decodeText(job.title)).map((word) => `w:${word}`),
-        ...(job.tags ?? []).map((tag) => lower(tag)).filter(Boolean).map((tag) => `g:${tag}`),
+        ...titleWords(decodeText(job.title)).filter((word) => !places.has(word)).map((word) => `w:${word}`),
+        ...(job.tags ?? []).map((tag) => lower(tag)).filter((tag): tag is string => tag != null && !NON_ROLE_WORDS.has(tag) && !places.has(tag)).map((tag) => `g:${tag}`),
         // Only skills read from a posting's own skills section (`evidencedSkills`).
         ...[...evidencedSkills(job, "must_have_skills"), ...(job.tech_stack ?? [])]
             .map((skill) => lower(skill))
@@ -454,15 +488,85 @@ export function maxShift(remaining: number): number {
 }
 
 /**
+ * Where a role sits before any tuning, for `tuneDeck`: `band` the group the list orders it in (age, reach, fit
+ * band: `forYouSortKey(...).key`), `held` whether the résumé holds its title (its own role or the same kind of
+ * work: `MatchScore.role` own or family). Built by `tuneRank` (band-order.ts).
+ */
+export interface TuneRank {
+    band: number;
+    held: boolean;
+}
+
+/**
+ * `tuned` (the nudged order of `base`) kept to what a nudge may do: a role stays among the roles of its own
+ * band, in that band's own places, and a title the résumé does not hold never passes one it does that led it.
+ * So "fewer like this" on a Product Manager role reorders the Product Manager roles; it cannot put a SecOps
+ * role above them, and "more like this" on a neighbour cannot lift it over the résumé's own role.
+ */
+function withinBands<T extends PublicJob>(base: readonly T[], tuned: readonly T[], rankOf: (job: T) => TuneRank | null): T[] {
+    const rank = new Map<string, TuneRank>();
+    const baseIndex = new Map<string, number>();
+    const bands = new Map<number, T[]>();
+    base.forEach((job, index) => {
+        const r = rankOf(job) ?? { band: Number.POSITIVE_INFINITY, held: false };
+        rank.set(job.id, r);
+        baseIndex.set(job.id, index);
+        const members = bands.get(r.band);
+        if (members) members.push(job);
+        else bands.set(r.band, [job]);
+    });
+    const out = new Array<T>(base.length);
+    for (const [band, members] of bands) {
+        const slots = members.map((job) => baseIndex.get(job.id)!);
+        // The held roles that led each role the résumé does not hold: they stay ahead of it.
+        const mustLead = new Map<string, string[]>();
+        for (const job of members) {
+            if (rank.get(job.id)!.held) continue;
+            const here = baseIndex.get(job.id)!;
+            mustLead.set(job.id, members.filter((other) => rank.get(other.id)!.held && baseIndex.get(other.id)! < here).map((other) => other.id));
+        }
+        const emitted = new Set<string>();
+        const sequence: T[] = [];
+        let waiting: T[] = [];
+        const ready = (job: T) => (mustLead.get(job.id) ?? []).every((id) => emitted.has(id));
+        const release = () => {
+            for (let moved = true; moved; ) {
+                moved = false;
+                const next = waiting.find(ready);
+                if (next) {
+                    waiting = waiting.filter((job) => job !== next);
+                    sequence.push(next);
+                    emitted.add(next.id);
+                    moved = true;
+                }
+            }
+        };
+        for (const job of tuned) {
+            if (rank.get(job.id)?.band !== band) continue;
+            if (rank.get(job.id)!.held || ready(job)) {
+                sequence.push(job);
+                emitted.add(job.id);
+                release();
+            } else waiting.push(job);
+        }
+        sequence.forEach((job, i) => (out[slots[i]] = job));
+    }
+    return out;
+}
+
+/**
  * The deck in the order to show it: the roles already reached (`passedIds`,
  * in that order), then the rest in their ranked order, each moved up or down
- * by its nudge. Returns `jobs` itself when nothing changes.
+ * by its nudge. Returns `jobs` itself when nothing changes. With `rankOf`
+ * (the deck and Today give it), a nudge keeps a role in its fit band and never
+ * lifts a title the résumé does not hold over one it does (`withinBands`).
  */
 export function tuneDeck<T extends PublicJob>(
     jobs: T[],
     nudges: readonly TuningNudge[],
     passedIds: readonly string[],
     nowMs: number,
+    rankOf?: (job: T) => TuneRank | null,
 ): T[] {
     if (nudges.length === 0 && passedIds.length === 0) return jobs;
     const byId = new Map(jobs.map((job) => [job.id, job]));
@@ -483,7 +587,8 @@ export function tuneDeck<T extends PublicJob>(
         key: index - shift * roleNudge(terms[index], nudges, nowMs, weight),
     }));
     keyed.sort((a, b) => a.key - b.key || a.index - b.index);
-    const tuned = keyed.map((entry) => entry.job);
+    const nudgedOrder = keyed.map((entry) => entry.job);
+    const tuned = rankOf ? withinBands(rest, nudgedOrder, rankOf) : nudgedOrder;
     if (head.length === 0 && tuned.every((job, index) => job === jobs[index])) return jobs;
     return [...head, ...tuned];
 }
@@ -510,6 +615,18 @@ export function withReason(list: readonly TuningNudge[], jobId: string, reason: 
 
 export function removeNudge(list: readonly TuningNudge[], jobId: string): TuningNudge[] {
     return list.filter((item) => item.jobId !== jobId);
+}
+
+/**
+ * A nudge stored before `NON_ROLE_WORDS` existed, read as it would be recorded now: a work-mode, employment or region
+ * word is no term of its role and no label ("away from Remote"). `load` in tuning-store.ts reads every stored nudge through this.
+ */
+export function sanitizeNudge(nudge: TuningNudge): TuningNudge {
+    const { terms, label } = nudge.features;
+    const kept = terms.filter((term) => !(/^[wg]:/.test(term) && NON_ROLE_WORDS.has(term.slice(2))));
+    const named = NON_ROLE_WORDS.has(label.trim().toLowerCase()) ? "" : label;
+    if (kept.length === terms.length && named === label) return nudge;
+    return { ...nudge, features: { ...nudge.features, terms: kept, label: named } };
 }
 
 /** A label named in the summary once its nudges add up to this, either way. */

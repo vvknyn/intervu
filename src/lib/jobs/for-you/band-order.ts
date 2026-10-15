@@ -12,6 +12,7 @@
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+import type { TuneRank } from "@/lib/jobs/for-you/tuning";
 
 /** `rankTier` values: Stretch roles start at 300, roles outside reach (place unknown, abroad, unscored) at 500. */
 const STRETCH_TIER_FLOOR = 300;
@@ -157,6 +158,17 @@ export function orderForYouJobsByBand(
     });
     keyed.sort((a, b) => compareForYouKeys(a.sort, b.sort) || a.index - b.index);
     return keyed.map((k) => k.job);
+}
+
+/**
+ * Where a scored role sits before the visitor's nudges (`tuneDeck`): the group the one order puts it in (age, reach and fit
+ * band: `forYouSortKey(...).key`), and whether the résumé holds its title (its own role or the same kind of work).
+ */
+export function tuneRank(score: MatchScore, job: PublicJob, nowMs: number): TuneRank {
+    return {
+        band: forYouSortKey(score, postedTsOf(job), nowMs, job.first_seen_at).key,
+        held: score.role === "own" || score.role === "family",
+    };
 }
 
 /** What a role is ordered by (`compareForYouKeys`). */

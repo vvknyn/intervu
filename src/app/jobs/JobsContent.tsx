@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, sortByFit, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -3083,7 +3083,14 @@ export function JobsContent({
     const deckLoading = deckRowsLoading || deckAwaitsPlaces;
     const forYouPacks = deckAwaitsPlaces ? NO_PACKS : rankedPacks;
     const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
-    const forYouDeck = useForYouDeck(forYouPacks, isOwnRole);
+    const tuneRankOf = useCallback(
+        (job: PublicJob, nowMs: number) => {
+            const score = matchScores?.get(job.id);
+            return score ? tuneRank(score, job, nowMs) : null;
+        },
+        [matchScores],
+    );
+    const forYouDeck = useForYouDeck(forYouPacks, isOwnRole, tuneRankOf);
 
     // The browser's fallback for rows the search's own place read left unread
     // (it answers without them past a short deadline): reads what the

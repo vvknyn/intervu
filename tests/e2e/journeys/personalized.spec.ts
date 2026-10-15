@@ -201,7 +201,6 @@ signedInTest("fewer like this asks why, and the reason steers: \"This company\" 
 
   const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
   const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
-  const upcoming = stack.locator('[data-testid="role-stack-card"][data-stack-pose="upcoming"]');
   const position = page.getByTestId("for-you-deck-position");
   const tuned = page.getByTestId("deck-tuning");
   const why = page.getByTestId("tuning-reason-prompt");
@@ -211,24 +210,21 @@ signedInTest("fewer like this asks why, and the reason steers: \"This company\" 
   await expect(front).toHaveAttribute("data-job-id", ORCHARD_CSM);
   await expect(why).toHaveCount(0);
 
-  // The tap works on its own: the role goes, the deck guesses (the other customer success role
-  // moves away), and the deck asks why. Which role comes next can also move with a "dwell" nudge
-  // (20 s on a role, ForYouHome) on a slow run, so this reads what holds either way.
+  // The tap works on its own: the role goes, the deck guesses (away from customer success), and the
+  // deck asks why. The other customer success role is the résumé's kind of work, so the guess moves
+  // it within its fit band but never below roles the résumé has not held (J-JOBS-139).
   await front.getByTestId("role-fewer-like-this").click();
   await expect(position).toHaveText("Role 2 of 5");
-  await expect(front).not.toHaveAttribute("data-job-id", ORCHARD_CSM);
+  await expect(front).toHaveAttribute("data-job-id", JUNIPER_CSM);
   await expect(why).toContainText("Fewer like Customer Success Manager — why?");
   await expect(tuned).toContainText("Tuned away from Customer Success Manager.");
-  await expect(upcoming).not.toHaveAttribute("data-job-id", JUNIPER_CSM);
-  const onScreen = await front.getAttribute("data-job-id");
 
-  // "This company": it was Orchard CRM, not customer success. The role on screen stays put; the
-  // other customer success role comes back next, and the line names the employer.
+  // "This company": it was Orchard CRM, not customer success. The role on screen stays put and the
+  // line names the employer.
   await page.getByTestId("tuning-reason-company").click();
   await expect(why).toHaveCount(0);
   await expect(tuned).toContainText("Tuned away from Orchard CRM.");
-  await expect(front).toHaveAttribute("data-job-id", onScreen!);
-  await expect(upcoming).toHaveAttribute("data-job-id", JUNIPER_CSM);
+  await expect(front).toHaveAttribute("data-job-id", JUNIPER_CSM);
 
   // Reset clears the reason with the nudge.
   await page.getByTestId("deck-tuning-reset").click();
@@ -802,4 +798,49 @@ test("a title the résumé has not held reads Strong when its day-to-day work sh
   await expect(front).toHaveAttribute("data-job-id", tools.id);
   await expect(page.getByTestId("match-chip")).toHaveText("Good");
   expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-139 — Vivek, 2026-10-15: his Today list read "Tuned away from Product Manager and Remote" and led with roles he
+ * had not held, because his thumbs-downs on Product Manager roles moved those below them. A thumbs-down or thumbs-up
+ * moves roles only inside their fit band and never puts a role the résumé has not held ahead of one it has; and the
+ * tuning line never names a work mode or a place ("Remote") as the kind of role. The postings are CONSTRUCTED for this
+ * journey (no real company or posting).
+ */
+const WORK_MODE_PACK = [
+  posting("88888888-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior"),
+  { ...posting("88888888-0000-4000-8000-000000000002", "Remote Senior Customer Success Manager", "Orchard CRM", "senior"), tags: ["Remote"] },
+  posting("88888888-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Juniper Labs", "senior"),
+  posting("88888888-0000-4000-8000-000000000004", "Solutions Engineer", "Orchard CRM", "senior"),
+  posting("88888888-0000-4000-8000-000000000005", "Technical Support Manager", "Fernway", "senior"),
+  posting("88888888-0000-4000-8000-000000000006", "Technical Support Manager", "Kestrel IO", "senior"),
+];
+const [, REMOTE_CSM, OTHER_CSM] = WORK_MODE_PACK.map((p) => p.id);
+
+signedInTest("fewer like this on a role the résumé holds keeps the résumé's other such roles ahead of ones it has not held, and the tuning line never names Remote", { tag: ["@J-JOBS-139"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await answerResumeSearch(page, WORK_MODE_PACK, "journey-tune-band");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  const tuned = page.getByTestId("deck-tuning");
+
+  await expect(position).toHaveText("Role 1 of 6", { timeout: 60_000 });
+  await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText("Role 2 of 6");
+  const tapped = (await front.getAttribute("data-job-id")) ?? "";
+  expect([REMOTE_CSM, OTHER_CSM]).toContain(tapped);
+
+  // Fewer like this on one customer success role: it goes, and the other one is next, ahead of the
+  // Solutions Engineer and Technical Support Manager roles the résumé has not held.
+  await front.getByTestId("role-fewer-like-this").click();
+  await expect(position).toHaveText("Role 2 of 5");
+  await expect(tuned).toContainText("Tuned away from ");
+  await expect(tuned).not.toContainText(/remote/i);
+  await expect(front).toHaveAttribute("data-job-id", tapped === REMOTE_CSM ? OTHER_CSM : REMOTE_CSM);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
