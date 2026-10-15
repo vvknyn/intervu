@@ -325,8 +325,8 @@ export const MCP_TOOL_SPECS = {
             "show (more years than you have, a language, a clearance, a certification). The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
-            "words: how the title relates to yours, what the posting asks for that your résumé shows, its place " +
-            "and level) and emailed (already sent in a daily picks email). Best fit first, the same order the deck and " +
+            "words: how the title relates to yours, what the posting asks for that your résumé shows (for a " +
+            "title you haven't held, its day-to-day work), its place and level) and emailed (already sent in a daily picks email). Best fit first, the same order the deck and " +
             "for_you use: what the posting asks for that your résumé shows leads, and your own title only breaks " +
             "a tie; roles not emailed yet come first within a fit band. Pass " +
             "email: true to turn the daily picks email on (up to 5 new roles a day, nothing on days with none; " +

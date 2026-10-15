@@ -310,6 +310,14 @@ export interface JdCoverage {
     /** The posting's terms the résumé shows / doesn't, requirements first — for "why this role". */
     matched: string[];
     missing: string[];
+    /**
+     * The posting's responsibilities on their own, measured the way `coverage` is: the share of what the
+     * person would DO that the résumé shows, and those terms. Null / empty when the posting has no readable
+     * responsibilities (a Requirements heading and no Responsibilities heading). A posting with no headings
+     * at all puts its whole text in `duty` (`jdTermsFromDescription`), so it is measured on that text.
+     */
+    dutyShare: number | null;
+    dutyMatched: string[];
 }
 
 /** A matched two-word phrase ("account management") says twice what a single word does. */
@@ -357,6 +365,8 @@ export function jdCoverage(resume: ResumeData, jd: JdTerms): JdCoverage | null {
         coverage,
         matched: [...req.matched, ...duty.matched.filter((t) => !req.matched.includes(t))],
         missing: [...req.missing, ...duty.missing.filter((t) => !req.missing.includes(t))],
+        dutyShare: duty.share,
+        dutyMatched: duty.matched,
     };
 }
 
