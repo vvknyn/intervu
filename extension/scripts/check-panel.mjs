@@ -5,8 +5,8 @@
  * failing on any script error or a state that never finishes loading. Then
  * the on-page card: it shows on its own on a listed job site with sourced
  * lines, stays away from a page that isn't a job, signs in through a small
- * window that closes itself and re-checks, opens the panel, and saves "I
- * applied". It also saves the screenshots the store listing is made from.
+ * window that closes itself and re-checks, opens the panel, saves "I
+ * applied" and "Save". It also saves the screenshots the store listing is made from.
  *
  *   node extension/build.mjs && node extension/scripts/check-panel.mjs
  *
@@ -145,9 +145,12 @@ try {
         return answer(r, typeof state.hits === "number" ? state.hits : { hits: state.hits, total: state.hits.length, backend: "meilisearch", configured: true });
     });
     const tracked = [];
+    /** What the tracker route answers a "Save": the role's status after it, or an HTTP status for a failure. */
+    let saveReply = { ok: true, id: "app-1", status: "interested" };
     await context.route("https://velai.app/api/extension/track", (r) => {
-        tracked.push({ type: r.request().headers()["content-type"], body: JSON.parse(r.request().postData() ?? "{}") });
-        return answer(r, { ok: true, id: "app-1" });
+        const body = JSON.parse(r.request().postData() ?? "{}");
+        tracked.push({ type: r.request().headers()["content-type"], body });
+        return answer(r, body.stage === "saved" ? saveReply : { ok: true, id: "app-1" });
     });
     await context.route(/^https:\/\/velai\.app\/(login|yours|resume)/, (r) =>
         r.fulfill({ contentType: "text/html", body: `<!doctype html><title>Velai</title><h1>${new URL(r.request().url()).pathname}</h1>` }),
@@ -353,6 +356,57 @@ try {
         report("I applied", problems);
     }
 
+    // "Save" puts the job in the tracker's Saved column and doesn't say the person applied; "I applied" stays.
+    tracked.length = 0;
+    await page.reload();
+    card = await waitForCard(page, ["Your résumé for this job", "I applied"]);
+    {
+        const problems = [];
+        if (!card?.buttons.some((b) => b.text === "Save")) problems.push("no Save button");
+        else {
+            await clickCard(page, "Save");
+            card = await waitForCard(page, ["Saved to your Velai tracker"]);
+            if (!card?.text.includes("Saved to your Velai tracker")) problems.push(`card says: ${card?.text}`);
+            if (card?.text.includes("as Applied")) problems.push("said Applied");
+            if (!card?.buttons.some((b) => b.text === "I applied")) problems.push("I applied went away after saving");
+            await page.screenshot({ path: path.join(out, "card-saved.png") });
+            const sent = tracked[0];
+            if (tracked.length !== 1) problems.push(`tracked ${tracked.length} times`);
+            else {
+                if (sent.type !== "application/json") problems.push(`content-type ${sent.type}`);
+                if (sent.body.stage !== "saved" || sent.body.jobId !== velaiCopy.id || sent.body.company !== "Cedarbrook Health" || sent.body.title !== "Registered Nurse - ICU") problems.push(`sent ${JSON.stringify(sent.body)}`);
+            }
+        }
+        report("Save puts the job in the tracker as Saved, without applying", problems);
+    }
+    // A role already further along keeps its status, and the card says so instead of "Saved".
+    saveReply = { ok: true, id: "app-1", status: "applied" };
+    await page.reload();
+    card = await waitForCard(page, ["Your résumé for this job", "I applied"]);
+    {
+        const problems = [];
+        await clickCard(page, "Save");
+        card = await waitForCard(page, ["Already in your Velai tracker"]);
+        if (!card?.text.includes("Already in your Velai tracker as Applied")) problems.push(`card says: ${card?.text}`);
+        if (card?.text.includes("Saved to your Velai tracker")) problems.push("said Saved for a role that is applied");
+        report("Save on a role already applied says so", problems);
+    }
+    // Velai not answering: the card says so and Save can be tried again.
+    saveReply = 500;
+    await page.reload();
+    card = await waitForCard(page, ["Your résumé for this job", "I applied"]);
+    {
+        const problems = [];
+        await clickCard(page, "Save");
+        card = await waitForCard(page, ["Try again"]);
+        if (!card?.text.includes("Velai didn't answer. Try again")) problems.push(`card says: ${card?.text}`);
+        saveReply = { ok: true, id: "app-1", status: "interested" };
+        await clickCard(page, "Velai didn't answer.");
+        card = await waitForCard(page, ["Saved to your Velai tracker"]);
+        if (!card?.text.includes("Saved to your Velai tracker")) problems.push(`after retry, card says: ${card?.text}`);
+        report("Save that fails says so and works on a second try", problems);
+    }
+
     // The card's button opens the panel on this job.
     {
         const before = new Set(context.pages());
@@ -401,6 +455,7 @@ try {
         // Leads with the posting's facts; the button is the only ask to sign in.
         if (!(card && card.text.indexOf("Actively posted") >= 0 && card.text.indexOf("Actively posted") < card.text.indexOf("Sign in to see your fit"))) problems.push("facts don't come before the sign-in button");
         if (card?.text.includes("I applied")) problems.push("offers I applied while signed out");
+        if (card?.buttons.some((b) => b.text === "Save")) problems.push("offers Save while signed out");
         await page.screenshot({ path: path.join(out, "card-signed-out.png") });
         const [popup] = await Promise.all([context.waitForEvent("page", { timeout: 10_000 }), clickCard(page, "Sign in to see your fit")]);
         await popup.waitForLoadState().catch(() => {});
@@ -443,6 +498,31 @@ try {
         report("panel sign-in re-checks; edit, applied and card offer show", problems);
         await panel.close();
     }
+    // The panel's own Save, beside "I applied".
+    state = STATES.found;
+    tracked.length = 0;
+    saveReply = { ok: true, id: "app-1", status: "interested" };
+    {
+        const read = reads.job;
+        await worker.evaluate((value) => chrome.storage.session.set({ pageQuery: value }), { kind: "page", read, site: new URL(read.url).hostname, at: Date.now(), tabId: 1 });
+        const panel = await context.newPage();
+        await panel.setViewportSize({ width: 400, height: 800 });
+        await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`);
+        const problems = [];
+        await panel.waitForSelector('button:has-text("Save")', { timeout: 15_000 }).catch(() => problems.push("no Save button in the panel"));
+        if (!problems.length) {
+            await panel.click('button:has-text("Save")');
+            await panel.waitForFunction(() => document.body.innerText.includes("Saved to your Velai tracker"), null, { timeout: 10_000 }).catch(() => problems.push("panel never said it saved"));
+            const sent = tracked[0];
+            if (tracked.length !== 1 || sent.body.stage !== "saved" || sent.body.jobId !== velaiCopy.id) problems.push(`sent ${JSON.stringify(tracked.map((t) => t.body))}`);
+            const text = await panel.evaluate(() => document.body.innerText);
+            if (!text.includes("I applied")) problems.push("I applied went away after saving");
+            await panel.screenshot({ path: path.join(out, "panel-saved.png"), fullPage: true });
+        }
+        report("panel Save puts the job in the tracker as Saved", problems);
+        await panel.close();
+    }
+
     // An application form under the job: filled from the résumé on a click, never sent; the thank-you page tracks it.
     state = STATES.found;
     tracked.length = 0;

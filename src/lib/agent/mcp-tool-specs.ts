@@ -321,7 +321,10 @@ export const MCP_TOOL_SPECS = {
     },
     save_job: {
         title: "Save job",
-        description: "Save a job to YOUR velai watchlist.",
+        description:
+            "Save a job to YOUR velai tracker's Saved column — the same as the Save bookmark on a job on " +
+            "velai.app and in the Velai Chrome extension. It never marks the job applied (mark_applied does), and " +
+            "a role already further along (applied, interviewing, offered, rejected or withdrawn) keeps its status.",
         inputSchema: jobIdInput,
     },
     mark_applied: {

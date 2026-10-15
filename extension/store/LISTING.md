@@ -31,7 +31,7 @@ Your résumé for this role. Your résumé with the lines and skills this job as
 
 Fill the form. On a job's application form, "Fill from your résumé" fills in your name, email, phone, location and links from your Velai résumé and attaches your résumé tailored to the job as a PDF. Fields that are already filled, drop-downs, check boxes and questions stay yours. You check the form and send it yourself; the extension never sends one.
 
-Track it. Once the site confirms an application the card filled, the job goes into your Velai tracker as Applied. Applied some other way? Pick "I applied".
+Track it. "Save" next to "I applied" puts the job in your Velai tracker's Saved column, without saying you applied. Once the site confirms an application the card filled, the job goes into your tracker as Applied. Applied some other way? Pick "I applied".
 
 Signing in happens in a small window over the job page. It closes itself when you're done and the job is checked again, no second click.
 
@@ -58,7 +58,7 @@ You need a Velai account with a résumé on it for your fit and tailored résum�
 ## Privacy tab
 
 **Single purpose:**
-Help the person apply to the job posting they are viewing, with Velai: how it fits their Velai résumé, Velai's freshness and pay checks on the posting, their résumé tailored to it, filling its application form from that résumé on their click, and adding it to their Velai tracker once they apply.
+Help the person apply to the job posting they are viewing, with Velai: how it fits their Velai résumé, Velai's freshness and pay checks on the posting, their résumé tailored to it, filling its application form from that résumé on their click, and adding it to their Velai tracker, as Saved when they save it or as Applied once they apply.
 
 **Permission justifications:**
 - Content script on the listed job sites (job boards and applicant-tracking sites; the full list is the manifest's `content_scripts`): when a page there loads, reads the job it publishes (its address, title and schema.org JobPosting details) and shows the Velai card. Pages that aren't jobs get nothing. It sends only the role's title and employer to Velai's search. On an application form, and only when the person clicks "Fill from your résumé", it types their name, email, phone, location and links from their Velai résumé into the matching empty fields and attaches their tailored résumé PDF; it never submits the form. After a fill it reads that tab's pages for the site's "application sent" message, to add the job to their tracker.

@@ -9,6 +9,7 @@
  * On an application form, the card fills it from the person's résumé on
  * their click (form-fill.ts) and never submits it. Once the site then says
  * the application went through, the job goes into their tracker as Applied.
+ * "Save" puts the job in the tracker's Saved column without applying.
  */
 import { looksLikeJob, readJobPage, type PageRead } from "./page-reader";
 import { isKnownJobSite } from "./job-sites";
@@ -19,6 +20,7 @@ import {
     type CardAnswer,
     type FillAnswer,
     type PendingFill,
+    type SaveAnswer,
     type ToBackground,
     type TrackAnswer,
 } from "./messages";
@@ -301,6 +303,20 @@ function render(summary: CardSummary, read: PageRead): void {
     }
     const track = summary.track;
     if (track) {
+        // Save for later: the tracker's Saved column, without saying the person applied.
+        const save = button("Save", "secondary", () => {
+            save.disabled = true;
+            void send<SaveAnswer>({ type: "save", job: track })
+                .catch((): SaveAnswer => ({ ok: false, error: "Velai didn't answer." }))
+                .then((answer) => {
+                    if (answer?.ok) save.replaceWith(el("p", "done", answer.status === "Saved" ? "Saved to your Velai tracker" : `Already in your Velai tracker as ${answer.status}`));
+                    else {
+                        save.disabled = false;
+                        save.textContent = `${answer?.error ?? "Velai didn't answer."} Try again`;
+                    }
+                });
+        });
+        actions.append(save);
         const applied = button("I applied", "secondary", () => {
             applied.disabled = true;
             void send<TrackAnswer>({ type: "track", job: track }).then((answer) => {

@@ -18,7 +18,8 @@ import { jobFromPage, looksLikeJob, validThrough, type PageRead } from "./page-r
 import { panelRow, velaiSearchUrl, VELAI_ORIGIN, type PanelRow } from "./rows";
 import { fitReport, pageChecks, resumeFromMe, sameJob, tailoredResume, velaiChecks, type CheckLine, type MeResponse } from "./report";
 import { tailoredResumePdf } from "./resume-pdf";
-import { fetchMe, searchVelai, trackApplied } from "./velai-api";
+import { fetchMe, saveToTracker, searchVelai, trackApplied } from "./velai-api";
+import { trackerStatusLabel } from "@/lib/pursuits/tracker-display";
 import { ALL_SITES, isKnownJobSite, sitePattern } from "./job-sites";
 import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type ToBackground } from "./messages";
 import { fitTerms } from "./card-summary";
@@ -181,24 +182,40 @@ function editResumeNode(): HTMLElement {
     return node;
 }
 
-/** "I applied": the job goes into the person's Velai tracker as Applied, the same as velai.app's own "Mark as applied". */
+/** "I applied": the job goes into the person's Velai tracker as Applied, the same as velai.app's own "Mark as applied". "Save": the Saved column instead. */
 function applyingNode(job: PublicJob, applyUrl: string): HTMLElement | null {
     const company = job.company?.trim();
     if (!company) return null;
-    const status = el("p", "muted", "Once you've applied on this page, add the job to your Velai tracker, dated today.");
+    const status = el("p", "muted", "Once you've applied on this page, add the job to your Velai tracker, dated today. Or save it to apply later.");
+    const trackedJob = { title: job.title, company, applyUrl, ...(job.id.startsWith("page:") ? {} : { jobId: job.id }) };
+    const save = button("Save", "secondary", () => {
+        save.disabled = true;
+        void saveToTracker(trackedJob)
+            .then((r) => {
+                if (!r.ok) throw new Error("not saved");
+                const where = trackerStatusLabel(r.status ?? "interested");
+                status.replaceChildren(where === "Saved" ? "Saved to your Velai tracker. " : `Already in your Velai tracker as ${where}. `, link(`${VELAI_ORIGIN}/yours`, "Open your tracker"));
+                save.remove();
+            })
+            .catch((e: unknown) => {
+                save.disabled = false;
+                status.textContent = /HTTP 401/.test(String(e)) ? "Velai says you're signed out. Sign in and try again." : "Velai didn't save it. Try again.";
+            });
+    });
     const done = button("I applied", "primary", () => {
         done.disabled = true;
-        void trackApplied({ title: job.title, company, applyUrl, ...(job.id.startsWith("page:") ? {} : { jobId: job.id }) })
+        void trackApplied(trackedJob)
             .then(() => {
                 status.replaceChildren("Added to your Velai tracker as Applied. ", link(`${VELAI_ORIGIN}/yours`, "Open your tracker"));
                 done.remove();
+                save.remove();
             })
             .catch((e: unknown) => {
                 done.disabled = false;
                 status.textContent = /HTTP 401/.test(String(e)) ? "Velai says you're signed out. Sign in and try again." : "Velai didn't save it. Try again.";
             });
     });
-    return section("Applying", status, actionsRow(done));
+    return section("Applying", status, actionsRow(done, save));
 }
 
 /**

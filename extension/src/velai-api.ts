@@ -4,6 +4,7 @@
  * the side panel and by the service worker for the on-page card.
  */
 import type { JobSearchResult } from "@/lib/jobs/types";
+import type { PursuitStage } from "@/lib/pursuits/types";
 import type { MeResponse } from "./report";
 import { VELAI_ORIGIN } from "./rows";
 
@@ -45,6 +46,22 @@ export function trackApplied(job: { title: string; company: string; applyUrl: st
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(job),
+    });
+}
+
+/** What a save answers: the role's status in the tracker after the call (a role further along keeps its status). */
+export interface SaveResponse {
+    ok: boolean;
+    id?: string | null;
+    status?: PursuitStage;
+}
+
+/** Saves the job to the person's Velai tracker without applying (the Saved column, as the site's "Save"). */
+export function saveToTracker(job: { title: string; company: string; applyUrl: string; jobId?: string }): Promise<SaveResponse> {
+    return velai<SaveResponse>("/api/extension/track", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...job, stage: "saved" }),
     });
 }
 
