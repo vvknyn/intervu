@@ -172,10 +172,36 @@ function unclearExplanation(score: MatchScore): string {
     return [
         `${place}, so there's no telling yet whether you can take it from where you live.`,
         role,
+        postingSentence(score),
         `On your résumé alone it would be ${matchBandLabel(matchBand(score.total))}. Check where it hires before you apply.`,
     ]
         .filter(Boolean)
         .join(" ");
+}
+
+const POSTING_TERMS_SHOWN = 3;
+
+/** One form of a plural: "roadmaps" and "roadmap", "apis" and "api". */
+const termStem = (word: string) => word.replace(/(?<!s)s$/, "");
+
+/**
+ * The posting's own terms the résumé shows (`jd.evidenceTerms`, never the words of its title), as a reader
+ * would list them: a word a longer listed term already holds is dropped ("management" beside "product
+ * management", "rest" and "api" beside "rest api") and a plural is listed once.
+ */
+function postingTerms(score: MatchScore): string[] {
+    const terms = (component(score, "relevance")?.jd?.evidenceTerms ?? []).map((term) => ({
+        term,
+        words: new Set(term.toLowerCase().split(/[^a-z0-9+#.]+/).filter(Boolean).map(termStem)),
+    }));
+    return terms
+        .filter((a, i) =>
+            !terms.some(
+                (b, j) => j !== i && [...a.words].every((w) => b.words.has(w)) && (b.words.size > a.words.size || j < i),
+            ),
+        )
+        .map((a) => a.term)
+        .slice(0, POSTING_TERMS_SHOWN);
 }
 
 /**
@@ -183,9 +209,22 @@ function unclearExplanation(score: MatchScore): string {
  * say so, with the posting's own terms the résumé has, instead of holding it under Strong for the title.
  */
 function contentLedSentence(score: MatchScore): string {
-    const terms = component(score, "relevance")?.jd?.evidenceTerms ?? [];
-    const shown = terms.length > 0 ? ` (${listed(terms.slice(0, 3))})` : "";
+    const terms = postingTerms(score);
+    const shown = terms.length > 0 ? ` (${listed(terms)})` : "";
     return `It's a title you haven't held, but the posting asks for what your résumé shows${shown}.`;
+}
+
+/**
+ * What the posting asks for that the résumé shows, for a role whose title the résumé holds: the title,
+ * place and level say nothing about the work, and the daily picks email and the MCP read only this
+ * paragraph. Needs at least two terms to stand for it. A fit short of full marks says its share in
+ * `termsClause`, with the terms, so the caller leaves this out there.
+ */
+function postingSentence(score: MatchScore): string | null {
+    // A content-led title names its terms in the role sentence; another line of work's only shares some words.
+    if (score.contentLed || score.role === "off-target" || !score.role) return null;
+    const terms = postingTerms(score);
+    return terms.length < 2 ? null : `The posting asks for ${listed(terms)}, which your résumé shows.`;
 }
 
 function roleSentence(score: MatchScore): string | null {
@@ -215,13 +254,19 @@ function roleSentence(score: MatchScore): string | null {
     }
 }
 
+/** Relevance at full marks: no shortfall for `termsClause` to name. */
+const fullMarks = (score: MatchScore): boolean => (component(score, "relevance")?.score ?? 0) >= 1;
+
 function termsClause(score: MatchScore): string | null {
     const relevance = component(score, "relevance");
     const terms = relevance?.terms;
     // A shortfall that cost points is a reason; full marks are not.
     if (!relevance || relevance.score >= 1) return null;
     // Once the posting's text has been read, relevance is how much of what it asks the résumé shows, not its title's words.
-    if (relevance.jd) return `your résumé shows ${Math.round(relevance.jd.fit * 100)}% of what the posting asks for`;
+    if (relevance.jd) {
+        const shown = postingTerms(score);
+        return `your résumé shows ${Math.round(relevance.jd.fit * 100)}% of what the posting asks for${shown.length > 0 ? ` (${listed(shown)})` : ""}`;
+    }
     // Coverage past RELEVANCE_COVERAGE_FLOOR already scores full marks.
     if (!terms || terms.of === 0) return null;
     return `your résumé has ${terms.matched} of the ${terms.of} key words in its title and skills`;
@@ -259,13 +304,17 @@ export function explainMatch(score: MatchScore): string {
     const parts: string[] = [];
     const role = roleSentence(score);
     if (role) parts.push(role);
+    // A role held as a Stretch says what holds it; what the posting asks for would crowd that out.
+    const stretch = level === "level_below_ask" || managing.length > 0;
+    const posting = stretch || !fullMarks(score) ? null : postingSentence(score);
+    if (posting) parts.push(posting);
     if (support.length > 0) parts.push(sentence(support));
     // The role sentence already says why an adjacent, unverified or off-target role
     // is held down; otherwise a below-Strong label is explained by what's against it.
     const heldByRole = !score.contentLed && (score.role === "adjacent" || score.role === "unverified" || score.role === "off-target");
     // A role above the candidate's level, or managing people when they haven't, is a Stretch for that
     // reason (score.ts), whatever else it has: say that first, and the key words after it on their own.
-    if (level === "level_below_ask" || managing.length > 0) {
+    if (stretch) {
         const held = [...weak, ...managing];
         // Those clauses carry commas of their own, so a comma comes before the last "and".
         const reasons = held.length > 1 ? `${held.slice(0, -1).join(", ")}, and ${held[held.length - 1]}` : held[0]!;
