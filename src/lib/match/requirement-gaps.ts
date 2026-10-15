@@ -76,14 +76,15 @@ export function requiredSkillsShown(resume: ResumeData, job: Pick<PublicJob, "jd
 export function requirementGaps(resume: ResumeData, job: Pick<PublicJob, "min_years_experience" | "jd_terms" | "description" | "company" | "location" | "must_have_skills" | "preferred_skills" | "skills_section_found">): RequirementGap[] {
     const gaps: RequirementGap[] = [];
 
-    const asked = yearsAsked(job.min_years_experience);
+    // The years the posting's structured field says, else the years its text asks (the field is on about half the postings).
+    const asks = jdTermsOf(job)?.asks;
+    const asked = yearsAsked(job.min_years_experience) ?? yearsAsked(asks?.years);
     const basis = resumeSeniorityBasis(resume);
     const have = basis ? Math.round(basis.lineYears ?? basis.years) : null;
     if (asked != null && have != null && asked > have + YEARS_MARGIN) {
         gaps.push({ kind: "years", text: `it asks for ${asked}+ years and your résumé shows ${have} ${basis!.lineYears != null || basis!.role ? "in this line of work" : "in all"}` });
     }
 
-    const asks = jdTermsOf(job)?.asks;
     if (!asks) return gaps;
 
     const missingLangs = (asks.langs ?? []).filter((lang) => !resumeShowsTerm(resume, lang));

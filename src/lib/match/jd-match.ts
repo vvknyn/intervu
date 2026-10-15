@@ -50,7 +50,7 @@ export interface JdTerms {
     req: string[];
     /** What the person would do (Responsibilities / "What you'll do"), or the whole text when it has no headings. */
     duty: string[];
-    /** The hard asks it states (language, clearance, managing, selling, certifications, required skills), when it states any (`jdAsksFromDescription`). */
+    /** The hard asks it states (language, clearance, managing, selling, certifications, years of experience, required skills), when it states any (`jdAsksFromDescription`). */
     asks?: JdAsks;
 }
 
