@@ -46,6 +46,16 @@ describe('requirementGaps', () => {
         assert.deepEqual(kinds(TAM, posting(ONBOARD, { min_years_experience: 7 })), [], 'two years over is still within what employers round up');
     });
 
+    it('reads the years from the posting\'s text when its structured field is missing, and the field first when it is there', () => {
+        const text = 'What you bring:\n10+ years of relevant experience\nStrong communication\n' + ONBOARD;
+        const gaps = requirementGaps(TAM, posting(text));
+        assert.deepEqual(gaps.map((g) => g.kind), ['years']);
+        assert.equal(gaps[0]!.text, 'it asks for 10+ years and your résumé shows 5 in this line of work');
+        assert.deepEqual(kinds(TAM, posting('7+ years of relevant experience\n' + ONBOARD)), [], 'two years over is still within what employers round up');
+        assert.deepEqual(kinds(TAM, posting('Company founded in 2001, serving clients for over 20 years. ' + ONBOARD)), []);
+        assert.deepEqual(kinds(TAM, posting(text, { min_years_experience: 5 })), [], 'the structured field wins over the text');
+    });
+
     it('reads a required language, a clearance, managing, selling and a certification the résumé does not show', () => {
         assert.deepEqual(kinds(TAM, posting('You are fluent in French and English. ' + ONBOARD)), ['language']);
         assert.deepEqual(kinds(TAM, posting('You must hold an active Secret clearance. ' + ONBOARD)), ['clearance']);

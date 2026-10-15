@@ -440,6 +440,9 @@ test("a résumé whose own title is Staff keeps Staff roles: the pack does not a
  */
 const FRENCH_ASK =
   "You are fluent in French and English. You will own technical onboarding for enterprise accounts and run quarterly reviews with customers. We are a growing company with a friendly team.";
+/** The years only in the text (the listing's structured field is missing on about half the postings): 15+ against the résumé's seven in the line. */
+const YEARS_ASK =
+  "What you bring:\n15+ years of relevant experience\nStrong communication. You will own technical onboarding for enterprise accounts and run quarterly reviews with customers. We are a growing company with a friendly team.";
 
 test("a pack lists only roles the résumé could take, and says how many it left out and why", { tag: ["@J-JOBS-131"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
@@ -451,14 +454,15 @@ test("a pack lists only roles the résumé could take, and says how many it left
   const pm = posting("66666666-0000-4000-8000-000000000004", "Product Manager", "Fernway", "mid", 2);
   const junior = posting("66666666-0000-4000-8000-000000000005", "Junior Technical Account Manager", "Harbor Pay", "mid", 2);
   const staff = posting("66666666-0000-4000-8000-000000000006", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  const veteran = { ...posting("66666666-0000-4000-8000-000000000007", "Technical Account Manager", "Old Harbour", "senior", 2), description: YEARS_ASK };
   await withAccountApplications(page, []);
-  await answerResumeSearch(page, [french, pm, junior, staff, own, csm], "journey-left-out");
+  await answerResumeSearch(page, [french, pm, junior, staff, veteran, own, csm], "journey-left-out");
   await openPack(page);
 
-  // Two of the six fit: the own role and a customer success role. The rest are not in the deck.
+  // Two of the seven fit: the own role and a customer success role. The rest are not in the deck.
   const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
   await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
-  for (const gone of [french, pm, junior, staff]) {
+  for (const gone of [french, pm, junior, staff, veteran]) {
     await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${gone.id}"]`)).toHaveCount(0);
   }
 
@@ -466,7 +470,7 @@ test("a pack lists only roles the résumé could take, and says how many it left
   await page.getByTestId("for-you-next").click();
   await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 roles fit your résumé · best fit first");
   await expect(page.getByTestId("for-you-left-out")).toHaveText(
-    "Left out of the 6 roles found: 2 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role",
+    "Left out of the 7 roles found: 2 above your level · 2 asking for something your résumé doesn't show · 1 a different kind of role",
   );
   expect(diagnostics.pageErrors).toEqual([]);
 });

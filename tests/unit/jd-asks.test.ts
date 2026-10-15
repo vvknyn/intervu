@@ -70,3 +70,26 @@ describe('the requirements heading', () => {
         assert.equal(jdAsksFromDescription(null), undefined);
     });
 });
+
+describe('years of experience', () => {
+    it('reads the years a posting asks of the person, whatever the wording', () => {
+        assert.equal(asks('What you bring:\n9+ years of relevant experience\nStrong communication')?.years, 9);
+        assert.equal(asks('Minimum 5 years of experience in product management. You will own the roadmap.')?.years, 5);
+        assert.equal(asks('You bring at least 7 years of experience in the field. You will own accounts.')?.years, 7);
+        assert.equal(asks('We want candidates with 3-5 years of customer success experience. You will own accounts.')?.years, 3);
+        assert.equal(asks('Five years\' experience as a nurse is required. You will own a unit.')?.years, 5);
+        assert.equal(asks('Experience: 8 yrs in software delivery. You will own the platform.')?.years, 8);
+    });
+    it('reads several asks as the smallest: the most the posting states for sure', () => {
+        assert.equal(asks('5+ years of product management experience\n2+ years managing a roadmap\nSQL')?.years, 2);
+    });
+    it('never reads a company\'s age, history, a figure that is not experience, or an optional ask', () => {
+        assert.equal(asks('Founded in 2008, we have served clients for over 15 years. You will own accounts.')?.years, undefined);
+        assert.equal(asks('We have 20 years of history building payments software. You will own accounts.')?.years, undefined);
+        assert.equal(asks('With over 10 years of experience, we help retailers grow. You will own accounts.')?.years, undefined);
+        assert.equal(asks('You must be 18 years of age or older. You will own accounts.')?.years, undefined);
+        assert.equal(asks('In the last 3 years our revenue doubled. You will own accounts.')?.years, undefined);
+        assert.equal(asks('8+ years of experience is an asset. You will own accounts.')?.years, undefined);
+        assert.equal(asks('Nice to have: 10 years in fintech. You will own accounts.')?.years, undefined);
+    });
+});
