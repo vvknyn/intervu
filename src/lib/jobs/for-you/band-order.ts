@@ -89,6 +89,29 @@ export interface DeckLeftOutSummary {
     listed: number;
     /** Roles left out, by the first reason that applies. */
     byReason: Partial<Record<DeckLeftOut, number>>;
+    /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
+    near?: true;
+}
+
+/**
+ * What a list holds when no role fits: the roles it left out only as a weaker fit (Stretch, a coverage gap
+ * included), best first, so a list is never empty while roles were found. A role it left out for a reason about
+ * the person or the place (above their level, a language, a clearance, another country, another kind of job,
+ * too old) is still out.
+ */
+export function orderNearMisses(
+    jobs: readonly PublicJob[],
+    getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
+    query: string | null | undefined,
+    nowMs: number,
+): PublicJob[] {
+    return orderForYouJobsByBand(jobs, getScore, query, nowMs, (reason) => reason === "stretch");
+}
+
+/** `summary` for a list that shows the closest roles because nothing fit: they are `listed`, no longer left out. */
+export function nearMissSummary(summary: DeckLeftOutSummary): DeckLeftOutSummary {
+    const { stretch = 0, ...rest } = summary.byReason;
+    return { considered: summary.considered, listed: stretch, byReason: rest, near: true };
 }
 
 /** What the deck listed of `jobs` and why it left the rest out. */
@@ -113,6 +136,8 @@ export function orderForYouJobsByBand(
     query?: string | null,
     /** Pass to place a role over two weeks old one band lower (`rankBand`), as every ranked list does. */
     nowMs?: number,
+    /** Which roles the list holds, by why `deckLeftOut` leaves them out (`null` = it does not). Default: the ones it does not. */
+    holds: (reason: DeckLeftOut | null) => boolean = (reason) => reason == null,
 ): PublicJob[] {
     if (!getScore) return [...jobs];
 
@@ -140,7 +165,7 @@ export function orderForYouJobsByBand(
     jobs.forEach((job, index) => {
         const score = getScore(job);
         // A recommendation holds only roles this résumé could take (`deckLeftOut`): not a tail of Stretch roles, not a label.
-        if (score == null || deckLeftOut(job, score, nowMs) != null) return;
+        if (score == null || !holds(deckLeftOut(job, score, nowMs))) return;
         const age = packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null);
         const tier = rankTier(score);
         const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;

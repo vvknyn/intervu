@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, BookmarkSimple, CaretLeft, CaretRight, UploadSimple } from "@phosphor-icons/react";
 import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
-import { formatDeckShowingLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
+import { formatDeckShowingLine, formatLeftOutLine, NEAR_MISS_NOTICE } from "@/lib/jobs/for-you/left-out-copy";
 import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     JOBS_SESSION_FRAME_CLASS,
@@ -497,7 +497,9 @@ export function ForYouHome({
         return () => document.removeEventListener("keydown", onKeyDown);
     }, []);
 
-    const showingLine = formatDeckShowingLine(visiblePacks.length);
+    // Nothing fit, so the deck holds the closest roles (`orderNearMisses`): said above them and at the foot, never as a fit.
+    const nearMisses = leftOut?.near === true && visiblePacks.length > 0;
+    const showingLine = formatDeckShowingLine(visiblePacks.length, nearMisses);
     const leftOutLine = formatLeftOutLine(leftOut);
     // Roles came back and the rule left every one out: say how many and why, not a generic "right now".
     const noneFit = visiblePacks.length === 0 && leftOut != null && leftOut.listed === 0 && leftOutLine != null;
@@ -834,6 +836,11 @@ export function ForYouHome({
                         footer and the AI note on the first screen and the role card short. */}
                     <div className="role-stack-screen">
                         {thinBlock}
+                        {nearMisses ? (
+                            <p className="mb-2 shrink-0 text-xs text-muted-foreground" data-testid="for-you-near-notice">
+                                {NEAR_MISS_NOTICE}
+                            </p>
+                        ) : null}
                         {tuning ? (
                             <p className="mb-2 flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground" data-testid="deck-tuning">
                                 <span className="min-w-0 truncate" aria-live="polite">

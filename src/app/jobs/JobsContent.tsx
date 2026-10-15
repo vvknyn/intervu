@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { orderForYouJobsByBand, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -3058,21 +3058,20 @@ export function JobsContent({
                       .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
         [deckResultStale, renderedClusters, deckApplied],
     );
-    const rankedPacks = useMemo(
-        () =>
-            orderForYouJobsByBand(
-                deckCandidates,
-                matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                result?.effectiveQ,
-                nowMs,
-            ),
-        [deckCandidates, result?.effectiveQ, matchScores, nowMs],
+    const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
+    // When no role fits, the deck holds the closest ones (left out only as a weaker fit) under an honest line, not nothing.
+    const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, result?.effectiveQ, nowMs), [deckCandidates, deckScore, result?.effectiveQ, nowMs]);
+    const deckNearMisses = useMemo(
+        () => (deckOrdered.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, result?.effectiveQ, nowMs) : []),
+        [deckOrdered, deckCandidates, deckScore, result?.effectiveQ, nowMs],
     );
+    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckNearMisses;
     // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
-    const deckLeftOutSummary = useMemo(
-        () => (matchScores ? summarizeDeckLeftOut(deckCandidates, (job) => matchScores.get(job.id) ?? null, nowMs) : null),
-        [deckCandidates, matchScores, nowMs],
-    );
+    const deckLeftOutSummary = useMemo(() => {
+        if (!deckScore) return null;
+        const summary = summarizeDeckLeftOut(deckCandidates, deckScore, nowMs);
+        return deckNearMisses.length > 0 ? nearMissSummary(summary) : summary;
+    }, [deckCandidates, deckScore, deckNearMisses, nowMs]);
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
     // the deck holds its roles until its first ones are read here (the effect

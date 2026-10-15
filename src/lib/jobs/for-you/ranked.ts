@@ -20,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { orderForYouJobsByBand, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -119,18 +119,15 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     );
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
-    const orderedJobs = orderForYouJobsByBand(
-        scored.map((s) => s.job),
-        (job) => byId.get(job.id)?.match ?? null,
-        queryUsed,
-        nowMs,
-    );
+    const allJobs = scored.map((s) => s.job);
+    const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
+    const fitting = orderForYouJobsByBand(allJobs, scoreOf, queryUsed, nowMs);
+    // Nothing fits: the closest roles, each a weaker fit, so the list is never empty while roles were found.
+    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, queryUsed, nowMs) : [];
+    const orderedJobs = fitting.length > 0 ? fitting : nearMisses;
     const targets = targetTitlesFromQuery(queryUsed);
-    const leftOut = summarizeDeckLeftOut(
-        scored.map((s) => s.job),
-        (job) => byId.get(job.id)?.match ?? null,
-        nowMs,
-    );
+    const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);
+    const leftOut = nearMisses.length > 0 ? nearMissSummary(counted) : counted;
 
     const hits: RankedHit[] = orderedJobs.map((job) => {
         const entry = byId.get(job.id)!;

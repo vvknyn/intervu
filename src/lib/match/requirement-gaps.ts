@@ -1,8 +1,19 @@
 /**
  * What a posting asks that the résumé does not show: the hard asks (`JdAsks`, read from the description) and
- * the years it wants, weighed against the résumé. Each gap is a reason a role is not for this person, whatever
- * its title and vocabulary share with their résumé, so a role with one is a Stretch at most (score.ts), is
- * left out of For You, Today and the daily picks, and says so on its receipt.
+ * the years it wants, weighed against the résumé.
+ *
+ * A HARD gap is an explicit ask the résumé either shows or doesn't: more years than they have, a language,
+ * a clearance, managing people, selling, a named certification. A role with one is not for this person
+ * whatever its title and vocabulary share with their résumé: a Stretch at most (score.ts), left out of For
+ * You, Today and the daily picks (left-out.ts), with the reason on its receipt.
+ *
+ * A SOFT gap (`RequirementGap.soft`) is a coverage ratio read from words: most of the required skills
+ * missing, fewer than half of the requirement lines answered. It caps the role at Stretch and orders it
+ * below the roles the résumé covers, with the reason on the row, but it is a ranking signal, not an ask,
+ * so it is not a reason to leave the role out. And it fires only for a résumé that says enough to judge
+ * (`COVERAGE_MIN_RESUME_TERMS`): a four-skill, one-line software engineer résumé failed it on 99 of 100
+ * software postings, so For You and Today held nothing (release gate, 2026-10-15). What a short résumé does
+ * not show is not what its owner cannot do.
  *
  * Generic: it reads only the posting's stated asks and what the résumé says, never a list of industries.
  * An ask the posting makes optional (an asset, a plus, preferred) is never read as one (jd-asks.ts), and a
@@ -10,7 +21,7 @@
  */
 import { resumeSeniorityBasis } from "@/lib/jobs/resume-match";
 import { resumeManagedPeople, yearsAsked } from "@/lib/jobs/role-level";
-import { jdTermsOf, resumeShowsTerm } from "@/lib/match/jd-match";
+import { jdTermsOf, resumeShowsTerm, resumeTermSet } from "@/lib/match/jd-match";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -18,9 +29,18 @@ export type RequirementGapKind = "years" | "language" | "clearance" | "managing"
 
 export interface RequirementGap {
     kind: RequirementGapKind;
+    /** A coverage ratio read from words, not an explicit ask: a ranking signal that caps the role at Stretch, never a reason to leave it out. */
+    soft?: true;
     /** What the receipt says, as a clause: "it asks for French and nothing on your résumé shows it". */
     text: string;
 }
+
+/**
+ * Distinct words and phrases a résumé must say before the coverage gaps judge a posting against it (about six
+ * lines of experience). Below it the résumé cannot show a posting's tools and requirements whatever its owner
+ * can do: the shortest fixtures run 41 to 100, the four real-length résumés 485 to 757.
+ */
+export const COVERAGE_MIN_RESUME_TERMS = 150;
 
 /** Years above what the résumé shows in the line of work that a posting may still ask: employers round up. */
 export const YEARS_MARGIN = 2;
@@ -78,17 +98,20 @@ export function requirementGaps(resume: ResumeData, job: Pick<PublicJob, "min_ye
     const missingCreds = (asks.creds ?? []).filter((cred) => !resumeShowsTerm(resume, cred));
     if (missingCreds.length > 0) gaps.push({ kind: "credential", text: `it requires ${list(missingCreds)}, which your résumé does not show` });
 
+    // The coverage gaps below judge the résumé by what it says; a résumé that says little cannot be judged that way.
+    if (resumeTermSet(resume).size < COVERAGE_MIN_RESUME_TERMS) return gaps;
+
     const must = asks.must ?? [];
     const missingSkills = must.filter((skill) => !resumeShowsTerm(resume, skill, { loose: true }));
     if (must.length >= MUST_SKILLS_MIN_LISTED && (must.length - missingSkills.length) / must.length <= MUST_SKILLS_MAX_SHOWN_SHARE) {
-        gaps.push({ kind: "skills", text: `most of the skills it requires are not on your résumé (${list(missingSkills.slice(0, 3))})` });
+        gaps.push({ kind: "skills", soft: true, text: `most of the skills it requires are not on your résumé (${list(missingSkills.slice(0, 3))})` });
     }
     const bullets = asks.bullets ?? [];
     if (bullets.length >= REQUIREMENT_BULLETS_MIN) {
         const unanswered = bullets.filter((terms) => !terms.some((term) => resumeShowsTerm(resume, term)));
         if ((bullets.length - unanswered.length) / bullets.length < REQUIREMENT_BULLETS_MIN_SHOWN_SHARE) {
             const named = unanswered.slice(0, 2).map((terms) => terms[0]!);
-            gaps.push({ kind: "requirements", text: `fewer than half of its requirements show on your résumé (${list(named)}${unanswered.length > 2 ? ", …" : ""})` });
+            gaps.push({ kind: "requirements", soft: true, text: `fewer than half of its requirements show on your résumé (${list(named)}${unanswered.length > 2 ? ", …" : ""})` });
         }
     }
     return gaps;

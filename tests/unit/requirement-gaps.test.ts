@@ -11,11 +11,13 @@ import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { explainMatch } from '../../src/lib/match/explain';
 import { jdTermsFromDescription } from '../../src/lib/match/jd-match';
 import { matchBand, scoreJobAgainstResume } from '../../src/lib/match/score';
-import { requirementGaps, REQUIREMENT_BULLETS_MIN } from '../../src/lib/match/requirement-gaps';
+import { COVERAGE_MIN_RESUME_TERMS, requirementGaps, REQUIREMENT_BULLETS_MIN } from '../../src/lib/match/requirement-gaps';
+import { resumeTermSet } from '../../src/lib/match/jd-match';
+import { deckLeftOut } from '../../src/lib/jobs/for-you/band-order';
 import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
 import type { PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
-import { mkJob } from '../support/jobs-corpus-stub';
+import { mkJob, NOW } from '../support/jobs-corpus-stub';
 
 const TAM = resumeDataFromPlainText(readFileSync('tests/fixtures/vivek-tam-resume.txt', 'utf8'));
 const withCompetency = (resume: ResumeData, skill: string): ResumeData => ({ ...resume, competencies: [...resume.competencies, { category: 'More', skills: [skill] }] });
@@ -72,6 +74,58 @@ describe('requirementGaps', () => {
         const short = posting(`${ONBOARD}\n\nRequirements\n${unrelated.slice(0, 2).map((b) => `- ${b}`).join('\n')}`);
         assert.deepEqual(kinds(TAM, short), [], 'two unanswered asks are not most of a posting');
         assert.deepEqual(kinds(TAM, posting(ONBOARD)), []);
+    });
+});
+
+/** A résumé with too few lines to judge a posting's lists by: four skills and one job, as the journeys' fixture has. */
+const SHORT: ResumeData = {
+    ...TAM,
+    experience: TAM.experience.slice(0, 1).map((role) => ({ ...role, description: 'Owned adoption, renewals and technical escalations for 40 enterprise accounts.' })),
+    projects: [],
+    competencies: [{ category: 'Skills', skills: ['Customer Success', 'SQL', 'REST APIs', 'Salesforce'] }],
+    education: [],
+    generatedSummary: 'Technical Account Manager with five years in customer success.',
+};
+const UNRELATED = [
+    'Hands-on welding and brazing of structural steel',
+    'Operating a forklift and overhead crane safely',
+    'Pipefitting and boiler maintenance in plant settings',
+    'Erecting scaffolding to site safety standards',
+];
+const unrelatedList = () => posting(`${ONBOARD}\n\nRequirements\n${UNRELATED.map((b) => `- ${b}`).join('\n')}`);
+
+describe('a list the résumé does not answer is a ranking signal, not a reason to leave the role out', () => {
+    it('marks the lists of skills and requirements soft, and every ask for something a résumé either has or lacks hard', () => {
+        const soft = requirementGaps(TAM, unrelatedList());
+        assert.deepEqual(soft.map((g) => [g.kind, g.soft]), [['requirements', true]]);
+        const hard = requirementGaps(TAM, posting('You are fluent in French and English. ' + ONBOARD));
+        assert.deepEqual(hard.map((g) => [g.kind, g.soft]), [['language', undefined]]);
+    });
+
+    it('does not judge a posting\'s lists by a résumé with too few lines to cover them', () => {
+        assert.ok(resumeTermSet(SHORT).size < COVERAGE_MIN_RESUME_TERMS, String(resumeTermSet(SHORT).size));
+        assert.ok(resumeTermSet(TAM).size >= COVERAGE_MIN_RESUME_TERMS, String(resumeTermSet(TAM).size));
+        assert.deepEqual(kinds(SHORT, unrelatedList()), [], 'a short résumé cannot "show" a posting\'s requirement lines');
+        assert.deepEqual(kinds(TAM, unrelatedList()), ['requirements']);
+    });
+
+    it('still reads a hard ask the short résumé does not show', () => {
+        assert.deepEqual(kinds(SHORT, posting('You are fluent in French and English. ' + ONBOARD)), ['language']);
+        assert.deepEqual(kinds(SHORT, posting('You must hold an active Secret clearance. ' + ONBOARD)), ['clearance']);
+        assert.deepEqual(kinds(SHORT, posting(ONBOARD, { min_years_experience: 12 })), ['years']);
+    });
+
+    it('keeps a role it covers least in the closest-roles list, not out of it: Stretch, not a requirement', () => {
+        const j = unrelatedList();
+        const s = score(TAM, j);
+        assert.equal(matchBand(s.total), 'stretch', String(s.total));
+        assert.equal(deckLeftOut(j, s, NOW), 'stretch', 'a reason about the fit, not about something the person lacks');
+        assert.equal(deckLeftOut(posting('You are fluent in French and English. ' + ONBOARD), score(TAM, posting('You are fluent in French and English. ' + ONBOARD)), NOW), 'requirement');
+    });
+
+    it('does not cap a short résumé\'s role for lists it cannot judge', () => {
+        const s = score(SHORT, unrelatedList());
+        assert.equal(s.gaps, undefined);
     });
 });
 
