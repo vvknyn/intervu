@@ -2,7 +2,8 @@
  * Product contract: a For-you pack IS a /jobs filter state. The ids a
  * candidate's pack returns must equal the ids they get by opening the pack's
  * "Edit filters" link and searching by hand — for every persona, not just
- * one country. Fit may reorder; it never removes.
+ * one country. Fit reorders, and leaves out only what the résumé could not take
+ * (`deckLeftOut`); it counts what it left out, so no search row goes missing unaccounted.
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +32,7 @@ const CORPUS = [
     mkJob('us-unknown', { location_country: 'United States', experience_level: 'unknown' }),
     mkJob('ca-unknown', { location_country: 'Canada', experience_level: 'unknown' }),
     mkJob('in-unset', { location_country: 'India', experience_level: undefined as unknown as string }),
-    // Poor fit on purpose: fit must push it down, never drop it.
+    // Poor fit on purpose: a recommendation leaves it out, and says so (`leftOut`).
     mkJob('us-nurse', { location_country: 'United States', title: 'Registered Nurse', tags: ['patient care'] }),
 ];
 
@@ -71,8 +72,13 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
                 offset: 0,
             });
 
-            assert.deepEqual(new Set(ranked.hits.map((h) => h.job.id)), new Set(byHand.hits.map((j) => j.id)));
-            assert.equal(ranked.hits.length, byHand.hits.length, 'fit never removes a job');
+            // Every listed role is a row of the search by hand; every other row is counted as left out.
+            const byHandIds = new Set(byHand.hits.map((j) => j.id));
+            for (const h of ranked.hits) assert.ok(byHandIds.has(h.job.id), `${h.job.id} is a row of the search by hand`);
+            assert.equal(ranked.leftOut.considered, byHand.hits.length);
+            assert.equal(ranked.leftOut.listed, ranked.hits.length);
+            const leftOutCount = Object.values(ranked.leftOut.byReason).reduce((sum, n) => sum + (n ?? 0), 0);
+            assert.equal(ranked.hits.length + leftOutCount, byHand.hits.length, 'fit leaves a job out only with a reason');
             assert.deepEqual(withoutPaging(pack.calls[0]), withoutPaging(manual.calls[0]), 'one search call, identical params');
 
             const got = new Set(ranked.hits.map((h) => h.job.id));
@@ -81,13 +87,14 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
         });
     }
 
-    it('the poor-fit job stays in the pack and ranks below the good fit', async () => {
+    it('the poor-fit job is left out of the pack and counted, the good fit is listed', async () => {
         const resume = mkResume({ location: 'Austin, TX' });
         const { search } = corpusStub(CORPUS);
         const ranked = await rankForYou({ resume, search, candidateDepth: DEPTH });
         const order = ranked.hits.map((h) => h.job.id);
-        assert.ok(order.includes('us-nurse'));
-        assert.ok(order.indexOf('us-mid') < order.indexOf('us-nurse'));
+        assert.ok(order.includes('us-mid'));
+        assert.ok(!order.includes('us-nurse'));
+        assert.equal(ranked.leftOut.byReason['other-role'], 1, 'the nurse role is counted as a different kind of role');
     });
 
     it('the Edit-filters link round-trips to exactly the pack filters', () => {

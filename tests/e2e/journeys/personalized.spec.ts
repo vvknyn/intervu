@@ -432,3 +432,55 @@ test("a résumé whose own title is Staff keeps Staff roles: the pack does not a
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+
+/**
+ * J-JOBS-131 — Vivek, 2026-10-14: "the recommendations are still garbage and the product is still unusable".
+ * A For you pack is not a search: it lists only roles the résumé could take, and says how many it left out and why.
+ */
+const FRENCH_ASK =
+  "You are fluent in French and English. You will own technical onboarding for enterprise accounts and run quarterly reviews with customers. We are a growing company with a friendly team.";
+
+test("a pack lists only roles the résumé could take, and says how many it left out and why", { tag: ["@J-JOBS-131"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const own = posting("66666666-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior", 2);
+  const csm = posting("66666666-0000-4000-8000-000000000002", "Customer Success Manager", "Orchard CRM", "mid", 3);
+  const french = { ...posting("66666666-0000-4000-8000-000000000003", "Technical Account Manager", "Maison Nord", "senior", 2), description: FRENCH_ASK };
+  const pm = posting("66666666-0000-4000-8000-000000000004", "Product Manager", "Fernway", "mid", 2);
+  const junior = posting("66666666-0000-4000-8000-000000000005", "Junior Technical Account Manager", "Harbor Pay", "mid", 2);
+  const staff = posting("66666666-0000-4000-8000-000000000006", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, pm, junior, staff, own, csm], "journey-left-out");
+  await openPack(page);
+
+  // Two of the six fit: the own role and a customer success role. The rest are not in the deck.
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  for (const gone of [french, pm, junior, staff]) {
+    await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${gone.id}"]`)).toHaveCount(0);
+  }
+
+  // At the foot of the deck: what fits, and what was left out and why.
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText(
+    "Left out of the 6 roles found: 2 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role",
+  );
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a pack with no role the résumé could take says so and why, instead of a generic empty list", { tag: ["@J-JOBS-131"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const french = { ...posting("77777777-0000-4000-8000-000000000001", "Technical Account Manager", "Maison Nord", "senior", 2), description: FRENCH_ASK };
+  const staff = posting("77777777-0000-4000-8000-000000000002", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, staff], "journey-none-fit");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-empty")).toContainText("None of the roles we found fit your résumé yet.", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toContainText("Left out of the 2 roles found: 1 above your level · 1 asking for something your résumé doesn't show");
+  expect(diagnostics.pageErrors).toEqual([]);
+});

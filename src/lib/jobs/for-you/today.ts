@@ -15,7 +15,8 @@ import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import { packAgeTier } from "@/lib/jobs/for-you/band-order";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
-import { compareFitUnseenFirst, matchBand, OUTSIDE_REASONS, outsideLevel, placeUnknown, type MatchComponent, type MatchScore } from "@/lib/match/score";
+import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
+import { compareFitUnseenFirst, type MatchComponent, type MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -95,36 +96,12 @@ export function interviewsThisWeek(pursuits: Pursuit[], nowMs: number): Pursuit[
 export type TodayRole = { job: PublicJob; score: MatchScore };
 
 /**
- * Why a scored role is not one of today's picks, or `null` when it is one.
- * Today is the short list, so its bar is higher than a pack's, and it is the
- * same for any role or industry because it reads only the score:
- *  - `stretch`: under Good against the résumé;
- *  - `other-role`: the title is not the candidate's own kind of role (a
- *    neighbour the pack also searched for, a title tied to no role the
- *    résumé names, or a different kind of job). Packs still list these;
- *  - `level`: the role asks for more seniority than the résumé shows, or
- *    its title manages people and nothing on the résumé shows managing
- *    anyone (`MatchScore.newToManaging`);
- *  - `abroad`: the role is in, or remote from, a country the candidate
- *    can't work in, or names none and pays in another country's money;
- *  - `unplaced`: nothing says the candidate can take it from where they
- *    are: their own country can't be read, or the role names nowhere it
- *    hires (`placeUnknown`). A pick needs evidence, not the absence of a
- *    limit: "Remote" alone was read as open to anyone, so US-only roles
- *    were picks for people in Canada (2026-10-05).
+ * Why a scored role is not one of today's picks: the rule every recommendation list shares (`forYouLeftOut`,
+ * left-out.ts). Today is the short list, so it also keeps only the week's new roles (`pickToday`).
  */
-export type TodayLeftOut = "stretch" | "other-role" | "level" | "abroad" | "unplaced";
+export type TodayLeftOut = ForYouLeftOut;
 
-export function todayLeftOut(score: MatchScore): TodayLeftOut | null {
-    // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
-    if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
-    if (placeUnknown(score)) return "unplaced";
-    // Before the band: a role above their level, or managing people when they haven't, is a Stretch for that reason (score.ts).
-    if (score.newToManaging || outsideLevel(score) || score.components.some((c) => c.reason === "level_below_ask")) return "level";
-    if (matchBand(score.total) === "stretch") return "stretch";
-    if (score.role !== "own" && score.role !== "family") return "other-role";
-    return null;
-}
+export const todayLeftOut = forYouLeftOut;
 
 /** The same opening listed twice (re-synced or cross-posted): its title, company and place. A role open in two cities is two openings. */
 export function sameRoleKey(job: PublicJob): string {

@@ -236,7 +236,10 @@ export function explainMatch(score: MatchScore): string {
 
     const support = clauses.filter((c) => !WEAK.has(c.reason)).map((c) => c.text);
     const weak = clauses.filter((c) => WEAK.has(c.reason)).map((c) => c.text);
-    const managing = score.newToManaging ? [newToManagingText(component(score, "seniority")?.level)] : [];
+    const managing = [
+        ...(score.newToManaging ? [newToManagingText(component(score, "seniority")?.level)] : []),
+        ...(score.gaps ?? []).map((gap) => gap.text),
+    ];
 
     const parts: string[] = [];
     const role = roleSentence(score);

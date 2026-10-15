@@ -163,11 +163,16 @@ describe('the TAM list puts TAM roles first', () => {
         const search = async (): Promise<JobSearchResult> => ({ hits: listed, total: listed.length, backend: 'meilisearch', configured: true, effectiveQ: q });
         const ranked = await rankForYou({ resume: TAM, search, candidateDepth: 50, signals: resolveCandidateSignals(TAM, null) });
         const titles = ranked.hits.map((hit) => hit.job.title);
-        // Senior-aware fit (2026-10-13): read senior, the résumé's own line still leads — every TAM role,
-        // the Senior TAM included, comes before any PM posting.
-        const firstPm = titles.findIndex((t) => /product manager/i.test(t));
+        // Senior-aware fit (2026-10-13): read senior, the résumé's own line still leads — every TAM role, the Senior
+        // TAM included, comes first. A title the résumé does not name is kept when the posting fits (content decides,
+        // the title only orders), so the customer success role and the two Product Manager postings listed Senior
+        // follow; the Staff one is past Senior.
         assert.ok(titles.slice(0, 3).every((t) => /technical account manager/i.test(t)), titles.join(' | '));
-        assert.ok(firstPm >= 3, titles.join(' | '));
+        assert.ok(titles.slice(3).includes('Customer Success Manager'), titles.join(' | '));
+        assert.equal(titles.length, 6, titles.join(' | '));
+        assert.equal(ranked.leftOut.considered, listed.length);
+        assert.equal(ranked.leftOut.byReason['other-role'] ?? 0, 0, 'no posting here is another kind of job');
+        assert.equal(ranked.leftOut.byReason.level, 1, 'the Staff Product Manager is past Senior');
     });
 
     it('no PM posting reads Strong for the TAM résumé any more', () => {
@@ -479,7 +484,8 @@ describe('a role past Senior is never recommended to a résumé that shows none'
         const lead = { configured: true, search: { experienceLevel: 'lead' }, answers: { custom: {} } } as Parameters<typeof resolveCandidateSignals>[1];
         assert.equal(resolveCandidateSignals(TAM, lead).seniority.pastSenior, true);
         assert.equal(outsideLevel(scoreOf(TAM, canada('Director, Customer Success', 'senior'), lead)), false);
-        assert.equal(listFor(TAM, PAST, lead).length, PAST.length);
+        // Not the Director role: its title runs a team and nothing on the résumé shows managing anyone (`newToManaging`).
+        assert.deepEqual(listFor(TAM, PAST, lead).sort(), PAST.map((job) => job.title).filter((t) => !/^Director/.test(t)).sort());
     });
 
     it('keeps them out of the search pool for a résumé that shows none, and leaves the pool alone for one that does', async () => {

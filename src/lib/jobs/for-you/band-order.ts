@@ -10,8 +10,9 @@
  * Pure, no I/O — same isomorphic convention as match/score.ts and
  * title-relevance.ts.
  */
+import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
-import { matchBand, outsideLevel, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
+import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 
 /** `rankTier` values: Stretch roles start at 300, roles outside reach (place unknown, abroad, unscored) at 500. */
 const STRETCH_TIER_FLOOR = 300;
@@ -52,6 +53,45 @@ export function packAgeTier(postedTs: number | null | undefined, nowMs: number, 
     return days <= PACK_STALE_DAYS ? 0 : days <= PACK_MAX_AGE_DAYS ? 1 : 2;
 }
 
+/** Why a pack's deck leaves a role out: `forYouLeftOut`'s reasons, or "old" for a posting too old for a pack. */
+export type DeckLeftOut = ForYouLeftOut | "old";
+
+/**
+ * Why the deck does not list this role, or `null` when it does: older than a pack keeps, no score
+ * (nothing ties it to the résumé), or any reason `forYouLeftOut` gives. The ONE place the deck's
+ * keep-or-drop is decided, so `orderForYouJobsByBand` and `summarizeDeckLeftOut` cannot disagree.
+ */
+export function deckLeftOut(job: PublicJob, score: MatchScore | null | undefined, nowMs: number): DeckLeftOut | null {
+    if (packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null) === 2) return "old";
+    if (score == null) return "other-role";
+    return forYouLeftOut(score, { keepWhenCandidatePlaceUnread: true, keepUnplaced: true });
+}
+
+export interface DeckLeftOutSummary {
+    /** Roles the search returned and the deck weighed. */
+    considered: number;
+    /** Roles the deck lists. */
+    listed: number;
+    /** Roles left out, by the first reason that applies. */
+    byReason: Partial<Record<DeckLeftOut, number>>;
+}
+
+/** What the deck listed of `jobs` and why it left the rest out. */
+export function summarizeDeckLeftOut(
+    jobs: readonly PublicJob[],
+    getScore: (job: PublicJob) => MatchScore | null | undefined,
+    nowMs: number,
+): DeckLeftOutSummary {
+    const byReason: DeckLeftOutSummary["byReason"] = {};
+    let listed = 0;
+    for (const job of jobs) {
+        const reason = deckLeftOut(job, getScore(job), nowMs);
+        if (reason == null) listed++;
+        else byReason[reason] = (byReason[reason] ?? 0) + 1;
+    }
+    return { considered: jobs.length, listed, byReason };
+}
+
 export function orderForYouJobsByBand(
     jobs: readonly PublicJob[],
     getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
@@ -84,17 +124,18 @@ export function orderForYouJobsByBand(
     const keyed: { job: PublicJob; key: number; value: number; raw: number; index: number }[] = [];
     jobs.forEach((job, index) => {
         const score = getScore(job);
+        // A recommendation holds only roles this résumé could take (`deckLeftOut`): not a tail of Stretch roles, not a label.
+        if (score == null || deckLeftOut(job, score, nowMs) != null) return;
         const age = packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null);
-        if (age === 2 || outsideLevel(score)) return;
         const tier = rankTier(score);
         const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
-        const band = score != null ? rankBand(score, job.posted_ts ?? null, nowMs) : BAND_SEQUENCE.length;
+        const band = rankBand(score, job.posted_ts ?? null, nowMs);
         // A capped total ties roles that fit differently; the components' own scores break the tie.
-        const raw = score ? score.components.reduce((sum, c) => sum + c.score, 0) : 0;
+        const raw = score.components.reduce((sum, c) => sum + c.score, 0);
         // Inside a band the résumé's primary line of work still leads (2026-10-13, senior-aware fit: a
         // TAM résumé read senior must not see Senior PM roles ahead of its TAM ones): a small lift for
         // its own role and its family, not a key of its own, so a much better fit elsewhere still wins.
-        const lift = score?.role === "own" ? OWN_ROLE_LIFT : score?.role === "family" ? FAMILY_ROLE_LIFT : 0;
+        const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
         keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs) + lift, raw, index });
     });
     keyed.sort((a, b) => a.key - b.key || b.value - a.value || b.raw - a.raw || a.index - b.index);

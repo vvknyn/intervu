@@ -20,6 +20,8 @@ import { fitFor } from "../jobs/for-you/fit";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
+import type { DeckLeftOut } from "../jobs/for-you/band-order";
+import { formatLeftOutLine } from "../jobs/for-you/left-out-copy";
 import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
 import { clusterJobs } from "../jobs/cluster";
 import { hasLiveApplyUrl } from "../jobs/apply-url-health";
@@ -743,6 +745,8 @@ export interface ForYouHit extends JobDetailFields {
 
 export interface ForYouOut {
   hits: ForYouHit[];
+  /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
+  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>> };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -813,9 +817,15 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   if (!budget.ok) return { error: budget.error };
 
   const nextCursor = nextCursorFor(offset, hits.length, deck.length, limit);
-  const note = joinNotes(limitNote);
+  // A list that holds only roles the résumé could take can be short, or empty: say how many were left out and why.
+  const leftOutLine = formatLeftOutLine(ranked.leftOut);
+  const leftOutNote = offset === 0 && leftOutLine ? (deck.length === 0 ? `None of the roles found fit this résumé yet. ${leftOutLine}` : leftOutLine) : null;
+  const note = joinNotes(limitNote, leftOutNote);
   return {
     hits,
+    ...(ranked.leftOut.considered > 0
+      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason } }
+      : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),
     ...(nextCursor ? { next_cursor: nextCursor } : {}),

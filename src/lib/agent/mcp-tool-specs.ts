@@ -283,8 +283,13 @@ export const MCP_TOOL_SPECS = {
         title: "Jobs ranked by fit",
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
-            "pipeline behind the site's For-you view, which leaves out roles past your level (Staff, Principal, " +
-            "Director or Executive roles, unless your résumé shows one). Requires a structured résumé on file: when get_resume " +
+            "pipeline behind the site's For-you view, which lists only roles you could take: it leaves out roles " +
+            "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
+            "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
+            "a clearance, a certification, managing people, selling, most of the skills they require), a different " +
+            "kind of role, and roles outside where you can work. The list can be short or empty: note and left_out " +
+            "say how many roles the search found and how many were left out for each reason, so report that count " +
+            "rather than padding the list. Requires a structured résumé on file: when get_resume " +
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
             "Ranks purely by fit, not recency — postedWithinDays/sort/facet " +
@@ -305,7 +310,8 @@ export const MCP_TOOL_SPECS = {
             "Today's picks for your stored résumé: up to 5 roles posted this week in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
-            "managing people when your résumé shows no one managed. The same roles Today on " +
+            "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +
+            "show (more years than you have, a language, a clearance, a certification). The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words) and emailed (already sent in a daily picks email). Roles not emailed yet come first. Pass " +
