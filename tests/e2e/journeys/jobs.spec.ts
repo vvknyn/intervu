@@ -2119,4 +2119,8 @@ test("an employer search with a place says where its roles in that place end and
   await page.goto("/jobs?view=search&q=walmart&country=Canada&exp=mid");
   await expect(note).toHaveText("No roles at this employer match your location — showing its roles elsewhere.", { timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
+  // The stub lists 3 of 240 roles, so the page asks for the next ones too, and that request can still
+  // be waiting on the real server when the test ends. Closing the page under it made the stub's
+  // route.fetch throw "Target page, context or browser has been closed". Nothing here reads its answer.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
