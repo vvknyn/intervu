@@ -543,7 +543,13 @@ test("a pack lists a title the résumé never names when its posting asks for wh
   // The pack's search asked for postings by what they say, with a few skill phrases and no name or contact detail.
   const asked = sent.find((m) => (m.contentPhrases?.length ?? 0) > 0);
   expect(asked, "a résumé-built search carries content phrases").toBeTruthy();
-  expect(asked!.contentPhrases!.length).toBeLessThanOrEqual(4);
+  const lanes = asked!.contentPhrases!;
+  const singles = lanes.filter((phrase) => !phrase.includes(" "));
+  expect(lanes.length - singles.length, "at most four two-word duty phrases").toBeLessThanOrEqual(4);
+  expect(singles.length, "at most three single skill words").toBeLessThanOrEqual(3);
+  // A single word is one the résumé LISTS as a skill (never a word from its prose, a name or a place).
+  const skillWords = new Set(["customer", "success", "product", "management", "sql", "rest", "apis", "salesforce"]);
+  for (const word of singles) expect(skillWords.has(word), `"${word}" is not a word of the résumé's skills list`).toBe(true);
   expect(asked!.unplacedRemote).toBe(true);
   expect(JSON.stringify(asked!.contentPhrases).toLowerCase()).not.toMatch(/\bmorgan\b|\blee\b|example\.com|555-010/);
   expect(diagnostics.pageErrors).toEqual([]);

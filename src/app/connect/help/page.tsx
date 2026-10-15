@@ -138,8 +138,8 @@ export default function ConnectHelpPage() {
           <p>
             Out of the box, this gets you search and tracking: ask your AI to find roles,
             sanity-check a posting, or save something to your tracker, and it can do that right
-            away. It can also list the roles that fit your résumé, matched on what each posting asks
-            for before its title, so a title you haven&apos;t held can show up (leaving out any
+            away. It can also list the roles that fit your résumé, found and matched on what each posting asks
+            for before its title (the search looks for the duties and tools your résumé lists first, and your titles fill what is left), so a title you haven&apos;t held can show up (leaving out any
             above your level or asking for what your résumé doesn&apos;t show, and saying how many it left out;
             when nothing fits, it lists the closest roles and says plainly that they are a weaker fit),
             list today&apos;s picks, and turn the daily picks email on or off. Actually opening a listing and filling out the application form needs a
