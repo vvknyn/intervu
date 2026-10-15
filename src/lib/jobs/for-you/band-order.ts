@@ -1,17 +1,17 @@
 /**
- * For-you / postcard pack ordering — the candidate's own role first, then the
- * same kind of role, then neighbours, with every Stretch role after all the
- * roles they can take (`rankTier`, match/score.ts); inside each,
- * Strong (≥80) first, then Good (60–79), then Stretch (<60), then unscored.
- * Within each band, target-title relevance (`partitionByTargetTitle`) runs
- * before adjacent cards; relative order inside each (tier × band × title)
- * slice is preserved (stable bucket pass).
+ * For-you / postcard pack ordering, the ONE order every list that recommends uses: the deck, the agent's
+ * `for_you`, Today, the daily picks (and their email) and the fit-sorted Search list
+ * (`forYouSortKey`, `compareForYouKeys`). Roles are ordered by age (a role over a month old after every
+ * fresher one), whether the person can take them where they are (`rankTier`'s reach groups), the fit band
+ * (Strong ≥80, Good 60–79, Stretch <60, unscored last), then by what the posting asks for that the résumé
+ * shows (`contentLead`), the fit total and freshness. The résumé's own title only breaks a tie in that
+ * (`OWN_ROLE_LIFT`): content first, title last (Vivek, 2026-10-14).
  *
- * Pure, no I/O — same isomorphic convention as match/score.ts and
- * title-relevance.ts.
+ * Pure, no I/O — same isomorphic convention as match/score.ts and title-relevance.ts.
  */
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
 import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
+import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 
 /** `rankTier` values: Stretch roles start at 300, roles outside reach (place unknown, abroad, unscored) at 500. */
@@ -19,7 +19,7 @@ const STRETCH_TIER_FLOOR = 300;
 const OUT_OF_REACH_TIER = 500;
 import type { PublicJob } from "@/lib/jobs/types";
 
-/** The ranking lift inside a band for the résumé's own role and for its family (`orderForYouJobsByBand`). */
+/** How the résumé's own role and its family rank against each other and the rest when the fit is exactly equal (`forYouSortKey`'s tie-break). */
 export const OWN_ROLE_LIFT = 6;
 export const FAMILY_ROLE_LIFT = 3;
 
@@ -76,11 +76,20 @@ export type DeckLeftOut = ForYouLeftOut | "old";
  * (nothing ties it to the résumé), or any reason `forYouLeftOut` gives. The ONE place the deck's
  * keep-or-drop is decided, so `orderForYouJobsByBand` and `summarizeDeckLeftOut` cannot disagree.
  */
-export function deckLeftOut(job: PublicJob, score: MatchScore | null | undefined, nowMs: number): DeckLeftOut | null {
-    if (packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null) === 2) return "old";
+export function deckLeftOut(
+    job: PublicJob,
+    score: MatchScore | null | undefined,
+    nowMs: number,
+    /** Today and the daily picks: a pick needs evidence of where it is, so a role that names no country, and a candidate whose country can't be read, are out (his rule: "Country unclear" is out of picks). */
+    options: { strictPlace?: boolean } = {},
+): DeckLeftOut | null {
+    if (packAgeTier(postedTsOf(job), nowMs, job.first_seen_at ?? null) === 2) return "old";
     if (score == null) return "other-role";
-    return forYouLeftOut(score, { keepWhenCandidatePlaceUnread: true, keepUnplaced: true });
+    return forYouLeftOut(score, options.strictPlace ? {} : { keepWhenCandidatePlaceUnread: true, keepUnplaced: true });
 }
+
+/** When a role was posted: the index's own `posted_ts`, else read from its dates (`derivePostedTs`). */
+export const postedTsOf = (job: PublicJob): number | null => (typeof job.posted_ts === "number" ? job.posted_ts : derivePostedTs(job));
 
 export interface DeckLeftOutSummary {
     /** Roles the search returned and the deck weighed. */
@@ -142,12 +151,7 @@ export function orderForYouJobsByBand(
     if (!getScore) return [...jobs];
 
     const bands = BAND_SEQUENCE.length + 1;
-    const buckets = new Map<number, PublicJob[]>();
-    // Age, then whether the role is one they can take where they are, then the fit band, then the
-    // fit itself (the whole résumé against the whole posting, plus freshness). The role's title
-    // family is inside the fit (relevance, its off-target cap), not a key of its own: "own title
-    // first" filled a PM-and-TAM résumé's deck with one family ahead of better fits (2026-10-13).
-    // Without a clock (no ranking asked for) the old tier × band × title order holds.
+    // The order is `forYouSortKey`'s. Without a clock (no ranking asked for) the old tier × band × title order holds.
     if (nowMs === undefined) {
         const legacy = new Map<number, PublicJob[]>();
         for (const job of jobs) {
@@ -161,26 +165,70 @@ export function orderForYouJobsByBand(
         for (const key of [...legacy.keys()].sort((a, b) => a - b)) out.push(...partitionByTargetTitle(legacy.get(key)!, query));
         return out;
     }
-    const keyed: { job: PublicJob; key: number; value: number; raw: number; index: number }[] = [];
+    const keyed: { job: PublicJob; sort: ForYouSortKey; index: number }[] = [];
     jobs.forEach((job, index) => {
         const score = getScore(job);
         // A recommendation holds only roles this résumé could take (`deckLeftOut`): not a tail of Stretch roles, not a label.
         if (score == null || !holds(deckLeftOut(job, score, nowMs))) return;
-        const age = packAgeTier(job.posted_ts ?? null, nowMs, job.first_seen_at ?? null);
-        const tier = rankTier(score);
-        const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
-        const band = rankBand(score, job.posted_ts ?? null, nowMs);
-        // A capped total ties roles that fit differently; the components' own scores break the tie.
-        const raw = score.components.reduce((sum, c) => sum + c.score, 0);
-        // Inside a band the résumé's primary line of work still leads (2026-10-13, senior-aware fit: a
-        // TAM résumé read senior must not see Senior PM roles ahead of its TAM ones): a small lift for
-        // its own role and its family, not a key of its own, so a much better fit elsewhere still wins.
-        // The content credit (`contentLead`) is what the posting itself asks that the résumé covers: it
-        // leads, the title lift only breaks what it leaves tied (Vivek, 2026-10-14: content first, title last).
-        const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
-        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs) + lift + contentLead(score), raw, index });
+        keyed.push({ job, sort: forYouSortKey(score, postedTsOf(job), nowMs, job.first_seen_at), index });
     });
-    keyed.sort((a, b) => a.key - b.key || b.value - a.value || b.raw - a.raw || a.index - b.index);
-    const out = keyed.map((k) => k.job);
-    return out;
+    keyed.sort((a, b) => compareForYouKeys(a.sort, b.sort) || a.index - b.index);
+    return keyed.map((k) => k.job);
+}
+
+/** What a role is ordered by (`compareForYouKeys`). */
+export interface ForYouSortKey {
+    /** Age, then reach, then fit band: lower leads. */
+    key: number;
+    /** Inside that: the fit total with freshness and the content credit, rounded: higher leads. The title is not in it. */
+    value: number;
+    /** The résumé's own role (`OWN_ROLE_LIFT`) or family (`FAMILY_ROLE_LIFT`) lift: it only breaks a tie in `value`. */
+    lift: number;
+    /** The components' own scores, which break a tie the capped total leaves. */
+    raw: number;
+}
+
+/**
+ * The key every recommending list orders by: age, then whether the person can take the role where they are,
+ * then the fit band, then the fit itself (the whole résumé against the whole posting, what the posting asks
+ * for that the résumé shows (`contentLead`), plus freshness). The role's title is last: the résumé's own title
+ * (or its family) lifts a role only among roles whose rounded fit is exactly equal, so it never moves a
+ * role past a better-fitting one (Vivek, 2026-10-14: "title matched LAST, only as a tie-breaker, never a
+ * filter"). The title family is also inside the fit's caps (`scoreJobAgainstResume`), not a key of its own:
+ * "own title first" filled a PM-and-TAM résumé's deck with one family ahead of better fits (2026-10-13).
+ */
+export function forYouSortKey(score: MatchScore, postedTs: number | null, nowMs: number, firstSeenAt?: string | null): ForYouSortKey {
+    const bands = BAND_SEQUENCE.length + 1;
+    const age = packAgeTier(postedTs, nowMs, firstSeenAt ?? null);
+    const tier = rankTier(score);
+    const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
+    const band = rankBand(score, postedTs, nowMs);
+    // A capped total ties roles that fit differently; the components' own scores break the tie.
+    const raw = score.components.reduce((sum, c) => sum + c.score, 0);
+    const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
+    return { key: (age * 3 + group) * bands + band, value: Math.round(rankingValue(score, postedTs, nowMs) + contentLead(score)), lift, raw };
+}
+
+export const compareForYouKeys = (a: ForYouSortKey, b: ForYouSortKey): number => a.key - b.key || b.value - a.value || b.lift - a.lift || b.raw - a.raw;
+
+/**
+ * A fit-sorted list (the Search board's Rank by fit) in the same order as the deck and Today
+ * (`forYouSortKey`), nothing left out: roles this device hadn't listed before come first inside a fit band
+ * (`seen`), roles with no score last in their incoming order. Stable.
+ */
+export function sortByFit<T>(
+    items: readonly T[],
+    pick: (item: T) => { job: PublicJob; score: MatchScore | null | undefined },
+    opts: { nowMs: number; seen?: (id: string) => boolean },
+): T[] {
+    const keyed = items.map((item, index) => {
+        const { job, score } = pick(item);
+        return { item, index, job, sort: score ? forYouSortKey(score, postedTsOf(job), opts.nowMs, job.first_seen_at) : null };
+    });
+    const listed = (k: { job: PublicJob }) => Number(opts.seen?.(k.job.id) ?? false);
+    keyed.sort((a, b) => {
+        if (!a.sort || !b.sort) return a.sort ? -1 : b.sort ? 1 : a.index - b.index;
+        return a.sort.key - b.sort.key || listed(a) - listed(b) || compareForYouKeys(a.sort, b.sort) || a.index - b.index;
+    });
+    return keyed.map((k) => k.item);
 }

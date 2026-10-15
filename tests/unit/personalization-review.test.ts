@@ -18,7 +18,8 @@ import { applyRelevanceQualityReranking } from '../../src/lib/jobs/meilisearch';
 import { titleRelevanceScore } from '../../src/lib/jobs/presentation';
 import { applyQueryUnderstanding } from '../../src/lib/jobs/query-understanding';
 import { buildMatchQuery, splitPreferredRoles, stripWorkMode } from '../../src/lib/jobs/resume-match';
-import { compareFitUnseenFirst, freshnessPoints, rankBand, rankTier, roleAffinity, scoreJobAgainstResume, type MatchScore } from '../../src/lib/match/score';
+import { freshnessPoints, rankBand, rankTier, roleAffinity, scoreJobAgainstResume, type MatchScore } from '../../src/lib/match/score';
+import { compareForYouKeys, forYouSortKey } from '../../src/lib/jobs/for-you/band-order';
 import { trackedIndex, trackedPursuitFor } from '../../src/lib/pursuits/applied';
 import type { Pursuit } from '../../src/lib/pursuits/types';
 import { shouldAdoptGuestResume } from '../../src/lib/resume/adopt-guest-resume';
@@ -155,6 +156,10 @@ describe('newer roles lead among equal fits', () => {
     const score = (total: number, extra: Partial<MatchScore> = {}) =>
         ({ total, role: 'own', familyRank: 0, components: [{ key: 'location', score: 1 }], ...extra }) as unknown as MatchScore;
 
+    /** The order every recommending list uses (`forYouSortKey`): negative when `a` leads. */
+    const lead = (a: MatchScore, aPosted: number, b: MatchScore, bPosted: number) =>
+        compareForYouKeys(forYouSortKey(a, aPosted, NOW), forYouSortKey(b, bPosted, NOW));
+
     it('freshness halves every week', () => {
         assert.equal(freshnessPoints(NOW, NOW), 12);
         assert.ok(Math.abs(freshnessPoints(NOW - 7 * DAY, NOW) - 6) < 1e-9);
@@ -162,13 +167,13 @@ describe('newer roles lead among equal fits', () => {
     });
 
     it('yesterday\'s 90 ranks above a 25-day-old 98, a 95 still above a same-day 82', () => {
-        assert.ok(compareFitUnseenFirst(score(90), score(98), false, false, NOW - DAY, NOW - 25 * DAY, NOW) < 0);
-        assert.ok(compareFitUnseenFirst(score(95), score(82), false, false, NOW - 3 * DAY, NOW, NOW) < 0);
+        assert.ok(lead(score(90), NOW - DAY, score(98), NOW - 25 * DAY) < 0);
+        assert.ok(lead(score(95), NOW - 3 * DAY, score(82), NOW) < 0);
     });
 
     it('a Strong role leads a Good one while it is under two weeks old; past that it ranks with the Good ones', () => {
-        assert.ok(compareFitUnseenFirst(score(81), score(79), false, false, NOW - 13 * DAY, NOW, NOW) < 0);
-        assert.ok(compareFitUnseenFirst(score(81), score(79), false, false, NOW - 29 * DAY, NOW, NOW) > 0);
+        assert.ok(lead(score(81), NOW - 13 * DAY, score(79), NOW) < 0);
+        assert.ok(lead(score(81), NOW - 29 * DAY, score(79), NOW) > 0);
         assert.equal(rankBand(score(81), NOW - 29 * DAY, NOW), rankBand(score(79), NOW, NOW));
         assert.equal(rankBand(score(81)), 0, 'without a posting date, the fit band alone');
     });

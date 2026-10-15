@@ -12,11 +12,11 @@ import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
-import { packAgeTier } from "@/lib/jobs/for-you/band-order";
+import { compareForYouKeys, deckLeftOut, forYouSortKey, postedTsOf } from "@/lib/jobs/for-you/band-order";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
-import { compareFitUnseenFirst, type MatchComponent, type MatchScore } from "@/lib/match/score";
+import type { MatchComponent, MatchScore } from "@/lib/match/score";
 import { startOfLocalDay } from "@/lib/pursuits/daily-apply-plan";
 import { isStalePursuit } from "@/lib/pursuits/tracker-display";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -111,12 +111,17 @@ export function sameRoleKey(job: PublicJob): string {
 
 /**
  * Today's picks, best first: the roles `todayLeftOut` keeps that weren't
- * skipped here and aren't in the tracker, ordered as every ranked list is
- * (`compareFitUnseenFirst`: the candidate's own role first, then the fit
- * band, then the ones this device hadn't listed before this sitting
- * (`seenBefore`), then the higher score), newest first on a tie, each
- * opening once. The visitor's ratings
+ * skipped here and aren't in the tracker, in the one order every recommending
+ * list uses (`forYouSortKey`: age, reach, fit band, then what the posting asks
+ * for that the résumé shows, the fit and freshness; the résumé's own title only
+ * lifts a little). Inside a fit band the roles this device hadn't listed before
+ * this sitting come first (`seenBefore`), so a pack opened again leads with what
+ * is new. Newest first on a tie, each opening once. The visitor's ratings
  * reorder these afterwards (`tuneDeck`).
+ *
+ * The left-out rule is the deck's (`deckLeftOut`) with one difference that is
+ * the product's: a pick needs evidence of where the role is (`strictPlace`), so
+ * a role that names no country stays in the deck, last, and out of the picks.
  */
 export function pickToday(
     roles: TodayRole[],
@@ -138,15 +143,18 @@ export function pickToday(
                 !opts.skipped.has(r.job.id) &&
                 !opts.tracked.has(r.job.id) &&
                 !(opts.applied && trackedPursuitFor(r.job, opts.applied)) &&
-                todayLeftOut(r.score) == null &&
-                // The packs' own age rule: a role first seen over two months ago is out, whatever date it now claims.
-                packAgeTier(derivePostedTs(r.job), nowMs, r.job.first_seen_at ?? null) !== 2,
+                // The deck's rule, strict on place; its age rule too: a role first seen over two months ago is out, whatever date it now claims.
+                deckLeftOut(r.job, r.score, nowMs, { strictPlace: true }) == null,
         )
+        .map((role) => ({ role, sort: forYouSortKey(role.score, postedTsOf(role.job), nowMs, role.job.first_seen_at) }))
         .sort(
             (a, b) =>
-                compareFitUnseenFirst(a.score, b.score, listed(a), listed(b), derivePostedTs(a.job), derivePostedTs(b.job), nowMs) ||
-                (derivePostedTs(b.job) ?? 0) - (derivePostedTs(a.job) ?? 0),
+                a.sort.key - b.sort.key ||
+                Number(listed(a.role)) - Number(listed(b.role)) ||
+                compareForYouKeys(a.sort, b.sort) ||
+                (postedTsOf(b.role.job) ?? 0) - (postedTsOf(a.role.job) ?? 0),
         )
+        .map(({ role }) => role)
         .filter((r) => {
             const key = sameRoleKey(r.job);
             if (seen.has(key)) return false;
@@ -373,7 +381,7 @@ const SEEN_KEY = "intervu.today.seen";
 const SKIPPED_CAP = 300;
 const SEEN_CAP = 600;
 
-/** The roles this device has shown in Today or at the top of a fit-ranked list (`isNewPick`, `compareFitUnseenFirst`), or `null` when it has kept no list yet. */
+/** The roles this device has shown in Today or at the top of a fit-ranked list (`isNewPick`, `pickToday`, `sortByFit`), or `null` when it has kept no list yet. */
 export function readTodaySeen(): Set<string> | null {
     if (typeof window === "undefined") return null;
     try {

@@ -118,6 +118,17 @@ describe("composeContentFirstPool", () => {
         assert.deepEqual(ids(first.filter((j) => j.id.startsWith("t"))), ids(titles.slice(0, window - CONTENT_POOL_QUOTA - UNPLACED_REMOTE_POOL)));
     });
 
+    it("gives up the same share of a smaller page (the hub's first probe steps, Today), not the same number of places", () => {
+        for (const small of [24, 60, 80]) {
+            const pool = composeContentFirstPool({ content: many("c", 60), titleLanes: [many("t", 400)], unplaced: many("u", 60), window: small });
+            const first = pool.slice(0, small);
+            const share = small / window;
+            assert.equal(first.filter((j) => j.id.startsWith("c")).length, Math.ceil(CONTENT_POOL_QUOTA * share), `content places in ${small}`);
+            assert.equal(first.filter((j) => j.id.startsWith("u")).length, Math.ceil(UNPLACED_REMOTE_POOL * share), `no-country places in ${small}`);
+            assert.ok(first.filter((j) => j.id.startsWith("t")).length > small / 2, `the title lanes keep most of ${small}`);
+        }
+    });
+
     it("gives the places back to the title lanes when there are no content or no-country rows", () => {
         const pool = composeContentFirstPool({ content: [], titleLanes: [many("t", 200)], unplaced: [], window });
         assert.deepEqual(ids(pool.slice(0, window)), ids(many("t", window)));

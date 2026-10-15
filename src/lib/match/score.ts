@@ -59,7 +59,7 @@ import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
-import { requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
+import { requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -174,9 +174,10 @@ export interface MatchScore {
      */
     gaps?: RequirementGap[];
     /**
-     * The title is not one the résumé names (`role` adjacent or unverified) but the posting asks for what
-     * the résumé shows: most of it covered, with at least `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond
-     * the title's words. The title then does not hold the role under Strong (`scoreJobAgainstResume`).
+     * The title is not one the résumé names (`role` adjacent, unverified, or even another line of work's)
+     * but the posting asks for what the résumé shows: most of it covered, with at least
+     * `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond the title's words. The title then does not hold
+     * the role under Strong or Good (`scoreJobAgainstResume`).
      */
     contentLed?: true;
 }
@@ -364,15 +365,6 @@ function resumeVocabulary(resume: ResumeData): Set<string> {
  */
 const RELEVANCE_COVERAGE_FLOOR = 0.6;
 
-/**
- * How much the title says vs. what the whole posting says, when its
- * description has been read. Half and half: the title is still the clearest
- * statement of what the job IS, the description is the only statement of
- * what it ASKS (review, 2026-10-13 — see jd-match.ts for why title-only
- * relevance could not tell one "Product Manager" posting from another).
- */
-export const JD_RELEVANCE_SHARE = 0.75;
-
 /** Concept coverage reads a little under word coverage at the same share: kinds of work are broader than words. */
 export const CONCEPT_FIT_SCALE = 0.9;
 
@@ -393,15 +385,38 @@ export const JD_GOOD_MIN_FIT = 0.5;
 export const CONTENT_LED_MIN_FIT = 0.85;
 export const CONTENT_LED_MIN_EVIDENCE = 8;
 
-/** A title the résumé doesn't name whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`). */
+/**
+ * A title the résumé doesn't hold whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`): a
+ * neighbour, a title tied to no known role, or a title of another line of work ("Solutions Engineer" for a
+ * customer success résumé) that asks for the same onboarding, API and reporting work. The title never decides
+ * alone (Vivek, 2026-10-14: "title matched LAST, never a filter"); it caps a role only when the content does not carry it.
+ */
 export function contentLedRole(role: RoleAffinity, jd: MatchComponent["jd"]): boolean {
     return (
-        (role === "adjacent" || role === "unverified") &&
+        (role === "adjacent" || role === "unverified" || role === "off-target") &&
         jd != null &&
         jd.fit >= CONTENT_LED_MIN_FIT &&
         typeof jd.evidence === "number" &&
         jd.evidence >= CONTENT_LED_MIN_EVIDENCE
     );
+}
+
+/**
+ * A title of another line of work ("Software Engineer" for a product résumé) needs more than the bar above to
+ * stop capping a role: the fit total saturates (a quarter of the posting's words on the résumé reads 100), and
+ * an engineering posting shares "REST APIs", "incident response" and "data" with a technical product résumé
+ * while asking for Go and Kubernetes the résumé never shows. So the posting must also give twice the
+ * evidence of its own (`OFF_TARGET_LED_MIN_EVIDENCE`) and the résumé must show most of the skills it
+ * requires (`OFF_TARGET_LED_MIN_SKILLS_SHOWN` of at least `OFF_TARGET_LED_MIN_SKILLS_LISTED` listed).
+ */
+export const OFF_TARGET_LED_MIN_EVIDENCE = 16;
+export const OFF_TARGET_LED_MIN_SKILLS_LISTED = 3;
+export const OFF_TARGET_LED_MIN_SKILLS_SHOWN = 0.75;
+
+export function offTargetCarriedByContent(resume: ResumeData, job: PublicJob, jd: MatchComponent["jd"]): boolean {
+    if (jd == null || typeof jd.evidence !== "number" || jd.evidence < OFF_TARGET_LED_MIN_EVIDENCE) return false;
+    const { listed, shown } = requiredSkillsShown(resume, job);
+    return listed >= OFF_TARGET_LED_MIN_SKILLS_LISTED && shown / listed >= OFF_TARGET_LED_MIN_SKILLS_SHOWN;
 }
 
 const wordStem = (word: string) => word.replace(/(?:es|s)$/, "");
@@ -418,6 +433,14 @@ export function specificTerms(matched: readonly string[], job: Pick<PublicJob, "
 
 export const specificEvidence = (matched: readonly string[], job: Pick<PublicJob, "title">): number => specificTerms(matched, job).length;
 
+/**
+ * What the title says vs. what the whole posting says: when the posting's text (or its meaning) has been
+ * read, relevance IS how much of what it asks the résumé shows (jd-match.ts). The words of its title and
+ * tags were a quarter of it (review, 2026-10-13), so a posting whose title the résumé never names scored
+ * lower for the same content; Vivek, 2026-10-14: "FIRST MATCH the experience and skills content to the job
+ * profiles and then match the title if necessary AT THE END". The title's words stand in only for a row
+ * with no text to read (a bare list row), and the role's title still orders and caps (`roleAffinity`).
+ */
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const jobVocab = jobVocabulary(job);
     const resumeVocab = resumeVocabulary(resume);
@@ -438,7 +461,7 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
             key: "relevance",
             label: "Relevance to this role",
             detail: `${titleDetail} · ${Math.round(semantic * 100)}% match in meaning with your résumé`,
-            score: (1 - JD_RELEVANCE_SHARE) * titleScore + JD_RELEVANCE_SHARE * semantic,
+            score: semantic,
             terms: { matched: matched.length, of: jobVocab.size },
             jd: { fit: semantic, matched: [], missing: [], semantic },
         };
@@ -457,7 +480,7 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
         key: "relevance",
         label: "Relevance to this role",
         detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}${semantic != null ? `, reading its meaning as well as its words` : ""}`,
-        score: (1 - JD_RELEVANCE_SHARE) * titleScore + JD_RELEVANCE_SHARE * fit,
+        score: fit,
         terms: { matched: matched.length, of: jobVocab.size },
         jd: {
             fit,
@@ -1039,35 +1062,6 @@ export function compareFit(
 const BAND_RANK: Record<MatchBand, number> = { strong: 0, good: 1, stretch: 2 };
 
 /**
- * `compareFit` with the roles this device has already listed after the ones
- * it hasn't, inside the same role tier and fit band: a new Good role comes
- * before a Good one shown on earlier visits, never before a Strong one. In
- * score order alone the same top roles led every visit until they aged out
- * of the window ("I keep seeing the same result", 2026-10-06). With nothing
- * seen it is `compareFit` inside each band. Pass the postings' `posted_ts`
- * so this week's roles lead inside a band (`postingWeek`) and a newer role
- * leads among roles that fit about as well (`rankingValue`); without them the
- * order is by total alone, as before.
- */
-export function compareFitUnseenFirst(
-    a: MatchScore | null | undefined,
-    b: MatchScore | null | undefined,
-    aSeen: boolean,
-    bSeen: boolean,
-    aPostedTs?: number | null,
-    bPostedTs?: number | null,
-    nowMs: number = Date.now(),
-): number {
-    return (
-        rankTier(a) - rankTier(b) ||
-        rankBand(a, aPostedTs, nowMs) - rankBand(b, bPostedTs, nowMs) ||
-        Number(aSeen) - Number(bSeen) ||
-        (aPostedTs !== undefined || bPostedTs !== undefined ? postingWeek(aPostedTs, nowMs) - postingWeek(bPostedTs, nowMs) : 0) ||
-        rankingValue(b, bPostedTs, nowMs) - rankingValue(a, aPostedTs, nowMs)
-    );
-}
-
-/**
  * A posting for a different kind of role than the résumé targets is at most a
  * Stretch, however many words it shares with the résumé: "API" and "incident"
  * in a PM's bullets do not make the engineering job theirs. One whose title
@@ -1118,11 +1112,13 @@ export function scoreJobAgainstResume(
     const gaps = requirementGaps(resume, job);
     const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
     // An adjacent or unfamiliar title whose posting the résumé covers in its own right is not held under Strong by the title.
-    const contentLed = contentLedRole(role, overlap.jd);
-    const relevance = offTarget
-        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
-        : contentLed
-          ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting asks for what your résumé shows${gapNote}` }
+    const contentLed = contentLedRole(role, overlap.jd) && (role !== "off-target" || offTargetCarriedByContent(resume, job, overlap.jd));
+    // A title of another line of work caps a role only when the posting's content does not carry it (`contentLedRole`).
+    const heldOffTarget = offTarget && !contentLed;
+    const relevance = contentLed
+        ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting asks for what your résumé shows${gapNote}` }
+        : offTarget
+          ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
           : role === "adjacent"
             ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
             : gapNote
@@ -1148,7 +1144,7 @@ export function scoreJobAgainstResume(
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
     // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
-    const capped = offTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
+    const capped = heldOffTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || (!contentLed && (role === "unverified" || role === "adjacent"))
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
@@ -1161,7 +1157,7 @@ export function scoreJobAgainstResume(
         familyRank: rank,
         ...(newToManaging ? { newToManaging: true as const } : {}),
         ...(gaps.length > 0 ? { gaps } : {}),
-        ...(contentLed && !offTarget && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
+        ...(contentLed && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
     };
     if (!abroad || !location.place) return score;
     return {

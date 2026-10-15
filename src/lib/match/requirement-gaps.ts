@@ -67,6 +67,12 @@ const CLEARANCE_EVIDENCE = ["clearance", "reliability status", "secret clearance
 const list = (items: string[]): string => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0]!);
 const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+/** How many of the skills a posting requires (its "must" list) the résumé shows: `{ listed: 0, shown: 0 }` when it lists none. */
+export function requiredSkillsShown(resume: ResumeData, job: Pick<PublicJob, "jd_terms" | "description" | "company" | "location" | "must_have_skills" | "preferred_skills" | "skills_section_found">): { listed: number; shown: number } {
+    const must = jdTermsOf(job)?.asks?.must ?? [];
+    return { listed: must.length, shown: must.filter((skill) => resumeShowsTerm(resume, skill, { loose: true })).length };
+}
+
 export function requirementGaps(resume: ResumeData, job: Pick<PublicJob, "min_years_experience" | "jd_terms" | "description" | "company" | "location" | "must_have_skills" | "preferred_skills" | "skills_section_found">): RequirementGap[] {
     const gaps: RequirementGap[] = [];
 

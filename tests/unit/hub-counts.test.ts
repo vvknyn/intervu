@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
     countFitBands,
+    hubListedHits,
     formatAllPackHubLabels,
     formatBrowseHubCorpusLine,
     formatHubCorpusLine,
@@ -461,6 +462,45 @@ describe("resumeHubPackCounts", () => {
     it("is a floor when the list total itself is capped", () => {
         const counts = resumeHubPackCounts({ listTotal: { kind: "floor", value: 3 }, listJobs: list });
         assert.deepEqual(counts.salary, { kind: "floor", value: 2 });
+    });
+
+    it("counts what a deck lists of the rows it read: exact once every row was read, and 'all' is the listed count", () => {
+        // 5 rows read, the deck lists the 3 above (two were left out): exact, not "3+" of 5.
+        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 5 }, listJobs: list, rowsRead: 5 });
+        assert.deepEqual(counts.all, { kind: "exact", value: 3 });
+        assert.deepEqual(counts.remote, { kind: "exact", value: 2 });
+        // Part of the search read: still a floor, and "all" is the search's total.
+        const partial = resumeHubPackCounts({ listTotal: { kind: "exact", value: 400 }, listJobs: list, rowsRead: 150 });
+        assert.deepEqual(partial.all, { kind: "exact", value: 400 });
+        assert.deepEqual(partial.remote, { kind: "floor", value: 2 });
+    });
+});
+
+describe("hubListedHits: a tile counts the roles the deck lists", () => {
+    const NOW = Date.now();
+    const posted = (daysAgo: number) => ({ posted_ts: NOW - daysAgo * 86_400_000, posted_at: new Date(NOW - daysAgo * 86_400_000).toISOString() });
+    const strong = (id: string, extra: Partial<PublicJob> = {}) => ({
+        job: job({ id, title: "Product Manager", ...posted(2), ...extra }),
+        score: { total: 88, components: [], role: "own" } as MatchScore,
+    });
+
+    it("drops a role the deck leaves out (too old, another kind of job, Stretch) and one with no apply link (the deck drops it too)", () => {
+        const hits = [
+            strong("listed"),
+            strong("old", posted(70)),
+            { job: job({ id: "other", title: "Registered Nurse", ...posted(2) }), score: { total: 70, components: [], role: "off-target" } as MatchScore },
+            { job: job({ id: "stretch", title: "Product Manager", ...posted(2) }), score: { total: 45, components: [], role: "own" } as MatchScore },
+            strong("dead", { apply_url: "" }),
+        ];
+        const listed = hubListedHits(hits, NOW).map((h) => h.job.id);
+        assert.ok(listed.includes("listed"));
+        for (const gone of ["old", "other", "stretch", "dead"]) assert.equal(listed.includes(gone), false, gone);
+    });
+
+    it("the band counts a tile shows come from those roles only", () => {
+        const hits = [strong("a"), strong("b"), strong("old", posted(70))];
+        const sources = resolveAllPackHubCounts({ loading: false, probing: false, poolTotal: 3, scored: hits, nowMs: NOW });
+        assert.deepEqual(sources.all, { kind: "bands", strong: 2, good: 0, total: 3, pool: 3 });
     });
 });
 
