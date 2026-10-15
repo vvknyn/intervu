@@ -11,6 +11,9 @@ import type { ResumeData } from "@/types/resume";
 const TITLE_SENIOR = /\b(?:senior(?!s|\s+(?:care|living|home|homes|centre|center|services|citizens?)\b)|sr|lead(?!\s+gen)|principal|director|head of|vice president|vp|chief)\b/i;
 const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice|co-?op (?:student|placement|term|position))\b/i;
 
+/** The entry words that mean the role itself is entry level. "Graduate" can name a degree ("Graduate Studies Coordinator"), so it is not one. */
+const TITLE_ENTRY_EXPLICIT = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|trainee|apprentice)\b/i;
+
 /**
  * A title that opens with "Manager" and then names what is managed: "Manager,
  * Customer Success", "Manager of Nursing", "Manager - Payroll". That job runs
@@ -25,6 +28,8 @@ export interface TitleLevel {
     level: Seniority;
     /** The title runs a team ("Manager, Customer Success"), as opposed to carrying a rank word. */
     runsTeam?: true;
+    /** An entry word that is not a rank word elsewhere in the title: "Junior", "Intern", "Entry Level", "Trainee". */
+    explicit?: true;
 }
 
 /** The level a title names by its rank word or by running a team, or null when it names none. */
@@ -32,7 +37,7 @@ export function titleLevel(title: string | null | undefined): TitleLevel | null 
     const text = title ?? "";
     if (TITLE_SENIOR.test(text)) return { level: "senior" };
     if (TITLE_RUNS_TEAM.test(text)) return { level: "senior", runsTeam: true };
-    if (TITLE_ENTRY.test(text)) return { level: "entry" };
+    if (TITLE_ENTRY.test(text)) return { level: "entry", ...(TITLE_ENTRY_EXPLICIT.test(text) ? { explicit: true as const } : {}) };
     return null;
 }
 

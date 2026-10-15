@@ -59,6 +59,7 @@ import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
+import { requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -159,6 +160,12 @@ export interface MatchScore {
      * its owner managing people (`resumeManagedPeople`). Such a role is a Stretch whatever their level.
      */
     newToManaging?: true;
+    /**
+     * What the posting asks that the résumé does not show: more years than it has, a language, a clearance,
+     * a certification, managing people, selling, or most of the skills it requires (`requirementGaps`).
+     * Such a role is a Stretch whatever its title and words share with the résumé.
+     */
+    gaps?: RequirementGap[];
 }
 
 /**
@@ -589,6 +596,8 @@ export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title" |
     const years = yearsAsked(job.min_years_experience);
     const byYears = years == null ? null : seniorityFromYears(years);
     if (byYears) reads.push({ level: byYears, from: "years", years: years! });
+    // An entry word in the title ("Junior", "Intern", "Entry Level") is the employer saying so outright, which a listing that read mid does not outweigh.
+    if (titled?.level === "entry" && titled.explicit) return { level: "entry", from: "title" };
     const top = reads.reduce<JobLevelRead | null>(
         (best, read) => (!best || EXPERIENCE_LEVEL_ORDER.indexOf(read.level) > EXPERIENCE_LEVEL_ORDER.indexOf(best.level) ? read : best),
         null,
@@ -863,6 +872,11 @@ export function placeUnknown(score: MatchScore): boolean {
     return score.components.some((c) => c.key === "location" && c.unknown === true);
 }
 
+/** The place is unknown because the CANDIDATE's country can't be read (no location on the résumé), not because the role is unplaced. */
+export function candidatePlaceUnread(score: MatchScore): boolean {
+    return score.components.some((c) => c.key === "location" && (c.reason === "no_resume_place" || c.reason === "resume_place_unmatched"));
+}
+
 /**
  * Sort key for a ranked list, before the band and the score: the résumé's
  * leading family first (`familyRank`), and inside a family the candidate's own
@@ -1045,11 +1059,16 @@ export function scoreJobAgainstResume(
     const role = roleAffinity(resume, job, preferred);
     const yourRole = yourRoleFor(resume, job, preferred);
     const offTarget = role === "off-target";
+    // What the posting asks that the résumé doesn't show (years, a language, a clearance, a certification, managing, selling).
+    const gaps = requirementGaps(resume, job);
+    const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
     const relevance = offTarget
-        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` }
+        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
         : role === "adjacent"
-          ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job` }
-          : overlap;
+          ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
+          : gapNote
+            ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
+            : overlap;
 
     // A people manager's role for a résumé that shows no one managed: said beside the level, where the receipt names what it asks.
     const newToManaging = titleManagesPeople(job.title) && !resumeTargets(resume).managed;
@@ -1069,12 +1088,21 @@ export function scoreJobAgainstResume(
     const aboveLevel = components[1]!.reason === "level_below_ask";
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
-    const capped = offTarget || aboveLevel || newToManaging || thinJd
+    // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
+    const capped = offTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
-    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}) };
+    const score: MatchScore = {
+        total: capped,
+        components,
+        role,
+        yourRole,
+        familyRank: rank,
+        ...(newToManaging ? { newToManaging: true as const } : {}),
+        ...(gaps.length > 0 ? { gaps } : {}),
+    };
     if (!abroad || !location.place) return score;
     return {
         ...score,

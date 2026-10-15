@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
+import { orderForYouJobsByBand, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -3044,20 +3044,30 @@ export function JobsContent({
         if (pursuitsLoading || deckApplied?.key === searchKey) return;
         setDeckApplied({ key: searchKey, index: appliedIndex });
     }, [searchKey, pursuitsLoading, appliedIndex, deckApplied?.key]);
-    const rankedPacks = useMemo(
+    const deckCandidates = useMemo(
         () =>
             deckResultStale
                 ? []
-                : orderForYouJobsByBand(
-                      renderedClusters
-                          .map((c) => c.primary)
-                          .filter(hasLiveApplyUrl)
-                          .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
-                      matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                      result?.effectiveQ,
-                      nowMs,
-                  ),
-        [deckResultStale, renderedClusters, result?.effectiveQ, matchScores, deckApplied, nowMs],
+                : renderedClusters
+                      .map((c) => c.primary)
+                      .filter(hasLiveApplyUrl)
+                      .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
+        [deckResultStale, renderedClusters, deckApplied],
+    );
+    const rankedPacks = useMemo(
+        () =>
+            orderForYouJobsByBand(
+                deckCandidates,
+                matchScores ? (job) => matchScores.get(job.id) ?? null : null,
+                result?.effectiveQ,
+                nowMs,
+            ),
+        [deckCandidates, result?.effectiveQ, matchScores, nowMs],
+    );
+    // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
+    const deckLeftOutSummary = useMemo(
+        () => (matchScores ? summarizeDeckLeftOut(deckCandidates, (job) => matchScores.get(job.id) ?? null, nowMs) : null),
+        [deckCandidates, matchScores, nowMs],
     );
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
@@ -6900,6 +6910,7 @@ export function JobsContent({
                                 hasMore={hasMore}
                                 signupGate={fitGateEl}
                                 resultTotal={deckResultStale ? null : (result?.total ?? null)}
+                                leftOut={deckResultStale ? null : deckLeftOutSummary}
                                 unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
                                 tileId={openHubTileId}
                                 onBackToPacks={forYouPackDeckOpen ? returnToJobPacksHub : undefined}

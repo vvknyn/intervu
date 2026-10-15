@@ -1373,7 +1373,11 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       const fitPhrases = resolveFitPhrases(searchParams)!;
       const fetched = await fetchFitPhraseLaneHits(h, searchParams, companyScoped);
       const { facetDistribution } = fetched;
-      const lanes = p.omitPastSenior ? fetched.lanes.map((lane) => lane.filter(isWithinSenior)) : fetched.lanes;
+      // A lane whose own phrase names a role past Senior ("Staff Product Manager") was asked for by
+      // that phrase, so it keeps its rows: only the résumé's other phrases drop them.
+      const lanes = p.omitPastSenior
+        ? fetched.lanes.map((lane, i) => (titlePastSenior(fitPhrases[i] ?? "") ? lane : lane.filter(isWithinSenior)))
+        : fetched.lanes;
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
       for (const hit of lanes.flat()) {

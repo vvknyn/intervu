@@ -293,4 +293,37 @@ describe("fit-phrase lanes share each page", () => {
         mock.reset();
         assert.equal(all.hits.length, rows.length, "without the flag the search is unchanged");
     });
+
+    it("a typed search still finds a Staff role: a lane whose own phrase asks for one keeps its rows, and a single typed phrase is never trimmed", async () => {
+        const rows = [
+            job({ id: "pm-staff", title: "Staff Product Manager", experience_level: "lead" }),
+            job({ id: "pm-director", title: "Director of Product", experience_level: "senior" }),
+            job({ id: "pm-plain", title: "Product Manager", experience_level: "mid" }),
+        ];
+        const respond = () =>
+            mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+                if (String(input).endsWith("/multi-search")) return jsonResponse(200, { hits: rows, estimatedTotalHits: rows.length });
+                if (String(input).includes("/indexes/jobs/search") && init?.method === "POST") {
+                    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+                    const hits = /staff/i.test(String(body.q)) ? rows.filter((r) => /staff/i.test(r.title)) : rows;
+                    return jsonResponse(200, { hits, totalHits: hits.length });
+                }
+                return jsonResponse(200, { hits: [], totalHits: 0 });
+            });
+
+        const two = '"Staff Product Manager" OR "Product Manager"';
+        await primeNonCompanyIntent(two);
+        respond();
+        const typedTwo = await searchMeili({ q: two, sort: "relevance", fromResume: true, omitPastSenior: true, limit: 50, offset: 0 });
+        mock.reset();
+        assert.ok(typedTwo.hits.some((h) => h.id === "pm-staff"), "the Staff phrase the person typed still returns Staff rows");
+        assert.ok(!typedTwo.hits.some((h) => h.id === "pm-director"), "the résumé's other phrase still leaves past-Senior rows out");
+
+        const one = "Staff Product Manager";
+        await primeNonCompanyIntent(one);
+        respond();
+        const typedOne = await searchMeili({ q: one, sort: "relevance", fromResume: true, omitPastSenior: true, limit: 50, offset: 0 });
+        mock.reset();
+        assert.ok(typedOne.hits.some((h) => h.id === "pm-staff"), "a single typed phrase is not a fit-phrase lane, so nothing is trimmed");
+    });
 });

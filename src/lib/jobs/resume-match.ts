@@ -91,6 +91,8 @@ export interface SeniorityBasis {
      * also fits the level below, the one their years in the line held now read.
      */
     led?: true;
+    /** The years in the line of work held now, when `years` is the whole career (`led`): what a posting's "N+ years" is read against. */
+    lineYears?: number;
 }
 
 export function resumeSeniorityBasis(resume: ResumeData | null | undefined, now: Date = new Date()): SeniorityBasis | null {
@@ -130,7 +132,7 @@ function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): 
     // all Senior, Staff or Head of Product).
     if (resume && ledLongCareer(resume)) {
         const up = SENIORITY_ORDER[Math.min(SENIORITY_ORDER.indexOf(own) + 1, SENIORITY_ORDER.indexOf(overall))]!;
-        return { level: up, years: careerYears, role: null, led: true };
+        return { level: up, years: careerYears, role: null, led: true, lineYears: years };
     }
     return { level: own, years, role: (inLine[0]?.role ?? "").trim() || null, roles };
 }

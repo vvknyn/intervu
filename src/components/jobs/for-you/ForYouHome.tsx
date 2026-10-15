@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ArrowLeft, BookmarkSimple, CaretLeft, CaretRight, UploadSimple } from "@phosphor-icons/react";
 import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
-import { formatDeckShowingLine } from "@/lib/pursuits/daily-apply-plan";
+import { formatDeckShowingLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
+import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     JOBS_SESSION_FRAME_CLASS,
     JobsSessionLoadingShell,
@@ -120,7 +121,9 @@ export interface ForYouHomeProps {
     hasMore?: boolean;
     /** The page's fit gate, shown where the list stops for a guest (replaces "Show more"). */
     signupGate?: ReactNode;
-    /** Known corpus total for optional "N of ~total · Strong first" near Show more. */
+    /** What the search returned and the deck left out, and why (`summarizeDeckLeftOut`): said at the foot of the deck and in its empty state. */
+    leftOut?: DeckLeftOutSummary | null;
+    /** The search's own total, to tell "no roles there" from "roles, none that fit". */
     resultTotal?: number | null;
     /** Location text the list's search could not filter on (`unmatchedPlaceMentions`).
      *  When it covers every place the pack names, the list is not the pack. */
@@ -196,6 +199,7 @@ export function ForYouHome({
     hasMore = false,
     signupGate = null,
     resultTotal = null,
+    leftOut = null,
     firstRevealEnter = false,
     firstRevealDeckFocus = false,
     onFirstRevealFocusDone,
@@ -493,7 +497,10 @@ export function ForYouHome({
         return () => document.removeEventListener("keydown", onKeyDown);
     }, []);
 
-    const showingLine = formatDeckShowingLine(visiblePacks.length, resultTotal);
+    const showingLine = formatDeckShowingLine(visiblePacks.length);
+    const leftOutLine = formatLeftOutLine(leftOut);
+    // Roles came back and the rule left every one out: say how many and why, not a generic "right now".
+    const noneFit = visiblePacks.length === 0 && leftOut != null && leftOut.listed === 0 && leftOutLine != null;
     // The pack's own count: what applying these filters returns, not the size of the deck on screen.
     // The pack's location is where the candidate can work, so a search that dropped it counts 0.
     const [packTotal, setPackTotal] = useState<number | null>(null);
@@ -796,8 +803,12 @@ export function ForYouHome({
                 <ConceptAEmptyPageSlot placement="page" className="flex-1" data-testid="for-you-empty-wrap">
                     <ConceptAEmptyState
                         testId="for-you-empty"
-                        title="No ranked roles to show right now."
-                        description="Try Search to browse the full list—we'll keep your place here."
+                        title={noneFit ? "None of the roles we found fit your résumé yet." : "No ranked roles to show right now."}
+                        description={
+                            noneFit
+                                ? `${leftOutLine}. Try Search to browse them anyway—we'll keep your place here.`
+                                : "Try Search to browse the full list—we'll keep your place here."
+                        }
                         actions={
                             showSearchCta ? (
                                 <Button
@@ -850,7 +861,7 @@ export function ForYouHome({
                         />
                     </div>
                     {signupGate}
-                    {!signupGate && atEnd && (showingLine || (hasMore && onLoadMore)) ? (
+                    {!signupGate && atEnd && (showingLine || leftOutLine || (hasMore && onLoadMore)) ? (
                         <div
                             className="flex shrink-0 flex-col items-center gap-2 pb-2"
                             data-testid="for-you-show-more-wrap"
@@ -861,6 +872,14 @@ export function ForYouHome({
                                     data-testid="for-you-showing-total"
                                 >
                                     {showingLine}
+                                </p>
+                            ) : null}
+                            {leftOutLine ? (
+                                <p
+                                    className="max-w-prose px-4 text-center text-xs text-muted-foreground"
+                                    data-testid="for-you-left-out"
+                                >
+                                    {leftOutLine}
                                 </p>
                             ) : null}
                             {hasMore && onLoadMore ? (

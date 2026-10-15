@@ -111,12 +111,13 @@ describe('resumeSeniority', () => {
 describe('jobLevel', () => {
     const job = (title: string, experience_level: string | null, min_years_experience?: number) =>
         ({ title, experience_level: experience_level as string, min_years_experience });
-    it('takes the highest of the listed level, the title and the years asked', () => {
+    it('takes the highest of the listed level, the title and the years asked, except that an explicit entry title wins', () => {
         assert.equal(jobLevel(job('Senior Technical Account Manager', 'mid')), 'senior');
         assert.equal(jobLevel(job('Technical Account Manager', 'mid', 8)), 'senior');
         assert.equal(jobLevel(job('Technical Account Manager', 'senior', 3)), 'senior');
         assert.equal(jobLevel(job('Technical Account Manager', 'entry', 4)), 'mid');
-        assert.equal(jobLevel(job('Junior Accountant', 'mid')), 'mid');
+        // An entry word in the title ("Junior", "Intern") is the employer saying so outright; a listing that read mid does not outweigh it.
+        assert.equal(jobLevel(job('Junior Accountant', 'mid')), 'entry');
     });
     it('reads the years asked on the same scale as a candidate\'s years, and ignores implausible ones', () => {
         assert.equal(jobLevel(job('Accountant', null, 2)), 'entry');

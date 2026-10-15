@@ -11,6 +11,12 @@ import type { MatchScore } from '../../src/lib/match/score';
 
 const NOW = Date.parse('2026-10-13T12:00:00Z');
 const DAY = 86_400_000;
+// A fit the list recommends: the candidate's own kind of role, Good (`forYouLeftOut` keeps it).
+const fits = (): MatchScore => ({
+    total: 72,
+    role: 'own',
+    components: [{ key: 'relevance', label: 'Relevance', detail: 'test', score: 0.72 }],
+});
 const job = (id: string, ageDays: number | null) =>
     mkJob(id, { id, title: id, posted_ts: ageDays == null ? null : NOW - ageDays * DAY } as never);
 
@@ -27,7 +33,7 @@ describe('packAgeTier', () => {
 describe('pack order by age', () => {
     it('puts a fresh role above an older one with the same score, and leaves out roles over 60 days', () => {
         const jobs = [job('old-85', 85), job('stale-45', 45), job('fresh-5', 5), job('fresh-20', 20)];
-        const out = orderForYouJobsByBand(jobs, () => null, null, NOW).map((j) => j.id);
+        const out = orderForYouJobsByBand(jobs, fits, null, NOW).map((j) => j.id);
         assert.deepEqual(out, ['fresh-5', 'fresh-20', 'stale-45']);
     });
 
