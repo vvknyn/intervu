@@ -12,7 +12,7 @@ import { decodeText, locationText } from "@/lib/jobs/presentation";
 import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
-import { compareForYouKeys, deckLeftOut, forYouSortKey, postedTsOf } from "@/lib/jobs/for-you/band-order";
+import { compareForYouKeys, deckLeftOut, forYouSortKey, postedTsOf, tuneRank } from "@/lib/jobs/for-you/band-order";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
@@ -222,7 +222,8 @@ export function withPlaceNotes(
  * nudges that reorder a pack's roles (`tuneDeck`, shared through
  * tuning-store.ts), so a thumbs up here and one in a pack tune one list.
  * `held` (rows the visitor has rated or acted past, in order) stay where
- * they are; the rest move.
+ * they are; the rest move, each inside its own fit band and never a title the
+ * résumé does not hold above one it does (`tuneRank`).
  */
 export function tuneToday(
     picks: TodayRole[],
@@ -231,9 +232,12 @@ export function tuneToday(
     nowMs: number,
 ): TodayRole[] {
     const jobs = picks.map((r) => r.job);
-    const tuned = tuneDeck(jobs, nudges, held, nowMs);
-    if (tuned === jobs) return picks;
     const byId = new Map(picks.map((r) => [r.job.id, r]));
+    const tuned = tuneDeck(jobs, nudges, held, nowMs, (job) => {
+        const role = byId.get(job.id);
+        return role ? tuneRank(role.score, job, nowMs) : null;
+    });
+    if (tuned === jobs) return picks;
     return tuned.map((job) => byId.get(job.id)).filter((r): r is TodayRole => r != null);
 }
 

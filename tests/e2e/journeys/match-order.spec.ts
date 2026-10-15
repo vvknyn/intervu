@@ -201,17 +201,17 @@ signedInTest("more or fewer like this on an open role reorders what comes next, 
   await expect(position).toHaveText("Role 1 of 3");
   await expect(tuned).toHaveCount(0);
 
-  // More like this: the role stays open, nothing is hidden, the role most like it (the other
-  // "Technical ... Manager") comes up next, and the deck says what it leans toward.
+  // More like this: the role stays open, nothing is hidden and the deck says what it leans toward. The
+  // customer success role is the résumé's kind of work and stays ahead of the Technical Support Manager,
+  // whose title is nearer the one thumbed up and which the résumé has not held (J-JOBS-139).
   const more = front.getByTestId("role-more-like-this");
   await more.click();
   await expect(more).toHaveAttribute("aria-pressed", "true");
-  await expect(upcoming).toHaveAttribute("data-job-id", SUPPORT_ROLE);
+  await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(tuned).toContainText("Tuned toward Technical Account Manager.");
   await expect(position).toHaveText("Role 1 of 3");
 
   // Fewer like this: the open role goes, like Skip, and the deck leans away from it too.
-  await page.getByTestId("for-you-next").click();
   await page.getByTestId("for-you-next").click();
   await expect(front).toHaveAttribute("data-job-id", CSM_ROLE);
   await front.getByTestId("role-fewer-like-this").click();
@@ -226,7 +226,7 @@ signedInTest("more or fewer like this on an open role reorders what comes next, 
   await expect(front).toHaveAttribute("data-job-id", TAM_ROLE, { timeout: 60_000 });
   await expect(position).toHaveText("Role 1 of 3");
   await expect(front.getByTestId("role-more-like-this")).toHaveAttribute("aria-pressed", "true");
-  await expect(upcoming).toHaveAttribute("data-job-id", SUPPORT_ROLE);
+  await expect(upcoming).toHaveAttribute("data-job-id", CSM_ROLE);
   await expect(tuned).toContainText("away from Customer Success Manager");
 
   // Reset drops every nudge: the ranked order comes back.

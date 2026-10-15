@@ -7,7 +7,7 @@ import {
     findActiveIndexById,
     nextActiveIdAfterSkip,
 } from "@/lib/jobs/for-you/deck-active-job";
-import { reachedIds, summarizeTuning, tuneDeck, type TuningSignal } from "@/lib/jobs/for-you/tuning";
+import { reachedIds, summarizeTuning, tuneDeck, type TuneRank, type TuningSignal } from "@/lib/jobs/for-you/tuning";
 import { clearNudge, recordNudge, resetNudges, useDeckNudges } from "@/lib/jobs/for-you/tuning-store";
 import type { PublicJob } from "@/lib/jobs/types";
 import { useTuningReason } from "@/hooks/use-tuning-reason";
@@ -34,8 +34,14 @@ const NO_IDS: readonly string[] = [];
  * the roles still to come are reordered by them, the ones already reached
  * (`passedIds`) never move. `isOwnRole` says which roles are the candidate's
  * own kind of role, so a thumbs-down on one steers by what else sets it apart.
+ * `tuneRankOf` says where each role sits before any nudge (`tuneRank`, band-order.ts): a nudge keeps a role in its
+ * fit band and never lifts a title the résumé does not hold over one it does.
  */
-export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) => boolean) {
+export function useForYouDeck(
+    packs: PublicJob[],
+    isOwnRole?: (job: PublicJob) => boolean,
+    tuneRankOf?: (job: PublicJob, nowMs: number) => TuneRank | null,
+) {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [skippedIds, setSkippedIds] = useState<Set<string>>(() => new Set());
     const [passedIds, setPassedIds] = useState<readonly string[]>(NO_IDS);
@@ -46,8 +52,8 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
 
     const unskipped = useMemo(() => packs.filter((p) => !skippedIds.has(p.id)), [packs, skippedIds]);
     const visiblePacks = useMemo(
-        () => tuneDeck(unskipped, nudges, passedIds, nowMs),
-        [unskipped, nudges, passedIds, nowMs],
+        () => tuneDeck(unskipped, nudges, passedIds, nowMs, tuneRankOf && ((job) => tuneRankOf(job, nowMs))),
+        [unskipped, nudges, passedIds, nowMs, tuneRankOf],
     );
 
     const activeIndex = useMemo(() => {
@@ -116,12 +122,13 @@ export function useForYouDeck(packs: PublicJob[], isOwnRole?: (job: PublicJob) =
                 nextNudges,
                 before,
                 nowMs,
+                tuneRankOf && ((job) => tuneRankOf(job, nowMs)),
             );
             setSkippedIds((prev) => new Set(prev).add(skippedId));
             setPassedIds(before);
             setActiveJobId(nextActiveIdAfterSkip(remaining, activeIndex));
         },
-        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole, askWhy, dismissWhy],
+        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole, tuneRankOf, askWhy, dismissWhy],
     );
     const handleSkip = useCallback(() => removeActive("skip"), [removeActive]);
     const handleFewer = useCallback(() => removeActive("fewer"), [removeActive]);
