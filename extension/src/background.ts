@@ -27,12 +27,16 @@ import { tailoredResumePdf, toBase64 } from "./resume-pdf";
 import { loadChoice } from "./tailor-choices";
 import { acceptedCount, acceptedResume, choiceKey, decisionsFor, proposeChanges } from "./tailor-review";
 import { fetchMe, isSignedInLanding, saveToTracker, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
-import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type FillAnswer, type PendingFill, type SaveAnswer, type ToBackground, type TrackAnswer } from "./messages";
+import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type DraftAnswer, type FillAnswer, type PendingFill, type SaveAnswer, type ToBackground, type TrackAnswer } from "./messages";
 import { trackerStatusLabel } from "@/lib/pursuits/tracker-display";
 import { ALL_SITES, JOB_SITE_MATCHES } from "./job-sites";
 import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
+import type { ResumeData } from "@/types/resume";
+import { sealedAiStatus, sealedChat, useSealedAiOrigin } from "@/lib/sealed-ai/client";
+import { draftScreeningAnswer } from "@/lib/screening/answer";
+import { classifyQuestion, questionText } from "@/lib/screening/question";
 
 const MENU_ID = "velai-search-selection";
 /** The registered content script for sites the person turned the card on for. */
@@ -199,13 +203,8 @@ async function cardFor(pageRead: PageRead, fresh: boolean, tabId: number | undef
 
 // ── Filling an application form ────────────────────────────────────────────
 
-/**
- * The résumé's contact details and its PDF for the card to put in the form:
- * the person's résumé with the changes they accepted for this job in the panel
- * (tailor-review.ts), none if they haven't decided any. `tailored` says how
- * many of the proposed changes that is, for the card to tell them.
- */
-async function fillData(read: PageRead, tabId: number | undefined): Promise<FillAnswer> {
+/** The signed-in account's résumé and the posting an application form is for: what fillData and draftAnswer both start from. */
+async function applyingTo(read: PageRead, tabId: number | undefined): Promise<{ ok: true; account: MeResponse; resume: ResumeData; job: PublicJob } | { ok: false; error: string }> {
     const account = await getMe(false);
     if (!account) return { ok: false, error: "Velai didn't answer." };
     if (!account.signedIn) return { ok: false, error: "Sign in to Velai first." };
@@ -216,7 +215,19 @@ async function fillData(read: PageRead, tabId: number | undefined): Promise<Fill
     // The same posting the panel proposes changes for, so the same choices apply.
     const { q, paired } = lookupFor(jobRead, pageJob);
     const velaiJob = q.trim() ? velaiCopyOf(await searchOnce(q), jobRead, pageJob, paired) : null;
-    const job = tailoringJob(jobRead, pageJob, velaiJob);
+    return { ok: true, account, resume, job: tailoringJob(jobRead, pageJob, velaiJob) };
+}
+
+/**
+ * The résumé's contact details and its PDF for the card to put in the form:
+ * the person's résumé with the changes they accepted for this job in the panel
+ * (tailor-review.ts), none if they haven't decided any. `tailored` says how
+ * many of the proposed changes that is, for the card to tell them.
+ */
+async function fillData(read: PageRead, tabId: number | undefined): Promise<FillAnswer> {
+    const applying = await applyingTo(read, tabId);
+    if (!applying.ok) return applying;
+    const { account, resume, job } = applying;
     let pdf: { base64: string; filename: string } | null = null;
     let tailored = { accepted: 0, proposed: 0 };
     try {
@@ -230,6 +241,38 @@ async function fillData(read: PageRead, tabId: number | undefined): Promise<Fill
         pdf = null;
     }
     return { ok: true, values: contactValues(resume.profile), pdf, tailored };
+}
+
+// ── Drafting an answer to a question on the form ───────────────────────────
+
+// Sealed AI goes through velai.app's pass-through, from here instead of from a velai.app page.
+useSealedAiOrigin(VELAI_ORIGIN);
+/** The longest a draft waits for the sealed model (attesting its server, then the answer) before the résumé lines stand in for it. */
+const SEALED_ANSWER_MS = 45_000;
+
+const leftToYou = (reason: string): DraftAnswer => ({ ok: false, error: `Velai leaves this one to you: ${reason}.` });
+
+/**
+ * A draft answer to one question, on the person's tap. A question Velai leaves
+ * to the person, or that no résumé line speaks to, is answered with why and
+ * nothing is sent anywhere. Otherwise the draft comes from the few résumé
+ * lines that bear on it: written by the sealed AI from those lines (and the
+ * question and the job's title and company) when it is set up and answers,
+ * else the lines themselves. Never touches the form.
+ */
+async function draftAnswer(read: PageRead, question: string, tabId: number | undefined): Promise<DraftAnswer> {
+    const asked = questionText(question);
+    const verdict = classifyQuestion(asked);
+    if (!verdict.draft) return leftToYou(verdict.reason);
+    const applying = await applyingTo(read, tabId);
+    if (!applying.ok) return applying;
+    const sealed = (await sealedAiStatus()).enabled;
+    const chat: Parameters<typeof draftScreeningAnswer>[0]["chat"] = sealed
+        ? (messages, options) => Promise.race([sealedChat(messages, options), new Promise<null>((resolve) => setTimeout(resolve, SEALED_ANSWER_MS, null))])
+        : undefined;
+    const draft = await draftScreeningAnswer({ chat }, { resume: applying.resume, question: asked, job: { title: applying.job.title, company: applying.job.company ?? "" } });
+    if (!draft.verdict.draft || !draft.by) return leftToYou(draft.verdict.draft ? "nothing to draft" : draft.verdict.reason);
+    return { ok: true, text: draft.text, by: draft.by, lines: draft.lines.map(({ text, where }) => ({ text, where })) };
 }
 
 /** Tabs whose confirmed application is being tracked right now (the page and its watcher can both see the confirmation). */
@@ -329,6 +372,9 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
     switch (message.type) {
         case "card":
             void cardFor(message.read, message.fresh === true, sender.tab?.id, message.applying === true).then(sendResponse, () => sendResponse(null));
+            return true;
+        case "draftAnswer":
+            void draftAnswer(message.read, message.question, sender.tab?.id).then(sendResponse, () => sendResponse({ ok: false, error: "Velai couldn't draft this one." } satisfies DraftAnswer));
             return true;
         case "fillData":
             void fillData(message.read, sender.tab?.id).then(sendResponse, () => sendResponse({ ok: false, error: "The form couldn't be filled." } satisfies FillAnswer));

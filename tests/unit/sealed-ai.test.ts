@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { POST } from "../../src/app/api/sealed-ai/v1/chat/completions/route";
 import { GET } from "../../src/app/api/sealed-ai/status/route";
 import { cappedStream, readCappedBody, sealedAiTarget, SEALED_AI_MAX_REQUEST_BYTES } from "../../src/lib/sealed-ai/server";
-import { resetSealedAiForTests, type SealedAiStub } from "../../src/lib/sealed-ai/client";
+import { resetSealedAiForTests, sealedAiBaseUrl, sealedAiStatus, useSealedAiOrigin, type SealedAiStub } from "../../src/lib/sealed-ai/client";
 import { clearRateLimitStateForTests, SEALED_AI_MAX_REQUESTS } from "../../src/lib/shield/rate-limit";
 import { parseResumeLocally, withoutContactDetails } from "../../src/lib/local-ai/parse-resume";
 
@@ -110,6 +110,18 @@ describe("the pass-through route", () => {
         assert.equal(sent, null, "nothing was sent on");
     });
 
+    it("answers the Chrome extension too, and no other site", async () => {
+        // An extension's request carries no Sec-Fetch-Site but "none", and its own origin.
+        const fromExtension = { "sec-fetch-site": "none", origin: "chrome-extension://abcdefghijklmnopabcdefghijklmnop" };
+        assert.equal((await POST(sealedRequest({ headers: fromExtension }))).status, 200);
+        assert.equal((sent!.init.headers as Record<string, string>).Authorization, "Bearer tk_test_key");
+        // "none" from anywhere else (a typed address, a page with no origin) and other origins stay out.
+        assert.equal((await POST(sealedRequest({ headers: { "sec-fetch-site": "none" } }))).status, 403);
+        assert.equal((await POST(sealedRequest({ headers: { "sec-fetch-site": "none", origin: "https://evil.example" } }))).status, 403);
+        assert.equal((await POST(sealedRequest({ headers: { "sec-fetch-site": "cross-site", origin: "chrome-extension://abc" } }))).status, 403);
+        assert.equal((await POST(sealedRequest({ headers: { "sec-fetch-site": "same-site", origin: "chrome-extension://abc" } }))).status, 403);
+    });
+
     it("limits one address to its share", async () => {
         for (let i = 0; i < SEALED_AI_MAX_REQUESTS; i++) assert.equal((await POST(sealedRequest())).status, 200);
         const refused = await POST(sealedRequest());
@@ -172,5 +184,42 @@ Triage up to 40 patients a shift using CTAS.
         (globalThis as { __velaiSealedAi?: unknown }).__velaiSealedAi = (async () => null) satisfies SealedAiStub;
         const read = await parseResumeLocally(RESUME, { withModel: true });
         assert.equal(read.engine, "heuristic");
+    });
+});
+
+describe("sealed AI from the Chrome extension", () => {
+    const realFetch = globalThis.fetch;
+
+    afterEach(() => {
+        globalThis.fetch = realFetch;
+        delete (globalThis as { __velaiSealedAi?: unknown }).__velaiSealedAi;
+        resetSealedAiForTests();
+    });
+
+    it("asks velai.app's status from the origin it is given, and the pass-through lives under it", async () => {
+        const asked: string[] = [];
+        globalThis.fetch = (async (url: string | URL) => {
+            asked.push(String(url));
+            return new Response(JSON.stringify({ enabled: true, model: "llama3-3-70b" }), { status: 200 });
+        }) as typeof fetch;
+        assert.deepEqual(await sealedAiStatus(), { enabled: false, model: "" }, "off where there is no velai.app origin to ask");
+        assert.deepEqual(asked, []);
+        useSealedAiOrigin("https://velai.app/");
+        assert.deepEqual(await sealedAiStatus(), { enabled: true, model: "llama3-3-70b" });
+        assert.deepEqual(asked, ["https://velai.app/api/sealed-ai/status"]);
+        assert.equal(sealedAiBaseUrl("https://velai.app"), "https://velai.app/api/sealed-ai/v1/");
+    });
+
+    it("asks again after a status check that failed, instead of staying off", async () => {
+        let calls = 0;
+        globalThis.fetch = (async () => {
+            calls++;
+            if (calls === 1) throw new Error("offline");
+            return new Response(JSON.stringify({ enabled: true, model: "m" }), { status: 200 });
+        }) as typeof fetch;
+        useSealedAiOrigin("https://velai.app");
+        assert.equal((await sealedAiStatus()).enabled, false);
+        assert.equal((await sealedAiStatus()).enabled, true);
+        assert.equal(calls, 2);
     });
 });

@@ -15,8 +15,8 @@ export const AGENT_PERMISSIONS: readonly { text: string; tools: readonly McpTool
         tools: ["search_jobs", "for_you", "get_job", "get_company", "get_company_timeline", "search_companies"],
     },
     {
-        text: "Read your résumé, tailor it to a job, and replace it (earlier versions stay in your history)",
-        tools: ["get_resume", "tailor_resume", "set_resume"],
+        text: "Read your résumé, tailor it to a job, draft answers to application questions from it, and replace it (earlier versions stay in your history)",
+        tools: ["get_resume", "tailor_resume", "draft_screening_answer", "set_resume"],
     },
     {
         text: "Read and update your tracker: save jobs, mark them applied, and file tailored résumés",

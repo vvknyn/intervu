@@ -9,7 +9,10 @@
  * On an application form, the card fills it from the person's résumé on
  * their click (form-fill.ts) and never submits it. Once the site then says
  * the application went through, the job goes into their tracker as Applied.
- * "Save" puts the job in the tracker's Saved column without applying.
+ * "Save" puts the job in the tracker's Saved column without applying. Under
+ * the form's free-text questions (form-questions.ts), "Draft an answer" asks
+ * for a draft from the résumé lines that bear on that question; it goes in the
+ * form only when the person taps "Insert in the form".
  */
 import { looksLikeJob, readJobPage, type PageRead } from "./page-reader";
 import { isKnownJobSite } from "./job-sites";
@@ -18,6 +21,7 @@ import {
     HIDDEN_SITES_KEY,
     type AppliedAnswer,
     type CardAnswer,
+    type DraftAnswer,
     type FillAnswer,
     type PendingFill,
     type SaveAnswer,
@@ -25,7 +29,8 @@ import {
     type TrackAnswer,
 } from "./messages";
 import { CARD_TERM_LIMIT, type CardSummary } from "./card-summary";
-import { fillForm, filledList, findApplicationForm, isConfirmation } from "./form-fill";
+import { fillForm, filledList, findApplicationForm, isConfirmation, setValue } from "./form-fill";
+import { findQuestions, type FormQuestion } from "./form-questions";
 import { attachedNote } from "./fill-note";
 
 const HOST_ID = "velai-card-host";
@@ -71,7 +76,7 @@ async function hiddenHere(): Promise<boolean> {
 /* Velai's dark palette, as in sidepanel.css. */
 const STYLE = `
 :host { all: initial; }
-.card { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; width: 320px; max-width: calc(100vw - 32px); box-sizing: border-box;
+.card { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; width: 320px; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box;
   padding: 12px 14px; border-radius: 12px; background: rgb(16 18 24); color: rgb(245 245 245); border: 1px solid rgb(38 38 38);
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; text-align: left; }
 .head { display: flex; align-items: center; gap: 8px; }
@@ -101,8 +106,18 @@ button.secondary:hover { background: rgb(26 26 26); }
 button:disabled { opacity: 0.6; cursor: default; }
 button.link { border: 0; background: none; padding: 0; color: rgb(163 163 163); font-size: 13px; text-decoration: underline; }
 .done { margin: 0; font-size: 13px; color: rgb(47 191 113); }
+.qs { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgb(38 38 38); }
+.qs-title { margin: 0; font-weight: 600; }
+.q { margin-top: 8px; }
+.q-text { margin: 0; font-size: 13px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.q .actions { margin-top: 6px; }
+.draft-mark { margin: 6px 0 4px; font-size: 12px; font-weight: 600; color: rgb(245 158 11); }
+textarea.draft { display: block; width: 100%; min-height: 110px; box-sizing: border-box; resize: vertical; padding: 8px; border-radius: 8px;
+  border: 1px solid rgb(64 64 64); background: rgb(10 11 15); color: rgb(245 245 245); font: inherit; font-size: 13px; }
+.draft-src { margin: 4px 0 0; font-size: 12px; color: rgb(163 163 163); }
 @media (prefers-contrast: more) {
-  .card, .term, button.secondary { border-color: rgb(120 120 120); }
+  .card, .term, button.secondary, .qs { border-color: rgb(120 120 120); }
+  .draft-src { color: rgb(225 225 225); }
   .close, .fit-source, .terms-note, .note, .src, button.link { color: rgb(225 225 225); }
 }
 `;
@@ -255,6 +270,107 @@ function fillButton(summary: CardSummary, read: PageRead, status: HTMLElement): 
     return fill;
 }
 
+/** "Registered Nurse · St. Michael's Hospital; Skills": where on the résumé a draft's lines are from, each place once. */
+function placesOf(lines: { where: string }[]): string {
+    return [...new Set(lines.map((l) => l.where))].join("; ");
+}
+
+/** The draft under a question: marked as a draft, editable, naming the résumé lines it comes from. Nothing is in the form until "Insert in the form". */
+function draftBlock(question: FormQuestion, answer: Extract<DraftAnswer, { ok: true }>, again: () => void): HTMLElement {
+    const block = el("div", "draft-block");
+    const box = el("textarea", "draft");
+    box.value = answer.text;
+    box.setAttribute("aria-label", `Draft answer to: ${question.text}`);
+    const status = el("p", "note");
+    status.setAttribute("aria-live", "polite");
+    const how = answer.by === "sealed" ? "Written by Velai's sealed AI from these lines only." : "These lines as your résumé has them (no AI).";
+    const insert = button("Insert in the form", "primary", () => {
+        const text = box.value.trim();
+        if (!text) return;
+        // The person may have typed in the form since; their words stay.
+        if (question.el.value.trim()) {
+            status.textContent = "That box has text in it now, so Velai left it. Copy the draft instead.";
+            return;
+        }
+        setValue(question.el, text);
+        insert.disabled = true;
+        status.textContent = "Inserted. Edit it in the form, then submit it yourself.";
+    });
+    const copy = button("Copy", "secondary", () => {
+        const text = box.value;
+        const fallback = () => {
+            box.select();
+            return document.execCommand("copy");
+        };
+        void navigator.clipboard
+            .writeText(text)
+            .then(() => true, fallback)
+            .then((ok) => {
+                status.textContent = ok ? "Copied." : "Select the draft and copy it.";
+            });
+    });
+    const actions = el("div", "actions");
+    actions.append(insert, copy, button("Discard", "link", again));
+    block.append(
+        el("p", "draft-mark", "Draft from your résumé. Check every claim before you use it."),
+        box,
+        el("p", "draft-src", `From your résumé: ${placesOf(answer.lines)}. ${how}`),
+        actions,
+        status,
+    );
+    return block;
+}
+
+/** One question of the form: Velai's draft on a tap, or why it leaves the question to the person. */
+function questionRow(question: FormQuestion, read: PageRead): HTMLElement {
+    const row = el("div", "q");
+    const text = el("p", "q-text", question.text);
+    text.title = question.text;
+    row.append(text);
+    if (!question.verdict.draft) {
+        row.append(el("p", "note", `Velai leaves this one to you: ${question.verdict.reason}.`));
+        return row;
+    }
+    const label = "Draft an answer";
+    const status = el("p", "note");
+    status.setAttribute("aria-live", "polite");
+    const actions = el("div", "actions");
+    const ask = button(label, "secondary", () => {
+        ask.disabled = true;
+        ask.textContent = "Drafting…";
+        status.textContent = "";
+        // One request, on this tap: nothing is asked of the AI until then.
+        void send<DraftAnswer>({ type: "draftAnswer", read, question: question.text })
+            .catch((): DraftAnswer => ({ ok: false, error: "Velai didn't answer." }))
+            .then((answer) => {
+                ask.disabled = false;
+                ask.textContent = label;
+                if (!answer?.ok) {
+                    status.textContent = answer?.error ?? "Velai couldn't draft this one.";
+                    return;
+                }
+                const block = draftBlock(question, answer, () => {
+                    block.replaceWith(actions, status);
+                    status.textContent = "";
+                });
+                actions.replaceWith(block);
+                status.remove();
+            });
+    });
+    actions.append(ask);
+    row.append(actions, status);
+    return row;
+}
+
+/** The form's free-text questions, each with a draft on request. */
+function questionsSection(questions: FormQuestion[], read: PageRead): HTMLElement {
+    const section = el("div", "qs");
+    section.append(el("p", "qs-title", "Questions on this form"));
+    section.append(el("p", "terms-note", "Drafts come from your résumé when you ask. You choose what goes in the form."));
+    for (const question of questions) section.append(questionRow(question, read));
+    return section;
+}
+
 function render(summary: CardSummary, read: PageRead): void {
     const { card, show } = cardShell();
     card.append(el("p", "title", [summary.title, summary.company].filter(Boolean).join(" · ")));
@@ -332,6 +448,8 @@ function render(summary: CardSummary, read: PageRead): void {
     }
     card.append(actions);
     if (form) card.append(fillStatus);
+    const questions = summary.canFill ? findQuestions() : [];
+    if (questions.length) card.append(questionsSection(questions, read));
     const off = button(`Don't show on ${location.hostname}`, "link", () => {
         void chrome.storage.local.get(HIDDEN_SITES_KEY).then((stored) => {
             const hidden = new Set((stored[HIDDEN_SITES_KEY] as string[] | undefined) ?? []);
@@ -353,11 +471,11 @@ function render(summary: CardSummary, read: PageRead): void {
         const url = location.href;
         for (const wait of FORM_RETRY_MS) {
             setTimeout(() => {
-                if (location.href === url && document.getElementById(HOST_ID) && !formOffered && findApplicationForm()) render(summary, read);
+                if (location.href === url && document.getElementById(HOST_ID) && !formOffered && (findApplicationForm() || findQuestions().length)) render(summary, read);
             }, wait);
         }
     }
-    formOffered = Boolean(form);
+    formOffered = Boolean(form) || questions.length > 0;
 }
 
 /** Whether the card on the page already offers to fill its form. */

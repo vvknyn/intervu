@@ -22,6 +22,8 @@ export type ToBackground =
     | { type: "siteEnabled"; tabId: number }
     /** The card's "Fill from your résumé": the résumé's contact details and the PDF with the changes accepted for this tab's job. Answered with a FillAnswer. */
     | { type: "fillData"; read: PageRead }
+    /** The card's "Draft an answer" on one question of the application form: a draft made from the résumé lines that bear on it. Answered with a DraftAnswer. */
+    | { type: "draftAnswer"; read: PageRead; question: string }
     /** The card filled this tab's application form for this job; track it once the site confirms. */
     | { type: "filled"; track: TrackJob | null }
     /** Whether this tab has a filled application waiting for the site to confirm it. Answered with a PendingFill or null. */
@@ -41,6 +43,15 @@ export type FillAnswer =
           /** How many of the changes proposed for this job the PDF carries (the ones the person accepted in the panel). */
           tailored: { accepted: number; proposed: number };
       }
+    | { ok: false; error: string };
+/**
+ * `by`: "sealed" when the sealed AI wrote the draft from `lines`, "lines" when
+ * `text` is those résumé lines as they are (AI off, unreachable, or its reply
+ * not made of the lines). `lines` are the only part of the résumé the draft
+ * (and the sealed request) was made from, without name or contact details.
+ */
+export type DraftAnswer =
+    | { ok: true; text: string; by: "sealed" | "lines"; lines: { text: string; where: string }[] }
     | { ok: false; error: string };
 export interface PendingFill {
     title: string;
