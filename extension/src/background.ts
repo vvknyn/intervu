@@ -10,8 +10,9 @@
  *    site the person turned it on for) asks here what to show: the velai.app
  *    calls and the scoring run in this worker, not in the page.
  *  - The card's "Fill from your résumé" gets the résumé's contact details and
- *    the PDF tailored to the tab's job from here, and once the site confirms
- *    the application this adds the job to the tracker as Applied.
+ *    the PDF (the résumé with the changes the person accepted for the tab's
+ *    job in the panel) from here, and once the site confirms the application
+ *    this adds the job to the tracker as Applied.
  *  - Sign-in and the résumé editor open velai.app in a small window over the
  *    job page. A sign-in window closes itself once velai.app says the person
  *    is signed in; closing either window tells the card and the panel to
@@ -19,17 +20,19 @@
  */
 import { PAGE_QUERY_KEY, hostOf, queryFromPage, queryFromSelection } from "./page-query";
 import { jobFromPage, looksLikeJob, readJobPage, validThrough, type PageRead } from "./page-reader";
-import { resumeFromMe, sameJob, tailoredResume, type MeResponse } from "./report";
+import { resumeFromMe, sameJob, tailoringJob, type MeResponse } from "./report";
 import { cardSummary, type TrackJob } from "./card-summary";
 import { contactValues } from "./form-fill";
 import { tailoredResumePdf, toBase64 } from "./resume-pdf";
+import { loadChoice } from "./tailor-choices";
+import { acceptedCount, acceptedResume, choiceKey, decisionsFor, proposeChanges } from "./tailor-review";
 import { fetchMe, isSignedInLanding, saveToTracker, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
 import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type FillAnswer, type PendingFill, type SaveAnswer, type ToBackground, type TrackAnswer } from "./messages";
 import { trackerStatusLabel } from "@/lib/pursuits/tracker-display";
 import { ALL_SITES, JOB_SITE_MATCHES } from "./job-sites";
 import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
-import type { JobSearchResult } from "@/lib/jobs/types";
+import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
 
 const MENU_ID = "velai-search-selection";
 /** The registered content script for sites the person turned the card on for. */
@@ -157,17 +160,27 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // ── The on-page card ───────────────────────────────────────────────────────
 
+/** What to search Velai for to find the job a page is about, and the employer its title pairs the role with. */
+function lookupFor(read: PageRead, pageJob: PublicJob): { q: string; paired: string } {
+    const fromTitle = queryFromPage(read.title, read.url);
+    return { q: read.posting ? [pageJob.title, pageJob.company].filter(Boolean).join(" ") : fromTitle.q, paired: fromTitle.paired };
+}
+
+/** Velai's copy of the page's job among the search's hits, if one is it. */
+function velaiCopyOf(result: JobSearchResult | null, read: PageRead, pageJob: PublicJob, paired: string): PublicJob | null {
+    return result ? sameJob(result.hits, read.url, { title: pageJob.title, company: pageJob.company ?? (paired || null) }) : null;
+}
+
 /** What the card shows for a page, or null for no card: a page that doesn't
  *  publish its job details only gets one when Velai has the role it names,
  *  the page reads as a job, or it has an application form. */
 async function cardFor(pageRead: PageRead, fresh: boolean, tabId: number | undefined, applying: boolean): Promise<CardAnswer> {
     const read = applying ? await jobReadFor(pageRead, tabId) : pageRead;
     const pageJob = jobFromPage(read);
-    const fromTitle = queryFromPage(read.title, read.url);
-    const q = read.posting ? [pageJob.title, pageJob.company].filter(Boolean).join(" ") : fromTitle.q;
+    const { q, paired } = lookupFor(read, pageJob);
     if (!q.trim()) return null;
     const [account, result] = await Promise.all([getMe(fresh), searchOnce(q)]);
-    const velaiJob = result ? sameJob(result.hits, read.url, { title: pageJob.title, company: pageJob.company ?? (fromTitle.paired || null) }) : null;
+    const velaiJob = velaiCopyOf(result, read, pageJob, paired);
     // A page with no structured details still gets a card when Velai has the role or the page reads as a job.
     const isJob = Boolean(read.posting || velaiJob || looksLikeJob(read));
     if (!isJob && !applying) return null;
@@ -186,23 +199,37 @@ async function cardFor(pageRead: PageRead, fresh: boolean, tabId: number | undef
 
 // ── Filling an application form ────────────────────────────────────────────
 
-/** The résumé's contact details and its PDF tailored to the tab's job, for the card to put in the form. */
+/**
+ * The résumé's contact details and its PDF for the card to put in the form:
+ * the person's résumé with the changes they accepted for this job in the panel
+ * (tailor-review.ts), none if they haven't decided any. `tailored` says how
+ * many of the proposed changes that is, for the card to tell them.
+ */
 async function fillData(read: PageRead, tabId: number | undefined): Promise<FillAnswer> {
     const account = await getMe(false);
     if (!account) return { ok: false, error: "Velai didn't answer." };
     if (!account.signedIn) return { ok: false, error: "Sign in to Velai first." };
     const resume = resumeFromMe(account);
     if (!resume) return { ok: false, error: "Add your résumé to Velai first." };
-    const job = jobFromPage(await jobReadFor(read, tabId));
+    const jobRead = await jobReadFor(read, tabId);
+    const pageJob = jobFromPage(jobRead);
+    // The same posting the panel proposes changes for, so the same choices apply.
+    const { q, paired } = lookupFor(jobRead, pageJob);
+    const velaiJob = q.trim() ? velaiCopyOf(await searchOnce(q), jobRead, pageJob, paired) : null;
+    const job = tailoringJob(jobRead, pageJob, velaiJob);
     let pdf: { base64: string; filename: string } | null = null;
+    let tailored = { accepted: 0, proposed: 0 };
     try {
-        const made = await tailoredResumePdf(tailoredResume(resume, job).resume, job);
+        const draft = proposeChanges(resume, job);
+        const decisions = decisionsFor(draft, await loadChoice(choiceKey(job)), account.resume?.updatedAt ?? null);
+        tailored = { accepted: acceptedCount(draft, decisions), proposed: draft.changes.length };
+        const made = await tailoredResumePdf(acceptedResume(draft, decisions), job);
         pdf = { base64: toBase64(await made.blob.arrayBuffer()), filename: made.filename };
     } catch {
         // The contact details still go in; the person attaches a file themselves.
         pdf = null;
     }
-    return { ok: true, values: contactValues(resume.profile), pdf };
+    return { ok: true, values: contactValues(resume.profile), pdf, tailored };
 }
 
 /** Tabs whose confirmed application is being tracked right now (the page and its watcher can both see the confirmation). */

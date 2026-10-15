@@ -145,6 +145,21 @@ a { color: inherit; text-underline-offset: 2px; }
 .changes { margin: 0; padding-left: 18px; font-size: 0.875rem; line-height: 1.45; }
 .changes li + li { margin-top: 4px; }
 
+/* Proposed résumé changes, accepted or rejected one at a time */
+.review-head { margin: 16px 0 0; font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground); }
+.review { list-style: none; margin: 0; padding: 0; }
+.change { margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card); }
+.change[data-state="accepted"] { border-color: var(--brand); }
+.change[data-state="rejected"] { border-style: dashed; }
+.change .tag { margin: 8px 0 0; font-size: 0.875rem; font-weight: 600; color: var(--muted-foreground); }
+.change .tag:first-child { margin-top: 0; }
+.change .text { margin: 2px 0 0; font-size: 1rem; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
+.change .text-before { color: var(--muted-foreground); }
+.change mark { background: transparent; color: var(--brand); font-weight: 600; }
+.change .why { margin: 8px 0 0; font-size: 0.875rem; line-height: 1.4; color: var(--muted-foreground); }
+.choice[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-foreground); }
+.choice-reject[aria-pressed="true"] { background: transparent; border-color: var(--destructive); color: var(--destructive); }
+
 .actions { display: flex; gap: 8px; margin-top: 12px; }
 .primary {
   display: inline-flex;

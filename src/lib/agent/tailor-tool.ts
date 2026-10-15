@@ -11,9 +11,9 @@
  * through the grounding gate), so this tool and its output don't change when
  * the engine does; `engine` names the one that wrote it.
  */
-import { heuristicTailorResume, resumeFullText, startsOn, withRoleOrder, type TailorChange, type TailorDraft } from "../local-ai/tailor-resume";
-import { groundDraft, jobToTailorInput } from "../local-ai/tailor-ground";
-import { withLeaveOuts } from "../local-ai/tailor-asks";
+import { startsOn, type TailorChange, type TailorDraft } from "../local-ai/tailor-resume";
+import { jobToTailorInput } from "../local-ai/tailor-ground";
+import { rulesTailorDraft } from "../local-ai/tailor-rules";
 import { descriptionToBullets } from "../resume/merge-bullet-lines";
 import { resumeDataToZipMarkdown } from "../resume/to-zip-markdown";
 import type { PublicJob } from "../jobs/types";
@@ -22,14 +22,13 @@ import { lookupJobById, resumeNeededError, type ToolDeps } from "./tools";
 
 /**
  * The draft every no-model path on the site gets (`tailorWithRules`,
- * tailor-with-engine.ts): the rules rewrite, grounded, then ordered. Composed
- * here rather than imported because that module also loads the browser's
- * sealed-AI client; tests/unit/mcp-site-parity.test.ts holds the two equal.
- * The MCP tool never calls sealed AI: the assistant asking is the model.
+ * tailor-with-engine.ts): the rules rewrite, grounded, then ordered. It is the
+ * same `rulesTailorDraft`, taken from the module that does not load the
+ * browser's sealed-AI client; tests/unit/mcp-site-parity.test.ts holds the two
+ * equal. The MCP tool never calls sealed AI: the assistant asking is the model.
  */
 export async function rulesTailor(resume: ResumeData, job: PublicJob): Promise<TailorDraft> {
-    const input = jobToTailorInput(job);
-    return withLeaveOuts(withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, input)), input), input);
+    return rulesTailorDraft(resume, jobToTailorInput(job));
 }
 
 export interface TailorChangeOut {

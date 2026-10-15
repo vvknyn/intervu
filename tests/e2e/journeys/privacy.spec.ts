@@ -2,7 +2,7 @@ import { PRIVACY_HEADLINE, PRIVACY_PROMISES } from "../../../src/lib/legal/priva
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/37,
+ * Journeys for velai.app/privacy — see tests/journeys/CATALOG.md (J-CONTENT-30/31/34/37/39,
  * and J-JOBS-115, the front door's privacy promises that link here).
  * Read-only. What "Delete account" erases is a promise people act on, so the
  * page has to say what the server action really removes
@@ -88,6 +88,19 @@ test("the privacy policy says searches are kept in an anonymous record, apart fr
   await expect(article).toContainText("with the words you searched removed before it leaves your browser");
   await expect(article).not.toContainText("including the text of what you typed");
   await expect(article).not.toContainText("build a profile of your search activity");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+test("the privacy policy says the extension proposes résumé changes, applies only the ones you accept, and remembers only which", { tag: ["@J-CONTENT-39"] }, async ({ page, diagnostics }) => {
+  await page.goto("/privacy");
+  const article = page.locator("article").first();
+  await expect(article).toContainText("proposes changes to your résumé for the job inside the extension");
+  await expect(article).toContainText("nothing changes until you accept it");
+  await expect(article).toContainText("with the changes you accepted for that job");
+  // What it keeps in Chrome's storage: marks, never résumé text, and the résumé itself stays out.
+  await expect(article).toContainText("which ones, as short codes with none of your résumé's text, for up to 60 days");
+  await expect(article).toContainText("It holds the résumé in memory only, never in Chrome's storage");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
