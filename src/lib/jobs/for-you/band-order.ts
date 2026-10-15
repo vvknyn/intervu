@@ -23,6 +23,21 @@ import type { PublicJob } from "@/lib/jobs/types";
 export const OWN_ROLE_LIFT = 6;
 export const FAMILY_ROLE_LIFT = 3;
 
+/**
+ * The ranking credit inside a band for how much of the posting the résumé shows beyond the posting's own
+ * title words (`MatchComponent.jd.evidence`): up to `CONTENT_LEAD_POINTS` at `CONTENT_LEAD_FULL_EVIDENCE`
+ * terms. The fit total saturates (a posting that shares a quarter of its words with the résumé reads 100,
+ * and a title echoed in a two-line body counts), so a generic posting tied a detailed one and the order
+ * between them was whatever the search returned first. Same size as a week-old posting's freshness credit.
+ */
+export const CONTENT_LEAD_POINTS = 12;
+export const CONTENT_LEAD_FULL_EVIDENCE = 16;
+
+export function contentLead(score: MatchScore): number {
+    const evidence = score.components.find((c) => c.key === "relevance")?.jd?.evidence;
+    return typeof evidence === "number" ? CONTENT_LEAD_POINTS * Math.min(1, evidence / CONTENT_LEAD_FULL_EVIDENCE) : 0;
+}
+
 const BAND_SEQUENCE: readonly MatchBand[] = ["strong", "good", "stretch"];
 
 /** Sort key for band-first ordering; unscored sorts after every band. */
@@ -135,8 +150,10 @@ export function orderForYouJobsByBand(
         // Inside a band the résumé's primary line of work still leads (2026-10-13, senior-aware fit: a
         // TAM résumé read senior must not see Senior PM roles ahead of its TAM ones): a small lift for
         // its own role and its family, not a key of its own, so a much better fit elsewhere still wins.
+        // The content credit (`contentLead`) is what the posting itself asks that the résumé covers: it
+        // leads, the title lift only breaks what it leaves tied (Vivek, 2026-10-14: content first, title last).
         const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
-        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs) + lift, raw, index });
+        keyed.push({ job, key: (age * 3 + group) * bands + band, value: rankingValue(score, job.posted_ts ?? null, nowMs) + lift + contentLead(score), raw, index });
     });
     keyed.sort((a, b) => a.key - b.key || b.value - a.value || b.raw - a.raw || a.index - b.index);
     const out = keyed.map((k) => k.job);

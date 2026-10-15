@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { jdTermsFromDescription } from "../../../src/lib/match/jd-match";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
 import { signedInTest, signInLikeProduction, withActionResult, withoutMockSignInHydration } from "./signed-in";
@@ -482,5 +483,68 @@ test("a pack with no role the résumé could take says so and why, instead of a 
 
   await expect(page.getByTestId("for-you-empty")).toContainText("None of the roles we found fit your résumé yet.", { timeout: 60_000 });
   await expect(page.getByTestId("for-you-empty")).toContainText("Left out of the 2 roles found: 1 above your level · 1 asking for something your résumé doesn't show");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-132 — Vivek, 2026-10-14: "FIRST MATCH the rest of the experience and skills content to the job profiles
+ * and then match the title if necessary AT THE END"; 2026-10-15: "that is how people find adjacent roles or titles
+ * that they haven't heard of but are very well qualified for". A pack lists a role whose title the résumé never
+ * names when its posting asks for what the résumé shows, and puts it ahead of a posting that is only its title;
+ * a remote role that names no country is listed last, as Country unclear.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+const askingForTheResumeWork = (company: string, title: string) => [
+  `About the role\n${company} is hiring a ${title}.`,
+  "What you'll do\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
+  "What you bring\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
+].join("\n\n");
+const GENERIC_DESCRIPTION =
+  "About the role\nNorthstar Data is hiring a Technical Account Manager.\n\nWhat you'll do\nWe are looking for a Technical Account Manager to join our team. You will work with a variety of stakeholders and grow with a fast-moving company.";
+
+const described = (job: ReturnType<typeof posting>, description: string) => ({ ...job, description, jd_terms: jdTermsFromDescription(description, job as never) });
+
+test("a pack lists a title the résumé never names when its posting asks for what the résumé shows, ahead of a posting that is only its title, and a remote role with no country last", { tag: ["@J-JOBS-132"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const led = described(posting("88888888-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const generic = described(posting("88888888-0000-4000-8000-000000000002", "Technical Account Manager", "Northstar Data", "senior", 2), GENERIC_DESCRIPTION);
+  const noCountry = described(
+    { ...posting("88888888-0000-4000-8000-000000000003", "Technical Account Manager", "Fernway", "senior", 1), location: "Remote", location_city: null, location_state: null, location_country: null, work_type: "remote" } as never,
+    askingForTheResumeWork("Fernway", "Technical Account Manager"),
+  );
+  await withAccountApplications(page, []);
+  // Sent generic first, as a search that matches on title would: the deck puts the posting that asks for the résumé's work ahead of it.
+  const sent: { contentPhrases?: string[]; unplacedRemote?: boolean }[] = [];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const parsed = JSON.parse(body) as { fromResume?: boolean; contentPhrases?: string[]; unplacedRemote?: boolean };
+    if (parsed.fromResume) sent.push({ contentPhrases: parsed.contentPhrases, unplacedRemote: parsed.unplacedRemote });
+    const hits = [generic, noCountry, led];
+    return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-content-first" });
+  });
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", led.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", generic.id);
+
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", noCountry.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Country unclear");
+
+  // The pack's search asked for postings by what they say, with a few skill phrases and no name or contact detail.
+  const asked = sent.find((m) => (m.contentPhrases?.length ?? 0) > 0);
+  expect(asked, "a résumé-built search carries content phrases").toBeTruthy();
+  expect(asked!.contentPhrases!.length).toBeLessThanOrEqual(4);
+  expect(asked!.unplacedRemote).toBe(true);
+  expect(JSON.stringify(asked!.contentPhrases).toLowerCase()).not.toMatch(/\bmorgan\b|\blee\b|example\.com|555-010/);
   expect(diagnostics.pageErrors).toEqual([]);
 });

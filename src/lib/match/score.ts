@@ -86,8 +86,14 @@ export interface MatchComponent {
      * how much of what it asks for the résumé shows (0..1 after calibration),
      * and the posting's own terms the résumé has / lacks, requirements first.
      */
-    /** `semantic`: the embedding match (0–1) blended into `fit`, when the sidecar answered. */
-    jd?: { fit: number; matched: string[]; missing: string[]; semantic?: number };
+    /**
+     * `semantic`: the embedding match (0–1) blended into `fit`, when the sidecar answered.
+     * `evidence`: how many of the posting's terms the résumé shows that are NOT the words of the
+     * posting's own title (`specificEvidence`). `fit` saturates and counts a title echoed in the body
+     * ("we are looking for a Product Manager"), so a generic two-line posting reads as full a match as
+     * a detailed one; evidence is what tells them apart (`contentLead`, jobs/for-you/band-order.ts).
+     */
+    jd?: { fit: number; matched: string[]; missing: string[]; semantic?: number; evidence?: number; evidenceTerms?: string[] };
     /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
     place?: { where: string; currency?: string };
     /** Seniority only, when both levels are known: what each was read from, for the reason a role shows (match/explain.ts). */
@@ -166,6 +172,12 @@ export interface MatchScore {
      * Such a role is a Stretch whatever its title and words share with the résumé.
      */
     gaps?: RequirementGap[];
+    /**
+     * The title is not one the résumé names (`role` adjacent or unverified) but the posting asks for what
+     * the résumé shows: most of it covered, with at least `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond
+     * the title's words. The title then does not hold the role under Strong (`scoreJobAgainstResume`).
+     */
+    contentLed?: true;
 }
 
 /**
@@ -370,6 +382,41 @@ export const CONCEPT_FIT_SCALE = 0.9;
  */
 export const JD_GOOD_MIN_FIT = 0.5;
 
+/**
+ * A role whose title the résumé doesn't name (a title the person never searched for) is still a Strong
+ * candidate when the posting asks for what the résumé shows: at least this share of it covered, and at
+ * least `CONTENT_LED_MIN_EVIDENCE` terms of its own (not the title's words) on the résumé. Vivek,
+ * 2026-10-14: "first match the experience and skills content to the job profiles and then match the
+ * title if necessary at the end" — adjacent roles are how people find work they are qualified for.
+ */
+export const CONTENT_LED_MIN_FIT = 0.85;
+export const CONTENT_LED_MIN_EVIDENCE = 8;
+
+/** A title the résumé doesn't name whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`). */
+export function contentLedRole(role: RoleAffinity, jd: MatchComponent["jd"]): boolean {
+    return (
+        (role === "adjacent" || role === "unverified") &&
+        jd != null &&
+        jd.fit >= CONTENT_LED_MIN_FIT &&
+        typeof jd.evidence === "number" &&
+        jd.evidence >= CONTENT_LED_MIN_EVIDENCE
+    );
+}
+
+const wordStem = (word: string) => word.replace(/(?:es|s)$/, "");
+
+/**
+ * How many of the posting's terms the résumé shows are not just the words of the posting's own title:
+ * "product manager" in "we are looking for a Product Manager" is the title again, not something the
+ * posting asks for. What is left is the posting's content that the résumé covers (jd-match.ts `matched`).
+ */
+export function specificTerms(matched: readonly string[], job: Pick<PublicJob, "title">): string[] {
+    const titleStems = new Set((job.title ?? "").toLowerCase().split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 2).map(wordStem));
+    return matched.filter((term) => !term.split(" ").every((word) => titleStems.has(wordStem(word))));
+}
+
+export const specificEvidence = (matched: readonly string[], job: Pick<PublicJob, "title">): number => specificTerms(matched, job).length;
+
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const jobVocab = jobVocabulary(job);
     const resumeVocab = resumeVocabulary(resume);
@@ -411,7 +458,14 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
         detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}${semantic != null ? `, reading its meaning as well as its words` : ""}`,
         score: (1 - JD_RELEVANCE_SHARE) * titleScore + JD_RELEVANCE_SHARE * fit,
         terms: { matched: matched.length, of: jobVocab.size },
-        jd: { fit, matched: jd.matched.slice(0, 12), missing: jd.missing.slice(0, 12), ...(semantic != null ? { semantic } : {}) },
+        jd: {
+            fit,
+            matched: jd.matched.slice(0, 12),
+            missing: jd.missing.slice(0, 12),
+            evidence: specificEvidence(jd.matched, job),
+            evidenceTerms: specificTerms(jd.matched, job).slice(0, 4),
+            ...(semantic != null ? { semantic } : {}),
+        },
     };
 }
 
@@ -1062,13 +1116,17 @@ export function scoreJobAgainstResume(
     // What the posting asks that the résumé doesn't show (years, a language, a clearance, a certification, managing, selling).
     const gaps = requirementGaps(resume, job);
     const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
+    // An adjacent or unfamiliar title whose posting the résumé covers in its own right is not held under Strong by the title.
+    const contentLed = contentLedRole(role, overlap.jd);
     const relevance = offTarget
         ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
-        : role === "adjacent"
-          ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
-          : gapNote
-            ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
-            : overlap;
+        : contentLed
+          ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting asks for what your résumé shows${gapNote}` }
+          : role === "adjacent"
+            ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
+            : gapNote
+              ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
+              : overlap;
 
     // A people manager's role for a résumé that shows no one managed: said beside the level, where the receipt names what it asks.
     const newToManaging = titleManagesPeople(job.title) && !resumeTargets(resume).managed;
@@ -1091,7 +1149,7 @@ export function scoreJobAgainstResume(
     // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
     const capped = offTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
+        : location.unknown || abroad || levelUnverified(signals, job) || (!contentLed && (role === "unverified" || role === "adjacent"))
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
     const score: MatchScore = {
@@ -1102,6 +1160,7 @@ export function scoreJobAgainstResume(
         familyRank: rank,
         ...(newToManaging ? { newToManaging: true as const } : {}),
         ...(gaps.length > 0 ? { gaps } : {}),
+        ...(contentLed && !offTarget && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
     };
     if (!abroad || !location.place) return score;
     return {

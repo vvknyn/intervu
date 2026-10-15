@@ -357,7 +357,7 @@ import {
 } from "@/lib/pursuits/optimistic-pursuit";
 import { orderForYouJobsByBand, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
+import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
@@ -388,7 +388,7 @@ import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
-import { buildJobSearchPayload, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, deckContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
@@ -1847,6 +1847,9 @@ export function JobsContent({
     keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    // The phrases the pack's own search also looks for in a posting's text (`deckContentMark`), read by the search effects.
+    const packContentRef = useRef<{ q: string; phrases: string[] } | null>(null);
+    packContentRef.current = useMemo(() => (resume && pack ? { q: pack.q.trim(), phrases: packContentPhrases(resume, pack.q) } : null), [resume, pack]);
     const [importOpen, setImportOpen] = useState(false);
     const importOpenRef = useRef(importOpen);
     importOpenRef.current = importOpen;
@@ -2408,6 +2411,7 @@ export function JobsContent({
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                              ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -3279,7 +3283,7 @@ export function JobsContent({
             try {
                 const previous = readHubCountBaseline();
                 // The pack's own search params: the probe counts what the packs retrieve.
-                const packParams = packSearchParams(pack, signals);
+                const packParams = packSearchParams(pack, signals, { resume, unplacedRemote: true });
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let allCount: CorpusCount | null = null;
@@ -3976,6 +3980,7 @@ export function JobsContent({
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                 ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
