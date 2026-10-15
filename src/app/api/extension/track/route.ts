@@ -1,15 +1,19 @@
 import { NextResponse } from "next/server";
 import { getServerUser } from "@/lib/auth/server-user";
-import { markJobAppliedAction } from "@/actions/jobs";
+import { markJobAppliedAction, markJobSavedAction } from "@/actions/jobs";
 
 /** A tracker entry is a title, an employer, a URL and an id: far past this isn't one. */
 const MAX_BODY_BYTES = 4_096;
 
 /**
- * POST /api/extension/track — the Velai Chrome extension's "I applied": adds
- * the job the person is looking at to their Velai tracker as Applied, through
- * the same `markJobAppliedAction` velai.app's own "Mark as applied" uses
- * (with Velai's job id when Velai has the posting, so it lands on that job).
+ * POST /api/extension/track — the Velai Chrome extension's "I applied" and
+ * "Save": adds the job the person is looking at to their Velai tracker as
+ * Applied (the default, through the same `markJobAppliedAction` velai.app's own
+ * "Mark as applied" uses) or, with `"stage": "saved"`, as Saved without
+ * applying (`markJobSavedAction`, the stage "Go after this job" and the MCP
+ * `save_job` write). Both carry Velai's job id when Velai has the posting, so
+ * the role lands on that job; a save answers with the role's `status`, which a
+ * role further along keeps.
  *
  * Read through the person's own velai.app session cookie, which the
  * extension's host permission lets it send. Only a JSON body is accepted: a
@@ -36,12 +40,18 @@ export async function POST(request: Request): Promise<NextResponse> {
 
     const field = (key: string) => (typeof body[key] === "string" ? body[key] : "");
     const jobId = field("jobId");
-    const res = await markJobAppliedAction({
+    const job = {
         title: field("title"),
         company: field("company"),
         applyUrl: field("applyUrl"),
         ...(jobId ? { jobId } : {}),
-    });
+    };
+    if (body.stage === "saved") {
+        const saved = await markJobSavedAction(job);
+        if (saved.error) return NextResponse.json({ ok: false, error: saved.error }, { status: 400, headers });
+        return NextResponse.json({ ok: true, id: saved.data?.id ?? null, status: saved.data?.status ?? "interested" }, { headers });
+    }
+    const res = await markJobAppliedAction(job);
     if (res.error) return NextResponse.json({ ok: false, error: res.error }, { status: 400, headers });
     return NextResponse.json({ ok: true, id: res.data?.id ?? null }, { headers });
 }

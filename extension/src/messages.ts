@@ -16,6 +16,8 @@ export type ToBackground =
     | { type: "openVelai"; path: string }
     /** The card's "I applied": add the job to the person's Velai tracker. Answered with a TrackAnswer. */
     | { type: "track"; job: TrackJob }
+    /** The card's "Save": add the job to the person's Velai tracker as Saved, without applying. Answered with a SaveAnswer. */
+    | { type: "save"; job: TrackJob }
     /** The panel turned the card on for a site; inject it into that tab now. */
     | { type: "siteEnabled"; tabId: number }
     /** The card's "Fill from your résumé": the résumé's contact details and the PDF tailored to this tab's job. Answered with a FillAnswer. */
@@ -29,6 +31,8 @@ export type ToBackground =
 
 export type CardAnswer = CardSummary | null;
 export type TrackAnswer = { ok: true } | { ok: false; error: string };
+/** `status`: the role's status in the tracker after the save, as the tracker labels it ("Saved", or "Applied" for a role already further along). */
+export type SaveAnswer = { ok: true; status: string } | { ok: false; error: string };
 export type FillAnswer =
     | { ok: true; values: Partial<Record<FieldKind, string>>; pdf: { base64: string; filename: string } | null }
     | { ok: false; error: string };

@@ -3,8 +3,9 @@
 import { unstable_cache } from "next/cache";
 import { createApplication, updateApplication, upsertPursuitForJob } from "@/actions/application";
 import { findTrackedPosting } from "@/lib/pursuits/same-posting";
+import { saveJobFromExtension } from "@/lib/pursuits/save-from-extension";
 import { appliedAtForTransition } from "@/lib/pursuits/applied-at";
-import { stageRank } from "@/lib/pursuits/types";
+import { stageRank, type PursuitStage } from "@/lib/pursuits/types";
 import {
   getJobsBackendStatus,
   getJobsLastUpdated,
@@ -733,6 +734,35 @@ export async function markJobAppliedAction(input: {
   return { data: { id } };
 }
 
+
+/**
+ * Save a job to the tracker without applying: the browser extension's "Save"
+ * on a job page (`saveJobFromExtension`). Writes the same Saved stage "Go after
+ * this job" and the MCP `save_job` write, so it never moves a role back.
+ */
+export async function markJobSavedAction(input: {
+  company: string;
+  title: string;
+  applyUrl: string;
+  jobId?: string;
+}): Promise<{ data?: { id: string; status: PursuitStage }; error?: string }> {
+  const parsed = validate(markJobAppliedSchema, input);
+  if (!parsed.ok) return { error: parsed.error };
+  const res = await saveJobFromExtension(
+    {
+      jobById: (id) => getJobById(id),
+      upsert: (job, stage) => upsertPursuitForJob(job, stage),
+      findTracked: async (applyUrl) => {
+        const user = await getServerUser();
+        if (!user) throw new Error("User not authenticated");
+        return findTrackedPosting(user.uid, applyUrl);
+      },
+      create: (row) => createApplication(row),
+    },
+    parsed.data,
+  );
+  return "error" in res ? { error: res.error } : { data: res.data };
+}
 
 /** `withSemanticFit` against the account's saved résumé; the hits unchanged when there is none. */
 async function semanticForAccount<T extends PublicJob>(hits: T[], uid: string): Promise<T[]> {

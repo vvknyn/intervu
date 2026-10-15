@@ -23,8 +23,9 @@ import { resumeFromMe, sameJob, tailoredResume, type MeResponse } from "./report
 import { cardSummary, type TrackJob } from "./card-summary";
 import { contactValues } from "./form-fill";
 import { tailoredResumePdf, toBase64 } from "./resume-pdf";
-import { fetchMe, isSignedInLanding, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
-import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type FillAnswer, type PendingFill, type ToBackground, type TrackAnswer } from "./messages";
+import { fetchMe, isSignedInLanding, saveToTracker, searchVelai, SIGN_IN_PATH, trackApplied } from "./velai-api";
+import { ACCOUNT_CHANGED_KEY, type AppliedAnswer, type CardAnswer, type FillAnswer, type PendingFill, type SaveAnswer, type ToBackground, type TrackAnswer } from "./messages";
+import { trackerStatusLabel } from "@/lib/pursuits/tracker-display";
 import { ALL_SITES, JOB_SITE_MATCHES } from "./job-sites";
 import { VELAI_ORIGIN } from "./rows";
 import type { HandOff } from "./handoff";
@@ -364,6 +365,13 @@ chrome.runtime.onMessage.addListener((raw, sender, sendResponse) => {
             void trackApplied(message.job).then(
                 (r): TrackAnswer => (r.ok ? { ok: true } : { ok: false, error: "Velai didn't save it." }),
                 (): TrackAnswer => ({ ok: false, error: "Velai didn't answer." }),
+            ).then(sendResponse);
+            return true;
+        case "save":
+            // Saving isn't applying: a filled form still waits for the site's confirmation.
+            void saveToTracker(message.job).then(
+                (r): SaveAnswer => (r.ok ? { ok: true, status: trackerStatusLabel(r.status ?? "interested") } : { ok: false, error: "Velai didn't save it." }),
+                (e: unknown): SaveAnswer => ({ ok: false, error: /HTTP 401/.test(String(e)) ? "Velai says you're signed out." : "Velai didn't answer." }),
             ).then(sendResponse);
             return true;
         case "siteEnabled":
