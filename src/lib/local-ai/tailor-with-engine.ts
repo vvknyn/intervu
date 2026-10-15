@@ -21,6 +21,7 @@ import {
 } from "./tailor-resume";
 import { ENGINE_LABELS, type LocalAiEngineId } from "./engines/types";
 import { groundDraft, resumeWordSet, ungroundedWords } from "./tailor-ground";
+import { rulesTailorDraft } from "./tailor-rules";
 import { lineAsks, postingAsks, withLeaveOuts, wordKey, type LineAsk, type PostingAsk } from "./tailor-asks";
 import type { ResumeData } from "@/types/resume";
 
@@ -433,7 +434,7 @@ export async function tailorWithModel(
 /** The rules draft, grounded and ordered, with projects the posting asks
  *  nothing about offered to leave out: what every no-model path gets. */
 export function tailorWithRules(resume: ResumeData, job: TailorJobInput): TailorDraft {
-    return withLeaveOuts(withRoleOrder(groundDraft(resumeFullText(resume), heuristicTailorResume(resume, job)), job), job);
+    return rulesTailorDraft(resume, job);
 }
 
 /** The sealed model's rewrites when sealed AI is set up on this server, else the rules draft. */

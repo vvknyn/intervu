@@ -6,9 +6,8 @@
  *    `explainMatch`, with the same receipt rows as the site's MatchChip;
  *  - job checks: Velai's status verdict and row marks when Velai has the
  *    posting, otherwise only what the page itself states;
- *  - tailored résumé: the heuristic tailor behind the gate that drops any edit
- *    adding a word or number the résumé doesn't already have (`groundDraft`),
- *    then the job's lines and skills moved first (`orderForRole`).
+ *  - the posting the résumé is tailored to (`tailoringJob`); the changes
+ *    themselves are tailor-review.ts.
  */
 import { explainMatch } from "@/lib/match/explain";
 import { labelNamesPlace, matchBand, matchLabel, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
@@ -17,15 +16,12 @@ import { GHOST_META, ghostMetaFor, postedAgeShort, shortDate } from "@/lib/jobs/
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { sanitizeTimestamp } from "@/lib/jobs/posting-freshness";
 import { presentJob } from "@/lib/presentation";
-import { heuristicTailorResume, resumeFullText, roleTermsForJob, type TailorBulletDiff } from "@/lib/local-ai/tailor-resume";
-import { groundDraft, jobToTailorInput } from "@/lib/local-ai/tailor-ground";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
-import { postingKey } from "./page-reader";
-import { orderForRole } from "./tailor-order";
+import { postingKey, type PageRead } from "./page-reader";
 
 /** What GET velai.app/api/extension/me answers. */
 export interface MeResponse {
@@ -81,39 +77,17 @@ export function fitReport(resume: ResumeData, prefs: AgentPreferences | null, jo
     };
 }
 
-export interface TailoredResume {
-    /** The résumé to download: reworded lines, then the job's lines and skills first. */
-    resume: ResumeData;
-    /** Lines whose wording changed (only those; an unchanged line isn't listed). */
-    reworded: TailorBulletDiff[];
-    /** The summary's new wording, or null when it stayed as written. */
-    summary: string | null;
-    /** Roles whose lines were reordered so the ones using the job's words come first. */
-    movedRoles: string[];
-    /** Skills moved to the front of their group because the job names them. */
-    leadingSkills: string[];
-}
-
 /**
- * Pure: the résumé tailored to this job — the site's heuristic tailor behind
- * the gate that drops any edit adding a word or number the résumé doesn't
- * already have (`groundDraft`), then ordered so the job's lines and skills
- * come first (`orderForRole`).
+ * Pure: the posting the résumé is tailored to. Velai's copy when it has the
+ * posting, so the fit, the checks and the changes match the site's, with the
+ * page's own description in place of it when that is the fuller of the two. A
+ * page's loose text is only used when it is all there is. The panel and the
+ * card's form fill both call this, so they propose the same changes.
  */
-export function tailoredResume(resume: ResumeData, job: PublicJob): TailoredResume {
-    // The tailor edits in place; hand it a copy so the stored résumé stays as loaded.
-    const copy = structuredClone(resume);
-    const input = jobToTailorInput(job);
-    const draft = groundDraft(resumeFullText(copy), heuristicTailorResume(copy, input));
-    const ordered = orderForRole(draft.tailored, roleTermsForJob(input));
-    const summary = draft.summaryAfter && draft.summaryAfter !== draft.summaryBefore ? draft.summaryAfter : null;
-    return {
-        resume: ordered.resume,
-        reworded: draft.bullets.filter((b) => b.after.trim() !== b.before.trim()),
-        summary,
-        movedRoles: ordered.movedRoles,
-        leadingSkills: ordered.leadingSkills,
-    };
+export function tailoringJob(read: Pick<PageRead, "posting">, pageJob: PublicJob, velaiJob: PublicJob | null): PublicJob {
+    const job = velaiJob ?? pageJob;
+    const pageText = read.posting || !velaiJob ? (pageJob.description ?? "") : "";
+    return velaiJob && (velaiJob.description ?? "").length < pageText.length ? { ...velaiJob, description: pageText } : job;
 }
 
 function norm(text: string | null | undefined): string {

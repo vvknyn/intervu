@@ -4,7 +4,9 @@
  *  1. how the role fits their Velai résumé (the site's fit label and reasons),
  *  2. Velai's checks on the posting (or what the page itself states when
  *     Velai doesn't have it),
- *  3. their résumé tailored to the role, to download as a PDF or copy.
+ *  3. the changes Velai proposes to their résumé for the role, each accepted or
+ *     rejected by them, and the résumé with the accepted ones to download as a
+ *     PDF or copy.
  * Signed out, it still shows the checks and offers sign-in. Selected text or
  * a typed search lists matching roles on Velai instead.
  *
@@ -16,8 +18,10 @@
 import { PAGE_QUERY_KEY, queryFromPage } from "./page-query";
 import { jobFromPage, looksLikeJob, validThrough, type PageRead } from "./page-reader";
 import { panelRow, velaiSearchUrl, VELAI_ORIGIN, type PanelRow } from "./rows";
-import { fitReport, pageChecks, resumeFromMe, sameJob, tailoredResume, velaiChecks, type CheckLine, type MeResponse } from "./report";
+import { fitReport, pageChecks, resumeFromMe, sameJob, tailoringJob, velaiChecks, type CheckLine, type MeResponse } from "./report";
 import { tailoredResumePdf } from "./resume-pdf";
+import { loadChoice, saveChoice } from "./tailor-choices";
+import { acceptedCount, acceptedResume, choiceKey, decisionsFor, NO_CHANGES_TEXT, proposeChanges, reviewSections, type Decision, type ReviewItem } from "./tailor-review";
 import { fetchMe, saveToTracker, searchVelai, trackApplied } from "./velai-api";
 import { trackerStatusLabel } from "@/lib/pursuits/tracker-display";
 import { ALL_SITES, isKnownJobSite, sitePattern } from "./job-sites";
@@ -25,6 +29,7 @@ import { ACCOUNT_CHANGED_KEY, HIDDEN_SITES_KEY, type ToBackground } from "./mess
 import { fitTerms } from "./card-summary";
 import type { HandOff } from "./handoff";
 import { resumeDataToPlainText } from "@/lib/resume/to-plain-text";
+import { addedWordRuns } from "@/lib/resume/word-diff";
 import { presentJob } from "@/lib/presentation";
 import { LOCATION_UNKNOWN_TEXT } from "@/lib/jobs/presentation";
 import type { JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -268,40 +273,115 @@ async function cardSiteNode(ctx: PageContext): Promise<HTMLElement | null> {
     return note;
 }
 
-/** Rewordings listed in the panel before "and N more in the PDF". */
-const REWORDED_SHOWN = 4;
-
-function tailorNode(resume: ResumeData, job: PublicJob): HTMLElement {
-    const tailored = tailoredResume(resume, job);
-    const body: Node[] = [];
-    const changes: string[] = [];
-    if (tailored.movedRoles.length) {
-        const n = tailored.movedRoles.length;
-        changes.push(`In ${n} ${n === 1 ? "role" : "roles"}, the lines that use this job's words now come first.`);
-    }
-    if (tailored.leadingSkills.length) {
-        changes.push(`Skills this job names lead their group: ${tailored.leadingSkills.slice(0, 5).join(", ")}.`);
-    }
-    const reworded = tailored.reworded.length + (tailored.summary ? 1 : 0);
-    if (reworded) changes.push(`${reworded} ${reworded === 1 ? "line" : "lines"} reworded toward this job, using only words already in your résumé.`);
-    if (changes.length) {
-        const list = el("ul", "changes");
-        list.append(...changes.map((text) => el("li", undefined, text)));
-        body.push(list);
+/** The words of a rewrite that the person's own text doesn't have, marked as the site's list marks them. */
+function proposedText(item: ReviewItem): HTMLElement {
+    const p = el("p", "text");
+    if (item.kind === "summary" || item.kind === "line") {
+        for (const run of addedWordRuns(item.before, item.after)) p.append(run.added ? el("mark", undefined, run.text) : run.text);
     } else {
-        body.push(el("p", "muted", "Nothing could be reworded or reordered toward this job without adding words your résumé doesn't have, so this is your résumé as it is."));
+        p.textContent = item.after;
     }
-    if (tailored.summary) body.push(el("p", "diff-label", "Summary"), el("p", "diff-after", tailored.summary));
-    for (const bullet of tailored.reworded.slice(0, REWORDED_SHOWN)) {
-        body.push(el("p", "diff-label", `${bullet.role} · ${bullet.company}`), el("p", "diff-after", bullet.after), el("p", "diff-before", `Was: ${bullet.before}`));
-    }
-    if (tailored.reworded.length > REWORDED_SHOWN) body.push(el("p", "muted", `And ${tailored.reworded.length - REWORDED_SHOWN} more in the PDF.`));
+    return p;
+}
 
+/**
+ * "Your résumé for this role": the changes Velai proposes for this posting,
+ * each as the person's own text beside the proposed text, with the reason, and
+ * Accept or Reject. Nothing is applied until it is accepted: the PDF and the
+ * copied text are the person's résumé with the accepted changes only, and what
+ * was decided is remembered (ids only, tailor-choices.ts) so the card's form
+ * fill attaches the same résumé.
+ */
+async function tailorNode(resume: ResumeData, job: PublicJob, resumeAt: string | null): Promise<HTMLElement> {
+    const draft = proposeChanges(resume, job);
+    const key = choiceKey(job);
+    const decisions = new Map(decisionsFor(draft, await loadChoice(key), resumeAt));
+    const total = draft.changes.length;
+    const body: Node[] = [];
+
+    const count = el("p", "muted review-count");
     const status = el("p", "muted");
+    status.setAttribute("aria-live", "polite");
+    const rows: { id: string; node: HTMLElement; accept: HTMLButtonElement; reject: HTMLButtonElement }[] = [];
+
+    const paint = () => {
+        for (const row of rows) {
+            const decision = decisions.get(row.id);
+            row.node.dataset.state = decision ?? "pending";
+            row.accept.setAttribute("aria-pressed", String(decision === "accepted"));
+            row.reject.setAttribute("aria-pressed", String(decision === "rejected"));
+        }
+        const n = acceptedCount(draft, decisions);
+        count.textContent =
+            n === 0
+                ? `0 of ${total} accepted. The PDF and the copied text are your résumé as you wrote it.`
+                : `${n} of ${total} accepted. The PDF and the copied text have these changes and no others.`;
+    };
+    const remember = () => {
+        status.textContent = "";
+        paint();
+        void saveChoice(key, draft, decisions, resumeAt);
+    };
+    const decide = (id: string, next: Decision) => {
+        if (decisions.get(id) === next) decisions.delete(id);
+        else decisions.set(id, next);
+        remember();
+    };
+
+    if (total === 0) {
+        body.push(el("p", "muted", NO_CHANGES_TEXT));
+    } else {
+        body.push(
+            el("p", "muted", `Velai proposes ${total === 1 ? "this change" : `these ${total} changes`} to your résumé for this job. Each uses only words already in your résumé. Nothing changes until you accept it.`),
+            count,
+        );
+        if (total > 1) {
+            const bulk = el("div", "actions");
+            bulk.append(
+                button("Accept all", "secondary", () => {
+                    for (const c of draft.changes) decisions.set(c.id, "accepted");
+                    remember();
+                }),
+                button("Reject all", "secondary", () => {
+                    for (const c of draft.changes) decisions.set(c.id, "rejected");
+                    remember();
+                }),
+            );
+            body.push(bulk);
+        }
+        for (const part of reviewSections(draft)) {
+            body.push(el("h3", "review-head", part.title));
+            const list = el("ul", "review");
+            for (const item of part.items) {
+                const li = el("li", "change");
+                li.dataset.kind = item.kind;
+                const accept = button("Accept", "secondary choice", () => decide(item.id, "accepted"));
+                const reject = button("Reject", "secondary choice choice-reject", () => decide(item.id, "rejected"));
+                const what = `${part.title}: ${item.kind === "line" ? "reworded line" : item.kind === "skills" ? "skills order" : item.kind === "order" ? "line order" : item.kind === "leave-out" ? "leave project off" : "summary"}`;
+                accept.setAttribute("aria-label", `Accept ${what}`);
+                reject.setAttribute("aria-label", `Reject ${what}`);
+                const choices = el("div", "actions");
+                choices.append(accept, reject);
+                li.append(
+                    el("p", "tag", "Your résumé"),
+                    el("p", "text text-before", item.before),
+                    el("p", "tag", item.afterLabel),
+                    proposedText(item),
+                    el("p", "why", item.why),
+                    choices,
+                );
+                list.append(li);
+                rows.push({ id: item.id, node: li, accept, reject });
+            }
+            body.push(list);
+        }
+        paint();
+    }
+
     const download = button("Download PDF", "primary", () => {
         download.disabled = true;
         status.textContent = "Making your PDF…";
-        void tailoredResumePdf(tailored.resume, job)
+        void tailoredResumePdf(acceptedResume(draft, decisions), job)
             .then(({ blob, filename }) => {
                 const url = URL.createObjectURL(blob);
                 const a = el("a");
@@ -320,7 +400,7 @@ function tailorNode(resume: ResumeData, job: PublicJob): HTMLElement {
     });
     const copy = button("Copy text", "secondary", () => {
         void navigator.clipboard
-            .writeText(resumeDataToPlainText(tailored.resume))
+            .writeText(resumeDataToPlainText(acceptedResume(draft, decisions)))
             .then(() => (status.textContent = "Copied."))
             .catch(() => (status.textContent = "Copying didn't work here."));
     });
@@ -337,7 +417,7 @@ function renderIdle(): void {
     setSource(null);
     results.replaceChildren(
         el("p", "lede", "Open a job on any careers site or job board and click the Velai button, or the button on the Velai card."),
-        el("p", "muted", "You'll see how it fits your Velai résumé, whether the posting looks current, and a copy of your résumé tailored to it."),
+        el("p", "muted", "You'll see how it fits your Velai résumé, whether the posting looks current, and the changes Velai proposes to your résumé for it, for you to accept or reject."),
     );
 }
 
@@ -437,12 +517,10 @@ async function renderPage(ctx: PageContext, textIsTheJob = false): Promise<void>
     parts.push(...(resume ? [fit, checks] : [checks, fit]));
 
     if (resume) {
-        // Tailor to the fullest description of the role: the page's published
-        // one when Velai's stored copy is shorter. A page's loose text is only
-        // used when it is all there is.
-        const pageText = read.posting || !velaiJob ? (pageJob.description ?? "") : "";
-        const forTailor = velaiJob && (velaiJob.description ?? "").length < pageText.length ? { ...velaiJob, description: pageText } : job;
-        parts.push(tailorNode(resume, forTailor));
+        // Proposed against the fullest description of the role (`tailoringJob`), the posting the card's form fill uses too.
+        const tailor = await tailorNode(resume, tailoringJob(read, pageJob, velaiJob), me?.resume?.updatedAt ?? null);
+        if (mine !== generation) return;
+        parts.push(tailor);
     }
 
     if (me?.signedIn) {

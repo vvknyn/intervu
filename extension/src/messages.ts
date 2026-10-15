@@ -20,7 +20,7 @@ export type ToBackground =
     | { type: "save"; job: TrackJob }
     /** The panel turned the card on for a site; inject it into that tab now. */
     | { type: "siteEnabled"; tabId: number }
-    /** The card's "Fill from your résumé": the résumé's contact details and the PDF tailored to this tab's job. Answered with a FillAnswer. */
+    /** The card's "Fill from your résumé": the résumé's contact details and the PDF with the changes accepted for this tab's job. Answered with a FillAnswer. */
     | { type: "fillData"; read: PageRead }
     /** The card filled this tab's application form for this job; track it once the site confirms. */
     | { type: "filled"; track: TrackJob | null }
@@ -34,7 +34,13 @@ export type TrackAnswer = { ok: true } | { ok: false; error: string };
 /** `status`: the role's status in the tracker after the save, as the tracker labels it ("Saved", or "Applied" for a role already further along). */
 export type SaveAnswer = { ok: true; status: string } | { ok: false; error: string };
 export type FillAnswer =
-    | { ok: true; values: Partial<Record<FieldKind, string>>; pdf: { base64: string; filename: string } | null }
+    | {
+          ok: true;
+          values: Partial<Record<FieldKind, string>>;
+          pdf: { base64: string; filename: string } | null;
+          /** How many of the changes proposed for this job the PDF carries (the ones the person accepted in the panel). */
+          tailored: { accepted: number; proposed: number };
+      }
     | { ok: false; error: string };
 export interface PendingFill {
     title: string;

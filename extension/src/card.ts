@@ -26,6 +26,7 @@ import {
 } from "./messages";
 import { CARD_TERM_LIMIT, type CardSummary } from "./card-summary";
 import { fillForm, filledList, findApplicationForm, isConfirmation } from "./form-fill";
+import { attachedNote } from "./fill-note";
 
 const HOST_ID = "velai-card-host";
 /** Client-rendered job pages fill in after load; look once more after this. */
@@ -221,7 +222,7 @@ function watchForConfirmation(): void {
     confirmWatch.observe(document.body, { childList: true, subtree: true, characterData: true });
 }
 
-/** "Fill from your résumé": the form's fields from the résumé, its upload with the PDF tailored to this job. */
+/** "Fill from your résumé": the form's fields from the résumé, its upload with the PDF of the résumé with the changes accepted for this job. */
 function fillButton(summary: CardSummary, read: PageRead, status: HTMLElement): HTMLButtonElement {
     const label = "Fill from your résumé";
     const fill = button(label, "primary", () => {
@@ -242,7 +243,7 @@ function fillButton(summary: CardSummary, read: PageRead, status: HTMLElement): 
                 const filled = fillForm(fields, answer.values, pdf);
                 const missedPdf = !pdf && fields.some((f) => f.kind === "resume");
                 const done = filled.length
-                    ? `Filled ${filledList(filled)}. Check the form, then submit it yourself.${missedPdf ? " Attach your résumé too." : ""}`
+                    ? `Filled ${filledList(filled)}. Check the form, then submit it yourself.${missedPdf ? " Attach your résumé too." : pdf ? attachedNote(answer.tailored) : ""}`
                     : "Nothing to fill: these fields are filled in already, or ask for what your résumé doesn't say.";
                 fill.replaceWith(el("p", "done", done));
                 if (filled.length && summary.track) {
@@ -341,7 +342,7 @@ function render(summary: CardSummary, read: PageRead): void {
     });
     const footer = el("div", "actions");
     // On a form, the panel (what was tailored and why) is one tap away instead of the main button.
-    if (form) footer.append(button("See your fit and résumé changes", "link", openPanel));
+    if (form) footer.append(button("See your fit and review résumé changes", "link", openPanel));
     footer.append(off);
     card.append(footer);
 
