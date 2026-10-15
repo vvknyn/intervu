@@ -16,6 +16,7 @@ import {
 } from "@/lib/agent/tools";
 import { toolGetCompany, toolGetCompanyTimeline, toolSearchCompanies } from "@/lib/agent/company-tools";
 import { rulesTailor, toolTailorResume } from "@/lib/agent/tailor-tool";
+import { toolDraftScreeningAnswer } from "@/lib/agent/screening-tool";
 import { getAgentPreferences, setAgentPreferences } from "@/lib/agent/preferences";
 import { locationVocabulary } from "@/lib/jobs/search";
 import { searchAsTheSite } from "@/lib/agent/search-as-the-site";
@@ -190,6 +191,7 @@ const handlers: { [K in McpToolName]: CatalogHandler<K> } = {
     save_resume_variant: withDeps("save_resume_variant", toolSaveResumeVariant),
     get_resume_variant: withDeps("get_resume_variant", toolGetResumeVariant),
     tailor_resume: withDeps("tailor_resume", toolTailorResume),
+    draft_screening_answer: withDeps("draft_screening_answer", toolDraftScreeningAnswer),
     set_resume: withDeps("set_resume", toolSetResume),
     get_applications: withDeps("get_applications", toolGetApplications),
     get_preferences: withDeps("get_preferences", toolGetPreferences),

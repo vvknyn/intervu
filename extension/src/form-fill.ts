@@ -8,9 +8,10 @@
  * location, LinkedIn, GitHub and website, from the résumé's own contact
  * lines, and the résumé upload, with the PDF tailored to the job. What it
  * leaves alone: anything already filled in, drop-downs, checkboxes and radio
- * buttons (work authorisation, demographics), free-text questions, and
- * fields it doesn't recognise. It never submits the form: the person checks
- * it and presses the site's own button.
+ * buttons (work authorisation, demographics), free-text questions (those get
+ * a draft only when the person asks, form-questions.ts), and fields it
+ * doesn't recognise. It never submits the form: the person checks it and
+ * presses the site's own button.
  *
  * `fieldKind`, `contactValues` and `isConfirmation` are pure; the rest reads
  * and writes the page and runs in the card's content script.
@@ -157,7 +158,7 @@ export interface FormField {
     kind: FieldKind;
 }
 
-function visible(el: Element): boolean {
+export function visible(el: Element): boolean {
     return (el as HTMLElement).offsetParent !== null || (el as HTMLElement).getClientRects().length > 0;
 }
 
@@ -168,7 +169,7 @@ function textOf(ids: string): string {
         .join(" ");
 }
 
-function labelOf(input: HTMLInputElement): string {
+export function labelOf(input: HTMLInputElement | HTMLTextAreaElement): string {
     const labels = Array.from(input.labels ?? []).map((l) => l.textContent ?? "");
     const aria = [input.getAttribute("aria-label") ?? "", textOf(input.getAttribute("aria-labelledby") ?? "")];
     let text = [...labels, ...aria].join(" ").replace(/\s+/g, " ").trim();
@@ -184,9 +185,9 @@ function labelOf(input: HTMLInputElement): string {
     return text;
 }
 
-function hintFor(input: HTMLInputElement): FieldHint {
+export function hintFor(input: HTMLInputElement | HTMLTextAreaElement): FieldHint {
     return {
-        type: (input.getAttribute("type") ?? "").toLowerCase(),
+        type: input instanceof HTMLTextAreaElement ? "textarea" : (input.getAttribute("type") ?? "").toLowerCase(),
         autocomplete: input.getAttribute("autocomplete") ?? "",
         name: input.getAttribute("name") ?? "",
         id: input.id,
@@ -196,7 +197,7 @@ function hintFor(input: HTMLInputElement): FieldHint {
 }
 
 /** A field that opens a list to pick from (a location picker): typing alone leaves it half set, so it's the person's. */
-function isPicker(input: HTMLInputElement): boolean {
+export function isPicker(input: HTMLInputElement | HTMLTextAreaElement): boolean {
     const auto = (input.getAttribute("aria-autocomplete") ?? "").toLowerCase();
     return input.getAttribute("role") === "combobox" || auto === "list" || auto === "both";
 }
@@ -230,9 +231,10 @@ export function findApplicationForm(doc: Document = document): FormField[] | nul
 }
 
 /** Sets a field's value so the page's own scripts see it, as if typed. */
-function setValue(input: HTMLInputElement, value: string): void {
+export function setValue(input: HTMLInputElement | HTMLTextAreaElement, value: string): void {
     input.focus({ preventScroll: true });
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value);
+    const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, "value")?.set?.call(input, value);
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
     input.dispatchEvent(new FocusEvent("blur"));

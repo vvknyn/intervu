@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { jobPath } from "@/lib/jobs/job-slug";
-import { ArrowSquareOut, Check, Minus, Warning, X } from "@phosphor-icons/react";
+import { ArrowSquareOut, Check, Minus, SignIn, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
@@ -18,7 +18,7 @@ import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, APPLY_BUTTON_LABEL, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
+import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, applyButtonLabel, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
@@ -179,6 +179,13 @@ export function JobDetailSkeleton() {
     );
 }
 
+/** The glyph before the Apply label. Signed out the button opens a sign-in
+ *  dialog, so it carries the sign-in glyph, not the leaves-this-site arrow. */
+export function ApplyButtonIcon({ signedOut, size, weight }: { signedOut: boolean; size?: number; weight?: "bold" }) {
+    const Icon = signedOut ? SignIn : ArrowSquareOut;
+    return <Icon size={size} weight={weight} />;
+}
+
 /**
  * Bottom CTA row for an open job detail — the ONE place this renders (P27
  * mobile pass, Task "sticky mobile action bar"). Previously two near-identical
@@ -207,6 +214,7 @@ export function JobDetailActionBar({
     onGoAfter,
     pursuit,
     saveSuccessPulse = false,
+    signedOut = false,
     className,
 }: {
     job: PublicJob;
@@ -217,8 +225,13 @@ export function JobDetailActionBar({
      *  bookmark control rendered inline above. */
     pursuit: Pursuit | undefined;
     saveSuccessPulse?: boolean;
-    /** When false, guest chrome still shows "Apply" (auth is a separate step). */
+    /** Accepted for callers' sake; the label follows `signedOut`, not this. */
     signedIn?: boolean;
+    /** CONFIRMED signed out (`isConfirmedSignedOut`): the button takes the
+     *  signed-out label (`APPLY_SIGNED_OUT_LABEL`), which is what a tap opens.
+     *  Unknown or signed in keeps the employer-site label, so a signed-in
+     *  visitor never sees the sign-in one. */
+    signedOut?: boolean;
     /** Accepted-but-unused (prep surface removed 2026-08-02): kept optional
      *  so callers built before the removal — e.g. app/page.tsx, out of this
      *  change's scope — still typecheck without editing their call sites. */
@@ -237,11 +250,11 @@ export function JobDetailActionBar({
         >
             {job.apply_url && (
                 <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
-                    <ArrowSquareOut weight="bold" />
-                    {APPLY_BUTTON_LABEL}
+                    <ApplyButtonIcon signedOut={signedOut} weight="bold" />
+                    {applyButtonLabel(signedOut)}
                 </Button>
             )}
-            {/* Apply and Save only. "Apply on employer site" leaves no room
+            {/* Apply and Save only. The Apply label leaves no room
                 for a Customize or Upload button beside it on a phone (the
                 row ran 60px past a 390px screen, 2026-09-30); the pane's
                 action row and the job page's apply card carry that one. */}
@@ -412,6 +425,7 @@ export function JobDetail({
     onClose,
     className,
     signedIn = true,
+    signedOut = false,
     onOpenRelated,
     reportJobEnabled = false,
     collapseDescription = true,
@@ -434,6 +448,10 @@ export function JobDetail({
     onOpenPosting: () => void;
     /** When false, Apply/Save gate at click; description body stays public. */
     signedIn?: boolean;
+    /** CONFIRMED signed out: Apply takes the signed-out label (see
+     *  `JobDetailActionBar`). Not derivable from `signedIn`, which is also
+     *  false while the session check is still running. */
+    signedOut?: boolean;
     /** ITEM O-FE (2026-08-15) — probed once by the caller via
      *  `reportJobEnabledAction`; the flags endpoint isn't deployed yet, so
      *  this defaults to hidden rather than showing a button that 404s. */
@@ -842,8 +860,8 @@ export function JobDetail({
                             every other control in this row. */}
                         {job.apply_url && !actionBarBelow && (
                             <Button size={jobActionSize} onClick={onOpenPosting} className="gap-2 px-4 bg-foreground text-background transition-colors">
-                                <ArrowSquareOut size={16} />
-                                {APPLY_BUTTON_LABEL}
+                                <ApplyButtonIcon signedOut={signedOut} size={16} />
+                                {applyButtonLabel(signedOut)}
                             </Button>
                         )}
                         {resume != null ? (
@@ -1209,7 +1227,7 @@ export function JobDetail({
                                             <>
                                                 Use{" "}
                                                 <span className="font-semibold text-foreground">
-                                                    {APPLY_BUTTON_LABEL}
+                                                    {applyButtonLabel(signedOut)}
                                                 </span>{" "}
                                                 to read the full details on the employer&apos;s site.
                                             </>

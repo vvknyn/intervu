@@ -14,7 +14,7 @@ import {
 export const dynamic = "force-dynamic";
 
 /**
- * POST /api/sealed-ai/v1/chat/completions — the browser's sealed-AI request,
+ * POST /api/sealed-ai/v1/chat/completions — the browser's (or the Chrome extension's) sealed-AI request,
  * passed on to the Tinfoil enclave it verified, with our key in place of its
  * placeholder. The body arrives encrypted to that enclave (EHBP) and goes on
  * as it came; the reply comes back the same way. Nothing here can read either,
@@ -25,9 +25,11 @@ export async function POST(request: Request): Promise<Response> {
     const key = sealedAiKey();
     if (!key) return NextResponse.json({ error: "Sealed AI is off" }, { status: 503, headers });
 
-    // Only velai.app's own pages: a browser on another site sends "cross-site".
+    // Only velai.app's own pages: a browser on another site sends "cross-site". The Velai
+    // Chrome extension is the other caller: its requests carry "none" and its own origin.
     const site = request.headers.get("sec-fetch-site");
-    if (site && site !== "same-origin") return NextResponse.json({ error: "Not allowed" }, { status: 403, headers });
+    const fromExtension = site === "none" && (request.headers.get("origin") ?? "").startsWith("chrome-extension://");
+    if (site && site !== "same-origin" && !fromExtension) return NextResponse.json({ error: "Not allowed" }, { status: 403, headers });
 
     const ip = resolveClientIpFromHeaders(request.headers);
     if (!allowSealedAiRequest(ip) || !allowSealedAiServerRequest("all")) {

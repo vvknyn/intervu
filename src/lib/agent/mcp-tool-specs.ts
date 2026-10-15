@@ -87,6 +87,12 @@ export const getResumeVariantInput = jobIdFieldInput;
 
 export const tailorResumeInput = jobIdFieldInput;
 
+/** `draft_screening_answer`: the posting and the one question to draft an answer to. The question is
+ *  free text from an application form; the tool cuts it to `QUESTION_MAX_CHARS` itself. */
+export const draftScreeningAnswerInput = jobIdFieldInput.extend({
+    question: z.string().min(1).max(1000),
+});
+
 /** `set_resume`'s wire input. `resume_data` is deliberately PERMISSIVE at
  *  this layer — a plain string-keyed record, not the strict `ResumeData`
  *  shape — so a structurally invalid payload never rejects the whole call
@@ -219,6 +225,9 @@ export const FIT_FIELDS_NOTE =
     "a role's fit; never call a role labelled Outside or Country unclear a fit. A role above their level is " +
     "always Stretch: a role's level is the highest of its listed level, its title (a rank word like Senior, or a " +
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
+    "A role whose title is Staff, Principal, Distinguished, Director, Head of, VP or Chief, or that is listed as Executive, " +
+    "is past senior: Stretch for anyone whose résumé shows no role at that rank, and left out of the lists velai " +
+    "recommends (For You, Today, daily picks). " +
     "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
     "Intern, Junior, Trainee or Apprentice is entry, however long its dates run), else their years in that line of work. " +
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
@@ -274,7 +283,8 @@ export const MCP_TOOL_SPECS = {
         title: "Jobs ranked by fit",
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
-            "pipeline behind the site's For-you view. Requires a structured résumé on file: when get_resume " +
+            "pipeline behind the site's For-you view, which leaves out roles past your level (Staff, Principal, " +
+            "Director or Executive roles, unless your résumé shows one). Requires a structured résumé on file: when get_resume " +
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
             "Ranks purely by fit, not recency — postedWithinDays/sort/facet " +
@@ -294,7 +304,8 @@ export const MCP_TOOL_SPECS = {
         description:
             "Today's picks for your stored résumé: up to 5 roles posted this week in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
-            "level, never one managing people when your résumé shows no one managed. The same roles Today on " +
+            "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
+            "managing people when your résumé shows no one managed. The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words) and emailed (already sent in a daily picks email). Roles not emailed yet come first. Pass " +
@@ -316,7 +327,10 @@ export const MCP_TOOL_SPECS = {
     },
     save_job: {
         title: "Save job",
-        description: "Save a job to YOUR velai watchlist.",
+        description:
+            "Save a job to YOUR velai tracker's Saved column — the same as the Save bookmark on a job on " +
+            "velai.app and in the Velai Chrome extension. It never marks the job applied (mark_applied does), and " +
+            "a role already further along (applied, interviewing, offered, rejected or withdrawn) keeps its status.",
         inputSchema: jobIdInput,
     },
     mark_applied: {
@@ -353,6 +367,22 @@ export const MCP_TOOL_SPECS = {
             "any change they don't want. Needs a structured resume (get_resume source resume_data). Counts " +
             `against ${RECORD_BUDGET_NOTE}.`,
         inputSchema: tailorResumeInput,
+    },
+    draft_screening_answer: {
+        title: "Draft an answer to an application question",
+        description:
+            "Draft YOUR OWN answer to one free-text question an application form asks (\"Why are you interested in this " +
+            "role?\", \"Describe your experience with X\"), for one job (job_id), from the resume on file — the way the " +
+            "Velai Chrome extension's \"Draft an answer\" does. Velai leaves some questions to the person: work " +
+            "authorization, pay, demographics, start date, relocation and schedule, background checks, consents, where " +
+            "they heard about the job, their history with the employer, a cover letter — those return drafts false with " +
+            "a reason (ask the person; never guess), as does a question no line of the resume speaks to. Otherwise " +
+            "returns lines (the resume lines that bear on the question, each with where on the resume it is; no name, " +
+            "email, phone or link) and draft (those lines as sentences, no AI). Write the answer from lines alone, as " +
+            "the person, with no employer, title, date, number, tool or skill they don't state, and tell them to check " +
+            "every claim. Saves and submits nothing. Needs a structured resume (get_resume source resume_data). When it " +
+            `returns a draft it counts against ${RECORD_BUDGET_NOTE}.`,
+        inputSchema: draftScreeningAnswerInput,
     },
     save_resume_variant: {
         title: "Save a tailored resume variant",

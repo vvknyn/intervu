@@ -97,7 +97,7 @@ Your résumé file is read in your browser and never uploaded. If you aren't sig
 ## Seven ways to check it yourself
 
 1. **Search without an account.** Open [Velai's job search](/jobs) and search for anything. There's no sign-up and no card.
-2. **See where a job comes from.** Open any job and press **Apply on employer site**. It opens the employer's own posting, so you can see the role on the company's own site.
+2. **See where a job comes from.** Open any job and press **Apply on employer site**. It opens the employer's own posting, so you can see the role on the company's own site. Until you have a free account the button reads **Sign in to apply** and asks you to sign in first.
 3. **Check the dates.** A job shows when the employer posted it and, where we have it, when our crawler first found it. A relisted job can carry a new date without being a new role, which is why we show both.
 4. **See that your résumé stays in your browser.** Without signing in, add your résumé, then open Velai in a private window. Your résumé isn't there, because Velai keeps it only in the browser you added it in.
 5. **Read why a job fits.** With your résumé added, each job says Strong, Good or Stretch and gives the reasons. If a reason is wrong, tell us.

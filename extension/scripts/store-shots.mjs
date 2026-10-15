@@ -48,17 +48,17 @@ const SHOTS = [
     },
     {
         file: "screenshot-4-tailored-resume.png",
-        headline: "Your résumé, tailored to this job",
-        sub: "Built from your own résumé, inside the extension.",
-        points: ["Lines that use the job's words come first", "Rewording uses only words already on your résumé", "Download a one-page PDF or copy the text"],
-        visual: { kind: "panel", panel: "found-bottom.png", page: "job-page.png" },
+        headline: "You approve every change",
+        sub: "Velai proposes changes to your résumé for this job. Nothing changes until you accept it.",
+        points: ["Your own text beside each proposal, with the reason", "Accept or reject each change", "Download a one-page PDF with only what you accepted"],
+        visual: { kind: "panel", panel: "panel-approve.png", page: "job-page.png" },
     },
     {
         file: "screenshot-5-fill-and-track.png",
         headline: "Fill the form, track the application",
-        sub: "One click fills an application form from your résumé and attaches your résumé for this job.",
+        sub: "One click fills an application form from your résumé and attaches it with the changes you accepted.",
         points: ["Name, email, phone and location", "Never sends it: you check it and submit", "In your Velai tracker once the site confirms"],
-        visual: { kind: "card", page: "card-filled.png" },
+        visual: { kind: "card", page: "card-filled-approved.png" },
     },
 ];
 

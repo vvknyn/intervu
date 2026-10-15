@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { jobFromPage, looksLikeJob, placeFromTitle, postingKey, validThrough, type PageRead } from "../../extension/src/page-reader";
 import { jobCountries } from "../../src/lib/jobs/resume-location";
 import { pageChecks, sameJob } from "../../extension/src/report";
-import { orderForRole } from "../../extension/src/tailor-order";
+import { orderForRole } from "../../src/lib/resume/order-for-role";
 import type { PublicJob } from "../../src/lib/jobs/types";
 import type { ResumeData } from "../../src/types/resume";
 

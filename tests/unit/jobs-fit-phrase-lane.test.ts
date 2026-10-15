@@ -256,4 +256,41 @@ describe("fit-phrase lanes share each page", () => {
         assert.ok(count("Product Manager") >= 20, `PM rows: ${count("Product Manager")}`);
         assert.equal(result.total, 290);
     });
+
+    it("omitPastSenior leaves staff, principal, director and executive rows out of the pool so the page fills with the rest", async () => {
+        const q = '"Product Manager" OR "Technical Account Manager"';
+        await primeNonCompanyIntent(q);
+        const rows = [
+            job({ id: "pm-staff", title: "Staff Product Manager", experience_level: "lead" }),
+            job({ id: "pm-principal", title: "Principal Product Manager", experience_level: "senior" }),
+            job({ id: "pm-director", title: "Director, Product Manager Enablement", experience_level: "senior" }),
+            job({ id: "pm-exec", title: "Product Manager", experience_level: "executive" }),
+            job({ id: "pm-senior", title: "Senior Product Manager", experience_level: "senior" }),
+            job({ id: "pm-lead", title: "Lead Product Manager", experience_level: "lead" }),
+            job({ id: "pm-plain", title: "Product Manager", experience_level: "mid" }),
+            job({ id: "tam-staff", title: "Staff Technical Account Manager", experience_level: "senior" }),
+            job({ id: "tam-plain", title: "Technical Account Manager", experience_level: "unknown" }),
+        ];
+        const respond = () =>
+            mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+                if (String(input).includes("/indexes/jobs/search") && init?.method === "POST") {
+                    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+                    const hits = /technical account manager/i.test(String(body.q)) ? rows.filter((r) => /tam-/.test(r.id)) : rows.filter((r) => /pm-/.test(r.id));
+                    return jsonResponse(200, { hits, totalHits: hits.length });
+                }
+                return jsonResponse(200, { hits: [], totalHits: 0 });
+            });
+
+        respond();
+        const kept = await searchMeili({ q, sort: "relevance", omitPastSenior: true, limit: 50, offset: 0 });
+        mock.reset();
+        assert.deepEqual([...kept.hits.map((h) => h.id)].sort(), ["pm-lead", "pm-plain", "pm-senior", "tam-plain"]);
+        assert.equal(kept.total, 4, "the count is of what the list can show");
+
+        await primeNonCompanyIntent(q);
+        respond();
+        const all = await searchMeili({ q, sort: "relevance", limit: 50, offset: 0 });
+        mock.reset();
+        assert.equal(all.hits.length, rows.length, "without the flag the search is unchanged");
+    });
 });

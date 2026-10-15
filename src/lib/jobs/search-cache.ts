@@ -92,6 +92,8 @@ export function normalizeSearchCacheKey(p: JobSearchParams): string {
     yearsExperience: p.yearsExperience ?? "",
     // Order kept: each phrase is a lane, and the lanes interleave in this order.
     fitPhrases: p.fitPhrases ?? [],
+    // Changes which rows the lanes pool, so a résumé-built list never shares an entry with the same words searched plain.
+    omitPastSenior: Boolean(p.omitPastSenior),
     limit: p.limit ?? 40,
     offset: p.offset ?? 0,
     withFacets: Boolean(p.withFacets),

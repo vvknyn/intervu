@@ -7,7 +7,7 @@
  */
 import { candidateCountries, preferredRoles, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { buildMatchQuery, experienceLevelFacet } from "@/lib/jobs/resume-match";
-import { searchParamsFromUrlState } from "@/lib/jobs/search-payload";
+import { resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
 import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, PostedBucket } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -47,7 +47,11 @@ export function packPostedBucket(signals: Pick<CandidateSignals, "postedWithinDa
     return "90d";
 }
 
-/** The exact `searchJobsAction` params `/jobs` sends for this pack's filters. */
-export function packSearchParams(filters: JobsUrlState): JobSearchParams {
-    return searchParamsFromUrlState(filters);
+/**
+ * The exact `searchJobsAction` params `/jobs` sends for this pack's filters: marked as a résumé's own list
+ * (`resumeSearchMark`), which also leaves roles past Senior out of the pool unless `signals` show the
+ * résumé holds one. Every pack search (the deck, the hub's counts, Today, For-you over MCP) shares this.
+ */
+export function packSearchParams(filters: JobsUrlState, signals?: Pick<CandidateSignals, "seniority">): JobSearchParams {
+    return { ...searchParamsFromUrlState(filters), ...resumeSearchMark(true, false, signals?.seniority.pastSenior === true) };
 }

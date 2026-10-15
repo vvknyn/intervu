@@ -116,3 +116,18 @@ export function searchParamsFromUrlState(
     // `sort=fit` is a résumé's own query (`packFilters`): searched, never logged.
     return state.sort === "fit" ? { ...payload, fromResume: true } : payload;
 }
+
+/**
+ * A fit-ranked or pack search's query is the résumé's own role titles: marked so the search log leaves it
+ * out (`shouldLogSearch`), and, unless the résumé shows a role past Senior, so roles past Senior are left
+ * out of its pool (`omitPastSenior`, types.ts). Shared by the board and the tests that search by hand.
+ */
+export function resumeSearchMark(
+    fromResume: boolean,
+    holdsResume = false,
+    keepPastSenior = false,
+): Pick<JobSearchParams, "fromResume" | "omitPastSenior" | "jdTerms"> {
+    if (fromResume) return keepPastSenior ? { fromResume: true } : { fromResume: true, omitPastSenior: true };
+    // Rows this browser will score against a résumé carry their description's terms (jd-terms.ts).
+    return holdsResume ? { jdTerms: true } : {};
+}
