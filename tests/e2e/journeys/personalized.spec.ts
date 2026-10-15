@@ -768,3 +768,38 @@ test("the reason on a role names what its posting asks for that the résumé sho
   await expect(reason).toHaveText(/The posting asks for [a-z+#. ,]+, which your résumé shows\. It's in your country/);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * J-JOBS-138 — Vivek, 2026-10-15: SecOps Engineer, Senior Salesforce Administrator and Application Support Analyst read
+ * Strong on his Today list under a Product Manager résumé. A title the résumé has not held reads Strong only when the
+ * day-to-day work its posting describes (its responsibilities) shows on the résumé; a requirements list that shares the
+ * résumé's tools (REST APIs, Salesforce, SQL) is not the work. The postings are CONSTRUCTED for this journey (no real
+ * company or posting).
+ */
+const sharingOnlyTheTools = (company: string, title: string) =>
+  [
+    `About the role\n${company} is hiring a ${title}.`,
+    "What you'll do\n\nMonitor and triage security alerts in the SIEM, hunt threats with endpoint detection tooling, run vulnerability scans and track remediation, administer Defender and Sentinel, and harden cloud configurations.",
+    "What you bring\n\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers\nExperience with customer success reporting\nExperience with technical escalations\nExperience with product management",
+  ].join("\n\n");
+
+test("a title the résumé has not held reads Strong when its day-to-day work shows on the résumé, and Good when only its requirements list shares the résumé's tools", { tag: ["@J-JOBS-138"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const led = described(posting("99999999-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const tools = described(posting("99999999-0000-4000-8000-000000000002", "SecOps Engineer", "Alcumus", "senior", 1), sharingOnlyTheTools("Alcumus", "SecOps Engineer"));
+  await withAccountApplications(page, []);
+  // Sent the tools-only posting first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of it.
+  await answerResumeSearch(page, [tools, led], "journey-duty-led");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", led.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", tools.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Good");
+  expect(diagnostics.pageErrors).toEqual([]);
+});

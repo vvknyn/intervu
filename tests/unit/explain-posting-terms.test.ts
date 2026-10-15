@@ -10,22 +10,22 @@ import { describe, it } from "node:test";
 import { explainMatch } from "../../src/lib/match/explain";
 import type { MatchComponent, MatchScore } from "../../src/lib/match/score";
 
-const relevance = (evidenceTerms: string[] | undefined, score = 1): MatchComponent => ({
+const relevance = (evidenceTerms: string[] | undefined, score = 1, dutyTerms?: string[]): MatchComponent => ({
     key: "relevance",
     label: "Relevance to this role",
     detail: "",
     score,
     terms: { matched: 3, of: 3 },
-    ...(evidenceTerms ? { jd: { fit: score, matched: evidenceTerms, missing: [], evidence: evidenceTerms.length, evidenceTerms } } : {}),
+    ...(evidenceTerms ? { jd: { fit: score, matched: evidenceTerms, missing: [], evidence: evidenceTerms.length, evidenceTerms, ...(dutyTerms ? { dutyFit: 1, dutyEvidence: dutyTerms.length, dutyTerms } : {}) } } : {}),
 });
 
 const location: MatchComponent = { key: "location", label: "Location", detail: "", score: 1, reason: "same_country" };
 
-const scored = (over: Partial<MatchScore>, evidenceTerms: string[] | undefined, relevanceScore = 1): MatchScore => ({
+const scored = (over: Partial<MatchScore>, evidenceTerms: string[] | undefined, relevanceScore = 1, dutyTerms?: string[]): MatchScore => ({
     total: 90,
     role: "own",
     yourRole: "Product Manager",
-    components: [relevance(evidenceTerms, relevanceScore), location],
+    components: [relevance(evidenceTerms, relevanceScore, dutyTerms), location],
     ...over,
 });
 
@@ -57,8 +57,10 @@ describe("what the posting asks for, in the reason", () => {
 
     it("leaves a different kind of role, and one that already names its terms as content-led, as they were", () => {
         assert.doesNotMatch(explainMatch(scored({ role: "off-target", total: 55 }, ["sql", "jira"])), /The posting asks for sql/);
-        const led = explainMatch(scored({ role: "adjacent", contentLed: true }, ["sql", "jira", "confluence"]));
-        assert.match(led, /posting asks for what your résumé shows \(sql, jira and confluence\)\./);
+        // A content-led row names the terms of its responsibilities (what carried it), never the requirements list's.
+        const led = explainMatch(scored({ role: "adjacent", contentLed: true }, ["sql", "jira", "confluence", "sso"], 1, ["roadmap", "backlog", "onboarding"]));
+        assert.match(led, /posting's day-to-day work shows on your résumé \(roadmap, backlog and onboarding\)\./);
+        assert.doesNotMatch(led, /sql|jira|confluence|sso/);
         assert.equal(led.match(/The posting asks for/g), null);
     });
 

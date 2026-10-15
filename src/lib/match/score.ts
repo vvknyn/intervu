@@ -93,7 +93,24 @@ export interface MatchComponent {
      * ("we are looking for a Product Manager"), so a generic two-line posting reads as full a match as
      * a detailed one; evidence is what tells them apart (`contentLead`, jobs/for-you/band-order.ts).
      */
-    jd?: { fit: number; matched: string[]; missing: string[]; semantic?: number; evidence?: number; evidenceTerms?: string[] };
+    jd?: {
+        fit: number;
+        matched: string[];
+        missing: string[];
+        semantic?: number;
+        evidence?: number;
+        evidenceTerms?: string[];
+        /**
+         * The posting's responsibilities on their own (`JdCoverage.dutyShare`), absent when it has none readable:
+         * `dutyFit` is their share on the scale `fit` uses, `dutyEvidence` how many of the terms the résumé shows
+         * are not the words of the posting's title, `dutyTerms` the first few of them. A title the résumé has not
+         * held is content-led only when these carry it (`contentLedRole`): the work the person would do, not the
+         * tools and collaborators a requirements list shares with every résumé.
+         */
+        dutyFit?: number;
+        dutyEvidence?: number;
+        dutyTerms?: string[];
+    };
     /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
     place?: { where: string; currency?: string };
     /** Seniority only, when both levels are known: what each was read from, for the reason a role shows (match/explain.ts). */
@@ -176,8 +193,9 @@ export interface MatchScore {
     /**
      * The title is not one the résumé names (`role` adjacent, unverified, or even another line of work's)
      * but the posting asks for what the résumé shows: most of it covered, with at least
-     * `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond the title's words. The title then does not hold
-     * the role under Strong or Good (`scoreJobAgainstResume`).
+     * `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond the title's words, and its responsibilities (the
+     * day-to-day work, not the requirements list) shown too (`CONTENT_LED_MIN_DUTY_EVIDENCE`). The title then
+     * does not hold the role under Strong or Good (`scoreJobAgainstResume`).
      */
     contentLed?: true;
 }
@@ -384,12 +402,22 @@ export const JD_GOOD_MIN_FIT = 0.5;
  */
 export const CONTENT_LED_MIN_FIT = 0.85;
 export const CONTENT_LED_MIN_EVIDENCE = 8;
+/**
+ * The same bar for the posting's responsibilities alone, and how many of their terms (beyond the title's
+ * words) the résumé must show. A requirements list is tools and collaborators (Salesforce, SQL, Jira, incident
+ * response, APIs) that a SecOps, Salesforce administration or application support posting shares with a
+ * product résumé; what the person would spend the days doing is the function (Vivek, 2026-10-15: those three
+ * read Strong on his Today list). A posting with no readable responsibilities is never content-led: it is held
+ * at Good like any title the résumé does not hold, and stays in the list.
+ */
+export const CONTENT_LED_MIN_DUTY_EVIDENCE = 4;
 
 /**
- * A title the résumé doesn't hold whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`): a
- * neighbour, a title tied to no known role, or a title of another line of work ("Solutions Engineer" for a
- * customer success résumé) that asks for the same onboarding, API and reporting work. The title never decides
- * alone (Vivek, 2026-10-14: "title matched LAST, never a filter"); it caps a role only when the content does not carry it.
+ * A title the résumé doesn't hold whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`) in
+ * the work it asks the person to do (`jd.dutyFit`): a neighbour, a title tied to no known role, or a title of
+ * another line of work ("Solutions Engineer" for a customer success résumé) that asks for the same onboarding,
+ * API and reporting work. The title never decides alone (Vivek, 2026-10-14: "title matched LAST, never a
+ * filter"); it caps a role only when the content does not carry it.
  */
 export function contentLedRole(role: RoleAffinity, jd: MatchComponent["jd"]): boolean {
     return (
@@ -397,7 +425,11 @@ export function contentLedRole(role: RoleAffinity, jd: MatchComponent["jd"]): bo
         jd != null &&
         jd.fit >= CONTENT_LED_MIN_FIT &&
         typeof jd.evidence === "number" &&
-        jd.evidence >= CONTENT_LED_MIN_EVIDENCE
+        jd.evidence >= CONTENT_LED_MIN_EVIDENCE &&
+        typeof jd.dutyFit === "number" &&
+        jd.dutyFit >= CONTENT_LED_MIN_FIT &&
+        typeof jd.dutyEvidence === "number" &&
+        jd.dutyEvidence >= CONTENT_LED_MIN_DUTY_EVIDENCE
     );
 }
 
@@ -476,6 +508,7 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     // The embedding match reads meaning the words miss; it carries half the posting-level fit when on hand.
     const fit = semantic == null ? lexical : SEMANTIC_SHARE * semantic + (1 - SEMANTIC_SHARE) * lexical;
     const shown = jd.matched.slice(0, 4);
+    const dutyTerms = specificTerms(jd.dutyMatched, job);
     return {
         key: "relevance",
         label: "Relevance to this role",
@@ -488,6 +521,9 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
             missing: jd.missing.slice(0, 12),
             evidence: specificEvidence(jd.matched, job),
             evidenceTerms: specificTerms(jd.matched, job).slice(0, 4),
+            ...(jd.dutyShare != null
+                ? { dutyFit: jdFitScore(jd.dutyShare, resumeTermSet(resume).size), dutyEvidence: dutyTerms.length, dutyTerms: dutyTerms.slice(0, 4) }
+                : {}),
             ...(semantic != null ? { semantic } : {}),
         },
     };
@@ -1116,7 +1152,7 @@ export function scoreJobAgainstResume(
     // A title of another line of work caps a role only when the posting's content does not carry it (`contentLedRole`).
     const heldOffTarget = offTarget && !contentLed;
     const relevance = contentLed
-        ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting asks for what your résumé shows${gapNote}` }
+        ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting's day-to-day work shows on your résumé${gapNote}` }
         : offTarget
           ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
           : role === "adjacent"

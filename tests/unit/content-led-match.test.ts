@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+    CONTENT_LED_MIN_DUTY_EVIDENCE,
     CONTENT_LED_MIN_EVIDENCE,
     CONTENT_LED_MIN_FIT,
     MATCH_BAND_STRONG_MIN,
@@ -88,6 +89,56 @@ const ENGINEER_ASKING = posting("engineer-asking", "Software Engineer, Loyalty a
 // The adjacent posting with its body cut to the title's own words: nothing it asks that the résumé could show.
 const ADJACENT_THIN = posting("adjacent-thin", "Platform Owner, Loyalty and Rewards APIs", "Join the platform owner team for loyalty and rewards.", [], 6);
 
+// Three postings for a different function (security operations, Salesforce administration, application support)
+// that ask for what a product résumé's tool list shows: SQL, Jira, REST APIs, incident response, data, Agile.
+// Their responsibilities (the days' work) are not on the résumé. Reported 2026-10-15: all three read Strong on
+// his Today list under a Product Manager résumé.
+const SHARED_TOOLS = ["SQL", "Jira", "REST APIs", "incident response", "data analysis", "Python", "Agile", "Confluence", "stakeholder management"];
+const SECOPS = posting(
+    "secops",
+    "SecOps Engineer",
+    "Monitor and triage security alerts in the SIEM, hunt threats with EDR tooling, run vulnerability scans and track remediation, administer Defender XDR and Sentinel, and harden cloud configurations.",
+    SHARED_TOOLS,
+    3,
+);
+const SALESFORCE_ADMIN = posting(
+    "sf-admin",
+    "Senior Salesforce Administrator",
+    "Configure Salesforce flows, validation rules, permission sets and page layouts, build reports and dashboards, manage lead routing and sandbox releases, and train sales users on the platform.",
+    SHARED_TOOLS,
+    5,
+);
+const SUPPORT_ANALYST = posting(
+    "support",
+    "Application Support Analyst",
+    "Work the support queue by helpdesk and phone, troubleshoot customer issues and reset accounts, document investigation notes, maintain knowledge base articles and escalate defects to development.",
+    SHARED_TOOLS,
+    2,
+);
+// Postings for the résumé's own work: a product owner's (the résumé's own kind of role) and two under titles it has
+// not held ("Platform Owner", "Technical Program Lead"), whose days' work is on it.
+const PRODUCT_OWNER = posting(
+    "product-owner",
+    "Product Owner, Payments Platform",
+    "Own the roadmap and the API lifecycle for the payments platform, write requirements and user stories, run backlog grooming and prioritization with engineering, coordinate release planning from SIT through UAT to production, and lead incident command when an SLA is at risk.",
+    SHARED_TOOLS,
+    6,
+);
+const PLATFORM_OWNER = posting(
+    "platform-owner",
+    "Platform Owner, Payments APIs",
+    "Own the roadmap and the API lifecycle for the payments platform, write requirements and user stories, run backlog grooming and prioritization with engineering, coordinate release planning from SIT through UAT to production, and lead incident command when an SLA is at risk.",
+    SHARED_TOOLS,
+    6,
+);
+const PROGRAM_LEAD = posting(
+    "program-lead",
+    "Technical Program Lead, Integrations",
+    "Define the integration roadmap and API requirements with enterprise clients, prioritize the backlog with engineering, translate client strategy into scoped and estimated statements of work, coordinate release coordination and report adoption metrics with SQL.",
+    SHARED_TOOLS,
+    6,
+);
+
 const relevance = (score: MatchScore) => score.components.find((c) => c.key === "relevance")!;
 
 describe("specificEvidence", () => {
@@ -101,17 +152,32 @@ describe("specificEvidence", () => {
 });
 
 describe("contentLedRole", () => {
-    const jd = (fit: number, evidence?: number) => ({ fit, matched: [], missing: [], ...(evidence === undefined ? {} : { evidence }) });
+    // `duty`: [fit, evidence] of the posting's responsibilities alone; absent = no readable responsibilities.
+    const jd = (fit: number, evidence?: number, duty?: [number, number]) => ({
+        fit,
+        matched: [],
+        missing: [],
+        ...(evidence === undefined ? {} : { evidence }),
+        ...(duty ? { dutyFit: duty[0], dutyEvidence: duty[1] } : {}),
+    });
+    const duty: [number, number] = [CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_DUTY_EVIDENCE];
     it("needs a title the résumé has not held, most of the posting covered, and terms of its own", () => {
-        assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE)), true);
-        assert.equal(contentLedRole("unverified", jd(1, 20)), true);
-        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE)), true, "another line of work's title is not a filter either");
-        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT - 0.01, 20)), false);
-        assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT - 0.01, 20)), false);
-        assert.equal(contentLedRole("adjacent", jd(1, CONTENT_LED_MIN_EVIDENCE - 1)), false);
+        assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE, duty)), true);
+        assert.equal(contentLedRole("unverified", jd(1, 20, [1, 12])), true);
+        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE, duty)), true, "another line of work's title is not a filter either");
+        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT - 0.01, 20, duty)), false);
+        assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT - 0.01, 20, duty)), false);
+        assert.equal(contentLedRole("adjacent", jd(1, CONTENT_LED_MIN_EVIDENCE - 1, duty)), false);
         assert.equal(contentLedRole("adjacent", jd(1)), false, "a score read before evidence existed is not content-led");
         assert.equal(contentLedRole("adjacent", undefined), false);
-        for (const role of ["own", "family"] as const) assert.equal(contentLedRole(role, jd(1, 20)), false, role);
+        for (const role of ["own", "family"] as const) assert.equal(contentLedRole(role, jd(1, 20, [1, 12])), false, role);
+    });
+
+    it("needs the posting's responsibilities to show on the résumé too, not only its requirements", () => {
+        assert.equal(contentLedRole("adjacent", jd(1, 20, [CONTENT_LED_MIN_FIT - 0.01, 12])), false, "the work it asks the person to do is not on the résumé");
+        assert.equal(contentLedRole("unverified", jd(1, 20, [1, CONTENT_LED_MIN_DUTY_EVIDENCE - 1])), false, "too few of its own terms in the work");
+        assert.equal(contentLedRole("off-target", jd(1, 20, [CONTENT_LED_MIN_FIT - 0.01, 12])), false);
+        assert.equal(contentLedRole("adjacent", jd(1, 20)), false, "a posting with no readable responsibilities is held, not content-led");
     });
 });
 
@@ -146,13 +212,13 @@ describe("a title the résumé has not held whose posting asks for what it shows
         assert.ok(score.total >= MATCH_BAND_STRONG_MIN, `total ${score.total}`);
         assert.equal(forYouLeftOut(score), null);
         const text = explainMatch(score);
-        assert.match(text, /title you haven't held, but the posting asks for what your résumé shows \(/);
+        assert.match(text, /title you haven't held, but the posting's day-to-day work shows on your résumé \(/);
         assert.doesNotMatch(text, /different kind of role/);
     });
 
     it("says why in the explanation instead of 'can't be a Strong match'", () => {
         const text = explainMatch(scoreJobAgainstResume(resume, ADJACENT, signals)!);
-        assert.match(text, /title you haven't held, but the posting asks for what your résumé shows \(/);
+        assert.match(text, /title you haven't held, but the posting's day-to-day work shows on your résumé \(/);
         assert.doesNotMatch(text, /can't be a Strong match/);
         // The unchanged roles keep their sentence.
         assert.match(explainMatch(scoreJobAgainstResume(resume, ADJACENT_THIN, signals)!), /can't be a Strong match/);
@@ -229,5 +295,46 @@ describe("the title comes last", () => {
         // What the posting asks for that the résumé shows leads the title too.
         const detailed = sortOf(key({ role: "adjacent" }, 16));
         assert.ok(compareForYouKeys(detailed, own) < 0);
+    });
+});
+
+describe("a title the résumé has not held is led by the posting's day-to-day work, not its tool list", () => {
+    const text = (job: PublicJob) => explainMatch(scoreJobAgainstResume(resume, job, signals)!);
+    for (const job of [SECOPS, SALESFORCE_ADMIN, SUPPORT_ANALYST]) {
+        it(`holds ${job.title} under Strong although its requirements share the résumé's tools`, () => {
+            const score = scoreJobAgainstResume(resume, job, signals)!;
+            const jd = relevance(score).jd!;
+            // The old gate was met: the requirements list alone covered the posting and gave evidence of its own.
+            assert.ok(jd.fit >= CONTENT_LED_MIN_FIT, `fit ${jd.fit}`);
+            assert.ok((jd.evidence ?? 0) >= CONTENT_LED_MIN_EVIDENCE, `evidence ${jd.evidence}`);
+            // The work it asks the person to do is not on the résumé.
+            assert.ok((jd.dutyEvidence ?? 0) < CONTENT_LED_MIN_DUTY_EVIDENCE || (jd.dutyFit ?? 0) < CONTENT_LED_MIN_FIT, `duty ${jd.dutyFit} / ${jd.dutyEvidence}`);
+            assert.equal(score.contentLed, undefined);
+            assert.ok(score.total < MATCH_BAND_STRONG_MIN, `total ${score.total}`);
+            assert.match(text(job), /can't be a Strong match|different kind of role/);
+        });
+    }
+
+    for (const job of [PRODUCT_OWNER, PLATFORM_OWNER, PROGRAM_LEAD]) {
+        it(`keeps ${job.title} Strong: its responsibilities are the résumé's own work`, () => {
+            const score = scoreJobAgainstResume(resume, job, signals)!;
+            assert.ok(score.total >= MATCH_BAND_STRONG_MIN, `total ${score.total} (${score.role})`);
+            const jd = relevance(score).jd!;
+            assert.ok((jd.dutyEvidence ?? 0) >= CONTENT_LED_MIN_DUTY_EVIDENCE, `duty evidence ${jd.dutyEvidence}`);
+            if (score.role !== "own" && score.role !== "family") {
+                assert.equal(score.contentLed, true);
+                assert.match(text(job), /posting's day-to-day work shows on your résumé \(/);
+            }
+        });
+    }
+
+    it("does not call a posting with a requirements list and no responsibilities content-led: it is held at Good, in the list", () => {
+        const description = ["About the role", "Acme is hiring a Platform Owner.", "What you bring", "6+ years of experience", ...SHARED_TOOLS.map((t) => `Experience with ${t}`)].join("\n\n");
+        const job = { ...PLATFORM_OWNER, id: "no-duty", description } as PublicJob;
+        const withTerms = { ...job, jd_terms: jdTermsFromDescription(description, job) } as PublicJob;
+        const score = scoreJobAgainstResume(resume, withTerms, signals)!;
+        assert.equal(relevance(score).jd?.dutyFit, undefined, "no responsibilities were read");
+        assert.equal(score.contentLed, undefined);
+        assert.ok(score.total < MATCH_BAND_STRONG_MIN, `total ${score.total}`);
     });
 });

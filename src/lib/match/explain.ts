@@ -188,12 +188,13 @@ const POSTING_TERMS_SHOWN = 3;
 const termStem = (word: string) => word.replace(/(?<!s)s$/, "");
 
 /**
- * The posting's own terms the résumé shows (`jd.evidenceTerms`, never the words of its title), as a reader
- * would list them: a word a longer listed term already holds is dropped ("management" beside "product
- * management", "rest" and "api" beside "rest api") and a plural is listed once.
+ * The posting's own terms the résumé shows (`jd.evidenceTerms`, or its responsibilities' own with
+ * `"dutyTerms"`; never the words of its title), as a reader would list them: a word a longer listed term
+ * already holds is dropped ("management" beside "product management", "rest" and "api" beside "rest api")
+ * and a plural is listed once.
  */
-function postingTerms(score: MatchScore): string[] {
-    const terms = (component(score, "relevance")?.jd?.evidenceTerms ?? []).map((term) => ({
+function postingTerms(score: MatchScore, kind: "evidenceTerms" | "dutyTerms" = "evidenceTerms"): string[] {
+    const terms = (component(score, "relevance")?.jd?.[kind] ?? []).map((term) => ({
         term,
         words: new Set(term.toLowerCase().split(/[^a-z0-9+#.]+/).filter(Boolean).map(termStem)),
     }));
@@ -208,13 +209,14 @@ function postingTerms(score: MatchScore): string[] {
 }
 
 /**
- * A title the résumé doesn't name whose posting asks for what the résumé shows (`MatchScore.contentLed`):
- * say so, with the posting's own terms the résumé has, instead of holding it under Strong for the title.
+ * A title the résumé doesn't name whose posting's day-to-day work shows on the résumé (`MatchScore.contentLed`):
+ * say so, with the responsibilities' terms the résumé has (the ones that carried it, not the requirements
+ * list's), instead of holding it under Strong for the title.
  */
 function contentLedSentence(score: MatchScore): string {
-    const terms = postingTerms(score);
+    const terms = postingTerms(score, "dutyTerms");
     const shown = terms.length > 0 ? ` (${listed(terms)})` : "";
-    return `It's a title you haven't held, but the posting asks for what your résumé shows${shown}.`;
+    return `It's a title you haven't held, but the posting's day-to-day work shows on your résumé${shown}.`;
 }
 
 /**
