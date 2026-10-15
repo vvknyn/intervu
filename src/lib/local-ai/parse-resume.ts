@@ -12,6 +12,7 @@ import { structureResumeText } from "@/lib/resume/structure-resume-text";
 import type { ParsedResumeResult } from "@/types/resume";
 import { scoreLocalParseConfidence } from "./parse-confidence";
 import { sealedChat } from "@/lib/sealed-ai/client";
+import { withoutContactDetails } from "@/lib/resume/without-contact";
 import { ENGINE_LABELS, type LocalAiEngineId, type ModelParseOutput } from "./engines/types";
 
 export interface LocalParseResult {
@@ -147,18 +148,8 @@ const SEALED_READ_CHARS = 8_000;
 const SEALED_READ_MAX_TOKENS = 3_000;
 const SEALED_READ_TIMEOUT_MS = 40_000;
 
-/** The résumé text without what identifies the person: their name, email, phone numbers and links. */
-export function withoutContactDetails(text: string, name?: string): string {
-    let out = text
-        .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "")
-        .replace(/\b(https?:\/\/|www\.)\S+/gi, "")
-        .replace(/\b[\w-]+\.(com|io|me|dev|net|org)\/\S+/gi, "")
-        .replace(/\+\d[\d\s().-]{7,}\d/g, "")
-        .replace(/\(?\b\d{3}\)?[\s.-]\d{3}[\s.-]\d{4}\b/g, "");
-    const who = name?.trim();
-    if (who && who.length >= 3) out = out.split(who).join("");
-    return out;
-}
+/** The résumé text without what identifies the person: their name, email, phone numbers and links (without-contact.ts). */
+export { withoutContactDetails };
 
 function readSealedPrompt(text: string): string {
     return `Read this résumé into JSON. The person's name and contact details were removed.

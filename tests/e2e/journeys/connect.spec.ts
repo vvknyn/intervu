@@ -66,6 +66,18 @@ test("/connect says a connected AI can tailor your résumé to a job, and /llms.
   expect(line).toContain("save_resume_variant");
 });
 
+test("/connect says a connected AI can draft answers to application questions, and /llms.txt says draft_screening_answer leaves pay and work authorization to you and submits nothing", { tag: ["@J-CONNECT-31"] }, async ({ page, request }) => {
+  await page.goto("/connect");
+  await page.getByRole("button", { name: "Permissions and privacy" }).click();
+  await expect(page.getByTestId("connect-permissions").getByText(/draft answers to application questions/)).toBeVisible();
+  const text = await (await request.get("/llms.txt")).text();
+  const line = text.split("\n").find((l) => l.startsWith("- draft_screening_answer — "));
+  expect(line, "draft_screening_answer is listed").toBeTruthy();
+  expect(line).toContain("work authorization, pay, demographics");
+  expect(line).toContain("Saves and submits nothing");
+  expect(line).toContain("Params: job_id, question");
+});
+
 test("Create account in front of an agent approval comes back to the approval", { tag: ["@J-OAUTH-19"] }, async ({ page }) => {
   const approval =
     "/oauth/authorize?client_id=journey-client&redirect_uri=https%3A%2F%2Fclaude.ai%2Fapi%2Fmcp%2Fauth_callback" +

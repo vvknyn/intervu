@@ -44,7 +44,8 @@ await build({
     target: "chrome116",
     minify: false,
     legalComments: "none",
-    alias: { "@": path.join(root, "src") },
+    // "zlib": the attestation verifier's Node-only fallback for gzip (Chrome has DecompressionStream).
+    alias: { "@": path.join(root, "src"), zlib: path.join(here, "src/no-zlib.ts") },
     // jsPDF's optional HTML and SVG renderers, which the résumé PDF never uses.
     external: ["html2canvas", "canvg", "dompurify"],
     logLevel: "warning",

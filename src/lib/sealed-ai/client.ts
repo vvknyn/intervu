@@ -29,6 +29,26 @@ export type SealedAiStub = (messages: SealedMessage[], options: SealedChatOption
 const OFF: SealedAiStatus = { enabled: false, model: "" };
 const DEFAULT_TIMEOUT_MS = 45_000;
 
+/** Where velai.app is when this isn't a velai.app page: the Chrome extension's service worker sets it once. */
+let originOverride: string | null = null;
+
+/** Point sealed AI at velai.app from a place that isn't a velai.app page (the Chrome extension). */
+export function useSealedAiOrigin(origin: string): void {
+    originOverride = origin.replace(/\/+$/, "");
+    statusPromise = null;
+    clientPromise = null;
+}
+
+/** velai.app's origin for the status check and the pass-through, or null where there is none (a server render). */
+function siteOrigin(): string | null {
+    return originOverride ?? (typeof window === "undefined" ? null : window.location.origin);
+}
+
+/** The pass-through the Tinfoil client sends its encrypted requests to. */
+export function sealedAiBaseUrl(origin: string): string {
+    return `${origin}/api/sealed-ai/v1/`;
+}
+
 function stub(): SealedAiStub | null {
     const value = (globalThis as { __velaiSealedAi?: unknown }).__velaiSealedAi;
     return typeof value === "function" ? (value as SealedAiStub) : null;
@@ -39,11 +59,16 @@ let statusPromise: Promise<SealedAiStatus> | null = null;
 /** Is sealed AI set up on this server (`TINFOIL_API_KEY`), and with which model. Asked once per page. */
 export function sealedAiStatus(): Promise<SealedAiStatus> {
     if (stub()) return Promise.resolve({ enabled: true, model: "test" });
-    if (typeof window === "undefined") return Promise.resolve(OFF);
-    statusPromise ??= fetch("/api/sealed-ai/status", { cache: "no-store" })
+    const origin = siteOrigin();
+    if (!origin) return Promise.resolve(OFF);
+    statusPromise ??= fetch(`${origin}/api/sealed-ai/status`, { cache: "no-store" })
         .then((res) => (res.ok ? (res.json() as Promise<Partial<SealedAiStatus>>) : OFF))
         .then((body) => ({ enabled: body.enabled === true && typeof body.model === "string" && body.model !== "", model: String(body.model ?? "") }))
-        .catch(() => OFF);
+        .catch(() => {
+            // A failed check is asked again next time, not remembered as "off".
+            statusPromise = null;
+            return OFF;
+        });
     return statusPromise;
 }
 
@@ -53,10 +78,12 @@ let clientPromise: Promise<TinfoilClient> | null = null;
 /** The verified client, loaded on first use (it brings the attestation verifier with it). */
 function tinfoilClient(): Promise<TinfoilClient> {
     clientPromise ??= import("tinfoil").then(async ({ TinfoilAI }) => {
+        const origin = siteOrigin();
+        if (!origin) throw new Error("no velai.app origin");
         const client = new TinfoilAI({
             // A placeholder: the pass-through puts our key in its place.
             bearerToken: "velai",
-            baseURL: `${window.location.origin}/api/sealed-ai/v1/`,
+            baseURL: sealedAiBaseUrl(origin),
         });
         await client.ready();
         return client;
@@ -99,4 +126,5 @@ export async function sealedChat(messages: SealedMessage[], options: SealedChatO
 export function resetSealedAiForTests(): void {
     statusPromise = null;
     clientPromise = null;
+    originOverride = null;
 }

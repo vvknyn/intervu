@@ -23,6 +23,9 @@ process.env.NEXT_PUBLIC_SITE_URL = 'https://velai.app';
 import { toolDailyPicks, toolGetJob, toolSearchJobs, toolForYou, type ToolDeps } from '../../src/lib/agent/tools';
 import { toolGetCompany } from '../../src/lib/agent/company-tools';
 import { NO_TAILOR_CHANGES_NOTE, rulesTailor, toolTailorResume, type TailorChangeOut } from '../../src/lib/agent/tailor-tool';
+import { toolDraftScreeningAnswer } from '../../src/lib/agent/screening-tool';
+import { draftScreeningAnswer } from '../../src/lib/screening/answer';
+import { classifyQuestion } from '../../src/lib/screening/question';
 import { jobToTailorInput, tailorWithRules } from '../../src/lib/local-ai/tailor-with-engine';
 import { parseResumeLocally } from '../../src/lib/local-ai/parse-resume';
 import { resumeDataToZipMarkdown } from '../../src/lib/resume/to-zip-markdown';
@@ -424,5 +427,95 @@ describe('tailor_resume tailors the way the site\'s Customize résumé does', ()
         const resume = await readCorpusResume('accountant-ca');
         const job = postings[0]!;
         assert.deepEqual(await rulesTailor(resume, job), tailorWithRules(resume, jobToTailorInput(job)));
+    });
+});
+
+describe('draft_screening_answer says what the Chrome extension says', () => {
+    async function readCorpusResume(id: string): Promise<ResumeData> {
+        const text = readFileSync(path.join(process.cwd(), 'tests/fixtures/resume-corpus', `${id}.paste.txt`), 'utf8');
+        const parsed = (await parseResumeLocally(text)).data.parsed;
+        return { ...parsed, generatedSummary: parsed.generatedSummary ?? '' };
+    }
+
+    function depsWith(base: BaseResume, job: PublicJob, budget: number[]): ToolDeps {
+        const deps = depsFor(PERSONAS[0]!);
+        return {
+            ...deps,
+            getBaseResume: async () => base,
+            search: siteSearch({
+                search: async () => ({ hits: [job], total: 1, backend: 'meilisearch', configured: true }) as JobSearchResult,
+                hydrate: async () => ({ hits: [job], total: 1, backend: 'meilisearch', configured: true }) as JobSearchResult,
+                rowPlaces: async (hits) => hits,
+                wholePlace: withDescriptionPlace,
+            }),
+            consumeRecordBudget: async (count) => {
+                budget.push(count);
+                return { ok: true };
+            },
+        };
+    }
+
+    const postings = Object.entries(TAILOR_POSTINGS).map(([id, posting]) => ({
+        id,
+        job: mkJob(`posting-${id}`, { title: posting.title, company: posting.company ?? 'Acme', location: posting.location ?? null, description: posting.description ?? null, tags: posting.tags ?? [] }),
+    }));
+
+    it('every corpus résumé: the same verdict, lines and draft as the extension, and the lines carry no contact details', async () => {
+        let drafted = 0;
+        for (const { id, job } of postings) {
+            const resume = await readCorpusResume(id);
+            const skill = resume.competencies.flatMap((c) => c.skills)[0] ?? job.title;
+            for (const question of ['Why are you interested in this role?', `Describe your experience with ${skill}.`, 'What are your salary expectations?', 'Are you legally authorized to work in Canada?']) {
+                const budget: number[] = [];
+                const out = await toolDraftScreeningAnswer(depsWith({ source: 'resume_data', resume_data: resume }, job, budget), { job_id: job.id, question });
+                if ('error' in out) throw new Error(`${id}: ${out.error}`);
+                const extension = await draftScreeningAnswer({}, { resume, question, job: { title: job.title, company: job.company ?? '' } });
+                assert.equal(out.drafts, extension.verdict.draft, `${id}: ${question}`);
+                if (!out.drafts) {
+                    assert.equal(out.reason, extension.verdict.draft ? '' : extension.verdict.reason, `${id}: ${question}`);
+                    // A question left to the person, or with nothing to draft from, is the right answer, and costs nothing when it is the person's.
+                    if (!classifyQuestion(question).draft) assert.deepEqual(budget, [], `${id}: ${question} reads no record`);
+                    continue;
+                }
+                drafted++;
+                assert.deepEqual(out.lines, extension.lines.map(({ text, where }) => ({ text, where })), `${id}: ${question}`);
+                assert.equal(out.draft, extension.text, `${id}: ${question}`);
+                assert.deepEqual(budget, [1], 'reading the posting counts once against the record budget');
+                const sent = JSON.stringify(out);
+                for (const secret of [resume.profile.email, resume.profile.phone].filter(Boolean)) assert.ok(!sent.includes(secret), `${id}: ${secret} is not returned`);
+                for (const part of resume.profile.name.split(/\s+/).filter((p) => p.replace(/[^\p{L}]/gu, '').length >= 3)) {
+                    assert.ok(!new RegExp(`\\b${part}\\b`, 'iu').test(sent), `${id}: ${part} is not returned`);
+                }
+            }
+        }
+        assert.ok(drafted >= postings.length, 'at least the broad question is drafted for every résumé');
+    });
+
+    it('a question that is the person\'s to answer returns why, and reads neither the résumé nor the posting', async () => {
+        const budget: number[] = [];
+        const job = postings[0]!.job;
+        const deps = { ...depsWith({ source: 'none' }, job, budget), getBaseResume: async (): Promise<BaseResume> => { throw new Error('read the résumé'); } };
+        const out = await toolDraftScreeningAnswer(deps, { job_id: job.id, question: 'What are your salary expectations?' });
+        assert.deepEqual(out, { job_id: job.id, drafts: false, reason: 'pay', note: out && 'note' in out ? out.note : '' });
+        assert.deepEqual(budget, []);
+    });
+
+    it('needs the structured résumé and a real job', async () => {
+        const job = postings[0]!.job;
+        const none = await toolDraftScreeningAnswer(depsWith({ source: 'none' }, job, []), { job_id: job.id, question: 'Why are you interested in this role?' });
+        assert.deepEqual(none, { error: 'no résumé on file — call set_resume first, then retry draft_screening_answer' });
+        const resume = await readCorpusResume('accountant-ca');
+        const empty = { ...depsWith({ source: 'resume_data', resume_data: resume }, job, []), search: async () => ({ hits: [], total: 0, backend: 'meilisearch', configured: true }) as JobSearchResult };
+        const missing = await toolDraftScreeningAnswer(empty, { job_id: 'nope', question: 'Why are you interested in this role?' });
+        assert.deepEqual(missing, { error: 'job not found' });
+    });
+
+    it('a question no résumé line speaks to is left to the person, and says so', async () => {
+        const resume = await readCorpusResume('accountant-ca');
+        const job = postings[0]!.job;
+        const out = await toolDraftScreeningAnswer(depsWith({ source: 'resume_data', resume_data: resume }, job, []), { job_id: job.id, question: 'Describe your experience with Kubernetes clusters.' });
+        if ('error' in out) throw new Error(out.error);
+        assert.equal(out.drafts, false);
+        if (!out.drafts) assert.equal(out.reason, 'no line on your résumé speaks to it');
     });
 });

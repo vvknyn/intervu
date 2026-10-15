@@ -91,6 +91,28 @@ const formHtml = jobHtml.replace(
 <button type="submit" id="submit-app">Submit application</button>
 </form></main>`,
 );
+/** The same job with an application form whose free-text questions the card drafts answers to on a tap. */
+const QUESTIONS_URL = "https://job-boards.greenhouse.io/cedarbrook/jobs/4822";
+const questionsHtml = jobHtml.replace(
+    "</main>",
+    `<form id="application-form" action="/cedarbrook/jobs/4822/confirmation" method="get">
+<h2>Apply for this job</h2>
+<p><label for="first_name">First Name *</label><br><input id="first_name" name="first_name" autocomplete="given-name"></p>
+<p><label for="last_name">Last Name *</label><br><input id="last_name" name="last_name" autocomplete="family-name"></p>
+<p><label for="email">Email *</label><br><input id="email" name="email"></p>
+<p><label for="current_company">Current company</label><br><input id="current_company" name="current_company"></p>
+<p><label for="q_why">Why are you interested in this role? *</label><br><textarea id="q_why" name="q_why"></textarea></p>
+<p><label for="q_iv">Describe your experience with IV therapy.</label><br><textarea id="q_iv" name="q_iv"></textarea></p>
+<p><label for="q_strength">What is your biggest strength?</label><br><textarea id="q_strength" name="q_strength">I already wrote this one.</textarea></p>
+<p><label for="q_pay">What are your salary expectations?</label><br><textarea id="q_pay" name="q_pay"></textarea></p>
+<p><label for="q_cover">Cover letter</label><br><textarea id="q_cover" name="q_cover"></textarea></p>
+<p><label for="q_hear">How did you hear about this job?</label><br><input id="q_hear" name="q_hear"></p>
+<div class="application-label">Describe your experience with Kubernetes clusters.</div><div><textarea id="q_kube" name="cards[kube]"></textarea></div>
+<p><label for="auth">Are you legally authorized to work in Canada? *</label><br><select id="auth"><option></option><option>Yes</option><option>No</option></select></p>
+<button type="submit" id="submit-app">Submit application</button>
+</form>
+<script>window.__events = []; for (const t of ["input", "change"]) document.addEventListener(t, (e) => __events.push(t + ":" + e.target.id), true);</script></main>`,
+);
 const confirmHtml = "<!doctype html><title>Thank you | Cedarbrook Health</title><main><h1>Thank you for applying to Cedarbrook Health!</h1><p>We received your application for Registered Nurse - ICU.</p></main>";
 /** A job page and its application form on a page of its own, which confirms in place (as single-page forms do). */
 const SPLIT_JOB_URL = "https://jobs.lever.co/harbourline/7781";
@@ -160,6 +182,7 @@ try {
     await context.route(BOARD_CODED_URL, (r) => r.fulfill({ contentType: "text/html", body: codedHtml }));
     await context.route(BOARD_LIST_URL, (r) => r.fulfill({ contentType: "text/html", body: PAGES.blog.html }));
     await context.route(FORM_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: formHtml }));
+    await context.route(QUESTIONS_URL, (r) => r.fulfill({ contentType: "text/html", body: questionsHtml }));
     await context.route(`${FORM_CONFIRM_URL}**`, (r) => r.fulfill({ contentType: "text/html", body: confirmHtml }));
     await context.route(SPLIT_JOB_URL, (r) => r.fulfill({ contentType: "text/html", body: splitJobHtml }));
     await context.route(SPLIT_APPLY_URL, (r) => r.fulfill({ contentType: "text/html", body: applyHtml }));
@@ -297,10 +320,10 @@ try {
         }
         return card;
     }
-    async function clickCard(page, label) {
+    async function clickCard(page, label, index = 0) {
         const card = await readCard(page);
-        const b = card?.buttons.find((x) => x.text.startsWith(label) && x.x != null);
-        if (!b) throw new Error(`no "${label}" button on the card`);
+        const b = card?.buttons.filter((x) => x.text.startsWith(label) && x.x != null)[index];
+        if (!b) throw new Error(`no "${label}" button (${index}) on the card`);
         await page.mouse.click(b.x, b.y);
     }
     /** The text of the résumé PDF the card attached to the form's "resume" upload (its streams are deflated; the text is plain `(…) Tj` strings inside). */
@@ -761,6 +784,199 @@ try {
             if (tracked.length !== 1 || tracked[0].body.company !== "Harbourline Health") problems.push(`tracked ${JSON.stringify(tracked.map((t) => t.body))}`);
         }
         report("fills a form on its own page and tracks an in-place confirmation", problems);
+    }
+
+    // The form's free-text questions: listed, drafted on a tap from the résumé lines that bear on each, and written into
+    // the form only when the person taps "Insert in the form". Nothing is asked of the AI before a tap.
+    {
+        await page.setViewportSize({ width: 1280, height: 1400 });
+        state = STATES.found;
+        tracked.length = 0;
+        const sealedStatusSeen = [];
+        const tinfoilSeen = [];
+        const passThroughSeen = [];
+        await context.route("https://velai.app/api/sealed-ai/status", (r) => {
+            sealedStatusSeen.push(r.request().url());
+            return answer(r, { enabled: true, model: "llama3-3-70b" });
+        });
+        await context.route("https://velai.app/api/sealed-ai/v1/**", (r) => {
+            passThroughSeen.push(r.request().url());
+            return r.fulfill({ status: 503, body: "" });
+        });
+        // Tinfoil's attestation hosts, which this sandbox can't reach: every request is recorded and refused (with CORS headers, as a browser-ready host sends).
+        await context.route(/^https:\/\/([a-z0-9-]+\.)*(tinfoil\.sh|sigstore\.dev|githubusercontent\.com|github\.com|amd\.com)\//, (r) => {
+            tinfoilSeen.push(new URL(r.request().url()).host);
+            return r.fulfill({ status: 503, body: "", headers: { "access-control-allow-origin": "*" } });
+        });
+        const fieldValues = (ids) => page.evaluate((list) => Object.fromEntries(list.map((id) => [id, document.getElementById(id).value])), ids);
+        const ALL_BOXES = ["q_why", "q_iv", "q_pay", "q_cover", "q_hear", "q_kube", "q_strength"];
+        const openQuestions = async () => {
+            await page.goto(QUESTIONS_URL);
+            return waitForCard(page, ["Questions on this form"]);
+        };
+        const sealedCalls = () => worker.evaluate(() => (globalThis.__sealedCalls ?? []).length);
+
+        // 1. The list: questions with a draft button, questions Velai leaves to the person and why, and no field that isn't a question.
+        card = await openQuestions();
+        {
+            const problems = [];
+            for (const t of [
+                "Questions on this form",
+                "Why are you interested in this role?",
+                "Describe your experience with IV therapy.",
+                "Describe your experience with Kubernetes clusters.",
+                "Velai leaves this one to you: pay.",
+                "Velai leaves this one to you: a cover letter or open note, not a question.",
+                "Velai leaves this one to you: where you heard about the job.",
+                "Drafts come from your résumé when you ask. You choose what goes in the form.",
+            ]) if (!card?.text.includes(t)) problems.push(`missing "${t}"`);
+            for (const t of ["What is your biggest strength?", "Current company", "legally authorized", "First Name"]) {
+                if (card?.text.includes(t)) problems.push(`lists "${t}"`);
+            }
+            const asks = card?.buttons.filter((b) => b.text.startsWith("Draft an answer")).length;
+            if (asks !== 3) problems.push(`${asks} draft buttons, want 3 (why, IV therapy, Kubernetes)`);
+            // Seeing the list asks nothing of the AI and writes nothing in the form.
+            if (sealedStatusSeen.length || tinfoilSeen.length || passThroughSeen.length) problems.push(`asked the AI before a tap: ${sealedStatusSeen.length} status, ${tinfoilSeen.length} Tinfoil, ${passThroughSeen.length} pass-through`);
+            const values = await fieldValues(ALL_BOXES);
+            for (const id of ALL_BOXES) if (values[id] !== (id === "q_strength" ? "I already wrote this one." : "")) problems.push(`${id} = "${values[id]}"`);
+            report("form questions: listed, some left to the person with the reason, nothing sent or written yet", problems);
+        }
+
+        // 2. Sealed AI on, no stub: the real Tinfoil client runs in the worker. Its servers aren't reachable here, so the draft is the résumé lines, marked as that.
+        {
+            const problems = [];
+            await clickCard(page, "Draft an answer", 1);
+            card = await waitForCard(page, ["Draft from your résumé"], 50_000);
+            if (!card?.text.includes("Draft from your résumé. Check every claim before you use it.")) problems.push(`no draft: ${card?.text.slice(-300)}`);
+            if (!card?.text.includes("These lines as your résumé has them (no AI).")) problems.push("didn't say the lines stand in for the AI");
+            if (card?.text.includes("Written by Velai's sealed AI")) problems.push("claimed AI wrote it");
+            if (!/IV therapy/i.test(card?.text.split("Draft from your résumé.")[1] ?? "")) problems.push("the draft lacks the IV therapy line");
+            if (sealedStatusSeen.length !== 1) problems.push(`${sealedStatusSeen.length} status requests, want 1`);
+            if (!tinfoilSeen.length) problems.push("the Tinfoil client never tried to attest a server (it didn't run in the worker)");
+            if (passThroughSeen.length) problems.push("sent a request to the pass-through without attesting the server first");
+            if ((await fieldValues(["q_iv"])).q_iv !== "") problems.push("wrote into the form unasked");
+            console.log(`     (real client, servers unreachable here: tried ${[...new Set(tinfoilSeen)].join(", ")})`);
+            report("form questions: sealed AI that can't be verified falls back to the résumé lines", problems);
+        }
+
+        // From here the sealed model is a stub in the worker: it records every request and answers from the numbered lines.
+        await worker.evaluate(() => {
+            globalThis.__sealedCalls = [];
+            globalThis.__sealedMode = "echo";
+            globalThis.__velaiSealedAi = async (messages, options) => {
+                globalThis.__sealedCalls.push({ messages, options });
+                if (globalThis.__sealedMode === "refuse") return "I'm sorry, but I can't answer that from the lines provided to me.";
+                const user = messages.find((m) => m.role === "user").content;
+                const lines = user.split("Résumé lines:")[1].split("\n").map((l) => l.replace(/^\d+\.\s*\[[^\]]*\]\s*/, "").trim()).filter(Boolean);
+                return `I have done this work. ${lines.join(" ")}`;
+            };
+        });
+
+        // 3. A draft on a tap: the sealed model's reply, marked as a draft, sent with the question and the matching lines only; nothing in the form until Insert.
+        card = await openQuestions();
+        {
+            const problems = [];
+            await clickCard(page, "Draft an answer", 0);
+            card = await waitForCard(page, ["Draft from your résumé"], 20_000);
+            if (!card?.text.includes("Written by Velai's sealed AI from these lines only.")) problems.push("didn't say the sealed AI wrote it");
+            if (!/From your résumé: [^.]*(Emergency Department|Summary)/.test(card?.text ?? "")) problems.push(`no source line naming the résumé lines: ${card?.text.slice(-400)}`);
+            if (!card?.text.includes("Insert in the form") || !card.text.includes("Copy")) problems.push("no Insert / Copy");
+            const calls = await worker.evaluate(() => globalThis.__sealedCalls);
+            if (calls.length !== 1) problems.push(`${calls.length} model requests for one tap`);
+            else {
+                const { messages, options } = calls[0];
+                const sent = messages.map((m) => m.content).join("\n");
+                if (!sent.includes("Question: Why are you interested in this role?")) problems.push("the question wasn't sent");
+                if (!sent.includes("Job: Registered Nurse - ICU at Cedarbrook Health")) problems.push("the job wasn't sent");
+                for (const secret of [/\bJordan\b/, /\bLee\b/, /jordan\.lee@example\.com/, /416-555-0100/]) if (secret.test(sent)) problems.push(`sent ${secret}`);
+                const lines = sent.split("Résumé lines:")[1].split("\n").filter((l) => /^\d+\./.test(l));
+                if (!lines.length || lines.length > 4) problems.push(`${lines.length} résumé lines sent`);
+                for (const l of lines) {
+                    const bare = l.replace(/^\d+\.\s*\[[^\]]*\]\s*/, "").replace(/^[-•]\s*/, "");
+                    if (!resumeText.includes(bare.replace(/[.]$/, ""))) problems.push(`a sent line isn't on the résumé: ${bare}`);
+                }
+                if (!(options.maxTokens > 0 && options.maxTokens <= 220)) problems.push(`reply cap ${options.maxTokens}`);
+            }
+            if ((await fieldValues(["q_why"])).q_why !== "") problems.push("the draft was in the form before Insert");
+            await page.screenshot({ path: path.join(out, "card-draft.png") });
+            await clickCard(page, "Insert in the form");
+            card = await waitForCard(page, ["Inserted."], 5_000);
+            const after = await page.evaluate(() => ({ why: document.getElementById("q_why").value, events: window.__events, url: location.href }));
+            if (!after.why.startsWith("I have done this work.") || !after.why.includes("acute care")) problems.push(`the form has: ${after.why.slice(0, 120)}`);
+            for (const e of ["input:q_why", "change:q_why"]) if (!after.events.includes(e)) problems.push(`the page didn't see ${e}`);
+            if (!card?.text.includes("Inserted. Edit it in the form, then submit it yourself.")) problems.push("card didn't say it was inserted");
+            if (after.url !== QUESTIONS_URL || tracked.length) problems.push("the form was sent");
+            if ((await fieldValues(["q_iv", "q_pay"])).q_iv !== "") problems.push("another box was written");
+            report("form questions: a draft on a tap, from the matching lines only, in the form only after Insert", problems);
+        }
+
+        // 4. Text the person typed since stays: Insert leaves a box that has something in it.
+        card = await openQuestions();
+        {
+            const problems = [];
+            await clickCard(page, "Draft an answer", 1);
+            await waitForCard(page, ["Draft from your résumé"], 20_000);
+            await page.fill("#q_iv", "My own words.");
+            await clickCard(page, "Insert in the form");
+            card = await waitForCard(page, ["That box has text in it now"], 5_000);
+            if (!card?.text.includes("That box has text in it now, so Velai left it. Copy the draft instead.")) problems.push(`card says: ${card?.text.slice(-200)}`);
+            if ((await fieldValues(["q_iv"])).q_iv !== "My own words.") problems.push("overwrote what the person typed");
+            report("form questions: Insert never replaces what the person typed", problems);
+        }
+
+        // 5. A reply the guard refuses (the model declining) leaves the résumé lines as the draft.
+        await worker.evaluate(() => (globalThis.__sealedMode = "refuse"));
+        card = await openQuestions();
+        {
+            const problems = [];
+            await clickCard(page, "Draft an answer", 1);
+            card = await waitForCard(page, ["Draft from your résumé"], 20_000);
+            if (!card?.text.includes("These lines as your résumé has them (no AI).")) problems.push("didn't say the lines stand in for the AI");
+            if (card?.text.includes("I'm sorry")) problems.push("showed the model's refusal as a draft");
+            if (!/IV therapy/i.test(card?.text.split("Draft from your résumé.")[1] ?? "")) problems.push("the draft lacks the IV therapy line");
+            report("form questions: a refused reply falls back to the résumé lines", problems);
+        }
+        await worker.evaluate(() => (globalThis.__sealedMode = "echo"));
+
+        // 6. No résumé line speaks to the Kubernetes question: Velai says so and asks the AI nothing.
+        card = await openQuestions();
+        {
+            const problems = [];
+            const before = await sealedCalls();
+            await clickCard(page, "Draft an answer", 2);
+            card = await waitForCard(page, ["no line on your résumé speaks to it"], 10_000);
+            if (!card?.text.includes("Velai leaves this one to you: no line on your résumé speaks to it.")) problems.push(`card says: ${card?.text.slice(-200)}`);
+            if ((await sealedCalls()) !== before) problems.push("asked the AI with nothing to draft from");
+            report("form questions: a question the résumé has nothing on is left to the person, with nothing sent", problems);
+        }
+
+        // 7. Copy puts the draft on the clipboard.
+        await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "https://job-boards.greenhouse.io" });
+        card = await openQuestions();
+        {
+            const problems = [];
+            await clickCard(page, "Draft an answer", 1);
+            await waitForCard(page, ["Draft from your résumé"], 20_000);
+            await clickCard(page, "Copy");
+            card = await waitForCard(page, ["Copied."], 5_000);
+            const copied = await page.evaluate(() => navigator.clipboard.readText()).catch((e) => `error: ${e.message}`);
+            if (!card?.text.includes("Copied.") || !copied.startsWith("I have done this work.")) problems.push(`clipboard: ${copied.slice(0, 80)}; card: ${card?.text.slice(-120)}`);
+            if ((await fieldValues(["q_iv"])).q_iv !== "") problems.push("Copy wrote into the form");
+            report("form questions: Copy leaves the form alone", problems);
+        }
+
+        // 8. Signed out: no questions, nothing to draft from.
+        state = { me: { signedIn: false } };
+        await accountChanged();
+        await page.goto(QUESTIONS_URL);
+        card = await waitForCard(page, ["Sign in to see your fit"]);
+        report("form questions: signed out, no question list", card?.text.includes("Questions on this form") ? ["the list showed"] : []);
+        state = STATES.found;
+        await accountChanged();
+        await worker.evaluate(() => {
+            delete globalThis.__velaiSealedAi;
+        });
+        await page.setViewportSize({ width: 1280, height: 800 });
     }
 
     if (pageErrors.length) {

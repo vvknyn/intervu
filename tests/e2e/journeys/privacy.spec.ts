@@ -104,3 +104,17 @@ test("the privacy policy says the extension proposes résumé changes, applies o
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
+
+test("the privacy policy says the extension drafts an answer only on a tap, from a few résumé lines without your name or contact details, and inserts it only when you say so", { tag: ["@J-CONTENT-40"] }, async ({ page, diagnostics }) => {
+  await page.goto("/privacy");
+  const article = page.locator("article").first();
+  await expect(article).toContainText("It drafts an answer only when you pick");
+  await expect(article).toContainText("never for questions that are yours to answer: work authorization, pay, demographics");
+  await expect(article).toContainText("without your name, email, phone number or links");
+  await expect(article).toContainText("If sealed AI isn't available or its server can't be verified, nothing is sent");
+  await expect(article).toContainText("goes into the form only when you pick");
+  // The AI-processing section names what goes to the sealed server for a draft too.
+  await expect(article).toContainText("when you ask the Chrome extension to draft an answer to an application question, only that question");
+  expect(diagnostics.pageErrors).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});

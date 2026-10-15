@@ -87,6 +87,12 @@ export const getResumeVariantInput = jobIdFieldInput;
 
 export const tailorResumeInput = jobIdFieldInput;
 
+/** `draft_screening_answer`: the posting and the one question to draft an answer to. The question is
+ *  free text from an application form; the tool cuts it to `QUESTION_MAX_CHARS` itself. */
+export const draftScreeningAnswerInput = jobIdFieldInput.extend({
+    question: z.string().min(1).max(1000),
+});
+
 /** `set_resume`'s wire input. `resume_data` is deliberately PERMISSIVE at
  *  this layer — a plain string-keyed record, not the strict `ResumeData`
  *  shape — so a structurally invalid payload never rejects the whole call
@@ -361,6 +367,22 @@ export const MCP_TOOL_SPECS = {
             "any change they don't want. Needs a structured resume (get_resume source resume_data). Counts " +
             `against ${RECORD_BUDGET_NOTE}.`,
         inputSchema: tailorResumeInput,
+    },
+    draft_screening_answer: {
+        title: "Draft an answer to an application question",
+        description:
+            "Draft YOUR OWN answer to one free-text question an application form asks (\"Why are you interested in this " +
+            "role?\", \"Describe your experience with X\"), for one job (job_id), from the resume on file — the way the " +
+            "Velai Chrome extension's \"Draft an answer\" does. Velai leaves some questions to the person: work " +
+            "authorization, pay, demographics, start date, relocation and schedule, background checks, consents, where " +
+            "they heard about the job, their history with the employer, a cover letter — those return drafts false with " +
+            "a reason (ask the person; never guess), as does a question no line of the resume speaks to. Otherwise " +
+            "returns lines (the resume lines that bear on the question, each with where on the resume it is; no name, " +
+            "email, phone or link) and draft (those lines as sentences, no AI). Write the answer from lines alone, as " +
+            "the person, with no employer, title, date, number, tool or skill they don't state, and tell them to check " +
+            "every claim. Saves and submits nothing. Needs a structured resume (get_resume source resume_data). When it " +
+            `returns a draft it counts against ${RECORD_BUDGET_NOTE}.`,
+        inputSchema: draftScreeningAnswerInput,
     },
     save_resume_variant: {
         title: "Save a tailored resume variant",
