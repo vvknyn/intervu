@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
-import { orderForYouJobsByBand } from '../../src/lib/jobs/for-you/band-order';
+import { compareForYouKeys, forYouSortKey, orderForYouJobsByBand } from '../../src/lib/jobs/for-you/band-order';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { resumeSearchMark } from '../../src/lib/jobs/search-payload';
@@ -259,13 +259,29 @@ describe('the whole résumé decides which of its roles leads', () => {
         return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, NOW).map((job) => job.title);
     };
 
-    it('reads both its Customer Success and its Product Manager postings as its own role, and the title alone puts neither first', () => {
-        // The summary and skills say customer success, the current job says Product Manager: all five postings are the same kind of
-        // role for this résumé and fit equally (no posting text to tell them apart), so the list is the search's order, either way round.
+    it('a résumé whose summary and skills lead with customer success lists those roles before its Product Manager ones', () => {
+        // All five postings are its own kind of role and fit equally (a list row has no text to tell them apart), so what separates
+        // them is the kind of work the résumé leads with: customer success (headline, summary, first skill group) before the title of
+        // its current job. Whichever way the search returned them.
         const scored = listed.map((job) => score(CSM, job)!);
         assert.deepEqual(scored.map((s) => s.role), ['own', 'own', 'own', 'own', 'own']);
-        assert.deepEqual(order(CSM, listed), listed.map((j) => j.title));
-        assert.deepEqual(order(CSM, [...listed].reverse()), [...listed].reverse().map((j) => j.title));
+        assert.equal(new Set(scored.map((s) => s.total)).size, 1, 'the five fit exactly alike, so only the leading family can order them');
+        for (const jobs of [listed, [...listed].reverse()]) {
+            const ordered = order(CSM, jobs);
+            assert.deepEqual([...ordered.slice(0, 2)].sort(), ['Senior Customer Success Manager', 'Technical Account Manager'], ordered.join(' | '));
+            assert.ok(ordered.slice(2).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+        }
+    });
+
+    it('the leading family breaks a tie in fit and never moves a role past a better-fitting one', () => {
+        const cs = score(CSM, canada('Senior Customer Success Manager', 'senior'))!;
+        const pm = score(CSM, canada('Senior Product Manager', 'senior'))!;
+        assert.ok((cs.familyRank ?? 0) < (pm.familyRank ?? 0), `${cs.familyRank} vs ${pm.familyRank}`);
+        // Equal fit: the leading family first.
+        assert.ok(compareForYouKeys(forYouSortKey(cs, NOW, NOW), forYouSortKey(pm, NOW, NOW)) < 0);
+        // A Product Manager role that fits better still leads.
+        const better = { ...pm, total: pm.total + 10 } as MatchScore;
+        assert.ok(compareForYouKeys(forYouSortKey(better, NOW, NOW), forYouSortKey(cs, NOW, NOW)) < 0);
     });
 
     it('its Product Manager postings are still its own role and can still read Strong', () => {

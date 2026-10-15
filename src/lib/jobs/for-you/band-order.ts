@@ -4,8 +4,8 @@
  * (`forYouSortKey`, `compareForYouKeys`). Roles are ordered by age (a role over a month old after every
  * fresher one), whether the person can take them where they are (`rankTier`'s reach groups), the fit band
  * (Strong ≥80, Good 60–79, Stretch <60, unscored last), then by what the posting asks for that the résumé
- * shows (`contentLead`), the fit total and freshness. The résumé's own title only breaks a tie in that
- * (`OWN_ROLE_LIFT`): content first, title last (Vivek, 2026-10-14).
+ * shows (`contentLead`), the fit total and freshness. Only a tie in that is broken by the title: first by the kind
+ * of work the résumé leads with (`family`), then by its own role (`OWN_ROLE_LIFT`): content first, title last (Vivek, 2026-10-14).
  *
  * Pure, no I/O — same isomorphic convention as match/score.ts and title-relevance.ts.
  */
@@ -165,7 +165,13 @@ export interface ForYouSortKey {
     key: number;
     /** Inside that: the fit total with freshness and the content credit, rounded: higher leads. The title is not in it. */
     value: number;
-    /** The résumé's own role (`OWN_ROLE_LIFT`) or family (`FAMILY_ROLE_LIFT`) lift: it only breaks a tie in `value`. */
+    /**
+     * Which kind of work the résumé leads with this role belongs to (`MatchScore.familyRank`): 0 is the kind its
+     * headline, summary and skill groups lead with, ahead of the kind its current job names. Lower leads, and only
+     * among roles whose `value` is exactly equal.
+     */
+    family: number;
+    /** The résumé's own role (`OWN_ROLE_LIFT`) or family (`FAMILY_ROLE_LIFT`) lift: it only breaks a tie in `value` and `family`. */
     lift: number;
     /** The components' own scores, which break a tie the capped total leaves. */
     raw: number;
@@ -174,11 +180,15 @@ export interface ForYouSortKey {
 /**
  * The key every recommending list orders by: age, then whether the person can take the role where they are,
  * then the fit band, then the fit itself (the whole résumé against the whole posting, what the posting asks
- * for that the résumé shows (`contentLead`), plus freshness). The role's title is last: the résumé's own title
- * (or its family) lifts a role only among roles whose rounded fit is exactly equal, so it never moves a
- * role past a better-fitting one (Vivek, 2026-10-14: "title matched LAST, only as a tie-breaker, never a
- * filter"). The title family is also inside the fit's caps (`scoreJobAgainstResume`), not a key of its own:
- * "own title first" filled a PM-and-TAM résumé's deck with one family ahead of better fits (2026-10-13).
+ * for that the résumé shows (`contentLead`), plus freshness). The role's title is last: among roles whose
+ * rounded fit is exactly equal, the kind of work the résumé leads with comes first (`family`: its headline,
+ * summary and skill groups before its current job's title), then its own title (or its family) lifts, so
+ * none of them moves a role past a better-fitting one (Vivek, 2026-10-14: "title matched LAST, only as a
+ * tie-breaker, never a filter"). A posting with no text to read (a bare list row) has only its title to
+ * match, so many such rows tie on fit; without `family` they listed in the order the search returned them
+ * (J-JOBS-93: a customer success résumé opened on Product Manager roles, its current job's title). The title family is also
+ * inside the fit's caps (`scoreJobAgainstResume`), not a key of its own: "own title first" filled a
+ * PM-and-TAM résumé's deck with one family ahead of better fits (2026-10-13).
  */
 export function forYouSortKey(score: MatchScore, postedTs: number | null, nowMs: number, firstSeenAt?: string | null): ForYouSortKey {
     const bands = BAND_SEQUENCE.length + 1;
@@ -189,10 +199,11 @@ export function forYouSortKey(score: MatchScore, postedTs: number | null, nowMs:
     // A capped total ties roles that fit differently; the components' own scores break the tie.
     const raw = score.components.reduce((sum, c) => sum + c.score, 0);
     const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
-    return { key: (age * 3 + group) * bands + band, value: Math.round(rankingValue(score, postedTs, nowMs) + contentLead(score)), lift, raw };
+    return { key: (age * 3 + group) * bands + band, value: Math.round(rankingValue(score, postedTs, nowMs) + contentLead(score)), family: score.familyRank ?? 0, lift, raw };
 }
 
-export const compareForYouKeys = (a: ForYouSortKey, b: ForYouSortKey): number => a.key - b.key || b.value - a.value || b.lift - a.lift || b.raw - a.raw;
+export const compareForYouKeys = (a: ForYouSortKey, b: ForYouSortKey): number =>
+    a.key - b.key || b.value - a.value || a.family - b.family || b.lift - a.lift || b.raw - a.raw;
 
 /**
  * A fit-sorted list (the Search board's Rank by fit) in the same order as the deck and Today
