@@ -19,9 +19,10 @@
  *    requirement-gaps.ts). Most of the required skills missing is not one: that is a coverage ratio, a
  *    Stretch (below) ranked under the roles the résumé covers;
  *  - `other-role`: the role is a different kind of job than any the résumé shows (`MatchScore.role`
- *    "off-target": the title names a line of work that is none of theirs). A title the résumé doesn't
- *    name (a neighbour, or a title tied to no known role) stays: that is how a person finds roles
- *    they haven't heard of but are qualified for, and the score already holds it under Strong;
+ *    "off-target": the title names a line of work that is none of theirs) AND its posting asks for little
+ *    of what the résumé shows (not `contentLed`). A title the résumé doesn't name (a neighbour, a title
+ *    tied to no known role, even another line of work's) stays when the posting asks for what the résumé
+ *    shows: that is how a person finds roles they haven't heard of but are qualified for;
  *  - `stretch`: under Good against the résumé.
  *
  * Search itself never uses this: typing "Staff Product Manager" still finds every Staff Product Manager.
@@ -57,7 +58,8 @@ export function forYouLeftOut(score: MatchScore, options: LeftOutOptions = {}): 
     if (score.gaps?.some((gap) => !gap.soft)) return "requirement";
     // Before the band: a different kind of role is capped under Good for that, and "a different kind of role" says more than "a weaker fit".
     // An adjacent or unfamiliar title is not a different kind of role: the content of the posting decides, and the title only orders.
-    if (score.role === "off-target") return "other-role";
+    // The same holds for a title of another line of work whose posting asks for what the résumé shows (`MatchScore.contentLed`).
+    if (score.role === "off-target" && !score.contentLed) return "other-role";
     if (matchBand(score.total) === "stretch") return "stretch";
     return null;
 }

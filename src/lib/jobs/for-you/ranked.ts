@@ -7,9 +7,9 @@
  * A pack IS a `/jobs` filter state (`packFilters`, ./pack-filters.ts): the
  * search call is exactly the one `/jobs` sends for those filters, so the ids
  * a candidate gets by applying them by hand are the ids returned here. Fit
- * only REORDERS that result (the candidate's own role first, then by
- * `match.total` descending, then `orderForYouJobsByBand`: role tier, then
- * Strong → Good, with target-title relevance inside each band). A recommendation list is not a
+ * only REORDERS that result, in `orderForYouJobsByBand`'s order (`forYouSortKey`, the one order every
+ * recommending list shares): age, reach, fit band, then what the posting asks for that the résumé shows.
+ * A recommendation list is not a
  * search: a role the résumé could not take (`deckLeftOut`: above their level, asks for what the
  * résumé doesn't show, a different kind of role, outside where they can work, too old) is left out,
  * and `leftOut` counts each reason, so every row of the search is either listed or accounted for.
@@ -27,7 +27,7 @@ import { decodeText } from "@/lib/jobs/presentation";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import type { LocationReport } from "@/lib/jobs/broaden";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
-import { compareFit, levelUnverified, rankTier, type MatchScore } from "@/lib/match/score";
+import type { MatchScore } from "@/lib/match/score";
 import type { InferReasonsResult } from "@/lib/jobs/for-you/infer-reasons";
 import type { ResumeData } from "@/types/resume";
 
@@ -105,25 +105,14 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
     });
-    // Stable sort: the candidate's own role first (`roleTier`), then jobs whose level is verified
-    // (a seniority filter also retrieves the never-derived-level rows, which rank lower), then by
-    // total, unscored jobs last
-    // (Array.prototype.sort is stable per spec). Band order below keeps this order inside a band.
-    const unverified = (job: PublicJob) => (levelUnverified(signals, job) ? 1 : 0);
     const nowMs = Date.now();
-    scored.sort(
-        (a, b) =>
-            rankTier(a.match) - rankTier(b.match) ||
-            unverified(a.job) - unverified(b.job) ||
-            compareFit(a.match, b.match, a.job.posted_ts, b.job.posted_ts, nowMs),
-    );
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const allJobs = scored.map((s) => s.job);
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
-    const fitting = orderForYouJobsByBand(allJobs, scoreOf, queryUsed, nowMs);
+    const fitting = orderForYouJobsByBand(allJobs, scoreOf, nowMs);
     // Nothing fits: the closest roles, each a weaker fit, so the list is never empty while roles were found.
-    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, queryUsed, nowMs) : [];
+    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
     const orderedJobs = fitting.length > 0 ? fitting : nearMisses;
     const targets = targetTitlesFromQuery(queryUsed);
     const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);

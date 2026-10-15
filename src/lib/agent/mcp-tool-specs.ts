@@ -284,15 +284,19 @@ export const MCP_TOOL_SPECS = {
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
             "pipeline behind the site's For-you view. It finds roles by what the posting asks for, not only by " +
-            "title: a role whose title your résumé never names but whose description asks for what your résumé " +
-            "shows is listed (group \"adjacent\", Strong when the posting is covered), and a remote role that " +
+            "title (the search behind it looks for the postings that mention the duties and the tools your résumé lists " +
+            "first, and your titles fill what is left): a role whose title your résumé never names but whose description asks for what your résumé " +
+            "shows is listed (group \"adjacent\", Strong when the posting is covered), even when the title is " +
+            "another line of work's, once most of the skills it requires are on your résumé; the title only " +
+            "breaks a tie between equal fits, it never filters. A remote role that " +
             "names no country is listed last with a note to check where it hires. It lists only roles you could " +
             "take: it leaves out roles " +
             "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
             "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
             "a clearance, a certification, managing people, selling), a different " +
-            "kind of role, and roles outside where you can work. A posting whose requirements your résumé covers " +
-            "less than half is a Stretch and ranks under the roles it covers. The list can be short: note and " +
+            "kind of role whose posting asks for little of what your résumé shows, and roles outside where you can work. " +
+            "A posting whose requirements your résumé covers less than half is a Stretch, a weaker fit, and is " +
+            "left out like any other weaker fit unless nothing fits. The list can be short: note and " +
             "left_out say how many roles the search found and how many were left out for each reason, so report " +
             "that count rather than padding the list. When nothing fits it lists the closest roles instead of " +
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
@@ -321,7 +325,9 @@ export const MCP_TOOL_SPECS = {
             "show (more years than you have, a language, a clearance, a certification). The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
-            "words) and emailed (already sent in a daily picks email). Roles not emailed yet come first. Pass " +
+            "words) and emailed (already sent in a daily picks email). Best fit first, the same order the deck and " +
+            "for_you use: what the posting asks for that your résumé shows leads, and your own title only breaks " +
+            "a tie; roles not emailed yet come first within a fit band. Pass " +
             "email: true to turn the daily picks email on (up to 5 new roles a day, nothing on days with none; " +
             "the account needs an email address mail reaches) or email: false to turn it off; the result's " +
             "email.on says the setting after the call. Needs a structured résumé on file, like for_you. Counts " +

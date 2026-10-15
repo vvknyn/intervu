@@ -56,8 +56,10 @@ export function industryFilterTileIds(industry: IndustryId): HubFilterTileId[] {
 export type IndustryTileCounts = {
     /** Row tiles: how many of the rows in hand each keeps (`resumeHubPackCounts`). */
     rowCounts: Partial<Record<HubPackId, number>>;
-    /** How many of the pack's rows are in hand. */
+    /** How many of the pack's rows are in hand (the ones a deck lists). */
     rowsInHand: number;
+    /** How many rows were read to get them, when that is more (`hubListedHits`). */
+    rowsRead?: number;
     /** Filter tiles: their own search's total; undefined while counting, null when the read failed. */
     filterCounts: Partial<Record<HubPackId, CorpusCount | null>>;
     /** The pack's total ("All your matches"). */
@@ -80,7 +82,7 @@ function tileHelps(id: HubPackId, counts: IndustryTileCounts): boolean {
     const kept = counts.rowCounts[id] ?? 0;
     if (kept < MIN_TILE_ROLES) return false;
     // A share of a few rows says little, unless those rows are the whole pack: then it is exact.
-    const wholePack = counts.allTotal != null && counts.rowsInHand >= counts.allTotal;
+    const wholePack = counts.allTotal != null && (counts.rowsRead ?? counts.rowsInHand) >= counts.allTotal;
     const judged = counts.rowsInHand >= MIN_ROWS_FOR_SHARE || wholePack;
     return !(judged && kept / counts.rowsInHand >= MAX_TILE_SHARE);
 }
@@ -110,6 +112,8 @@ export function hubIndustryTiles(
     input: {
         listTotal: CorpusCount | null;
         listJobs: PublicJob[];
+        /** How many rows were read to get `listJobs`, when it is only the ones a deck lists. */
+        rowsRead?: number;
         filterCounts: Partial<Record<HubPackId, CorpusCount | null>>;
         probing: boolean;
         nowMs?: number;
@@ -117,7 +121,7 @@ export function hubIndustryTiles(
 ): HubPackId[] {
     const rowCounts: Partial<Record<HubPackId, number>> = {};
     if (input.listTotal) {
-        const counts = resumeHubPackCounts({ listTotal: input.listTotal, listJobs: input.listJobs, nowMs: input.nowMs });
+        const counts = resumeHubPackCounts({ listTotal: input.listTotal, listJobs: input.listJobs, rowsRead: input.rowsRead, nowMs: input.nowMs });
         for (const [id, count] of Object.entries(counts)) rowCounts[id as HubPackId] = count.value;
     }
     const settled =
@@ -127,6 +131,7 @@ export function hubIndustryTiles(
     return visibleIndustryTiles(industry, {
         rowCounts,
         rowsInHand: input.listJobs.length,
+        rowsRead: input.rowsRead,
         filterCounts: input.filterCounts,
         allTotal: input.listTotal?.value ?? null,
         settled,

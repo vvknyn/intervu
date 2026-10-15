@@ -1,20 +1,13 @@
 /**
- * For-you deck order — target-title relevance.
- *
- * When the search that produced the deck named target titles (typed or
- * résumé-derived, single title or an "A OR B" list — `result.effectiveQ`,
- * the query the SERVER actually ran, same field `partitionByTitleMatch`
- * already reads for the SERP's own title seam), cards whose title matches
- * at least one target title belong ahead of every card that matches none.
- * Deliberately reads `effectiveQ`, never a second fetch/re-derivation of the
- * caller's preferences: a re-derived request drifts from the lane that
- * actually ran (facet-overlay incident, 2026-09).
+ * Target titles named by a search, and whether a posting's title names one of them (`jobTitleMatchesTarget`).
+ * This decides which family a title belongs to (`roleAffinity`), which caps a fit and breaks a tie; it never
+ * orders a list. The deck used to move title matches ahead of every other card (`partitionByTargetTitle`):
+ * removed 2026-10-15 with the rule "content first, title last", so the title order cannot return.
  *
  * Pure, no I/O — same isomorphic convention as match/score.ts.
  */
-import { decodeText, meaningfulTitleTokens } from "@/lib/jobs/presentation";
+import { meaningfulTitleTokens } from "@/lib/jobs/presentation";
 import { RANK_WORDS } from "@/lib/match/duty-signals";
-import type { PublicJob } from "@/lib/jobs/types";
 
 /**
  * Split a query into the target titles it names — quoted ("A" OR "B", the
@@ -117,29 +110,4 @@ export function jobTitleMatchesTarget(jobTitle: string, targetTitle: string): bo
     const targetTokens = titleMatchTokens(targetTitle);
     if (targetTokens.length === 0) return false;
     return titleReadings(jobTitle).some((tokens) => containsRun(tokens, targetTokens));
-}
-
-/**
- * The For-you deck's title-relevance partition: a stable reorder of `jobs`
- * into "matches ≥1 target title" first, then everything else, each half
- * keeping its incoming (fit-sorted) relative order — same stable-partition
- * shape as `partitionByTitleMatch` (presentation.ts) uses for the SERP
- * title seam. Non-matching cards are never dropped, only moved down.
- *
- * `query` is the request that actually produced `jobs` (pass
- * `result.effectiveQ`, never a preferences re-fetch — see module doc). No
- * target titles in it (empty/no-OR query, or nothing after parsing) leaves
- * `jobs` in its original order.
- */
-export function partitionByTargetTitle(jobs: readonly PublicJob[], query: string | null | undefined): PublicJob[] {
-    const targets = targetTitlesFromQuery(query);
-    if (targets.length === 0) return [...jobs];
-
-    const matched: PublicJob[] = [];
-    const rest: PublicJob[] = [];
-    for (const job of jobs) {
-        const title = decodeText(job.title);
-        (targets.some((t) => jobTitleMatchesTarget(title, t)) ? matched : rest).push(job);
-    }
-    return [...matched, ...rest];
 }

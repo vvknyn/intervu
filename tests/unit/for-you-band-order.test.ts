@@ -4,6 +4,8 @@ import { orderForYouJobsByBand, matchBandSortKey } from "../../src/lib/jobs/for-
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
+const NOW = Date.parse("2026-10-15T12:00:00Z");
+
 function job(id: string, title: string): PublicJob {
     return {
         id,
@@ -11,7 +13,7 @@ function job(id: string, title: string): PublicJob {
         company: "Acme",
         company_domain: "acme.com",
         apply_url: "https://example.com/apply",
-        posted_at: "2026-01-01T00:00:00.000Z",
+        posted_at: "2026-10-13T12:00:00.000Z",
     } as PublicJob;
 }
 
@@ -38,7 +40,7 @@ describe("matchBandSortKey", () => {
 });
 
 describe("orderForYouJobsByBand", () => {
-    it("places Strong before Good before Stretch regardless of input order", () => {
+    it("places Strong before Good regardless of input order, and leaves a Stretch role out", () => {
         const stretch = job("stretch", "Software Engineer");
         const good = job("good", "Software Engineer");
         const strong = job("strong", "Software Engineer");
@@ -49,61 +51,59 @@ describe("orderForYouJobsByBand", () => {
                 if (j.id === "good") return score(72);
                 return score(42);
             },
-            "Software Engineer",
+            NOW,
         );
         assert.deepEqual(
             ordered.map((j) => j.id),
-            ["strong", "good", "stretch"],
+            ["strong", "good"],
         );
     });
 
-    it("keeps stable relative order within the same band", () => {
+    it("keeps the incoming order among roles that fit exactly equally", () => {
         const a = job("a", "Role A");
         const b = job("b", "Role B");
         const c = job("c", "Role C");
-        const ordered = orderForYouJobsByBand(
-            [a, b, c],
-            (j) => score(j.id === "b" ? 82 : 81),
-            "",
-        );
+        const ordered = orderForYouJobsByBand([a, b, c], () => score(81), NOW);
         assert.deepEqual(
             ordered.map((j) => j.id),
             ["a", "b", "c"],
         );
     });
 
-    it("does not let a target-title Stretch outrank a non-target Strong", () => {
-        const targetStretch = job("target-stretch", "Product Manager");
-        const offTargetStrong = job("off-strong", "Data Analyst");
+    it("does not order by title: the same fit reads the same whatever the roles are called", () => {
+        const target = job("target", "Product Manager");
+        const other = job("other", "Data Analyst");
+        assert.deepEqual(orderForYouJobsByBand([other, target], () => score(90), NOW).map((j) => j.id), ["other", "target"]);
+        assert.deepEqual(orderForYouJobsByBand([target, other], () => score(90), NOW).map((j) => j.id), ["target", "other"]);
+    });
+
+    it("a Strong role outranks a Good one even when the Good one carries the résumé's own title", () => {
+        const targetGood = job("target-good", "Product Manager");
+        const otherStrong = job("other-strong", "Data Analyst");
         const ordered = orderForYouJobsByBand(
-            [targetStretch, offTargetStrong],
-            (j) => (j.id === "target-stretch" ? score(45) : score(90)),
-            "Product Manager",
+            [targetGood, otherStrong],
+            (j) => (j.id === "target-good" ? score(70) : score(90)),
+            NOW,
         );
         assert.deepEqual(
             ordered.map((j) => j.id),
-            ["off-strong", "target-stretch"],
+            ["other-strong", "target-good"],
         );
     });
 
-    it("sorts unscored jobs after every scored band", () => {
+    it("leaves a role with no score out of a list that asks for scores", () => {
         const unscored = job("none", "Software Engineer");
-        const stretch = job("stretch", "Software Engineer");
         const strong = job("strong", "Software Engineer");
-        const ordered = orderForYouJobsByBand(
-            [unscored, stretch, strong],
-            (j) => (j.id === "none" ? null : j.id === "strong" ? score(90) : score(50)),
-            "Software Engineer",
-        );
+        const ordered = orderForYouJobsByBand([unscored, strong], (j) => (j.id === "none" ? null : score(90)), NOW);
         assert.deepEqual(
             ordered.map((j) => j.id),
-            ["strong", "stretch", "none"],
+            ["strong"],
         );
     });
 
     it("returns input order unchanged when getScore is null (no résumé path)", () => {
         const input = [job("b", "B"), job("a", "A")];
-        const ordered = orderForYouJobsByBand(input, null, "A");
+        const ordered = orderForYouJobsByBand(input, null, NOW);
         assert.deepEqual(
             ordered.map((j) => j.id),
             ["b", "a"],

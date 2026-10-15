@@ -190,7 +190,7 @@ function contentLedSentence(score: MatchScore): string {
 
 function roleSentence(score: MatchScore): string | null {
     const yours = score.yourRole?.trim();
-    if (score.contentLed && (score.role === "adjacent" || score.role === "unverified")) return contentLedSentence(score);
+    if (score.contentLed && (score.role === "adjacent" || score.role === "unverified" || score.role === "off-target")) return contentLedSentence(score);
     switch (score.role) {
         case "own":
             return yours ? `It's your own role: the title matches ${yours} on your résumé.` : "It's your own role.";
@@ -218,8 +218,12 @@ function roleSentence(score: MatchScore): string | null {
 function termsClause(score: MatchScore): string | null {
     const relevance = component(score, "relevance");
     const terms = relevance?.terms;
-    // Coverage past RELEVANCE_COVERAGE_FLOOR already scores full marks: only a shortfall that cost points is a reason.
-    if (!relevance || !terms || terms.of === 0 || relevance.score >= 1) return null;
+    // A shortfall that cost points is a reason; full marks are not.
+    if (!relevance || relevance.score >= 1) return null;
+    // Once the posting's text has been read, relevance is how much of what it asks the résumé shows, not its title's words.
+    if (relevance.jd) return `your résumé shows ${Math.round(relevance.jd.fit * 100)}% of what the posting asks for`;
+    // Coverage past RELEVANCE_COVERAGE_FLOOR already scores full marks.
+    if (!terms || terms.of === 0) return null;
     return `your résumé has ${terms.matched} of the ${terms.of} key words in its title and skills`;
 }
 

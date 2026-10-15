@@ -92,7 +92,7 @@ describe('deckLeftOut and the deck', () => {
         const jobs = [...scores.keys()].map((id) => job(id)).concat(job('old', 90));
         scores.set('old', fits());
         const getScore = (j: PublicJob) => scores.get(j.id) ?? null;
-        const listed = orderForYouJobsByBand(jobs, getScore, null, NOW).map((j) => j.id);
+        const listed = orderForYouJobsByBand(jobs, getScore, NOW).map((j) => j.id);
         assert.deepEqual(listed, ['strong', 'good']);
         const summary = summarizeDeckLeftOut(jobs, getScore, NOW);
         assert.deepEqual(summary, {
@@ -102,10 +102,9 @@ describe('deckLeftOut and the deck', () => {
         });
     });
 
-    it('keeps every row when no clock is passed (anonymous Search), and when no scores are asked for', () => {
+    it('keeps every row, in the order it came, when no scores are asked for (anonymous Search)', () => {
         const jobs = [job('a'), job('b')];
-        assert.equal(orderForYouJobsByBand(jobs, () => fits({ total: 20 })).length, 2);
-        assert.equal(orderForYouJobsByBand(jobs, null, null, NOW).length, 2);
+        assert.deepEqual(orderForYouJobsByBand(jobs, null, NOW).map((j) => j.id), ['a', 'b']);
     });
 });
 
@@ -122,8 +121,8 @@ describe('when nothing fits, the closest roles stand in (never an empty list whi
     const getScore = (j: PublicJob) => scores.get(j.id) ?? null;
 
     it('holds only the roles left out as a weaker fit, best first, not a role left out for a reason about the person or the place', () => {
-        assert.deepEqual(orderForYouJobsByBand(jobs, getScore, null, NOW).map((j) => j.id), [], 'nothing fits');
-        assert.deepEqual(orderNearMisses(jobs, getScore, null, NOW).map((j) => j.id), ['weak-b', 'weak-a']);
+        assert.deepEqual(orderForYouJobsByBand(jobs, getScore, NOW).map((j) => j.id), [], 'nothing fits');
+        assert.deepEqual(orderNearMisses(jobs, getScore, NOW).map((j) => j.id), ['weak-b', 'weak-a']);
     });
 
     it('counts them as listed and keeps the other reasons in the left-out line', () => {

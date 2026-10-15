@@ -2,15 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
     jobTitleMatchesTarget,
-    partitionByTargetTitle,
     targetTitlesFromQuery,
 } from "../../src/lib/jobs/for-you/title-relevance";
-import type { PublicJob } from "../../src/lib/jobs/types";
-
-function job(id: string, title: string): PublicJob {
-    return { id, title } as PublicJob;
-}
-
 describe("targetTitlesFromQuery", () => {
     it("splits a plain (unquoted) OR list — the form a typed/agent-set query actually arrives in", () => {
         assert.deepEqual(
@@ -96,51 +89,5 @@ describe("jobTitleMatchesTarget", () => {
 
     it("no significant tokens left in the target (e.g. only a rank word) never matches", () => {
         assert.equal(jobTitleMatchesTarget("Senior Software Engineer", "Senior"), false);
-    });
-});
-
-describe("partitionByTargetTitle", () => {
-    const pm = job("pm", "Product Manager, Login, Authentication & Client Protection");
-    const tam = job("tam", "Technical Account Manager");
-    const impl = job("impl", "Implementation Manager, EMEA");
-    const other = job("other", "Warehouse Associate");
-
-    it("the reported case: TAM/Implementation cards move ahead of the non-matching PM card", () => {
-        const query = "Technical Account Manager OR Implementation Manager OR Technical Customer Success";
-        const out = partitionByTargetTitle([pm, tam, impl, other], query);
-        assert.deepEqual(
-            out.map((j) => j.id),
-            ["tam", "impl", "pm", "other"],
-        );
-    });
-
-    it("is a STABLE partition — relative order within each group is preserved, nothing is hidden", () => {
-        const query = "Technical Account Manager OR Implementation Manager OR Technical Customer Success";
-        const out = partitionByTargetTitle([pm, impl, tam, other], query);
-        assert.equal(out.length, 4); // nothing dropped
-        assert.deepEqual(
-            out.map((j) => j.id),
-            ["impl", "tam", "pm", "other"], // impl still before tam (their input order), pm still before other
-        );
-    });
-
-    it("a single-title query still partitions", () => {
-        const out = partitionByTargetTitle([pm, tam, other], "Technical Account Manager");
-        assert.deepEqual(
-            out.map((j) => j.id),
-            ["tam", "pm", "other"],
-        );
-    });
-
-    it("no query / no target titles → identical order (same array contents and sequence)", () => {
-        const input = [pm, other, tam, impl];
-        assert.deepEqual(partitionByTargetTitle(input, "").map((j) => j.id), input.map((j) => j.id));
-        assert.deepEqual(partitionByTargetTitle(input, undefined).map((j) => j.id), input.map((j) => j.id));
-    });
-
-    it("no card matches any target → identical order, nothing hidden", () => {
-        const input = [pm, other];
-        const out = partitionByTargetTitle(input, "Registered Nurse");
-        assert.deepEqual(out.map((j) => j.id), ["pm", "other"]);
     });
 });

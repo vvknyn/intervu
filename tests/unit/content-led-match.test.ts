@@ -13,9 +13,10 @@ import {
     type MatchScore,
 } from "../../src/lib/match/score";
 import { explainMatch } from "../../src/lib/match/explain";
+import { forYouLeftOut } from "../../src/lib/jobs/for-you/left-out";
 import { jdTermsFromDescription } from "../../src/lib/match/jd-match";
 import { resolveCandidateSignals } from "../../src/lib/jobs/candidate-signals";
-import { CONTENT_LEAD_FULL_EVIDENCE, CONTENT_LEAD_POINTS, contentLead, orderForYouJobsByBand } from "../../src/lib/jobs/for-you/band-order";
+import { CONTENT_LEAD_FULL_EVIDENCE, CONTENT_LEAD_POINTS, compareForYouKeys, contentLead, forYouSortKey, orderForYouJobsByBand } from "../../src/lib/jobs/for-you/band-order";
 import { resumeDataFromPlainText } from "../../src/lib/resume/structure-resume-text";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -82,6 +83,8 @@ const ENGINEER = posting(
     ["Go", "Kubernetes", "REST APIs", "Postgres"],
     5,
 );
+// An engineer-titled posting (another line of work for a product résumé) whose body is the adjacent one's: the same asks.
+const ENGINEER_ASKING = posting("engineer-asking", "Software Engineer, Loyalty and Rewards APIs", ADJACENT.description!.split("\n\n")[3]!, ["API lifecycle management", "Roadmap", "Requirements", "JIRA", "SQL"]);
 // The adjacent posting with its body cut to the title's own words: nothing it asks that the résumé could show.
 const ADJACENT_THIN = posting("adjacent-thin", "Platform Owner, Loyalty and Rewards APIs", "Join the platform owner team for loyalty and rewards.", [], 6);
 
@@ -99,14 +102,16 @@ describe("specificEvidence", () => {
 
 describe("contentLedRole", () => {
     const jd = (fit: number, evidence?: number) => ({ fit, matched: [], missing: [], ...(evidence === undefined ? {} : { evidence }) });
-    it("needs an adjacent or unverified title, most of the posting covered, and terms of its own", () => {
+    it("needs a title the résumé has not held, most of the posting covered, and terms of its own", () => {
         assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE)), true);
         assert.equal(contentLedRole("unverified", jd(1, 20)), true);
+        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT, CONTENT_LED_MIN_EVIDENCE)), true, "another line of work's title is not a filter either");
+        assert.equal(contentLedRole("off-target", jd(CONTENT_LED_MIN_FIT - 0.01, 20)), false);
         assert.equal(contentLedRole("adjacent", jd(CONTENT_LED_MIN_FIT - 0.01, 20)), false);
         assert.equal(contentLedRole("adjacent", jd(1, CONTENT_LED_MIN_EVIDENCE - 1)), false);
         assert.equal(contentLedRole("adjacent", jd(1)), false, "a score read before evidence existed is not content-led");
         assert.equal(contentLedRole("adjacent", undefined), false);
-        for (const role of ["own", "family", "off-target"] as const) assert.equal(contentLedRole(role, jd(1, 20)), false, role);
+        for (const role of ["own", "family"] as const) assert.equal(contentLedRole(role, jd(1, 20)), false, role);
     });
 });
 
@@ -126,11 +131,23 @@ describe("a title the résumé has not held whose posting asks for what it shows
         assert.ok(score.total < MATCH_BAND_STRONG_MIN, `total ${score.total}`);
     });
 
-    it("never lifts a different kind of role, whatever words it shares", () => {
+    it("holds a different kind of role that only shares some words, as a Stretch that is left out", () => {
         const score = scoreJobAgainstResume(resume, ENGINEER, signals)!;
         assert.equal(score.role, "off-target");
         assert.equal(score.contentLed, undefined);
         assert.ok(score.total < 60, `total ${score.total}`);
+        assert.equal(forYouLeftOut(score), "other-role");
+    });
+
+    it("does not hold another line of work's title when its posting asks for what the résumé shows: content decides, the title only orders", () => {
+        const score = scoreJobAgainstResume(resume, ENGINEER_ASKING, signals)!;
+        assert.equal(score.role, "off-target", "its title is still another line of work's");
+        assert.equal(score.contentLed, true);
+        assert.ok(score.total >= MATCH_BAND_STRONG_MIN, `total ${score.total}`);
+        assert.equal(forYouLeftOut(score), null);
+        const text = explainMatch(score);
+        assert.match(text, /title you haven't held, but the posting asks for what your résumé shows \(/);
+        assert.doesNotMatch(text, /different kind of role/);
     });
 
     it("says why in the explanation instead of 'can't be a Strong match'", () => {
@@ -171,7 +188,7 @@ describe("contentLead", () => {
         const scores = new Map(rows.map((job) => [job.id, scoreJobAgainstResume(resume, job, signals)!] as const));
         assert.equal(scores.get("thin")!.role, "own");
         const nowMs = Date.now();
-        const ordered = orderForYouJobsByBand(rows, (job) => scores.get(job.id) ?? null, "product manager", nowMs);
+        const ordered = orderForYouJobsByBand(rows, (job) => scores.get(job.id) ?? null, nowMs);
         assert.deepEqual(ordered.map((job) => job.id), ["adjacent", "thin"]);
     });
 
@@ -180,7 +197,37 @@ describe("contentLead", () => {
         const good: MatchScore = { ...withEvidence(40), total: 70 };
         const a = { ...THIN_OWN, id: "strong" };
         const b = { ...ADJACENT, id: "good" };
-        const ordered = orderForYouJobsByBand([b, a], (job) => (job.id === "strong" ? strong : good), "product manager", Date.now());
+        const ordered = orderForYouJobsByBand([b, a], (job) => (job.id === "strong" ? strong : good), Date.now());
         assert.deepEqual(ordered.map((job) => job.id), ["strong", "good"]);
+    });
+});
+
+describe("the title comes last", () => {
+    const sameAs = (title: string, id: string): PublicJob => ({ ...ADJACENT, id, title });
+
+    it("scores the content alone once the posting is read: two titles over the same posting read the same relevance", () => {
+        const a = scoreJobAgainstResume(resume, sameAs("Platform Owner, Loyalty and Rewards APIs", "a"), signals)!;
+        const b = scoreJobAgainstResume(resume, sameAs("Rewards Program Lead", "b"), signals)!;
+        assert.equal(relevance(a).score, relevance(b).score);
+        assert.equal(a.total, b.total);
+    });
+
+    it("lifts the résumé's own role only among roles whose rounded fit is equal", () => {
+        const key = (over: Partial<MatchScore>, evidence = 10): MatchScore => ({
+            total: 80,
+            components: [{ key: "relevance", label: "Relevance", detail: "", score: 0.8, jd: { fit: 1, matched: [], missing: [], evidence } }],
+            ...over,
+        });
+        const nowMs = Date.now();
+        const sortOf = (score: MatchScore) => forYouSortKey(score, nowMs - 3 * 86_400_000, nowMs);
+        // Equal fit: the own role leads, then the family, then the rest.
+        const [own, family, other] = [sortOf(key({ role: "own" })), sortOf(key({ role: "family" })), sortOf(key({ role: "adjacent" }))];
+        assert.ok(compareForYouKeys(own, family) < 0 && compareForYouKeys(family, other) < 0);
+        // A role that fits a point better leads whatever its title: the lift is a tie-break, not a credit.
+        const better = sortOf(key({ role: "adjacent", total: 82 }));
+        assert.ok(compareForYouKeys(better, own) < 0, `${JSON.stringify(better)} vs ${JSON.stringify(own)}`);
+        // What the posting asks for that the résumé shows leads the title too.
+        const detailed = sortOf(key({ role: "adjacent" }, 16));
+        assert.ok(compareForYouKeys(detailed, own) < 0);
     });
 });

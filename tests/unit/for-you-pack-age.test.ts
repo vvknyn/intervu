@@ -33,12 +33,12 @@ describe('packAgeTier', () => {
 describe('pack order by age', () => {
     it('puts a fresh role above an older one with the same score, and leaves out roles over 60 days', () => {
         const jobs = [job('old-85', 85), job('stale-45', 45), job('fresh-5', 5), job('fresh-20', 20)];
-        const out = orderForYouJobsByBand(jobs, fits, null, NOW).map((j) => j.id);
+        const out = orderForYouJobsByBand(jobs, fits, NOW).map((j) => j.id);
         assert.deepEqual(out, ['fresh-5', 'fresh-20', 'stale-45']);
     });
 
-    it('keeps every row when no clock is passed (anonymous Search)', () => {
+    it('keeps every row in the order it came when no scores are asked for (anonymous Search)', () => {
         const jobs = [job('old-85', 85), job('fresh-5', 5)];
-        assert.equal(orderForYouJobsByBand(jobs, () => null as MatchScore | null).length, 2);
+        assert.deepEqual(orderForYouJobsByBand(jobs, null, NOW).map((j) => j.id), ['old-85', 'fresh-5']);
     });
 });

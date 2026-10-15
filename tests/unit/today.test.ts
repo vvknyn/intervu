@@ -150,7 +150,7 @@ describe("placeCheckIds", () => {
 describe("pickToday", () => {
     const none = new Set<string>();
 
-    it("orders the kept roles as every ranked list does: own role first, then the higher score, then newest", () => {
+    it("orders the kept roles as every ranked list does: the fit band, then the higher fit, the title only lifting a little, then newest", () => {
         const picks = pickToday(
             [
                 role("family-strong", 92, 1 * HOUR, { affinity: "family", title: "Customer Success Manager" }),
@@ -164,8 +164,23 @@ describe("pickToday", () => {
         );
         assert.deepEqual(
             picks.map((r) => r.job.id),
-            ["own-strong", "own-good-new", "own-good-old", "family-strong", "neighbour"],
-            "a title the résumé does not name is kept when it fits, after the roles it does",
+            ["family-strong", "own-strong", "neighbour", "own-good-new", "own-good-old"],
+            "the better fit leads whatever its title; a title the résumé does not name is kept when it fits, ahead of a weaker one it does",
+        );
+    });
+
+    it("lets the résumé's own title break a tie, and nothing more", () => {
+        const picks = pickToday(
+            [
+                role("family", 88, HOUR, { affinity: "family", title: "Customer Success Manager" }),
+                role("neighbour", 88, HOUR, { affinity: "adjacent", title: "Product Manager" }),
+                role("own", 88, HOUR, { title: "Technical Account Manager" }),
+            ],
+            { skipped: none, tracked: none },
+        );
+        assert.deepEqual(
+            picks.map((r) => r.job.id),
+            ["own", "family", "neighbour"],
         );
     });
 

@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
-import { orderForYouJobsByBand } from '../../src/lib/jobs/for-you/band-order';
+import { compareForYouKeys, forYouSortKey, orderForYouJobsByBand } from '../../src/lib/jobs/for-you/band-order';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { resumeSearchMark } from '../../src/lib/jobs/search-payload';
@@ -147,11 +147,11 @@ describe('the TAM list puts TAM roles first', () => {
     const scores = new Map<string, MatchScore | null>(listed.map((job) => [job.id, score(TAM, job)]));
     const q = buildMatchQuery(TAM, NOW_YEAR).q;
 
-    it('the deck (tier, then band) lists every TAM posting before the CSM and PM postings', () => {
-        const ordered = orderForYouJobsByBand(listed, (job) => scores.get(job.id) ?? null, q).map((job) => job.title);
+    it('the deck lists every TAM posting before the CSM and PM postings', () => {
+        const ordered = orderForYouJobsByBand(listed, (job) => scores.get(job.id) ?? null, NOW).map((job) => job.title);
         assert.deepEqual(ordered.slice(0, 3).map((t) => /technical account manager/i.test(t)), [true, true, true], ordered.join(' | '));
-        assert.equal(ordered[3], 'Customer Success Manager', ordered.join(' | '));
-        assert.ok(ordered.slice(4).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+        assert.ok(!ordered.some((t) => /staff/i.test(t)), 'the Staff role (past this résumé\'s level) is the one left out');
+        assert.equal(ordered.length, listed.length - 1, ordered.join(' | '));
     });
 
     it('Search ranked by résumé (compareFit) does the same', () => {
@@ -256,13 +256,32 @@ describe('the whole résumé decides which of its roles leads', () => {
     ];
     const order = (resume: ResumeData, jobs: PublicJob[]) => {
         const scores = new Map(jobs.map((job) => [job.id, score(resume, job)]));
-        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, buildMatchQuery(resume, NOW_YEAR).q).map((job) => job.title);
+        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, NOW).map((job) => job.title);
     };
 
     it('a résumé whose summary and skills lead with customer success lists those roles before its Product Manager ones', () => {
-        const ordered = order(CSM, listed);
-        assert.deepEqual(ordered.slice(0, 2), ['Senior Customer Success Manager', 'Technical Account Manager'], ordered.join(' | '));
-        assert.ok(ordered.slice(2).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+        // All five postings are its own kind of role and fit equally (a list row has no text to tell them apart), so what separates
+        // them is the kind of work the résumé leads with: customer success (headline, summary, first skill group) before the title of
+        // its current job. Whichever way the search returned them.
+        const scored = listed.map((job) => score(CSM, job)!);
+        assert.deepEqual(scored.map((s) => s.role), ['own', 'own', 'own', 'own', 'own']);
+        assert.equal(new Set(scored.map((s) => s.total)).size, 1, 'the five fit exactly alike, so only the leading family can order them');
+        for (const jobs of [listed, [...listed].reverse()]) {
+            const ordered = order(CSM, jobs);
+            assert.deepEqual([...ordered.slice(0, 2)].sort(), ['Senior Customer Success Manager', 'Technical Account Manager'], ordered.join(' | '));
+            assert.ok(ordered.slice(2).every((t) => /product manager/i.test(t)), ordered.join(' | '));
+        }
+    });
+
+    it('the leading family breaks a tie in fit and never moves a role past a better-fitting one', () => {
+        const cs = score(CSM, canada('Senior Customer Success Manager', 'senior'))!;
+        const pm = score(CSM, canada('Senior Product Manager', 'senior'))!;
+        assert.ok((cs.familyRank ?? 0) < (pm.familyRank ?? 0), `${cs.familyRank} vs ${pm.familyRank}`);
+        // Equal fit: the leading family first.
+        assert.ok(compareForYouKeys(forYouSortKey(cs, NOW, NOW), forYouSortKey(pm, NOW, NOW)) < 0);
+        // A Product Manager role that fits better still leads.
+        const better = { ...pm, total: pm.total + 10 } as MatchScore;
+        assert.ok(compareForYouKeys(forYouSortKey(better, NOW, NOW), forYouSortKey(cs, NOW, NOW)) < 0);
     });
 
     it('its Product Manager postings are still its own role and can still read Strong', () => {
@@ -289,7 +308,7 @@ describe('the whole résumé decides which of its roles leads', () => {
         assert.ok(ordered.slice(0, 3).every((t) => /product manager/i.test(t)), ordered.join(' | '));
     });
 
-    it('works outside tech: a nurse now managing clinic operations, whose summary leads with nursing, sees nursing roles first', () => {
+    it('works outside tech: a nurse now managing clinic operations, whose summary leads with nursing, sees a nursing role first and both listed', () => {
         const nurse = {
             profile: { name: 'Test Person', profession: 'Clinic Operations Manager', yearsOfExperience: 4, location: 'Toronto, ON, Canada', email: 't@example.com', phone: '', linkedin: '', website: '' },
             experience: [{ id: 'e1', company: 'Clinic Group', role: 'Clinic Operations Manager', dates: '2023 - Present', description: 'Scheduled clinic staff and patient intake.' }],
@@ -298,7 +317,8 @@ describe('the whole résumé decides which of its roles leads', () => {
             generatedSummary: 'Registered Nurse with 4 years of acute care and clinic operations experience.',
         } as unknown as ResumeData;
         const ordered = order(nurse, [canada('Operations Manager', 'mid'), canada('Registered Nurse', 'mid'), canada('Clinic Operations Manager', 'mid'), canada('Registered Nurse, Day Surgery', 'mid')]);
-        assert.deepEqual(ordered.slice(0, 2).map((t) => /nurse/i.test(t)), [true, true], ordered.join(' | '));
+        assert.match(ordered[0]!, /nurse/i, ordered.join(' | '));
+        assert.equal(ordered.filter((t) => /nurse/i.test(t)).length, 2, `both nursing roles are listed: ${ordered.join(' | ')}`);
     });
 });
 
@@ -436,7 +456,7 @@ describe('a role past Senior is never recommended to a résumé that shows none'
     const scoreOf = (resume: ResumeData, job: PublicJob, prefs: Parameters<typeof resolveCandidateSignals>[1] = null) => scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume, prefs))!;
     const listFor = (resume: ResumeData, jobs: PublicJob[], prefs: Parameters<typeof resolveCandidateSignals>[1] = null) => {
         const scores = new Map(jobs.map((job) => [job.id, scoreOf(resume, job, prefs)]));
-        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, buildMatchQuery(resume, NOW_YEAR).q, NOW).map((job) => job.title);
+        return orderForYouJobsByBand(jobs, (job) => scores.get(job.id) ?? null, NOW).map((job) => job.title);
     };
 
     it('holds each under Good with the rung named, whatever the title\'s own words match', () => {
@@ -456,7 +476,7 @@ describe('a role past Senior is never recommended to a résumé that shows none'
         assert.equal(pastSeniorRole(s), true);
         assert.equal(matchBand(s.total), 'stretch', String(s.total));
         assert.equal(todayLeftOut(s), 'level');
-        assert.deepEqual(orderForYouJobsByBand([staffPm], () => s, 'Product Manager', NOW), []);
+        assert.deepEqual(orderForYouJobsByBand([staffPm], () => s, NOW), []);
         const plain = scoreJobAgainstResume(PM, canada('Senior Product Manager', 'senior', { work_type: 'remote' }), resolveCandidateSignals(PM, null))!;
         assert.notEqual(matchBand(plain.total), 'stretch', 'the same role without the Staff rank still reads Good or Strong');
     });

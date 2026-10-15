@@ -8,7 +8,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
-import { packFilters } from '../../src/lib/jobs/for-you/pack-filters';
+import { packContentPhrases, packFilters } from '../../src/lib/jobs/for-you/pack-filters';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
 import { resolveJobsHomeView } from '../../src/lib/jobs/for-you/home-view';
@@ -79,7 +79,12 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
             assert.equal(ranked.leftOut.listed, ranked.hits.length);
             const leftOutCount = Object.values(ranked.leftOut.byReason).reduce((sum, n) => sum + (n ?? 0), 0);
             assert.equal(ranked.hits.length + leftOutCount, byHand.hits.length, 'fit leaves a job out only with a reason');
-            assert.deepEqual(withoutPaging(pack.calls[0]), withoutPaging(manual.calls[0]), 'one search call, identical params');
+            // The pack's search adds only the résumé's content phrases (and the no-country remote pool they come with) to the
+            // board's own params: they widen the pool, never the filters.
+            const { contentPhrases, unplacedRemote, ...packParams } = withoutPaging(pack.calls[0]);
+            assert.equal(unplacedRemote === true, (contentPhrases ?? []).length > 0, 'the no-country remote pool rides with the content phrases');
+            assert.deepEqual(packParams, withoutPaging(manual.calls[0]), 'one search call, identical params');
+            assert.deepEqual(contentPhrases ?? [], packContentPhrases(persona.resume, filters.q), 'the only extra the pack carries is the résumé\'s content phrases');
 
             const got = new Set(ranked.hits.map((h) => h.job.id));
             for (const id of persona.mustHave) assert.ok(got.has(id), `${persona.name} pack includes ${id}`);
