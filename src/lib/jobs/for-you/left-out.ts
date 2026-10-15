@@ -15,8 +15,9 @@
  *    a level above theirs), or its title manages people and nothing on the résumé shows managing anyone
  *    (`MatchScore.newToManaging`);
  *  - `requirement`: it asks for what the résumé doesn't show: more years than they have in the line of
- *    work, a language, a clearance, a certification, managing people, selling, or most of the skills it
- *    requires (`MatchScore.gaps`, requirement-gaps.ts);
+ *    work, a language, a clearance, a certification, managing people, selling (`MatchScore.gaps`,
+ *    requirement-gaps.ts). Most of the required skills missing is not one: that is a coverage ratio, a
+ *    Stretch (below) ranked under the roles the résumé covers;
  *  - `other-role`: the role is a different kind of job than any the résumé shows (`MatchScore.role`
  *    "off-target": the title names a line of work that is none of theirs). A title the résumé doesn't
  *    name (a neighbour, or a title tied to no known role) stays: that is how a person finds roles
@@ -49,8 +50,11 @@ export function forYouLeftOut(score: MatchScore, options: LeftOutOptions = {}): 
     if (placeUnknown(score) && !options.keepUnplaced && !(options.keepWhenCandidatePlaceUnread && candidatePlaceUnread(score))) return "unplaced";
     // Before the band: a role above their level, or managing people when they haven't, is a Stretch for that reason (score.ts).
     if (score.newToManaging || outsideLevel(score) || score.components.some((c) => c.reason === "level_below_ask")) return "level";
-    // Likewise a role that asks for what the résumé doesn't show.
-    if (score.gaps && score.gaps.length > 0) return "requirement";
+    // Likewise a role that asks for what the résumé doesn't show. Only an explicit ask counts (years, a language, a
+    // clearance, managing, selling, a certification). A coverage ratio (`RequirementGap.soft`: most required skills or
+    // half the requirement lines unanswered) is a ranking signal: it caps the role at Stretch, so it is left out below
+    // only as a weaker fit, and a list with nothing else shows it (`orderNearMisses`).
+    if (score.gaps?.some((gap) => !gap.soft)) return "requirement";
     // Before the band: a different kind of role is capped under Good for that, and "a different kind of role" says more than "a weaker fit".
     // An adjacent or unfamiliar title is not a different kind of role: the content of the posting decides, and the title only orders.
     if (score.role === "off-target") return "other-role";

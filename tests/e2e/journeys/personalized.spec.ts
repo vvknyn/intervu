@@ -548,3 +548,90 @@ test("a pack lists a title the résumé never names when its posting asks for wh
   expect(JSON.stringify(asked!.contentPhrases).toLowerCase()).not.toMatch(/\bmorgan\b|\blee\b|example\.com|555-010/);
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * J-JOBS-133 / J-JOBS-134 — the gate, 2026-10-15: J-JOBS-100, 50, 52 and 80 failed at the staging head because a pack
+ * and Today held no roles for their fixture résumé (a short one: five skills, two jobs). Nearly every posting lists
+ * tools or requirements such a résumé cannot "show", and the deck left each one out. A list the résumé does not answer
+ * is a ranking signal, not a reason to leave the role out (a short résumé is not judged by it at all); an explicit ask
+ * the résumé does not show (a language, a clearance, years, managing, selling, a certification) still takes a role out
+ * (J-JOBS-131); and a pack where nothing fits shows the closest roles under an honest line, not an empty list.
+ * The postings are CONSTRUCTED for these journeys (no real company or posting).
+ */
+const listingTools = (company: string, tools: string[]) =>
+  [
+    `About the role\n${company} is hiring a Technical Account Manager.`,
+    "What you'll do\nOwn the adoption and renewal plan for enterprise accounts and run technical escalations with engineering.",
+    `What you bring\n6+ years of experience\n${tools.map((tool) => `Experience with ${tool}`).join("\n")}`,
+  ].join("\n\n");
+
+test("a short résumé's pack still lists roles in its own line whose postings list tools the résumé does not show", { tag: ["@J-JOBS-133"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const tools = ["Gainsight", "Snowflake", "Looker", "Tableau", "Zendesk"];
+  const withTools = (id: string, company: string, daysOld: number) =>
+    described(posting(id, "Technical Account Manager", company, "senior", daysOld), listingTools(company, tools));
+  const roles = [
+    withTools("aaaaaaaa-0000-4000-8000-000000000001", "Orchard CRM", 1),
+    withTools("aaaaaaaa-0000-4000-8000-000000000002", "Juniper Labs", 2),
+    withTools("aaaaaaaa-0000-4000-8000-000000000003", "Fernway", 3),
+  ];
+  // The same listing asking for French: an explicit ask the résumé does not show, so it is still left out.
+  const french = described(posting("aaaaaaaa-0000-4000-8000-000000000004", "Technical Account Manager", "Maison Nord", "senior", 1), `${listingTools("Maison Nord", tools)}\n\nYou are fluent in French and English.`);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, ...roles], "journey-short-resume");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${french.id}"]`)).toHaveCount(0);
+  await expect(page.getByTestId("for-you-near-notice")).toHaveCount(0);
+  for (let step = 0; step < 2; step++) await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("3 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 4 roles found: 1 asking for something your résumé doesn't show");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** A résumé with enough lines (two hundred terms) to be judged against a posting's requirement list. */
+const RICH_RESUME = {
+  ...TAM_RESUME,
+  experience: [
+    { id: "exp1", company: "Northwind Cloud", role: "Technical Account Manager", dates: "2019 - Present", description: "Owned adoption, renewals and technical escalations for 40 enterprise accounts, worth 12 million in annual recurring revenue.\nLed quarterly business reviews with executive sponsors and translated customer feedback into roadmap proposals with product managers.\nBuilt onboarding playbooks, health scoring in SQL and Salesforce dashboards that cut churn among strategic accounts.\nTriaged API and integration incidents with engineering, wrote runbooks and trained support engineers on webhooks, OAuth and rate limits." },
+    { id: "exp2", company: "Maple Systems", role: "Technical Support Engineer", dates: "2015 - 2019", description: "Resolved REST API, SSO and data migration issues for enterprise customers.\nReproduced defects, filed detailed bug reports and verified fixes in staging environments.\nAuthored knowledge base articles, mentored new hires and measured ticket backlog, response times and satisfaction scores." },
+    { id: "exp3", company: "Lakeshore Software", role: "Implementation Consultant", dates: "2012 - 2015", description: "Configured and deployed workflow software for mid-market clients, ran training workshops and documented requirements, integrations and acceptance tests." },
+  ],
+  competencies: [
+    { category: "Customer", skills: ["Customer Success", "Onboarding", "Renewals", "Escalation management", "Quarterly business reviews", "Stakeholder management"] },
+    { category: "Technical", skills: ["SQL", "REST APIs", "Salesforce", "Zendesk", "Webhooks", "OAuth", "SSO", "Postman", "JIRA", "Confluence"] },
+  ],
+};
+
+test("a pack where nothing fits lists the closest roles under an honest line, not an empty list", { tag: ["@J-JOBS-134"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  // Titled like the résumé's own role, but asking for four things a TAM résumé does not show (constructed: a trades listing).
+  const unrelated = (id: string, company: string, daysOld: number) =>
+    described(
+      posting(id, "Technical Account Manager", company, "senior", daysOld),
+      [
+        `About the role\n${company} is hiring a Technical Account Manager.`,
+        "Requirements\n- Hands-on welding and brazing of structural steel\n- Operating a forklift and overhead crane safely\n- Pipefitting and boiler maintenance in plant settings\n- Erecting scaffolding to site safety standards",
+      ].join("\n\n"),
+    );
+  const close = [unrelated("bbbbbbbb-0000-4000-8000-000000000001", "Steelhead Works", 1), unrelated("bbbbbbbb-0000-4000-8000-000000000002", "Ironbridge", 2)];
+  const staff = posting("bbbbbbbb-0000-4000-8000-000000000003", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [staff, ...close], "journey-closest");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-near-notice")).toContainText("None of the roles we found fit your résumé well yet. These are the closest", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  await expect(page.getByTestId("match-chip")).toHaveText("Stretch");
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 closest roles · each a weaker fit");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 above your level");
+  expect(diagnostics.pageErrors).toEqual([]);
+});

@@ -168,7 +168,8 @@ export interface MatchScore {
     newToManaging?: true;
     /**
      * What the posting asks that the résumé does not show: more years than it has, a language, a clearance,
-     * a certification, managing people, selling, or most of the skills it requires (`requirementGaps`).
+     * a certification, managing people, selling, or most of the skills and requirements it lists
+     * (`requirementGaps`; that last kind is `soft`, and only for a résumé long enough to judge it).
      * Such a role is a Stretch whatever its title and words share with the résumé.
      */
     gaps?: RequirementGap[];

@@ -7,9 +7,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
-import { deckLeftOut, orderForYouJobsByBand, summarizeDeckLeftOut } from '../../src/lib/jobs/for-you/band-order';
+import { deckLeftOut, nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from '../../src/lib/jobs/for-you/band-order';
 import { forYouLeftOut } from '../../src/lib/jobs/for-you/left-out';
-import { formatDeckShowingLine, formatLeftOutLine, leftOutParts } from '../../src/lib/jobs/for-you/left-out-copy';
+import { formatDeckShowingLine, formatLeftOutLine, leftOutParts, NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { scoreJobAgainstResume, type MatchScore } from '../../src/lib/match/score';
 import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
@@ -38,6 +38,9 @@ describe('forYouLeftOut', () => {
         assert.equal(forYouLeftOut(fits({ components: [component('relevance'), component('seniority', { reason: 'level_below_ask' }), component('location')] })), 'level');
         assert.equal(forYouLeftOut(fits({ gaps: [{ kind: 'language', text: 'it asks for French and nothing on your résumé shows it' }] })), 'requirement');
         assert.equal(forYouLeftOut(fits({ total: 59 })), 'stretch');
+        // A list the résumé covers less than half of is a weaker fit (ranking), not something the person lacks (a reason to leave out).
+        assert.equal(forYouLeftOut(fits({ total: 59, gaps: [{ kind: 'requirements', soft: true, text: 'x' }] })), 'stretch');
+        assert.equal(forYouLeftOut(fits({ total: 59, gaps: [{ kind: 'skills', soft: true, text: 'x' }, { kind: 'language', text: 'y' }] })), 'requirement', 'a hard ask beside a soft one still takes the role out');
         assert.equal(forYouLeftOut(fits({ role: 'off-target', total: 40 })), 'other-role', 'the kind of role is the more telling reason');
         assert.equal(forYouLeftOut(fits({ role: 'off-target' })), 'other-role');
     });
@@ -103,6 +106,39 @@ describe('deckLeftOut and the deck', () => {
         const jobs = [job('a'), job('b')];
         assert.equal(orderForYouJobsByBand(jobs, () => fits({ total: 20 })).length, 2);
         assert.equal(orderForYouJobsByBand(jobs, null, null, NOW).length, 2);
+    });
+});
+
+describe('when nothing fits, the closest roles stand in (never an empty list while roles were found)', () => {
+    const scores = new Map<string, MatchScore | null>([
+        ['weak-a', fits({ total: 50, gaps: [{ kind: 'requirements', soft: true, text: 'x' }] })],
+        ['weak-b', fits({ total: 55 })],
+        ['lang', fits({ total: 50, gaps: [{ kind: 'language', text: 'x' }] })],
+        ['senior', fits({ newToManaging: true })],
+        ['other', fits({ role: 'off-target', total: 40 })],
+    ]);
+    const jobs = [...scores.keys()].map((id) => job(id)).concat(job('old', 90));
+    scores.set('old', fits({ total: 55 }));
+    const getScore = (j: PublicJob) => scores.get(j.id) ?? null;
+
+    it('holds only the roles left out as a weaker fit, best first, not a role left out for a reason about the person or the place', () => {
+        assert.deepEqual(orderForYouJobsByBand(jobs, getScore, null, NOW).map((j) => j.id), [], 'nothing fits');
+        assert.deepEqual(orderNearMisses(jobs, getScore, null, NOW).map((j) => j.id), ['weak-b', 'weak-a']);
+    });
+
+    it('counts them as listed and keeps the other reasons in the left-out line', () => {
+        const summary = summarizeDeckLeftOut(jobs, getScore, NOW);
+        assert.deepEqual(summary.byReason, { stretch: 2, requirement: 1, level: 1, 'other-role': 1, old: 1 });
+        const near = nearMissSummary(summary);
+        assert.deepEqual(near, { considered: 6, listed: 2, byReason: { requirement: 1, level: 1, 'other-role': 1, old: 1 }, near: true });
+        assert.equal(formatLeftOutLine(near), "Left out of the 6 roles found: 1 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role · 1 posted too long ago");
+    });
+
+    it('says plainly that none fit and these are the closest', () => {
+        assert.equal(formatDeckShowingLine(2, true), '2 closest roles · each a weaker fit');
+        assert.equal(formatDeckShowingLine(1, true), '1 closest role · each a weaker fit');
+        assert.equal(formatDeckShowingLine(0, true), null);
+        assert.match(NEAR_MISS_NOTICE, /None of the roles we found fit your résumé well yet/);
     });
 });
 

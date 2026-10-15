@@ -33,9 +33,14 @@ export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined
     return `Left out of the ${summary.considered.toLocaleString()} roles found: ${parts.join(" · ")}`;
 }
 
-/** The list's own count, at the foot of the deck. */
-export function formatDeckShowingLine(listed: number): string | null {
+/** The list's own count, at the foot of the deck. `near`: nothing fit, these are the closest. */
+export function formatDeckShowingLine(listed: number, near = false): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
+    if (near) return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit`;
     return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · best fit first`;
 }
+
+/** Said above the closest roles, when nothing fit: a short list is an honest one, never padded with a fit it does not have. */
+export const NEAR_MISS_NOTICE =
+    "None of the roles we found fit your résumé well yet. These are the closest: your résumé shows little of what they ask for. Add detail to your résumé (what you did, the tools you used) for closer matches.";
