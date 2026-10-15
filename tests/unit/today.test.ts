@@ -110,11 +110,13 @@ describe("todayLeftOut", () => {
         assert.equal(todayLeftOut(score(70, "own", ["level_unlisted", "country_unlisted"])), null);
     });
 
-    it("leaves out a Stretch, another kind of role, a role above their level and one abroad", () => {
+    it("keeps a title the résumé does not name when the posting fits, and leaves out a Stretch, another kind of job, a role above their level and one abroad", () => {
         assert.equal(todayLeftOut(score(55, "own")), "stretch");
-        for (const affinity of ["adjacent", "unverified", "off-target"] as const) {
-            assert.equal(todayLeftOut(score(75, affinity)), "other-role", affinity);
+        for (const affinity of ["adjacent", "unverified"] as const) {
+            assert.equal(todayLeftOut(score(75, affinity)), null, affinity);
+            assert.equal(todayLeftOut(score(55, affinity)), "stretch", affinity);
         }
+        assert.equal(todayLeftOut(score(75, "off-target")), "other-role");
         assert.equal(todayLeftOut(score(75, "own", ["level_below_ask"])), "level");
         assert.equal(todayLeftOut(score(75, "own", ["abroad"])), "abroad");
         assert.equal(todayLeftOut(score(75, "own", ["remote_abroad"])), "abroad");
@@ -162,7 +164,8 @@ describe("pickToday", () => {
         );
         assert.deepEqual(
             picks.map((r) => r.job.id),
-            ["own-strong", "own-good-new", "own-good-old", "family-strong"],
+            ["own-strong", "own-good-new", "own-good-old", "family-strong", "neighbour"],
+            "a title the résumé does not name is kept when it fits, after the roles it does",
         );
     });
 

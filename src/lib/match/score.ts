@@ -59,6 +59,7 @@ import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
+import { requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -85,8 +86,14 @@ export interface MatchComponent {
      * how much of what it asks for the résumé shows (0..1 after calibration),
      * and the posting's own terms the résumé has / lacks, requirements first.
      */
-    /** `semantic`: the embedding match (0–1) blended into `fit`, when the sidecar answered. */
-    jd?: { fit: number; matched: string[]; missing: string[]; semantic?: number };
+    /**
+     * `semantic`: the embedding match (0–1) blended into `fit`, when the sidecar answered.
+     * `evidence`: how many of the posting's terms the résumé shows that are NOT the words of the
+     * posting's own title (`specificEvidence`). `fit` saturates and counts a title echoed in the body
+     * ("we are looking for a Product Manager"), so a generic two-line posting reads as full a match as
+     * a detailed one; evidence is what tells them apart (`contentLead`, jobs/for-you/band-order.ts).
+     */
+    jd?: { fit: number; matched: string[]; missing: string[]; semantic?: number; evidence?: number; evidenceTerms?: string[] };
     /** Location only, for a role outside the candidate's countries: where it is, and the pay's currency when only the pay says so. */
     place?: { where: string; currency?: string };
     /** Seniority only, when both levels are known: what each was read from, for the reason a role shows (match/explain.ts). */
@@ -159,6 +166,19 @@ export interface MatchScore {
      * its owner managing people (`resumeManagedPeople`). Such a role is a Stretch whatever their level.
      */
     newToManaging?: true;
+    /**
+     * What the posting asks that the résumé does not show: more years than it has, a language, a clearance,
+     * a certification, managing people, selling, or most of the skills and requirements it lists
+     * (`requirementGaps`; that last kind is `soft`, and only for a résumé long enough to judge it).
+     * Such a role is a Stretch whatever its title and words share with the résumé.
+     */
+    gaps?: RequirementGap[];
+    /**
+     * The title is not one the résumé names (`role` adjacent or unverified) but the posting asks for what
+     * the résumé shows: most of it covered, with at least `CONTENT_LED_MIN_EVIDENCE` terms of its own beyond
+     * the title's words. The title then does not hold the role under Strong (`scoreJobAgainstResume`).
+     */
+    contentLed?: true;
 }
 
 /**
@@ -363,6 +383,41 @@ export const CONCEPT_FIT_SCALE = 0.9;
  */
 export const JD_GOOD_MIN_FIT = 0.5;
 
+/**
+ * A role whose title the résumé doesn't name (a title the person never searched for) is still a Strong
+ * candidate when the posting asks for what the résumé shows: at least this share of it covered, and at
+ * least `CONTENT_LED_MIN_EVIDENCE` terms of its own (not the title's words) on the résumé. Vivek,
+ * 2026-10-14: "first match the experience and skills content to the job profiles and then match the
+ * title if necessary at the end" — adjacent roles are how people find work they are qualified for.
+ */
+export const CONTENT_LED_MIN_FIT = 0.85;
+export const CONTENT_LED_MIN_EVIDENCE = 8;
+
+/** A title the résumé doesn't name whose posting the résumé covers in its own right (`CONTENT_LED_MIN_FIT`). */
+export function contentLedRole(role: RoleAffinity, jd: MatchComponent["jd"]): boolean {
+    return (
+        (role === "adjacent" || role === "unverified") &&
+        jd != null &&
+        jd.fit >= CONTENT_LED_MIN_FIT &&
+        typeof jd.evidence === "number" &&
+        jd.evidence >= CONTENT_LED_MIN_EVIDENCE
+    );
+}
+
+const wordStem = (word: string) => word.replace(/(?:es|s)$/, "");
+
+/**
+ * How many of the posting's terms the résumé shows are not just the words of the posting's own title:
+ * "product manager" in "we are looking for a Product Manager" is the title again, not something the
+ * posting asks for. What is left is the posting's content that the résumé covers (jd-match.ts `matched`).
+ */
+export function specificTerms(matched: readonly string[], job: Pick<PublicJob, "title">): string[] {
+    const titleStems = new Set((job.title ?? "").toLowerCase().split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 2).map(wordStem));
+    return matched.filter((term) => !term.split(" ").every((word) => titleStems.has(wordStem(word))));
+}
+
+export const specificEvidence = (matched: readonly string[], job: Pick<PublicJob, "title">): number => specificTerms(matched, job).length;
+
 function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | null {
     const jobVocab = jobVocabulary(job);
     const resumeVocab = resumeVocabulary(resume);
@@ -404,7 +459,14 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
         detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}${semantic != null ? `, reading its meaning as well as its words` : ""}`,
         score: (1 - JD_RELEVANCE_SHARE) * titleScore + JD_RELEVANCE_SHARE * fit,
         terms: { matched: matched.length, of: jobVocab.size },
-        jd: { fit, matched: jd.matched.slice(0, 12), missing: jd.missing.slice(0, 12), ...(semantic != null ? { semantic } : {}) },
+        jd: {
+            fit,
+            matched: jd.matched.slice(0, 12),
+            missing: jd.missing.slice(0, 12),
+            evidence: specificEvidence(jd.matched, job),
+            evidenceTerms: specificTerms(jd.matched, job).slice(0, 4),
+            ...(semantic != null ? { semantic } : {}),
+        },
     };
 }
 
@@ -589,6 +651,8 @@ export function jobLevelRead(job: Pick<PublicJob, "experience_level" | "title" |
     const years = yearsAsked(job.min_years_experience);
     const byYears = years == null ? null : seniorityFromYears(years);
     if (byYears) reads.push({ level: byYears, from: "years", years: years! });
+    // An entry word in the title ("Junior", "Intern", "Entry Level") is the employer saying so outright, which a listing that read mid does not outweigh.
+    if (titled?.level === "entry" && titled.explicit) return { level: "entry", from: "title" };
     const top = reads.reduce<JobLevelRead | null>(
         (best, read) => (!best || EXPERIENCE_LEVEL_ORDER.indexOf(read.level) > EXPERIENCE_LEVEL_ORDER.indexOf(best.level) ? read : best),
         null,
@@ -863,6 +927,11 @@ export function placeUnknown(score: MatchScore): boolean {
     return score.components.some((c) => c.key === "location" && c.unknown === true);
 }
 
+/** The place is unknown because the CANDIDATE's country can't be read (no location on the résumé), not because the role is unplaced. */
+export function candidatePlaceUnread(score: MatchScore): boolean {
+    return score.components.some((c) => c.key === "location" && (c.reason === "no_resume_place" || c.reason === "resume_place_unmatched"));
+}
+
 /**
  * Sort key for a ranked list, before the band and the score: the résumé's
  * leading family first (`familyRank`), and inside a family the candidate's own
@@ -1045,11 +1114,20 @@ export function scoreJobAgainstResume(
     const role = roleAffinity(resume, job, preferred);
     const yourRole = yourRoleFor(resume, job, preferred);
     const offTarget = role === "off-target";
+    // What the posting asks that the résumé doesn't show (years, a language, a clearance, a certification, managing, selling).
+    const gaps = requirementGaps(resume, job);
+    const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
+    // An adjacent or unfamiliar title whose posting the résumé covers in its own right is not held under Strong by the title.
+    const contentLed = contentLedRole(role, overlap.jd);
     const relevance = offTarget
-        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours` }
-        : role === "adjacent"
-          ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job` }
-          : overlap;
+        ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
+        : contentLed
+          ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting asks for what your résumé shows${gapNote}` }
+          : role === "adjacent"
+            ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
+            : gapNote
+              ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
+              : overlap;
 
     // A people manager's role for a résumé that shows no one managed: said beside the level, where the receipt names what it asks.
     const newToManaging = titleManagesPeople(job.title) && !resumeTargets(resume).managed;
@@ -1069,12 +1147,22 @@ export function scoreJobAgainstResume(
     const aboveLevel = components[1]!.reason === "level_below_ask";
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
-    const capped = offTarget || aboveLevel || newToManaging || thinJd
+    // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
+    const capped = offTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
-        : location.unknown || abroad || levelUnverified(signals, job) || role === "unverified" || role === "adjacent"
+        : location.unknown || abroad || levelUnverified(signals, job) || (!contentLed && (role === "unverified" || role === "adjacent"))
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
           : total;
-    const score: MatchScore = { total: capped, components, role, yourRole, familyRank: rank, ...(newToManaging ? { newToManaging: true as const } : {}) };
+    const score: MatchScore = {
+        total: capped,
+        components,
+        role,
+        yourRole,
+        familyRank: rank,
+        ...(newToManaging ? { newToManaging: true as const } : {}),
+        ...(gaps.length > 0 ? { gaps } : {}),
+        ...(contentLed && !offTarget && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
+    };
     if (!abroad || !location.place) return score;
     return {
         ...score,

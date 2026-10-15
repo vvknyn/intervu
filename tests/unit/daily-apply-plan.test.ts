@@ -4,7 +4,6 @@ import {
     DEFAULT_DAILY_APPLY_GOAL,
     countAppliedToday,
     formatAppliedTodayChrome,
-    formatDeckShowingLine,
     remainingInDailyPlan,
     startOfLocalDay,
 } from "../../src/lib/pursuits/daily-apply-plan";
@@ -49,10 +48,5 @@ describe("daily apply plan", () => {
         );
         assert.equal(remainingInDailyPlan(3), 9);
         assert.equal(remainingInDailyPlan(12), 0);
-    });
-
-    it("optional showing line when total known", () => {
-        assert.equal(formatDeckShowingLine(60, 240), "60 of ~240 · Strong first");
-        assert.equal(formatDeckShowingLine(20, null), null);
     });
 });

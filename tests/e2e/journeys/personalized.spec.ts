@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { jdTermsFromDescription } from "../../../src/lib/match/jd-match";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
 import { signedInTest, signInLikeProduction, withActionResult, withoutMockSignInHydration } from "./signed-in";
@@ -432,3 +433,205 @@ test("a résumé whose own title is Staff keeps Staff roles: the pack does not a
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+
+/**
+ * J-JOBS-131 — Vivek, 2026-10-14: "the recommendations are still garbage and the product is still unusable".
+ * A For you pack is not a search: it lists only roles the résumé could take, and says how many it left out and why.
+ */
+const FRENCH_ASK =
+  "You are fluent in French and English. You will own technical onboarding for enterprise accounts and run quarterly reviews with customers. We are a growing company with a friendly team.";
+
+test("a pack lists only roles the résumé could take, and says how many it left out and why", { tag: ["@J-JOBS-131"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const own = posting("66666666-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior", 2);
+  const csm = posting("66666666-0000-4000-8000-000000000002", "Customer Success Manager", "Orchard CRM", "mid", 3);
+  const french = { ...posting("66666666-0000-4000-8000-000000000003", "Technical Account Manager", "Maison Nord", "senior", 2), description: FRENCH_ASK };
+  const pm = posting("66666666-0000-4000-8000-000000000004", "Product Manager", "Fernway", "mid", 2);
+  const junior = posting("66666666-0000-4000-8000-000000000005", "Junior Technical Account Manager", "Harbor Pay", "mid", 2);
+  const staff = posting("66666666-0000-4000-8000-000000000006", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, pm, junior, staff, own, csm], "journey-left-out");
+  await openPack(page);
+
+  // Two of the six fit: the own role and a customer success role. The rest are not in the deck.
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  for (const gone of [french, pm, junior, staff]) {
+    await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${gone.id}"]`)).toHaveCount(0);
+  }
+
+  // At the foot of the deck: what fits, and what was left out and why.
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText(
+    "Left out of the 6 roles found: 2 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role",
+  );
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("a pack with no role the résumé could take says so and why, instead of a generic empty list", { tag: ["@J-JOBS-131"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const french = { ...posting("77777777-0000-4000-8000-000000000001", "Technical Account Manager", "Maison Nord", "senior", 2), description: FRENCH_ASK };
+  const staff = posting("77777777-0000-4000-8000-000000000002", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, staff], "journey-none-fit");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-empty")).toContainText("None of the roles we found fit your résumé yet.", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toContainText("Left out of the 2 roles found: 1 above your level · 1 asking for something your résumé doesn't show");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-132 — Vivek, 2026-10-14: "FIRST MATCH the rest of the experience and skills content to the job profiles
+ * and then match the title if necessary AT THE END"; 2026-10-15: "that is how people find adjacent roles or titles
+ * that they haven't heard of but are very well qualified for". A pack lists a role whose title the résumé never
+ * names when its posting asks for what the résumé shows, and puts it ahead of a posting that is only its title;
+ * a remote role that names no country is listed last, as Country unclear.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+const askingForTheResumeWork = (company: string, title: string) => [
+  `About the role\n${company} is hiring a ${title}.`,
+  "What you'll do\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
+  "What you bring\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
+].join("\n\n");
+const GENERIC_DESCRIPTION =
+  "About the role\nNorthstar Data is hiring a Technical Account Manager.\n\nWhat you'll do\nWe are looking for a Technical Account Manager to join our team. You will work with a variety of stakeholders and grow with a fast-moving company.";
+
+const described = (job: ReturnType<typeof posting>, description: string) => ({ ...job, description, jd_terms: jdTermsFromDescription(description, job as never) });
+
+test("a pack lists a title the résumé never names when its posting asks for what the résumé shows, ahead of a posting that is only its title, and a remote role with no country last", { tag: ["@J-JOBS-132"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const led = described(posting("88888888-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const generic = described(posting("88888888-0000-4000-8000-000000000002", "Technical Account Manager", "Northstar Data", "senior", 2), GENERIC_DESCRIPTION);
+  const noCountry = described(
+    { ...posting("88888888-0000-4000-8000-000000000003", "Technical Account Manager", "Fernway", "senior", 1), location: "Remote", location_city: null, location_state: null, location_country: null, work_type: "remote" } as never,
+    askingForTheResumeWork("Fernway", "Technical Account Manager"),
+  );
+  await withAccountApplications(page, []);
+  // Sent generic first, as a search that matches on title would: the deck puts the posting that asks for the résumé's work ahead of it.
+  const sent: { contentPhrases?: string[]; unplacedRemote?: boolean }[] = [];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    const parsed = JSON.parse(body) as { fromResume?: boolean; contentPhrases?: string[]; unplacedRemote?: boolean };
+    if (parsed.fromResume) sent.push({ contentPhrases: parsed.contentPhrases, unplacedRemote: parsed.unplacedRemote });
+    const hits = [generic, noCountry, led];
+    return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-content-first" });
+  });
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", led.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", generic.id);
+
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", noCountry.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Country unclear");
+
+  // The pack's search asked for postings by what they say, with a few skill phrases and no name or contact detail.
+  const asked = sent.find((m) => (m.contentPhrases?.length ?? 0) > 0);
+  expect(asked, "a résumé-built search carries content phrases").toBeTruthy();
+  expect(asked!.contentPhrases!.length).toBeLessThanOrEqual(4);
+  expect(asked!.unplacedRemote).toBe(true);
+  expect(JSON.stringify(asked!.contentPhrases).toLowerCase()).not.toMatch(/\bmorgan\b|\blee\b|example\.com|555-010/);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-133 / J-JOBS-134 — the gate, 2026-10-15: J-JOBS-100, 50, 52 and 80 failed at the staging head because a pack
+ * and Today held no roles for their fixture résumé (a short one: five skills, two jobs). Nearly every posting lists
+ * tools or requirements such a résumé cannot "show", and the deck left each one out. A list the résumé does not answer
+ * is a ranking signal, not a reason to leave the role out (a short résumé is not judged by it at all); an explicit ask
+ * the résumé does not show (a language, a clearance, years, managing, selling, a certification) still takes a role out
+ * (J-JOBS-131); and a pack where nothing fits shows the closest roles under an honest line, not an empty list.
+ * The postings are CONSTRUCTED for these journeys (no real company or posting).
+ */
+const listingTools = (company: string, tools: string[]) =>
+  [
+    `About the role\n${company} is hiring a Technical Account Manager.`,
+    "What you'll do\nOwn the adoption and renewal plan for enterprise accounts and run technical escalations with engineering.",
+    `What you bring\n6+ years of experience\n${tools.map((tool) => `Experience with ${tool}`).join("\n")}`,
+  ].join("\n\n");
+
+test("a short résumé's pack still lists roles in its own line whose postings list tools the résumé does not show", { tag: ["@J-JOBS-133"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const tools = ["Gainsight", "Snowflake", "Looker", "Tableau", "Zendesk"];
+  const withTools = (id: string, company: string, daysOld: number) =>
+    described(posting(id, "Technical Account Manager", company, "senior", daysOld), listingTools(company, tools));
+  const roles = [
+    withTools("aaaaaaaa-0000-4000-8000-000000000001", "Orchard CRM", 1),
+    withTools("aaaaaaaa-0000-4000-8000-000000000002", "Juniper Labs", 2),
+    withTools("aaaaaaaa-0000-4000-8000-000000000003", "Fernway", 3),
+  ];
+  // The same listing asking for French: an explicit ask the résumé does not show, so it is still left out.
+  const french = described(posting("aaaaaaaa-0000-4000-8000-000000000004", "Technical Account Manager", "Maison Nord", "senior", 1), `${listingTools("Maison Nord", tools)}\n\nYou are fluent in French and English.`);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [french, ...roles], "journey-short-resume");
+  await openPack(page);
+
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${french.id}"]`)).toHaveCount(0);
+  await expect(page.getByTestId("for-you-near-notice")).toHaveCount(0);
+  for (let step = 0; step < 2; step++) await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("3 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 4 roles found: 1 asking for something your résumé doesn't show");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/** A résumé with enough lines (two hundred terms) to be judged against a posting's requirement list. */
+const RICH_RESUME = {
+  ...TAM_RESUME,
+  experience: [
+    { id: "exp1", company: "Northwind Cloud", role: "Technical Account Manager", dates: "2019 - Present", description: "Owned adoption, renewals and technical escalations for 40 enterprise accounts, worth 12 million in annual recurring revenue.\nLed quarterly business reviews with executive sponsors and translated customer feedback into roadmap proposals with product managers.\nBuilt onboarding playbooks, health scoring in SQL and Salesforce dashboards that cut churn among strategic accounts.\nTriaged API and integration incidents with engineering, wrote runbooks and trained support engineers on webhooks, OAuth and rate limits." },
+    { id: "exp2", company: "Maple Systems", role: "Technical Support Engineer", dates: "2015 - 2019", description: "Resolved REST API, SSO and data migration issues for enterprise customers.\nReproduced defects, filed detailed bug reports and verified fixes in staging environments.\nAuthored knowledge base articles, mentored new hires and measured ticket backlog, response times and satisfaction scores." },
+    { id: "exp3", company: "Lakeshore Software", role: "Implementation Consultant", dates: "2012 - 2015", description: "Configured and deployed workflow software for mid-market clients, ran training workshops and documented requirements, integrations and acceptance tests." },
+  ],
+  competencies: [
+    { category: "Customer", skills: ["Customer Success", "Onboarding", "Renewals", "Escalation management", "Quarterly business reviews", "Stakeholder management"] },
+    { category: "Technical", skills: ["SQL", "REST APIs", "Salesforce", "Zendesk", "Webhooks", "OAuth", "SSO", "Postman", "JIRA", "Confluence"] },
+  ],
+};
+
+test("a pack where nothing fits lists the closest roles under an honest line, not an empty list", { tag: ["@J-JOBS-134"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  // Titled like the résumé's own role, but asking for four things a TAM résumé does not show (constructed: a trades listing).
+  const unrelated = (id: string, company: string, daysOld: number) =>
+    described(
+      posting(id, "Technical Account Manager", company, "senior", daysOld),
+      [
+        `About the role\n${company} is hiring a Technical Account Manager.`,
+        "Requirements\n- Hands-on welding and brazing of structural steel\n- Operating a forklift and overhead crane safely\n- Pipefitting and boiler maintenance in plant settings\n- Erecting scaffolding to site safety standards",
+      ].join("\n\n"),
+    );
+  const close = [unrelated("bbbbbbbb-0000-4000-8000-000000000001", "Steelhead Works", 1), unrelated("bbbbbbbb-0000-4000-8000-000000000002", "Ironbridge", 2)];
+  const staff = posting("bbbbbbbb-0000-4000-8000-000000000003", "Staff Technical Account Manager", "Juniper Labs", "senior", 1);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [staff, ...close], "journey-closest");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-near-notice")).toContainText("None of the roles we found fit your résumé well yet. These are the closest", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  await expect(page.getByTestId("match-chip")).toHaveText("Stretch");
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 closest roles · each a weaker fit");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 above your level");
+  expect(diagnostics.pageErrors).toEqual([]);
+});

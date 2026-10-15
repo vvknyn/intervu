@@ -155,6 +155,17 @@ describe('collecting one account\'s picks on the server', () => {
         assert.equal(searches[0]!.limit, TODAY_PICKS_FETCH_LIMIT);
     });
 
+    it('leaves roles past Senior out of the pool unless the résumé holds one itself, the way Today and the deck do', async () => {
+        const plain = collectDeps({ hits: [fits('a')] });
+        await collectDailyPicks('u1', plain.deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
+        assert.equal(plain.searches[0]!.omitPastSenior, true, 'a résumé that shows no Staff or Principal role is not sent them');
+
+        const staff = mkResume({ location: 'Toronto, Ontario, Canada', profession: 'Staff Software Engineer' });
+        const holds = collectDeps({ base: { source: 'resume_data', resume_data: staff }, hits: [fits('a')] });
+        await collectDailyPicks('u1', holds.deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
+        assert.notEqual(holds.searches[0]!.omitPastSenior, true, 'a résumé that holds a Staff title keeps them');
+    });
+
     it('ranks only a structured résumé: none, text only (never parsed on the server) or one with no role or skills is said so', async () => {
         const none = await collectDailyPicks('u', collectDeps({ base: { source: 'none' } }).deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
         assert.deepEqual(none, { kind: 'no-resume', reason: 'none' });

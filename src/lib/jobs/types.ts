@@ -443,6 +443,20 @@ export interface JobSearchParams {
    */
   omitPastSenior?: boolean;
   /**
+   * Short phrases from the résumé's skills (`contentPhrasesFor`, jobs/for-you/content-phrases.ts) a
+   * résumé-built search also looks for in a posting's whole text, whatever its title says, so a role with a
+   * title the résumé does not name but a description it covers is in the pool (`fetchContentLaneHits`,
+   * meilisearch.ts). Used only with `fromResume`; carries a few skill words, never lines, names or contact
+   * details, and is not logged.
+   */
+  contentPhrases?: string[];
+  /**
+   * With `contentPhrases`: also pool remote roles that name no country (the country filter leaves them out
+   * of every other lane), last in the pool. Set by the For you deck and the agent's `for_you`, which list
+   * them last with their caveat; Today and the daily picks leave them out and do not ask.
+   */
+  unplacedRemote?: boolean;
+  /**
    * The browser holds a résumé and scores these rows against it: attach each
    * row's description terms (`jd_terms`, jd-terms.ts) so a list chip scores
    * the whole posting, as the role's own page does. Implied by `fromResume`.

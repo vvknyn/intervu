@@ -1593,18 +1593,18 @@ signedInTest("an opened pack reads its roles' descriptions for place before it s
   await openHubTile(page, "all");
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
   await expect(front).toHaveCount(1, { timeout: 60_000 });
-  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3");
-  // Only the rows that name no place were read, once, and the India role was never in front until it was reached, last.
+  // The India role is for people in India: it is left out and counted, never a card. The role that names no place stays, after the one in Canada.
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  // Only the rows that name no place were read, once.
   expect(asked).toHaveLength(1);
   expect(new Set(asked[0])).toEqual(new Set(["desc-india", "open-anywhere"]));
-  for (let step = 0; step < 2; step++) await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", "desc-india");
-  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 3 of 3");
+  await expect(front).toHaveAttribute("data-job-id", "in-canada");
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", "open-anywhere");
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 2 of 2");
   const fronts = await page.evaluate(() => (window as unknown as { __deckFronts: string[] }).__deckFronts);
-  expect(fronts.indexOf("desc-india")).toBe(fronts.length - 1);
-  expect(fronts.slice(0, -1)).not.toContain("desc-india");
-  // Never Strong: it is for people in India.
-  await expect(front.getByTestId("match-chip").first()).not.toHaveText("Strong");
+  expect(fronts).not.toContain("desc-india");
+  await expect(page.getByTestId("for-you-left-out")).toContainText("1 outside where you can work");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });
@@ -1618,8 +1618,11 @@ signedInTest("an open role's \"What we inferred\" names the same posted date and
   const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
   const pack = [
     remoteRole("found-late", "Software Engineer", "Remote, Canada", { posted_at: daysAgo(21), first_seen_at: daysAgo(3) }),
+    remoteRole("also-late", "Software Engineer", "Remote, Canada", { posted_at: daysAgo(21), first_seen_at: daysAgo(20) }),
+    // Above the résumé's mid level: a recommendation leaves it out and counts it.
     remoteRole("senior-listed", "Senior Software Engineer", "Remote, Canada", { experience_level: "senior", posted_at: daysAgo(21), first_seen_at: daysAgo(20) }),
   ];
+  const shownPack = pack.filter((p) => p.id !== "senior-listed");
   await page.route("**/*", async (route) => {
     const req = route.request();
     const body = req.postData() ?? "";
@@ -1634,7 +1637,7 @@ signedInTest("an open role's \"What we inferred\" names the same posted date and
   const detail = (label: string) => front.locator("dt", { hasText: new RegExp(`^${label}$`) }).locator("xpath=following-sibling::dd[1]");
   const inferred = front.getByTestId("role-card-inferred");
   const seen = new Set<string>();
-  for (let step = 0; step < pack.length; step++) {
+  for (let step = 0; step < shownPack.length; step++) {
     if (step > 0) await page.getByTestId("for-you-next").click();
     const id = (await front.getAttribute("data-job-id")) ?? "";
     seen.add(id);
@@ -1642,15 +1645,11 @@ signedInTest("an open role's \"What we inferred\" names the same posted date and
     await expect(inferred).toContainText("Posted 21d ago");
     await expect(inferred).not.toContainText("within the last 7 days");
     // The résumé: 4 years as a software engineer, mid level. The row names the role's level as the details show it, then theirs.
-    if (id === "found-late") {
-      await expect(detail("Seniority")).toHaveText("Mid");
-      await expect(inferred).toContainText("Seniority: mid-level role — matches your mid level (4 years of experience)");
-    } else {
-      await expect(detail("Seniority")).toHaveText("Senior");
-      await expect(inferred).toContainText("Seniority: senior role — above your mid level (4 years of experience)");
-    }
+    await expect(detail("Seniority")).toHaveText("Mid");
+    await expect(inferred).toContainText("Seniority: mid-level role — matches your mid level (4 years of experience)");
   }
-  expect([...seen].sort()).toEqual(["found-late", "senior-listed"]);
+  expect([...seen].sort()).toEqual(["also-late", "found-late"]);
+  await expect(page.getByTestId("for-you-left-out")).toContainText("1 above your level");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

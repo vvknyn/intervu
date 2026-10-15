@@ -570,20 +570,19 @@ describe('toolGetJob', () => {
 });
 
 describe('toolForYou', () => {
-  it('orders hits by match.total desc (unscored last), carries fit_reasons alongside every scored hit, and tags every hit with a group', async () => {
+  it('orders hits by match.total desc, leaves out a role nothing ties to the résumé, carries fit_reasons alongside every hit, and tags every hit with a group', async () => {
     // jobHigh/jobLow share the SAME title/tags — identical relevance
     // component — and differ ONLY in experience_level (mid vs entry), which
     // score.ts's scoreSeniority scores 1 ("fits" MATCHING_RESUME's 6y, which
-    // the signals resolver reads as mid) vs 0.65 ("exceeds ask"). Three tags
-    // the résumé lacks keep relevance partial (2 of 5 terms), so both totals
-    // stay under the unverified-role cap (79) instead of tying on it. That
-    // 0.35-point gap on the seniority component (weight 0.25)
-    // deterministically outweighs rounding, so jobHigh's total always beats
-    // jobLow's without hand-computing either exact total. jobUnscored has an
-    // empty title/tags — an empty job vocabulary — so
-    // `scoreRelevance` (REQUIRED) returns null and the whole match is null.
+    // the signals resolver reads as mid) vs 0.65 ("exceeds ask"). Two tags
+    // the résumé lacks keep relevance partial (1 of 3 terms) but the title is
+    // the candidate's own role, so both stay recommendable (Good) and their
+    // totals differ by the seniority component alone: 79 vs 76.
+    // jobUnscored has an empty title/tags — an empty job vocabulary — so
+    // `scoreRelevance` (REQUIRED) returns null and the whole match is null:
+    // nothing ties it to the résumé, so For You does not list it at all.
     // No rank word in the title, so the listed level alone sets each role's level (`jobLevelRead`).
-    const partial = { title: 'Engineer', tags: ['backend', 'fortran', 'cobol', 'mainframe', 'pascal', 'ada', 'vax'], description: '' };
+    const partial = { title: 'Backend Engineer', tags: ['backend', 'fortran', 'cobol'], description: '' };
     // Different employers: the same title at the same company is one role
     // cross-posted, which for_you lists once (`clusterJobs`), as the site does.
     const jobHigh = makeJob({ id: 'job-high', experience_level: 'mid', ...partial });
@@ -594,18 +593,16 @@ describe('toolForYou', () => {
     const { deps } = stubDeps([jobLow, jobUnscored, jobHigh], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
     const out = await toolForYou(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');
-    assert.deepEqual(out.hits.map((h) => h.id), ['job-high', 'job-low', 'job-unscored']);
+    assert.deepEqual(out.hits.map((h) => h.id), ['job-high', 'job-low']);
     assert.ok(out.hits[0].match && out.hits[1].match);
     assert.ok((out.hits[0].match?.total ?? -1) > (out.hits[1].match?.total ?? -1));
     assert.ok(out.hits[0].fit_reasons);
     assert.ok(out.hits[1].fit_reasons);
-    assert.ok(!('match' in out.hits[2]));
-    assert.ok(!('fit_reasons' in out.hits[2]));
     for (const h of out.hits) assert.ok(h.group === 'target_title' || h.group === 'adjacent');
   });
 
   it('pages the already-ranked candidate list via cursor with no overlap between pages', async () => {
-    const hits = Array.from({ length: 5 }, (_, i) => makeJob({ id: `job-${i}`, company: `Acme ${i}`, company_domain: `acme${i}.com` }));
+    const hits = Array.from({ length: 5 }, (_, i) => makeJob({ id: `job-${i}`, title: 'Backend Engineer', experience_level: 'mid', company: `Acme ${i}`, company_domain: `acme${i}.com` }));
     const { deps: deps1 } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
     const page1 = await toolForYou(deps1, { limit: 2 });
     if ('error' in page1) throw new Error('unexpected error shape');
@@ -644,9 +641,9 @@ describe('toolForYou', () => {
   });
 
   it('lists one role cross-posted at the same company once, and leaves out a role with no apply link, as the site\'s deck does', async () => {
-    const original = makeJob({ id: 'job-a', location: 'Toronto' });
-    const repost = makeJob({ id: 'job-b', location: 'Vancouver' });
-    const noLink = makeJob({ id: 'job-c', company: 'Gamma Co', company_domain: 'gamma.com', apply_url: '' });
+    const original = makeJob({ id: 'job-a', title: 'Backend Engineer', experience_level: 'mid', location: 'Toronto' });
+    const repost = makeJob({ id: 'job-b', title: 'Backend Engineer', experience_level: 'mid', location: 'Vancouver' });
+    const noLink = makeJob({ id: 'job-c', title: 'Backend Engineer', experience_level: 'mid', company: 'Gamma Co', company_domain: 'gamma.com', apply_url: '' });
     const { deps } = stubDeps([original, repost, noLink], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
     const out = await toolForYou(deps, {});
     if ('error' in out) throw new Error('unexpected error shape');

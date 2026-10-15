@@ -355,9 +355,9 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
+import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
@@ -388,7 +388,7 @@ import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
-import { buildJobSearchPayload, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, deckContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
@@ -1847,6 +1847,9 @@ export function JobsContent({
     keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    // The phrases the pack's own search also looks for in a posting's text (`deckContentMark`), read by the search effects.
+    const packContentRef = useRef<{ q: string; phrases: string[] } | null>(null);
+    packContentRef.current = useMemo(() => (resume && pack ? { q: pack.q.trim(), phrases: packContentPhrases(resume, pack.q) } : null), [resume, pack]);
     const [importOpen, setImportOpen] = useState(false);
     const importOpenRef = useRef(importOpen);
     importOpenRef.current = importOpen;
@@ -2408,6 +2411,7 @@ export function JobsContent({
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                               ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                              ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -3044,21 +3048,30 @@ export function JobsContent({
         if (pursuitsLoading || deckApplied?.key === searchKey) return;
         setDeckApplied({ key: searchKey, index: appliedIndex });
     }, [searchKey, pursuitsLoading, appliedIndex, deckApplied?.key]);
-    const rankedPacks = useMemo(
+    const deckCandidates = useMemo(
         () =>
             deckResultStale
                 ? []
-                : orderForYouJobsByBand(
-                      renderedClusters
-                          .map((c) => c.primary)
-                          .filter(hasLiveApplyUrl)
-                          .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
-                      matchScores ? (job) => matchScores.get(job.id) ?? null : null,
-                      result?.effectiveQ,
-                      nowMs,
-                  ),
-        [deckResultStale, renderedClusters, result?.effectiveQ, matchScores, deckApplied, nowMs],
+                : renderedClusters
+                      .map((c) => c.primary)
+                      .filter(hasLiveApplyUrl)
+                      .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
+        [deckResultStale, renderedClusters, deckApplied],
     );
+    const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
+    // When no role fits, the deck holds the closest ones (left out only as a weaker fit) under an honest line, not nothing.
+    const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, result?.effectiveQ, nowMs), [deckCandidates, deckScore, result?.effectiveQ, nowMs]);
+    const deckNearMisses = useMemo(
+        () => (deckOrdered.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, result?.effectiveQ, nowMs) : []),
+        [deckOrdered, deckCandidates, deckScore, result?.effectiveQ, nowMs],
+    );
+    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckNearMisses;
+    // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
+    const deckLeftOutSummary = useMemo(() => {
+        if (!deckScore) return null;
+        const summary = summarizeDeckLeftOut(deckCandidates, deckScore, nowMs);
+        return deckNearMisses.length > 0 ? nearMissSummary(summary) : summary;
+    }, [deckCandidates, deckScore, deckNearMisses, nowMs]);
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
     // the deck holds its roles until its first ones are read here (the effect
@@ -3269,7 +3282,7 @@ export function JobsContent({
             try {
                 const previous = readHubCountBaseline();
                 // The pack's own search params: the probe counts what the packs retrieve.
-                const packParams = packSearchParams(pack, signals);
+                const packParams = packSearchParams(pack, signals, { resume, unplacedRemote: true });
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
                 let allCount: CorpusCount | null = null;
@@ -3966,6 +3979,7 @@ export function JobsContent({
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                 ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -6900,6 +6914,7 @@ export function JobsContent({
                                 hasMore={hasMore}
                                 signupGate={fitGateEl}
                                 resultTotal={deckResultStale ? null : (result?.total ?? null)}
+                                leftOut={deckResultStale ? null : deckLeftOutSummary}
                                 unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
                                 tileId={openHubTileId}
                                 onBackToPacks={forYouPackDeckOpen ? returnToJobPacksHub : undefined}

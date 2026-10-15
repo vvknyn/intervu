@@ -9,8 +9,10 @@
  * a candidate gets by applying them by hand are the ids returned here. Fit
  * only REORDERS that result (the candidate's own role first, then by
  * `match.total` descending, then `orderForYouJobsByBand`: role tier, then
- * Strong → Good → Stretch, unscored last, with target-title relevance inside
- * each band) — it never removes a job.
+ * Strong → Good, with target-title relevance inside each band). A recommendation list is not a
+ * search: a role the résumé could not take (`deckLeftOut`: above their level, asks for what the
+ * résumé doesn't show, a different kind of role, outside where they can work, too old) is left out,
+ * and `leftOut` counts each reason, so every row of the search is either listed or accounted for.
  *
  * Scoring/reasons pairing goes through the ONE fit chokepoint (`fitFor`,
  * ./fit.ts) — this module never calls `scoreJobAgainstResume` or
@@ -18,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { orderForYouJobsByBand } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -38,6 +40,8 @@ export interface RankedHit {
 
 export interface RankForYouResult {
     hits: RankedHit[];
+    /** What the search returned and the list left out, by reason (the rows of `hits` are the rest). */
+    leftOut: DeckLeftOutSummary;
     query_used: string;
     /** The filter state the pack retrieved with — the same one `/jobs` opens on
      *  (`jobsBoardHref`, url-state.ts). */
@@ -77,7 +81,8 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
 
     // Roles past Senior (Staff, Principal, Director...) are left out of the pool, not just ranked last, unless
     // the résumé shows such a role: they would otherwise fill the first rows the pool is cut to.
-    const result = await search({ ...packSearchParams(filters, signals), limit: candidateDepth, offset: 0 });
+    // The pool also holds the postings that ask for what the résumé shows whatever their title, and remote roles that name no country (listed last).
+    const result = await search({ ...packSearchParams(filters, signals, { resume, unplacedRemote: true }), limit: candidateDepth, offset: 0 });
 
     // A real backend failure (never wired up, or a configured backend that
     // threw) must not read like a true zero-match ranked list — same
@@ -85,6 +90,7 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     if (result.unavailable === true || !result.configured) {
         return {
             hits: [],
+            leftOut: { considered: 0, listed: 0, byReason: {} },
             filters,
             query_used: q,
             unavailable: true,
@@ -113,13 +119,15 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     );
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
-    const orderedJobs = orderForYouJobsByBand(
-        scored.map((s) => s.job),
-        (job) => byId.get(job.id)?.match ?? null,
-        queryUsed,
-        nowMs,
-    );
+    const allJobs = scored.map((s) => s.job);
+    const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
+    const fitting = orderForYouJobsByBand(allJobs, scoreOf, queryUsed, nowMs);
+    // Nothing fits: the closest roles, each a weaker fit, so the list is never empty while roles were found.
+    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, queryUsed, nowMs) : [];
+    const orderedJobs = fitting.length > 0 ? fitting : nearMisses;
     const targets = targetTitlesFromQuery(queryUsed);
+    const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);
+    const leftOut = nearMisses.length > 0 ? nearMissSummary(counted) : counted;
 
     const hits: RankedHit[] = orderedJobs.map((job) => {
         const entry = byId.get(job.id)!;
@@ -131,6 +139,7 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
 
     return {
         hits,
+        leftOut,
         filters,
         query_used: queryUsed,
         ...(unmatched?.length ? { unmatchedPlaceMentions: unmatched } : {}),

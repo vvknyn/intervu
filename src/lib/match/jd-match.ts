@@ -40,6 +40,7 @@
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import type { DescBlock } from "@/lib/jobs/format-description";
 import { evidencedSkills } from "@/lib/jobs/presentation";
+import { jdAsksFromDescription, type JdAsks } from "@/lib/match/jd-asks";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -49,6 +50,8 @@ export interface JdTerms {
     req: string[];
     /** What the person would do (Responsibilities / "What you'll do"), or the whole text when it has no headings. */
     duty: string[];
+    /** The hard asks it states (language, clearance, managing, selling, certifications, required skills), when it states any (`jdAsksFromDescription`). */
+    asks?: JdAsks;
 }
 
 /** How many phrases each section keeps. Enough for a real posting's asks, small enough for a list row. */
@@ -105,6 +108,11 @@ const STOP = new Set([
     "access", "plan", "sense", "chance", "person", "belonging", "confidence", "see", "helps", "results", "goals",
     "needs", "solution", "industry", "excellence", "opportunity to", "part of", "way", "ways", "lot", "lots",
 ]);
+
+/** A word every posting uses about itself (or a function word), so it cannot tell two postings apart (`STOP`). */
+export function isGenericJdWord(word: string): boolean {
+    return STOP.has(word.trim().toLowerCase());
+}
 
 /** Conjunction tokens: always end a phrase ("sales and marketing" is two terms, not "sales marketing"). */
 const ALWAYS_SPLIT = new Set(["and", "or", "&", "/"]);
@@ -174,6 +182,28 @@ function topTerms(text: string, max: number, exclude?: ReadonlySet<string>): str
         .map((t) => t.term);
 }
 
+/** The most bullets of a Requirements section whose terms ride on a list row (`JdAsks.bullets`). */
+const JD_BULLETS_MAX = 14;
+const JD_BULLET_TERMS = 3;
+
+/**
+ * Each requirement bullet's most telling terms, one list per bullet: what the posting asks one line at
+ * a time, so a résumé is read against every ask and not against their pooled words. Pooled, a posting
+ * of ten generic asks and three it has no answer for reads the same as one of thirteen it half answers.
+ */
+function requirementBullets(blocks: DescBlock[], exclude: ReadonlySet<string>): string[][] {
+    const lines = blocks
+        .filter((b) => !b.fine && b.type !== "heading")
+        .flatMap((b) => (b.items && b.items.length > 0 ? b.items : b.text ? [b.text] : []));
+    const out: string[][] = [];
+    for (const line of lines) {
+        const terms = topTerms(line, JD_BULLET_TERMS, exclude);
+        if (terms.length > 0) out.push(terms);
+        if (out.length >= JD_BULLETS_MAX) break;
+    }
+    return out;
+}
+
 /** What a description's terms are read alongside: the employer and place (left out), and the extractor's evidenced skills (put first). */
 export type JdSourceJob = { company?: string | null; location?: string | null } & Partial<
     Pick<PublicJob, "must_have_skills" | "preferred_skills" | "skills_section_found">
@@ -202,8 +232,10 @@ export function jdTermsFromDescription(
     // Skills the upstream extractor read from a real Requirements heading
     // (`evidencedSkills` — never the unstamped, fabricated ones) lead the asks.
     const skills = job ? evidencedSkills(job, "must_have_skills").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
+    const asks = jdAsksFromDescription(text, skills);
+    const withAsks = (terms: JdTerms): JdTerms => (asks ? { ...terms, asks } : terms);
     const withSkills = (req: string[]) => [...new Set([...skills, ...req])].slice(0, JD_TERMS_PER_SECTION + skills.length);
-    if (text.length < 40) return skills.length > 0 ? { req: skills, duty: [] } : null;
+    if (text.length < 40) return skills.length > 0 ? withAsks({ req: skills, duty: [] }) : null;
     const exclude = ownWords(job);
     const sections = splitPackSections(text);
     const reqText = blocksText(sections.requirements);
@@ -211,12 +243,15 @@ export function jdTermsFromDescription(
     if (!reqText.trim() && !dutyText.trim()) {
         const kept = blocksText([...sections.about, ...sections.responsibilities, ...sections.requirements]);
         const all = topTerms(kept || text, JD_TERMS_PER_SECTION, exclude);
-        return all.length > 0 || skills.length > 0 ? { req: skills, duty: all } : null;
+        return all.length > 0 || skills.length > 0 ? withAsks({ req: skills, duty: all }) : null;
     }
-    return {
+    const bullets = requirementBullets(sections.requirements, exclude);
+    const terms: JdTerms = {
         req: withSkills(topTerms(reqText, JD_TERMS_PER_SECTION, exclude)),
         duty: topTerms(dutyText, JD_TERMS_PER_SECTION, exclude),
     };
+    if (!asks && bullets.length === 0) return terms;
+    return { ...terms, asks: { ...asks, ...(bullets.length > 0 ? { bullets } : {}) } };
 }
 
 /** Everything the résumé says, as one searchable set of terms (words and two-word phrases). */
@@ -251,6 +286,22 @@ function resumeHas(terms: ResumeTermSet, term: string): boolean {
     if (term.endsWith("es") && terms.has(term.slice(0, -2))) return true;
     if (term.endsWith("s") && terms.has(term.slice(0, -1))) return true;
     return terms.has(`${term}s`) || terms.has(`${term}es`);
+}
+
+/**
+ * The résumé shows `term` anywhere: a word or phrase in its summary, roles, skills, education or other
+ * sections. With `loose`, a phrase whose every word is on the résumé somewhere counts too ("customer
+ * success" beside "customer-facing ... success plans"); evidence of having sold, held a clearance or a
+ * certification is never loose.
+ */
+export function resumeShowsTerm(resume: ResumeData, term: string, { loose = false }: { loose?: boolean } = {}): boolean {
+    const terms = resumeTermSet(resume);
+    const text = term.trim().toLowerCase();
+    if (!text) return false;
+    if (resumeHas(terms, text)) return true;
+    if (!loose) return false;
+    const words = text.split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 2);
+    return words.length > 1 && words.every((w) => resumeHas(terms, w));
 }
 
 export interface JdCoverage {
