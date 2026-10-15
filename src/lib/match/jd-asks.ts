@@ -24,6 +24,8 @@ export interface JdAsks {
     sells?: true;
     /** Certifications and licences it requires, as written ("CISSP", "NRP", "CPA"). */
     creds?: string[];
+    /** The fewest years of experience a sentence asks of the person ("9+ years of relevant experience"): the years a posting states in its text when its structured `min_years_experience` is missing (`yearsRequired`). */
+    years?: number;
     /** The skills its Requirements heading lists (`must_have_skills`, only when a real heading was found), lowercased. */
     must?: string[];
     /** Each bullet of its Requirements section as its most telling terms, one list per bullet (jd-match.ts). */
@@ -119,6 +121,50 @@ function credentialsAsked(lines: string[]): string[] {
     return unique(out);
 }
 
+/** Figures a posting spells out for years of experience ("five years of experience"). */
+const YEAR_WORDS: Record<string, number> = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, fifteen: 15, twenty: 20 };
+const YEAR_FIGURE = String.raw`(\d{1,2}|${Object.keys(YEAR_WORDS).join("|")})`;
+/** "9+ years", "5 yrs", "3-5 years", "five to seven years": the first figure is the fewest. Not "18 years of age" or "years old". */
+const YEARS = new RegExp(String.raw`\b${YEAR_FIGURE}\s*(?:\+|plus)?(?:\s*(?:-|–|to)\s*(?:\d{1,2}|${Object.keys(YEAR_WORDS).join("|")})\s*\+?)?\s*(?:years?|yrs?)\b(?!\s*(?:of age|old|ago)\b)`, "i");
+/** What leads a list item that is only the ask: "9+ years of relevant experience", "Minimum of 5 years", "At least 3 years", "Have 5+ years". */
+const YEARS_LEAD = /^\W*(?:(?:you\s+)?(?:have|bring|possess)|(?:a\s+)?minimum(?:\s+of)?|min\.?|at\s+least|over|more\s+than|requires?|required|experience)?[\s:–-]*$/i;
+/** A line that opens as the requirements list, so every figure of years on it is asked of the person: "Requirements: BSc, 7+ years, a licence". */
+const YEARS_LABEL = /^\W*(?:requirements?|(?:minimum\s+)?qualifications?|(?:your|the\s+ideal)\s+profile|about\s+you|what\s+you(?:'ll|\s+will)?\s+(?:bring|need|have)|what\s+we(?:'re|\s+are)\s+looking\s+for|must[- ]haves?)\b/i;
+/** A word that makes a sentence ask something of the person: "you bring", "must have", "candidates with", "requires". Not a bare "with" or "has" ("With over 10 years in the market, we...", "The founder has 20 years"). */
+const YEARS_CUE = /\b(?:you|must|should|need|needs|require|requires|required|minimum|least|bring|brings|possess|(?:candidates?|applicants?|someone|people|professionals?)\s+with)\b/i;
+/** A sentence about the company, not the person: its age or history ("founded in 2008", "20 years of history"), or "we/our" with nothing that seeks or asks ("we have served clients for 15 years"). */
+const COMPANY_HISTORY = /\b(?:founded|established|history|anniversary|ago|since\s+(?:19|20)\d\d|in\s+business)\b/i;
+const COMPANY_VOICE = /\b(?:we|we've|we're|our|us)\b/i;
+const SEEKING_VOICE = /\b(?:you|want|wants|looking|seek|seeking|need|needs|require|requires|hire|hiring|expect|expects|ask|asks)\b/i;
+
+/**
+ * The fewest years of experience the posting asks of the person, from the sentences that ask for them as a
+ * requirement: a list item that opens on the figure ("9+ years of relevant experience", "Minimum 5 years"),
+ * a line under a requirements label ("Requirements: BSc, 7+ years"), or a sentence that asks ("you bring 7+
+ * years", "candidates with 3-5 years"). Never a company's age or history, an optional clause, or a figure that
+ * is not experience ("18 years of age"). Several asks read as the smallest: the most that is stated for sure.
+ * The structured `min_years_experience` is on about half the postings, so a posting that states the years
+ * only in its text was never held to them.
+ */
+function yearsRequired(lines: string[]): number | undefined {
+    let fewest: number | undefined;
+    for (const line of lines) {
+        const labelled = YEARS_LABEL.test(line);
+        for (const clause of line.split(";")) {
+            if (OPTIONAL.test(clause) || COMPANY_HISTORY.test(clause) || (COMPANY_VOICE.test(clause) && !SEEKING_VOICE.test(clause))) continue;
+            const m = YEARS.exec(clause);
+            if (!m) continue;
+            const before = clause.slice(0, m.index);
+            if (!(labelled || YEARS_LEAD.test(before) || YEARS_CUE.test(before.split(/\s+/).slice(-6).join(" ")))) continue;
+            const raw = m[1]!.toLowerCase();
+            const n = /^\d/.test(raw) ? Number(raw) : YEAR_WORDS[raw];
+            if (n == null || n < 1 || n > 30) continue;
+            fewest = fewest == null ? n : Math.min(fewest, n);
+        }
+    }
+    return fewest;
+}
+
 /** Skills a posting's real Requirements heading lists (`evidencedSkills`), trimmed to the short names. */
 export function mustSkillsOf(skills: readonly string[] | undefined): string[] | undefined {
     const out = unique((skills ?? []).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 2 && s.length <= 40)).slice(0, 12);
@@ -140,6 +186,8 @@ export function jdAsksFromDescription(description: string | null | undefined, mu
         if (lines.some((l) => SELLS.test(l) && !OPTIONAL.test(l))) asks.sells = true;
         const creds = credentialsAsked(lines);
         if (creds.length > 0) asks.creds = creds;
+        const years = yearsRequired(lines);
+        if (years != null) asks.years = years;
     }
     return Object.keys(asks).length > 0 ? asks : undefined;
 }
