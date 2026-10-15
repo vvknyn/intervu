@@ -640,9 +640,28 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         return true;
     };
 
+    // Radix puts focus back only on a DialogTrigger, and this dialog is opened
+    // by many buttons through `isOpen`, so closing it left focus on the page
+    // body: the next key press went nowhere. Remember what held focus as it
+    // opened and give focus back to it, when that control is still on the page.
+    const openerRef = useRef<HTMLElement | null>(null);
+
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="w-full max-w-[calc(100%-1rem)] sm:max-w-2xl">
+            <DialogContent
+                className="w-full max-w-[calc(100%-1rem)] sm:max-w-2xl"
+                onOpenAutoFocus={() => {
+                    const active = document.activeElement;
+                    openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+                }}
+                onCloseAutoFocus={(event) => {
+                    const opener = openerRef.current;
+                    openerRef.current = null;
+                    if (!opener?.isConnected) return;
+                    event.preventDefault();
+                    opener.focus();
+                }}
+            >
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {title ? (

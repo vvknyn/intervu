@@ -733,3 +733,38 @@ test("a pack lists another line of work's title when its posting asks for what t
   await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 a different kind of role");
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * J-JOBS-137 — the reason on a pack's role (the hover on its label, the line in the daily picks email and the MCP
+ * `why`) says what the posting asks for that the résumé shows, not only the title, place and level.
+ * The posting is CONSTRUCTED for this journey (no real company or posting).
+ */
+test("the reason on a role names what its posting asks for that the résumé shows", { tag: ["@J-JOBS-137"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const own = described(posting("dddddddd-0000-4000-8000-000000000001", "Technical Account Manager", "Orchard CRM", "senior", 2), askingForTheResumeWork("Orchard CRM", "Technical Account Manager"));
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [own], "journey-reason-terms");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", own.id, { timeout: 60_000 });
+  const chip = page.getByTestId("match-chip");
+  await expect(chip).toHaveText("Strong");
+  const reason = page.getByTestId("match-reason").first();
+  if (test.info().project.name === "mobile") {
+    await chip.tap();
+    await expect(reason).toBeVisible({ timeout: 10_000 });
+  } else {
+    await expect(async () => {
+      await page.mouse.move(0, 0);
+      await chip.hover();
+      await expect(reason).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
+  }
+  await expect(reason).toContainText("It's your own role: the title matches Technical Account Manager on your résumé.");
+  // Two or three of the posting's own terms (never its title's words), then the place and level.
+  await expect(reason).toHaveText(/The posting asks for [a-z+#. ,]+, which your résumé shows\. It's in your country/);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
