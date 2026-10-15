@@ -7,14 +7,23 @@
  * delivery work is in the pool too. Pure and isomorphic: the browser (guest résumés never leave it)
  * and the server (account résumés) derive the same phrases.
  *
- * Only a few skill words leave the résumé, never lines, names or contact details, and a search
- * carrying them is a résumé-built one (`fromResume`): not logged (`shouldLogSearch`).
+ * Only a few skill words leave the résumé (two-word duty phrases, and single words from its skills list),
+ * never lines, names or contact details, and a search carrying them is a résumé-built one (`fromResume`):
+ * not logged (`shouldLogSearch`).
  */
 import { isGenericJdWord } from "@/lib/match/jd-match";
 import type { ResumeData } from "@/types/resume";
 
-/** The most content phrases one search carries: one lane each, so each costs a query. */
+/** The most two-word duty phrases one search carries: one lane each, so each costs a query. */
 export const CONTENT_PHRASES_MAX = 4;
+/**
+ * The most single skill, tool or domain words one search carries, each a lane of its own. A word is only
+ * worth a lane if few postings mention it, which the browser cannot know: the server drops a word whose
+ * lane does not read them all (`CONTENT_LANE_LIMIT`, meilisearch.ts).
+ */
+export const CONTENT_WORDS_MAX = 3;
+/** All the lanes one search can carry. */
+export const CONTENT_LANES_MAX = CONTENT_PHRASES_MAX + CONTENT_WORDS_MAX;
 
 /** Words that read as content but name a kind of work done everywhere: a phrase of only these finds nothing in particular. */
 const BROAD = new Set([
@@ -77,10 +86,9 @@ function rankedPairs(resume: ResumeData, skip: ReadonlySet<string>): { pair: str
 /**
  * Up to `CONTENT_PHRASES_MAX` two-word phrases the résumé leans on most (`rankedPairs`), skipping any whose
  * words the title phrases (`avoid`) already carry, and any made only of broad words ("project management").
- * Two phrases sharing a word count once, so the four cover different work. Empty when the résumé has no
- * such pair: the title lanes then do all the retrieving.
+ * Two phrases sharing a word count once, so the four cover different work.
  */
-export function contentPhrasesFor(resume: ResumeData, avoid: readonly string[] = []): string[] {
+export function contentPairsFor(resume: ResumeData, avoid: readonly string[] = []): string[] {
     const skip = new Set(avoid.flatMap(words).map(stem));
     const out: string[] = [];
     const used = new Set<string>();
@@ -95,14 +103,55 @@ export function contentPhrasesFor(resume: ResumeData, avoid: readonly string[] =
     return out;
 }
 
-/** What the server takes from a request's `contentPhrases`: a few short plain phrases of two to three words, nothing else (the field arrives from the browser). */
+/**
+ * Up to `CONTENT_WORDS_MAX` single words from the skills the résumé LISTS (never its prose, where names and
+ * places sit): tools, methods and domains such as "meilisearch" or "observability", the words a pair of
+ * adjacent words cannot carry. A longer word is a rarer one, so the longest come first; a word already in a
+ * chosen phrase (`used`), a title word, a broad or generic word, a job noun and a word of the person's own
+ * name never leave. The server keeps a word's lane only if it proves rare (`CONTENT_LANE_LIMIT`).
+ */
+export function contentWordsFor(resume: ResumeData, avoid: readonly string[] = [], used: readonly string[] = []): string[] {
+    const skip = new Set([...avoid, ...used].flatMap(words).map(stem));
+    const name = new Set(words(resume.profile?.name ?? "").map(stem));
+    const found = new Map<string, number>();
+    let order = 0;
+    for (const group of resume.competencies ?? []) {
+        for (const skill of group?.skills ?? []) {
+            for (const raw of (skill ?? "").toLowerCase().split(/[^a-z0-9+#.]+/)) {
+                const word = raw.replace(/^[.]+|[.]+$/g, "");
+                if (word.length < 3 || word.length > 24 || !/[a-z]/.test(word) || !clean(word) || BROAD.has(word) || ROLE_NOUN.has(word)) continue;
+                if (skip.has(stem(word)) || name.has(stem(word)) || found.has(word)) continue;
+                found.set(word, order++);
+            }
+        }
+    }
+    return [...found.entries()]
+        .sort((x, y) => y[0].length - x[0].length || x[1] - y[1])
+        .slice(0, CONTENT_WORDS_MAX)
+        .map(([word]) => word);
+}
+
+/** The lanes a résumé-built search adds to its title lanes: the duty phrases first, then the rarer single skill words. Empty when the résumé gives none: the title lanes then do all the retrieving. */
+export function contentPhrasesFor(resume: ResumeData, avoid: readonly string[] = []): string[] {
+    const pairs = contentPairsFor(resume, avoid);
+    return [...pairs, ...contentWordsFor(resume, avoid, pairs)];
+}
+
+/** What the server takes from a request's `contentPhrases`: a few short plain phrases (up to `CONTENT_PHRASES_MAX` of two to three words, up to `CONTENT_WORDS_MAX` single words), nothing else (the field arrives from the browser). */
 export function sanitizeContentPhrases(phrases: readonly string[] | undefined): string[] {
     if (!phrases) return [];
     const out: string[] = [];
+    let pairs = 0;
+    let singles = 0;
     for (const raw of phrases) {
         const phrase = String(raw ?? "").toLowerCase().replace(/[^a-z0-9+#. ]/g, " ").replace(/\s+/g, " ").trim().split(" ").slice(0, 3).join(" ").slice(0, 40);
-        if (phrase.length >= 5 && !out.includes(phrase)) out.push(phrase);
-        if (out.length >= CONTENT_PHRASES_MAX) break;
+        const single = !phrase.includes(" ");
+        if (single ? phrase.length < 3 : phrase.length < 5) continue;
+        if (out.includes(phrase)) continue;
+        if (single ? singles >= CONTENT_WORDS_MAX : pairs >= CONTENT_PHRASES_MAX) continue;
+        out.push(phrase);
+        if (single) singles++;
+        else pairs++;
     }
     return out;
 }

@@ -3027,8 +3027,8 @@ export function JobsContent({
     // For-you toggle. Gating this list to the branch would collapse
     // `visiblePacks` to empty while browsing Search, and the hook's own
     // resize-clamp would zero the index before the user ever came back.
-    // Band-first pack order (Strong → Good → Stretch, unscored last) with
-    // target-title relevance inside each band — see orderForYouJobsByBand.
+    // Pack order is the one every list uses (age, reach, fit band, fit; the title only breaks an exact tie):
+    // see orderForYouJobsByBand.
     // An opened pack lists only its own search's rows: while that search is in
     // flight the deck loads rather than showing the previous search's roles.
     const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
@@ -3053,10 +3053,10 @@ export function JobsContent({
     );
     const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
     // When no role fits, the deck holds the closest ones (left out only as a weaker fit) under an honest line, not nothing.
-    const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, result?.effectiveQ, nowMs), [deckCandidates, deckScore, result?.effectiveQ, nowMs]);
+    const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, nowMs), [deckCandidates, deckScore, nowMs]);
     const deckNearMisses = useMemo(
-        () => (deckOrdered.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, result?.effectiveQ, nowMs) : []),
-        [deckOrdered, deckCandidates, deckScore, result?.effectiveQ, nowMs],
+        () => (deckOrdered.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, nowMs) : []),
+        [deckOrdered, deckCandidates, deckScore, nowMs],
     );
     const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckNearMisses;
     // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.

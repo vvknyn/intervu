@@ -110,9 +110,9 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const allJobs = scored.map((s) => s.job);
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
-    const fitting = orderForYouJobsByBand(allJobs, scoreOf, queryUsed, nowMs);
+    const fitting = orderForYouJobsByBand(allJobs, scoreOf, nowMs);
     // Nothing fits: the closest roles, each a weaker fit, so the list is never empty while roles were found.
-    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, queryUsed, nowMs) : [];
+    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
     const orderedJobs = fitting.length > 0 ? fitting : nearMisses;
     const targets = targetTitlesFromQuery(queryUsed);
     const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);

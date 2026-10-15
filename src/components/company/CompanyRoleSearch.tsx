@@ -22,6 +22,7 @@ import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { decodeText, displayCompanyBrand, locationText, postedAgeShort, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { GHOST_RESEARCH_HREF } from "@/lib/marketing-stats";
+import { sortByFit as sortListByFit } from "@/lib/jobs/for-you/band-order";
 import { matchBand, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
@@ -104,11 +105,12 @@ export function roleFitStat(
     : { key: "fit", value: `${strong} of ${loadedCount}`, label: "strong fit for your résumé" };
 }
 
-/** Best fit first once a résumé is scored; unscored roles keep their order
- *  at the end. Without scores, the search's own order. */
+/** Best fit first once a résumé is scored, in the order every other list uses (`sortByFit` in
+ *  for-you/band-order.ts: age, reach, band, fit, the title only as a tie-break); unscored roles keep
+ *  their order at the end. Without scores, the search's own order. */
 export function sortByFit(jobs: PublicJob[], matchScores: ReadonlyMap<string, MatchScore | null> | null): PublicJob[] {
   if (!matchScores) return jobs;
-  return [...jobs].sort((a, b) => (matchScores.get(b.id)?.total ?? -1) - (matchScores.get(a.id)?.total ?? -1));
+  return sortListByFit(jobs, (job) => ({ job, score: matchScores.get(job.id) }), { nowMs: Date.now() });
 }
 
 /** The "N of M ..." caption beside the "Open roles" heading — truthful about

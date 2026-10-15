@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { CompanyRoleSearch, jobMatchesQuery, levelText, roleFitStat, sortByFit } from "@/components/company/CompanyRoleSearch";
-import { MATCH_BAND_STRONG_MIN, type MatchScore } from "@/lib/match/score";
+import { MATCH_BAND_GOOD_MIN, MATCH_BAND_STRONG_MIN, type MatchScore } from "@/lib/match/score";
 import { ExhaustGateSignInCard } from "@/components/company/CompanyExhaustGate";
 import { buildCompanyRoleStats, type CompanyRoleStat } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -152,6 +152,19 @@ describe("roleFitStat and sortByFit: the résumé-loaded first screen", () => {
     assert.deepEqual(sortByFit(jobs, scores).map((j) => j.id), ["b", "d", "a", "c"]);
     assert.deepEqual(sortByFit(jobs, null).map((j) => j.id), ["a", "b", "c", "d"]);
     assert.deepEqual(jobs.map((j) => j.id), ["a", "b", "c", "d"], "sorting must not reorder the caller's array");
+  });
+
+  it("orders as every other list does: a Good role posted this week before a Strong one posted months ago, not by the total alone", () => {
+    const day = 86_400_000;
+    const jobs = [
+      job({ id: "old-strong", posted_ts: Date.now() - 45 * day }),
+      job({ id: "fresh-good", posted_ts: Date.now() - 3 * day }),
+    ];
+    const fit = new Map<string, MatchScore | null>([
+      ["old-strong", score(95)],
+      ["fresh-good", score(MATCH_BAND_GOOD_MIN + 2)],
+    ]);
+    assert.deepEqual(sortByFit(jobs, fit).map((j) => j.id), ["fresh-good", "old-strong"]);
   });
 });
 

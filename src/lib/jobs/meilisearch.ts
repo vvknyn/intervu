@@ -1388,19 +1388,20 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         : fetched.lanes;
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
-      for (const hit of [...lanes.flat(), ...(content ? keepWithinSenior(content.placed) : [])]) {
+      for (const hit of [...lanes.flat(), ...(content ? keepWithinSenior([...content.placed.strong, ...content.placed.weak]) : [])]) {
         if (seen.has(hit.id)) continue;
         seen.add(hit.id);
         unique.push(hit);
       }
       const offset = p.offset ?? 0;
       const limit = p.limit ?? 40;
-      // Relevance: every title lane gets a share of each page (`interleaveFitPhraseLanes`), each ranked against
-      // its own phrase; the content lanes' roles and, when a deck asked for them (`unplacedRemote`), the roles
-      // that name no country take a few places at the end of the first page (`composeContentFirstPool`).
+      // Relevance: the content lanes' roles lead the first page; every title lane then gets a share of what is
+      // left (`interleaveFitPhraseLanes`), each ranked against its own phrase, and, when a deck asked for them
+      // (`unplacedRemote`), the roles that name no country take a few places at its end (`composeContentFirstPool`).
       const ranked = isRelevance
         ? composeContentFirstPool({
-            content: content ? keepWithinSenior(content.placed) : [],
+            content: content ? keepWithinSenior(content.placed.strong) : [],
+            weak: content ? keepWithinSenior(content.placed.weak) : [],
             titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? p.q ?? "")),
             unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
             // The deck's first page is `FOR_YOU_POOL_WINDOW` rows; a later page slices the same composed list.
@@ -1660,40 +1661,58 @@ function singleTitlePhrase(q: string | undefined): string[] {
 export const CONTENT_LANE_LIMIT = 100;
 /** How many rows each lane for roles that name no country reads. */
 export const UNPLACED_REMOTE_LANE_LIMIT = 100;
-/** The rows a deck's first page reads (JobsContent's `FOR_YOU_PAGE`): the window the roles naming no country are placed in. */
+/** The rows a deck's first page reads (JobsContent's `FOR_YOU_PAGE`): the window the pool is composed for. */
 export const FOR_YOU_POOL_WINDOW = 150;
-/** The most roles found only by what the résumé shows (not by a title it names) a first page of 150 pools. */
-export const CONTENT_POOL_QUOTA = 20;
 /** The most roles that name no country a deck pools beside the placed ones. */
 export const UNPLACED_REMOTE_POOL = 20;
+/**
+ * The places in a first page of 150 the title lanes keep whatever the content lanes found (content claims the
+ * rest: 90 with no-country roles, 110 without). A content lane that read a posting wrong cannot empty the
+ * pool of the roles whose title the résumé names.
+ */
+export const TITLE_POOL_FLOOR = 40;
+/**
+ * The most places in a first page of 150 for roles only ONE content lane found. One phrase in a posting is
+ * weak evidence, and a phrase many postings mention ("product roadmap") fills its 100 rows with arbitrary ones:
+ * left alone it crowded out the title lanes (a Technical Account Manager résumé listing "product roadmap"
+ * pooled a hundred Product Manager roles and lost 35 of its 56 own). A role several lanes found is not limited.
+ */
+export const CONTENT_SINGLE_LANE_POOL = 20;
 
 /**
- * Postings in the order of how many of the lanes found them (the phrases they mention), then the order
- * the lanes found them in: a posting that mentions the résumé's roadmap work AND its release work
- * outranks one that mentions only one. Pure.
+ * Postings in the order of how many of the lanes found them (the phrases they mention), then how early the
+ * lanes found them (rank 1 of any lane before rank 2 of any, so no lane's rows crowd out another's), then the
+ * lane order: a posting that mentions the résumé's roadmap work AND its release work outranks one that mentions
+ * only one, and a posting only one lane found is placed by where that lane put it, not by the lane's number.
+ * `strong` are the postings two or more lanes found, `weak` the ones only one found. Pure.
  */
-export function voteContentLanes(lanes: readonly (readonly PublicJob[])[]): PublicJob[] {
-  const votes = new Map<string, number>();
-  const first = new Map<string, { job: PublicJob; at: number }>();
-  let at = 0;
-  for (const lane of lanes) {
-    for (const job of lane) {
-      votes.set(job.id, (votes.get(job.id) ?? 0) + 1);
-      if (!first.has(job.id)) first.set(job.id, { job, at: at++ });
-    }
-  }
-  return [...first.values()].sort((a, b) => votes.get(b.job.id)! - votes.get(a.job.id)! || a.at - b.at).map((e) => e.job);
+export function voteContentLanes(lanes: readonly (readonly PublicJob[])[]): { strong: PublicJob[]; weak: PublicJob[] } {
+  const found = new Map<string, { job: PublicJob; votes: number; rank: number; lane: number }>();
+  lanes.forEach((lane, laneIndex) => {
+    lane.forEach((job, rank) => {
+      const entry = found.get(job.id);
+      if (!entry) found.set(job.id, { job, votes: 1, rank, lane: laneIndex });
+      else {
+        entry.votes++;
+        if (rank < entry.rank) entry.rank = rank;
+      }
+    });
+  });
+  const ordered = [...found.values()].sort((a, b) => b.votes - a.votes || a.rank - b.rank || a.lane - b.lane);
+  return { strong: ordered.filter((e) => e.votes > 1).map((e) => e.job), weak: ordered.filter((e) => e.votes === 1).map((e) => e.job) };
 }
 
 /**
  * The lanes a résumé-built search adds to its title lanes (`JobSearchParams.contentPhrases`):
  *  - `placed`: postings whose whole text mentions a phrase the résumé shows, whatever their title says,
  *    under the same filters as the title lanes (so only roles in the person's countries), one lane per
- *    phrase and the postings several phrases find first (`voteContentLanes`).
+ *    phrase and the postings several phrases find first (`voteContentLanes`). A phrase of one word (a tool,
+ *    a method, a domain) only counts if it is rare: the lane read every posting that mentions it
+ *    (`CONTENT_LANE_LIMIT`).
  *  - `unplaced`, when `unplacedRemote`: remote roles that name no country, city or state, which the country
  *    filter leaves out of every other lane (`REMOTE_ANYWHERE_CLAUSE`), found by the first two content
- *    phrases and by the first title phrase. A deck lists them last with the caveat ("Remote, country not
- *    stated"); Today and the daily picks do not ask for them.
+ *    phrases of two words and by the first title phrase. A deck lists them last with the caveat ("Remote,
+ *    country not stated"); Today and the daily picks do not ask for them.
  * Scoring against the whole résumé happens afterwards, as for every lane.
  */
 async function fetchContentLaneHits(
@@ -1702,8 +1721,8 @@ async function fetchContentLaneHits(
   companyScoped: boolean,
   phrases: readonly string[],
   titlePhrases: readonly string[],
-): Promise<{ placed: PublicJob[]; unplaced: PublicJob[] }> {
-  const run = async (q: string, params: JobSearchParams, limit: number, scope: BuildSearchBodyOpts, extraFilter?: string): Promise<PublicJob[]> => {
+): Promise<{ placed: { strong: PublicJob[]; weak: PublicJob[] }; unplaced: PublicJob[] }> {
+  const run = async (q: string, params: JobSearchParams, limit: number, scope: BuildSearchBodyOpts, extraFilter?: string): Promise<{ hits: PublicJob[]; total: number }> => {
     const body = buildSearchBody({ ...params, q, fitPhrases: undefined, withFacets: false, limit, offset: 0, sort: "relevance" }, false, "all", scope);
     if (extraFilter && Array.isArray(body.filter)) body.filter = [...body.filter, extraFilter];
     const res = await meiliFetch(`${h}/indexes/${JOBS_INDEX}/search`, {
@@ -1712,15 +1731,21 @@ async function fetchContentLaneHits(
       cache: "no-store",
       body: JSON.stringify(body),
     });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { hits?: PublicJob[] };
-    return normalizePublicJobs(json.hits ?? []);
+    if (!res.ok) return { hits: [], total: 0 };
+    const json = (await res.json()) as { hits?: PublicJob[]; totalHits?: number; estimatedTotalHits?: number };
+    const hits = normalizePublicJobs(json.hits ?? []);
+    return { hits, total: json.totalHits ?? json.estimatedTotalHits ?? hits.length };
   };
   // Both words anywhere in the posting's text (not as an exact phrase: a posting says "roadmap" and "vision" in different sentences).
   const phraseQuery = (phrase: string) => phrase;
   const wholeDoc: BuildSearchBodyOpts = { companyScoped, wholeDocument: true };
-  const placed = Promise.all(phrases.map((phrase) => run(phraseQuery(phrase), p, CONTENT_LANE_LIMIT, wholeDoc)));
-  if (!p.unplacedRemote) return { placed: voteContentLanes(await placed), unplaced: [] };
+  const isWord = (phrase: string) => !phrase.includes(" ");
+  const placed = Promise.all(phrases.map((phrase) => run(phraseQuery(phrase), p, CONTENT_LANE_LIMIT, wholeDoc))).then((lanes) =>
+    // A one-word lane counts only when it read EVERY posting that mentions the word: a word more of them mention
+    // ("roadmap", "sql") is read through its first 100 rows, which are arbitrary ones, and says nothing about a posting.
+    voteContentLanes(lanes.filter((lane, i) => !isWord(phrases[i]!) || (lane.total > 0 && lane.total <= CONTENT_LANE_LIMIT)).map((lane) => lane.hits)),
+  );
+  if (!p.unplacedRemote) return { placed: await placed, unplaced: [] };
   // The country facet is what leaves these roles out; every other filter (level, posted window) stays.
   const noCountry: JobSearchParams = { ...p, places: undefined, facets: { ...p.facets, location_country: undefined } };
   const remoteNoCountry = `(${REMOTE_ANYWHERE_CLAUSE})`;
@@ -1728,45 +1753,64 @@ async function fetchContentLaneHits(
     ...titlePhrases.slice(0, 1).map((phrase) =>
       run(phrase, noCountry, UNPLACED_REMOTE_LANE_LIMIT, { companyScoped, titleScoped: fitPhraseTitleScoped(phrase) }, remoteNoCountry),
     ),
-    ...phrases.slice(0, 2).map((phrase) => run(phraseQuery(phrase), noCountry, UNPLACED_REMOTE_LANE_LIMIT, wholeDoc, remoteNoCountry)),
+    ...phrases.filter((phrase) => !isWord(phrase)).slice(0, 2).map((phrase) => run(phraseQuery(phrase), noCountry, UNPLACED_REMOTE_LANE_LIMIT, wholeDoc, remoteNoCountry)),
   ]);
-  const [placedLanes, lanes] = await Promise.all([placed, unplacedLanes]);
-  return { placed: voteContentLanes(placedLanes), unplaced: interleaveFitPhraseLanes(lanes) };
+  const [placedRows, lanes] = await Promise.all([placed, unplacedLanes]);
+  return { placed: placedRows, unplaced: interleaveFitPhraseLanes(lanes.map((lane) => lane.hits)) };
 }
 
 /**
- * The pool a résumé-built search hands the browser to score. The title lanes lead, as always
- * (`interleaveFitPhraseLanes`); the pool's first page (`window` rows) then gives up a few places for roles
- * the title lanes did not find, so the title lanes' rows are not crowded out:
- *  - up to `CONTENT_POOL_QUOTA` places for postings the content lanes found (`voteContentLanes`) that the
- *    title lanes' share does not already hold: the roles with a title the résumé does not name;
- *  - up to `UNPLACED_REMOTE_POOL` places for remote roles that name no country, listed last by the deck.
- * With fewer to give, the title lanes keep the places; a window under `FOR_YOU_POOL_WINDOW` gives up the same
- * share of its places. A later page slices the same composed list.
+ * The pool a résumé-built search hands the browser to score, for a first page of `window` rows (the deck's
+ * is `FOR_YOU_POOL_WINDOW`): the content lanes lead and the title lanes fill what is left. The résumé's
+ * content decides who is in the pool; the title only fills (Vivek, 2026-10-14: "FIRST match the résumé's
+ * experience and skills content to the posting, the title LAST").
+ *  - content: up to everything the title lanes' floor and the no-country places leave (90 of 150): first the
+ *    postings TWO or more content lanes found (`strong`: two different things the résumé shows are in the
+ *    posting), whatever their title, then up to `CONTENT_SINGLE_LANE_POOL` (20) of the postings only one lane
+ *    found (`weak`);
+ *  - the title lanes (`interleaveFitPhraseLanes`) fill the rest, with at least `TITLE_POOL_FLOOR` places
+ *    (40 of 150) however much the content lanes found, and every place the content lanes did not use;
+ *  - up to `UNPLACED_REMOTE_POOL` places (20) for remote roles that name no country, listed last by the deck.
+ * A smaller window (the hub's first probe steps, Today) gives the same shares of its places, not the same
+ * number. A later page slices the same composed list: the title lanes' rows past the window follow.
  */
 export function composeContentFirstPool(args: {
   content: readonly PublicJob[];
+  /** Postings only one content lane found. */
+  weak?: readonly PublicJob[];
   titleLanes: readonly (readonly PublicJob[])[];
   unplaced: readonly PublicJob[];
   window: number;
 }): PublicJob[] {
   const titles = interleaveFitPhraseLanes([...args.titleLanes]);
-  // The quotas are for a first page of `FOR_YOU_POOL_WINDOW` rows; a smaller page (the hub's first probe
-  // steps, Today) gives up the same share of its places, not the same number of them.
   const share = Math.min(1, args.window / FOR_YOU_POOL_WINDOW);
-  const contentQuota = Math.ceil(CONTENT_POOL_QUOTA * share);
-  const unplacedQuota = Math.ceil(UNPLACED_REMOTE_POOL * share);
-  const wanted = Math.min(args.window, contentQuota + (args.unplaced.length > 0 ? unplacedQuota : 0));
-  const kept = titles.slice(0, Math.max(0, args.window - wanted));
-  const keptIds = new Set(kept.map((job) => job.id));
-  const fromContent = args.content.filter((job) => !keptIds.has(job.id)).slice(0, contentQuota);
-  const takenIds = new Set([...keptIds, ...fromContent.map((job) => job.id)]);
-  const fromUnplaced = args.unplaced.filter((job) => !takenIds.has(job.id)).slice(0, unplacedQuota);
-  const used = new Set([...takenIds, ...fromUnplaced.map((job) => job.id)]);
-  // Places the quotas did not use go back to the title lanes' next rows.
-  const rest = titles.filter((job) => !used.has(job.id));
-  const spare = Math.max(0, args.window - kept.length - fromContent.length - fromUnplaced.length);
-  return [...kept, ...fromContent, ...fromUnplaced, ...rest.slice(0, spare), ...rest.slice(spare)];
+  const unplacedQuota = args.unplaced.length > 0 ? Math.min(args.window, Math.ceil(UNPLACED_REMOTE_POOL * share)) : 0;
+  const titleFloor = Math.min(args.window - unplacedQuota, Math.ceil(TITLE_POOL_FLOOR * share));
+  const contentQuota = Math.max(0, args.window - unplacedQuota - titleFloor);
+  const fromStrong = args.content.slice(0, contentQuota);
+  const weak = (args.weak ?? []).filter((job) => !fromStrong.some((s) => s.id === job.id));
+  const fromWeak = weak.slice(0, Math.min(Math.ceil(CONTENT_SINGLE_LANE_POOL * share), contentQuota - fromStrong.length));
+  const fromContent = [...fromStrong, ...fromWeak];
+  const contentIds = new Set(fromContent.map((job) => job.id));
+  const fromUnplaced = args.unplaced.filter((job) => !contentIds.has(job.id)).slice(0, unplacedQuota);
+  const unplacedIds = new Set(fromUnplaced.map((job) => job.id));
+  const rest = titles.filter((job) => !contentIds.has(job.id) && !unplacedIds.has(job.id));
+  // Every place the content and no-country lanes did not use goes to the title lanes' next rows...
+  const fromTitles = rest.slice(0, Math.max(0, args.window - fromContent.length - fromUnplaced.length));
+  const titleIds = new Set(fromTitles.map((job) => job.id));
+  // ...and when the title lanes have too few rows for them (a niche résumé), to the content lanes' next rows.
+  const spare = Math.max(0, args.window - fromContent.length - fromTitles.length - fromUnplaced.length);
+  const later = [...args.content.slice(contentQuota), ...weak.slice(fromWeak.length)].filter((job) => !titleIds.has(job.id) && !unplacedIds.has(job.id));
+  const moreContent = later.slice(0, spare);
+  const usedIds = new Set([...titleIds, ...moreContent.map((job) => job.id)]);
+  // Pages after the first: the title lanes' next rows, then the content rows still unplaced.
+  const tail: PublicJob[] = [];
+  for (const job of [...rest.slice(fromTitles.length), ...later.slice(spare)]) {
+    if (usedIds.has(job.id)) continue;
+    usedIds.add(job.id);
+    tail.push(job);
+  }
+  return [...fromContent, ...fromTitles, ...moreContent, ...fromUnplaced, ...tail];
 }
 
 async function fetchRoleTitleLaneHits(
