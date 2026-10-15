@@ -212,6 +212,9 @@ export function LocationCombobox({
     const items = flatten(groups);
     const open = isOpen && (items.length > 0 || showLoading);
 
+    // `activeIndex` moves with the arrow keys only; pointer hover never sets
+    // it, so Enter commits the typed place unless a row was picked by key
+    // (same rule as SearchAutocomplete's `handleKeyDown`).
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === "Escape") {
             setIsOpen(false);
@@ -277,7 +280,6 @@ export function LocationCombobox({
                                             ? "bg-muted text-foreground"
                                             : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                     )}
-                                    onMouseEnter={() => setActiveIndex(index)}
                                     onMouseDown={(e) => {
                                         e.preventDefault();
                                         pickingRef.current = true;

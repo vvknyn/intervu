@@ -276,6 +276,15 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         setActiveIndex(-1);
     }, [suggestions]);
 
+    // The one rule for what Enter runs: the words in the box. `activeIndex` is
+    // moved by the arrow keys ONLY (and cleared by typing and by a new list),
+    // so Enter runs a suggestion exactly when the person picked it with the
+    // arrow keys; a click or tap on a row runs it through `handleSelect`.
+    // Pointer hover never sets it — rows only DRAW hover (the `hover:` classes
+    // below). It used to (`onMouseEnter`), so a pointer resting where the list
+    // opened, such as the spot "Upload résumé" was clicked on a phone, made the
+    // row under it the Enter target and "accountant" + Enter searched the old
+    // first suggestion instead.
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
         // Bubble up arrow keys only if dropdown is open and has items
         if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isOpen && suggestions.length > 0) {
@@ -457,7 +466,6 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                                 index === activeIndex ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
                                             )}
                                             onClick={() => handleSelect(suggestion.text)}
-                                            onMouseEnter={() => setActiveIndex(index)}
                                             onMouseDown={(e) => e.preventDefault()}
                                         >
                                             {suggestion.type === "history" ? (
