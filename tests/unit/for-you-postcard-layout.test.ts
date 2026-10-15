@@ -19,8 +19,8 @@ describe("for-you postcard layout", () => {
         const stage = css.match(/\.role-stack-stage \{[^}]*\}/)?.[0] ?? "";
         assert.match(
             home,
-            /<div className="role-stack-screen">\s*\{thinBlock\}\s*(?:\{tuning \?[\s\S]*?\) : null\}\s*)?<RoleStack/,
-            "the stack shares the screen under the pack's header row with a thin pack's broaden options",
+            /<div className="role-stack-screen">\s*\{thinBlock\}\s*(?:\{nearMisses \?[\s\S]*?\) : null\}\s*)?(?:\{tuning \?[\s\S]*?\) : null\}\s*)?<RoleStack/,
+            "the stack shares the screen under the pack's header row with a thin pack's broaden options and, when nothing fits, the one-line notice",
         );
         const screen = css.match(/\.role-stack-screen \{[^}]*\}/)?.[0] ?? "";
         assert.match(
