@@ -1741,7 +1741,8 @@ async function fetchContentLaneHits(
  *  - up to `CONTENT_POOL_QUOTA` places for postings the content lanes found (`voteContentLanes`) that the
  *    title lanes' share does not already hold: the roles with a title the résumé does not name;
  *  - up to `UNPLACED_REMOTE_POOL` places for remote roles that name no country, listed last by the deck.
- * With fewer to give, the title lanes keep the places. A later page slices the same composed list.
+ * With fewer to give, the title lanes keep the places; a window under `FOR_YOU_POOL_WINDOW` gives up the same
+ * share of its places. A later page slices the same composed list.
  */
 export function composeContentFirstPool(args: {
   content: readonly PublicJob[];
@@ -1750,12 +1751,17 @@ export function composeContentFirstPool(args: {
   window: number;
 }): PublicJob[] {
   const titles = interleaveFitPhraseLanes([...args.titleLanes]);
-  const wanted = Math.min(args.window, CONTENT_POOL_QUOTA + (args.unplaced.length > 0 ? UNPLACED_REMOTE_POOL : 0));
+  // The quotas are for a first page of `FOR_YOU_POOL_WINDOW` rows; a smaller page (the hub's first probe
+  // steps, Today) gives up the same share of its places, not the same number of them.
+  const share = Math.min(1, args.window / FOR_YOU_POOL_WINDOW);
+  const contentQuota = Math.ceil(CONTENT_POOL_QUOTA * share);
+  const unplacedQuota = Math.ceil(UNPLACED_REMOTE_POOL * share);
+  const wanted = Math.min(args.window, contentQuota + (args.unplaced.length > 0 ? unplacedQuota : 0));
   const kept = titles.slice(0, Math.max(0, args.window - wanted));
   const keptIds = new Set(kept.map((job) => job.id));
-  const fromContent = args.content.filter((job) => !keptIds.has(job.id)).slice(0, CONTENT_POOL_QUOTA);
+  const fromContent = args.content.filter((job) => !keptIds.has(job.id)).slice(0, contentQuota);
   const takenIds = new Set([...keptIds, ...fromContent.map((job) => job.id)]);
-  const fromUnplaced = args.unplaced.filter((job) => !takenIds.has(job.id)).slice(0, UNPLACED_REMOTE_POOL);
+  const fromUnplaced = args.unplaced.filter((job) => !takenIds.has(job.id)).slice(0, unplacedQuota);
   const used = new Set([...takenIds, ...fromUnplaced.map((job) => job.id)]);
   // Places the quotas did not use go back to the title lanes' next rows.
   const rest = titles.filter((job) => !used.has(job.id));

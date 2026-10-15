@@ -4,6 +4,8 @@
  * Packs without a live query yet omit the count (or show loading), never mock "24 jobs".
  */
 import { labelNamesPlace, matchBand, type MatchScore } from "@/lib/match/score";
+import { deckLeftOut } from "@/lib/jobs/for-you/band-order";
+import { hasLiveApplyUrl } from "@/lib/jobs/apply-url-health";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -23,8 +25,20 @@ export type HubCountSource =
 
 export type ScoredHubHit = { job: PublicJob; score: MatchScore };
 
-/** Progressive probe page sizes — early partial counts, then climb. */
-export const HUB_PROBE_LIMITS = [24, 48, 80, 120] as const;
+/**
+ * The probe's hits a deck would list: the deck's own rule (`deckLeftOut`: too old, a different kind of role,
+ * above their level, outside where they can work, asks for what the résumé doesn't show, Stretch) and its
+ * dead-link rule (`hasLiveApplyUrl`). A tile counts these, so it cannot promise roles the deck leaves out.
+ */
+export function hubListedHits(scored: readonly ScoredHubHit[], nowMs: number): ScoredHubHit[] {
+    return scored.filter((hit) => hasLiveApplyUrl(hit.job) && deckLeftOut(hit.job, hit.score, nowMs) == null);
+}
+
+/**
+ * Progressive probe page sizes — early partial counts, then climb. The last step is the deck's first page
+ * (`FOR_YOU_POOL_WINDOW`), so the roles a tile counts are the ones the deck opens with.
+ */
+export const HUB_PROBE_LIMITS = [24, 48, 80, 150] as const;
 
 /**
  * How long a finished hub probe (and its tile counts) stays good for the same résumé and pack.
@@ -162,13 +176,14 @@ export function resolveAllPackHubCounts(input: {
     const nowMs = input.nowMs ?? Date.now();
     const out = {} as Record<HubPackId, HubCountSource>;
     const pending = input.loading || (input.probing && input.scored.length === 0);
+    const listed = hubListedHits(input.scored, nowMs);
 
     for (const packId of HUB_PACK_IDS) {
         if (pending) {
             out[packId] = { kind: "loading" };
             continue;
         }
-        const packScores = input.scored
+        const packScores = listed
             .filter((h) => jobMatchesHubPack(h.job, packId, nowMs))
             .map((h) => h.score);
         if (packId === "all") {
@@ -248,14 +263,18 @@ export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefin
 export function resumeHubPackCounts(input: {
     listTotal: CorpusCount;
     listJobs: PublicJob[];
+    /** How many of the search's rows were read, when `listJobs` is only the ones a deck lists (`hubListedHits`). */
+    rowsRead?: number;
     nowMs?: number;
 }): Record<HubPackId, CorpusCount> {
     const nowMs = input.nowMs ?? Date.now();
-    const whole = input.listTotal.kind === "exact" && input.listJobs.length >= input.listTotal.value;
+    const read = input.rowsRead ?? input.listJobs.length;
+    const whole = input.listTotal.kind === "exact" && read >= input.listTotal.value;
     const out = {} as Record<HubPackId, CorpusCount>;
     for (const packId of HUB_PACK_IDS) {
         if (packId === "all") {
-            out[packId] = input.listTotal;
+            // Every row read: "all" is what the deck lists of them, not the search's total.
+            out[packId] = whole && input.rowsRead !== undefined ? { kind: "exact", value: input.listJobs.length } : input.listTotal;
             continue;
         }
         const value = input.listJobs.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;

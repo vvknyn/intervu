@@ -86,7 +86,7 @@ import {
     tieredSeamIndex,
 } from "@/lib/jobs/presentation";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { compareFitUnseenFirst, scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
+import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import { writeTodaySeen } from "@/lib/jobs/for-you/today";
 import {
     subscribeRecentSearches,
@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, sortByFit, summarizeDeckLeftOut } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -365,6 +365,7 @@ import {
     formatHubCorpusLine,
     HUB_PROBE_LIMITS,
     freshHubProbeMemo,
+    hubListedHits,
     formatHubPackCorpusRoleLabels,
     packBandTotalsFromSources,
     resolveAllPackHubCounts,
@@ -2977,25 +2978,17 @@ export function JobsContent({
     const openHubTileId =
         forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
     const rowTileOpen = openHubTileId !== undefined && !isHubFilterTile(openHubTileId);
-    // Inside each fit band, roles this device hasn't listed before come first (`compareFitUnseenFirst`), so a
+    // Inside each fit band, roles this device hasn't listed before come first (`sortByFit`), so a
     // pack opened again leads with what's new to them, not the same top roles as last time.
     const seenBefore = useSeenBefore();
     const rankedClusters = useMemo(() => {
-        const listed = (id: string) => seenBefore?.has(id) ?? false;
         const ranked =
             !fitActive || !matchScores
                 ? clusters
-                : [...clusters].sort((a, b) =>
-                      compareFitUnseenFirst(
-                          matchScores.get(a.primary.id),
-                          matchScores.get(b.primary.id),
-                          listed(a.primary.id),
-                          listed(b.primary.id),
-                          a.primary.posted_ts,
-                          b.primary.posted_ts,
-                          nowMs,
-                      ),
-                  );
+                : sortByFit(clusters, (c) => ({ job: c.primary, score: matchScores.get(c.primary.id) }), {
+                      nowMs,
+                      seen: (id) => seenBefore?.has(id) ?? false,
+                  });
         if (!rowTileOpen) return ranked;
         const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
         return ranked.filter((c) => keep.has(c.primary.id));
@@ -3373,13 +3366,14 @@ export function JobsContent({
                 }
                 // Every chip count is known: compare the exact ones with the last visit's, then remember these,
                 // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go).
+                const listedJobs = hubListedHits(scored, Date.now()).map((h) => h.job);
                 const shown = new Set(
-                    hubIndustryTiles(industry, { listTotal: allCount, listJobs: scored.map((h) => h.job), filterCounts: tileCounts, probing: false }),
+                    hubIndustryTiles(industry, { listTotal: allCount, listJobs: listedJobs, rowsRead: scored.length, filterCounts: tileCounts, probing: false }),
                 );
                 const chipCounts = Object.fromEntries(
                     Object.entries(
                         exactHubCounts({
-                            ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: scored.map((h) => h.job) }) : {}),
+                            ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: listedJobs, rowsRead: scored.length }) : {}),
                             ...tileCounts,
                         }),
                     ).filter(([id]) => shown.has(id as HubPackId)),
@@ -3429,7 +3423,8 @@ export function JobsContent({
                           hubResumeAllCount
                               ? resumeHubPackCounts({
                                     listTotal: hubResumeAllCount,
-                                    listJobs: hubFitProbe.scored.map((h) => h.job),
+                                    listJobs: hubListedHits(hubFitProbe.scored, nowMs).map((h) => h.job),
+                                    rowsRead: hubFitProbe.scored.length,
                                 })
                               : {},
                           hubFilterTileCounts,
@@ -3440,7 +3435,7 @@ export function JobsContent({
                   : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
                         loading: hubPackCorpusCounts == null,
                     }),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts],
+        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts, nowMs],
     );
 
     // A résumé visitor's chips: their industry's tiles, each shown only once its
@@ -3450,12 +3445,13 @@ export function JobsContent({
             hubResumeKey && hubIndustry
                 ? hubIndustryTiles(hubIndustry, {
                       listTotal: hubResumeAllCount,
-                      listJobs: hubFitProbe.scored.map((h) => h.job),
+                      listJobs: hubListedHits(hubFitProbe.scored, nowMs).map((h) => h.job),
+                      rowsRead: hubFitProbe.scored.length,
                       filterCounts: hubFilterTileCounts,
                       probing: hubFitProbe.loading || hubFitProbe.probing,
                   }).map((id) => ({ id, label: HUB_PACK_SHORT_LABELS[id] }))
                 : undefined,
-        [hubResumeKey, hubIndustry, hubResumeAllCount, hubFitProbe.scored, hubFitProbe.loading, hubFitProbe.probing, hubFilterTileCounts],
+        [hubResumeKey, hubIndustry, hubResumeAllCount, hubFitProbe.scored, hubFitProbe.loading, hubFitProbe.probing, hubFilterTileCounts, nowMs],
     );
 
     // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).

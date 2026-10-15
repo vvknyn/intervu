@@ -149,7 +149,7 @@ export function useTodayVisit(): { hydrated: boolean; sinceMs: number | null; no
 /**
  * The roles this device had listed before this sitting (`readTodaySeen`), the
  * snapshot Today orders by, for other ranked lists to order the same way
- * (`compareFitUnseenFirst`). Reads without recording a visit. Client-only.
+ * (`sortByFit`). Reads without recording a visit. Client-only.
  */
 export function useSeenBefore(): ReadonlySet<string> | null {
     return useSyncExternalStore(subscribeNever, visitSnapshot, () => null)?.seenBefore ?? null;
@@ -489,7 +489,7 @@ const NEEDS_YOU_ACTION: Record<NeedsYouKind, HomeActionKind> = {
 export type TodayStatus = PicksSearch["kind"] | `no-resume-${TodayNoResume}`;
 
 /** The rule a pick passed (`todayLeftOut`), said once at the top so every row's fit word has its basis. */
-const PICKS_BASIS = "This week's roles in your line of work, at your level, where you can work. Your own role comes first.";
+const PICKS_BASIS = "This week's roles in your line of work, at your level, where you can work. Best fit first.";
 
 /** The summary line's links: plain text with a quiet underline, the number in bold. */
 const SUMMARY_LINK =

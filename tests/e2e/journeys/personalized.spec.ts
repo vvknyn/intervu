@@ -635,3 +635,91 @@ test("a pack where nothing fits lists the closest roles under an honest line, no
   await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 above your level");
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * J-JOBS-135 — coordinator, 2026-10-15 (Vivek: the lists recommend roles the others do not): every list that
+ * recommends orders and leaves out the same way. The packs hub's tile counts the roles the deck lists (not the
+ * roles the search found), and the fit-sorted Search list puts the same roles in the same order as the deck.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("the packs hub counts the roles the deck lists, and the fit-sorted Search list orders them as the deck does", { tag: ["@J-JOBS-135"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const own = posting("99999999-0000-4000-8000-000000000001", "Technical Account Manager", "Northstar Data", "senior", 1);
+  const csm = posting("99999999-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior", 3);
+  const old = posting("99999999-0000-4000-8000-000000000003", "Technical Account Manager", "Harbor Pay", "senior", 70);
+  const nurse = posting("99999999-0000-4000-8000-000000000004", "Registered Nurse", "Lakeside Health", "mid", 1);
+  await withAccountApplications(page, []);
+  // Sent worst first, as a search that matches on words would: four roles found, two of them for this résumé.
+  const found = [nurse, old, csm, own];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    return answerListSearch(route, { hits: found, total: found.length, backend: "meilisearch", configured: true, searchId: "journey-parity" });
+  });
+
+  // The hub's "All your matches" tile says 2 (the roles the deck lists), not the 4 the search found.
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("2", { timeout: 60_000 });
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  const deckOrder = [await front.getAttribute("data-job-id")];
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 2 of 2");
+  deckOrder.push(await front.getAttribute("data-job-id"));
+  expect([...deckOrder].sort()).toEqual([own.id, csm.id].sort());
+  await expect(page.getByTestId("for-you-left-out")).toContainText("Left out of the 4 roles found");
+
+  // The fit-sorted Search list: the same two roles first, in the deck's order; the ones the deck leaves out follow.
+  await page.goto("/jobs?view=search&sort=fit");
+  await expect(page.getByTestId("job-row")).toHaveCount(4, { timeout: 60_000 });
+  await expect.poll(async () => (await rowIds(page)).slice(0, 2), { timeout: 30_000 }).toEqual(deckOrder);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-136 — Vivek, 2026-10-14/15: "FIRST MATCH the rest of the experience and skills content to the job profiles
+ * and then match the title if necessary AT THE END"; "that is how people find adjacent roles or titles that they
+ * haven't heard of". A posting whose title is another line of work's (a Software Engineer for a Technical Account
+ * Manager) is listed, and leads a posting that is only the résumé's own title, when it asks for the work the résumé
+ * shows and for skills the résumé lists; one that only shares some words stays out as a different kind of role.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a pack lists another line of work's title when its posting asks for what the résumé shows, and leaves out one that only shares some words", { tag: ["@J-JOBS-136"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const withSkills = <T extends object>(job: T, skills: string[]) => ({ ...job, must_have_skills: skills, skills_section_found: true });
+  const asked = described(
+    withSkills(posting("cccccccc-0000-4000-8000-000000000001", "Software Engineer, Customer Integrations", "Orchard CRM", "senior", 3), ["REST APIs", "Salesforce", "SQL", "Enterprise customers"]) as never,
+    askingForTheResumeWork("Orchard CRM", "Software Engineer, Customer Integrations"),
+  );
+  const generic = described(posting("cccccccc-0000-4000-8000-000000000002", "Technical Account Manager", "Northstar Data", "senior", 2), GENERIC_DESCRIPTION);
+  const engineering = described(
+    withSkills(posting("cccccccc-0000-4000-8000-000000000003", "Backend Engineer, Data Pipelines", "Fernway", "senior", 1), ["Go", "Kubernetes", "Postgres", "Kafka"]) as never,
+    [
+      "About the role\nFernway is hiring a Backend Engineer, Data Pipelines.",
+      "What you'll do\nBuild and operate streaming data pipelines in Go on Kubernetes with Postgres and Kafka. Own services end to end, join the on-call rotation and improve observability.",
+      "What you bring\n5+ years of experience\nExperience with Go\nExperience with Kubernetes\nExperience with Postgres\nExperience with Kafka",
+    ].join("\n\n"),
+  );
+  await withAccountApplications(page, []);
+  // Sent title-first, as a search that matches on words would.
+  await answerResumeSearch(page, [generic, engineering, asked], "journey-title-last");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", asked.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+  await page.getByTestId("for-you-next").click();
+  await expect(front).toHaveAttribute("data-job-id", generic.id);
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 roles fit your résumé · best fit first");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 a different kind of role");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
