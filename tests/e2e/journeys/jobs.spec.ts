@@ -1,4 +1,4 @@
-import type { Page, Request } from "@playwright/test";
+import type { Locator, Page, Request } from "@playwright/test";
 import { gunzipSync } from "node:zlib";
 import { JOBS_VISITOR_COOKIE } from "../../../src/lib/jobs-visitor-cookie";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
@@ -366,6 +366,22 @@ async function openHubTile(page: Page, id: string) {
     if (!(await back.isVisible())) await card.click({ timeout: 5_000 });
     await expect(back).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 60_000 });
+}
+
+/**
+ * An opened pack's front card. The search shield answers an address that has made 40 searches in the last minute
+ * (shield/rate-limit.ts) with the outage shape, so a run that follows other search-heavy journeys, or repeats
+ * this one, meets "We can't load your matches right now." with Retry. A person presses Retry; the journey does too,
+ * until the pack loads (each pack open makes about 7 searches).
+ */
+async function expectPackLoaded(page: Page, front: Locator) {
+  // The limit is a 60 s window, so the wait for a slot has to fit in the test's own budget.
+  test.info().setTimeout(Math.max(test.info().timeout, 180_000));
+  const failed = page.getByTestId("for-you-load-failed");
+  await expect(async () => {
+    if (await failed.isVisible()) await page.getByTestId("for-you-load-failed-retry").click();
+    await expect(front).toHaveCount(1, { timeout: 5_000 });
+  }).toPass({ timeout: 120_000, intervals: [5_000] });
 }
 
 signedInTest("a For-you pack opened from the hub, past the intro, has Edit filters on exactly the pack's filters, and a thin pack offers to broaden", { tag: ["@J-JOBS-27"] }, async ({ page, diagnostics }) => {
@@ -1829,7 +1845,7 @@ signedInTest("an opened pack shows one role at a time as a stack, and Next, Prev
   const position = page.getByTestId("for-you-deck-position");
 
   // One open role, in two parts: what we inferred about it on one side, what the posting states on the other.
-  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expectPackLoaded(page, front);
   await expect(front.getByTestId("role-card-inferred")).toContainText("What we inferred");
   await expect(front.getByTestId("role-card-description")).toBeVisible();
   await expect(front.getByTestId("for-you-download-apply")).toBeVisible();
@@ -1892,7 +1908,7 @@ signedInTest("on a small phone an opened pack fits its card, actions and Next be
   await openHubTile(page, "all");
 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
-  await expect(front).toHaveCount(1, { timeout: 60_000 });
+  await expectPackLoaded(page, front);
   const tabbarTop = async () => (await page.getByTestId("mobile-tabbar").boundingBox())?.y ?? 640;
   const bottom = async (testId: string) => {
     const box = await front.getByTestId(testId).boundingBox();
@@ -1914,7 +1930,7 @@ signedInTest("on a small phone an opened pack fits its card, actions and Next be
         expect(other, `a second pack among ${shown.join(", ")}`).toBeTruthy();
       }
       await openHubTile(page, other);
-      await expect(front).toHaveCount(1, { timeout: 60_000 });
+      await expectPackLoaded(page, front);
     }
     const nextTop = async () => (await page.getByTestId("for-you-next").boundingBox())?.y ?? -1;
     await expect
@@ -2119,4 +2135,8 @@ test("an employer search with a place says where its roles in that place end and
   await page.goto("/jobs?view=search&q=walmart&country=Canada&exp=mid");
   await expect(note).toHaveText("No roles at this employer match your location — showing its roles elsewhere.", { timeout: 60_000 });
   expect(diagnostics.serverErrors).toEqual([]);
+  // The stub lists 3 of 240 roles, so the page asks for the next ones too, and that request can still
+  // be waiting on the real server when the test ends. Closing the page under it made the stub's
+  // route.fetch throw "Target page, context or browser has been closed". Nothing here reads its answer.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
