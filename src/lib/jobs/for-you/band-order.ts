@@ -10,7 +10,6 @@
  * Pure, no I/O — same isomorphic convention as match/score.ts and title-relevance.ts.
  */
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
-import { partitionByTargetTitle } from "@/lib/jobs/for-you/title-relevance";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 
@@ -46,11 +45,6 @@ export function matchBandSortKey(score: MatchScore | null | undefined): number {
     return BAND_SEQUENCE.indexOf(matchBand(score.total));
 }
 
-/**
- * Reorders `jobs` for résumé-backed For-you packs. When `getScore` is absent
- * (no résumé / caller opts out), returns a shallow copy in incoming order —
- * anonymous Search browsing is unchanged.
- */
 const PACK_DAY_MS = 86_400_000;
 /** Past this age a pack demotes a role below every fresher one (Vivek, 2026-10-13: "really old jobs in my For you pack"). */
 export const PACK_STALE_DAYS = 30;
@@ -111,10 +105,9 @@ export interface DeckLeftOutSummary {
 export function orderNearMisses(
     jobs: readonly PublicJob[],
     getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
-    query: string | null | undefined,
     nowMs: number,
 ): PublicJob[] {
-    return orderForYouJobsByBand(jobs, getScore, query, nowMs, (reason) => reason === "stretch");
+    return orderForYouJobsByBand(jobs, getScore, nowMs, (reason) => reason === "stretch");
 }
 
 /** `summary` for a list that shows the closest roles because nothing fit: they are `listed`, no longer left out. */
@@ -139,32 +132,22 @@ export function summarizeDeckLeftOut(
     return { considered: jobs.length, listed, byReason };
 }
 
+/**
+ * The roles a résumé-backed list holds, in `forYouSortKey`'s order. When `getScore` is absent (no résumé /
+ * caller opts out), a shallow copy in incoming order: anonymous Search browsing is unchanged. There is no
+ * second order: the title is not a key here (`partitionByTargetTitle`, which put the résumé's own title
+ * first, is gone so it cannot come back by accident).
+ */
 export function orderForYouJobsByBand(
     jobs: readonly PublicJob[],
     getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
-    query?: string | null,
-    /** Pass to place a role over two weeks old one band lower (`rankBand`), as every ranked list does. */
-    nowMs?: number,
+    /** Places a role over two weeks old one band lower (`rankBand`), as every ranked list does. */
+    nowMs: number,
     /** Which roles the list holds, by why `deckLeftOut` leaves them out (`null` = it does not). Default: the ones it does not. */
     holds: (reason: DeckLeftOut | null) => boolean = (reason) => reason == null,
 ): PublicJob[] {
     if (!getScore) return [...jobs];
 
-    const bands = BAND_SEQUENCE.length + 1;
-    // The order is `forYouSortKey`'s. Without a clock (no ranking asked for) the old tier × band × title order holds.
-    if (nowMs === undefined) {
-        const legacy = new Map<number, PublicJob[]>();
-        for (const job of jobs) {
-            const score = getScore(job);
-            const key = rankTier(score) * bands + matchBandSortKey(score);
-            const bucket = legacy.get(key);
-            if (bucket) bucket.push(job);
-            else legacy.set(key, [job]);
-        }
-        const out: PublicJob[] = [];
-        for (const key of [...legacy.keys()].sort((a, b) => a - b)) out.push(...partitionByTargetTitle(legacy.get(key)!, query));
-        return out;
-    }
     const keyed: { job: PublicJob; sort: ForYouSortKey; index: number }[] = [];
     jobs.forEach((job, index) => {
         const score = getScore(job);

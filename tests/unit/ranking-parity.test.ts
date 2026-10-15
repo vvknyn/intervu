@@ -95,7 +95,7 @@ describe("every recommending list orders and leaves out the same way", () => {
     });
 
     it("the deck, Today, the daily picks and the fit-sorted list put the same roles in the same order", () => {
-        const deck = ids(orderForYouJobsByBand(JOBS, scoreOf, "product manager", NOW));
+        const deck = ids(orderForYouJobsByBand(JOBS, scoreOf, NOW));
         const roles: TodayRole[] = JOBS.flatMap((job) => {
             const score = scoreOf(job);
             return score ? [{ job, score }] : [];
@@ -114,7 +114,7 @@ describe("every recommending list orders and leaves out the same way", () => {
     });
 
     it("a role too old, a different kind of job or abroad is out of every list, for the same reason", () => {
-        const deck = new Set(ids(orderForYouJobsByBand(JOBS, scoreOf, "product manager", NOW)));
+        const deck = new Set(ids(orderForYouJobsByBand(JOBS, scoreOf, NOW)));
         const picks = new Set(ids(pickToday(JOBS.flatMap((job) => (scoreOf(job) ? [{ job, score: scoreOf(job)! }] : [])), { skipped: new Set(), tracked: new Set() }).map((r) => r.job)));
         for (const id of ["two-months-old", "engineer", "abroad"]) {
             assert.equal(deck.has(id), false, `${id} is not in the deck`);
@@ -127,7 +127,7 @@ describe("every recommending list orders and leaves out the same way", () => {
         const job = JOBS.find((j) => j.id === "no-country")!;
         const score = scoreOf(job)!;
         assert.equal(deckLeftOut(job, score, NOW, { strictPlace: true }) != null, true, "out of the picks");
-        const deck = ids(orderForYouJobsByBand(JOBS, scoreOf, "product manager", NOW));
+        const deck = ids(orderForYouJobsByBand(JOBS, scoreOf, NOW));
         if (deckLeftOut(job, score, NOW) == null) assert.equal(deck.at(-1), "no-country", "last in the deck");
     });
 

@@ -188,7 +188,7 @@ describe("contentLead", () => {
         const scores = new Map(rows.map((job) => [job.id, scoreJobAgainstResume(resume, job, signals)!] as const));
         assert.equal(scores.get("thin")!.role, "own");
         const nowMs = Date.now();
-        const ordered = orderForYouJobsByBand(rows, (job) => scores.get(job.id) ?? null, "product manager", nowMs);
+        const ordered = orderForYouJobsByBand(rows, (job) => scores.get(job.id) ?? null, nowMs);
         assert.deepEqual(ordered.map((job) => job.id), ["adjacent", "thin"]);
     });
 
@@ -197,7 +197,7 @@ describe("contentLead", () => {
         const good: MatchScore = { ...withEvidence(40), total: 70 };
         const a = { ...THIN_OWN, id: "strong" };
         const b = { ...ADJACENT, id: "good" };
-        const ordered = orderForYouJobsByBand([b, a], (job) => (job.id === "strong" ? strong : good), "product manager", Date.now());
+        const ordered = orderForYouJobsByBand([b, a], (job) => (job.id === "strong" ? strong : good), Date.now());
         assert.deepEqual(ordered.map((job) => job.id), ["strong", "good"]);
     });
 });

@@ -124,7 +124,7 @@ describe('a senior candidate gets mid-level roles too', async () => {
     it('a mid role is ranked among senior ones, and an entry or intern role is left out', () => {
         const jobs = [job('s', 'Senior Product Manager', 'senior'), job('m', 'Product Manager', 'mid'), job('j', 'Junior Product Manager', 'entry'), job('i', 'Product Manager Intern', 'intern')];
         const scores = new Map(jobs.map((j) => [j.id, score(j)]));
-        const out = orderForYouJobsByBand(jobs, (j) => scores.get(j.id), null, NOW).map((j) => j.id);
+        const out = orderForYouJobsByBand(jobs, (j) => scores.get(j.id), NOW).map((j) => j.id);
         assert.deepEqual(out.filter((id) => id === 's' || id === 'm').length, 2);
         assert.ok(!out.includes('j') && !out.includes('i'), JSON.stringify(out));
         assert.equal(todayLeftOut(scores.get('j')!), 'level');
