@@ -169,10 +169,13 @@ function unclearExplanation(score: MatchScore): string {
             ? "It's remote but doesn't say which countries it hires in"
             : "The posting doesn't say which country it's in";
     const role = score.role === "own" || score.role === "family" ? roleSentence(score) : null;
+    // What the posting asks for, said as it is where the country is known: the terms at full marks, else the share with the terms.
+    const share = component(score, "relevance")?.jd ? termsClause(score) : null;
     return [
         `${place}, so there's no telling yet whether you can take it from where you live.`,
         role,
         postingSentence(score),
+        share ? sentence([share]) : null,
         `On your résumé alone it would be ${matchBandLabel(matchBand(score.total))}. Check where it hires before you apply.`,
     ]
         .filter(Boolean)
@@ -215,14 +218,23 @@ function contentLedSentence(score: MatchScore): string {
 }
 
 /**
+ * A role held as a Stretch for what it asks of the candidate: a level above theirs, managing people when
+ * they haven't, or something the résumé doesn't show (score.ts). Its reason says that first.
+ */
+const heldAsStretch = (score: MatchScore): boolean =>
+    component(score, "seniority")?.reason === "level_below_ask" || Boolean(score.newToManaging) || (score.gaps ?? []).length > 0;
+
+/**
  * What the posting asks for that the résumé shows, for a role whose title the résumé holds: the title,
  * place and level say nothing about the work, and the daily picks email and the MCP read only this
- * paragraph. Needs at least two terms to stand for it. A fit short of full marks says its share in
- * `termsClause`, with the terms, so the caller leaves this out there.
+ * paragraph. One rule for every paragraph that says it (the country-unclear one too): at most three terms,
+ * at least two, never for a role held as a Stretch (it says what holds it), and only at full marks, since a
+ * fit short of them says its share in `termsClause`, with the terms.
  */
 function postingSentence(score: MatchScore): string | null {
     // A content-led title names its terms in the role sentence; another line of work's only shares some words.
     if (score.contentLed || score.role === "off-target" || !score.role) return null;
+    if (heldAsStretch(score) || !fullMarks(score)) return null;
     const terms = postingTerms(score);
     return terms.length < 2 ? null : `The posting asks for ${listed(terms)}, which your résumé shows.`;
 }
@@ -304,9 +316,7 @@ export function explainMatch(score: MatchScore): string {
     const parts: string[] = [];
     const role = roleSentence(score);
     if (role) parts.push(role);
-    // A role held as a Stretch says what holds it; what the posting asks for would crowd that out.
-    const stretch = level === "level_below_ask" || managing.length > 0;
-    const posting = stretch || !fullMarks(score) ? null : postingSentence(score);
+    const posting = postingSentence(score);
     if (posting) parts.push(posting);
     if (support.length > 0) parts.push(sentence(support));
     // The role sentence already says why an adjacent, unverified or off-target role
@@ -314,7 +324,7 @@ export function explainMatch(score: MatchScore): string {
     const heldByRole = !score.contentLed && (score.role === "adjacent" || score.role === "unverified" || score.role === "off-target");
     // A role above the candidate's level, or managing people when they haven't, is a Stretch for that
     // reason (score.ts), whatever else it has: say that first, and the key words after it on their own.
-    if (stretch) {
+    if (heldAsStretch(score)) {
         const held = [...weak, ...managing];
         // Those clauses carry commas of their own, so a comma comes before the last "and".
         const reasons = held.length > 1 ? `${held.slice(0, -1).join(", ")}, and ${held[held.length - 1]}` : held[0]!;
