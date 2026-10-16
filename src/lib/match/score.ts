@@ -60,6 +60,7 @@ import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { contentFamilyLabel, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
+import { languageLabel } from "@/lib/match/posting-language";
 import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
@@ -212,6 +213,39 @@ export interface MatchScore {
      * "Marketing Operations and Project Specialist" read Good on "performance, planning, analysis").
      */
     unproven?: true;
+    /**
+     * The posting is written in a language the person does not read postings in (`languageOutside`): "french" for
+     * a posting in French, `yours` the languages they chose or their résumé is written in (`CandidateSignals.languages`).
+     * Such a role is a Stretch whatever its words share with the résumé, left out of the lists with that reason
+     * (`forYouLeftOut`) until they add the language.
+     */
+    language?: MatchLanguage;
+}
+
+/** What a posting is written in, against what the person reads: both as lowercase language names. */
+export interface MatchLanguage {
+    posting: string[];
+    yours: string[];
+}
+
+/**
+ * Whether the posting is written in none of the languages the person reads postings in, and in which. `null` when
+ * either side is unknown (the text was too short to tell, the résumé says too little to read its language) or they
+ * share one: a posting printed in two languages is in the person's if either is. Never a guess from the title.
+ */
+export function languageOutside(job: Parameters<typeof jdTermsOf>[0], signals: Pick<CandidateSignals, "languages">): MatchLanguage | null {
+    const yours = signals.languages?.value ?? [];
+    const posting = jdTermsOf(job)?.lang ?? [];
+    if (yours.length === 0 || posting.length === 0 || posting.some((language) => yours.includes(language))) return null;
+    return { posting, yours };
+}
+
+/** "it's written in French", "it's written in French and German": the posting's language, for a receipt. */
+export function languageText(language: MatchLanguage): string {
+    const posting = language.posting.map(languageLabel);
+    const yours = language.yours.map(languageLabel);
+    const list = (items: string[]) => (items.length > 1 ? `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}` : items[0]!);
+    return `it's written in ${list(posting)}, and you read postings in ${list(yours)}`;
 }
 
 /**
@@ -1217,8 +1251,11 @@ export function scoreJobAgainstResume(
     const yourRole = yourRoleFor(resume, job, preferred);
     const offTarget = role === "off-target";
     // What the posting asks that the résumé doesn't show (years, a language, a clearance, a certification, managing, selling).
-    const gaps = requirementGaps(resume, job);
-    const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
+    const gaps = requirementGaps(resume, job, signals.languages?.value ?? undefined);
+    // A posting written in a language they do not read postings in (the language of its text, not an ask it makes).
+    const language = languageOutside(job, signals);
+    const notes = [...gaps.map((gap) => gap.text), ...(language ? [languageText(language)] : [])];
+    const gapNote = notes.length > 0 ? ` · ${notes.join("; ")}` : "";
     // An adjacent or unfamiliar title whose posting the résumé covers in its own right is not held under Strong by the title.
     // Not when the text itself reads as another line of work: sharing words with the résumé does not make it theirs.
     const contentLed = !contentFamily && contentLedRole(role, overlap.jd) && (role !== "off-target" || offTargetCarriedByContent(resume, job, overlap.jd));
@@ -1260,7 +1297,7 @@ export function scoreJobAgainstResume(
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
     // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
-    const capped = heldOffTarget || unproven || aboveLevel || newToManaging || thinJd || gaps.length > 0
+    const capped = heldOffTarget || unproven || aboveLevel || newToManaging || thinJd || gaps.length > 0 || language
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || (!contentLed && (role === "unverified" || role === "adjacent"))
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
@@ -1273,9 +1310,10 @@ export function scoreJobAgainstResume(
         familyRank: rank,
         ...(newToManaging ? { newToManaging: true as const } : {}),
         ...(gaps.length > 0 ? { gaps } : {}),
-        ...(contentLed && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
+        ...(contentLed && !aboveLevel && !newToManaging && gaps.length === 0 && !language ? { contentLed: true as const } : {}),
         ...(contentFamily ? { contentFamily } : {}),
         ...(unproven ? { unproven: true as const } : {}),
+        ...(language ? { language } : {}),
     };
     if (!abroad || !location.place) return score;
     return {

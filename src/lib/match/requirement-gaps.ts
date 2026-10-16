@@ -73,7 +73,12 @@ export function requiredSkillsShown(resume: ResumeData, job: Pick<PublicJob, "jd
     return { listed: must.length, shown: must.filter((skill) => resumeShowsTerm(resume, skill, { loose: true })).length };
 }
 
-export function requirementGaps(resume: ResumeData, job: Pick<PublicJob, "min_years_experience" | "jd_terms" | "description" | "company" | "location" | "must_have_skills" | "preferred_skills" | "skills_section_found">): RequirementGap[] {
+export function requirementGaps(
+    resume: ResumeData,
+    job: Pick<PublicJob, "min_years_experience" | "jd_terms" | "description" | "company" | "location" | "must_have_skills" | "preferred_skills" | "skills_section_found">,
+    /** The languages they read in (`CandidateSignals.languages`): one the posting asks for that they chose is no gap, whatever the résumé shows. */
+    languages: readonly string[] = [],
+): RequirementGap[] {
     const gaps: RequirementGap[] = [];
 
     // The years the posting's structured field says, else the years its text asks (the field is on about half the postings).
@@ -87,7 +92,7 @@ export function requirementGaps(resume: ResumeData, job: Pick<PublicJob, "min_ye
 
     if (!asks) return gaps;
 
-    const missingLangs = (asks.langs ?? []).filter((lang) => !resumeShowsTerm(resume, lang));
+    const missingLangs = (asks.langs ?? []).filter((lang) => !languages.includes(lang) && !resumeShowsTerm(resume, lang));
     if (missingLangs.length > 0) gaps.push({ kind: "language", text: `it asks for ${list(missingLangs.map(titleCase))} and nothing on your résumé shows it` });
 
     if (asks.clearance && !CLEARANCE_EVIDENCE.some((term) => resumeShowsTerm(resume, term))) {

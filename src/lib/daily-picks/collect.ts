@@ -20,7 +20,7 @@ import { trackedIndex } from "@/lib/pursuits/applied";
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { TODAY_PICKS_FETCH_LIMIT, TODAY_PICKS_WINDOW_MS, type TodayRole } from "@/lib/jobs/for-you/today";
+import { TODAY_PICKS_FETCH_LIMIT, TODAY_PICKS_WINDOW_MS, todayLanguagesLeftOut, type TodayRole } from "@/lib/jobs/for-you/today";
 import type { JobSearchParams, JobSearchResult } from "@/lib/jobs/types";
 import type { LocationReport } from "@/lib/jobs/broaden";
 import type { AgentPreferences } from "@/lib/agent/preferences";
@@ -55,6 +55,8 @@ export type DailyPicksResult =
           ranked: TodayRole[];
           /** The next email's roles: the best not emailed before (`chooseDailyPicks`). */
           picks: TodayRole[];
+          /** This week's roles left out only for the language they are written in ("french" → 3): said beside the picks, never dropped silently. */
+          languagesLeftOut?: Record<string, number>;
       }
     | { kind: "no-resume"; reason: DailyPicksNoResume }
     | { kind: "unavailable" };
@@ -104,5 +106,13 @@ export async function collectDailyPicks(
     const tracked = new Set(applications.map((a) => a.job_id).filter((id): id is string => Boolean(id)));
     // Applied roles stay out when the same opening comes back under a new id, too (lib/pursuits/applied.ts).
     const ranked = rankDailyPicks(roles, { tracked, sent: opts.sent, applied: trackedIndex(applications) });
-    return { kind: "ready", resume, signals, ranked, picks: chooseDailyPicks(ranked, opts.sent) };
+    const languagesLeftOut = todayLanguagesLeftOut(roles, opts.nowMs);
+    return {
+        kind: "ready",
+        resume,
+        signals,
+        ranked,
+        picks: chooseDailyPicks(ranked, opts.sent),
+        ...(Object.keys(languagesLeftOut).length > 0 ? { languagesLeftOut } : {}),
+    };
 }

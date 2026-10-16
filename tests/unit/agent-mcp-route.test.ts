@@ -293,6 +293,23 @@ describe('mcp route: set_preferences wire schema', () => {
     assert.equal(res.success, true);
   });
 
+  it('accepts the languages they read postings in, [] to follow the résumé again, and nothing else', () => {
+    assert.equal(setPreferencesInput.safeParse({ search: { languages: ['english', 'french'] } }).success, true);
+    assert.equal(setPreferencesInput.safeParse({ search: { languages: [] } }).success, true);
+    assert.equal(setPreferencesInput.safeParse({ search: { languages: ['klingon'] } }).success, false);
+    assert.equal(setPreferencesInput.safeParse({ search: { languages: 'french' } }).success, false);
+  });
+
+  it('says in get_preferences, set_preferences, for_you and daily_picks how the languages are chosen', () => {
+    for (const name of ['get_preferences', 'set_preferences', 'for_you', 'daily_picks'] as const) {
+      assert.match(MCP_TOOL_SPECS[name].description, /search\.languages/, name);
+    }
+    // Both lists count the roles left out for their language, in the field the tool returns it in.
+    for (const name of ['for_you', 'daily_picks'] as const) {
+      assert.match(MCP_TOOL_SPECS[name].description, /left_out(\.languages)?[^.]{0,80}by language/, name);
+    }
+  });
+
   it('rejects an oversize search string field (>500 chars)', () => {
     const res = setPreferencesInput.safeParse({ search: { location: 'x'.repeat(600) } });
     assert.equal(res.success, false);
