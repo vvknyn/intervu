@@ -143,7 +143,7 @@ export default function ConnectHelpPage() {
             posted more than 30 days ago, above your level, asking for what your résumé doesn&apos;t show, written in a language you haven&apos;t chosen
             (your résumé&apos;s language and English until you say otherwise; ask it to include French, say, or to stop showing it),
             whose text reads as another line of work than your experience shows whatever it is called, or whose title is
-            none of your kinds of role and whose posting doesn&apos;t show your work, and saying how many it left out and why;
+            none of your kinds of role and whose posting doesn&apos;t show your work, and saying how many roles the search found, how many fit and how many it left out for each reason;
             when nothing fits, it lists the closest roles and says plainly that they are a weaker fit; when only
             older roles fit, it lists those and says how old they are; when not even a newer role is close, it lists the
             closest older ones and says they are a weaker fit and how old they are),

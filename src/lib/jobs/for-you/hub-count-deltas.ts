@@ -8,14 +8,17 @@
  * never zeroes the deltas; a later return measures from the last settle.
  *
  * Only exact counts compare. A floor ("31+") or a count read for another
- * résumé or pack never makes a delta, and a shrink is never shown here (the
- * removals line reports those).
+ * résumé or pack never makes a delta, and a shrink is never shown.
  */
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import { TODAY_SESSION_GAP_MS } from "@/lib/jobs/for-you/today";
 
-export const HUB_TILE_COUNTS_KEY = "velai.hub.tileCounts.v1";
+/**
+ * v2: a chip counts the roles its list opens with (`hubChipCounts`), not the roles its search found (v1), so counts
+ * written under v1 are a different number and are never compared with these.
+ */
+export const HUB_TILE_COUNTS_KEY = "velai.hub.tileCounts.v2";
 
 export type HubPackCounts = Partial<Record<HubPackId, number>>;
 

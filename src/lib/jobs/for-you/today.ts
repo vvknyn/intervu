@@ -337,7 +337,7 @@ export function sincePhrase(sinceMs: number | null, nowMs: number): string {
  * speaks; no applications: no line about them).
  */
 export interface TodaySummary {
-    /** "2 new roles fit you since Tuesday." · "No new roles fit you since yesterday." · "5 roles posted this week fit you." */
+    /** "2 new roles fit you since Tuesday." · "5 roles posted this week fit you, 2 new since Friday." · "1 role posted this week fits you, none new since yesterday." · "5 roles posted this week fit you." */
     picks: string | null;
     /** The step after "Next:": "Apply to the role below, or give it a thumbs down so it stops showing." */
     next: string | null;
@@ -373,13 +373,19 @@ export function todaySummary(input: {
             picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you.`;
             next = shown === 1 ? "Look at it below and apply if it suits you." : "Look at them below and apply to the ones that suit you.";
         } else if (newCount > 0) {
-            picks = `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`;
+            // Every pick listed is new: say so. Otherwise lead with the list's own count, then how many of it are new,
+            // so the number above the rows is the number of rows ("5 roles posted this week fit you, 2 new since Friday").
+            picks =
+                newCount >= shown
+                    ? `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`
+                    : `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you, ${newCount} new ${sinceText}.`;
             next =
                 newCount === 1
                     ? "It's at the top, marked New. Apply if it suits you."
                     : "They're at the top, marked New. Apply to the ones that suit you.";
         } else {
-            picks = `No new roles fit you ${sinceText}.`;
+            // A list of roles under "No new roles" read as no roles at all (2026-10-16: one role listed under it).
+            picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you, none new ${sinceText}.`;
             next =
                 shown === 1
                     ? "Apply to the role below, or give it a thumbs down so it stops showing."

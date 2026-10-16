@@ -718,6 +718,26 @@ Une équipe passionnée, un horaire flexible, des assurances collectives dès le
     assert.match(out.note ?? '', /2 posted over 30 days ago/);
   });
 
+  it('says how many roles the search found when it read fewer, so considered is never read as all of them', async () => {
+    const day = 86_400_000;
+    const at = (days: number) => new Date(Date.now() - days * day).toISOString();
+    const fresh = makeJob({ id: 'fresh', title: 'Backend Engineer', experience_level: 'mid', company: 'Fresh Co', company_domain: 'fresh.com', posted_at: at(3), first_seen_at: at(3) });
+    const stale = makeJob({ id: 'stale', title: 'Backend Engineer', experience_level: 'mid', company: 'Stale Co', company_domain: 'stale.com', posted_at: at(45), first_seen_at: at(44) });
+    const { deps } = stubDeps([stale, fresh], undefined, { total: 226 }, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.equal(out.left_out?.found, 226);
+    assert.equal(out.left_out?.considered, 2);
+    assert.equal(out.left_out?.listed, 1);
+    assert.match(out.note ?? '', /Left out of the first 2 of 226 roles found: 1 posted over 30 days ago/);
+    // The search found only what it read: no `found`.
+    const { deps: whole } = stubDeps([stale, fresh], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const all = await toolForYou(whole, {});
+    if ('error' in all) throw new Error('unexpected error shape');
+    assert.equal(all.left_out?.found, undefined);
+    assert.match(all.note ?? '', /Left out of the 2 roles found/);
+  });
+
   it('lists the older roles that fit, best first, and says so, when no role from the last 30 days fits', async () => {
     const day = 86_400_000;
     const at = (days: number) => new Date(Date.now() - days * day).toISOString();

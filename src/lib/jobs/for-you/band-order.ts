@@ -74,6 +74,12 @@ export function packAgeTier(postedTs: number | null | undefined, nowMs: number, 
 export type DeckLeftOut = ForYouLeftOut | "old";
 
 /**
+ * Why a person's own list does not hold a role its search returned: the deck's reasons, plus the two it drops before it
+ * weighs fit (`listCandidates`): the apply link no longer works ("closed"), or the role is already in their tracker.
+ */
+export type ListLeftOut = DeckLeftOut | "closed" | "tracked";
+
+/**
  * Why the deck does not list this role, or `null` when it does: older than a pack keeps (30 days by its oldest
  * date), no score (nothing ties it to the résumé), or any reason `forYouLeftOut` gives. The ONE place the deck's
  * keep-or-drop is decided, so `orderForYouJobsByBand` and `summarizeDeckLeftOut` cannot disagree.
@@ -96,12 +102,14 @@ export function deckLeftOut(
 export const postedTsOf = (job: PublicJob): number | null => (typeof job.posted_ts === "number" ? job.posted_ts : derivePostedTs(job));
 
 export interface DeckLeftOutSummary {
-    /** Roles the search returned and the deck weighed. */
+    /** Roles the list read: the first rows of what the search returned (`found`), each opening once. */
     considered: number;
+    /** What the search said it found, when that is more than the list read; the rows past `considered` are not weighed until the person asks for more. */
+    found?: number;
     /** Roles the deck lists. */
     listed: number;
     /** Roles left out, by the first reason that applies. */
-    byReason: Partial<Record<DeckLeftOut, number>>;
+    byReason: Partial<Record<ListLeftOut, number>>;
     /** The roles left out as "language", by the language the posting is written in (its most used): "french" → 8. */
     languages?: Record<string, number>;
     /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
@@ -193,6 +201,49 @@ export function summarizeDeckLeftOut(
         if (written) languages[written] = (languages[written] ?? 0) + 1;
     }
     return { considered: jobs.length, listed, byReason, ...(Object.keys(languages).length > 0 ? { languages } : {}) };
+}
+
+/**
+ * `summary` for a person's own list (the deck, the packs hub's counts), which drops two more kinds of role before it
+ * weighs fit: one whose apply link no longer works and one already in their tracker (`listCandidates`). They count
+ * among the roles read, with their own reason, so the reasons add up to what was read. `found` is what the search said
+ * it found; it is kept only when the list read fewer rows than that.
+ */
+export function withListRemovals(
+    summary: DeckLeftOutSummary,
+    removed: { closed?: number; tracked?: number },
+    found?: number | null,
+): DeckLeftOutSummary {
+    const closed = Math.max(0, Math.floor(removed.closed ?? 0));
+    const tracked = Math.max(0, Math.floor(removed.tracked ?? 0));
+    const considered = summary.considered + closed + tracked;
+    const byReason = { ...summary.byReason, ...(closed > 0 ? { closed } : {}), ...(tracked > 0 ? { tracked } : {}) };
+    const more = found != null && Number.isFinite(found) && found > considered ? { found: Math.floor(found) } : {};
+    return { ...summary, considered, byReason, ...more };
+}
+
+/**
+ * What a pack's deck holds of the roles it weighs, and what it says about the rest. One function for the deck and for the
+ * packs hub's counts, so a count on the hub is the deck's: the roles that fit; when none does, the roles that fit and are
+ * older (`orderOlderFits`); failing those the closest weaker fits (`orderNearMisses`), and failing those the closest older
+ * ones (`orderOlderNearMisses`), so a list is never empty while roles were found. `summary` says which, and why the rest
+ * were left out.
+ */
+export function deckListFor(
+    candidates: readonly PublicJob[],
+    getScore: (job: PublicJob) => MatchScore | null | undefined,
+    nowMs: number,
+): { ranked: PublicJob[]; summary: DeckLeftOutSummary } {
+    const summary = summarizeDeckLeftOut(candidates, getScore, nowMs);
+    const fitting = orderForYouJobsByBand(candidates, getScore, nowMs);
+    if (fitting.length > 0) return { ranked: fitting, summary };
+    const older = orderOlderFits(candidates, getScore, nowMs);
+    if (older.length > 0) return { ranked: older, summary: olderFitsSummary(summary, older.length) };
+    const near = orderNearMisses(candidates, getScore, nowMs);
+    if (near.length > 0) return { ranked: near, summary: nearMissSummary(summary) };
+    const olderNear = orderOlderNearMisses(candidates, getScore, nowMs);
+    if (olderNear.length > 0) return { ranked: olderNear, summary: olderNearMissSummary(summary, olderNear.length) };
+    return { ranked: [], summary };
 }
 
 /**

@@ -747,7 +747,9 @@ export function ForYouHome({
                                               ? `, ${displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)}`
                                               : ""
                                       }`
-                                    : "That's the last role here."}
+                                    : hasMore && onLoadMore
+                                      ? "That's the last role so far."
+                                      : "That's the last role here."}
                             </span>
                         </p>
                     ) : null}
