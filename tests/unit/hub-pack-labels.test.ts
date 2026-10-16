@@ -60,8 +60,8 @@ describe("hub pack category labels", () => {
         assert.doesNotMatch(titleBlock, /\btruncate\b/);
         assert.doesNotMatch(titleBlock, /line-clamp-\d/);
         assert.doesNotMatch(titleBlock, /text-ellipsis/);
-        // Each pack is one chip on one line; the chip row wraps instead, so a long label never cuts.
-        assert.match(hub, /data-testid="hub-pack-chips" className="flex flex-wrap/);
+        // Each pack is one tile whose title wraps onto more lines, so a long label never cuts.
+        assert.match(hub, /data-testid="hub-pack-chips"\s+className=\{cn\("grid grid-cols-2 /);
     });
 
     it("long pack labels stay in catalog for layout regression", () => {
