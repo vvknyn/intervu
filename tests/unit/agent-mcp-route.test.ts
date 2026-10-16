@@ -304,6 +304,10 @@ describe('mcp route: set_preferences wire schema', () => {
     for (const name of ['get_preferences', 'set_preferences', 'for_you', 'daily_picks'] as const) {
       assert.match(MCP_TOOL_SPECS[name].description, /search\.languages/, name);
     }
+    // Both lists count the roles left out for their language, in the field the tool returns it in.
+    for (const name of ['for_you', 'daily_picks'] as const) {
+      assert.match(MCP_TOOL_SPECS[name].description, /left_out(\.languages)?[^.]{0,80}by language/, name);
+    }
   });
 
   it('rejects an oversize search string field (>500 chars)', () => {

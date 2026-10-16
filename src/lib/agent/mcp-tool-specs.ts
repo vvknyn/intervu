@@ -336,7 +336,8 @@ export const MCP_TOOL_SPECS = {
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
             "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +
             "show (more years than you have, a language, a clearance, a certification), never one written in a language " +
-            "you haven't chosen (set_preferences search.languages; your résumé's language and English until you do). The same roles Today on " +
+            "you haven't chosen (set_preferences search.languages; your résumé's language and English until you do; left_out.languages " +
+            "counts them by language, \"5 written in Spanish\", and the note says how to include one). The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words: how the title relates to yours, what the posting asks for that your résumé shows (for a " +
