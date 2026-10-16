@@ -677,6 +677,39 @@ test("a pack where nothing fits lists the closest roles under an honest line, no
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+// J-JOBS-144 (second case) — when not even a newer role is close, the closest older roles stand in, each a weaker fit,
+// under a line that says so, instead of an empty list.
+test("a pack where only older roles are posted and none fits lists the closest of them, each a weaker fit with its age", { tag: ["@J-JOBS-144"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  // Constructed, as in J-JOBS-134: titled like the résumé's own role, asking for four things a TAM résumé does not show.
+  const unrelated = (id: string, company: string, daysOld: number) =>
+    described(
+      posting(id, "Technical Account Manager", company, "senior", daysOld),
+      [
+        `About the role\n${company} is hiring a Technical Account Manager.`,
+        "Requirements\n- Hands-on welding and brazing of structural steel\n- Operating a forklift and overhead crane safely\n- Pipefitting and boiler maintenance in plant settings\n- Erecting scaffolding to site safety standards",
+      ].join("\n\n"),
+    );
+  const closeOld = [unrelated("cccccccc-0000-4000-8000-000000000001", "Steelhead Works", 40), unrelated("cccccccc-0000-4000-8000-000000000002", "Ironbridge", 55)];
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, closeOld, "journey-closest-older");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-older-near-notice")).toContainText("nothing posted in the last 30 days is close", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-near-notice")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-older-notice")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front.getByTestId("role-card-age")).toHaveText(/^Posted (40|55)d ago$/);
+  await expect(page.getByTestId("match-chip")).toHaveText("Stretch");
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 closest roles · each a weaker fit, all posted over 30 days ago");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 /**
  * J-JOBS-135 — coordinator, 2026-10-15 (Vivek: the lists recommend roles the others do not): every list that
  * recommends orders and leaves out the same way. The packs hub's tile counts the roles the deck lists (not the

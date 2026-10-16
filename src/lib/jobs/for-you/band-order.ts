@@ -104,7 +104,10 @@ export interface DeckLeftOutSummary {
     byReason: Partial<Record<DeckLeftOut, number>>;
     /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
     near?: true;
-    /** No role from the last 30 days fits, so `listed` are roles that fit and were posted longer ago (`orderOlderFits`). */
+    /**
+     * No role from the last 30 days fits, so `listed` are roles that fit and were posted longer ago (`orderOlderFits`).
+     * With `near`: not even a fresh role is close, so `listed` are the closest older roles (`orderOlderNearMisses`).
+     */
     older?: true;
 }
 
@@ -148,6 +151,26 @@ export function orderOlderFits(
 export function olderFitsSummary(summary: DeckLeftOutSummary, listed: number): DeckLeftOutSummary {
     const { old = 0, ...rest } = summary.byReason;
     return { considered: summary.considered, listed, byReason: old > listed ? { ...rest, old: old - listed } : rest, older: true };
+}
+
+/**
+ * The last thing a list falls back on, so a rule about age never empties it: no role fits, fresh or older, and no
+ * fresh role is even a close weaker fit, so the older roles that age alone and a weaker fit leave out stand in as the
+ * closest, best first. Marked as older and as a weaker fit (`olderNearMissSummary`); a role older than that and
+ * above the person's level, abroad or another kind of job is still out.
+ */
+export function orderOlderNearMisses(
+    jobs: readonly PublicJob[],
+    getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
+    nowMs: number,
+): PublicJob[] {
+    if (!getScore) return [];
+    return orderRoles(jobs, getScore, nowMs, (job, score) => packAgeTier(postedTsOf(job), nowMs, job.first_seen_at ?? null) === 2 && deckLeftOut(job, score, nowMs, { ignoreAge: true }) === "stretch");
+}
+
+/** `summary` for a list that shows the closest older roles because nothing newer is close: `listed` are no longer left out. */
+export function olderNearMissSummary(summary: DeckLeftOutSummary, listed: number): DeckLeftOutSummary {
+    return { ...olderFitsSummary(summary, listed), near: true };
 }
 
 /** What the deck listed of `jobs` and why it left the rest out. */

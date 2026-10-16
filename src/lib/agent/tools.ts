@@ -21,7 +21,7 @@ import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidat
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
 import type { DeckLeftOut } from "../jobs/for-you/band-order";
-import { formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE } from "../jobs/for-you/left-out-copy";
+import { formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE } from "../jobs/for-you/left-out-copy";
 import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
 import { clusterJobs } from "../jobs/cluster";
 import { hasLiveApplyUrl } from "../jobs/apply-url-health";
@@ -820,17 +820,21 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   // A list that holds only roles the résumé could take can be short, or empty: say how many were left out and why.
   const leftOutLine = formatLeftOutLine(ranked.leftOut);
   // Nothing fit: the list holds the closest roles, each a weaker fit, and says so (`rankForYou`'s near misses). No role
-  // posted in the last 30 days fit: it holds the roles that fit and are older, and says so.
+  // posted in the last 30 days fit: it holds the roles that fit and are older, and says so; and when not even a newer
+  // role is close, the closest older ones (both flags).
+  const first = offset === 0 && deck.length > 0;
   const leftOutNote =
-    offset === 0 && ranked.leftOut.older && deck.length > 0
-      ? [OLDER_FITS_NOTICE, leftOutLine].filter(Boolean).join(" ")
-      : offset === 0 && ranked.leftOut.near && deck.length > 0
-        ? [NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
-        : offset === 0 && leftOutLine
-          ? deck.length === 0
-            ? `None of the roles found fit this résumé yet. ${leftOutLine}`
-            : leftOutLine
-          : null;
+    first && ranked.leftOut.older && ranked.leftOut.near
+      ? [OLDER_NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+      : first && ranked.leftOut.older
+        ? [OLDER_FITS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+        : first && ranked.leftOut.near
+          ? [NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+          : offset === 0 && leftOutLine
+            ? deck.length === 0
+              ? `None of the roles found fit this résumé yet. ${leftOutLine}`
+              : leftOutLine
+            : null;
   const note = joinNotes(limitNote, leftOutNote);
   return {
     hits,

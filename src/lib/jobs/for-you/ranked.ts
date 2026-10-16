@@ -20,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { nearMissSummary, olderFitsSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -114,13 +114,23 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
     const fitting = orderForYouJobsByBand(allJobs, scoreOf, nowMs);
     // Nothing from the last 30 days fits: the roles that fit and were posted longer ago, marked as older, and failing
-    // those the closest roles, each a weaker fit, so the list is never empty while roles were found.
-    const older = fitting.length === 0 ? orderOlderFits(allJobs, scoreOf, nowMs) : [];
-    const nearMisses = fitting.length === 0 && older.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
-    const orderedJobs = fitting.length > 0 ? fitting : older.length > 0 ? older : nearMisses;
+    // those the closest roles, each a weaker fit (fresh ones, else older ones, marked as older), so the list is never
+    // empty while roles were found.
+    const none = fitting.length === 0;
+    const older = none ? orderOlderFits(allJobs, scoreOf, nowMs) : [];
+    const nearMisses = none && older.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
+    const olderNear = none && older.length === 0 && nearMisses.length === 0 ? orderOlderNearMisses(allJobs, scoreOf, nowMs) : [];
+    const orderedJobs = fitting.length > 0 ? fitting : older.length > 0 ? older : nearMisses.length > 0 ? nearMisses : olderNear;
     const targets = targetTitlesFromQuery(queryUsed);
     const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);
-    const leftOut = older.length > 0 ? olderFitsSummary(counted, older.length) : nearMisses.length > 0 ? nearMissSummary(counted) : counted;
+    const leftOut =
+        older.length > 0
+            ? olderFitsSummary(counted, older.length)
+            : nearMisses.length > 0
+              ? nearMissSummary(counted)
+              : olderNear.length > 0
+                ? olderNearMissSummary(counted, olderNear.length)
+                : counted;
 
     const hits: RankedHit[] = orderedJobs.map((job) => {
         const entry = byId.get(job.id)!;

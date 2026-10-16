@@ -33,14 +33,18 @@ export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined
     return `Left out of the ${summary.considered.toLocaleString()} roles found: ${parts.join(" · ")}`;
 }
 
-/** What a list holds: roles that fit, the closest when nothing fit (`near`), or roles that fit and were posted over a month ago because no newer one does (`older`). */
-export type DeckListKind = "fit" | "near" | "older";
+/**
+ * What a list holds: roles that fit, the closest when nothing fit (`near`), roles that fit and were posted over a month
+ * ago because no newer one does (`older`), or the closest of those when not even a newer role is close (`older-near`).
+ */
+export type DeckListKind = "fit" | "near" | "older" | "older-near";
 
 /** The list's own count, at the foot of the deck. */
 export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit"): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
     if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit`;
+    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · best fit first`;
 }
@@ -51,3 +55,6 @@ export const NEAR_MISS_NOTICE =
 
 /** Said above the older roles, when no role from the last month fits: they fit, but they may already be filled, and each card says how old it is. */
 export const OLDER_FITS_NOTICE = `No role posted in the last ${PACK_MAX_AGE_DAYS} days fits your résumé yet. These fit, but they were posted longer ago and some may already be filled. Each card says how old it is.`;
+
+/** Said above the closest older roles, when nothing newer is even close: a weaker fit, posted longer ago, and each card says how old it is. */
+export const OLDER_NEAR_MISS_NOTICE = `None of the roles we found fit your résumé well yet, and nothing posted in the last ${PACK_MAX_AGE_DAYS} days is close. These are the closest, each a weaker fit, posted longer ago, and some may already be filled. Each card says how old it is.`;

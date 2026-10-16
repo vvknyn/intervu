@@ -5,19 +5,26 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     deckLeftOut,
     nearMissSummary,
     olderFitsSummary,
+    olderNearMissSummary,
     orderForYouJobsByBand,
     orderNearMisses,
     orderOlderFits,
+    orderOlderNearMisses,
     packAgeTier,
     PACK_MAX_AGE_DAYS,
     summarizeDeckLeftOut,
 } from '../../src/lib/jobs/for-you/band-order';
-import { formatDeckShowingLine, formatLeftOutLine, OLDER_FITS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
+import { formatDeckShowingLine, formatLeftOutLine, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
+import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
+import { jdTermsFromDescription } from '../../src/lib/match/jd-match';
+import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
 import { mkJob } from '../support/jobs-corpus-stub';
+import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import type { MatchScore } from '../../src/lib/match/score';
 
 const NOW = Date.parse('2026-10-13T12:00:00Z');
@@ -122,5 +129,80 @@ describe('when no role from the last 30 days fits, the older roles that fit stan
 
     it('drops the old count once every old role is listed', () => {
         assert.deepEqual(olderFitsSummary({ considered: 2, listed: 0, byReason: { old: 2 } }, 2), { considered: 2, listed: 2, byReason: {}, older: true });
+    });
+});
+
+describe('when no role fits and no newer role is even close, the closest older roles stand in', () => {
+    const scores = new Map<string, MatchScore | null>([
+        ['older-weak', fits({ total: 55 })],
+        ['oldest-weak', fits({ total: 50 })],
+        ['older-fit', fits({ total: 80 })],
+        ['older-senior', fits({ newToManaging: true })],
+        ['older-other', fits({ role: 'off-target', total: 40 })],
+        ['fresh-weak', fits({ total: 52 })],
+    ]);
+    const jobs = [job('older-weak', 40), job('oldest-weak', 70), job('older-fit', 35), job('older-senior', 45), job('older-other', 50), job('fresh-weak', 4)];
+    const getScore = (j: { id: string }) => scores.get(j.id) ?? null;
+
+    it('holds only the older roles that age and a weaker fit leave out, best fit first', () => {
+        assert.deepEqual(orderOlderNearMisses(jobs, getScore, NOW).map((j) => j.id), ['older-weak', 'oldest-weak']);
+        assert.deepEqual(orderOlderNearMisses(jobs, null, NOW), []);
+    });
+
+    it('counts them as listed, keeps every other reason in the left-out line, and says plainly what they are', () => {
+        const summary = summarizeDeckLeftOut(jobs, getScore, NOW);
+        const older = olderNearMissSummary(summary, 2);
+        assert.equal(older.near, true);
+        assert.equal(older.older, true);
+        assert.equal(older.listed, 2);
+        assert.deepEqual(older.byReason, { old: 3, stretch: 1 });
+        assert.equal(formatDeckShowingLine(2, 'older-near'), '2 closest roles · each a weaker fit, all posted over 30 days ago');
+        assert.equal(formatDeckShowingLine(1, 'older-near'), '1 closest role · each a weaker fit, all posted over 30 days ago');
+        assert.match(OLDER_NEAR_MISS_NOTICE, /nothing posted in the last 30 days is close/);
+        assert.match(OLDER_NEAR_MISS_NOTICE, /each a weaker fit, posted longer ago, and some may already be filled/);
+    });
+});
+
+describe('rankForYou goes fits, older fits, fresh closest, then older closest, so age alone never empties a list', () => {
+    // The TAM résumé against postings titled like its own role that ask for four trades the résumé does not show (constructed, as in J-JOBS-134).
+    const resume = resumeDataFromPlainText(readFileSync('tests/fixtures/vivek-tam-resume.txt', 'utf8'));
+    const trades = (id: string, ageDays: number): PublicJob => {
+        const description = [
+            'About the role\nAcme is hiring a Technical Account Manager.',
+            'Requirements\n- Hands-on welding and brazing of structural steel\n- Operating a forklift and overhead crane safely\n- Pipefitting and boiler maintenance in plant settings\n- Erecting scaffolding to site safety standards',
+        ].join('\n\n');
+        const base = mkJob(id, {
+            title: 'Technical Account Manager',
+            experience_level: 'senior',
+            location: 'Toronto, ON',
+            location_city: 'Toronto',
+            location_state: 'Ontario',
+            location_country: 'Canada',
+            work_type: 'hybrid',
+            description,
+            tags: [],
+            posted_at: iso(ageDays),
+            posted_ts: NOW - ageDays * DAY,
+            first_seen_at: iso(ageDays),
+        });
+        return { ...base, jd_terms: jdTermsFromDescription(description, base) } as PublicJob;
+    };
+    const searchOf = (listed: PublicJob[]) => async () => ({ hits: listed, total: listed.length, backend: 'meilisearch', configured: true }) as unknown as JobSearchResult;
+
+    it('lists the closest older roles, marked as both, when only older roles were found', async () => {
+        const ranked = await rankForYou({ resume, search: searchOf([trades('old-40', 40), trades('old-55', 55)]), candidateDepth: 50, nowMs: NOW });
+        assert.deepEqual(ranked.hits.map((h) => h.job.id).sort(), ['old-40', 'old-55']);
+        assert.equal(ranked.leftOut.near, true);
+        assert.equal(ranked.leftOut.older, true);
+        assert.equal(ranked.leftOut.listed, 2);
+        assert.deepEqual(ranked.leftOut.byReason, {});
+    });
+
+    it('prefers the closest fresh roles to the closest older ones', async () => {
+        const ranked = await rankForYou({ resume, search: searchOf([trades('old-40', 40), trades('fresh-3', 3)]), candidateDepth: 50, nowMs: NOW });
+        assert.deepEqual(ranked.hits.map((h) => h.job.id), ['fresh-3']);
+        assert.equal(ranked.leftOut.near, true);
+        assert.equal(ranked.leftOut.older, undefined);
+        assert.deepEqual(ranked.leftOut.byReason, { old: 1 });
     });
 });

@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { nearMissSummary, olderFitsSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -3063,13 +3063,19 @@ export function JobsContent({
         () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, nowMs) : []),
         [deckOrdered, deckOlderFits, deckCandidates, deckScore, nowMs],
     );
-    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckOlderFits.length > 0 ? deckOlderFits : deckNearMisses;
+    const deckOlderNearMisses = useMemo(
+        () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckNearMisses.length === 0 && deckScore ? orderOlderNearMisses(deckCandidates, deckScore, nowMs) : []),
+        [deckOrdered, deckOlderFits, deckNearMisses, deckCandidates, deckScore, nowMs],
+    );
+    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckOlderFits.length > 0 ? deckOlderFits : deckNearMisses.length > 0 ? deckNearMisses : deckOlderNearMisses;
     // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
     const deckLeftOutSummary = useMemo(() => {
         if (!deckScore) return null;
         const summary = summarizeDeckLeftOut(deckCandidates, deckScore, nowMs);
-        return deckOlderFits.length > 0 ? olderFitsSummary(summary, deckOlderFits.length) : deckNearMisses.length > 0 ? nearMissSummary(summary) : summary;
-    }, [deckCandidates, deckScore, deckOlderFits, deckNearMisses, nowMs]);
+        if (deckOlderFits.length > 0) return olderFitsSummary(summary, deckOlderFits.length);
+        if (deckNearMisses.length > 0) return nearMissSummary(summary);
+        return deckOlderNearMisses.length > 0 ? olderNearMissSummary(summary, deckOlderNearMisses.length) : summary;
+    }, [deckCandidates, deckScore, deckOlderFits, deckNearMisses, deckOlderNearMisses, nowMs]);
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
     // the deck holds its roles until its first ones are read here (the effect

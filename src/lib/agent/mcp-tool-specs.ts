@@ -309,7 +309,9 @@ export const MCP_TOOL_SPECS = {
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
             "weaker matches and that a more detailed résumé finds closer ones. When no role posted in the last 30 days " +
             "fits but older ones do, it lists those instead, best fit first, with older: true in left_out and a " +
-            "note saying so: tell the user how old they are and that some may be filled. Requires a structured résumé on file: when get_resume " +
+            "note saying so: tell the user how old they are and that some may be filled. When not even a newer role " +
+            "is close, it lists the closest older roles, each a weaker fit, with near: true and older: true in left_out: " +
+            "say both. Requires a structured résumé on file: when get_resume " +
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
             "Ranks by fit with age first (a role from the last 30 days before an older one) — postedWithinDays/sort/facet " +
