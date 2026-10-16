@@ -789,7 +789,9 @@ test("the packs hub and the deck count the same roles and employers in the same 
 
   // The hub: three roles fit (not 226, not the 6 read, not the applied one), at two employers, said once, with what became of the rest.
   await page.goto("/jobs?view=for-you");
-  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("3", { timeout: 60_000 });
+  const chip = page.getByTestId("hub-pack-count-all");
+  await expect(chip).toHaveText("3 roles at 2 employers", { timeout: 60_000 });
+  const chipText = (await chip.textContent())?.trim();
   const fitLine = "3 roles fit your résumé at 2 employers · best fit first";
   await expect(page.getByTestId("hub-fit-line")).toHaveText(fitLine);
   const hubLeftOut = page.getByTestId("hub-left-out-line");
@@ -805,6 +807,8 @@ test("the packs hub and the deck count the same roles and employers in the same 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
   const position = page.getByTestId("for-you-deck-position");
   await expect(position).toHaveText("Employer 1 of 2", { timeout: 60_000 });
+  // The header says the roles those cards hold in the chip's own words, so the 3 on the chip and the 2 on the deck are one story.
+  await expect(page.getByTestId("for-you-deck-roles")).toHaveText(`· ${chipText}`);
   const cards = [await front.getAttribute("data-job-id")];
   // Orchard CRM's card holds its other role; Beacon Cloud's holds none.
   const saysOrchardHoldsOne = async () => {

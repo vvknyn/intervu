@@ -78,6 +78,22 @@ export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older">
     return "fit";
 }
 
+/** " at 7 employers" when `roles` roles are spread over fewer employers, else nothing: the one clause every count of a list uses. */
+function atEmployers(roles: number, employers?: number): string {
+    const e = employers != null && Number.isFinite(employers) ? Math.floor(employers) : roles;
+    return e > 0 && e < roles ? ` at ${e.toLocaleString()} ${e === 1 ? "employer" : "employers"}` : "";
+}
+
+/**
+ * A list's count in the words the packs hub's chips, the deck's header, its foot and the hub's line all use: "12 roles at
+ * 7 employers" when the deck gives each employer one card (`collapseByEmployer`) and some employer holds several roles,
+ * else "7 roles". A count that names only one of the two would read as a different number from the other's.
+ */
+export function formatRolesAtEmployers(roles: number, employers?: number): string {
+    const n = Math.floor(roles);
+    return `${n.toLocaleString()} ${n === 1 ? "role" : "roles"}${atEmployers(n, employers)}`;
+}
+
 /**
  * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
  * `employers` fewer than the roles the count says both: "12 roles fit your résumé at 7 employers".
@@ -85,8 +101,7 @@ export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older">
 export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit", employers?: number): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
-    const e = employers != null && Number.isFinite(employers) ? Math.floor(employers) : n;
-    const at = e > 0 && e < n ? ` at ${e.toLocaleString()} ${e === 1 ? "employer" : "employers"}` : "";
+    const at = atEmployers(n, employers);
     if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit`;
     if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;

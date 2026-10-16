@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { countResults } from '../../src/lib/jobs/broaden';
 import { HUB_PACK_CORPUS_COUNT_LOADING } from '../../src/lib/jobs/for-you/hub-counts';
 import { HUB_PACK_IDS } from '../../src/lib/jobs/for-you/hub-pack-filters';
-import { hubChipCounts, hubTile, hubTileRows, isHubPackId, resumeTileLabels } from '../../src/lib/jobs/for-you/hub-tiles';
+import { hubChipCounts, hubChipLists, hubTile, hubTileRows, isHubPackId, resumeTileLabels } from '../../src/lib/jobs/for-you/hub-tiles';
 import type { ScoredHubHit } from '../../src/lib/jobs/for-you/hub-counts';
 import type { MatchScore } from '../../src/lib/match/score';
 import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
@@ -109,6 +109,14 @@ describe('resumeTileLabels', () => {
         assert.equal(labels.salary, HUB_PACK_CORPUS_COUNT_LOADING);
     });
 
+    it('an exact count of roles at fewer employers says both, in the deck\'s words; a floor and an even count do not', () => {
+        const labels = resumeTileLabels(counts, false, { all: 7, remote: 4, ai: 3 });
+        assert.equal(labels.all, '15 roles at 7 employers');
+        assert.equal(labels.remote, '4 roles', 'as many employers as roles: no clause');
+        assert.equal(labels.ai, '14+ roles', 'a floor is still counting, so it names no employers');
+        assert.equal(resumeTileLabels({ all: { kind: 'exact', value: 3 } }, false, { all: 1 }).all, '3 roles at 1 employer');
+    });
+
     it('every chip is loading before the pack has answered', () => {
         const labels = resumeTileLabels({}, true);
         for (const id of HUB_PACK_IDS) assert.equal(labels[id], HUB_PACK_CORPUS_COUNT_LOADING, id);
@@ -147,6 +155,27 @@ describe('hubChipCounts: a chip counts the roles its list opens with', () => {
         assert.deepEqual(counts.remote, { kind: 'exact', value: 3 });
         assert.equal(counts.fresh, null, 'a read that failed has no count');
         assert.equal('salary' in counts, false, 'a read still in flight has none yet');
+    });
+
+    it('counts the employers a chip\'s roles are at, the cards its deck makes of them', () => {
+        const at = (id: string, company: string, extra: Parameters<typeof mkJob>[1] = {}): ScoredHubHit => hit(id, { company, ...extra });
+        // Five roles fit, three of them at Orchard CRM: three cards.
+        const rows: ScoredHubHit[] = [
+            at('o1', 'Orchard CRM', { work_type: 'remote', title: 'Product Manager' }),
+            at('o2', 'Orchard CRM', { title: 'Senior Product Manager' }),
+            at('o3', 'Orchard CRM', { work_type: 'remote', title: 'Product Manager, Platform' }),
+            at('n1', 'Northstar Data'),
+            at('b1', 'Beacon Cloud'),
+        ];
+        const { counts, employers } = hubChipLists({ pack: rows, tiles: { remote: rows.filter((r) => r.job.work_type === 'remote') }, nowMs: NOW, settled: true });
+        assert.deepEqual(counts.all, { kind: 'exact', value: 5 });
+        assert.equal(employers.all, 3);
+        assert.deepEqual(counts.remote, { kind: 'exact', value: 2 });
+        assert.equal(employers.remote, 1, 'a filter tile counts the employers of its own search\'s roles');
+        assert.equal(hubChipCounts({ pack: rows, tiles: {}, nowMs: NOW, settled: true }).all?.value, 5, 'the remembered counts are still roles');
+        const labels = resumeTileLabels(counts, false, employers);
+        assert.equal(labels.all, '5 roles at 3 employers');
+        assert.equal(labels.remote, '2 roles at 1 employer');
     });
 
     it('leaves out the roles already in the tracker, like the deck', () => {
