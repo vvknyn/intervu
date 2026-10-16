@@ -662,6 +662,35 @@ describe('toolForYou', () => {
     assert.match(out.note ?? '', /^No roles in Iceland yet/);
   });
 
+  it('leaves out roles posted over 30 days ago, also one the employer re-dated, and says how many', async () => {
+    const day = 86_400_000;
+    const at = (days: number) => new Date(Date.now() - days * day).toISOString();
+    const fresh = makeJob({ id: 'fresh', title: 'Backend Engineer', experience_level: 'mid', company: 'Fresh Co', company_domain: 'fresh.com', posted_at: at(3), first_seen_at: at(3) });
+    const stale = makeJob({ id: 'stale', title: 'Backend Engineer', experience_level: 'mid', company: 'Stale Co', company_domain: 'stale.com', posted_at: at(45), first_seen_at: at(44) });
+    const redated = makeJob({ id: 'redated', title: 'Backend Engineer', experience_level: 'mid', company: 'Redated Co', company_domain: 'redated.com', posted_at: at(2), first_seen_at: at(50) });
+    const { deps } = stubDeps([stale, redated, fresh], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits.map((h) => h.id), ['fresh']);
+    assert.equal(out.left_out?.by_reason.old, 2);
+    assert.equal(out.left_out?.older, undefined);
+    assert.match(out.note ?? '', /2 posted over 30 days ago/);
+  });
+
+  it('lists the older roles that fit, best first, and says so, when no role from the last 30 days fits', async () => {
+    const day = 86_400_000;
+    const at = (days: number) => new Date(Date.now() - days * day).toISOString();
+    const older = makeJob({ id: 'older', title: 'Backend Engineer', experience_level: 'mid', company: 'Older Co', company_domain: 'older.com', posted_at: at(40), first_seen_at: at(40) });
+    const oldest = makeJob({ id: 'oldest', title: 'Backend Engineer', experience_level: 'mid', company: 'Oldest Co', company_domain: 'oldest.com', posted_at: at(80), first_seen_at: at(80) });
+    const { deps } = stubDeps([oldest, older], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits.map((h) => h.id).sort(), ['older', 'oldest']);
+    assert.equal(out.left_out?.older, true);
+    assert.equal(out.left_out?.listed, 2);
+    assert.match(out.note ?? '', /^No role posted in the last 30 days fits your résumé yet/);
+  });
+
   it('resume_source echoes the stored resume\'s own source discriminant', async () => {
     const { deps } = stubDeps([makeJob()], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
     const out = await toolForYou(deps, {});

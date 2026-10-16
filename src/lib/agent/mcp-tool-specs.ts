@@ -290,7 +290,9 @@ export const MCP_TOOL_SPECS = {
             "another line of work's, once most of the skills it requires are on your résumé; the title only " +
             "breaks a tie between equal fits, it never filters. A remote role that " +
             "names no country is listed last with a note to check where it hires. It lists only roles you could " +
-            "take: it leaves out roles " +
+            "take: it leaves out roles posted more than 30 days ago (by the older of the posted date and the date " +
+            "velai first saw the posting, so a posting an employer re-dated stays old; the age is in posted_at and " +
+            "first_seen_at), roles " +
             "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
             "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
             "a clearance, a certification, managing people, selling), a different " +
@@ -305,10 +307,12 @@ export const MCP_TOOL_SPECS = {
             "left_out say how many roles the search found and how many were left out for each reason, so report " +
             "that count rather than padding the list. When nothing fits it lists the closest roles instead of " +
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
-            "weaker matches and that a more detailed résumé finds closer ones. Requires a structured résumé on file: when get_resume " +
+            "weaker matches and that a more detailed résumé finds closer ones. When no role posted in the last 30 days " +
+            "fits but older ones do, it lists those instead, best fit first, with older: true in left_out and a " +
+            "note saying so: tell the user how old they are and that some may be filled. Requires a structured résumé on file: when get_resume " +
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
-            "Ranks purely by fit, not recency — postedWithinDays/sort/facet " +
+            "Ranks by fit with age first (a role from the last 30 days before an older one) — postedWithinDays/sort/facet " +
             "filters from search_jobs don't apply here. Paginate with cursor the same way search_jobs " +
             "does — the page size that minted a cursor stays pinned for the rest of that walk. Each " +
             "result carries the SAME detail get_job returns (salary, tags, work_type, employment_type, " +
@@ -323,7 +327,7 @@ export const MCP_TOOL_SPECS = {
     daily_picks: {
         title: "Today's picks and the daily picks email",
         description:
-            "Today's picks for your stored résumé: up to 5 roles posted this week in your own line of work, " +
+            "Today's picks for your stored résumé: up to 5 roles posted this week (a posting an employer re-dated that velai first saw over 30 days ago is not one) in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
             "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +

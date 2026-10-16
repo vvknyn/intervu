@@ -5,7 +5,7 @@
  * never above the résumé's level, never tracked (#855, today.ts).
  * The MCP `daily_picks` tool's parity with Today is in mcp-site-parity.test.ts.
  */
-import { describe, it } from 'node:test';
+import { after, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 process.env.NEXT_PUBLIC_SITE_URL = 'https://velai.app';
 import {
@@ -30,6 +30,10 @@ import { mkJob, mkResume } from '../support/jobs-corpus-stub';
 
 const RESUME = mkResume({ location: 'Toronto, Ontario, Canada' });
 const NOW_MS = Date.parse('2026-10-12T13:00:00Z');
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW_MS }));
+after(() => mock.timers.reset());
 const HOUR = 3_600_000;
 
 /** Fits a mid software engineer in Toronto: own role, own level, in Canada. */

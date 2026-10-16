@@ -103,6 +103,6 @@ export async function collectDailyPicks(
 
     const tracked = new Set(applications.map((a) => a.job_id).filter((id): id is string => Boolean(id)));
     // Applied roles stay out when the same opening comes back under a new id, too (lib/pursuits/applied.ts).
-    const ranked = rankDailyPicks(roles, { tracked, sent: opts.sent, applied: trackedIndex(applications) });
+    const ranked = rankDailyPicks(roles, { tracked, sent: opts.sent, applied: trackedIndex(applications), nowMs: opts.nowMs });
     return { kind: "ready", resume, signals, ranked, picks: chooseDailyPicks(ranked, opts.sent) };
 }

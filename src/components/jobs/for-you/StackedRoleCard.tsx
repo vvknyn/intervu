@@ -10,6 +10,7 @@ import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
 import { descriptionNeedsFill } from "@/lib/jobs/fill-description";
 import { inferReasons } from "@/lib/jobs/for-you/infer-reasons";
 import {
+    stackCardAge,
     stackCardDetails,
     stackCardPlace,
     stackInferredRows,
@@ -92,6 +93,7 @@ export function StackedRoleCard({
     const company = displayCompanyBrand(job.company, job.company_domain, job.title);
     const place = stackCardPlace(job);
     const freshness = classifyPostingFreshness(job, nowMs);
+    const age = stackCardAge(freshness, nowMs);
     const postedRelative =
         freshness.postedMs != null ? formatRelativeAge(new Date(freshness.postedMs).toISOString(), nowMs) : null;
     const fullBlocks = useMemo(() => formatDescription(job.description), [job.description]);
@@ -147,6 +149,14 @@ export function StackedRoleCard({
                     {place ? (
                         <p className="mt-1 text-sm text-muted-foreground" data-testid="role-card-place">
                             {place}
+                        </p>
+                    ) : null}
+                    {age ? (
+                        <p
+                            className={cn("mt-0.5 text-sm", age.older ? "font-semibold text-verdict-caution" : "text-muted-foreground")}
+                            data-testid="role-card-age"
+                        >
+                            {age.text}
                         </p>
                     ) : null}
                 </div>

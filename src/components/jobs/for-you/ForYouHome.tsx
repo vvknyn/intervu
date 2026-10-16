@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, BookmarkSimple, CaretLeft, CaretRight, UploadSimple } from "@phosphor-icons/react";
 import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
-import { formatDeckShowingLine, formatLeftOutLine, NEAR_MISS_NOTICE } from "@/lib/jobs/for-you/left-out-copy";
+import { formatDeckShowingLine, formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE } from "@/lib/jobs/for-you/left-out-copy";
 import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     JOBS_SESSION_FRAME_CLASS,
@@ -498,8 +498,10 @@ export function ForYouHome({
     }, []);
 
     // Nothing fit, so the deck holds the closest roles (`orderNearMisses`): said above them and at the foot, never as a fit.
+    // Nothing from the last 30 days fit, so it holds the roles that fit and are older (`orderOlderFits`): said the same way.
     const nearMisses = leftOut?.near === true && visiblePacks.length > 0;
-    const showingLine = formatDeckShowingLine(visiblePacks.length, nearMisses);
+    const olderFits = leftOut?.older === true && visiblePacks.length > 0;
+    const showingLine = formatDeckShowingLine(visiblePacks.length, olderFits ? "older" : nearMisses ? "near" : "fit");
     const leftOutLine = formatLeftOutLine(leftOut);
     // Roles came back and the rule left every one out: say how many and why, not a generic "right now".
     const noneFit = visiblePacks.length === 0 && leftOut != null && leftOut.listed === 0 && leftOutLine != null;
@@ -839,6 +841,11 @@ export function ForYouHome({
                         {nearMisses ? (
                             <p className="mb-2 shrink-0 text-xs text-muted-foreground" data-testid="for-you-near-notice">
                                 {NEAR_MISS_NOTICE}
+                            </p>
+                        ) : null}
+                        {olderFits ? (
+                            <p className="mb-2 shrink-0 text-xs text-muted-foreground" data-testid="for-you-older-notice">
+                                {OLDER_FITS_NOTICE}
                             </p>
                         ) : null}
                         {tuning ? (

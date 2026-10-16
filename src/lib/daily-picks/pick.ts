@@ -51,9 +51,9 @@ export function sentKey(job: PublicJob): string {
  */
 export function rankDailyPicks(
     roles: TodayRole[],
-    opts: { tracked: ReadonlySet<string>; sent: DailyPicksSent; applied?: TrackedIndex<TrackedLike> },
+    opts: { tracked: ReadonlySet<string>; sent: DailyPicksSent; applied?: TrackedIndex<TrackedLike>; nowMs?: number },
 ): TodayRole[] {
-    return pickToday(roles, { skipped: new Set(), tracked: opts.tracked, seenBefore: new Set(opts.sent.ids), applied: opts.applied });
+    return pickToday(roles, { skipped: new Set(), tracked: opts.tracked, seenBefore: new Set(opts.sent.ids), applied: opts.applied, nowMs: opts.nowMs });
 }
 
 /** Whether a role, or another listing of the same opening, has been emailed to this account. */

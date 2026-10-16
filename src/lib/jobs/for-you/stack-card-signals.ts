@@ -1,5 +1,7 @@
 import { deriveGhostSignals } from "@/components/jobs/job-detail-facts";
 import { deckOverlapSentence } from "@/lib/jobs/for-you/deck-detail";
+import { PACK_MAX_AGE_DAYS } from "@/lib/jobs/for-you/band-order";
+import { formatRelativeAge } from "@/lib/jobs/freshness";
 import { NO_SCORE_MESSAGES, noScoreReason } from "@/lib/jobs/for-you/infer-reasons";
 import type { PostingFreshness } from "@/lib/jobs/posting-freshness";
 import { yearsAsked } from "@/lib/jobs/role-level";
@@ -107,6 +109,22 @@ export function stackCardPlace(job: PublicJob): string | null {
     const known = location && location !== LOCATION_UNKNOWN_TEXT ? location : "";
     const place = placeWithWorkMode(known, job.work_type);
     return place || null;
+}
+
+/**
+ * How old the role is, under its place on the card: the age the lists go by (`packAgeTier`), its OLDEST known date,
+ * so "Posted 3d ago" only when the employer's date is the older one; a role we first saw earlier than its posted date
+ * says "First seen by us 45d ago", and a re-dated one that "the posted date was refreshed since". `older`: past the
+ * 30 days a list keeps (`PACK_MAX_AGE_DAYS`), shown in the caution tone. `null` when neither date is known.
+ */
+export function stackCardAge(freshness: PostingFreshness, nowMs: number): { text: string; older: boolean } | null {
+    const { postedMs, firstSeenMs } = freshness;
+    const seenFirst = firstSeenMs != null && (postedMs == null || firstSeenMs < postedMs);
+    const oldest = seenFirst ? firstSeenMs : postedMs;
+    if (oldest == null) return null;
+    const relative = formatRelativeAge(new Date(oldest).toISOString(), nowMs);
+    const text = seenFirst ? `First seen by us ${relative}${freshness.kind === "relisted" ? " · posted date refreshed since" : ""}` : `Posted ${relative}`;
+    return { text, older: (nowMs - oldest) / 86_400_000 > PACK_MAX_AGE_DAYS };
 }
 
 /** The posting's own facts for the details grid. Absent facts are left out, never "Unknown". */

@@ -1,8 +1,8 @@
 /**
  * For-you / postcard pack ordering, the ONE order every list that recommends uses: the deck, the agent's
  * `for_you`, Today, the daily picks (and their email) and the fit-sorted Search list
- * (`forYouSortKey`, `compareForYouKeys`). Roles are ordered by age (a role over a month old after every
- * fresher one), whether the person can take them where they are (`rankTier`'s reach groups), the fit band
+ * (`forYouSortKey`, `compareForYouKeys`). A role posted over a month ago is left out (`deckLeftOut`: "old"); the
+ * rest are ordered by age, whether the person can take them where they are (`rankTier`'s reach groups), the fit band
  * (Strong ≥80, Good 60–79, Stretch <60, unscored last), then by what the posting asks for that the résumé
  * shows (`contentLead`), the fit total and freshness. Only a tie in that is broken by the title: first by the kind
  * of work the résumé leads with (`family`), then by its own role (`OWN_ROLE_LIFT`): content first, title last (Vivek, 2026-10-14).
@@ -11,6 +11,7 @@
  */
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
+import { sanitizeTimestamp } from "@/lib/jobs/posting-freshness";
 import { matchBand, rankBand, rankingValue, rankTier, type MatchBand, type MatchScore } from "@/lib/match/score";
 import type { TuneRank } from "@/lib/jobs/for-you/tuning";
 
@@ -47,38 +48,46 @@ export function matchBandSortKey(score: MatchScore | null | undefined): number {
 }
 
 const PACK_DAY_MS = 86_400_000;
-/** Past this age a pack demotes a role below every fresher one (Vivek, 2026-10-13: "really old jobs in my For you pack"). */
-export const PACK_STALE_DAYS = 30;
-/** Past this age a pack leaves the role out entirely: by two months most such roles are filled or ghosted. */
-export const PACK_MAX_AGE_DAYS = 60;
+/**
+ * Past this age a pack leaves the role out (Vivek, 2026-10-13: "really old jobs in my For you pack"; 2026-10-16: "still
+ * showing really old jobs from more than 30 days ago"). It was a demotion at 30 days and a cut at 60, so every role
+ * between a month and two months old was listed, last, with nothing on the card that said it was old.
+ */
+export const PACK_MAX_AGE_DAYS = 30;
 
-/** 0 = fresh (≤30d), 1 = stale (30–60d) or undated, 2 = too old for a pack (>60d). */
+/**
+ * 0 = fresh (the role's oldest known date, posted or first seen, is within 30 days), 1 = no date at all, 2 = older.
+ * A role is as old as the OLDER of its two dates, the same rule "New" and the green freshness line follow
+ * (`classifyPostingFreshness`): an employer's date that was moved forward on an old requisition does not make it new
+ * ("First seen by us 138d ago, posted date refreshed", 2026-10-13; the same posting first seen 31 to 60 days ago was
+ * still listed first).
+ */
 export function packAgeTier(postedTs: number | null | undefined, nowMs: number, firstSeenAt?: string | null): 0 | 1 | 2 {
-    // A re-stamped posting first seen over 60 days ago is old, whatever date it now claims
-    // ("First seen by us 138d ago, posted date refreshed", 2026-10-13).
-    const firstSeen = firstSeenAt ? Date.parse(firstSeenAt) : NaN;
-    if (Number.isFinite(firstSeen) && (nowMs - firstSeen) / PACK_DAY_MS > PACK_MAX_AGE_DAYS) return 2;
-    if (typeof postedTs !== "number" || !Number.isFinite(postedTs)) return 1;
-    const days = (nowMs - postedTs) / PACK_DAY_MS;
-    return days <= PACK_STALE_DAYS ? 0 : days <= PACK_MAX_AGE_DAYS ? 1 : 2;
+    const firstSeen = sanitizeTimestamp(firstSeenAt, nowMs);
+    const posted = typeof postedTs === "number" && Number.isFinite(postedTs) ? postedTs : null;
+    const oldest = posted != null && firstSeen != null ? Math.min(posted, firstSeen) : (posted ?? firstSeen);
+    if (oldest == null) return 1;
+    return (nowMs - oldest) / PACK_DAY_MS <= PACK_MAX_AGE_DAYS ? 0 : 2;
 }
 
-/** Why a pack's deck leaves a role out: `forYouLeftOut`'s reasons, or "old" for a posting too old for a pack. */
+/** Why a pack's deck leaves a role out: `forYouLeftOut`'s reasons, or "old" for a posting older than a pack lists (`PACK_MAX_AGE_DAYS`). */
 export type DeckLeftOut = ForYouLeftOut | "old";
 
 /**
- * Why the deck does not list this role, or `null` when it does: older than a pack keeps, no score
- * (nothing ties it to the résumé), or any reason `forYouLeftOut` gives. The ONE place the deck's
+ * Why the deck does not list this role, or `null` when it does: older than a pack keeps (30 days by its oldest
+ * date), no score (nothing ties it to the résumé), or any reason `forYouLeftOut` gives. The ONE place the deck's
  * keep-or-drop is decided, so `orderForYouJobsByBand` and `summarizeDeckLeftOut` cannot disagree.
+ * Age is checked first and is never lifted by a good fit: the only way an older role is listed is
+ * `orderOlderFits`, when nothing newer fits (it asks with `ignoreAge` whether age alone leaves the role out).
  */
 export function deckLeftOut(
     job: PublicJob,
     score: MatchScore | null | undefined,
     nowMs: number,
     /** Today and the daily picks: a pick needs evidence of where it is, so a role that names no country, and a candidate whose country can't be read, are out (his rule: "Country unclear" is out of picks). */
-    options: { strictPlace?: boolean } = {},
+    options: { strictPlace?: boolean; ignoreAge?: boolean } = {},
 ): DeckLeftOut | null {
-    if (packAgeTier(postedTsOf(job), nowMs, job.first_seen_at ?? null) === 2) return "old";
+    if (!options.ignoreAge && packAgeTier(postedTsOf(job), nowMs, job.first_seen_at ?? null) === 2) return "old";
     if (score == null) return "other-role";
     return forYouLeftOut(score, options.strictPlace ? {} : { keepWhenCandidatePlaceUnread: true, keepUnplaced: true });
 }
@@ -95,6 +104,8 @@ export interface DeckLeftOutSummary {
     byReason: Partial<Record<DeckLeftOut, number>>;
     /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
     near?: true;
+    /** No role from the last 30 days fits, so `listed` are roles that fit and were posted longer ago (`orderOlderFits`). */
+    older?: true;
 }
 
 /**
@@ -115,6 +126,28 @@ export function orderNearMisses(
 export function nearMissSummary(summary: DeckLeftOutSummary): DeckLeftOutSummary {
     const { stretch = 0, ...rest } = summary.byReason;
     return { considered: summary.considered, listed: stretch, byReason: rest, near: true };
+}
+
+/**
+ * What a list holds when no role posted in the last 30 days fits: the roles that fit but were posted longer ago,
+ * best first, so a rule about age never empties a list. They are marked as older (`DeckLeftOutSummary.older`, the
+ * card's age), and come before the closest weaker fits: a role that fits beats one that does not, and the age of
+ * each is on its card. Only a role that age alone leaves out (`deckLeftOut` with `ignoreAge`) is here; a role older
+ * than that and above the person's level, or abroad, is still out.
+ */
+export function orderOlderFits(
+    jobs: readonly PublicJob[],
+    getScore: ((job: PublicJob) => MatchScore | null | undefined) | null | undefined,
+    nowMs: number,
+): PublicJob[] {
+    if (!getScore) return [];
+    return orderRoles(jobs, getScore, nowMs, (job, score) => packAgeTier(postedTsOf(job), nowMs, job.first_seen_at ?? null) === 2 && deckLeftOut(job, score, nowMs, { ignoreAge: true }) == null);
+}
+
+/** `summary` for a list that shows older roles because no newer one fits: `listed` are no longer left out. */
+export function olderFitsSummary(summary: DeckLeftOutSummary, listed: number): DeckLeftOutSummary {
+    const { old = 0, ...rest } = summary.byReason;
+    return { considered: summary.considered, listed, byReason: old > listed ? { ...rest, old: old - listed } : rest, older: true };
 }
 
 /** What the deck listed of `jobs` and why it left the rest out. */
@@ -148,12 +181,20 @@ export function orderForYouJobsByBand(
     holds: (reason: DeckLeftOut | null) => boolean = (reason) => reason == null,
 ): PublicJob[] {
     if (!getScore) return [...jobs];
+    return orderRoles(jobs, getScore, nowMs, (job, score) => holds(deckLeftOut(job, score, nowMs)));
+}
 
+/** The scored roles `keep` holds, in `forYouSortKey`'s order (ties keep the incoming order). A recommendation holds only roles this résumé could take: not a tail of Stretch roles, not a label. */
+function orderRoles(
+    jobs: readonly PublicJob[],
+    getScore: (job: PublicJob) => MatchScore | null | undefined,
+    nowMs: number,
+    keep: (job: PublicJob, score: MatchScore) => boolean,
+): PublicJob[] {
     const keyed: { job: PublicJob; sort: ForYouSortKey; index: number }[] = [];
     jobs.forEach((job, index) => {
         const score = getScore(job);
-        // A recommendation holds only roles this résumé could take (`deckLeftOut`): not a tail of Stretch roles, not a label.
-        if (score == null || !holds(deckLeftOut(job, score, nowMs))) return;
+        if (score == null || !keep(job, score)) return;
         keyed.push({ job, sort: forYouSortKey(score, postedTsOf(job), nowMs, job.first_seen_at), index });
     });
     keyed.sort((a, b) => compareForYouKeys(a.sort, b.sort) || a.index - b.index);
