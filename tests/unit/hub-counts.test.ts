@@ -2,10 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
     countFitBands,
-    hubListedHits,
-    formatAllPackHubLabels,
+    hubList,
     formatBrowseHubCorpusLine,
-    formatHubCorpusLine,
     formatHubCountLabel,
     formatHubPackCorpusRoleLabel,
     formatHubPackCorpusRoleLabels,
@@ -15,16 +13,10 @@ import {
     keywordPackLowerBound,
     resolveBrowseHubRoleCountLabels,
     resolveHubRoleCountLabels,
-    packBandTotalsFromSources,
     resolveAllMatchesHubCount,
-    resolveAllPackHubCounts,
-    resumeHubPackCounts,
 } from "../../src/lib/jobs/for-you/hub-counts";
+import { formatHubFitLine } from "../../src/lib/jobs/for-you/left-out-copy";
 import { deckListLoading } from "../../src/lib/jobs/for-you/deck-list-loading";
-import {
-    diffHubPackRemovals,
-    formatHubRemovalsLine,
-} from "../../src/lib/jobs/for-you/hub-count-memory";
 import { jobMatchesHubPack } from "../../src/lib/jobs/for-you/hub-pack-filters";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -87,14 +79,6 @@ describe("formatHubCountLabel", () => {
             formatHubCountLabel({ kind: "bands", strong: 47, good: 12, pool: 508 }),
             "47 Strong · 12 Good · ~508 pool",
         );
-    });
-});
-
-describe("formatHubCorpusLine", () => {
-    it("surfaces corpus total and matching state", () => {
-        assert.equal(formatHubCorpusLine(508, false), "~508 matches ranked Strong first");
-        assert.match(formatHubCorpusLine(508, true), /Matching/);
-        assert.equal(formatHubCorpusLine(null, false), "");
     });
 });
 
@@ -181,48 +165,6 @@ describe("jobMatchesHubPack", () => {
     });
 });
 
-describe("resolveAllPackHubCounts", () => {
-    it("resolves Strong·Good per pack from scored hits", () => {
-        const scored = [
-            {
-                job: job({ id: "a", title: "ML Engineer", work_type: "remote", tags: ["ai"] }),
-                score: score(90),
-            },
-            {
-                job: job({ id: "b", title: "Remote PM", work_type: "remote", salary_min: 140000 }),
-                score: score(70),
-            },
-            {
-                job: job({ id: "c", title: "Staff Engineer", work_type: "hybrid" }),
-                score: score(85),
-            },
-        ];
-        const sources = resolveAllPackHubCounts({
-            loading: false,
-            probing: false,
-            poolTotal: 508,
-            scored,
-        });
-        const labels = formatAllPackHubLabels(sources);
-        assert.match(labels.all ?? "", /Strong/);
-        assert.match(labels.all ?? "", /~508 pool/);
-        assert.ok(labels.remote);
-        assert.ok(labels.lead);
-        assert.ok(labels.ai);
-    });
-
-    it("shows loading on every pack before first scores", () => {
-        const sources = resolveAllPackHubCounts({
-            loading: true,
-            probing: true,
-            poolTotal: null,
-            scored: [],
-        });
-        assert.equal(sources.all.kind, "loading");
-        assert.equal(sources.remote.kind, "loading");
-    });
-});
-
 describe("resolveHubRoleCountLabels", () => {
     it("shows a role count on every pack, counting Toronto like any other place", () => {
         const toronto = job({ id: "to", title: "Engineer", work_type: "remote" });
@@ -264,44 +206,6 @@ describe("resolveHubRoleCountLabels", () => {
         assert.equal(partial.all, "503 roles");
         assert.equal(partial.remote, "2 roles");
         assert.equal(partial.good, "0 roles");
-    });
-});
-
-describe("diffHubPackRemovals", () => {
-    it("only reports real shrinks from prior known counts", () => {
-        const prev = {
-            updatedAt: "2026-09-23T12:00:00Z",
-            packs: {
-                all: { strong: 50, good: 20 },
-                remote: { strong: 10, good: 5 },
-                fresh: { strong: 3, good: 1 },
-            },
-        };
-        const next = {
-            all: { strong: 47, good: 20 },
-            remote: { strong: 8, good: 5 },
-            fresh: { strong: 3, good: 1 },
-        };
-        const removals = diffHubPackRemovals(prev, next);
-        assert.equal(removals.length, 2);
-        assert.equal(removals[0].packId, "all");
-        assert.equal(removals[0].left, 3);
-        assert.equal(removals[1].packId, "remote");
-        assert.equal(removals[1].left, 2);
-        assert.match(formatHubRemovalsLine(removals), /left/);
-        assert.deepEqual(diffHubPackRemovals(null, next), []);
-        assert.deepEqual(diffHubPackRemovals(prev, { all: { strong: 60, good: 20 } }), []);
-    });
-});
-
-describe("packBandTotalsFromSources", () => {
-    it("extracts band totals for memory", () => {
-        const totals = packBandTotalsFromSources({
-            all: { kind: "bands", strong: 10, good: 4, pool: 100 },
-            remote: { kind: "omit" },
-        });
-        assert.deepEqual(totals.all, { strong: 10, good: 4 });
-        assert.equal(totals.remote, undefined);
     });
 });
 
@@ -426,61 +330,20 @@ describe("deckListLoading", () => {
     });
 });
 
-describe("resumeHubPackCounts", () => {
-    // Every tile opens the résumé list, so a tile counts only rows of that list.
-    const list = [
-        job({ id: "r1", title: "Backend Engineer", work_type: "remote", salary_min: 120_000 }),
-        job({ id: "r2", title: "Platform Engineer", work_type: "remote" }),
-        job({ id: "o1", title: "Data Engineer", salary_max: 150_000 }),
-    ];
-
-    it("counts remote and salary inside the list, exactly once the list is whole", () => {
-        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 3 }, listJobs: list });
-        assert.deepEqual(counts.all, { kind: "exact", value: 3 });
-        assert.deepEqual(counts.remote, { kind: "exact", value: 2 });
-        assert.deepEqual(counts.salary, { kind: "exact", value: 2 });
-        assert.deepEqual(counts.lead, { kind: "exact", value: 0 });
-    });
-
-    it("is a floor while only part of the list is fetched, and never exceeds the list", () => {
-        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 40 }, listJobs: list });
-        assert.deepEqual(counts.all, { kind: "exact", value: 40 });
-        assert.deepEqual(counts.remote, { kind: "floor", value: 2 });
-        assert.deepEqual(counts.fresh, { kind: "floor", value: 0 });
-        // "2+" and "0+" say nothing about a pack that may hold many more: no count.
-        assert.equal(formatHubPackCorpusRoleLabels(counts).remote, "");
-        assert.equal(formatHubPackCorpusRoleLabels(counts).fresh, "");
-    });
-
-    it("shows a floor from ten up, and a small exact count as it is", () => {
+describe("a chip shows a floor from ten up, and a small exact count as it is", () => {
+    it("labels", () => {
         assert.equal(formatHubPackCorpusRoleLabel({ kind: "floor", value: 9 }), "");
         assert.equal(formatHubPackCorpusRoleLabel({ kind: "floor", value: 10 }), "10+ roles");
         assert.equal(formatHubPackCorpusRoleLabel({ kind: "exact", value: 0 }), "0 roles");
         assert.equal(formatHubPackCorpusRoleLabel({ kind: "exact", value: 1 }), "1 role");
     });
-
-    it("is a floor when the list total itself is capped", () => {
-        const counts = resumeHubPackCounts({ listTotal: { kind: "floor", value: 3 }, listJobs: list });
-        assert.deepEqual(counts.salary, { kind: "floor", value: 2 });
-    });
-
-    it("counts what a deck lists of the rows it read: exact once every row was read, and 'all' is the listed count", () => {
-        // 5 rows read, the deck lists the 3 above (two were left out): exact, not "3+" of 5.
-        const counts = resumeHubPackCounts({ listTotal: { kind: "exact", value: 5 }, listJobs: list, rowsRead: 5 });
-        assert.deepEqual(counts.all, { kind: "exact", value: 3 });
-        assert.deepEqual(counts.remote, { kind: "exact", value: 2 });
-        // Part of the search read: still a floor, and "all" is the search's total.
-        const partial = resumeHubPackCounts({ listTotal: { kind: "exact", value: 400 }, listJobs: list, rowsRead: 150 });
-        assert.deepEqual(partial.all, { kind: "exact", value: 400 });
-        assert.deepEqual(partial.remote, { kind: "floor", value: 2 });
-    });
 });
 
-describe("hubListedHits: a tile counts the roles the deck lists", () => {
+describe("hubList: the pack's list as its deck would open it", () => {
     const NOW = Date.now();
     const posted = (daysAgo: number) => ({ posted_ts: NOW - daysAgo * 86_400_000, posted_at: new Date(NOW - daysAgo * 86_400_000).toISOString() });
     const strong = (id: string, extra: Partial<PublicJob> = {}) => ({
-        job: job({ id, title: "Product Manager", ...posted(2), ...extra }),
+        job: job({ id, title: "Product Manager", company: `Co ${id}`, ...posted(2), ...extra }),
         score: { total: 88, components: [], role: "own" } as MatchScore,
     });
 
@@ -489,18 +352,58 @@ describe("hubListedHits: a tile counts the roles the deck lists", () => {
             strong("listed"),
             strong("old", posted(70)),
             { job: job({ id: "other", title: "Registered Nurse", ...posted(2) }), score: { total: 70, components: [], role: "off-target" } as MatchScore },
-            { job: job({ id: "stretch", title: "Product Manager", ...posted(2) }), score: { total: 45, components: [], role: "own" } as MatchScore },
+            { job: job({ id: "stretch", title: "Product Manager", company: "Other Co", ...posted(2) }), score: { total: 45, components: [], role: "own" } as MatchScore },
             strong("dead", { apply_url: "" }),
         ];
-        const listed = hubListedHits(hits, NOW).map((h) => h.job.id);
-        assert.ok(listed.includes("listed"));
-        for (const gone of ["old", "other", "stretch", "dead"]) assert.equal(listed.includes(gone), false, gone);
+        const listed = hubList(hits, NOW).jobs.map((j) => j.id);
+        assert.deepEqual(listed, ["listed"]);
     });
 
-    it("the band counts a tile shows come from those roles only", () => {
-        const hits = [strong("a"), strong("b"), strong("old", posted(70))];
-        const sources = resolveAllPackHubCounts({ loading: false, probing: false, poolTotal: 3, scored: hits, nowMs: NOW });
-        assert.deepEqual(sources.all, { kind: "bands", strong: 2, good: 0, total: 3, pool: 3 });
+    it("leaves out a role already in the person's tracker, as the deck does, and says so", () => {
+        const hits = [strong("a"), strong("b"), strong("c")];
+        const { jobs, summary } = hubList(hits, NOW, { isTracked: (j) => j.id === "b" });
+        assert.deepEqual(jobs.map((j) => j.id).sort(), ["a", "c"]);
+        assert.equal(summary.listed, 2);
+        assert.equal(summary.considered, 3);
+        assert.deepEqual(summary.byReason, { tracked: 1 });
+    });
+
+    it("says how many cards the deck makes of the list: one per employer, and the line names both counts as the deck's foot does", () => {
+        const hits = [
+            strong("a1", { title: "Product Manager", company: "Orchard CRM" }),
+            strong("a2", { title: "Senior Product Manager", company: "Orchard CRM" }),
+            strong("b1", { title: "Product Manager", company: "Northstar Data" }),
+        ];
+        const { jobs, employers, summary } = hubList(hits, NOW);
+        assert.equal(jobs.length, 3);
+        assert.equal(employers, 2);
+        assert.equal(formatHubFitLine(summary, employers), "3 roles fit your résumé at 2 employers · best fit first");
+        // Each employer once: the count is the roles', with no second number.
+        const separate = hubList([strong("c"), strong("d")], NOW);
+        assert.equal(separate.employers, 2);
+        assert.equal(formatHubFitLine(separate.summary, separate.employers), "2 roles fit your résumé · best fit first");
+    });
+
+    it("counts each opening once: the same title and company in two places is one role", () => {
+        const hits = [strong("x1", { title: "Product Manager", company: "Same Co" }), strong("x2", { title: "Product Manager", company: "Same Co" }), strong("y")];
+        assert.equal(hubList(hits, NOW).jobs.length, 2);
+    });
+
+    it("keeps what the search found when the list read only the first rows of it", () => {
+        const hits = [strong("a"), strong("old", posted(70))];
+        const { summary } = hubList(hits, NOW, { found: 226 });
+        assert.equal(summary.found, 226);
+        assert.equal(summary.considered, 2);
+        // Nothing to say when the list read all of it.
+        assert.equal(hubList(hits, NOW, { found: 2 }).summary.found, undefined);
+    });
+
+    it("lists the roles that fit and are older when none from the last month fits, like the deck", () => {
+        const hits = [strong("older", posted(45))];
+        const { jobs, summary } = hubList(hits, NOW);
+        assert.deepEqual(jobs.map((j) => j.id), ["older"]);
+        assert.equal(summary.older, true);
+        assert.equal(summary.listed, 1);
     });
 });
 

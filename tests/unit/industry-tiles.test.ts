@@ -11,14 +11,20 @@ import { jobMatchesHubPack, type HubPackId } from "../../src/lib/jobs/for-you/hu
 import { INDUSTRY_IDS } from "../../src/lib/jobs/resume-industry";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
-const settled = (rowCounts: Partial<Record<HubPackId, number>>, extra: Partial<IndustryTileCounts> = {}): IndustryTileCounts => ({
-    rowCounts,
-    rowsInHand: 100,
-    filterCounts: { fresh: { kind: "exact", value: 20 }, salary: { kind: "exact", value: 40 } },
-    allTotal: 250,
-    settled: true,
-    ...extra,
-});
+const exact = (value: number) => ({ kind: "exact" as const, value });
+/** Counts as the hub reads them: the roles each tile's list opens with ("all" = the pack's own list). */
+const settled = (
+    rowCounts: Partial<Record<HubPackId, number>>,
+    extra: { all?: number; fresh?: number | null; salary?: number | null; remote?: number | null } & Partial<Pick<IndustryTileCounts, "wholePack" | "foundNothing">> = {},
+): IndustryTileCounts => {
+    const { all = 100, fresh = 20, salary = 40, remote, wholePack, foundNothing } = extra;
+    const counts: IndustryTileCounts["counts"] = { all: exact(all) };
+    for (const [id, n] of Object.entries(rowCounts)) counts[id as HubPackId] = exact(n);
+    counts.fresh = fresh === null ? null : exact(fresh);
+    counts.salary = salary === null ? null : exact(salary);
+    if (remote !== undefined) counts.remote = remote === null ? null : exact(remote);
+    return { counts, wholePack, foundNothing, settled: true };
+};
 
 describe("which pack tiles a résumé visitor sees", () => {
     it("no tech tile is offered to a health, trades or service résumé", () => {
@@ -47,18 +53,18 @@ describe("which pack tiles a résumé visitor sees", () => {
     });
 
     it("hides a tile that holds nearly the whole list, since it narrows nothing", () => {
-        const tiles = visibleIndustryTiles("tech", settled({ ai: 95, lead: 10, good: 4 }, { filterCounts: { remote: { kind: "exact", value: 30 }, fresh: { kind: "exact", value: 20 }, salary: { kind: "exact", value: 240 } } }));
-        assert.ok(!tiles.includes("ai"), "95 of 100 rows");
-        assert.ok(!tiles.includes("salary"), "240 of 250 roles");
+        const tiles = visibleIndustryTiles("tech", settled({ ai: 95, lead: 10, good: 4 }, { remote: 30, fresh: 20, salary: 96 }));
+        assert.ok(!tiles.includes("ai"), "95 of 100 roles");
+        assert.ok(!tiles.includes("salary"), "96 of 100 roles");
         assert.deepEqual(tiles, ["all", "remote", "lead", "good", "fresh"]);
     });
 
     it("in a small pack, hides a tile that holds every role in it", () => {
         // A health science grad's pack of 8 roles, all of them research roles: the tile is the list again.
-        const small = { rowsInHand: 8, allTotal: 8, filterCounts: { fresh: { kind: "exact", value: 2 }, salary: { kind: "exact", value: 4 } } } as const;
-        assert.deepEqual(visibleIndustryTiles("health", settled({ health_research: 8 }, small)), ["all", "salary"]);
-        // Some rows still out of hand: a share of 8 says too little to hide the tile.
-        assert.ok(visibleIndustryTiles("health", settled({ health_research: 8 }, { ...small, allTotal: 40 })).includes("health_research"));
+        const small = { all: 8, fresh: 2, salary: 4 };
+        assert.deepEqual(visibleIndustryTiles("health", settled({ health_research: 8 }, { ...small, wholePack: true })), ["all", "salary"]);
+        // Some of the search's rows not read: a share of 8 says too little to hide the tile.
+        assert.ok(visibleIndustryTiles("health", settled({ health_research: 8 }, { ...small, wholePack: false })).includes("health_research"));
     });
 
     it("never shows more than six tiles beside All", () => {
@@ -70,14 +76,14 @@ describe("which pack tiles a résumé visitor sees", () => {
     });
 
     it("a pack with no roles shows only All", () => {
-        const tiles = visibleIndustryTiles("health", settled({}, { rowsInHand: 0, allTotal: 0, filterCounts: { fresh: { kind: "exact", value: 0 }, salary: { kind: "exact", value: 0 } } }));
+        const tiles = visibleIndustryTiles("health", settled({}, { all: 0, fresh: 0, salary: 0, foundNothing: true }));
         assert.deepEqual(tiles, ["all"]);
-        const failedCounts = visibleIndustryTiles("tech", settled({}, { rowsInHand: 0, allTotal: 0, filterCounts: { remote: null, fresh: null, salary: null } }));
+        const failedCounts = visibleIndustryTiles("tech", settled({}, { all: 0, remote: null, fresh: null, salary: null, foundNothing: true }));
         assert.deepEqual(failedCounts, ["all"], "a failed tile count doesn't keep a tile in an empty pack");
     });
 
     it("a tile whose count failed stays: a missing number is not a reason to hide it", () => {
-        const tiles = visibleIndustryTiles("health", settled({ health_lead: 5 }, { filterCounts: { fresh: null, salary: { kind: "exact", value: 30 } } }));
+        const tiles = visibleIndustryTiles("health", settled({ health_lead: 5 }, { fresh: null, salary: 30 }));
         assert.ok(tiles.includes("fresh"));
     });
 

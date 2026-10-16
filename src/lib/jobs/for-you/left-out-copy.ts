@@ -3,10 +3,10 @@
  * For You deck's footer and empty state, the MCP `for_you` note): how many, and why, so a short list is
  * a count with a reason, never a list padded with roles that don't fit.
  */
-import { PACK_MAX_AGE_DAYS, type DeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { PACK_MAX_AGE_DAYS, type DeckLeftOutSummary, type ListLeftOut } from "@/lib/jobs/for-you/band-order";
 import { languageLabel } from "@/lib/match/posting-language";
 
-const REASON_TEXT: Record<DeckLeftOut, string> = {
+const REASON_TEXT: Record<ListLeftOut, string> = {
     level: "above your level",
     requirement: "asking for something your résumé doesn't show",
     language: "written in another language",
@@ -15,10 +15,12 @@ const REASON_TEXT: Record<DeckLeftOut, string> = {
     abroad: "outside where you can work",
     unplaced: "not clear you can work there",
     old: `posted over ${PACK_MAX_AGE_DAYS} days ago`,
+    closed: "with an apply link that no longer works",
+    tracked: "already applied to",
 };
 
 /** Ties in count read in this order: the reasons about the person first. */
-const REASON_ORDER: readonly DeckLeftOut[] = ["level", "requirement", "language", "other-role", "stretch", "abroad", "unplaced", "old"];
+const REASON_ORDER: readonly ListLeftOut[] = ["level", "requirement", "language", "other-role", "stretch", "abroad", "unplaced", "old", "tracked", "closed"];
 
 /** "8 written in French", largest first: roles left out for the language they are written in, by that language. */
 export function writtenInParts(languages: Readonly<Record<string, number>>): string[] {
@@ -28,8 +30,8 @@ export function writtenInParts(languages: Readonly<Record<string, number>>): str
         .map(([language, count]) => `${count} written in ${languageLabel(language)}`);
 }
 
-/** "41 above your level", largest first; a posting left out for its language names it: "8 written in French". */
-export function leftOutParts(summary: DeckLeftOutSummary): string[] {
+/** The reasons with their counts, largest first; a posting left out for its language names it: "8 written in French". */
+function leftOutCounted(summary: DeckLeftOutSummary): { n: number; text: string }[] {
     const parts: { n: number; text: string }[] = [];
     for (const reason of REASON_ORDER) {
         const n = summary.byReason[reason] ?? 0;
@@ -38,15 +40,28 @@ export function leftOutParts(summary: DeckLeftOutSummary): string[] {
         if (written.length > 0) for (const [language, count] of written) parts.push({ n: count, text: writtenInParts({ [language]: count })[0]! });
         else parts.push({ n, text: `${n} ${REASON_TEXT[reason]}` });
     }
-    return parts.sort((a, b) => b.n - a.n).map((part) => part.text);
+    return parts.sort((a, b) => b.n - a.n);
 }
 
-/** The roles left out and why, or null when the list left none out. */
+/** "41 above your level", largest first; a posting left out for its language names it: "8 written in French". */
+export function leftOutParts(summary: DeckLeftOutSummary): string[] {
+    return leftOutCounted(summary).map((part) => part.text);
+}
+
+/** What the line counts: all the roles the search found, or the first rows of them the list has read so far ("the first 150 of 226 roles found"). */
+function readOfFound(summary: DeckLeftOutSummary): string {
+    const read = summary.considered.toLocaleString();
+    return summary.found != null && summary.found > summary.considered
+        ? `the first ${read} of ${summary.found.toLocaleString()} roles found`
+        : `the ${read} roles found`;
+}
+
+/** The roles left out and why, or null when the list left none out: the same words on the hub and at the foot of the deck. */
 export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined): string | null {
     if (!summary || summary.considered <= 0) return null;
-    const parts = leftOutParts(summary);
-    if (parts.length === 0) return null;
-    return `Left out of the ${summary.considered.toLocaleString()} roles found: ${parts.join(" · ")}`;
+    const counted = leftOutCounted(summary);
+    if (counted.length === 0) return null;
+    return `Left out of ${readOfFound(summary)}: ${counted.map((part) => part.text).join(" · ")}`;
 }
 
 /**
@@ -54,6 +69,14 @@ export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined
  * ago because no newer one does (`older`), or the closest of those when not even a newer role is close (`older-near`).
  */
 export type DeckListKind = "fit" | "near" | "older" | "older-near";
+
+/** Which kind of list a summary describes (`deckListFor` marks the fallbacks with `near` and `older`). */
+export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older"> | null | undefined): DeckListKind {
+    if (summary?.near && summary.older) return "older-near";
+    if (summary?.near) return "near";
+    if (summary?.older) return "older";
+    return "fit";
+}
 
 /**
  * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
@@ -68,6 +91,16 @@ export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit"
     if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · best fit first`;
+}
+
+/**
+ * The packs hub's one count line, in the deck's own words (`formatDeckShowingLine`): what the pack opens with. A pack that
+ * read roles and listed none says so rather than showing no count; one that read nothing has no line.
+ */
+export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined, employers?: number): string | null {
+    if (!summary) return null;
+    if (summary.listed > 0) return formatDeckShowingLine(summary.listed, deckListKind(summary), employers);
+    return summary.considered > 0 ? "No role fits your résumé yet" : null;
 }
 
 /** Said above the closest roles, when nothing fit: a short list is an honest one, never padded with a fit it does not have. */

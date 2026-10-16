@@ -159,7 +159,7 @@ import { LocationCombobox } from "@/components/jobs/LocationCombobox";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { SerpFilters } from "@/components/jobs/SerpFilters";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
-import { hasLiveApplyUrl, isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health";
+import { isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
@@ -322,7 +322,7 @@ import {
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
 import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
-import { hubIndustryTiles, industryFilterTileIds, industryTileCandidates } from "@/lib/jobs/for-you/industry-tiles";
+import { industryFilterTileIds, visibleIndustryTiles } from "@/lib/jobs/for-you/industry-tiles";
 import { resumeIndustry } from "@/lib/jobs/resume-industry";
 import {
     parseJobsUrl,
@@ -355,21 +355,19 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
+import { deckListFor, orderForYouJobsByBand, sortByFit, tuneRank, withListRemovals } from "@/lib/jobs/for-you/band-order";
+import { listCandidates } from "@/lib/jobs/for-you/list-rows";
+import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
+import { hubChipCounts, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
-    formatHubCorpusLine,
     HUB_PROBE_LIMITS,
     freshHubProbeMemo,
-    hubListedHits,
+    hubList,
     formatHubPackCorpusRoleLabels,
-    packBandTotalsFromSources,
-    resolveAllPackHubCounts,
-    resumeHubPackCounts,
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
@@ -379,12 +377,6 @@ import {
     writeHubTileCounts,
     type HubPackCounts,
 } from "@/lib/jobs/for-you/hub-count-deltas";
-import {
-    diffHubPackRemovals,
-    formatHubRemovalsLine,
-    readHubCountBaseline,
-    writeHubCountMemory,
-} from "@/lib/jobs/for-you/hub-count-memory";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
@@ -1794,6 +1786,13 @@ export function JobsContent({
         () => trackedIndex([...pursuits, ...pursuitsByJobIdMerged.values()]),
         [pursuits, pursuitsByJobIdMerged],
     );
+    // The packs hub counts the roles a pack opens with, and a pack's deck leaves out the roles already in the tracker,
+    // so the hub reads the tracker as it is when its counts settle, not as it was when the probe began.
+    const appliedIndexRef = useRef(appliedIndex);
+    appliedIndexRef.current = appliedIndex;
+    const pursuitsLoadingRef = useRef(pursuitsLoading);
+    pursuitsLoadingRef.current = pursuitsLoading;
+    const hubIsTracked = useCallback((job: PublicJob) => trackedPursuitFor(job, appliedIndex) != null, [appliedIndex]);
     const { viewedIds, markViewed } = useViewed();
     const saveInFlightRef = useRef<Set<string>>(new Set());
     const [savePulseJobIds, setSavePulseJobIds] = useState<Set<string>>(() => new Set());
@@ -1910,8 +1909,7 @@ export function JobsContent({
         probing: boolean;
         total: number | null;
         scored: ScoredHubHit[];
-        removalsLine: string | null;
-    }>({ loading: false, probing: false, total: null, scored: [], removalsLine: null });
+    }>({ loading: false, probing: false, total: null, scored: [] });
     // Unscored browse sample for pack pills when fit has no résumé yet.
     // Opening a pack must not replace this with the deck page.
     const [hubBrowse, setHubBrowse] = useState<{ jobs: PublicJob[]; total: number | null }>({
@@ -1922,11 +1920,8 @@ export function JobsContent({
     const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<LoadResult<
         Partial<Record<HubPackId, CorpusCount | null>>
     > | null>(null);
-    // For a résumé holder the "All" pill opens the résumé-filtered pack, so it
-    // counts that pack (the probe's own search), not the unfiltered corpus.
-    const [hubResumeAllCount, setHubResumeAllCount] = useState<CorpusCount | null>(null);
-    // A filter tile's count is its own search's total (hub-tiles.ts); null = that read failed.
-    const [hubFilterTileCounts, setHubFilterTileCounts] = useState<Partial<Record<HubPackId, CorpusCount | null>>>({});
+    // A filter tile counts the roles its own search's rows list (hub-tiles.ts): absent while that read is in flight, null when it failed.
+    const [hubTileScored, setHubTileScored] = useState<Partial<Record<HubPackId, ScoredHubHit[] | null>>>({});
     // The probe's searches were refused (rate limit, index down): the chips drop their counts instead of "…" forever.
     const [hubProbeFailed, setHubProbeFailed] = useState(false);
     // "+N" per pack chip since the last visit (`hub-count-deltas.ts`), set once every count has settled.
@@ -1937,8 +1932,7 @@ export function JobsContent({
         at: number;
         complete: boolean;
         probe: typeof hubFitProbe;
-        allCount: CorpusCount | null;
-        tileCounts: Partial<Record<HubPackId, CorpusCount | null>>;
+        tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>>;
         deltas: HubPackCounts;
     } | null>(null);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
@@ -3041,41 +3035,24 @@ export function JobsContent({
         if (pursuitsLoading || deckApplied?.key === searchKey) return;
         setDeckApplied({ key: searchKey, index: appliedIndex });
     }, [searchKey, pursuitsLoading, appliedIndex, deckApplied?.key]);
+    // The deck weighs the rows its search returned, each opening once, without the roles whose apply link no longer
+    // works and the ones already in the tracker (`listCandidates`): the same rows the hub's counts read.
+    const deckRows = useMemo(() => (deckResultStale ? [] : renderedClusters.map((c) => c.primary)), [deckResultStale, renderedClusters]);
     const deckCandidates = useMemo(
-        () =>
-            deckResultStale
-                ? []
-                : renderedClusters
-                      .map((c) => c.primary)
-                      .filter(hasLiveApplyUrl)
-                      .filter((job) => !deckApplied || !trackedPursuitFor(job, deckApplied.index)),
-        [deckResultStale, renderedClusters, deckApplied],
+        () => listCandidates(deckRows, deckApplied ? (job) => trackedPursuitFor(job, deckApplied.index) != null : undefined),
+        [deckRows, deckApplied],
     );
     const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
     // When no role from the last 30 days fits, the deck holds the roles that fit and are older, marked as older; when none
-    // does, the closest ones (left out only as a weaker fit), under an honest line, not nothing.
-    const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, nowMs), [deckCandidates, deckScore, nowMs]);
-    const deckOlderFits = useMemo(
-        () => (deckOrdered.length === 0 && deckScore ? orderOlderFits(deckCandidates, deckScore, nowMs) : []),
-        [deckOrdered, deckCandidates, deckScore, nowMs],
-    );
-    const deckNearMisses = useMemo(
-        () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, nowMs) : []),
-        [deckOrdered, deckOlderFits, deckCandidates, deckScore, nowMs],
-    );
-    const deckOlderNearMisses = useMemo(
-        () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckNearMisses.length === 0 && deckScore ? orderOlderNearMisses(deckCandidates, deckScore, nowMs) : []),
-        [deckOrdered, deckOlderFits, deckNearMisses, deckCandidates, deckScore, nowMs],
-    );
-    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckOlderFits.length > 0 ? deckOlderFits : deckNearMisses.length > 0 ? deckNearMisses : deckOlderNearMisses;
+    // does, the closest ones (left out only as a weaker fit), under an honest line, not nothing (`deckListFor`).
+    const deckList = useMemo(() => {
+        if (!deckScore) return { ranked: orderForYouJobsByBand(deckCandidates.candidates, null, nowMs), summary: null };
+        const { ranked, summary } = deckListFor(deckCandidates.candidates, deckScore, nowMs);
+        return { ranked, summary: withListRemovals(summary, deckCandidates, result?.total) };
+    }, [deckCandidates, deckScore, nowMs, result?.total]);
+    const rankedPacks = deckList.ranked;
     // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
-    const deckLeftOutSummary = useMemo(() => {
-        if (!deckScore) return null;
-        const summary = summarizeDeckLeftOut(deckCandidates, deckScore, nowMs);
-        if (deckOlderFits.length > 0) return olderFitsSummary(summary, deckOlderFits.length);
-        if (deckNearMisses.length > 0) return nearMissSummary(summary);
-        return deckOlderNearMisses.length > 0 ? olderNearMissSummary(summary, deckOlderNearMisses.length) : summary;
-    }, [deckCandidates, deckScore, deckOlderFits, deckNearMisses, deckOlderNearMisses, nowMs]);
+    const deckLeftOutSummary = deckList.summary;
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
     // the deck holds its roles until its first ones are read here (the effect
@@ -3254,8 +3231,8 @@ export function JobsContent({
     }, [forYouOpen, locationDefaultSuppressed]);
 
     // Progressive quiet fit probe — every pack gets live role counts from the
-    // first scored page. Deeper pages only refine the sample. On settle, diff
-    // localStorage last-seen counts for honest removal cues.
+    // first scored page. Deeper pages only refine the sample. The chips count the roles
+    // each pack's list opens with (`hubChipCounts`), the same rule its deck applies.
     useEffect(() => {
         if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
             return;
@@ -3266,8 +3243,7 @@ export function JobsContent({
         if (memo) {
             setHubProbeFailed(false);
             setHubFitProbe(memo.probe);
-            setHubResumeAllCount(memo.allCount);
-            setHubFilterTileCounts(memo.tileCounts);
+            setHubTileScored(memo.tiles);
             setHubCountDeltas(memo.deltas);
             return;
         }
@@ -3276,27 +3252,36 @@ export function JobsContent({
             ...prev,
             loading: true,
             probing: true,
-            removalsLine: null,
         }));
-        setHubFilterTileCounts({});
+        setHubTileScored({});
         setHubCountDeltas({});
         setHubProbeFailed(false);
         // No count for any chip still waiting on one; the chips stay tappable.
         const failProbe = () => {
             setHubProbeFailed(true);
-            setHubFilterTileCounts((prev) =>
+            setHubTileScored((prev) =>
                 Object.fromEntries(industryFilterTileIds(industry).map((id) => [id, prev[id] ?? null])),
             );
         };
 
         void (async () => {
             try {
-                const previous = readHubCountBaseline();
                 // The pack's own search params: the probe counts what the packs retrieve.
                 const packParams = packSearchParams(pack, signals, { resume, unplacedRemote: true });
+                // A role is scored once, whichever search returned it.
+                const scores = new Map<string, MatchScore | null>();
+                const scoreOf = (job: PublicJob): MatchScore | null => {
+                    if (!scores.has(job.id)) {
+                        try {
+                            scores.set(job.id, scoreJobAgainstResume(resume, job, signals));
+                        } catch {
+                            scores.set(job.id, null);
+                        }
+                    }
+                    return scores.get(job.id) ?? null;
+                };
                 const scoredById = new Map<string, ScoredHubHit>();
                 let poolTotal: number | null = null;
-                let allCount: CorpusCount | null = null;
                 let unavailableRetries = 0;
 
                 for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
@@ -3316,7 +3301,6 @@ export function JobsContent({
                             probing: false,
                             total: poolTotal,
                             scored: [...scoredById.values()],
-                            removalsLine: null,
                         });
                         failProbe();
                         return;
@@ -3325,17 +3309,10 @@ export function JobsContent({
                     // dropped it (no roles there) matched nothing, not the whole corpus.
                     const placesMissing = locationDropped(pack, r);
                     poolTotal = placesMissing ? 0 : r.total;
-                    allCount = placesMissing ? { kind: "exact", value: 0 } : resolveCorpusCount(r);
-                    setHubResumeAllCount(allCount);
                     for (const h of placesMissing ? [] : (r.hits ?? [])) {
                         if (scoredById.has(h.id)) continue;
-                        let scoredHit: ScoredHubHit["score"] | null = null;
-                        try {
-                            scoredHit = scoreJobAgainstResume(resume, h, signals);
-                        } catch {
-                            scoredHit = null;
-                        }
-                        if (scoredHit) scoredById.set(h.id, { job: h, score: scoredHit });
+                        const score = scoreOf(h);
+                        if (score) scoredById.set(h.id, { job: h, score });
                     }
                     const scored = [...scoredById.values()];
                     const isLast = step === HUB_PROBE_LIMITS.length - 1;
@@ -3344,7 +3321,6 @@ export function JobsContent({
                         probing: !isLast,
                         total: poolTotal,
                         scored,
-                        removalsLine: null,
                     });
                     if (!isLast) {
                         await new Promise((resolve) => setTimeout(resolve, 450));
@@ -3353,59 +3329,59 @@ export function JobsContent({
 
                 if (cancelled) return;
                 const scored = [...scoredById.values()];
-                const sources = resolveAllPackHubCounts({
-                    loading: false,
-                    probing: false,
-                    poolTotal,
-                    scored,
-                });
-                // Only this industry's tiles: a removal cue must name a tile the visitor can see.
-                const industryTiles = new Set<HubPackId>(industryTileCandidates(industry));
-                const nextTotals = Object.fromEntries(
-                    Object.entries(packBandTotalsFromSources(sources)).filter(([id]) => industryTiles.has(id as HubPackId)),
-                ) as ReturnType<typeof packBandTotalsFromSources>;
-                const removals = diffHubPackRemovals(previous, nextTotals);
-                const removalsLine = formatHubRemovalsLine(removals) || null;
-                writeHubCountMemory({
-                    updatedAt: new Date().toISOString(),
-                    packs: nextTotals,
-                });
-                const probe = { loading: false, probing: false, total: poolTotal, scored, removalsLine };
+                const probe = { loading: false, probing: false, total: poolTotal, scored };
                 setHubFitProbe(probe);
 
-                // Each filter tile counts its own search (the one its deck sends), one at a
-                // time after the probe so the hub stays inside the search rate limit.
-                const tileCounts: Partial<Record<HubPackId, CorpusCount | null>> = {};
+                // Each filter tile lists its own search's rows (the one its deck sends), read one at a
+                // time after the pack so the hub stays inside the search rate limit.
+                const tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>> = {};
                 for (const id of industryFilterTileIds(industry)) {
-                    const total = await countResults(hubTile(pack, id).state, searchJobsActionRaw, { locationRequired: true, keepPastSenior: signals.seniority.pastSenior === true });
+                    const tile = hubTile(pack, id).state;
+                    let rows: ScoredHubHit[] | null = null;
+                    for (let attempt = 0; attempt < 2 && rows === null; attempt++) {
+                        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
+                        try {
+                            const r = await searchJobsAction({ ...packSearchParams(tile, signals, { resume, unplacedRemote: true }), limit: FOR_YOU_PAGE, offset: 0 });
+                            if (cancelled) return;
+                            if (isUnavailableJobsResult(r)) continue;
+                            // As for the pack: a search that dropped the tile's location matched nothing.
+                            rows = [];
+                            for (const h of locationDropped(tile, r) ? [] : (r.hits ?? [])) {
+                                const score = scoreOf(h);
+                                if (score) rows.push({ job: h, score });
+                            }
+                        } catch {
+                            rows = null;
+                        }
+                    }
                     if (cancelled) return;
-                    tileCounts[id] = total == null ? null : resolveCorpusCount({ total });
-                    setHubFilterTileCounts((prev) => ({ ...prev, [id]: tileCounts[id] }));
+                    tiles[id] = rows;
+                    setHubTileScored((prev) => ({ ...prev, [id]: rows }));
                 }
                 // Every chip count is known: compare the exact ones with the last visit's, then remember these,
-                // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go).
-                const listedJobs = hubListedHits(scored, Date.now()).map((h) => h.job);
-                const shown = new Set(
-                    hubIndustryTiles(industry, { listTotal: allCount, listJobs: listedJobs, rowsRead: scored.length, filterCounts: tileCounts, probing: false }),
-                );
-                const chipCounts = Object.fromEntries(
-                    Object.entries(
-                        exactHubCounts({
-                            ...(allCount ? resumeHubPackCounts({ listTotal: allCount, listJobs: listedJobs, rowsRead: scored.length }) : {}),
-                            ...tileCounts,
-                        }),
-                    ).filter(([id]) => shown.has(id as HubPackId)),
-                ) as HubPackCounts;
-                const { deltas, next } = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
-                writeHubTileCounts(next);
+                // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go). Not before the
+                // tracker has loaded: the counts leave out roles already in it.
+                let deltas: HubPackCounts = {};
+                if (!pursuitsLoadingRef.current) {
+                    const isTracked = (job: PublicJob) => trackedPursuitFor(job, appliedIndexRef.current) != null;
+                    const counts = hubChipCounts({ pack: scored, tiles, isTracked, nowMs: Date.now(), settled: true });
+                    const shown = new Set(
+                        visibleIndustryTiles(industry, { counts, wholePack: poolTotal != null && scored.length >= poolTotal, foundNothing: poolTotal === 0, settled: true }),
+                    );
+                    const chipCounts = Object.fromEntries(
+                        Object.entries(exactHubCounts(counts)).filter(([id]) => shown.has(id as HubPackId)),
+                    ) as HubPackCounts;
+                    const resolved = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
+                    writeHubTileCounts(resolved.next);
+                    deltas = resolved.deltas;
+                }
                 setHubCountDeltas(deltas);
                 hubProbeMemoRef.current = {
                     key: memoKey,
                     at: Date.now(),
-                    complete: Object.values(tileCounts).every((count) => count != null),
+                    complete: Object.values(tiles).every((rows) => rows != null),
                     probe,
-                    allCount,
-                    tileCounts,
+                    tiles,
                     deltas,
                 };
             } catch {
@@ -3415,7 +3391,6 @@ export function JobsContent({
                         probing: false,
                         total: prev.total,
                         scored: prev.scored,
-                        removalsLine: prev.removalsLine,
                     }));
                     failProbe();
                 }
@@ -3427,70 +3402,67 @@ export function JobsContent({
         };
     }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
-    // A résumé visitor's tiles all open the résumé's pack list, so every tile
-    // counts inside that list (`resumeHubPackCounts`), never the corpus —
-    // loading until that list's total is known. A probe that failed before
-    // that total came back leaves every chip without a count, like the
+    // A résumé visitor's chips count the roles each tile's list opens with (`hubChipCounts`): the pack's own
+    // rows for "All your matches" and the row tiles, a filter tile's own search's rows for that tile, each
+    // under the deck's rule and without the roles already in the tracker. Loading until the pack's search has
+    // answered and the tracker is read.
+    const hubSettled = hubFitProbe.total != null && !hubFitProbe.loading && !hubFitProbe.probing;
+    const hubChips = useMemo(
+        () =>
+            hubResumeKey
+                ? hubChipCounts({ pack: hubFitProbe.scored, tiles: hubTileScored, isTracked: hubIsTracked, nowMs, settled: hubSettled })
+                : null,
+        [hubResumeKey, hubFitProbe.scored, hubTileScored, hubIsTracked, nowMs, hubSettled],
+    );
+    // A probe that failed before the pack's search answered leaves every chip without a count, like the
     // corpus read's failure below.
     const hubCountLabels = useMemo(
         () =>
-            hubResumeKey
-                ? hubProbeFailed && !hubResumeAllCount
+            hubChips
+                ? hubProbeFailed && hubFitProbe.total == null
                     ? {}
-                    : resumeTileLabels(
-                          hubResumeAllCount
-                              ? resumeHubPackCounts({
-                                    listTotal: hubResumeAllCount,
-                                    listJobs: hubListedHits(hubFitProbe.scored, nowMs).map((h) => h.job),
-                                    rowsRead: hubFitProbe.scored.length,
-                                })
-                              : {},
-                          hubFilterTileCounts,
-                          !hubResumeAllCount,
-                      )
+                    : resumeTileLabels(hubChips, hubFitProbe.total == null || pursuitsLoading)
                 : hubPackCorpusCounts?.ok === false
                   ? {}
                   : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
                         loading: hubPackCorpusCounts == null,
                     }),
-        [hubPackCorpusCounts, hubResumeKey, hubResumeAllCount, hubProbeFailed, hubFitProbe.scored, hubFilterTileCounts, nowMs],
+        [hubPackCorpusCounts, hubChips, hubProbeFailed, hubFitProbe.total, pursuitsLoading],
     );
 
     // A résumé visitor's chips: their industry's tiles, each shown only once its
     // count says it holds roles and narrows the list (industry-tiles.ts).
     const hubCategories = useMemo(
         () =>
-            hubResumeKey && hubIndustry
-                ? hubIndustryTiles(hubIndustry, {
-                      listTotal: hubResumeAllCount,
-                      listJobs: hubListedHits(hubFitProbe.scored, nowMs).map((h) => h.job),
-                      rowsRead: hubFitProbe.scored.length,
-                      filterCounts: hubFilterTileCounts,
-                      probing: hubFitProbe.loading || hubFitProbe.probing,
+            hubChips && hubIndustry
+                ? visibleIndustryTiles(hubIndustry, {
+                      counts: hubChips,
+                      wholePack: hubFitProbe.total != null && hubFitProbe.scored.length >= hubFitProbe.total,
+                      foundNothing: hubFitProbe.total === 0,
+                      settled: hubSettled && !pursuitsLoading && industryFilterTileIds(hubIndustry).every((id) => hubTileScored[id] !== undefined),
                   }).map((id) => ({ id, label: HUB_PACK_SHORT_LABELS[id] }))
                 : undefined,
-        [hubResumeKey, hubIndustry, hubResumeAllCount, hubFitProbe.scored, hubFitProbe.loading, hubFitProbe.probing, hubFilterTileCounts, nowMs],
+        [hubChips, hubIndustry, hubFitProbe.total, hubFitProbe.scored.length, hubSettled, pursuitsLoading, hubTileScored],
     );
 
-    // Fit applies the pack's location; a result that dropped it has no roles there (see the probe above).
-    const fitPlacesMissing = useMemo(
-        () => fitActive && pack != null && result != null && locationDropped(pack, result),
-        [fitActive, pack, result],
+    // What the packs hub says about the pack, in the deck's words: how many roles fit, and why the rest were left out
+    // (`hubList`, the deck's own rule over the rows its search returned). Once the pack's rows are all in.
+    const hubPackList = useMemo(
+        () =>
+            hubResumeKey && hubSettled && !pursuitsLoading
+                ? hubList(hubFitProbe.scored, nowMs, { isTracked: hubIsTracked, found: hubFitProbe.total })
+                : null,
+        [hubResumeKey, hubSettled, pursuitsLoading, hubFitProbe.scored, hubFitProbe.total, hubIsTracked, nowMs],
     );
-    const hubCorpusLine = useMemo(() => {
-        if (hubFitProbe.scored.length > 0 || (fitActive && result?.total != null)) {
-            return (
-                formatHubCorpusLine(
-                    fitActive && result?.total != null ? (fitPlacesMissing ? 0 : result.total) : hubFitProbe.total,
-                    hubFitProbe.loading || hubFitProbe.probing,
-                ) || null
-            );
-        }
-        if (hubBrowse.total != null && hubBrowse.total > 0) {
-            return formatBrowseHubCorpusLine(hubBrowse.total);
-        }
-        return null;
-    }, [fitActive, fitPlacesMissing, result?.total, hubFitProbe, hubBrowse.total]);
+    const hubSummary = hubPackList?.summary ?? null;
+    // The deck gives each employer one card, so the line says the employers as the deck's foot does.
+    const hubFitLine = useMemo(() => formatHubFitLine(hubSummary, hubPackList?.employers), [hubSummary, hubPackList]);
+    const hubLeftOutLine = useMemo(() => formatLeftOutLine(hubSummary), [hubSummary]);
+    // A visitor with no usable résumé has no matches to count: the corpus is "roles".
+    const hubCorpusLine = useMemo(
+        () => (!hubResumeKey && hubBrowse.total != null && hubBrowse.total > 0 ? formatBrowseHubCorpusLine(hubBrowse.total) : null),
+        [hubResumeKey, hubBrowse.total],
+    );
 
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
@@ -6852,7 +6824,8 @@ export function JobsContent({
                                     dailyApplyTip={todayShown ? null : DAILY_APPLY_HUB_TIP}
                                     hubMatching={hubFitProbe.loading || hubFitProbe.probing}
                                     hubCorpusLine={hubCorpusLine}
-                                    hubRemovalsLine={hubFitProbe.removalsLine}
+                                    hubFitLine={hubFitLine}
+                                    hubLeftOutLine={hubLeftOutLine}
                                     resumeLine={
                                         todayMatching ? (
                                             <ResumeInUse

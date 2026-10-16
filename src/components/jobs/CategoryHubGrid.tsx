@@ -52,10 +52,12 @@ export interface CategoryHubGridProps {
     dailyApplyTip?: string | null;
     /** True while the progressive fit probe is still climbing pack counts. */
     hubMatching?: boolean;
-    /** Quiet corpus line under Welcome, e.g. "~508 matches ranked Strong first". */
+    /** Quiet line under Welcome for a visitor with no résumé: the roles there are, e.g. "~508 roles". */
     hubCorpusLine?: string | null;
-    /** Honest removal cue when prior known pack counts shrink. */
-    hubRemovalsLine?: string | null;
+    /** What the first chip counts, in the deck's own words: "15 roles fit your résumé · best fit first". */
+    hubFitLine?: string | null;
+    /** Why the rest were left out, in the deck's own words: "Left out of the first 150 of 226 roles found: 41 above your level · …". */
+    hubLeftOutLine?: string | null;
     /** Rendered under the pack chips — the packs hub puts Today, the visitor's tracker and Recently viewed here. */
     footer?: React.ReactNode;
     /**
@@ -81,7 +83,8 @@ export function CategoryHubGrid({
     dailyApplyTip,
     hubMatching = false,
     hubCorpusLine = null,
-    hubRemovalsLine = null,
+    hubFitLine = null,
+    hubLeftOutLine = null,
     footer,
     resumeLine = null,
     lastHere = null,
@@ -108,6 +111,16 @@ export function CategoryHubGrid({
 
     const hubStatusLines = (
         <>
+            {hubFitLine ? (
+                <p className="pt-1 text-sm font-medium text-foreground tabular-nums" data-testid="hub-fit-line">
+                    {hubFitLine}
+                </p>
+            ) : null}
+            {hubLeftOutLine ? (
+                <p className="max-w-prose text-xs text-muted-foreground" data-testid="hub-left-out-line">
+                    {hubLeftOutLine}
+                </p>
+            ) : null}
             {hubCorpusLine ? (
                 <p
                     className="pt-1 text-xs text-muted-foreground tabular-nums"
@@ -116,15 +129,7 @@ export function CategoryHubGrid({
                     {hubCorpusLine}
                 </p>
             ) : null}
-            {hubRemovalsLine ? (
-                <p
-                    className="pt-0.5 text-xs text-muted-foreground"
-                    data-testid="hub-removals-line"
-                >
-                    Recently cleared · {hubRemovalsLine}
-                </p>
-            ) : null}
-            {proofLoading || (hubMatching && !hubCorpusLine) ? (
+            {proofLoading || (hubMatching && !hubCorpusLine && !hubFitLine) ? (
                 <WaitState
                     label="Counting matches across your packs"
                     className="pt-1 text-xs font-semibold"

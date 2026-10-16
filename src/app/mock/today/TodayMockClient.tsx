@@ -110,18 +110,18 @@ const FIXTURE_REMOTE: NeedsYouRemote = {
 };
 const EMPTY_REMOTE: NeedsYouRemote = { searches: [], follows: [], closedJobIds: [], savedSearchCount: 1, followCount: 1 };
 
-// The chips: live counts as the page formats them, and what each pack gained since Friday (none on a first visit).
+// The chips: the roles each list opens with, as the page formats them, and what each pack gained since Friday (none on a first visit).
 const PACK_COUNTS = {
-    all: "508 roles",
-    ai: "31+ roles",
-    remote: "96 roles",
-    fresh: "140 roles",
-    salary: "88 roles",
-    apply: "40+ roles",
-    lead: "12+ roles",
-    good: "9+ roles",
+    all: "15 roles",
+    ai: "4 roles",
+    remote: "6 roles",
+    fresh: "3 roles",
+    salary: "9 roles",
+    apply: "5 roles",
+    lead: "3 roles",
+    good: "2 roles",
 };
-const PACK_DELTAS = { all: 14, remote: 3, salary: 5 };
+const PACK_DELTAS = { all: 2, remote: 1, salary: 3 };
 
 function TodayMockBody() {
     const state = useSearchParams().get("state");
@@ -151,7 +151,9 @@ function TodayMockBody() {
                     isAuthenticated={!guest}
                     userName="Sam"
                     hasResume={!noResume}
-                    hubCorpusLine={noResume ? null : "~508 matches ranked Strong first"}
+                    hubFitLine={noResume ? null : "15 roles fit your résumé · best fit first"}
+                    hubLeftOutLine={noResume ? null : "Left out of the first 150 of 226 roles found: 41 above your level · 38 a different kind of role · 22 already applied to · 34 for other reasons"}
+                    hubCorpusLine={noResume ? "~508 roles" : null}
                     hubCountLabels={noResume ? undefined : PACK_COUNTS}
                     hubCountDeltas={first || noResume ? undefined : PACK_DELTAS}
                     resumeLine={noResume ? null : <ResumeInUse label="Sam_Rivera_Resume.pdf" onReplace={() => {}} />}

@@ -356,7 +356,7 @@ export function sincePhrase(sinceMs: number | null, nowMs: number): string {
  * speaks; no applications: no line about them).
  */
 export interface TodaySummary {
-    /** "2 new roles fit you since Tuesday." · "No new roles fit you since yesterday." · "5 roles posted this week fit you." */
+    /** "2 new roles fit you since Tuesday." · "5 roles posted this week fit you, 2 new since Friday." · "1 role posted this week fits you, none new since yesterday." · "5 roles posted this week fit you." */
     picks: string | null;
     /** The step after "Next:": "Apply to the role below, or give it a thumbs down so it stops showing." */
     next: string | null;
@@ -369,8 +369,10 @@ export interface TodaySummary {
 export function todaySummary(input: {
     /** The picks have loaded and at least `shown` of them are listed. */
     ready: boolean;
-    /** Rows the list shows. */
+    /** Rows the list shows: one per employer (`todaySlots`). */
     shown: number;
+    /** Every pick the rows hold, an employer's other roles (inside its row) included; more than `shown` when an employer holds more than one. */
+    roles?: number;
     /** Picks this device hadn't listed before (`isNewPick`); every pick on a first visit. */
     newCount: number;
     firstVisit: boolean;
@@ -386,19 +388,39 @@ export function todaySummary(input: {
     let next: string | null = null;
     if (ready && shown > 0) {
         const sinceText = since === "today" ? "since you were here earlier today" : since;
-        if (firstVisit) {
+        const roles = Math.max(shown, Math.floor(input.roles ?? shown));
+        if (roles > shown) {
+            // A row is an employer and holds more than one role: the line counts the rows and the roles, each by its name.
+            const held = `${shown} ${s(shown, "employer has", "employers have")} ${roles} roles posted this week that fit you`;
+            if (firstVisit) {
+                picks = `${held}.`;
+                next = "Look at them below and apply to the ones that suit you.";
+            } else if (newCount > 0) {
+                picks = newCount >= shown ? `${shown} ${s(shown, "employer has", "employers have")} new roles that fit you ${sinceText}.` : `${held}, ${newCount} marked New ${sinceText}.`;
+                next = newCount === 1 ? "It's at the top, marked New. Apply if it suits you." : "They're at the top, marked New. Apply to the ones that suit you.";
+            } else {
+                picks = `${held}, none new ${sinceText}.`;
+                next = shown === 1 ? "Apply to the role below, or give it a thumbs down so it stops showing." : "Apply to the roles below that suit you, and give the rest a thumbs down so they stop showing.";
+            }
+        } else if (firstVisit) {
             // Every pick on a first visit is this week's: count the rows listed, so the line never reads 0 above two roles
             // (2026-10-14: "0 roles posted this week fit you" over two picks this device had listed before).
             picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you.`;
             next = shown === 1 ? "Look at it below and apply if it suits you." : "Look at them below and apply to the ones that suit you.";
         } else if (newCount > 0) {
-            picks = `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`;
+            // Every pick listed is new: say so. Otherwise lead with the list's own count, then how many of it are new,
+            // so the number above the rows is the number of rows ("5 roles posted this week fit you, 2 new since Friday").
+            picks =
+                newCount >= shown
+                    ? `${newCount} new ${s(newCount, "role fits", "roles fit")} you ${sinceText}.`
+                    : `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you, ${newCount} new ${sinceText}.`;
             next =
                 newCount === 1
                     ? "It's at the top, marked New. Apply if it suits you."
                     : "They're at the top, marked New. Apply to the ones that suit you.";
         } else {
-            picks = `No new roles fit you ${sinceText}.`;
+            // A list of roles under "No new roles" read as no roles at all (2026-10-16: one role listed under it).
+            picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you, none new ${sinceText}.`;
             next =
                 shown === 1
                     ? "Apply to the role below, or give it a thumbs down so it stops showing."

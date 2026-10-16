@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { countResults } from '../../src/lib/jobs/broaden';
 import { HUB_PACK_CORPUS_COUNT_LOADING } from '../../src/lib/jobs/for-you/hub-counts';
 import { HUB_PACK_IDS } from '../../src/lib/jobs/for-you/hub-pack-filters';
-import { hubTile, hubTileRows, isHubPackId, resumeTileLabels } from '../../src/lib/jobs/for-you/hub-tiles';
+import { hubChipCounts, hubTile, hubTileRows, isHubPackId, resumeTileLabels } from '../../src/lib/jobs/for-you/hub-tiles';
+import type { ScoredHubHit } from '../../src/lib/jobs/for-you/hub-counts';
+import type { MatchScore } from '../../src/lib/match/score';
 import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
 import { DEFAULT_URL_STATE, type JobsUrlState } from '../../src/lib/jobs/url-state';
 import { NOW, corpusStub, mkJob } from '../support/jobs-corpus-stub';
@@ -87,22 +89,68 @@ describe('hubTileRows', () => {
 });
 
 describe('resumeTileLabels', () => {
-    const packCounts = {
-        all: { kind: 'exact' as const, value: 120 },
-        remote: { kind: 'floor' as const, value: 9 },
+    const counts = {
+        all: { kind: 'exact' as const, value: 15 },
+        remote: { kind: 'exact' as const, value: 4 },
         ai: { kind: 'floor' as const, value: 14 },
+        fresh: null,
     };
 
-    it('a filter tile reads its own count, never the pack-row floor', () => {
-        const labels = resumeTileLabels(packCounts, { remote: { kind: 'exact', value: 31 } }, false);
-        assert.equal(labels.remote, '31 roles');
+    it('reads each chip from its own count', () => {
+        const labels = resumeTileLabels(counts, false);
+        assert.equal(labels.all, '15 roles');
+        assert.equal(labels.remote, '4 roles');
         assert.equal(labels.ai, '14+ roles');
-        assert.equal(labels.all, '120 roles');
     });
 
-    it('a filter tile still counting shows loading; one whose read failed shows no count', () => {
-        const labels = resumeTileLabels(packCounts, { remote: null }, false);
-        assert.equal(labels.remote, '');
-        assert.equal(labels.fresh, HUB_PACK_CORPUS_COUNT_LOADING);
+    it('a filter tile whose read failed shows no count; one still counting shows loading', () => {
+        const labels = resumeTileLabels(counts, false);
+        assert.equal(labels.fresh, '');
+        assert.equal(labels.salary, HUB_PACK_CORPUS_COUNT_LOADING);
+    });
+
+    it('every chip is loading before the pack has answered', () => {
+        const labels = resumeTileLabels({}, true);
+        for (const id of HUB_PACK_IDS) assert.equal(labels[id], HUB_PACK_CORPUS_COUNT_LOADING, id);
+    });
+});
+
+describe('hubChipCounts: a chip counts the roles its list opens with', () => {
+    const strong: MatchScore = { total: 88, components: [], role: 'own' };
+    const hit = (id: string, extra: Parameters<typeof mkJob>[1] = {}): ScoredHubHit => ({
+        job: mkJob(id, { title: 'Product Manager', company: `Co ${id}`, posted_at: daysAgo(3), ...extra }),
+        score: strong,
+    });
+    // The pack's search found 226 and read 5: two listed roles are remote, one is this week's, one is Stretch.
+    const pack: ScoredHubHit[] = [
+        hit('a', { work_type: 'remote', posted_at: daysAgo(2) }),
+        hit('b', { work_type: 'remote' }),
+        hit('c'),
+        hit('d', { posted_at: daysAgo(60) }),
+        { job: mkJob('e', { title: 'Product Manager', company: 'Co e', posted_at: daysAgo(3) }), score: { total: 40, components: [], role: 'own' } },
+    ];
+
+    it('"All your matches" and a row tile count what the deck lists of the pack, not what the search found', () => {
+        const counts = hubChipCounts({ pack, tiles: {}, nowMs: NOW, settled: true });
+        assert.deepEqual(counts.all, { kind: 'exact', value: 3 });
+        assert.deepEqual(counts.lead, { kind: 'exact', value: 0 });
+    });
+
+    it('is a floor while the pack is still being read', () => {
+        const counts = hubChipCounts({ pack, tiles: {}, nowMs: NOW, settled: false });
+        assert.deepEqual(counts.all, { kind: 'floor', value: 3 });
+    });
+
+    it('a filter tile counts the roles its own search lists, never more than that search returned', () => {
+        const remoteRows: ScoredHubHit[] = [hit('a', { work_type: 'remote', posted_at: daysAgo(2) }), hit('b', { work_type: 'remote' }), hit('f', { work_type: 'remote' })];
+        const counts = hubChipCounts({ pack, tiles: { remote: remoteRows, fresh: null }, nowMs: NOW, settled: true });
+        assert.deepEqual(counts.remote, { kind: 'exact', value: 3 });
+        assert.equal(counts.fresh, null, 'a read that failed has no count');
+        assert.equal('salary' in counts, false, 'a read still in flight has none yet');
+    });
+
+    it('leaves out the roles already in the tracker, like the deck', () => {
+        const counts = hubChipCounts({ pack, tiles: {}, isTracked: (job) => job.id === 'a', nowMs: NOW, settled: true });
+        assert.deepEqual(counts.all, { kind: 'exact', value: 2 });
     });
 });

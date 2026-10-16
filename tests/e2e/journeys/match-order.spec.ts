@@ -268,7 +268,7 @@ signedInTest("a thumbs-down on one of the résumé's own roles moves that employ
   const tuned = page.getByTestId("deck-tuning");
 
   // The résumé's own role comes first: one of the two TAM roles.
-  await expect(position).toHaveText(`Role 1 of ${OWN_EMPLOYERS}`, { timeout: 60_000 });
+  await expect(position).toHaveText(`Employer 1 of ${OWN_EMPLOYERS}`, { timeout: 60_000 });
   const first = (await front.getAttribute("data-job-id")) ?? "";
   expect(OWN_TAMS).toContain(first);
   const [turnedDown, otherTam] = first === OWN_TAMS[0] ? OWN_TAMS : [...OWN_TAMS].reverse();
@@ -277,13 +277,13 @@ signedInTest("a thumbs-down on one of the résumé's own roles moves that employ
 
   // Thumbs down: that posting goes, the other TAM role comes next, and the line names the employer.
   await front.getByTestId("role-fewer-like-this").click();
-  await expect(position).toHaveText(`Role 1 of ${OWN_EMPLOYERS}`);
+  await expect(position).toHaveText(`Employer 1 of ${OWN_EMPLOYERS}`);
   await expect(front).toHaveAttribute("data-job-id", otherTam);
   await expect(tuned).toContainText(`Tuned away from ${employer}.`);
 
   // The employer's other role is now its card, and waits at the end, still there.
   for (let step = 1; step < OWN_EMPLOYERS; step += 1) await page.getByTestId("for-you-next").click();
-  await expect(position).toHaveText(`Role ${OWN_EMPLOYERS} of ${OWN_EMPLOYERS}`);
+  await expect(position).toHaveText(`Employer ${OWN_EMPLOYERS} of ${OWN_EMPLOYERS}`);
   await expect(front).toHaveAttribute("data-job-id", sameEmployer);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
