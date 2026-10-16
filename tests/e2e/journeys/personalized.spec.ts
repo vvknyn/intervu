@@ -494,10 +494,12 @@ test("a pack with no role the résumé could take says so and why, instead of a 
  * a remote role that names no country is listed last, as Country unclear.
  * The postings are CONSTRUCTED for this journey (no real company or posting).
  */
+// Headings stand alone on their line, with a blank line after: the shape the section reader (pack-sections.ts) recognises. A
+// heading glued to its text by one newline is not read, and the posting would count as one run of text with no responsibilities.
 const askingForTheResumeWork = (company: string, title: string) => [
-  `About the role\n${company} is hiring a ${title}.`,
-  "What you'll do\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
-  "What you bring\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
+  `About the role\n\n${company} is hiring a ${title}.`,
+  "What you'll do\n\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
+  "What you bring\n\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
 ].join("\n\n");
 const GENERIC_DESCRIPTION =
   "About the role\nNorthstar Data is hiring a Technical Account Manager.\n\nWhat you'll do\nWe are looking for a Technical Account Manager to join our team. You will work with a variety of stakeholders and grow with a fast-moving company.";
@@ -790,7 +792,7 @@ test("a title the résumé has not held reads Strong when its day-to-day work sh
   const flatTitle = "Delivery Operations Lead, API Programs";
   const flat = described(
     posting("99999999-0000-4000-8000-000000000003", flatTitle, "Fernway", "senior", 2),
-    askingForTheResumeWork("Fernway", flatTitle).split("\n\n").flatMap((part) => part.split("\n").slice(1)).join(" "),
+    askingForTheResumeWork("Fernway", flatTitle).split("\n\n").filter((_, index) => index % 2 === 1).join(" ").replace(/\n/g, " "),
   );
   await withAccountApplications(page, []);
   // Sent the tools-only and the flat postings first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of them.
