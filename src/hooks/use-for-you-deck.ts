@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { clampDeckIndex } from "@/lib/jobs/for-you/deck-index";
+import { collapseByEmployer, slotLeads, type EmployerSlot } from "@/lib/jobs/for-you/employer-slot";
 import {
     fallbackActiveId,
     findActiveIndexById,
@@ -30,6 +31,12 @@ const NO_IDS: readonly string[] = [];
  * other than the user's own skip is not a stable reference to "the card the
  * user is looking at"; an id is.
  *
+ * The deck holds one card per employer (`collapseByEmployer`): the last step on the list, after the visitor's
+ * skips and nudges, so a skipped role hands its slot to the employer's next role and the nudges still order
+ * the roles first. `slots` has each employer's other roles, by the lead's id, for the card to show. A nudge reads
+ * the whole tuned list, the employers' other roles included: "away from Acme" is about the roles that share Acme
+ * with the one turned down, which ride inside its card.
+ *
  * It also applies the visitor's "more / fewer like this" nudges (tuning.ts):
  * the roles still to come are reordered by them, the ones already reached
  * (`passedIds`) never move. `isOwnRole` says which roles are the candidate's
@@ -51,10 +58,13 @@ export function useForYouDeck(
     const { prompt: whyPrompt, ask: askWhy, dismiss: dismissWhy, dismissFor: dismissWhyFor } = useTuningReason("deck");
 
     const unskipped = useMemo(() => packs.filter((p) => !skippedIds.has(p.id)), [packs, skippedIds]);
-    const visiblePacks = useMemo(
+    const tuned = useMemo(
         () => tuneDeck(unskipped, nudges, passedIds, nowMs, tuneRankOf && ((job) => tuneRankOf(job, nowMs))),
         [unskipped, nudges, passedIds, nowMs, tuneRankOf],
     );
+    const employerSlots = useMemo(() => collapseByEmployer(tuned, (job) => job), [tuned]);
+    const visiblePacks = useMemo(() => slotLeads(employerSlots), [employerSlots]);
+    const slots = useMemo(() => new Map(employerSlots.map((slot) => [slot.lead.id, slot] as const)), [employerSlots]);
 
     const activeIndex = useMemo(() => {
         const idx = findActiveIndexById(visiblePacks, activeJobId);
@@ -113,22 +123,27 @@ export function useForYouDeck(
             if (!activeJob) return;
             const skippedId = activeJob.id;
             const own = isOwnRole?.(activeJob) ?? false;
-            const nextNudges = recordNudge(activeJob, signal, visiblePacks, { own });
-            if (signal === "fewer") askWhy({ job: activeJob, signal, deck: visiblePacks, own });
+            const nextNudges = recordNudge(activeJob, signal, tuned, { own });
+            if (signal === "fewer") askWhy({ job: activeJob, signal, deck: tuned, own });
             else dismissWhy();
             const before = visiblePacks.slice(0, activeIndex).map((p) => p.id);
-            const remaining = tuneDeck(
-                unskipped.filter((p) => p.id !== skippedId),
-                nextNudges,
-                before,
-                nowMs,
-                tuneRankOf && ((job) => tuneRankOf(job, nowMs)),
+            const remaining = slotLeads(
+                collapseByEmployer(
+                    tuneDeck(
+                        unskipped.filter((p) => p.id !== skippedId),
+                        nextNudges,
+                        before,
+                        nowMs,
+                        tuneRankOf && ((job) => tuneRankOf(job, nowMs)),
+                    ),
+                    (job) => job,
+                ),
             );
             setSkippedIds((prev) => new Set(prev).add(skippedId));
             setPassedIds(before);
             setActiveJobId(nextActiveIdAfterSkip(remaining, activeIndex));
         },
-        [activeJob, activeIndex, visiblePacks, unskipped, nowMs, isOwnRole, tuneRankOf, askWhy, dismissWhy],
+        [activeJob, activeIndex, visiblePacks, tuned, unskipped, nowMs, isOwnRole, tuneRankOf, askWhy, dismissWhy],
     );
     const handleSkip = useCallback(() => removeActive("skip"), [removeActive]);
     const handleFewer = useCallback(() => removeActive("fewer"), [removeActive]);
@@ -138,9 +153,9 @@ export function useForYouDeck(
         (signal: Exclude<TuningSignal, "skip" | "fewer">) => {
             if (!activeJob) return;
             setPassedIds(reachedIds(visiblePacks, passedIds, activeIndex));
-            recordNudge(activeJob, signal, visiblePacks, { own: isOwnRole?.(activeJob) ?? false });
+            recordNudge(activeJob, signal, tuned, { own: isOwnRole?.(activeJob) ?? false });
         },
-        [activeJob, activeIndex, visiblePacks, passedIds, isOwnRole],
+        [activeJob, activeIndex, visiblePacks, tuned, passedIds, isOwnRole],
     );
 
     // "More like this" is a toggle: a second tap takes it back.
@@ -155,9 +170,9 @@ export function useForYouDeck(
             dismissWhyFor(activeJob.id);
         } else {
             nudgeActive("more");
-            askWhy({ job: activeJob, signal: "more", deck: visiblePacks, own: isOwnRole?.(activeJob) ?? false });
+            askWhy({ job: activeJob, signal: "more", deck: tuned, own: isOwnRole?.(activeJob) ?? false });
         }
-    }, [activeJob, likedIds, nudgeActive, askWhy, dismissWhyFor, visiblePacks, isOwnRole]);
+    }, [activeJob, likedIds, nudgeActive, askWhy, dismissWhyFor, tuned, isOwnRole]);
 
     const tuning = useMemo(() => summarizeTuning(nudges, nowMs), [nudges, nowMs]);
     // A reason arrives after the deck has moved on to the next role: that role and everything
@@ -184,6 +199,8 @@ export function useForYouDeck(
 
     return {
         visiblePacks,
+        /** Each card's employer: its other roles in the deck and how many it does not show, by the card's role id. */
+        slots: slots as ReadonlyMap<string, EmployerSlot<PublicJob>>,
         activeIndex,
         setActiveIndex,
         restart,

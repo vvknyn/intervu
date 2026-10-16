@@ -15,13 +15,13 @@
  * Today's pinning (`pinEmailed`) all use it.
  */
 import { type TrackedIndex, type TrackedLike } from "@/lib/pursuits/applied";
-import { pickToday, sameRoleKey, type TodayRole } from "@/lib/jobs/for-you/today";
+import { pickToday, sameRoleKey, todaySlots, type TodayRole } from "@/lib/jobs/for-you/today";
 import type { PublicJob } from "@/lib/jobs/types";
 
-/** Roles in one email. */
+/** Employers in one email: each is one pick, with its other roles under it (`todaySlots`). */
 export const DAILY_PICKS_MAX = 5;
 
-/** Sent roles remembered, newest kept: about four months at five a day. */
+/** Sent roles remembered, newest kept: about four months at five a day (an email names an employer's other roles too, so a busy one fills it sooner). */
 export const DAILY_PICKS_SENT_CAP = 600;
 
 /** A run this soon after the last email sends nothing: a cron that fires twice, or a manual run. */
@@ -61,11 +61,20 @@ export function wasSent(job: PublicJob, sent: DailyPicksSent): boolean {
     return sent.ids.includes(job.id) || sent.keys.includes(sentKey(job));
 }
 
-/** The next email's roles: the best of the ranked picks not sent before, at most `DAILY_PICKS_MAX`. */
+/**
+ * The next email's picks: the best of the ranked roles not sent before, one slot per employer (`todaySlots`: its
+ * other unsent roles ride under it), at most `DAILY_PICKS_MAX` employers. An employer whose best role went out
+ * yesterday leads with its next one: the slot is chosen among what has not been sent.
+ */
 export function chooseDailyPicks(ranked: TodayRole[], sent: DailyPicksSent): TodayRole[] {
     const ids = new Set(sent.ids);
     const keys = new Set(sent.keys);
-    return ranked.filter((r) => !ids.has(r.job.id) && !keys.has(sentKey(r.job))).slice(0, DAILY_PICKS_MAX);
+    return todaySlots(ranked.filter((r) => !ids.has(r.job.id) && !keys.has(sentKey(r.job)))).slice(0, DAILY_PICKS_MAX);
+}
+
+/** Every role an email names, in its reading order: each pick, then the employer's other roles listed under it. What the account is recorded as having been sent. */
+export function emailedJobs(picks: readonly TodayRole[]): PublicJob[] {
+    return picks.flatMap((pick) => [pick.job, ...(pick.employer?.more ?? []).map((other) => other.job)]);
 }
 
 /** What the account has been sent once `jobs` go out, newest last, capped at `DAILY_PICKS_SENT_CAP`. */

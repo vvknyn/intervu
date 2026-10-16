@@ -5,6 +5,7 @@
  */
 import { labelNamesPlace, matchBand, type MatchScore } from "@/lib/match/score";
 import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates, readRows } from "@/lib/jobs/for-you/list-rows";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
@@ -30,17 +31,17 @@ export type ScoredHubHit = { job: PublicJob; score: MatchScore };
  * once, minus the roles whose apply link no longer works and the ones already in the person's tracker (`listCandidates`),
  * then the deck's own rule and fallbacks (`deckListFor`). A chip counts `jobs`, so it cannot promise roles the deck leaves
  * out, and the welcome line's left-out reasons are the deck foot's. `found` is what the search said it found, when that is
- * more than the rows read.
+ * more than the rows read. `employers` is how many cards the deck makes of `jobs`: it gives each employer one (`collapseByEmployer`).
  */
 export function hubList(
     scored: readonly ScoredHubHit[],
     nowMs: number,
     options: { isTracked?: (job: PublicJob) => boolean; found?: number | null } = {},
-): { jobs: PublicJob[]; summary: DeckLeftOutSummary } {
+): { jobs: PublicJob[]; employers: number; summary: DeckLeftOutSummary } {
     const scoreById = new Map(scored.map((hit) => [hit.job.id, hit.score] as const));
     const { candidates, closed, tracked } = listCandidates(readRows(scored.map((hit) => hit.job)), options.isTracked);
     const { ranked, summary } = deckListFor(candidates, (job) => scoreById.get(job.id) ?? null, nowMs);
-    return { jobs: ranked, summary: withListRemovals(summary, { closed, tracked }, options.found) };
+    return { jobs: ranked, employers: collapseByEmployer(ranked, (job) => job).length, summary: withListRemovals(summary, { closed, tracked }, options.found) };
 }
 
 /**

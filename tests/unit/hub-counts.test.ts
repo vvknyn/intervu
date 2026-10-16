@@ -15,6 +15,7 @@ import {
     resolveHubRoleCountLabels,
     resolveAllMatchesHubCount,
 } from "../../src/lib/jobs/for-you/hub-counts";
+import { formatHubFitLine } from "../../src/lib/jobs/for-you/left-out-copy";
 import { deckListLoading } from "../../src/lib/jobs/for-you/deck-list-loading";
 import { jobMatchesHubPack } from "../../src/lib/jobs/for-you/hub-pack-filters";
 import type { MatchScore } from "../../src/lib/match/score";
@@ -365,6 +366,22 @@ describe("hubList: the pack's list as its deck would open it", () => {
         assert.equal(summary.listed, 2);
         assert.equal(summary.considered, 3);
         assert.deepEqual(summary.byReason, { tracked: 1 });
+    });
+
+    it("says how many cards the deck makes of the list: one per employer, and the line names both counts as the deck's foot does", () => {
+        const hits = [
+            strong("a1", { title: "Product Manager", company: "Orchard CRM" }),
+            strong("a2", { title: "Senior Product Manager", company: "Orchard CRM" }),
+            strong("b1", { title: "Product Manager", company: "Northstar Data" }),
+        ];
+        const { jobs, employers, summary } = hubList(hits, NOW);
+        assert.equal(jobs.length, 3);
+        assert.equal(employers, 2);
+        assert.equal(formatHubFitLine(summary, employers), "3 roles fit your résumé at 2 employers · best fit first");
+        // Each employer once: the count is the roles', with no second number.
+        const separate = hubList([strong("c"), strong("d")], NOW);
+        assert.equal(separate.employers, 2);
+        assert.equal(formatHubFitLine(separate.summary, separate.employers), "2 roles fit your résumé · best fit first");
     });
 
     it("counts each opening once: the same title and company in two places is one role", () => {

@@ -85,23 +85,28 @@ export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older">
     return "fit";
 }
 
-/** The list's own count, at the foot of the deck. */
-export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit"): string | null {
+/**
+ * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
+ * `employers` fewer than the roles the count says both: "12 roles fit your résumé at 7 employers".
+ */
+export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit", employers?: number): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
-    if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit`;
-    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · best fit first`;
+    const e = employers != null && Number.isFinite(employers) ? Math.floor(employers) : n;
+    const at = e > 0 && e < n ? ` at ${e.toLocaleString()} ${e === 1 ? "employer" : "employers"}` : "";
+    if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit`;
+    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
+    if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
+    return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · best fit first`;
 }
 
 /**
  * The packs hub's one count line, in the deck's own words (`formatDeckShowingLine`): what the pack opens with. A pack that
  * read roles and listed none says so rather than showing no count; one that read nothing has no line.
  */
-export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined): string | null {
+export function formatHubFitLine(summary: DeckLeftOutSummary | null | undefined, employers?: number): string | null {
     if (!summary) return null;
-    if (summary.listed > 0) return formatDeckShowingLine(summary.listed, deckListKind(summary));
+    if (summary.listed > 0) return formatDeckShowingLine(summary.listed, deckListKind(summary), employers);
     return summary.considered > 0 ? "No role fits your résumé yet" : null;
 }
 

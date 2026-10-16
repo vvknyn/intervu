@@ -20,6 +20,9 @@ import { fitFor } from "../jobs/for-you/fit";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
+import { collapseByEmployer } from "../jobs/for-you/employer-slot";
+import { todaySlots } from "../jobs/for-you/today";
+import { jobCompanyHref } from "../companies/paths";
 import type { ListLeftOut } from "../jobs/for-you/band-order";
 import { formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE, writtenInParts } from "../jobs/for-you/left-out-copy";
 import { languageListText } from "../match/posting-language";
@@ -752,14 +755,56 @@ export interface ForYouInput {
   limit?: number;
 }
 
+/**
+ * An employer's other role in a list that gives each employer one slot (`collapseByEmployer`): enough to name it and
+ * open it; `get_job` has the rest. Its fit_label is the same `matchLabel` as on every other surface.
+ */
+export interface MoreAtEmployerRole {
+  id: string;
+  title: string;
+  location: string | null;
+  posted_at: string | null;
+  fit_label?: string;
+  intervu_url: string;
+}
+
+/** The roles an employer's slot holds besides the one that leads it, and how many past the slot's cap it does not list (`company_url` has them all). */
+export interface MoreAtEmployer {
+  roles: MoreAtEmployerRole[];
+  hidden: number;
+  company_url?: string;
+}
+
+function moreAtEmployer(
+  lead: PublicJob,
+  more: readonly { job: PublicJob; match: MatchScore | null | undefined }[],
+  hidden: number,
+): MoreAtEmployer | undefined {
+  if (more.length === 0 && hidden === 0) return undefined;
+  return {
+    roles: more.map(({ job, match }) => ({
+      id: job.id,
+      title: job.title,
+      location: job.location,
+      posted_at: job.posted_at,
+      ...(match ? { fit_label: matchLabel(match) } : {}),
+      intervu_url: jobShareUrl(getSiteUrl(), job),
+    })),
+    hidden,
+    ...(hidden > 0 ? { company_url: `${getSiteUrl()}${jobCompanyHref(lead.company ?? "", lead.company_domain)}` } : {}),
+  };
+}
+
 export interface ForYouHit extends JobDetailFields {
   group: "target_title" | "adjacent";
+  /** The employer's other roles in this list: each employer has one slot, this role's, and the rest ride in it. */
+  more_at_employer?: MoreAtEmployer;
 }
 
 export interface ForYouOut {
   hits: ForYouHit[];
   /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
-  left_out?: { /** Roles the list read: the first rows of what the search found. */ considered: number; /** What the search found, when that is more than `considered`. */ found?: number; listed: number; by_reason: Partial<Record<ListLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true; /** No role posted in the last 30 days fits: `hits` fit and were posted longer ago (with `near`: the closest of them, each a weaker fit). */ older?: true };
+  left_out?: { /** Roles the list read: the first rows of what the search found. */ considered: number; /** What the search found, when that is more than `considered`. */ found?: number; listed: number; /** Employers the listed roles are at: the list has one slot per employer, so `hits` are at most this many. */ employers?: number; by_reason: Partial<Record<ListLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true; /** No role posted in the last 30 days fits: `hits` fit and were posted longer ago (with `near`: the closest of them, each a weaker fit). */ older?: true };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -820,13 +865,23 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
       .filter(hasLiveApplyUrl)
       .map((job) => job.id),
   );
-  const deck = ranked.hits.filter((h) => listed.has(h.job.id));
-  const page = deck.slice(offset, offset + limit);
-  const hits: ForYouHit[] = page.map((h) => ({ ...toJobDetailFields(h.job, resume, signals), group: h.group }));
+  // One slot per employer, the last step on the one order (`collapseByEmployer`): the best role of each employer leads,
+  // and its other roles in the list ride in its `more_at_employer` instead of taking a place each. `limit` and the
+  // cursor count slots, so a page is that many employers.
+  const slots = collapseByEmployer(
+    ranked.hits.filter((h) => listed.has(h.job.id)),
+    (h) => h.job,
+  );
+  const deck = slots.map((slot) => slot.lead);
+  const page = slots.slice(offset, offset + limit);
+  const hits: ForYouHit[] = page.map((slot) => {
+    const more = moreAtEmployer(slot.lead.job, slot.more.map((h) => ({ job: h.job, match: h.match })), slot.hidden);
+    return { ...toJobDetailFields(slot.lead.job, resume, signals), group: slot.lead.group, ...(more ? { more_at_employer: more } : {}) };
+  });
 
   // Corpus-harvesting guardrail — same daily record budget search_jobs/
-  // get_job meter against, so for_you can't be used to route around it.
-  const budget = await deps.consumeRecordBudget(hits.length);
+  // get_job meter against, so for_you can't be used to route around it. Every role a page names counts, the ones under an employer too.
+  const budget = await deps.consumeRecordBudget(page.reduce((sum, slot) => sum + 1 + slot.more.length, 0));
   if (!budget.ok) return { error: budget.error };
 
   const nextCursor = nextCursorFor(offset, hits.length, deck.length, limit);
@@ -853,7 +908,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   return {
     hits,
     ...(ranked.leftOut.considered > 0
-      ? { left_out: { considered: ranked.leftOut.considered, ...(ranked.leftOut.found != null ? { found: ranked.leftOut.found } : {}), listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}), ...(ranked.leftOut.older ? { older: true as const } : {}) } }
+      ? { left_out: { considered: ranked.leftOut.considered, ...(ranked.leftOut.found != null ? { found: ranked.leftOut.found } : {}), listed: ranked.leftOut.listed, employers: deck.length, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}), ...(ranked.leftOut.older ? { older: true as const } : {}) } }
       : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),
@@ -871,6 +926,8 @@ export interface DailyPickHit extends JobDetailFields {
   why: string;
   /** Already sent in a daily picks email (by id, or another listing of the same opening). */
   emailed: boolean;
+  /** The employer's other picks this week: each employer has one pick, this role's, and the rest ride in it (the email lists them under it). */
+  more_at_employer?: MoreAtEmployer;
 }
 
 export interface DailyPicksOut {
@@ -908,13 +965,18 @@ export async function toolDailyPicks(deps: ToolDeps, input: DailyPicksInput): Pr
     return { picks: [], email, unavailable: true, note: "search backend unavailable — treat as an error, not as zero picks" };
   }
 
-  const top = result.ranked.slice(0, DAILY_PICKS_MAX);
-  const picks: DailyPickHit[] = top.map((role) => ({
-    ...toJobDetailFields(role.job, result.resume, result.signals),
-    why: explainMatch(role.score),
-    emailed: wasSent(role.job, setting.state.sent),
-  }));
-  const budget = await deps.consumeRecordBudget(picks.length);
+  // One pick per employer, as Today's rows and the email (`todaySlots`).
+  const top = todaySlots(result.ranked).slice(0, DAILY_PICKS_MAX);
+  const picks: DailyPickHit[] = top.map((role) => {
+    const more = role.employer ? moreAtEmployer(role.job, role.employer.more.map((other) => ({ job: other.job, match: other.score })), role.employer.hidden) : undefined;
+    return {
+      ...toJobDetailFields(role.job, result.resume, result.signals),
+      why: explainMatch(role.score),
+      emailed: wasSent(role.job, setting.state.sent),
+      ...(more ? { more_at_employer: more } : {}),
+    };
+  });
+  const budget = await deps.consumeRecordBudget(top.reduce((sum, role) => sum + 1 + (role.employer?.more.length ?? 0), 0));
   if (!budget.ok) return { error: budget.error };
 
   const languagesOut = result.languagesLeftOut;

@@ -13,6 +13,7 @@ import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pu
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import { compareForYouKeys, deckLeftOut, forYouSortKey, postedTsOf, tuneRank } from "@/lib/jobs/for-you/band-order";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
@@ -93,7 +94,25 @@ export function interviewsThisWeek(pursuits: Pursuit[], nowMs: number): Pursuit[
         .sort((a, b) => (parseMs(a.interview_date) ?? 0) - (parseMs(b.interview_date) ?? 0));
 }
 
-export type TodayRole = { job: PublicJob; score: MatchScore };
+export type TodayRole = {
+    job: PublicJob;
+    score: MatchScore;
+    /** Set on a role that leads its employer's slot (`todaySlots`): the employer's other roles in the list, and how many more the slot does not show. */
+    employer?: { more: TodayRole[]; hidden: number };
+};
+
+/**
+ * Today's list with one slot per employer (`collapseByEmployer`, the last step on the one order): each role that leads
+ * its employer carries the employer's other picks (`employer.more`) instead of taking a row of its own, so five
+ * rows are five employers. Every surface that lists picks ends here: Today's rows, the daily picks email and the
+ * MCP `daily_picks` tool. The picks a visitor has skipped or the account has tracked are already out of `roles`,
+ * so an employer whose lead is turned down hands its slot to its next role.
+ */
+export function todaySlots(roles: readonly TodayRole[]): TodayRole[] {
+    return collapseByEmployer(roles, (role) => role.job).map((slot) =>
+        slot.more.length + slot.hidden === 0 ? slot.lead : { ...slot.lead, employer: { more: slot.more, hidden: slot.hidden } },
+    );
+}
 
 /**
  * Why a scored role is not one of today's picks: the rule every recommendation list shares (`forYouLeftOut`,
@@ -350,8 +369,10 @@ export interface TodaySummary {
 export function todaySummary(input: {
     /** The picks have loaded and at least `shown` of them are listed. */
     ready: boolean;
-    /** Rows the list shows. */
+    /** Rows the list shows: one per employer (`todaySlots`). */
     shown: number;
+    /** Every pick the rows hold, an employer's other roles (inside its row) included; more than `shown` when an employer holds more than one. */
+    roles?: number;
     /** Picks this device hadn't listed before (`isNewPick`); every pick on a first visit. */
     newCount: number;
     firstVisit: boolean;
@@ -367,7 +388,21 @@ export function todaySummary(input: {
     let next: string | null = null;
     if (ready && shown > 0) {
         const sinceText = since === "today" ? "since you were here earlier today" : since;
-        if (firstVisit) {
+        const roles = Math.max(shown, Math.floor(input.roles ?? shown));
+        if (roles > shown) {
+            // A row is an employer and holds more than one role: the line counts the rows and the roles, each by its name.
+            const held = `${shown} ${s(shown, "employer has", "employers have")} ${roles} roles posted this week that fit you`;
+            if (firstVisit) {
+                picks = `${held}.`;
+                next = "Look at them below and apply to the ones that suit you.";
+            } else if (newCount > 0) {
+                picks = newCount >= shown ? `${shown} ${s(shown, "employer has", "employers have")} new roles that fit you ${sinceText}.` : `${held}, ${newCount} marked New ${sinceText}.`;
+                next = newCount === 1 ? "It's at the top, marked New. Apply if it suits you." : "They're at the top, marked New. Apply to the ones that suit you.";
+            } else {
+                picks = `${held}, none new ${sinceText}.`;
+                next = shown === 1 ? "Apply to the role below, or give it a thumbs down so it stops showing." : "Apply to the roles below that suit you, and give the rest a thumbs down so they stop showing.";
+            }
+        } else if (firstVisit) {
             // Every pick on a first visit is this week's: count the rows listed, so the line never reads 0 above two roles
             // (2026-10-14: "0 roles posted this week fit you" over two picks this device had listed before).
             picks = `${shown} ${s(shown, "role", "roles")} posted this week ${s(shown, "fits", "fit")} you.`;

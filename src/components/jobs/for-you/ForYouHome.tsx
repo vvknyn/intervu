@@ -28,6 +28,8 @@ import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { RoleStack, focusedStackControl, restoreStackFocus } from "@/components/jobs/for-you/RoleStack";
 import { StackedRoleCard } from "@/components/jobs/for-you/StackedRoleCard";
+import { EmployerMore } from "@/components/jobs/for-you/EmployerMore";
+import { slotOpenings, type EmployerSlot } from "@/lib/jobs/for-you/employer-slot";
 import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { TuningReasonPrompt } from "@/components/jobs/for-you/TuningReasonPrompt";
 import type { TuningReasonPrompt as TuningReasonPromptState } from "@/hooks/use-tuning-reason";
@@ -76,6 +78,8 @@ const REPLACE_RESUME_CLASS =
 
 export interface ForYouHomeProps {
     visiblePacks: PublicJob[];
+    /** Each listed role's employer slot, by the role's id (`useForYouDeck().slots`): its other roles in the deck. One card per employer. */
+    employerSlots?: ReadonlyMap<string, EmployerSlot<PublicJob>>;
     activeIndex: number;
     onActiveIndexChange: (index: number) => void;
     activeJob: PublicJob | null;
@@ -170,6 +174,7 @@ const NO_PACKS: PublicJob[] = [];
 
 export function ForYouHome({
     visiblePacks: listedPacks,
+    employerSlots,
     activeIndex,
     onActiveIndexChange,
     activeJob,
@@ -509,7 +514,11 @@ export function ForYouHome({
     const olderNearMisses = leftOut?.near === true && leftOut.older === true && listedAny;
     const nearMisses = leftOut?.near === true && leftOut.older !== true && listedAny;
     const olderFits = leftOut?.older === true && leftOut.near !== true && listedAny;
-    const showingLine = formatDeckShowingLine(visiblePacks.length, olderNearMisses ? "older-near" : olderFits ? "older" : nearMisses ? "near" : "fit");
+    // The deck lists one card per employer, so its count says both: the roles that fit and the employers they are at.
+    const listedRoles = employerSlots ? visiblePacks.reduce((sum, job) => sum + (employerSlots.get(job.id) ? slotOpenings(employerSlots.get(job.id)!) : 1), 0) : visiblePacks.length;
+    // The header counts the cards: roles, until an employer holds more than one, and then employers, which it says.
+    const cardUnit = listedRoles > visiblePacks.length ? "employer" : "role";
+    const showingLine = formatDeckShowingLine(listedRoles, olderNearMisses ? "older-near" : olderFits ? "older" : nearMisses ? "near" : "fit", visiblePacks.length);
     const leftOutLine = formatLeftOutLine(leftOut);
     // The languages they read postings in: a control where roles written in another were left out, and wherever they have changed them.
     const language = useLanguageChoice(accountKey);
@@ -554,6 +563,22 @@ export function ForYouHome({
     const atEnd = selectedIndex >= lastIndex;
     const upNext = atEnd ? null : visiblePacks[selectedIndex + 1];
 
+    // The employer's other roles in the deck, inside this card's slot; open on the card the person is reading.
+    const employerMoreFor = (job: PublicJob, active: boolean) => {
+        const slot = employerSlots?.get(job.id);
+        if (!slot || slot.more.length + slot.hidden === 0) return null;
+        return (
+            <EmployerMore
+                lead={job}
+                roles={slot.more.map((other) => ({ job: other, score: matchScores?.get(other.id) ?? null }))}
+                hidden={slot.hidden}
+                nowMs={nowMs}
+                defaultOpen
+                testId={active ? "employer-more" : "employer-more-inert"}
+            />
+        );
+    };
+
     const renderCard = (job: PublicJob, active: boolean) => {
         const hydration = resolveDescriptionHydration(job, hydratedJobs.get(job.id));
         return (
@@ -584,6 +609,7 @@ export function ForYouHome({
                 // On the card, by the thumbs that were tapped: in the deck's header it could be
                 // scrolled off by the page's fit-to-screen scroll (review, 2026-10-13).
                 tuningNote={active ? <TuningReasonPrompt prompt={tuningReason} layout="stacked" /> : null}
+                employerMore={employerMoreFor(job, active)}
             />
         );
     };
@@ -737,7 +763,7 @@ export function ForYouHome({
                     {canNavigate ? (
                         <p className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
                             <span data-testid="for-you-deck-position" className="shrink-0 tabular-nums" aria-live="polite">
-                                Role {selectedIndex + 1} of {visiblePacks.length}
+                                {cardUnit === "employer" ? "Employer" : "Role"} {selectedIndex + 1} of {visiblePacks.length}
                             </span>
                             <span className="hidden min-w-0 truncate lg:inline">
                                 <span aria-hidden>· </span>
@@ -748,8 +774,8 @@ export function ForYouHome({
                                               : ""
                                       }`
                                     : hasMore && onLoadMore
-                                      ? "That's the last role so far."
-                                      : "That's the last role here."}
+                                      ? `That's the last ${cardUnit} so far.`
+                                      : `That's the last ${cardUnit} here.`}
                             </span>
                         </p>
                     ) : null}

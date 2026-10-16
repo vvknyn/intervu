@@ -26,6 +26,7 @@ import { SignupGate } from "@/components/auth/SignupGate";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
+import { EmployerMore } from "@/components/jobs/for-you/EmployerMore";
 import { Button } from "@/components/ui/button";
 import { SubTitle } from "@/components/ui/heading";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
@@ -66,6 +67,7 @@ import {
     resolveTodaySince,
     sincePhrase,
     todayLanguagesLeftOut,
+    todaySlots,
     todaySummary,
     todaySearchFloor,
     tuneToday,
@@ -303,8 +305,9 @@ export function TodayHome({
     const daily = useDailyPicks(auth === "signed-in" && accountKey != null, accountKey, "today");
     const emailed = daily.view?.emailedIds;
     const emailedIds = useMemo(() => new Set(emailed ?? []), [emailed]);
+    // One row per employer, the last step on the one order (`todaySlots`): an employer's other picks ride inside its row.
     const picks = useMemo(
-        () => pinEmailed(tuneToday(ranked, nudges, held, nowMs), emailed ?? []),
+        () => todaySlots(pinEmailed(tuneToday(ranked, nudges, held, nowMs), emailed ?? [])),
         [ranked, nudges, held, nowMs, emailed],
     );
     const liked = useMemo(() => new Set(nudges.filter((n) => n.signal === "more").map((n) => n.jobId)), [nudges]);
@@ -392,7 +395,8 @@ export function TodayHome({
         });
 
     const shownIds = picks.slice(0, rowLimit).map((r) => r.job.id);
-    const deck = picks.map((r) => r.job);
+    // What a nudge reads: every role the list holds, an employer's other roles (inside its row) included.
+    const deck = picks.flatMap((r) => [r.job, ...(r.employer?.more.map((other) => other.job) ?? [])]);
     /** Hold the shown rows down to `index` (inclusive or not) where they are. */
     const holdThrough = (jobId: string, inclusive: boolean) => {
         const index = shownIds.indexOf(jobId);
@@ -435,7 +439,7 @@ export function TodayHome({
                         reason="fit"
                         originSurface="for_you"
                         returnTo={returnTo}
-                        count={{ kind: "exact", value: picks.length }}
+                        count={{ kind: "exact", value: picks.reduce((sum, r) => sum + 1 + (r.employer ? r.employer.more.length + r.employer.hidden : 0), 0) }}
                         className="w-full"
                     />
                 ) : null
@@ -614,7 +618,7 @@ export function TodayHomeView({
     const gated = gate != null && roles.length > rowLimit;
     // One plain line: what the numbers count and the next thing to do ("the UI needs to almost nudge the user to do
     // the next natural thing", Vivek 2026-10-07, after "0 new picks · 0 of 12 applied today" beside 11 applications).
-    const summary = todaySummary({ ready: status === "ready", shown: shown.length, newCount, firstVisit, since, appliedToday, appliedWaiting });
+    const summary = todaySummary({ ready: status === "ready", shown: shown.length, roles: shown.reduce((sum, r) => sum + 1 + (r.employer ? r.employer.more.length + r.employer.hidden : 0), 0), newCount, firstVisit, since, appliedToday, appliedWaiting });
     const summaryLine =
         summary.picks || summary.appliedToday || summary.waiting ? (
             <div className="space-y-0.5 text-sm" data-testid="today-summary">
@@ -904,6 +908,16 @@ function TodayRow({
                             ]}
                         />
                     </div>
+                    {role.employer ? (
+                        <EmployerMore
+                            lead={job}
+                            roles={role.employer.more}
+                            hidden={role.employer.hidden}
+                            nowMs={nowMs}
+                            testId="today-employer-more"
+                            className="mt-1.5"
+                        />
+                    ) : null}
                 </div>
                 <div data-testid="today-row-actions" className="mt-2 flex items-center justify-between gap-2 sm:mt-0 sm:justify-end">
                     <Button type="button" variant="outline" data-testid="today-apply" onClick={onApply}>

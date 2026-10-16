@@ -3447,14 +3447,16 @@ export function JobsContent({
 
     // What the packs hub says about the pack, in the deck's words: how many roles fit, and why the rest were left out
     // (`hubList`, the deck's own rule over the rows its search returned). Once the pack's rows are all in.
-    const hubSummary = useMemo(
+    const hubPackList = useMemo(
         () =>
             hubResumeKey && hubSettled && !pursuitsLoading
-                ? hubList(hubFitProbe.scored, nowMs, { isTracked: hubIsTracked, found: hubFitProbe.total }).summary
+                ? hubList(hubFitProbe.scored, nowMs, { isTracked: hubIsTracked, found: hubFitProbe.total })
                 : null,
         [hubResumeKey, hubSettled, pursuitsLoading, hubFitProbe.scored, hubFitProbe.total, hubIsTracked, nowMs],
     );
-    const hubFitLine = useMemo(() => formatHubFitLine(hubSummary), [hubSummary]);
+    const hubSummary = hubPackList?.summary ?? null;
+    // The deck gives each employer one card, so the line says the employers as the deck's foot does.
+    const hubFitLine = useMemo(() => formatHubFitLine(hubSummary, hubPackList?.employers), [hubSummary, hubPackList]);
     const hubLeftOutLine = useMemo(() => formatLeftOutLine(hubSummary, { maxParts: 3 }), [hubSummary]);
     // A visitor with no usable résumé has no matches to count: the corpus is "roles".
     const hubCorpusLine = useMemo(
@@ -6862,6 +6864,7 @@ export function JobsContent({
                         ) : (
                             <ForYouHome
                                 visiblePacks={forYouDeck.visiblePacks}
+                                employerSlots={forYouDeck.slots}
                                 activeIndex={forYouDeck.activeIndex}
                                 onActiveIndexChange={forYouDeck.setActiveIndex}
                                 activeJob={forYouDeck.activeJob}
