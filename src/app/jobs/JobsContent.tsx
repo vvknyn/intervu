@@ -371,11 +371,14 @@ import {
     type ScoredHubHit,
 } from "@/lib/jobs/for-you/hub-counts";
 import {
-    exactHubCounts,
+    chipCountsToRemember,
+    hubCountsGate,
     readHubTileCounts,
     resolveHubCountDeltas,
     writeHubTileCounts,
+    type HubCountsGate,
     type HubPackCounts,
+    type HubProbeRead,
 } from "@/lib/jobs/for-you/hub-count-deltas";
 import { useForYouDeck } from "@/hooks/use-for-you-deck";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
@@ -1935,6 +1938,11 @@ export function JobsContent({
         tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>>;
         deltas: HubPackCounts;
     } | null>(null);
+    // Remembering this probe's counts, which waits for the tracker as well as for the probe (`hubCountsGate`).
+    const hubCountsGateRef = useRef<HubCountsGate<HubProbeRead> | null>(null);
+    useEffect(() => {
+        hubCountsGateRef.current?.tracker(!pursuitsLoading);
+    }, [pursuitsLoading]);
     const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
     forYouPackDeckOpenRef.current = forYouPackDeckOpen;
 
@@ -3248,6 +3256,23 @@ export function JobsContent({
             return;
         }
         let cancelled = false;
+        // Every chip count is known: compare the exact ones with the last visit's, then remember these, for the
+        // chips the hub shows. The counts leave out the roles already in the tracker, so this runs once the probe
+        // has settled and the tracker has loaded, whichever comes last.
+        hubCountsGateRef.current?.cancel();
+        const countsGate = hubCountsGate<HubProbeRead>(
+            (read) => {
+                const isTracked = (job: PublicJob) => trackedPursuitFor(job, appliedIndexRef.current) != null;
+                const chipCounts = chipCountsToRemember({ ...read, industry, isTracked, nowMs: Date.now() });
+                const resolved = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
+                writeHubTileCounts(resolved.next);
+                setHubCountDeltas(resolved.deltas);
+                const memoed = hubProbeMemoRef.current;
+                if (memoed?.key === memoKey) hubProbeMemoRef.current = { ...memoed, deltas: resolved.deltas };
+            },
+            !pursuitsLoadingRef.current,
+        );
+        hubCountsGateRef.current = countsGate;
         setHubFitProbe((prev) => ({
             ...prev,
             loading: true,
@@ -3358,32 +3383,15 @@ export function JobsContent({
                     tiles[id] = rows;
                     setHubTileScored((prev) => ({ ...prev, [id]: rows }));
                 }
-                // Every chip count is known: compare the exact ones with the last visit's, then remember these,
-                // for the chips the hub shows (a hidden tile's "+N" would have nowhere to go). Not before the
-                // tracker has loaded: the counts leave out roles already in it.
-                let deltas: HubPackCounts = {};
-                if (!pursuitsLoadingRef.current) {
-                    const isTracked = (job: PublicJob) => trackedPursuitFor(job, appliedIndexRef.current) != null;
-                    const counts = hubChipCounts({ pack: scored, tiles, isTracked, nowMs: Date.now(), settled: true });
-                    const shown = new Set(
-                        visibleIndustryTiles(industry, { counts, wholePack: poolTotal != null && scored.length >= poolTotal, foundNothing: poolTotal === 0, settled: true }),
-                    );
-                    const chipCounts = Object.fromEntries(
-                        Object.entries(exactHubCounts(counts)).filter(([id]) => shown.has(id as HubPackId)),
-                    ) as HubPackCounts;
-                    const resolved = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
-                    writeHubTileCounts(resolved.next);
-                    deltas = resolved.deltas;
-                }
-                setHubCountDeltas(deltas);
                 hubProbeMemoRef.current = {
                     key: memoKey,
                     at: Date.now(),
                     complete: Object.values(tiles).every((rows) => rows != null),
                     probe,
                     tiles,
-                    deltas,
+                    deltas: {},
                 };
+                countsGate.settled({ scored, tiles, poolTotal });
             } catch {
                 if (!cancelled) {
                     setHubFitProbe((prev) => ({

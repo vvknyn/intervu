@@ -11,7 +11,7 @@ import { EXPEL_TAM_HTML } from "../../fixtures/job-descriptions/postings";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 import { answerListSearch, isListSearch } from "./list-search";
-import { signedInTest, withActionResult, withoutMockSignInHydration } from "./signed-in";
+import { holdAccountApplications, signedInTest, withActionResult, withoutMockSignInHydration } from "./signed-in";
 
 // Résumé kept in this browser: src/lib/local-ai/flag.ts + resume-storage.ts (same seeding tests/e2e/jobs-first-paint.spec.ts proves).
 const LOCAL_AI_ENABLED_KEY = "velai.localAi.enabled";
@@ -589,7 +589,7 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
     await expect(today.getByTestId("today-see-more")).toHaveCount(0);
   } else {
     expect(await rows.count()).toBeLessThanOrEqual(TODAY_PICK_ROWS);
-    await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(\d+ roles? posted this week fits? you(, (none|\d+) new since \w+)?|\d+ new roles? fits? you since \w+)\.$/);
+    await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(\d+ roles? posted this week fits? you(, (none|\d+) new since \w+)?|\d+ new roles? fits? you since \w+|\d+ employers? ha(s|ve) \d+ roles posted this week that fit you(, (\d+ marked New|none new) since \w+)?|\d+ employers? ha(s|ve) new roles that fit you since \w+)\.$/);
     await expect(summary.getByTestId("today-next-step")).toHaveText(/^Next: /);
     for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
     await expect(rows.first().getByTestId("today-apply")).toBeVisible();
@@ -1671,9 +1671,14 @@ signedInTest("an open role's \"What we inferred\" names the same posted date and
 });
 
 signedInTest("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
+  // Two loads, each held on the tracker for 12 s below.
+  signedInTest.slow();
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await withResume(page, "Toronto, Ontario, Canada");
+  // The account's tracker answers well after the chips' searches have settled (a slow account read): the counts leave
+  // out the roles in it, so the visit is remembered when the tracker arrives, not lost because it came last.
+  await holdAccountApplications(page, 12_000);
   await page.goto("/jobs?view=for-you");
 
   const chips = page.getByTestId("hub-pack-chips");
