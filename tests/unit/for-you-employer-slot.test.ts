@@ -13,7 +13,7 @@ import { pickToday, todaySlots, type TodayRole } from '../../src/lib/jobs/for-yo
 import { chooseDailyPicks, DAILY_PICKS_MAX, emailedJobs, NOTHING_SENT, rankDailyPicks, type DailyPicksSent } from '../../src/lib/daily-picks/pick';
 import { dailyPickItem } from '../../src/lib/daily-picks/send';
 import { buildDailyPicksEmail, type DailyPickItem } from '../../src/lib/email/templates/daily-picks';
-import { formatDeckShowingLine } from '../../src/lib/jobs/for-you/left-out-copy';
+import { formatDeckShowingLine, formatRolesAtEmployers } from '../../src/lib/jobs/for-you/left-out-copy';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { scoreJobAgainstResume } from '../../src/lib/match/score';
 import type { PublicJob } from '../../src/lib/jobs/types';
@@ -178,6 +178,11 @@ describe('Today and the daily picks: five rows are five employers', () => {
 
 describe('the deck\'s count says roles and employers', () => {
     it('"12 roles fit your résumé at 7 employers", and the old line when every role is its own employer', () => {
+        assert.equal(formatRolesAtEmployers(14, 7), '14 roles at 7 employers', 'the words the hub chip and the deck header share');
+        assert.equal(formatRolesAtEmployers(7, 7), '7 roles');
+        assert.equal(formatRolesAtEmployers(1, 1), '1 role');
+        assert.equal(formatRolesAtEmployers(3, 1), '3 roles at 1 employer');
+        assert.equal(formatRolesAtEmployers(1234, 600), '1,234 roles at 600 employers');
         assert.equal(formatDeckShowingLine(12, 'fit', 7), '12 roles fit your résumé at 7 employers · best fit first');
         assert.equal(formatDeckShowingLine(8, 'fit', 8), '8 roles fit your résumé · best fit first');
         assert.equal(formatDeckShowingLine(8, 'fit'), '8 roles fit your résumé · best fit first');

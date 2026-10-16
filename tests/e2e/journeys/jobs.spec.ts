@@ -1762,7 +1762,7 @@ signedInTest("a nurse's packs hub shows health tiles, never the tech ones, and e
   // A tile shows only when it holds at least 3 roles.
   const counts = await page
     .locator('[data-testid="hub-pack-chips"] [data-testid^="hub-pack-count-"]')
-    .evaluateAll((els) => els.map((el) => [el.getAttribute("data-testid"), Number((el.textContent ?? "").replace(/[^\d]/g, "") || "0")] as const));
+    .evaluateAll((els) => els.map((el) => [el.getAttribute("data-testid"), Number(/\d[\d,]*/.exec(el.textContent ?? "")?.[0].replace(/,/g, "") ?? "0")] as const));
   for (const [id, n] of counts) if (id !== "hub-pack-count-all") expect(n, id ?? "").toBeGreaterThanOrEqual(3);
 
   const rows = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"]');

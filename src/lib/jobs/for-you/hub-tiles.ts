@@ -10,6 +10,8 @@
  */
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import { hubList, HUB_PACK_CORPUS_COUNT_LOADING, formatHubPackCorpusRoleLabel, type ScoredHubHit } from "@/lib/jobs/for-you/hub-counts";
+import { formatRolesAtEmployers } from "@/lib/jobs/for-you/left-out-copy";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { HUB_PACK_IDS, jobMatchesHubPack, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
@@ -56,49 +58,79 @@ export function hubTileRows(jobs: PublicJob[], id: HubPackId | undefined, nowMs:
     return jobs.filter((job) => jobMatchesHubPack(job, id, nowMs));
 }
 
+/** What a chip counts: the roles its list opens with, and the employers the deck holds them at (one card each). */
+export interface HubChipLists {
+    counts: Partial<Record<HubPackId, CorpusCount | null>>;
+    employers: Partial<Record<HubPackId, number>>;
+}
+
 /**
- * The count on every chip of a résumé visitor's hub: the roles its list opens with. "All your matches" and each row tile
- * count the pack's own rows; a filter tile counts its own search's rows (`tiles`: absent while that read is in flight,
- * `null` when it failed). While the pack's rows are still arriving (`settled` false) a pack's count is a floor, since
- * more rows may still list.
+ * The count on every chip of a résumé visitor's hub: the roles its list opens with, and how many employers those roles are
+ * at (the deck gives each employer one card). "All your matches" and each row tile count the pack's own rows; a filter tile
+ * counts its own search's rows (`tiles`: absent while that read is in flight, `null` when it failed). While the pack's rows
+ * are still arriving (`settled` false) a pack's count is a floor, since more rows may still list.
  */
-export function hubChipCounts(input: {
+export function hubChipLists(input: {
     pack: readonly ScoredHubHit[];
     tiles: Partial<Record<HubPackId, readonly ScoredHubHit[] | null>>;
     isTracked?: (job: PublicJob) => boolean;
     nowMs: number;
     settled: boolean;
-}): Partial<Record<HubPackId, CorpusCount | null>> {
+}): HubChipLists {
     const { pack, tiles, isTracked, nowMs, settled } = input;
-    const listed = hubList(pack, nowMs, { isTracked }).jobs;
-    const out: Partial<Record<HubPackId, CorpusCount | null>> = {};
+    const whole = hubList(pack, nowMs, { isTracked });
+    const counts: HubChipLists["counts"] = {};
+    const employers: HubChipLists["employers"] = {};
     for (const id of HUB_PACK_IDS) {
         if (id === "all") {
-            out[id] = { kind: settled ? "exact" : "floor", value: listed.length };
+            counts[id] = { kind: settled ? "exact" : "floor", value: whole.jobs.length };
+            employers[id] = whole.employers;
         } else if (isHubFilterTile(id)) {
             const rows = tiles[id];
             if (rows === undefined) continue;
-            out[id] = rows === null ? null : { kind: "exact", value: hubList(rows, nowMs, { isTracked }).jobs.length };
+            if (rows === null) {
+                counts[id] = null;
+                continue;
+            }
+            const list = hubList(rows, nowMs, { isTracked });
+            counts[id] = { kind: "exact", value: list.jobs.length };
+            employers[id] = list.employers;
         } else {
-            out[id] = { kind: settled ? "exact" : "floor", value: listed.filter((job) => jobMatchesHubPack(job, id, nowMs)).length };
+            const listed = whole.jobs.filter((job) => jobMatchesHubPack(job, id, nowMs));
+            counts[id] = { kind: settled ? "exact" : "floor", value: listed.length };
+            employers[id] = collapseByEmployer(listed, (job) => job).length;
         }
     }
-    return out;
+    return { counts, employers };
+}
+
+/** `hubChipLists`' role counts alone: what a chip remembers between visits. */
+export function hubChipCounts(input: Parameters<typeof hubChipLists>[0]): HubChipLists["counts"] {
+    return hubChipLists(input).counts;
 }
 
 /**
  * Chip labels for a résumé visitor: "15 roles", "14+ roles" while counting, "…" for a chip still waiting on its count
  * (`loading` is before any of the pack's rows are in), and none for a filter tile whose read failed, never a number from
- * a different search.
+ * a different search. An exact count of roles spread over fewer `employers` says both, in the deck's words ("14 roles at
+ * 7 employers", `formatRolesAtEmployers`), so a chip and the deck's "Employer 1 of 7" never read as two numbers.
  */
 export function resumeTileLabels(
     counts: Partial<Record<HubPackId, CorpusCount | null>>,
     loading: boolean,
+    employers: Partial<Record<HubPackId, number>> = {},
 ): Partial<Record<string, string>> {
     const labels: Partial<Record<string, string>> = {};
     for (const id of HUB_PACK_IDS) {
         const count = counts[id];
-        labels[id] = count === null ? "" : loading || count === undefined ? HUB_PACK_CORPUS_COUNT_LOADING : formatHubPackCorpusRoleLabel(count);
+        labels[id] =
+            count === null
+                ? ""
+                : loading || count === undefined
+                  ? HUB_PACK_CORPUS_COUNT_LOADING
+                  : count.kind === "exact" && employers[id] != null
+                    ? formatRolesAtEmployers(count.value, employers[id])
+                    : formatHubPackCorpusRoleLabel(count);
     }
     return labels;
 }

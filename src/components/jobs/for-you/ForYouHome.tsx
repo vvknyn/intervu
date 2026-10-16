@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, BookmarkSimple, CaretLeft, CaretRight, UploadSimple } from "@phosphor-icons/react";
 import { InlineSpinner, WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
-import { formatDeckShowingLine, formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE } from "@/lib/jobs/for-you/left-out-copy";
+import { formatDeckShowingLine, formatLeftOutLine, formatRolesAtEmployers, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE } from "@/lib/jobs/for-you/left-out-copy";
 import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     JOBS_SESSION_FRAME_CLASS,
@@ -765,6 +765,13 @@ export function ForYouHome({
                             <span data-testid="for-you-deck-position" className="shrink-0 tabular-nums" aria-live="polite">
                                 {cardUnit === "employer" ? "Employer" : "Role"} {selectedIndex + 1} of {visiblePacks.length}
                             </span>
+                            {cardUnit === "employer" ? (
+                                // The cards are employers, so the header says the roles they hold too, in the chip's words.
+                                <span data-testid="for-you-deck-roles" className="min-w-0 truncate">
+                                    <span aria-hidden>· </span>
+                                    {formatRolesAtEmployers(listedRoles, visiblePacks.length)}
+                                </span>
+                            ) : null}
                             <span className="hidden min-w-0 truncate lg:inline">
                                 <span aria-hidden>· </span>
                                 {upNext
