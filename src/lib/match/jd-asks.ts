@@ -12,6 +12,8 @@
  * so the browser weighs it against the résumé it holds.
  */
 
+import { SPOKEN_LANGUAGES } from "@/lib/match/posting-language";
+
 /** What a posting asks for that a résumé either shows or does not. Absent fields mean the posting does not say. */
 export interface JdAsks {
     /** Languages besides English it requires ("french", "japanese"). */
@@ -35,10 +37,7 @@ export interface JdAsks {
 /** A sentence that makes whatever it names optional. */
 const OPTIONAL = /\b(?:asset|assets|preferred|prefer|nice[- ]to[- ]have|bonus|(?:a|an)\s+(?:plus|advantage)|considered|beneficial|desirable|ideal(?:ly)?|welcome|helpful|not required|not necessary|optional)\b/i;
 
-const LANGUAGES = [
-    "french", "spanish", "german", "italian", "portuguese", "dutch", "swedish", "polish", "russian", "ukrainian", "turkish", "greek", "hebrew", "arabic",
-    "hindi", "punjabi", "urdu", "tamil", "bengali", "gujarati", "mandarin", "cantonese", "japanese", "korean", "vietnamese", "tagalog", "thai", "indonesian",
-];
+const LANGUAGES = SPOKEN_LANGUAGES;
 const LANG_NAME = `(${LANGUAGES.join("|")})`;
 /** "fluent in French", "bilingual (English / French)", "Japanese language skills" followed or preceded by a word that makes it a requirement. */
 const LANG_LEVEL = String.raw`(?:fluen(?:t|cy)|proficien(?:t|cy)|bilingual|bilingualism|native|business[- ]level|professional[- ]level|written and spoken|spoken and written|verbal and written|working knowledge)`;
@@ -171,15 +170,16 @@ export function mustSkillsOf(skills: readonly string[] | undefined): string[] | 
     return out.length > 0 ? out : undefined;
 }
 
-/** What `description` asks that a résumé either shows or does not; undefined when it asks none of it. */
-export function jdAsksFromDescription(description: string | null | undefined, must?: readonly string[]): JdAsks | undefined {
+/** What `description` (and the language its `title` asks for) asks that a résumé either shows or does not; undefined when it asks none of it. */
+export function jdAsksFromDescription(description: string | null | undefined, must?: readonly string[], title?: string | null): JdAsks | undefined {
     const text = (description ?? "").trim();
     const asks: JdAsks = {};
     const skills = mustSkillsOf(must);
     if (skills) asks.must = skills;
     if (text.length >= 40) {
         const lines = sentences(text);
-        const langs = languagesAsked(lines);
+        // The title can ask too ("French-speaking Account Manager", "Bilingual (English/French) Support Agent").
+        const langs = languagesAsked(title ? [title, ...lines] : lines);
         if (langs.length > 0) asks.langs = langs;
         if (lines.some((l) => CLEARANCE.test(l) && !OPTIONAL.test(l))) asks.clearance = true;
         if (lines.some((l) => MANAGES.test(l) && !OPTIONAL.test(l))) asks.manages = true;

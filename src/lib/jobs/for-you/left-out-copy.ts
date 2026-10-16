@@ -4,10 +4,12 @@
  * a count with a reason, never a list padded with roles that don't fit.
  */
 import type { DeckLeftOut, DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { languageLabel } from "@/lib/match/posting-language";
 
 const REASON_TEXT: Record<DeckLeftOut, string> = {
     level: "above your level",
     requirement: "asking for something your résumé doesn't show",
+    language: "written in another language",
     "other-role": "a different kind of role",
     stretch: "a weaker fit",
     abroad: "outside where you can work",
@@ -16,13 +18,19 @@ const REASON_TEXT: Record<DeckLeftOut, string> = {
 };
 
 /** Ties in count read in this order: the reasons about the person first. */
-const REASON_ORDER: readonly DeckLeftOut[] = ["level", "requirement", "other-role", "stretch", "abroad", "unplaced", "old"];
+const REASON_ORDER: readonly DeckLeftOut[] = ["level", "requirement", "language", "other-role", "stretch", "abroad", "unplaced", "old"];
 
-/** "41 above your level", largest first. */
+/** "41 above your level", largest first; a posting left out for its language names it: "8 written in French". */
 export function leftOutParts(summary: DeckLeftOutSummary): string[] {
-    return REASON_ORDER.filter((reason) => (summary.byReason[reason] ?? 0) > 0)
-        .sort((a, b) => (summary.byReason[b] ?? 0) - (summary.byReason[a] ?? 0))
-        .map((reason) => `${summary.byReason[reason]} ${REASON_TEXT[reason]}`);
+    const parts: { n: number; text: string }[] = [];
+    for (const reason of REASON_ORDER) {
+        const n = summary.byReason[reason] ?? 0;
+        if (n <= 0) continue;
+        const written = reason === "language" ? Object.entries(summary.languages ?? {}).sort((a, b) => b[1] - a[1]) : [];
+        if (written.length > 0) for (const [language, count] of written) parts.push({ n: count, text: `${count} written in ${languageLabel(language)}` });
+        else parts.push({ n, text: `${n} ${REASON_TEXT[reason]}` });
+    }
+    return parts.sort((a, b) => b.n - a.n).map((part) => part.text);
 }
 
 /** The roles left out and why, or null when the list left none out. */

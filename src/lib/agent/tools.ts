@@ -746,7 +746,7 @@ export interface ForYouHit extends JobDetailFields {
 export interface ForYouOut {
   hits: ForYouHit[];
   /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
-  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true };
+  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -832,7 +832,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   return {
     hits,
     ...(ranked.leftOut.considered > 0
-      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.near ? { near: true as const } : {}) } }
+      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}) } }
       : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),
