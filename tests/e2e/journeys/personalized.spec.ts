@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
-import { SOCIAL_SERVICES_TEXT, SUPPLY_CHAIN_TEXT } from "../../fixtures/job-descriptions/content-family-postings";
+import { COMMERCIAL_FINANCE_TEXT, SOCIAL_SERVICES_TEXT, SUPPLY_CHAIN_TEXT } from "../../fixtures/job-descriptions/content-family-postings";
 import { jdTermsFromDescription } from "../../../src/lib/match/jd-match";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -883,5 +883,33 @@ test("a posting whose text reads as another line of work is left out as a differ
   await expect(front).toHaveAttribute("data-job-id", led.id);
   await expect(page.getByTestId("match-chip")).toHaveText("Strong");
   await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 2 a different kind of role");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-141 — Vivek, 2026-10-16, on release 47: "the first 2 are completely off". A "Commercial Finance Business
+ * Partner" and a "Marketing Operations and Project Specialist" still read Good: no line of work reads clearly in
+ * their text (the lexicon's finance words are accounting ones), so the content lane said nothing, and the general
+ * words they share with any senior résumé ("performance", "planning", "analysis") carried them. A title tied to
+ * none of the résumé's kinds of role is now Good only when its posting shows the résumé's work (its text reads as
+ * one of the résumé's lines of work, or the résumé covers what it asks); otherwise it is a weaker fit, left out.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a posting under a title the résumé can't place that shares only general words is left out as a weaker fit, and one whose work is the résumé's stays", { tag: ["@J-JOBS-141"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  const led = described(posting("77777777-0000-4000-8000-000000000011", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const finance = described(posting("77777777-0000-4000-8000-000000000012", "Commercial Finance Business Partner", "Northgate Pharma", "senior", 1), COMMERCIAL_FINANCE_TEXT);
+  await withAccountApplications(page, []);
+  // Sent first and fresher, as a search that matches on words would.
+  await answerResumeSearch(page, [finance, led], "journey-unproven-title");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 1", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", led.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 2 roles found: 1 a weaker fit");
   expect(diagnostics.pageErrors).toEqual([]);
 });
