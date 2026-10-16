@@ -56,3 +56,20 @@ export const SHORT_PRODUCT_LEAD_TEXT = [
   "About the role\n\nA health software company is hiring a lead for its member platform.",
   "What you'll do\n\nOwn the roadmap for the platform APIs and integrations, write requirements with engineering, run Agile delivery with clients, manage API lifecycle changes and migrations, and use analytics and SQL to decide what is next. Report on adoption and retention to executives.",
 ].join("\n\n");
+
+/**
+ * An implementation and training role written, as many are, in one paragraph of the words every posting and every
+ * industry uses ("enterprise", "software", "solutions", "technical", "technology", "operations"): a product résumé
+ * shares most of them, and none names product work. The shape of the Trimble "Implementation and Training Consultant"
+ * a product manager's Today showed as Good on 2026-10-16.
+ */
+export const GENERIC_WORDS_CONSULTANT_TEXT =
+  "An enterprise software company is hiring an implementation and training consultant for its transportation and logistics solutions. You will configure the software for enterprise clients, train client teams on new workflows, document operational processes, work with technical and operations teams on technology changes, and manage client schedules. You bring experience with enterprise software solutions, technical aptitude, and management of client relationships in transportation, logistics or operations.";
+
+/** A delivery lead next to product work: its roadmap, release coordination, scope and prioritization are a product résumé's, under a title none holds. */
+export const PORTFOLIO_DELIVERY_TEXT = [
+  "About the role\nOrchard Delivery Partners is hiring a Portfolio Lead, Product Delivery.",
+  "What you'll do\nLead delivery across a portfolio of client products: own the roadmap, scope and estimate statements of work, coordinate releases across regions, manage concurrent projects through SIT, UAT and production, and keep clients and executives informed. Strong requirements analysis and prioritization skills.",
+  "What you bring\n7+ years of experience\nExperience with Portfolio\nExperience with Roadmap\nExperience with Release coordination\nExperience with Stakeholders\nExperience with Estimation",
+  "We are an equal opportunity employer.",
+].join("\n\n");
