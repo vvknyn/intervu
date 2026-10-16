@@ -19,6 +19,7 @@ import { sendEmail, type SendEmailResult } from "@/lib/email/send";
 import { buildDailyPicksEmail, type DailyPickItem } from "@/lib/email/templates/daily-picks";
 import { signUnsubscribeToken } from "@/lib/email/unsubscribe-token";
 import type { TodayRole } from "@/lib/jobs/for-you/today";
+import { jobCompanyHref } from "@/lib/companies/paths";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { LOCATION_UNKNOWN_TEXT } from "@/lib/jobs/presentation";
 import { explainMatch } from "@/lib/match/explain";
@@ -28,7 +29,7 @@ import { listPursuitsForUser } from "@/lib/pursuits/list";
 import { getBaseResumeForUser } from "@/lib/resume/base-resume";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { collectDailyPicks, type DailyPicksDeps, type DailyPicksNoResume } from "./collect";
-import { DAILY_PICKS_MIN_GAP_MS } from "./pick";
+import { DAILY_PICKS_MIN_GAP_MS, emailedJobs } from "./pick";
 import { getDailyPicksState, recordDailyPicksSent, type DailyPicksState } from "./state";
 
 /** The run's own reads, the same ones the MCP tools use (route.ts). */
@@ -65,6 +66,7 @@ export type DailyPicksPreviewResult = DailyPicksPreview | { skipped: DailyPicksS
 export function dailyPickItem(role: TodayRole, siteUrl: string): DailyPickItem {
     const presented = presentJob(role.job);
     const placeKnown = role.job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
+    const others = role.employer;
     return {
         title: presented.title,
         employer: presented.company.name,
@@ -73,6 +75,16 @@ export function dailyPickItem(role: TodayRole, siteUrl: string): DailyPickItem {
         fit: matchLabel(role.score),
         why: explainMatch(role.score),
         href: `${siteUrl}${jobPath(role.job)}`,
+        ...(others && others.more.length > 0
+            ? {
+                  more: others.more.map((other) => {
+                      const shown = presentJob(other.job);
+                      const known = other.job.work_type === "remote" || shown.location !== LOCATION_UNKNOWN_TEXT;
+                      return { title: shown.title, location: known ? shown.location : null, fit: matchLabel(other.score), href: `${siteUrl}${jobPath(other.job)}` };
+                  }),
+              }
+            : {}),
+        ...(others && others.hidden > 0 ? { hidden: { count: others.hidden, href: `${siteUrl}${jobCompanyHref(role.job.company ?? presented.company.name, role.job.company_domain)}` } } : {}),
     };
 }
 
@@ -126,7 +138,7 @@ export async function sendDailyPicksForUser(uid: string, opts: { nowMs: number }
         await recordDailyPicksSent(
             uid,
             preview.state.sent,
-            preview.picks.map((r) => r.job),
+            emailedJobs(preview.picks),
             new Date(opts.nowMs).toISOString(),
         );
     }

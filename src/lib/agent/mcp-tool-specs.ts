@@ -323,7 +323,11 @@ export const MCP_TOOL_SPECS = {
             "shows source none, call set_resume first; when it shows source resume_text (a file uploaded as " +
             "text), format that text into resume_data and save both with set_resume — the error says which. " +
             "Ranks by fit with age first (a role from the last 30 days before an older one) — postedWithinDays/sort/facet " +
-            "filters from search_jobs don't apply here. Paginate with cursor the same way search_jobs " +
+            "filters from search_jobs don't apply here. Each employer has ONE place in the list, its best-fitting role's: " +
+            "that role is the hit, and the employer's other roles in the list (up to 3 more) are in its more_at_employer " +
+            "(id, title, location, fit_label, intervu_url), with hidden counting any beyond those and company_url listing them " +
+            "all, so an employer with nine openings does not crowd out one with a single better opening. A page of limit " +
+            "hits is limit employers, and left_out.employers says how many the list has. Paginate with cursor the same way search_jobs " +
             "does — the page size that minted a cursor stays pinned for the rest of that walk. Each " +
             "result carries the SAME detail get_job returns (salary, tags, work_type, employment_type, " +
             "experience_level, intervu_url, apply_url, ...) plus fit_label, match and fit_reasons (see " +
@@ -337,7 +341,7 @@ export const MCP_TOOL_SPECS = {
     daily_picks: {
         title: "Today's picks and the daily picks email",
         description:
-            "Today's picks for your stored résumé: up to 5 roles posted this week (a posting an employer re-dated that velai first saw over 30 days ago is not one) in your own line of work, " +
+            "Today's picks for your stored résumé: up to 5 employers, each with its best role posted this week (a posting an employer re-dated that velai first saw over 30 days ago is not one) in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
             "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +
@@ -347,10 +351,11 @@ export const MCP_TOOL_SPECS = {
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words: how the title relates to yours, what the posting asks for that your résumé shows (for a " +
-            "title you haven't held, its day-to-day work), its place and level) and emailed (already sent in a daily picks email). Best fit first, the same order the deck and " +
+            "title you haven't held, its day-to-day work), its place and level) and emailed (already sent in a daily picks email). An employer " +
+            "has one pick, its best role's, and its other picks this week are in that pick's more_at_employer (the email lists them under it), as the deck and Today do. Best fit first, the same order the deck and " +
             "for_you use: what the posting asks for that your résumé shows leads, and your own title only breaks " +
             "a tie; roles not emailed yet come first within a fit band. Pass " +
-            "email: true to turn the daily picks email on (up to 5 new roles a day, nothing on days with none; " +
+            "email: true to turn the daily picks email on (up to 5 employers a day, each with its other new roles under it, nothing on days with none; " +
             "the account needs an email address mail reaches) or email: false to turn it off; the result's " +
             "email.on says the setting after the call. Needs a structured résumé on file, like for_you. Counts " +
             "toward the shared daily record budget. When presenting picks, include each one's intervu_url and why.",

@@ -203,9 +203,26 @@ function titleMentionsFamily(family: RoleFamilyId, titles: string[]): boolean {
     return false;
 }
 
+/** A word that makes a title a person who runs something: a manager, director, head, lead, VP or owner. */
+const LEADER_ROLE_WORD = /\b(?:manager|director|head|lead|vp|vice president|owner)\b/i;
+
+/**
+ * The readings a title is matched against the whole-title patterns in: the title itself and, when it holds a leader
+ * role word, its "X Management" read as "X Manager". "Portfolio Manager, Technology Product Management" and "Director,
+ * Product Management" run product management, so they are product roles, as "Director, Technical Account Management"
+ * already reads as the TAM family (/technical account manag/). Without a leader word ("Product Management Intern",
+ * "Product Management Office Coordinator", "Account Management Specialist") the title names the team the role sits in,
+ * not the role, and is read as written. Own-title matching (`jobTitleMatchesTarget`) never reads it this way.
+ */
+function familyReadings(titles: string[]): string[] {
+    return normalizeTitles(titles).flatMap((title) =>
+        LEADER_ROLE_WORD.test(title) && /\bmanagement\b/i.test(title) ? [title, title.replace(/\bmanagement\b/gi, "manager")] : [title],
+    );
+}
+
 function titleNamesFamily(family: RoleFamilyId, titles: string[]): boolean {
     for (const pattern of TITLE_FAMILY_PATTERNS[family]) {
-        for (const title of normalizeTitles(titles)) {
+        for (const title of familyReadings(titles)) {
             if (pattern.test(title)) return true;
         }
     }
