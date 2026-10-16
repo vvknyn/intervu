@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { classifyPostingFreshness } from "../../src/lib/jobs/posting-freshness";
 import {
+    stackCardAge,
     stackCardDetails,
     stackCardPlace,
     stackInferredRows,
@@ -132,6 +133,29 @@ describe("stacked role card: what we inferred", () => {
         assert.ok(!out.some((row) => /within the last 7 days/.test(row.text)));
         assert.deepEqual(out.find((row) => row.text.startsWith("Posted")), { text: "Posted 21d ago", tone: "caution" });
         assert.equal(stackCardDetails(foundLate, "21d ago").find((detail) => detail.label === "Posted")?.value, "21d ago");
+    });
+});
+
+describe("stacked role card: how old the role is", () => {
+    const age = (partial: Partial<PublicJob>) => stackCardAge(classifyPostingFreshness(job(partial), NOW), NOW);
+
+    it("states the posted date when it is the older of the two, and marks nothing for a role inside 30 days", () => {
+        assert.deepEqual(age({ posted_at: new Date(NOW - 2 * DAY).toISOString(), first_seen_at: new Date(NOW - 2 * DAY).toISOString() }), { text: "Posted 2d ago", older: false });
+        assert.deepEqual(age({ posted_at: new Date(NOW - 30 * DAY).toISOString(), first_seen_at: new Date(NOW - 29 * DAY).toISOString() }), { text: "Posted 30d ago", older: false });
+        assert.deepEqual(age({ posted_at: new Date(NOW - 21 * DAY).toISOString(), first_seen_at: new Date(NOW - 3 * DAY).toISOString() }), { text: "Posted 21d ago", older: false }, "found late: the employer's date");
+    });
+
+    it("marks a role older than 30 days, and names the day we first saw a re-dated one", () => {
+        assert.deepEqual(age({ posted_at: new Date(NOW - 41 * DAY).toISOString(), first_seen_at: new Date(NOW - 40 * DAY).toISOString() }), { text: "Posted 41d ago", older: true });
+        assert.deepEqual(
+            age({ posted_at: new Date(NOW - 1 * DAY).toISOString(), first_seen_at: new Date(NOW - 45 * DAY).toISOString() }),
+            { text: "First seen by us 45d ago · posted date refreshed since", older: true },
+        );
+    });
+
+    it("falls back to the day we first saw it, and says nothing without either date", () => {
+        assert.deepEqual(age({ posted_at: null, first_seen_at: new Date(NOW - 5 * DAY).toISOString() }), { text: "First seen by us 5d ago", older: false });
+        assert.equal(age({ posted_at: null, first_seen_at: null }), null);
     });
 });
 

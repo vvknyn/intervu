@@ -355,7 +355,7 @@ import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, sortByFit, summarizeDeckLeftOut, tuneRank } from "@/lib/jobs/for-you/band-order";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
@@ -3052,19 +3052,30 @@ export function JobsContent({
         [deckResultStale, renderedClusters, deckApplied],
     );
     const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
-    // When no role fits, the deck holds the closest ones (left out only as a weaker fit) under an honest line, not nothing.
+    // When no role from the last 30 days fits, the deck holds the roles that fit and are older, marked as older; when none
+    // does, the closest ones (left out only as a weaker fit), under an honest line, not nothing.
     const deckOrdered = useMemo(() => orderForYouJobsByBand(deckCandidates, deckScore, nowMs), [deckCandidates, deckScore, nowMs]);
-    const deckNearMisses = useMemo(
-        () => (deckOrdered.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, nowMs) : []),
+    const deckOlderFits = useMemo(
+        () => (deckOrdered.length === 0 && deckScore ? orderOlderFits(deckCandidates, deckScore, nowMs) : []),
         [deckOrdered, deckCandidates, deckScore, nowMs],
     );
-    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckNearMisses;
+    const deckNearMisses = useMemo(
+        () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckScore ? orderNearMisses(deckCandidates, deckScore, nowMs) : []),
+        [deckOrdered, deckOlderFits, deckCandidates, deckScore, nowMs],
+    );
+    const deckOlderNearMisses = useMemo(
+        () => (deckOrdered.length === 0 && deckOlderFits.length === 0 && deckNearMisses.length === 0 && deckScore ? orderOlderNearMisses(deckCandidates, deckScore, nowMs) : []),
+        [deckOrdered, deckOlderFits, deckNearMisses, deckCandidates, deckScore, nowMs],
+    );
+    const rankedPacks = deckOrdered.length > 0 ? deckOrdered : deckOlderFits.length > 0 ? deckOlderFits : deckNearMisses.length > 0 ? deckNearMisses : deckOlderNearMisses;
     // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
     const deckLeftOutSummary = useMemo(() => {
         if (!deckScore) return null;
         const summary = summarizeDeckLeftOut(deckCandidates, deckScore, nowMs);
-        return deckNearMisses.length > 0 ? nearMissSummary(summary) : summary;
-    }, [deckCandidates, deckScore, deckNearMisses, nowMs]);
+        if (deckOlderFits.length > 0) return olderFitsSummary(summary, deckOlderFits.length);
+        if (deckNearMisses.length > 0) return nearMissSummary(summary);
+        return deckOlderNearMisses.length > 0 ? olderNearMissSummary(summary, deckOlderNearMisses.length) : summary;
+    }, [deckCandidates, deckScore, deckOlderFits, deckNearMisses, deckOlderNearMisses, nowMs]);
     // Search rows arrive with what their descriptions say about place
     // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
     // the deck holds its roles until its first ones are read here (the effect

@@ -161,7 +161,7 @@ export function pickToday(
                 !opts.skipped.has(r.job.id) &&
                 !opts.tracked.has(r.job.id) &&
                 !(opts.applied && trackedPursuitFor(r.job, opts.applied)) &&
-                // The deck's rule, strict on place; its age rule too: a role first seen over two months ago is out, whatever date it now claims.
+                // The deck's rule, strict on place; its age rule too: a role first seen over 30 days ago is out, whatever date it now claims.
                 deckLeftOut(r.job, r.score, nowMs, { strictPlace: true }) == null,
         )
         .map((role) => ({ role, sort: forYouSortKey(role.score, postedTsOf(role.job), nowMs, role.job.first_seen_at) }))

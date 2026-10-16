@@ -16,7 +16,7 @@
  * Runs in `npm run preflight` (`check:mcp`), so a change to how the site
  * labels or lists a role that the MCP tools don't make fails before merge.
  */
-import { describe, it } from 'node:test';
+import { after, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 process.env.NEXT_PUBLIC_SITE_URL = 'https://velai.app';
@@ -48,7 +48,11 @@ import type { AgentPreferences } from '../../src/lib/agent/preferences';
 import type { JobSearchParams, JobSearchResult, PlaceRestriction, PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
 import type { CompanyPageData } from '../../src/lib/companies/types';
-import { corpusStub, mkJob, mkResume } from '../support/jobs-corpus-stub';
+import { corpusStub, mkJob, mkResume, NOW } from '../support/jobs-corpus-stub';
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
+after(() => mock.timers.reset());
 
 const NO_PREFS: AgentPreferences = { configured: false, search: {}, answers: { custom: {} } };
 

@@ -11,7 +11,7 @@
  * recommending list shares): age, reach, fit band, then what the posting asks for that the résumé shows.
  * A recommendation list is not a
  * search: a role the résumé could not take (`deckLeftOut`: above their level, asks for what the
- * résumé doesn't show, a different kind of role, outside where they can work, too old) is left out,
+ * résumé doesn't show, a different kind of role, outside where they can work, posted over 30 days ago) is left out,
  * and `leftOut` counts each reason, so every row of the search is either listed or accounted for.
  *
  * Scoring/reasons pairing goes through the ONE fit chokepoint (`fitFor`,
@@ -20,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, summarizeDeckLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -66,6 +66,8 @@ export interface RankForYouParams {
     /** Résumé + saved preferences, resolved once by the caller
      *  (`resolveCandidateSignals`). Defaults to the résumé alone. */
     signals?: CandidateSignals;
+    /** The clock the roles' ages are read against (30 days is the limit). Defaults to now. */
+    nowMs?: number;
 }
 
 /**
@@ -105,18 +107,30 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
         const fit = fitFor(resume, job, signals);
         return { job, match: fit?.match ?? null, fit_reasons: fit?.fit_reasons ?? null };
     });
-    const nowMs = Date.now();
+    const nowMs = params.nowMs ?? Date.now();
 
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const allJobs = scored.map((s) => s.job);
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
     const fitting = orderForYouJobsByBand(allJobs, scoreOf, nowMs);
-    // Nothing fits: the closest roles, each a weaker fit, so the list is never empty while roles were found.
-    const nearMisses = fitting.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
-    const orderedJobs = fitting.length > 0 ? fitting : nearMisses;
+    // Nothing from the last 30 days fits: the roles that fit and were posted longer ago, marked as older, and failing
+    // those the closest roles, each a weaker fit (fresh ones, else older ones, marked as older), so the list is never
+    // empty while roles were found.
+    const none = fitting.length === 0;
+    const older = none ? orderOlderFits(allJobs, scoreOf, nowMs) : [];
+    const nearMisses = none && older.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
+    const olderNear = none && older.length === 0 && nearMisses.length === 0 ? orderOlderNearMisses(allJobs, scoreOf, nowMs) : [];
+    const orderedJobs = fitting.length > 0 ? fitting : older.length > 0 ? older : nearMisses.length > 0 ? nearMisses : olderNear;
     const targets = targetTitlesFromQuery(queryUsed);
     const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);
-    const leftOut = nearMisses.length > 0 ? nearMissSummary(counted) : counted;
+    const leftOut =
+        older.length > 0
+            ? olderFitsSummary(counted, older.length)
+            : nearMisses.length > 0
+              ? nearMissSummary(counted)
+              : olderNear.length > 0
+                ? olderNearMissSummary(counted, olderNear.length)
+                : counted;
 
     const hits: RankedHit[] = orderedJobs.map((job) => {
         const entry = byId.get(job.id)!;

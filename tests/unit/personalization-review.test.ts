@@ -4,7 +4,7 @@
  * preferences, applied roles stay out of packs and carry a badge, newer roles
  * lead among equal fits, and a newer guest résumé is adopted on sign-in.
  */
-import { describe, it } from 'node:test';
+import { after, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -32,6 +32,10 @@ const golden = (name: string): ResumeData =>
 const PM = golden('vivek-pm-resume');
 const DAY = 86_400_000;
 const NOW = Date.parse('2026-10-13T12:00:00Z');
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
+after(() => mock.timers.reset());
 
 const prefs = (search: AgentPreferences['search'], sources?: AgentPreferences['sources']): AgentPreferences => ({
     configured: true,

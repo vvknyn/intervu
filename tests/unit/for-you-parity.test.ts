@@ -5,7 +5,7 @@
  * one country. Fit reorders, and leaves out only what the résumé could not take
  * (`deckLeftOut`); it counts what it left out, so no search row goes missing unaccounted.
  */
-import { describe, it } from 'node:test';
+import { after, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { packContentPhrases, packFilters } from '../../src/lib/jobs/for-you/pack-filters';
@@ -15,7 +15,11 @@ import { resolveJobsHomeView } from '../../src/lib/jobs/for-you/home-view';
 import { jobsBoardHref, parseJobsUrl } from '../../src/lib/jobs/url-state';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
 import type { JobSearchParams } from '../../src/lib/jobs/types';
-import { corpusStub, mkJob, mkResume } from '../support/jobs-corpus-stub';
+import { corpusStub, mkJob, mkResume, NOW } from '../support/jobs-corpus-stub';
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
+after(() => mock.timers.reset());
 
 const DEPTH = 100;
 

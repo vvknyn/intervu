@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, it } from "node:test";
+import { after, before, describe, it, mock } from "node:test";
 
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
@@ -21,7 +21,11 @@ import { explainMatch } from "@/lib/match/explain";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { resumeDataFromPlainText, structureResumeText } from "@/lib/resume/structure-resume-text";
 import type { ResumeData } from "@/types/resume";
-import { mkJob } from "../support/jobs-corpus-stub";
+import { mkJob, NOW } from "../support/jobs-corpus-stub";
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
+after(() => mock.timers.reset());
 
 const fixture = (name: string) => readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), "utf8");
 const golden = (name: string): ResumeData => structureResumeText(fixture(name).replace(/'/g, "’")) as ResumeData;
