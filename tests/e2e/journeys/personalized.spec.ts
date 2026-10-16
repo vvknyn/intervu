@@ -752,9 +752,9 @@ test("the packs hub counts the roles the deck lists, and the fit-sorted Search l
     return answerListSearch(route, { hits: found, total: found.length, backend: "meilisearch", configured: true, searchId: "journey-parity" });
   });
 
-  // The hub's "All your matches" tile says 2 (the roles the deck lists), not the 4 the search found.
+  // The hub's "All your matches" tile says 2 roles (the roles the deck lists), not the 4 the search found.
   await page.goto("/jobs?view=for-you");
-  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("2", { timeout: 60_000 });
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("2 roles", { timeout: 60_000 });
   await openPack(page);
 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
