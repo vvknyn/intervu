@@ -3457,7 +3457,7 @@ export function JobsContent({
     const hubSummary = hubPackList?.summary ?? null;
     // The deck gives each employer one card, so the line says the employers as the deck's foot does.
     const hubFitLine = useMemo(() => formatHubFitLine(hubSummary, hubPackList?.employers), [hubSummary, hubPackList]);
-    const hubLeftOutLine = useMemo(() => formatLeftOutLine(hubSummary, { maxParts: 3 }), [hubSummary]);
+    const hubLeftOutLine = useMemo(() => formatLeftOutLine(hubSummary), [hubSummary]);
     // A visitor with no usable résumé has no matches to count: the corpus is "roles".
     const hubCorpusLine = useMemo(
         () => (!hubResumeKey && hubBrowse.total != null && hubBrowse.total > 0 ? formatBrowseHubCorpusLine(hubBrowse.total) : null),

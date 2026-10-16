@@ -56,19 +56,12 @@ function readOfFound(summary: DeckLeftOutSummary): string {
         : `the ${read} roles found`;
 }
 
-/**
- * The roles left out and why, or null when the list left none out. `maxParts` keeps the largest reasons and counts the
- * rest together ("12 for other reasons"), for a place with room for one short line.
- */
-export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined, options: { maxParts?: number } = {}): string | null {
+/** The roles left out and why, or null when the list left none out: the same words on the hub and at the foot of the deck. */
+export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined): string | null {
     if (!summary || summary.considered <= 0) return null;
     const counted = leftOutCounted(summary);
     if (counted.length === 0) return null;
-    const max = options.maxParts;
-    const shown = max != null && counted.length > max ? counted.slice(0, max) : counted;
-    const rest = counted.slice(shown.length).reduce((sum, part) => sum + part.n, 0);
-    const parts = [...shown.map((part) => part.text), ...(rest > 0 ? [`${rest.toLocaleString()} for other reasons`] : [])];
-    return `Left out of ${readOfFound(summary)}: ${parts.join(" · ")}`;
+    return `Left out of ${readOfFound(summary)}: ${counted.map((part) => part.text).join(" · ")}`;
 }
 
 /**
