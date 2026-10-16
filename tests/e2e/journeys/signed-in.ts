@@ -105,6 +105,34 @@ export async function signInLikeProduction(page: Page, answer: (args: unknown[])
   );
 }
 
+/**
+ * Holds the account's tracker read (`getApplications`, told apart by the id the page's own bundle gives it:
+ * `createServerReference("<id>", …, "getApplications")`, in dev and production builds alike) for `ms` before the page
+ * gets its answer. The answer itself is the real one, so this runs on any origin. It makes the tracker load after a
+ * search that started with the page has settled, the order a slow account read gives in production.
+ */
+export async function holdAccountApplications(page: Page, ms: number) {
+  let actionId: string | null = null;
+  await page.route(/\/_next\/static\/chunks\/.*\.js(\?.*)?$/, async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    const found = body.match(/\("([0-9a-f]{40,44})",[^)]{0,1500}?"getApplications"\)/);
+    if (found) actionId = found[1]!;
+    return route.fulfill({ response, body });
+  });
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !actionId || req.headers()["next-action"] !== actionId) return route.fallback();
+      const res = await route.fetch();
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      // The page may be gone by now (the journey ended while the answer was held).
+      return route.fulfill({ response: res }).catch(() => undefined);
+    },
+  );
+}
+
 /** `encodeReply` sends an unset field as "$undefined"; drop those to read an action's object argument. */
 export const actionObject = (arg: unknown) =>
   Object.fromEntries(Object.entries((arg ?? {}) as Record<string, unknown>).filter(([, v]) => v !== "$undefined"));
