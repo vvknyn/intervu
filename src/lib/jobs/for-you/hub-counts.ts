@@ -186,11 +186,6 @@ export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefin
     return { kind: "floor", value: max };
 }
 
-/** A pack chip's count: the pill without its noun ("96 roles" → "96", "31+ roles" → "31+", "…" stays). */
-export function hubChipCountText(label: string): string {
-    return label.replace(/\s+roles?$/, "");
-}
-
 /**
  * Smallest "at least" count a pack shows. A floor only counts the rows read
  * so far, so "0+" or "1+" reads as a tiny exact number for a pack that may

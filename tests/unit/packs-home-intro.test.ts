@@ -103,6 +103,7 @@ describe("packs-home chrome — For you and Search switch", () => {
         );
         // Every pack opens through the page (the real deck); there is no in-hub fallback.
         assert.match(hub, /onSelectCategory: \(category: CategoryHubItem/);
-        assert.match(hub, /data-testid="hub-browse-all-matches"/);
+        // "All your matches" is the first tile; the separate "Browse all matches" button is gone.
+        assert.doesNotMatch(hub, /hub-browse-all-matches/);
     });
 });

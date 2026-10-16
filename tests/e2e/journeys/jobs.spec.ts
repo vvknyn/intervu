@@ -554,11 +554,12 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
   await expect(inUse).toContainText("Ranked against your résumé");
   await expect(inUse.getByTestId("today-replace-resume")).toBeVisible();
   await expect(inUse.getByTestId("today-remove-resume")).toHaveCount(0);
-  await expect(page.getByTestId("hub-browse-all-matches")).toBeVisible();
+  // "All your matches" is the first tile, so there is no second "Browse all matches" button beside it (J-JOBS-149).
+  await expect(page.getByTestId("hub-browse-all-matches")).toHaveCount(0);
   // Today counts applications against the daily goal, so the welcome panel's tip about it is gone.
   await expect(page.getByTestId("hub-daily-apply-tip")).toHaveCount(0);
 
-  // The order Vivek asked for: the chips, then Today, then what they applied to, then history.
+  // The order Vivek asked for: the pack tiles, then Today, then what they applied to, then history.
   const today = page.getByTestId("today-home");
   const chips = page.getByTestId("hub-pack-chips");
   await expect(today).toBeVisible({ timeout: 30_000 });
@@ -1670,7 +1671,7 @@ signedInTest("an open role's \"What we inferred\" names the same posted date and
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-signedInTest("the packs are one row of chips, and a chip says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
+signedInTest("the packs are big tiles, and a tile says how many roles its pack gained since the last visit", { tag: ["@J-JOBS-47"] }, async ({ page, diagnostics }) => {
   // Two loads, each held on the tracker for 12 s below.
   signedInTest.slow();
   await returningVisitor(page);

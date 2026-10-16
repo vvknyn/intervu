@@ -29,13 +29,13 @@ describe("packs home live counts + deeper deck", () => {
         assert.match(src, /hubFitLine=\{hubFitLine\}/);
         assert.match(src, /hubLeftOutLine=\{hubLeftOutLine\}/);
         assert.match(src, /hubMatching=/);
-        // The removals line ("5 left All your matches") counted another thing than the chips and is gone.
+        // The removals line ("5 left All your matches") counted another thing than the tiles and is gone.
         assert.doesNotMatch(src, /hubRemovalsLine/);
         assert.match(src, /HUB_PROBE_LIMITS/);
         assert.doesNotMatch(src, /appliedTodayChrome/);
     });
 
-    it("CategoryHubGrid says what the chips count and why the rest were left out, plus the matching pulse", () => {
+    it("CategoryHubGrid says what the first tile counts and why the rest were left out, plus the matching pulse", () => {
         const src = readFileSync(HUB, "utf8");
         assert.match(src, /data-testid="hub-fit-line"/);
         assert.match(src, /data-testid="hub-left-out-line"/);

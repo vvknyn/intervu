@@ -160,6 +160,11 @@ export function useSeenBefore(): ReadonlySet<string> | null {
     return useSyncExternalStore(subscribeNever, visitSnapshot, () => null)?.seenBefore ?? null;
 }
 
+/** True once this device has opened the packs home in an earlier sitting: the one fact "Welcome back" rests on. */
+export function useReturningVisitor(): boolean {
+    return useTodayVisit().sinceMs != null;
+}
+
 /** "Last here Friday" for the welcome panel; nothing on a first visit. */
 export function TodayLastHere({ className }: { className?: string }) {
     const { hydrated, sinceMs, nowMs } = useTodayVisit();

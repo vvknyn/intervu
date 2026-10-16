@@ -106,15 +106,16 @@ describe("for-you mobile chrome", () => {
         assert.match(src, /data-testid="for-you-deck"/);
     });
 
-    it("CategoryHubGrid hub is touch-first with safe-area and full-width CTAs", () => {
+    it("CategoryHubGrid hub is touch-first with safe-area and big tiles two across on a phone", () => {
         const src = readFileSync(join(JOBS, "CategoryHubGrid.tsx"), "utf8");
         assert.match(src, /data-testid="job-packs-hub"/);
         assert.match(src, /safe-area-inset-bottom/);
         assert.match(src, /touch-manipulation/);
-        assert.deepEqual(sizesOf(src, "hub-browse-all-matches"), [undefined]);
-        // The packs are chips (the control scale's ctl-md step, which grows its hit area on touch) in a row that wraps.
-        assert.match(src, /chipVariants\(\{ active: activeCategoryId === category\.id, interactive: true \}\)/);
-        assert.match(src, /data-testid="hub-pack-chips" className="flex flex-wrap/);
+        // The packs are tiles in a grid, two across on a phone; the first one ("All your matches") has no second button beside it.
+        assert.match(src, /data-testid="hub-pack-chips"\s+className=\{cn\("grid grid-cols-2 /);
+        assert.doesNotMatch(src, /hub-browse-all-matches/);
+        // A tile is one whole-width button: no hand-rolled height, so the control scale has nothing to flag.
+        assert.match(src, /flex w-full flex-col justify-between gap-8 rounded-panel border bg-surface-postcard p-5/);
     });
 
     it("ApplyReturnPrompt is Yes / Not yet / Skip with thumb-sized targets", () => {
