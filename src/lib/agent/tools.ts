@@ -21,7 +21,7 @@ import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidat
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
 import type { DeckLeftOut } from "../jobs/for-you/band-order";
-import { formatLeftOutLine, NEAR_MISS_NOTICE, writtenInParts } from "../jobs/for-you/left-out-copy";
+import { formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE, writtenInParts } from "../jobs/for-you/left-out-copy";
 import { languageListText } from "../match/posting-language";
 import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
 import { clusterJobs } from "../jobs/cluster";
@@ -759,7 +759,7 @@ export interface ForYouHit extends JobDetailFields {
 export interface ForYouOut {
   hits: ForYouHit[];
   /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
-  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true };
+  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true; /** No role posted in the last 30 days fits: `hits` fit and were posted longer ago (with `near`: the closest of them, each a weaker fit). */ older?: true };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -833,20 +833,27 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   // A list that holds only roles the résumé could take can be short, or empty: say how many were left out and why.
   const leftOutLine = formatLeftOutLine(ranked.leftOut);
   const languagesOut = ranked.leftOut.languages ? languagesNote(signals?.languages?.value ?? [], ranked.leftOut.languages, false) : undefined;
-  // Nothing fit: the list holds the closest roles, each a weaker fit, and says so (`rankForYou`'s near misses).
+  // Nothing fit: the list holds the closest roles, each a weaker fit, and says so (`rankForYou`'s near misses). No role
+  // posted in the last 30 days fit: it holds the roles that fit and are older, and says so; and when not even a newer
+  // role is close, the closest older ones (both flags).
+  const first = offset === 0 && deck.length > 0;
   const leftOutNote =
-    offset === 0 && ranked.leftOut.near && deck.length > 0
-      ? [NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
-      : offset === 0 && leftOutLine
-        ? deck.length === 0
-          ? `None of the roles found fit this résumé yet. ${leftOutLine}`
-          : leftOutLine
-        : null;
+    first && ranked.leftOut.older && ranked.leftOut.near
+      ? [OLDER_NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+      : first && ranked.leftOut.older
+        ? [OLDER_FITS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+        : first && ranked.leftOut.near
+          ? [NEAR_MISS_NOTICE, leftOutLine].filter(Boolean).join(" ")
+          : offset === 0 && leftOutLine
+            ? deck.length === 0
+              ? `None of the roles found fit this résumé yet. ${leftOutLine}`
+              : leftOutLine
+            : null;
   const note = joinNotes(limitNote, leftOutNote, offset === 0 ? languagesOut : undefined);
   return {
     hits,
     ...(ranked.leftOut.considered > 0
-      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}) } }
+      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}), ...(ranked.leftOut.older ? { older: true as const } : {}) } }
       : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),

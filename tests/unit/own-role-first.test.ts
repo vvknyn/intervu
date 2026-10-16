@@ -7,7 +7,7 @@
  * on level. The candidate's own role now ranks first, and a neighbouring role
  * can't read Strong.
  */
-import { describe, it } from 'node:test';
+import { after, before, describe, it, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -34,6 +34,10 @@ import { resumeDataFromPlainText, structureResumeText } from '../../src/lib/resu
 import type { JobSearchResult, PublicJob } from '../../src/lib/jobs/types';
 import type { ResumeData } from '../../src/types/resume';
 import { corpusStub, mkJob, NOW } from '../support/jobs-corpus-stub';
+
+// The fixtures are dated from the stub's clock; read them against it, not today's, so they do not age past the 30 days a For you list keeps.
+before(() => mock.timers.enable({ apis: ['Date'], now: NOW }));
+after(() => mock.timers.reset());
 
 const NOW_YEAR = 2026;
 const fixture = (name: string) => readFileSync(path.join(process.cwd(), `tests/fixtures/${name}.txt`), 'utf8');

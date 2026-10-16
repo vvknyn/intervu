@@ -258,7 +258,7 @@ test("a pack never deals a role the account applied to, nor the same opening lis
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a pack leads with this month's roles over an older own-title one, and leaves out roles over 60 days old", { tag: ["@J-JOBS-127"] }, async ({ page, diagnostics }) => {
+test("a pack lists only roles from the last 30 days, with their age on the card, and leaves out older ones, also one an employer re-dated", { tag: ["@J-JOBS-127"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await seedResume(page);
@@ -266,17 +266,49 @@ test("a pack leads with this month's roles over an older own-title one, and leav
   const ancient = posting("88888888-0000-4000-8000-000000000001", "Technical Account Manager", "Braze Cloud", "senior", 85);
   const stale = posting("88888888-0000-4000-8000-000000000002", "Technical Account Manager", "Docent Labs", "senior", 45);
   const fresh = posting("88888888-0000-4000-8000-000000000003", "Senior Customer Success Manager", "Maple CRM", "senior", 3);
+  const lastMonth = posting("88888888-0000-4000-8000-000000000004", "Technical Account Manager", "Quill Systems", "senior", 25);
+  // Dated yesterday, but first seen 45 days ago: the employer moved the date forward on an old requisition (2026-10-16).
+  const redated = { ...posting("88888888-0000-4000-8000-000000000005", "Technical Account Manager", "Sable Cloud", "senior", 1), first_seen_at: new Date(Date.now() - 45 * DAY_MS).toISOString() };
   await withAccountApplications(page, []);
-  await answerResumeSearch(page, [ancient, stale, fresh], "journey-pack-age");
+  await answerResumeSearch(page, [ancient, stale, redated, fresh, lastMonth], "journey-pack-age");
   await openPack(page);
 
   const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
   const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
   await expect(front).toHaveAttribute("data-job-id", fresh.id, { timeout: 60_000 });
   await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
-  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${ancient.id}"]`)).toHaveCount(0);
+  await expect(front.getByTestId("role-card-age")).toHaveText("Posted 3d ago");
+  for (const gone of [ancient, stale, redated]) {
+    await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${gone.id}"]`)).toHaveCount(0);
+  }
   await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", stale.id);
+  await expect(front).toHaveAttribute("data-job-id", lastMonth.id);
+  await expect(front.getByTestId("role-card-age")).toHaveText("Posted 25d ago");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 5 roles found: 3 posted over 30 days ago");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+// J-JOBS-144 — Vivek, 2026-10-16: "the for you is still showing up really old jobs from more than 30 days ago". A list
+// never empties for age alone: when no role from the last 30 days fits, the roles that fit and are older stand in,
+// under a line that says so, each card with its age.
+test("a pack where no role from the last 30 days fits lists the older roles that fit under an honest line, each with its age", { tag: ["@J-JOBS-144"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const older = posting("99999999-0000-4000-8000-000000000001", "Technical Account Manager", "Docent Labs", "senior", 40);
+  const oldest = posting("99999999-0000-4000-8000-000000000002", "Technical Account Manager", "Braze Cloud", "senior", 70);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [oldest, older], "journey-pack-older");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-older-notice")).toContainText("No role posted in the last 30 days fits your résumé yet", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  await expect(front.getByTestId("role-card-age")).toHaveText(/^Posted (40|70)d ago$/);
+  await page.getByTestId("for-you-next").click();
+  await expect(front.getByTestId("role-card-age")).toHaveText(/^Posted (40|70)d ago$/);
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 roles fit your résumé · all posted over 30 days ago");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -644,6 +676,39 @@ test("a pack where nothing fits lists the closest roles under an honest line, no
   await page.getByTestId("for-you-next").click();
   await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 closest roles · each a weaker fit");
   await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 1 above your level");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+// J-JOBS-144 (second case) — when not even a newer role is close, the closest older roles stand in, each a weaker fit,
+// under a line that says so, instead of an empty list.
+test("a pack where only older roles are posted and none fits lists the closest of them, each a weaker fit with its age", { tag: ["@J-JOBS-144"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  // Constructed, as in J-JOBS-134: titled like the résumé's own role, asking for four things a TAM résumé does not show.
+  const unrelated = (id: string, company: string, daysOld: number) =>
+    described(
+      posting(id, "Technical Account Manager", company, "senior", daysOld),
+      [
+        `About the role\n${company} is hiring a Technical Account Manager.`,
+        "Requirements\n- Hands-on welding and brazing of structural steel\n- Operating a forklift and overhead crane safely\n- Pipefitting and boiler maintenance in plant settings\n- Erecting scaffolding to site safety standards",
+      ].join("\n\n"),
+    );
+  const closeOld = [unrelated("cccccccc-0000-4000-8000-000000000001", "Steelhead Works", 40), unrelated("cccccccc-0000-4000-8000-000000000002", "Ironbridge", 55)];
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, closeOld, "journey-closest-older");
+  await openPack(page);
+
+  await expect(page.getByTestId("for-you-older-near-notice")).toContainText("nothing posted in the last 30 days is close", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-empty")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-near-notice")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-older-notice")).toHaveCount(0);
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2");
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front.getByTestId("role-card-age")).toHaveText(/^Posted (40|55)d ago$/);
+  await expect(page.getByTestId("match-chip")).toHaveText("Stretch");
+  await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText("2 closest roles · each a weaker fit, all posted over 30 days ago");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

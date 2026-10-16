@@ -130,13 +130,13 @@ describe('when nothing fits, the closest roles stand in (never an empty list whi
         assert.deepEqual(summary.byReason, { stretch: 2, requirement: 1, level: 1, 'other-role': 1, old: 1 });
         const near = nearMissSummary(summary);
         assert.deepEqual(near, { considered: 6, listed: 2, byReason: { requirement: 1, level: 1, 'other-role': 1, old: 1 }, near: true });
-        assert.equal(formatLeftOutLine(near), "Left out of the 6 roles found: 1 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role · 1 posted too long ago");
+        assert.equal(formatLeftOutLine(near), "Left out of the 6 roles found: 1 above your level · 1 asking for something your résumé doesn't show · 1 a different kind of role · 1 posted over 30 days ago");
     });
 
     it('says plainly that none fit and these are the closest', () => {
-        assert.equal(formatDeckShowingLine(2, true), '2 closest roles · each a weaker fit');
-        assert.equal(formatDeckShowingLine(1, true), '1 closest role · each a weaker fit');
-        assert.equal(formatDeckShowingLine(0, true), null);
+        assert.equal(formatDeckShowingLine(2, 'near'), '2 closest roles · each a weaker fit');
+        assert.equal(formatDeckShowingLine(1, 'near'), '1 closest role · each a weaker fit');
+        assert.equal(formatDeckShowingLine(0, 'near'), null);
         assert.match(NEAR_MISS_NOTICE, /None of the roles we found fit your résumé well yet/);
     });
 });
