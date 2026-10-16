@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { hubChipCountText } from "@/lib/jobs/for-you/hub-counts";
 import type { ScoredHubHit } from "@/lib/jobs/for-you/hub-counts";
 import {
     chipCountsToRemember,
@@ -54,19 +53,12 @@ describe("resolveHubCountDeltas", () => {
     });
 });
 
-describe("exactHubCounts and hubChipCountText", () => {
+describe("exactHubCounts", () => {
     it("keeps only exact counts: a floor from the keyword sample never compares", () => {
         assert.deepEqual(
             exactHubCounts({ all: { kind: "exact", value: 508 }, ai: { kind: "floor", value: 31 }, remote: null, fresh: undefined }),
             { all: 508 },
         );
-    });
-
-    it("a chip shows the pill's number without its noun", () => {
-        assert.equal(hubChipCountText("1,508 roles"), "1,508");
-        assert.equal(hubChipCountText("1 role"), "1");
-        assert.equal(hubChipCountText("31+ roles"), "31+");
-        assert.equal(hubChipCountText("…"), "…");
     });
 });
 

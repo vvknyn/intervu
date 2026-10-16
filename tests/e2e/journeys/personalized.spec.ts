@@ -101,14 +101,21 @@ const rowIds = (page: Page) => page.getByTestId("job-row").evaluateAll((els) => 
  * lists it) is told apart from the other list actions by the id the page's own bundle gives it —
  * `createServerReference("<id>", …, "getApplications")`, in dev and production builds alike.
  * Signed in the way production is (`signInLikeProduction`); every other action keeps its answer.
+ *
+ * `postedDateSupported` also answers `getPostedDateFilterSupportAction` (its server-side probe reads the search index,
+ * which a dev server with no search backend does not have, so it says "no" and the deck drops its date window). Production
+ * answers "yes", so a journey that holds a deck to a date window (the "Added this week" tile) sets it.
  */
-async function withAccountApplications(page: Page, applications: object[]) {
+async function withAccountApplications(page: Page, applications: object[], opts: { postedDateSupported?: boolean } = {}) {
   let actionId: string | null = null;
+  let postedActionId: string | null = null;
   await page.route(/\/_next\/static\/chunks\/.*\.js(\?.*)?$/, async (route) => {
     const response = await route.fetch();
     const body = await response.text();
     const found = body.match(/\("([0-9a-f]{40,44})",[^)]{0,1500}?"getApplications"\)/);
     if (found) actionId = found[1]!;
+    const posted = body.match(/\("([0-9a-f]{40,44})",[^)]{0,1500}?"getPostedDateFilterSupportAction"\)/);
+    if (posted) postedActionId = posted[1]!;
     return route.fulfill({ response, body });
   });
   await signInLikeProduction(page, () => undefined);
@@ -116,9 +123,17 @@ async function withAccountApplications(page: Page, applications: object[]) {
     () => true,
     async (route) => {
       const req = route.request();
-      if (req.method() !== "POST" || !actionId || req.headers()["next-action"] !== actionId) return route.fallback();
-      const res = await route.fetch();
-      return route.fulfill({ response: res, body: withActionResult(await res.text(), { data: applications }) });
+      const action = req.headers()["next-action"];
+      if (req.method() !== "POST" || !action) return route.fallback();
+      if (actionId && action === actionId) {
+        const res = await route.fetch();
+        return route.fulfill({ response: res, body: withActionResult(await res.text(), { data: applications }) });
+      }
+      if (opts.postedDateSupported !== undefined && postedActionId && action === postedActionId) {
+        const res = await route.fetch();
+        return route.fulfill({ response: res, body: withActionResult(await res.text(), opts.postedDateSupported) });
+      }
+      return route.fallback();
     },
   );
   return () => actionId;
@@ -737,9 +752,9 @@ test("the packs hub counts the roles the deck lists, and the fit-sorted Search l
     return answerListSearch(route, { hits: found, total: found.length, backend: "meilisearch", configured: true, searchId: "journey-parity" });
   });
 
-  // The hub's "All your matches" tile says 2 (the roles the deck lists), not the 4 the search found.
+  // The hub's "All your matches" tile says 2 roles (the roles the deck lists), not the 4 the search found.
   await page.goto("/jobs?view=for-you");
-  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("2", { timeout: 60_000 });
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("2 roles", { timeout: 60_000 });
   await openPack(page);
 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
@@ -828,6 +843,126 @@ test("the packs hub and the deck count the same roles and employers in the same 
   // More of the 226 can still be read: the deck says so rather than ending as if these were all.
   await expect(page.getByTestId("for-you-show-more")).toBeVisible();
   expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-149 — Vivek, 2026-10-16 ("you're killing me...there used to be 1000s of jobs matched for me...now that card says
+ * 14 and when I click the card it says 7", then, over a job board's home with a greeting above a grid of big tiles: "its
+ * clean and big and actionable"): the packs hub is a greeting over big tiles, not a row of small chips. Each tile is one
+ * whole button with a glyph, its title and the live count in a green chip, in the deck's own words ("14 roles", "14 roles
+ * at 7 employers"); two across on a phone, rows of three or four on a desktop; there is no second "Browse all matches" button beside "All your matches"; "Welcome back" is said only
+ * when this device's own visit record shows an earlier visit. A tile opens the list its count counts (J-JOBS-148 holds
+ * the numbers to the deck; "Added this week" opens the 7-day window and as many roles as its tile counted). The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("the packs hub is a greeting over big tiles, each with a glyph, a count and a title, and a tile opens its list", { tag: ["@J-JOBS-149"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await withAccountApplications(page, [], { postedDateSupported: true });
+  // Fourteen roles at fourteen employers: three posted this week, nine with pay listed.
+  const employers = ["Beacon Cloud", "Orchard CRM", "Harbor Pay", "Northstar Data", "Lumen Works", "Pinecone Labs", "Tidewater AI", "Cobalt Systems", "Juniper Cloud", "Redwood Metrics", "Summit Ledger", "Brightline", "Kestrel Data", "Maple Ridge Tech"];
+  const titles = [
+    "Technical Account Manager", "Senior Technical Account Manager", "Customer Success Manager, Enterprise", "Senior Customer Success Manager",
+    "Strategic Customer Success Manager", "Technical Customer Success Manager", "Enterprise Technical Account Manager", "Senior Technical Account Manager, Cloud",
+    "Customer Success Manager", "Customer Success Manager, Strategic Accounts", "Senior Customer Success Manager, SaaS", "Technical Account Manager, Platform",
+    "Enterprise Customer Success Manager", "Technical Account Manager, Integrations",
+  ];
+  const roles = titles.map((title, i) => ({
+    ...posting(`bbbbbbbb-0000-4000-8000-0000000001${String(i).padStart(2, "0")}`, title, employers[i]!, "senior", i < 3 ? i + 1 : 9 + i),
+    ...(i < 9 ? { salary_min: 110_000, salary_max: 150_000, salary_currency: "CAD", salary_period: "year" } : {}),
+  }));
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { offset?: number; salaryMin?: number; postedBucket?: string; postedSinceMs?: number };
+    if ((parsed.offset ?? 0) !== 0) return route.fallback();
+    const hits =
+      (parsed.salaryMin ?? 0) > 0
+        ? roles.filter((r) => r.salary_min)
+        : parsed.postedBucket === "7d" || parsed.postedSinceMs
+          ? roles.filter((r) => Date.now() - r.posted_ts < 7 * DAY_MS)
+          : roles;
+    return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-hub-tiles" });
+  });
+
+  // A first visit on this device: a greeting, never "back".
+  await page.goto("/jobs?view=for-you");
+  const hub = page.getByTestId("job-packs-hub");
+  const greeting = hub.locator("h2").first();
+  await expect(greeting).toHaveText("Welcome, Ada", { timeout: 60_000 });
+  // An earlier visit on record (two days ago): now it is "Welcome back".
+  await page.evaluate(() => localStorage.setItem("intervu.today.visit", JSON.stringify({ lastSeenAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), since: null })));
+  await page.reload();
+  await expect(greeting).toHaveText("Welcome back, Ada", { timeout: 60_000 });
+  await expect(hub.getByTestId("hub-private-matching")).toBeVisible();
+
+  // The packs are tiles in a grid, "All your matches" first, with no second button for the same list.
+  const tiles = page.getByTestId("hub-pack-chips");
+  await expect(tiles).toHaveCSS("display", "grid");
+  await expect(page.getByTestId("hub-browse-all-matches")).toHaveCount(0);
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("14 roles", { timeout: 60_000 });
+  await expect(page.getByTestId("hub-pack-count-fresh")).toHaveText("3 roles", { timeout: 60_000 });
+  await expect(page.getByTestId("hub-pack-count-salary")).toHaveText("9 roles", { timeout: 60_000 });
+  const cards = tiles.locator('[data-testid^="hub-pack-card-"]');
+  expect(await cards.first().getAttribute("data-testid")).toBe("hub-pack-card-all");
+  await expect(page.getByTestId("hub-pack-title-all")).toHaveText("All your matches");
+  await expect(page.getByTestId("hub-pack-card-all")).toHaveAttribute("aria-label", "All your matches, 14 roles");
+
+  // Each tile is one big button: a glyph, a title and its count in words ("14 roles"), on screen.
+  const viewport = page.viewportSize()!;
+  const shapes = await cards.evaluateAll((els) =>
+    els.map((el) => {
+      const box = el.getBoundingClientRect();
+      return {
+        id: el.getAttribute("data-testid"),
+        tag: el.tagName,
+        width: Math.round(box.width),
+        height: Math.round(box.height),
+        left: Math.round(box.left),
+        right: Math.round(box.right),
+        top: Math.round(box.top),
+        glyph: el.querySelectorAll("svg").length,
+        count: el.querySelector('[data-testid^="hub-pack-count-"]')?.textContent?.trim() ?? null,
+        title: el.querySelector('[data-testid^="hub-pack-title-"]')?.textContent?.trim() ?? "",
+      };
+    }),
+  );
+  expect(shapes.length).toBeGreaterThanOrEqual(3);
+  for (const tile of shapes) {
+    expect(tile.tag, tile.id ?? "").toBe("BUTTON");
+    expect(tile.glyph, `${tile.id} has a glyph`).toBeGreaterThanOrEqual(1);
+    expect(tile.count, `${tile.id} says its count`).toMatch(/^[\d,]+\+? roles?( at [\d,]+ employers)?$/);
+    expect(tile.title.length, `${tile.id} has a title`).toBeGreaterThan(0);
+    expect(tile.height, `${tile.id} is big`).toBeGreaterThanOrEqual(96);
+    expect(tile.width, `${tile.id} is big`).toBeGreaterThanOrEqual(140);
+    expect(tile.left).toBeGreaterThanOrEqual(0);
+    expect(tile.right).toBeLessThanOrEqual(viewport.width);
+  }
+  // Two across on a phone, three or four on a desktop.
+  const firstRow = shapes.filter((tile) => Math.abs(tile.top - shapes[0]!.top) < 4).length;
+  if (viewport.width < 600) expect(firstRow).toBeLessThanOrEqual(2);
+  else expect(firstRow).toBeGreaterThanOrEqual(3);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  // The tiles sit above Today, which keeps its place and content.
+  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())!.y;
+  await expect(page.getByTestId("today-home")).toBeVisible({ timeout: 30_000 });
+  expect(await top("hub-pack-chips")).toBeLessThan(await top("today-home"));
+
+  // A tile opens its pack with the tile's own filter: "Added this week" opens the 7-day window, and the deck it opens
+  // lists as many roles as the tile counted (3 of the 14 were posted this week).
+  const freshCount = Number(/^[\d,]+/.exec((await page.getByTestId("hub-pack-count-fresh").textContent()) ?? "")?.[0]?.replace(/,/g, ""));
+  expect(freshCount).toBe(3);
+  const fresh = page.getByTestId("hub-pack-card-fresh");
+  const back = page.getByTestId("jobs-back-to-packs");
+  await expect(async () => {
+    if (!(await back.isVisible())) await fresh.click({ timeout: 5_000 });
+    await expect(back).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+  const edit = page.getByTestId("pack-edit-filters");
+  await expect(edit).toBeVisible({ timeout: 30_000 });
+  expect(new URL((await edit.getAttribute("href"))!, "http://x").searchParams.get("posted")).toBe("7d");
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText(new RegExp(`of ${freshCount}$`), { timeout: 30_000 });
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
 /**

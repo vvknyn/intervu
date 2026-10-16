@@ -68,7 +68,7 @@ describe("showsFrontDoorBand", () => {
     });
 });
 
-describe("hubGreeting — derived from real state, never 'Welcome back'", () => {
+describe("hubGreeting — derived from real state, 'Welcome back' only for a known earlier visit", () => {
     const cases = [
         { signedIn: false, userName: null, hasResume: false },
         { signedIn: false, userName: null, hasResume: true },
@@ -85,6 +85,13 @@ describe("hubGreeting — derived from real state, never 'Welcome back'", () => 
     it("a signed-out visitor is not greeted as an account holder", () => {
         assert.equal(hubGreeting({ signedIn: false, userName: "Stale Name", hasResume: true }).title, "Your matches");
         assert.equal(hubGreeting({ signedIn: false, hasResume: false }).title, "Job packs");
+    });
+
+    it("says 'back' only when this device's own visit record shows an earlier visit, and only to a signed-in user", () => {
+        assert.equal(hubGreeting({ signedIn: true, userName: "Marcus Oyelaran", hasResume: true, returning: true }).title, "Welcome back, Marcus");
+        assert.equal(hubGreeting({ signedIn: true, userName: "  ", hasResume: true, returning: true }).title, "Welcome back");
+        assert.equal(hubGreeting({ signedIn: true, userName: "Marcus", hasResume: true, returning: false }).title, "Welcome, Marcus");
+        assert.equal(hubGreeting({ signedIn: false, userName: "Stale Name", hasResume: true, returning: true }).title, "Your matches");
     });
 
     it("a signed-in user is greeted by first name, or plainly without one", () => {
