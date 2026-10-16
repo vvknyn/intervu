@@ -68,10 +68,15 @@ describe('jdTermsFromDescription', () => {
         }
     });
 
-    it('a posting with no headings still yields its terms, as duties', () => {
+    it('a posting with no headings still yields its terms, as duties marked unsectioned', () => {
         const terms = jdTermsFromDescription('We need a forklift operator for our warehouse. Forklift certification and warehouse inventory experience required.')!;
         assert.deepEqual(terms.req, []);
         assert.ok(terms.duty.includes('forklift'));
+        assert.equal(terms.unsectioned, true);
+    });
+
+    it('a posting with a recognised heading is not marked unsectioned', () => {
+        assert.equal(jdTermsFromDescription(DATA_PM)!.unsectioned, undefined);
     });
 
     it('nothing to read → null', () => {
@@ -86,6 +91,17 @@ describe('jdCoverage — how much of what the posting asks shows on the résumé
         const rnTerms = jdTermsFromDescription(NURSE)!;
         assert.ok(jdCoverage(PM, pmTerms)!.coverage > jdCoverage(PM, rnTerms)!.coverage);
         assert.ok(jdCoverage(RN, rnTerms)!.coverage > jdCoverage(RN, pmTerms)!.coverage);
+    });
+
+    it('an unsectioned posting counts toward the fit but has no duty share: its whole text is not the work', () => {
+        const flat = jdTermsFromDescription('Own the roadmap, write requirements and user stories, prioritize the backlog with engineering and report SQL metrics to stakeholders.')!;
+        assert.equal(flat.unsectioned, true);
+        const c = jdCoverage(PM, flat)!;
+        assert.ok(c.coverage > 0 && c.matched.length > 0, 'the fit still reads the whole text');
+        assert.equal(c.dutyShare, null);
+        assert.deepEqual(c.dutyMatched, []);
+        // A sectioned posting keeps its duty share.
+        assert.ok(jdCoverage(PM, jdTermsFromDescription(DATA_PM)!)!.dutyShare != null);
     });
 
     it('names the matched and missing terms, requirements first', () => {

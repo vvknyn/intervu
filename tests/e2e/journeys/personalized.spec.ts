@@ -494,10 +494,12 @@ test("a pack with no role the résumé could take says so and why, instead of a 
  * a remote role that names no country is listed last, as Country unclear.
  * The postings are CONSTRUCTED for this journey (no real company or posting).
  */
+// Headings stand alone on their line, with a blank line after: the shape the section reader (pack-sections.ts) recognises. A
+// heading glued to its text by one newline is not read, and the posting would count as one run of text with no responsibilities.
 const askingForTheResumeWork = (company: string, title: string) => [
-  `About the role\n${company} is hiring a ${title}.`,
-  "What you'll do\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
-  "What you bring\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
+  `About the role\n\n${company} is hiring a ${title}.`,
+  "What you'll do\n\nOwn the adoption and renewal plan for enterprise accounts. Handle technical escalations and API integration issues with engineering, work with product managers on the roadmap, and report on customer health and usage with SQL and Salesforce. Lead onboarding and quarterly business reviews for strategic enterprise customers.",
+  "What you bring\n\n6+ years of experience\nExperience with REST APIs\nExperience with Salesforce\nExperience with SQL\nExperience with enterprise customers",
 ].join("\n\n");
 const GENERIC_DESCRIPTION =
   "About the role\nNorthstar Data is hiring a Technical Account Manager.\n\nWhat you'll do\nWe are looking for a Technical Account Manager to join our team. You will work with a variety of stakeholders and grow with a fast-moving company.";
@@ -785,18 +787,28 @@ test("a title the résumé has not held reads Strong when its day-to-day work sh
   await seedResume(page);
   const led = described(posting("99999999-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
   const tools = described(posting("99999999-0000-4000-8000-000000000002", "SecOps Engineer", "Alcumus", "senior", 1), sharingOnlyTheTools("Alcumus", "SecOps Engineer"));
+  // Live descriptions often arrive as one run of text with no heading we read (Alcumus, Loopio, Risk Control, eBay on 2026-10-15): the same
+  // work as the first posting's, under a title the résumé has not held. Its whole text is not evidence of the work, so it reads Good.
+  const flatTitle = "Delivery Operations Lead, API Programs";
+  const flat = described(
+    posting("99999999-0000-4000-8000-000000000003", flatTitle, "Fernway", "senior", 2),
+    askingForTheResumeWork("Fernway", flatTitle).split("\n\n").filter((_, index) => index % 2 === 1).join(" ").replace(/\n/g, " "),
+  );
   await withAccountApplications(page, []);
-  // Sent the tools-only posting first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of it.
-  await answerResumeSearch(page, [tools, led], "journey-duty-led");
+  // Sent the tools-only and the flat postings first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of them.
+  await answerResumeSearch(page, [tools, flat, led], "journey-duty-led");
   await openPack(page);
 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
-  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
   await expect(front).toHaveAttribute("data-job-id", led.id);
   await expect(page.getByTestId("match-chip")).toHaveText("Strong");
-  await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", tools.id);
-  await expect(page.getByTestId("match-chip")).toHaveText("Good");
+  for (const position of [2, 3]) {
+    await page.getByTestId("for-you-next").click();
+    await expect(page.getByTestId("for-you-deck-position")).toHaveText(`Role ${position} of 3`);
+    expect([tools.id, flat.id]).toContain(await front.getAttribute("data-job-id"));
+    await expect(page.getByTestId("match-chip")).toHaveText("Good");
+  }
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

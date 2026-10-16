@@ -6,6 +6,7 @@ import {
     CONTENT_LED_MIN_DUTY_EVIDENCE,
     CONTENT_LED_MIN_EVIDENCE,
     CONTENT_LED_MIN_FIT,
+    MATCH_BAND_GOOD_MIN,
     MATCH_BAND_STRONG_MIN,
     contentLedRole,
     scoreJobAgainstResume,
@@ -336,5 +337,40 @@ describe("a title the résumé has not held is led by the posting's day-to-day w
         assert.equal(relevance(score).jd?.dutyFit, undefined, "no responsibilities were read");
         assert.equal(score.contentLed, undefined);
         assert.ok(score.total < MATCH_BAND_STRONG_MIN, `total ${score.total}`);
+    });
+
+    // The posting with every heading taken out, as live descriptions often arrive (one run of text): its whole text is
+    // not evidence of the work, so it counts toward the fit and never as the responsibilities.
+    const HEADINGS = new Set(["About the role", "What you'll do", "What you bring"]);
+    const flat = (job: PublicJob, id: string): PublicJob => {
+        const description = job.description!.split("\n\n").filter((part) => !HEADINGS.has(part)).join(" ");
+        const copy = { ...job, id, description } as PublicJob;
+        return { ...copy, jd_terms: jdTermsFromDescription(description, copy) } as PublicJob;
+    };
+
+    it("does not call a posting with no readable headings content-led, though its whole text is the résumé's own work: it is held at Good", () => {
+        const sectioned = scoreJobAgainstResume(resume, PLATFORM_OWNER, signals)!;
+        const job = flat(PLATFORM_OWNER, "platform-owner-flat");
+        const score = scoreJobAgainstResume(resume, job, signals)!;
+        const jd = relevance(score).jd!;
+        assert.equal(job.jd_terms?.unsectioned, true, "no heading was read");
+        assert.ok(jd.fit >= CONTENT_LED_MIN_FIT, `the whole text still covers the résumé: fit ${jd.fit}`);
+        assert.equal(jd.dutyFit, undefined, "no responsibilities were read");
+        assert.equal(score.contentLed, undefined);
+        assert.equal(score.total, MATCH_BAND_STRONG_MIN - 1, "held at the top of Good");
+        assert.ok(score.total >= MATCH_BAND_GOOD_MIN);
+        assert.match(explainMatch(score), /can't be a Strong match|different kind of role/);
+        // Only the flat text is held: the same posting with its headings reads Strong, content-led or by its role.
+        assert.ok(sectioned.total >= MATCH_BAND_STRONG_MIN, `sectioned total ${sectioned.total}`);
+    });
+
+    it("leaves a role the résumé holds Strong on the same headingless text", () => {
+        const unheld = flat(PLATFORM_OWNER, "platform-owner-flat");
+        const ownTitled = { ...unheld, id: "product-owner-flat", title: PRODUCT_OWNER.title } as PublicJob;
+        const job = { ...ownTitled, jd_terms: jdTermsFromDescription(ownTitled.description, ownTitled) } as PublicJob;
+        const score = scoreJobAgainstResume(resume, job, signals)!;
+        assert.ok(score.role === "own" || score.role === "family", score.role);
+        assert.equal(job.jd_terms?.unsectioned, true);
+        assert.ok(score.total >= MATCH_BAND_STRONG_MIN, `total ${score.total}`);
     });
 });
