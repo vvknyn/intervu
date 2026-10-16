@@ -378,6 +378,12 @@ describe("where the choice shows", () => {
             assert.ok(body.includes("https://velai.app/settings?tab=prefs"), "change them in Settings");
         }
         assert.ok(buildDailyPicksEmail({ ...model, languages: ["english"] }).text.includes("Roles written in English; others are left out."));
+        // The week's roles left out for language are counted in the email's own words, beside the way in.
+        const counted = buildDailyPicksEmail({ ...model, languages: ["english"], languagesLeftOut: { german: 2, spanish: 5 } });
+        for (const body of [counted.html, counted.text]) {
+            assert.ok(body.includes("Roles written in English. Left out this week: 5 written in Spanish, 2 written in German."), body.slice(0, 500));
+            assert.ok(body.includes("https://velai.app/settings?tab=prefs"));
+        }
         assert.ok(buildDailyPicksEmail({ ...model, languages: ["english", "french", "german"] }).text.includes("English, French or German"));
         const none = buildDailyPicksEmail(model);
         assert.ok(!none.text.includes("others are left out") && !none.html.includes("Change the languages"), "no language is judged: nothing is claimed");

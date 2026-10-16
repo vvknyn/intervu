@@ -39,6 +39,12 @@ export function languageLabel(language: string): string {
     return language === "mandarin" ? "Chinese" : language.charAt(0).toUpperCase() + language.slice(1);
 }
 
+/** "English", "English or French", "English, French or German" (joiner "and" for "English and French"). */
+export function languageListText(languages: readonly string[], joiner: "and" | "or" = "or"): string {
+    const names = languages.map(languageLabel);
+    return names.length > 1 ? `${names.slice(0, -1).join(", ")} ${joiner} ${names[names.length - 1]}` : (names[0] ?? "");
+}
+
 /** The languages in `list` this module can name, lowercase and once each, in the order given; `[]` for anything else. */
 export function normalizeLanguages(list: readonly unknown[] | null | undefined): string[] {
     const out: string[] = [];

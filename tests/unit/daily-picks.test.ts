@@ -27,6 +27,7 @@ import type { JobSearchParams, JobSearchResult, PublicJob } from '../../src/lib/
 import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { ResumeData } from '../../src/types/resume';
 import { mkJob, mkResume } from '../support/jobs-corpus-stub';
+import { jdTermsFromDescription } from '../../src/lib/match/jd-match';
 
 const RESUME = mkResume({ location: 'Toronto, Ontario, Canada' });
 const NOW_MS = Date.parse('2026-10-12T13:00:00Z');
@@ -35,6 +36,25 @@ const HOUR = 3_600_000;
 /** Fits a mid software engineer in Toronto: own role, own level, in Canada. */
 const fits = (id: string, fields: Partial<PublicJob> = {}) =>
     mkJob(id, { location: 'Toronto, ON', location_city: 'Toronto', location_country: 'Canada', company: `Co ${id}`, ...fields });
+
+/** A posting written in French in the résumé's own line of work, and the saved choice of reading English only. */
+const FRENCH_ENGINEERING_TEXT = `À propos du poste
+Nous développons des services de paiement utilisés par plus de 2 000 clients au Québec et en Europe.
+
+Votre rôle
+Vous concevrez et livrerez des interfaces et des services en JavaScript et React, vous travaillerez avec les équipes de produit et de design, vous écrirez des tests automatisés et vous participerez aux revues de code de l'équipe.
+
+Exigences
+- Expérience en développement de logiciels et bonne connaissance de JavaScript et de React
+- Capacité à communiquer avec les équipes techniques et avec la direction
+
+Pourquoi nous rejoindre
+Une équipe passionnée, un horaire flexible, des assurances collectives dès le premier jour et du travail à distance deux jours par semaine.`;
+const inFrench = (id: string) => {
+    const base = fits(id, { description: FRENCH_ENGINEERING_TEXT });
+    return { ...base, jd_terms: jdTermsFromDescription(FRENCH_ENGINEERING_TEXT, base) } as PublicJob;
+};
+const READS_ENGLISH = async () => ({ configured: true, search: { languages: ['english'] }, answers: { custom: {} } });
 
 function role(job: PublicJob, resume: ResumeData = RESUME): TodayRole {
     const score = scoreJobAgainstResume(resume, job, resolveCandidateSignals(resume));
@@ -155,6 +175,21 @@ describe('collecting one account\'s picks on the server', () => {
         assert.equal(searches[0]!.limit, TODAY_PICKS_FETCH_LIMIT);
     });
 
+    it('leaves out a role written in a language the person has not chosen, and counts it for the email and the agent', async () => {
+        const { deps } = collectDeps({ hits: [fits('a'), inFrench('fr-1'), inFrench('fr-2')], getPreferences: READS_ENGLISH });
+        const out = await collectDailyPicks('u1', deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
+        assert.equal(out.kind, 'ready');
+        if (out.kind !== 'ready') return;
+        assert.deepEqual(ids(out.picks), ['a']);
+        assert.deepEqual(out.languagesLeftOut, { french: 2 });
+        // Choosing French brings them in, and nothing is counted.
+        const chosen = collectDeps({ hits: [fits('a'), inFrench('fr-1')], getPreferences: async () => ({ configured: true, search: { languages: ['english', 'french'] }, answers: { custom: {} } }) });
+        const both = await collectDailyPicks('u1', chosen.deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
+        if (both.kind !== 'ready') throw new Error('expected ready');
+        assert.deepEqual(ids(both.picks).sort(), ['a', 'fr-1']);
+        assert.equal(both.languagesLeftOut, undefined);
+    });
+
     it('leaves roles past Senior out of the pool unless the résumé holds one itself, the way Today and the deck do', async () => {
         const plain = collectDeps({ hits: [fits('a')] });
         await collectDailyPicks('u1', plain.deps, { nowMs: NOW_MS, sent: NOTHING_SENT });
@@ -271,6 +306,21 @@ describe('the MCP daily_picks tool', () => {
         assert.deepEqual(out.picks.map((p) => [p.id, p.emailed]), [['b', false], ['a', true]]);
         assert.ok(out.picks.every((p) => p.why.length > 0));
         assert.equal(out.email.on, true);
+    });
+
+    it('says how many roles it left out for their language and the one way in, never dropping them silently', async () => {
+        const { deps } = toolDeps({ hits: [fits('a'), inFrench('fr-1'), inFrench('fr-2')], getPreferences: READS_ENGLISH });
+        const out = await toolDailyPicks(deps, {});
+        if ('error' in out) throw new Error(out.error);
+        assert.deepEqual(out.picks.map((p) => p.id), ['a']);
+        assert.deepEqual(out.left_out, { languages: { french: 2 } });
+        assert.match(out.note ?? '', /2 written in French left out this week because you read postings in English/);
+        assert.match(out.note ?? '', /set_preferences with search\.languages \["english", "french"\]/);
+        // Nothing left out for language: no field, no sentence.
+        const plain = await toolDailyPicks(toolDeps({ hits: [fits('a')], getPreferences: READS_ENGLISH }).deps, {});
+        if ('error' in plain) throw new Error(plain.error);
+        assert.equal(plain.left_out, undefined);
+        assert.equal(plain.note, undefined);
     });
 
     it('turns the email on or off first, then reads it back', async () => {

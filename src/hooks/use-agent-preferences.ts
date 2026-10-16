@@ -76,56 +76,12 @@ export function rememberAgentPreferences(uid: string, prefs: AgentPreferences) {
 }
 
 /**
- * A signed-out visitor's languages (`CandidateSignals.languages`): kept in this browser, like their résumé, and
- * read as preferences so every fit surface resolves them the way it does a signed-in person's saved choice.
+ * Saves the languages they read postings in (`[]` follows their résumé's language) as the account's saved preference,
+ * shown at once and put back if the save fails. Resolves false when it could not be saved, so the caller says so
+ * where the person looked.
  */
-const GUEST_LANGUAGES_KEY = "velai.languages";
-let guest: AgentPreferences | null | undefined;
-const guestListeners = new Set<() => void>();
-
-const guestPrefsFor = (languages: string[]): AgentPreferences | null =>
-    languages.length > 0 ? { configured: true, search: { languages }, answers: { custom: {} } } : null;
-
-function guestSnapshot(): AgentPreferences | null {
-    if (guest !== undefined) return guest;
-    let languages: string[] = [];
-    try {
-        languages = normalizeLanguages(JSON.parse(localStorage.getItem(GUEST_LANGUAGES_KEY) ?? "[]") as unknown[]);
-    } catch {
-        // No storage (private window, blocked site data): the choice lasts this visit only.
-    }
-    guest = guestPrefsFor(languages);
-    return guest;
-}
-
-function subscribeGuest(listener: () => void) {
-    guestListeners.add(listener);
-    return () => {
-        guestListeners.delete(listener);
-    };
-}
-
-function rememberGuestLanguages(languages: string[]) {
-    try {
-        localStorage.setItem(GUEST_LANGUAGES_KEY, JSON.stringify(languages));
-    } catch {
-        // See guestSnapshot.
-    }
-    guest = guestPrefsFor(languages);
-    for (const listener of guestListeners) listener();
-}
-
-/**
- * Saves the languages they read postings in (`[]` follows their résumé's language). Signed in, it is the account's
- * saved preference, shown at once and put back if the save fails; signed out, it stays in this browser. Resolves
- * false when it could not be saved, so the caller says so where the person looked.
- */
-export async function saveLanguageChoice(uid: string | null, languages: string[]): Promise<boolean> {
+export async function saveLanguageChoice(uid: string, languages: string[]): Promise<boolean> {
     const next = normalizeLanguages(languages);
-    if (!uid) {
-        rememberGuestLanguages(next);
-        return true;
-    }
     const before = current?.uid === uid ? current.prefs : null;
     const base: AgentPreferences = before ?? { configured: true, search: {}, answers: { custom: {} } };
     publish({ uid, prefs: { ...base, configured: true, search: { ...base.search, languages: next } } });
@@ -145,10 +101,9 @@ export async function saveLanguageChoice(uid: string | null, languages: string[]
 
 export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean } {
     const read = useSyncExternalStore(subscribe, () => current, () => null);
-    const guestPrefs = useSyncExternalStore(subscribeGuest, guestSnapshot, () => null);
     useEffect(() => {
         if (uid) void load(uid);
     }, [uid]);
-    if (!uid) return { prefs: guestPrefs, settled: true };
+    if (!uid) return { prefs: null, settled: true };
     return read?.uid === uid ? { prefs: read.prefs, settled: true } : { prefs: null, settled: false };
 }

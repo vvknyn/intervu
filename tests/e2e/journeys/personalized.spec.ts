@@ -1012,3 +1012,19 @@ test("Today leaves out a pick written in a language the person has not chosen, c
   await expect(languages.getByTestId("today-languages-include-french")).toHaveText("Include French (1)");
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
+
+test("a guest's ranked Search list keeps a posting written in another language, ranked as a Stretch, and offers no language control to a visitor with no account", { tag: ["@J-JOBS-145"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page, RICH_RESUME);
+  const own = described(posting("99999999-0000-4000-8000-000000000011", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 1), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const french = described(posting("99999999-0000-4000-8000-000000000012", "Technical Account Manager", "Nordique Logiciels", "senior", 1), FRENCH_ACCOUNT_TEXT);
+  await answerResumeSearch(page, [french, own], "journey-language-guest");
+  await page.goto("/jobs?view=search&sort=fit");
+
+  // Search is plain search: nothing is left out, the French posting is listed behind the posting in the résumé's language.
+  await expect.poll(() => rowIds(page), { timeout: 45_000 }).toEqual([own.id, french.id]);
+  await expect(page.getByTestId("job-row").nth(1).getByTestId("match-chip")).toHaveText("Stretch");
+  // For You and Today need an account, and the control lives there and in Settings: a guest is not shown one.
+  await expect(page.locator('[data-testid$="-languages"]')).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});

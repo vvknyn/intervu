@@ -357,7 +357,7 @@ export function TodayHome({
     const languagesLeftOut = useMemo(() => (search.kind === "ready" ? todayLanguagesLeftOut(search.roles, nowMs) : {}), [search, nowMs]);
     const readLanguages = matching?.signals.languages?.value ?? null;
     const languagesEl =
-        matching && readLanguages && (Object.keys(languagesLeftOut).length > 0 || matching.signals.languages?.source === "explicit" || readLanguages.length > 1) ? (
+        accountKey != null && matching && readLanguages && (Object.keys(languagesLeftOut).length > 0 || matching.signals.languages?.source === "explicit" || readLanguages.length > 1) ? (
             <LanguagesControl
                 languages={readLanguages}
                 resumeDefault={resumeDefaultLanguages(matching.resume)}

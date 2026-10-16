@@ -1,5 +1,6 @@
 import { ctaButton, escapeHtml, renderEmailShellHtml, renderEmailShellText } from "./base";
-import { languageLabel } from "@/lib/match/posting-language";
+import { writtenInParts } from "@/lib/jobs/for-you/left-out-copy";
+import { languageListText } from "@/lib/match/posting-language";
 import { EMAIL_COLORS as C } from "./palette";
 
 /** One role in the email, already worded: the fit word and its reason come from the score (`matchLabel`, `explainMatch`). */
@@ -23,18 +24,20 @@ export interface DailyPicksEmailModel {
   picks: DailyPickItem[];
   /** The languages the picks are written in (`CandidateSignals.languages`); absent when none is judged. */
   languages?: readonly string[];
+  /** This week's roles left out for the language they are written in ("french" → 3), said beside the picks. */
+  languagesLeftOut?: Readonly<Record<string, number>>;
 }
 
 /** The rule every pick passed, said once (Today's `PICKS_BASIS`, plus where the reasons come from). */
 export const DAILY_PICKS_BASIS =
   "Posted this week, in your line of work, at your level, where you can work. The same rules as Today on Velai: no AI, and nothing above your level.";
 
-/** "Written in English or French", with where to change it; null when no language is judged. */
-function languagesLine(languages: readonly string[] | undefined): string | null {
-  const names = (languages ?? []).map(languageLabel);
-  if (names.length === 0) return null;
-  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} or ${names[names.length - 1]}`;
-  return `Roles written in ${list}; others are left out.`;
+/** "Roles written in English or French. Left out this week: 3 written in German.", or null when no language is judged. */
+function languagesLine(languages: readonly string[] | undefined, leftOut: Readonly<Record<string, number>> | undefined): string | null {
+  const read = languageListText(languages ?? [], "or");
+  if (!read) return null;
+  const out = writtenInParts(leftOut ?? {});
+  return out.length > 0 ? `Roles written in ${read}. Left out this week: ${out.join(", ")}.` : `Roles written in ${read}; others are left out.`;
 }
 
 function subjectFor(count: number): string {
@@ -49,7 +52,7 @@ export function buildDailyPicksEmail(model: DailyPicksEmailModel): { subject: st
   const subject = subjectFor(model.picks.length);
   const settingsUrl = `${model.siteUrl}/settings?tab=account`;
   const languagesUrl = `${model.siteUrl}/settings?tab=prefs`;
-  const languages = languagesLine(model.languages);
+  const languages = languagesLine(model.languages, model.languagesLeftOut);
   const first = model.picks[0];
   const preheader = first
     ? `${first.title} at ${first.employer}${model.picks.length > 1 ? ` and ${model.picks.length - 1} more` : ""}`

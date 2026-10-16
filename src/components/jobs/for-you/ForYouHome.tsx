@@ -510,7 +510,7 @@ export function ForYouHome({
     const language = useLanguageChoice(accountKey);
     const readLanguages = signals?.languages?.value ?? null;
     const languagesEl =
-        readLanguages && (Object.keys(leftOut?.languages ?? {}).length > 0 || signals?.languages?.source === "explicit" || readLanguages.length > 1) ? (
+        accountKey != null && readLanguages && (Object.keys(leftOut?.languages ?? {}).length > 0 || signals?.languages?.source === "explicit" || readLanguages.length > 1) ? (
             <LanguagesControl
                 languages={readLanguages}
                 resumeDefault={resumeDefaultLanguages(resume)}
