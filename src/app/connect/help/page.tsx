@@ -140,7 +140,8 @@ export default function ConnectHelpPage() {
             sanity-check a posting, or save something to your tracker, and it can do that right
             away. It can also list the roles that fit your résumé, found and matched on what each posting asks
             for before its title (the search looks for the duties and tools your résumé lists first, and your titles fill what is left), so a title you haven&apos;t held can show up (leaving out any
-            above your level or asking for what your résumé doesn&apos;t show, and saying how many it left out;
+            above your level, asking for what your résumé doesn&apos;t show, or whose text reads as another line of work
+            than your experience shows whatever it is called, and saying how many it left out;
             when nothing fits, it lists the closest roles and says plainly that they are a weaker fit),
             list today&apos;s picks, and turn the daily picks email on or off. Actually opening a listing and filling out the application form needs a
             different kind of tool — one with browser control, like Claude Code. Either way,

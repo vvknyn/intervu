@@ -19,6 +19,7 @@ import {
     type SeniorityRead,
 } from "@/lib/match/score";
 import type { Seniority } from "@/lib/jobs/resume-match";
+import { contentFamilyLabel } from "@/lib/match/content-family";
 
 /** Seniority verdicts as a clause: "its level fits your experience". */
 const LEVEL: Partial<Record<MatchReason, string>> = {
@@ -260,6 +261,11 @@ function roleSentence(score: MatchScore): string | null {
                 ? `We couldn't tie this title to your ${yours} role, so it can't be a Strong match.`
                 : "We couldn't tie this title to a role on your résumé, so it can't be a Strong match.";
         case "off-target":
+            // The posting's text decided it (`contentOffTarget`): say what it reads as and the words that say so.
+            if (score.contentFamily) {
+                const { id, terms } = score.contentFamily;
+                return `The posting reads as ${contentFamilyLabel(id)} work${terms.length > 0 ? ` (${listed(terms)})` : ""}, a different kind of role from ${yours ? `your ${yours} work` : "yours"}, so it's a Stretch at most.`;
+            }
             return yours
                 ? `It's a different kind of role from your ${yours} work and only shares some words with your résumé, so it's a Stretch at most.`
                 : "It's a different kind of role from yours and only shares some words with your résumé, so it's a Stretch at most.";
@@ -306,7 +312,9 @@ export function explainMatch(score: MatchScore): string {
         .filter((reason): reason is MatchReason => Boolean(reason))
         .map((reason) => ({ reason, text: placeText(score, reason) ?? levelOf(score, reason) ?? LEVEL[reason] ?? PLACE[reason] ?? "" }))
         .filter((c) => c.text);
-    const terms = termsClause(score);
+    // A role the posting's text puts in another line of work says that and stops: "your résumé shows 99% of what it
+    // asks for" beside "a different kind of role" would read as the opposite (the share is of its words, not its work).
+    const terms = score.contentFamily ? null : termsClause(score);
 
     const support = clauses.filter((c) => !WEAK.has(c.reason)).map((c) => c.text);
     const weak = clauses.filter((c) => WEAK.has(c.reason)).map((c) => c.text);

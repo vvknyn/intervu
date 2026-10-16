@@ -52,7 +52,8 @@ export function titleLevel(title: string | null | undefined): TitleLevel | null 
  */
 const STAFF_NOT_A_RANK = String.raw`(?:services|development|nurse|nursing|accountant|auditor|attorney|counsel|pharmacist|physician|therapist|assistant|associate|writer|sergeant|officer|engagement|relations|training|retention|wellness|scheduler|scheduling)`;
 const STAFF_ROLE_NOUN = String.raw`(?:engineer|developer|scientist|designer|architect|researcher|programmer)`;
-const STAFF_OPENS = String.raw`(?:^\W*(?:(?:sr|senior)\.?\s+)?|[,|(–—-]\s*)staff\s+(?!${STAFF_NOT_A_RANK}\b)`;
+// After a slash too: "Développeur de données senior, niveau 2/Staff Data Developer" (a bilingual title, Vivek's Today list 2026-10-16).
+const STAFF_OPENS = String.raw`(?:^\W*(?:(?:sr|senior)\.?\s+)?|[,|/(–—-]\s*)staff\s+(?!${STAFF_NOT_A_RANK}\b)`;
 const TITLE_PAST_SENIOR = new RegExp(
     [
         String.raw`\b(?<!vice\s)(?<!assistant\s)(?<!deputy\s)(?<!school\s)principal\b(?!\s+(?:investigator|accountant)\b)`,

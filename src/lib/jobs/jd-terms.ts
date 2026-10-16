@@ -69,7 +69,7 @@ export async function readJdTerms(ids: string[], signal?: AbortSignal): Promise<
             q: "",
             filter: `id IN [${unread.map((id) => JSON.stringify(id)).join(", ")}]`,
             limit: unread.length,
-            attributesToRetrieve: ["id", "description", "company", "location", "must_have_skills", "skills_section_found"],
+            attributesToRetrieve: ["id", "title", "description", "company", "location", "must_have_skills", "skills_section_found"],
         }),
         cache: "no-store",
     };

@@ -58,6 +58,7 @@ import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
+import { contentFamilyLabel, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
 import { requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
@@ -198,6 +199,12 @@ export interface MatchScore {
      * does not hold the role under Strong or Good (`scoreJobAgainstResume`).
      */
     contentLed?: true;
+    /**
+     * The posting's TEXT clearly reads as a line of work that is none of the résumé's (`contentOffTarget`),
+     * whatever its title: the role is a different kind of job (`role` "off-target"), capped under Good and
+     * never carried by its overlap with the résumé. Says what it reads as and the terms it was read from.
+     */
+    contentFamily?: ContentFamily;
 }
 
 /**
@@ -926,6 +933,42 @@ export function roleFit(resume: ResumeData, job: PublicJob, preferred: readonly 
 export type RoleAffinity = "own" | "family" | "adjacent" | "unverified" | "off-target";
 
 export function roleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleAffinity {
+    const byTitle = titleAffinity(resume, job, preferred);
+    return contentOffTarget(resume, job, preferred, byTitle) ? "off-target" : byTitle;
+}
+
+/**
+ * The posting's text says it is another line of work than the résumé's (Vivek, 2026-10-16: a "Product Engineering
+ * Coordinator" asking for supply chain and procurement, a "Learning & Development Specialist" asking for case
+ * management, a "(Remote) Customer Support Analyst" asking for ticketing, listed Good above his own role):
+ * the family its text clearly reads as (`jd_terms.family`, content-family.ts) is none of the résumé's families
+ * (`resumeContentFamilies`, the experience bullets read the same way, plus the families its headline, summary,
+ * skill groups and current role name). Returns what it read, or `null`: the text does not clearly read as one family, or it
+ * reads as one of the résumé's, or the résumé's own experience is too thin to read.
+ *
+ * It only DEMOTES, and only a title that is not already the candidate's own kind of role: a title that is
+ * `own` or `family` is evidence the lexicon should not overrule (a Product Manager at a security vendor is a
+ * product role), and one already `off-target` is held. It never lifts a role either: a posting that reads as
+ * one of the résumé's families is scored by its title exactly as before.
+ */
+export function contentOffTarget(
+    resume: ResumeData,
+    job: PublicJob,
+    preferred: readonly string[] = [],
+    byTitle: RoleAffinity = titleAffinity(resume, job, preferred),
+): ContentFamily | null {
+    if (byTitle !== "adjacent" && byTitle !== "unverified") return null;
+    const read = jdTermsOf(job)?.family;
+    if (!read) return null;
+    const mine = resumeContentFamilies(resume);
+    if (!mine || mine.has(read.id)) return null;
+    // A line of work the headline or the current role names is the résumé's own, whatever its bullets read as.
+    if ((resumeTargets(resume, preferred).families as readonly string[]).includes(read.id)) return null;
+    return read;
+}
+
+/** How the posting's TITLE alone relates to the candidate's own role (`roleAffinity` without the posting's text). */
+function titleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleAffinity {
     const fit = roleFit(resume, job, preferred);
     if (fit === "off-target") return fit;
     const { own, ownFamilies } = resumeTargets(resume, preferred);
@@ -1141,20 +1184,27 @@ export function scoreJobAgainstResume(
     const overlap = scoreRelevance(resume, job);
     if (!overlap) return null;
     const preferred = preferredRoles(signals);
-    const role = roleAffinity(resume, job, preferred);
+    const byTitle = titleAffinity(resume, job, preferred);
+    // What the posting's text says it is (a line of work none of the résumé's) decides before its title does.
+    const contentFamily = contentOffTarget(resume, job, preferred, byTitle);
+    const role: RoleAffinity = contentFamily ? "off-target" : byTitle;
     const yourRole = yourRoleFor(resume, job, preferred);
     const offTarget = role === "off-target";
     // What the posting asks that the résumé doesn't show (years, a language, a clearance, a certification, managing, selling).
     const gaps = requirementGaps(resume, job);
     const gapNote = gaps.length > 0 ? ` · ${gaps.map((gap) => gap.text).join("; ")}` : "";
     // An adjacent or unfamiliar title whose posting the résumé covers in its own right is not held under Strong by the title.
-    const contentLed = contentLedRole(role, overlap.jd) && (role !== "off-target" || offTargetCarriedByContent(resume, job, overlap.jd));
+    // Not when the text itself reads as another line of work: sharing words with the résumé does not make it theirs.
+    const contentLed = !contentFamily && contentLedRole(role, overlap.jd) && (role !== "off-target" || offTargetCarriedByContent(resume, job, overlap.jd));
     // A title of another line of work caps a role only when the posting's content does not carry it (`contentLedRole`).
     const heldOffTarget = offTarget && !contentLed;
     const relevance = contentLed
         ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting's day-to-day work shows on your résumé${gapNote}` }
         : offTarget
-          ? { ...overlap, detail: `${overlap.detail} · a different kind of role from yours${gapNote}` }
+          ? {
+                ...overlap,
+                detail: `${overlap.detail} · a different kind of role from yours${contentFamily ? `: the posting reads as ${contentFamilyLabel(contentFamily.id)} work (${contentFamily.terms.join(", ")})` : ""}${gapNote}`,
+            }
           : role === "adjacent"
             ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
             : gapNote
@@ -1194,6 +1244,7 @@ export function scoreJobAgainstResume(
         ...(newToManaging ? { newToManaging: true as const } : {}),
         ...(gaps.length > 0 ? { gaps } : {}),
         ...(contentLed && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
+        ...(contentFamily ? { contentFamily } : {}),
     };
     if (!abroad || !location.place) return score;
     return {

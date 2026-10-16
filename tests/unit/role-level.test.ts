@@ -104,6 +104,7 @@ describe('a title that ranks past Senior (Staff, Principal, Director...)', () =>
             'VP Sales',
             'Vice President of Engineering',
             'Engineering - Staff Machine Learning Engineer',
+            'Développeur de données senior, niveau 2/Staff Data Developer',
         ]) {
             assert.equal(titlePastSenior(title), true, title);
         }
