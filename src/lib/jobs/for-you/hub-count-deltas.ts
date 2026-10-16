@@ -11,8 +11,13 @@
  * résumé or pack never makes a delta, and a shrink is never shown.
  */
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
+import type { ScoredHubHit } from "@/lib/jobs/for-you/hub-counts";
 import { HUB_PACK_IDS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
+import { hubChipCounts } from "@/lib/jobs/for-you/hub-tiles";
+import { visibleIndustryTiles } from "@/lib/jobs/for-you/industry-tiles";
 import { TODAY_SESSION_GAP_MS } from "@/lib/jobs/for-you/today";
+import type { PublicJob } from "@/lib/jobs/types";
+import type { IndustryId } from "@/lib/jobs/resume-industry";
 
 /**
  * v2: a chip counts the roles its list opens with (`hubChipCounts`), not the roles its search found (v1), so counts
@@ -40,6 +45,77 @@ export function exactHubCounts(counts: Partial<Record<HubPackId, CorpusCount | n
         if (c?.kind === "exact" && Number.isFinite(c.value) && c.value >= 0) out[id] = Math.floor(c.value);
     }
     return out;
+}
+
+/** What the hub's probe read: the pack's scored rows, its search total, and each filter tile's own rows (null when that read failed). */
+export interface HubProbeRead {
+    scored: ScoredHubHit[];
+    poolTotal: number | null;
+    tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>>;
+}
+
+/**
+ * The exact counts to remember once the probe has read every chip: the chips the hub shows (a hidden tile's "+N" would
+ * have nowhere to go), each counting the roles its list opens with and leaving out the roles already in the tracker,
+ * so it is read once the tracker is (`hubCountsGate`).
+ */
+export function chipCountsToRemember(
+    read: HubProbeRead & { industry: IndustryId; isTracked: (job: PublicJob) => boolean; nowMs: number },
+): HubPackCounts {
+    const { industry, scored, poolTotal, tiles, isTracked, nowMs } = read;
+    const counts = hubChipCounts({ pack: scored, tiles, isTracked, nowMs, settled: true });
+    const shown = new Set(
+        visibleIndustryTiles(industry, {
+            counts,
+            wholePack: poolTotal != null && scored.length >= poolTotal,
+            foundNothing: poolTotal === 0,
+            settled: true,
+        }),
+    );
+    return Object.fromEntries(Object.entries(exactHubCounts(counts)).filter(([id]) => shown.has(id as HubPackId))) as HubPackCounts;
+}
+
+export interface HubCountsGate<T> {
+    /** The probe has read every chip count; `value` is what it read. */
+    settled(value: T): void;
+    /** The tracker has loaded, or is loading again. */
+    tracker(loaded: boolean): void;
+    /** A newer probe took over: this one's counts are never remembered. */
+    cancel(): void;
+}
+
+/**
+ * Remembering a visit's counts needs two things that finish in either order: the probe's last chip count and the
+ * tracker's read (a chip leaves out the roles already in it). `commit` runs once, with what the probe read, the
+ * moment both are in, whichever came last. A tracker that loads after the probe settles must not cost the visit its
+ * counts, or the next visit has nothing to compare with and no chip can say "+N".
+ */
+export function hubCountsGate<T>(commit: (value: T) => void, trackerLoaded: boolean): HubCountsGate<T> {
+    let loaded = trackerLoaded;
+    let read: { value: T } | null = null;
+    let closed = false;
+    const run = () => {
+        if (closed || !loaded || !read) return;
+        const { value } = read;
+        closed = true;
+        read = null;
+        commit(value);
+    };
+    return {
+        settled(value) {
+            if (closed) return;
+            read = { value };
+            run();
+        },
+        tracker(next) {
+            loaded = next;
+            run();
+        },
+        cancel() {
+            closed = true;
+            read = null;
+        },
+    };
 }
 
 export function resolveHubCountDeltas(
