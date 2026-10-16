@@ -40,6 +40,7 @@
 import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import type { DescBlock } from "@/lib/jobs/format-description";
 import { evidencedSkills } from "@/lib/jobs/presentation";
+import { postingContentFamily, type ContentFamily } from "@/lib/match/content-family";
 import { jdAsksFromDescription, type JdAsks } from "@/lib/match/jd-asks";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -57,6 +58,11 @@ export interface JdTerms {
     unsectioned?: true;
     /** The hard asks it states (language, clearance, managing, selling, certifications, years of experience, required skills), when it states any (`jdAsksFromDescription`). */
     asks?: JdAsks;
+    /**
+     * The line of work the text reads as, when one clearly leads (`postingContentFamily`): what the posting says it is,
+     * whatever its title. Absent when none does. Read next to the terms, once, where the description is.
+     */
+    family?: ContentFamily;
 }
 
 /** How many phrases each section keeps. Enough for a real posting's asks, small enough for a list row. */
@@ -211,7 +217,7 @@ function requirementBullets(blocks: DescBlock[], exclude: ReadonlySet<string>): 
 
 /** What a description's terms are read alongside: the employer and place (left out), and the extractor's evidenced skills (put first). */
 export type JdSourceJob = { company?: string | null; location?: string | null } & Partial<
-    Pick<PublicJob, "must_have_skills" | "preferred_skills" | "skills_section_found">
+    Pick<PublicJob, "title" | "must_have_skills" | "preferred_skills" | "skills_section_found">
 >;
 
 /** The words of the employer's name and the role's place: a posting repeats both, neither is an ask. */
@@ -234,6 +240,14 @@ export function jdTermsFromDescription(
     description: string | null | undefined,
     job?: JdSourceJob,
 ): JdTerms | null {
+    const terms = jdSectionTerms(description, job);
+    if (!terms) return null;
+    // What line of work the text reads as (the posting's title is taken out of it first: it never reads the posting).
+    const family = postingContentFamily(description, job?.title);
+    return family ? { ...terms, family } : terms;
+}
+
+function jdSectionTerms(description: string | null | undefined, job?: JdSourceJob): JdTerms | null {
     const text = (description ?? "").trim();
     // Skills the upstream extractor read from a real Requirements heading
     // (`evidencedSkills` — never the unstamped, fabricated ones) lead the asks.

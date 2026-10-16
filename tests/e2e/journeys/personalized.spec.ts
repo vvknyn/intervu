@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
+import { SOCIAL_SERVICES_TEXT, SUPPLY_CHAIN_TEXT } from "../../fixtures/job-descriptions/content-family-postings";
 import { jdTermsFromDescription } from "../../../src/lib/match/jd-match";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -855,4 +856,32 @@ signedInTest("fewer like this on a role the résumé holds keeps the résumé's 
   await expect(tuned).not.toContainText(/remote/i);
   await expect(front).toHaveAttribute("data-job-id", tapped === REMOTE_CSM ? OTHER_CSM : REMOTE_CSM);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+/**
+ * J-JOBS-140 — Vivek, 2026-10-16: his live deck listed a "Product Engineering Coordinator" (a supply chain posting) and a
+ * "Learning & Development Specialist" (a case management posting) as Good above his own role, because their titles name no
+ * line of work and nothing in the match read what the postings are. A posting whose text clearly reads as a line of work
+ * that is none of the résumé's (the learned lexicon, `jd_terms.family`) is a different kind of role, whatever its title:
+ * left out like any other, while a title the résumé has not held whose work is the résumé's stays and reads Strong.
+ * The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a posting whose text reads as another line of work is left out as a different kind of role, whatever its title, and the résumé's own work stays", { tag: ["@J-JOBS-140"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  const led = described(posting("77777777-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const supplyChain = described(posting("77777777-0000-4000-8000-000000000002", "Product Engineering Coordinator", "Semper Parts", "senior", 1), SUPPLY_CHAIN_TEXT);
+  const caseWork = described(posting("77777777-0000-4000-8000-000000000003", "Learning & Development Specialist", "Hope Services", "senior", 1), SOCIAL_SERVICES_TEXT);
+  await withAccountApplications(page, []);
+  // Sent the two other lines of work first, as a search that matches on words would.
+  await answerResumeSearch(page, [supplyChain, caseWork, led], "journey-content-family");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 1", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", led.id);
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 3 roles found: 2 a different kind of role");
+  expect(diagnostics.pageErrors).toEqual([]);
 });
