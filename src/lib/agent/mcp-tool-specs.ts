@@ -311,7 +311,7 @@ export const MCP_TOOL_SPECS = {
             "A posting whose requirements your résumé covers less than half is a Stretch, a weaker fit, and is " +
             "left out like any other weaker fit unless nothing fits. So is a title that names none of your kinds of role " +
             "unless its posting shows your work (its text reads as your line of work, or your résumé covers most of what " +
-            "it asks): general words it shares with your résumé, like performance or planning, are not enough. The list can be short: note and " +
+            "it asks in words that name the work): general words it shares with your résumé, like performance, planning, software or solutions, are not enough. The list can be short: note and " +
             "left_out say what the search found and what became of it: found is every role the search found (shown " +
             "only when the list read fewer than that), considered the roles it read (the best-ranked first rows), " +
             "listed the ones that fit and by_reason how many were left out for each reason, so report those " +
