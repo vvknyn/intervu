@@ -294,7 +294,10 @@ export const MCP_TOOL_SPECS = {
             "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
             "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
             "a clearance, a certification, managing people, selling), a different " +
-            "kind of role whose posting asks for little of what your résumé shows, and roles outside where you can work. " +
+            "kind of role (a title of another line of work whose posting asks for little of what your résumé shows, or " +
+            "any title whose posting text reads as a line of work your résumé's experience does not show: a " +
+            "\"Coordinator\" whose text is purchase orders and supply chain planning is a supply chain role; among the closest " +
+            "roles its why says what it read and the words that said so), and roles outside where you can work. " +
             "A posting whose requirements your résumé covers less than half is a Stretch, a weaker fit, and is " +
             "left out like any other weaker fit unless nothing fits. The list can be short: note and " +
             "left_out say how many roles the search found and how many were left out for each reason, so report " +
