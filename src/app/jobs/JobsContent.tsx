@@ -6891,6 +6891,7 @@ export function JobsContent({
                         ) : (
                             <ForYouHome
                                 visiblePacks={forYouDeck.visiblePacks}
+                                employerSlots={forYouDeck.slots}
                                 activeIndex={forYouDeck.activeIndex}
                                 onActiveIndexChange={forYouDeck.setActiveIndex}
                                 activeJob={forYouDeck.activeJob}

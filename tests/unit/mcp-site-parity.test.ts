@@ -41,7 +41,7 @@ import { latestCheckAt } from '../../src/lib/jobs/badges';
 import { packFilters, packSearchParams } from '../../src/lib/jobs/for-you/pack-filters';
 import { clusterJobs } from '../../src/lib/jobs/cluster';
 import { hasLiveApplyUrl } from '../../src/lib/jobs/apply-url-health';
-import { pickToday, todayLeftOut, type TodayRole } from '../../src/lib/jobs/for-you/today';
+import { pickToday, todayLeftOut, todaySlots, type TodayRole } from '../../src/lib/jobs/for-you/today';
 import { DAILY_PICKS_MAX } from '../../src/lib/daily-picks/pick';
 import { DAILY_PICKS_OFF } from '../../src/lib/daily-picks/state';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
@@ -229,11 +229,21 @@ describe('MCP tools label a role the way the site does', () => {
             const deps = { ...depsFor(persona), listApplications: async () => [] };
             const out = await toolDailyPicks(deps, {});
             if ('error' in out) throw new Error(out.error);
-            assert.deepEqual(out.picks.map((p) => p.id), (await todayPicks(persona)).slice(0, DAILY_PICKS_MAX).map((r) => r.job.id), persona.name);
+            // One pick per employer, as Today's rows: the employer's other picks ride inside it (`todaySlots`).
+            const today = todaySlots(await todayPicks(persona)).slice(0, DAILY_PICKS_MAX);
+            assert.deepEqual(out.picks.map((p) => p.id), today.map((r) => r.job.id), persona.name);
+            assert.deepEqual(
+                out.picks.map((p) => p.more_at_employer?.roles.map((r) => r.id) ?? []),
+                today.map((r) => r.employer?.more.map((other) => other.job.id) ?? []),
+                `${persona.name}: each pick's other roles at its employer`,
+            );
             const rows = new Map((await listRows(CORPUS)).map((row) => [row.id, row] as const));
             for (const pick of out.picks) {
                 assert.equal(pick.fit_label ?? null, siteLabel(persona, rows.get(pick.id)!), `${pick.id} for ${persona.name}`);
                 assert.ok(pick.fit_label === 'Strong' || pick.fit_label === 'Good', `${pick.id} is labelled ${pick.fit_label}, never a pick`);
+                for (const other of pick.more_at_employer?.roles ?? []) {
+                    assert.equal(other.fit_label ?? null, siteLabel(persona, rows.get(other.id)!), `${other.id} under ${pick.id} for ${persona.name}`);
+                }
             }
         });
     }
