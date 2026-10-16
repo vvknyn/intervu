@@ -785,18 +785,28 @@ test("a title the résumé has not held reads Strong when its day-to-day work sh
   await seedResume(page);
   const led = described(posting("99999999-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
   const tools = described(posting("99999999-0000-4000-8000-000000000002", "SecOps Engineer", "Alcumus", "senior", 1), sharingOnlyTheTools("Alcumus", "SecOps Engineer"));
+  // Live descriptions often arrive as one run of text with no heading we read (Alcumus, Loopio, Risk Control, eBay on 2026-10-15): the same
+  // work as the first posting's, under a title the résumé has not held. Its whole text is not evidence of the work, so it reads Good.
+  const flatTitle = "Delivery Operations Lead, API Programs";
+  const flat = described(
+    posting("99999999-0000-4000-8000-000000000003", flatTitle, "Fernway", "senior", 2),
+    askingForTheResumeWork("Fernway", flatTitle).split("\n\n").flatMap((part) => part.split("\n").slice(1)).join(" "),
+  );
   await withAccountApplications(page, []);
-  // Sent the tools-only posting first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of it.
-  await answerResumeSearch(page, [tools, led], "journey-duty-led");
+  // Sent the tools-only and the flat postings first, as a search that matches on words would: the deck puts the one whose work is the résumé's ahead of them.
+  await answerResumeSearch(page, [tools, flat, led], "journey-duty-led");
   await openPack(page);
 
   const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
-  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 3", { timeout: 60_000 });
   await expect(front).toHaveAttribute("data-job-id", led.id);
   await expect(page.getByTestId("match-chip")).toHaveText("Strong");
-  await page.getByTestId("for-you-next").click();
-  await expect(front).toHaveAttribute("data-job-id", tools.id);
-  await expect(page.getByTestId("match-chip")).toHaveText("Good");
+  for (const position of [2, 3]) {
+    await page.getByTestId("for-you-next").click();
+    await expect(page.getByTestId("for-you-deck-position")).toHaveText(`Role ${position} of 3`);
+    expect([tools.id, flat.id]).toContain(await front.getAttribute("data-job-id"));
+    await expect(page.getByTestId("match-chip")).toHaveText("Good");
+  }
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

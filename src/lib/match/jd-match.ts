@@ -48,8 +48,13 @@ import type { ResumeData } from "@/types/resume";
 export interface JdTerms {
     /** What the posting requires (Requirements / Qualifications / "What you bring"). */
     req: string[];
-    /** What the person would do (Responsibilities / "What you'll do"), or the whole text when it has no headings. */
+    /** What the person would do (Responsibilities / "What you'll do"), or the whole text when it has no headings (`unsectioned`). */
     duty: string[];
+    /**
+     * No heading was recognised, so `duty` is the posting's whole text: words it uses, not the work it describes.
+     * It counts toward the fit, never as the responsibilities (`JdCoverage.dutyShare`).
+     */
+    unsectioned?: true;
     /** The hard asks it states (language, clearance, managing, selling, certifications, years of experience, required skills), when it states any (`jdAsksFromDescription`). */
     asks?: JdAsks;
 }
@@ -220,8 +225,9 @@ function ownWords(job: { company?: string | null; location?: string | null } | u
 
 /**
  * A description's requirement and duty terms. A posting with no headings we
- * recognise gives all its terms as duties: still the posting's own words, just
- * not known to be hard requirements. `job` (its company and place) keeps the
+ * recognise gives all its terms as duties, marked `unsectioned`: still the posting's
+ * own words and part of its fit, just not known to be hard requirements or the work.
+ * `job` (its company and place) keeps the
  * employer's own name and city out of the terms.
  */
 export function jdTermsFromDescription(
@@ -243,7 +249,7 @@ export function jdTermsFromDescription(
     if (!reqText.trim() && !dutyText.trim()) {
         const kept = blocksText([...sections.about, ...sections.responsibilities, ...sections.requirements]);
         const all = topTerms(kept || text, JD_TERMS_PER_SECTION, exclude);
-        return all.length > 0 || skills.length > 0 ? withAsks({ req: skills, duty: all }) : null;
+        return all.length > 0 || skills.length > 0 ? withAsks({ req: skills, duty: all, unsectioned: true }) : null;
     }
     const bullets = requirementBullets(sections.requirements, exclude);
     const terms: JdTerms = {
@@ -313,8 +319,8 @@ export interface JdCoverage {
     /**
      * The posting's responsibilities on their own, measured the way `coverage` is: the share of what the
      * person would DO that the résumé shows, and those terms. Null / empty when the posting has no readable
-     * responsibilities (a Requirements heading and no Responsibilities heading). A posting with no headings
-     * at all puts its whole text in `duty` (`jdTermsFromDescription`), so it is measured on that text.
+     * responsibilities: a Requirements heading and no Responsibilities heading, or no recognised heading at all
+     * (`JdTerms.unsectioned`, whose `duty` is the whole text and counts toward `coverage` only).
      */
     dutyShare: number | null;
     dutyMatched: string[];
@@ -365,8 +371,9 @@ export function jdCoverage(resume: ResumeData, jd: JdTerms): JdCoverage | null {
         coverage,
         matched: [...req.matched, ...duty.matched.filter((t) => !req.matched.includes(t))],
         missing: [...req.missing, ...duty.missing.filter((t) => !req.missing.includes(t))],
-        dutyShare: duty.share,
-        dutyMatched: duty.matched,
+        // A posting with no readable responsibilities has no duty measure: its whole text is not evidence of the work.
+        dutyShare: jd.unsectioned ? null : duty.share,
+        dutyMatched: jd.unsectioned ? [] : duty.matched,
     };
 }
 
