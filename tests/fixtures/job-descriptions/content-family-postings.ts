@@ -40,3 +40,19 @@ export const PRODUCT_TEXT = [
   "What you'll do\n\nOwn the product roadmap and product strategy for the platform, from discovery to launch. Write user stories, groom the backlog and prioritize with engineering and design. Define success metrics, run product discovery with customers, make product decisions with stakeholders across the business and report on product performance.",
   "What you bring\n\n5+ years of product management experience\nA record of shipping platform and API products\nStrong product sense and clear written communication\nExperience working with engineering, design and sales",
 ].join("\n\n");
+
+/**
+ * Commercial finance (FP&A) work under a business-partner title: no line of work of the lexicon's reads clearly in it
+ * (its finance family is accounting words), and its general words ("performance", "planning", "analysis") are on
+ * every senior résumé. The shape of the "Commercial Finance Business Partner" a product manager's deck showed as Good on 2026-10-16.
+ */
+export const COMMERCIAL_FINANCE_TEXT = [
+  "About the role\n\nOur commercial teams need a finance partner who turns market performance into clear decisions for the business. You will work with commercial leaders and market stakeholders to understand strategy, pricing and investment choices, and turn that into decision support.",
+  "Accountabilities\n\nPartner with commercial leaders on performance, forecasts, risks and opportunities, and challenge their planning assumptions with independent analysis. Analyze revenue, pricing, discounts, rebates and cost drivers to find issues and recommend actions. Lead planning, forecasting and scenario modelling for the business unit, build business cases and investment analysis, and support strategy and prioritization decisions with stakeholders across the market.",
+].join("\n\n");
+
+/** A short product posting under a title no résumé holds: too few words for the lexicon to call, all of them a product résumé's. */
+export const SHORT_PRODUCT_LEAD_TEXT = [
+  "About the role\n\nA health software company is hiring a lead for its member platform.",
+  "What you'll do\n\nOwn the roadmap for the platform APIs and integrations, write requirements with engineering, run Agile delivery with clients, manage API lifecycle changes and migrations, and use analytics and SQL to decide what is next. Report on adoption and retention to executives.",
+].join("\n\n");

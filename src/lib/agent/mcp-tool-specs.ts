@@ -299,7 +299,9 @@ export const MCP_TOOL_SPECS = {
             "\"Coordinator\" whose text is purchase orders and supply chain planning is a supply chain role; among the closest " +
             "roles its why says what it read and the words that said so), and roles outside where you can work. " +
             "A posting whose requirements your résumé covers less than half is a Stretch, a weaker fit, and is " +
-            "left out like any other weaker fit unless nothing fits. The list can be short: note and " +
+            "left out like any other weaker fit unless nothing fits. So is a title that names none of your kinds of role " +
+            "unless its posting shows your work (its text reads as your line of work, or your résumé covers most of what " +
+            "it asks): general words it shares with your résumé, like performance or planning, are not enough. The list can be short: note and " +
             "left_out say how many roles the search found and how many were left out for each reason, so report " +
             "that count rather than padding the list. When nothing fits it lists the closest roles instead of " +
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
