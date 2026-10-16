@@ -1036,8 +1036,9 @@ export function contentOffTarget(
 /**
  * A title tied to none of the résumé's kinds of role (`unverified`) whose posting shows nothing that makes it theirs:
  * its text does not clearly read as one of the résumé's lines of work (a clear read of another line of work is
- * already `contentOffTarget`) and the résumé does not cover what it asks (`CONTENT_LED_MIN_FIT` of it, on a
- * `CONTENT_LED_MIN_EVIDENCE` weight of terms that name work, `workTerms`). Words shared with the résumé
+ * already `contentOffTarget`) and the résumé does not cover what it asks (`CONTENT_LED_MIN_FIT` of it, on
+ * `CONTENT_LED_MIN_EVIDENCE` shared terms that also weigh `CONTENT_LED_MIN_EVIDENCE` once only the ones that name
+ * work count, `workTerms`). Words shared with the résumé
  * ("performance", "planning", "analysis") are not that proof: a "Commercial Finance Business Partner" and a
  * "Marketing Operations and Project Specialist" read Good on them (Vivek, 2026-10-16), and no lexicon names every
  * other line of work. Nor are the words every posting or industry uses ("software", "enterprise", "solutions"): a
@@ -1051,7 +1052,16 @@ export function unprovenTitle(resume: ResumeData, job: PublicJob, role: RoleAffi
     if (jdTermsOf(job)?.family) return false;
     // The résumé covers what the posting asks in its own right (the content half of `contentLedRole`): a short
     // "Digital Product Lead" posting asking for the roadmap, backlog and requirements work a product résumé shows.
-    return !(jd != null && jd.fit >= CONTENT_LED_MIN_FIT && typeof jd.workEvidence === "number" && jd.workEvidence >= CONTENT_LED_MIN_EVIDENCE);
+    // Both bars: the shared terms, and their weight once only the ones that name work count. A phrase weighs 2, so
+    // the weight alone could pass a posting the count fails; with both, this only ever holds back more.
+    return !(
+        jd != null &&
+        jd.fit >= CONTENT_LED_MIN_FIT &&
+        typeof jd.evidence === "number" &&
+        jd.evidence >= CONTENT_LED_MIN_EVIDENCE &&
+        typeof jd.workEvidence === "number" &&
+        jd.workEvidence >= CONTENT_LED_MIN_EVIDENCE
+    );
 }
 
 /** How the posting's TITLE alone relates to the candidate's own role (`roleAffinity` without the posting's text). */

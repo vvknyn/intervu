@@ -413,6 +413,16 @@ describe("a title tied to none of the résumé's roles is Good only when its pos
         }
     });
 
+    it("the work-term weight never passes a posting the shared-term count fails: a phrase weighs 2, so both bars must hold", () => {
+        const s = score(TAM, job("API Platform Lead", "Own api migration, api observability, api transition and platform retention."));
+        const jd = s.components[0]!.jd!;
+        assert.equal(s.role, "unverified");
+        assert.ok((jd.evidence ?? 0) < CONTENT_LED_MIN_EVIDENCE, `${jd.evidence}`);
+        assert.ok((jd.workEvidence ?? 0) >= CONTENT_LED_MIN_EVIDENCE, `${jd.workEvidence}: the weight alone would pass it`);
+        assert.equal(s.unproven, true);
+        assert.ok(s.total < MATCH_BAND_GOOD_MIN, `${s.total}`);
+    });
+
     it("a neighbouring role whose posting names the résumé's work keeps its fit at the lowest weight measured", () => {
         for (const [resume, weight] of [
             [PM, 9],
