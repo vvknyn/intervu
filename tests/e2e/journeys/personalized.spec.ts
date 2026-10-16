@@ -759,6 +759,74 @@ test("the packs hub counts the roles the deck lists, and the fit-sorted Search l
 });
 
 /**
+ * J-JOBS-148 — Vivek, 2026-10-16 (a hub saying "15 matches" and "220+ matches" over a Today with one role: "very
+ * confusing", "and inconsistent"): the packs hub, the opened list and the line under them count one thing, each number
+ * by its name. "All your matches" counts the roles the list opens with, a role already applied to is in neither, the
+ * deck gives each employer one card and says so ("3 roles fit your résumé at 2 employers", "Employer 1 of 2"), and the
+ * left-out line says how many of the roles the search found it read ("the first 6 of 226 roles found"), the same on the
+ * hub and at the foot of the deck. The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("the packs hub and the deck count the same roles and employers in the same words, and a role already applied to is in neither", { tag: ["@J-JOBS-148"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const own = posting("aaaaaaaa-0000-4000-8000-000000000001", "Technical Account Manager", "Beacon Cloud", "senior", 1);
+  const csm = posting("aaaaaaaa-0000-4000-8000-000000000002", "Senior Customer Success Manager", "Orchard CRM", "senior", 3);
+  const csmEnterprise = posting("aaaaaaaa-0000-4000-8000-000000000005", "Customer Success Manager, Enterprise", "Orchard CRM", "senior", 4);
+  const old = posting("aaaaaaaa-0000-4000-8000-000000000003", "Technical Account Manager", "Harbor Pay", "senior", 70);
+  const nurse = posting("aaaaaaaa-0000-4000-8000-000000000004", "Registered Nurse", "Lakeside Health", "mid", 1);
+  // Northstar Data's Technical Account Manager role was applied to (the account's tracker), and is listed again under a new id.
+  await withAccountApplications(page, [NORTHSTAR_APPLICATION]);
+  // The search read six roles of the 226 it found.
+  const read = [nurse, old, RELISTED, csmEnterprise, csm, own];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    return answerListSearch(route, { hits: read, total: 226, backend: "meilisearch", configured: true, searchId: "journey-one-count" });
+  });
+
+  // The hub: three roles fit (not 226, not the 6 read, not the applied one), at two employers, said once, with what became of the rest.
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("3", { timeout: 60_000 });
+  const fitLine = "3 roles fit your résumé at 2 employers · best fit first";
+  await expect(page.getByTestId("hub-fit-line")).toHaveText(fitLine);
+  const hubLeftOut = page.getByTestId("hub-left-out-line");
+  await expect(hubLeftOut).toContainText("Left out of the first 6 of 226 roles found:");
+  await expect(hubLeftOut).toContainText("1 already applied to");
+  await expect(hubLeftOut).toContainText("1 posted over 30 days ago");
+  const hubLeftOutText = (await hubLeftOut.textContent())?.trim();
+  expect(hubLeftOutText).toBeTruthy();
+  await expect(page.getByTestId("hub-removals-line")).toHaveCount(0);
+
+  // The deck opens on one card per employer, each saying so, with the hub's own words at its foot.
+  await openPack(page);
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  await expect(position).toHaveText("Employer 1 of 2", { timeout: 60_000 });
+  const cards = [await front.getAttribute("data-job-id")];
+  // Orchard CRM's card holds its other role; Beacon Cloud's holds none.
+  const saysOrchardHoldsOne = async () => {
+    if ((await front.getByTestId("employer-more").count()) > 0) await expect(front.getByTestId("employer-more-toggle")).toHaveText("1 more at Orchard CRM");
+  };
+  await saysOrchardHoldsOne();
+  await page.getByTestId("for-you-next").click();
+  await expect(position).toHaveText("Employer 2 of 2");
+  cards.push(await front.getAttribute("data-job-id"));
+  await saysOrchardHoldsOne();
+  // One card per employer: Beacon Cloud's role, and Orchard CRM's best role with the other inside it; never the applied one.
+  expect(cards).toContain(own.id);
+  expect(cards.filter((id) => id === csm.id || id === csmEnterprise.id)).toHaveLength(1);
+  expect(cards).not.toContain(RELISTED.id);
+  await expect(page.getByTestId("for-you-showing-total")).toHaveText(fitLine);
+  await expect(page.getByTestId("for-you-left-out")).toHaveText(hubLeftOutText!);
+  // More of the 226 can still be read: the deck says so rather than ending as if these were all.
+  await expect(page.getByTestId("for-you-show-more")).toBeVisible();
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
  * J-JOBS-136 — Vivek, 2026-10-14/15: "FIRST MATCH the rest of the experience and skills content to the job profiles
  * and then match the title if necessary AT THE END"; "that is how people find adjacent roles or titles that they
  * haven't heard of". A posting whose title is another line of work's (a Software Engineer for a Technical Account
@@ -1120,7 +1188,7 @@ test("a pack gives each employer one card with its other roles inside it, and a 
   const position = page.getByTestId("for-you-deck-position");
   const more = front.getByTestId("employer-more");
   // Four roles fit, at two employers: two cards, not four.
-  await expect(position).toHaveText("Role 1 of 2", { timeout: 60_000 });
+  await expect(position).toHaveText("Employer 1 of 2", { timeout: 60_000 });
 
   // The card with roles inside it is Orchard CRM's; the other (Northstar Data's) has none.
   if ((await more.count()) === 0) await page.getByTestId("for-you-next").click();
@@ -1150,7 +1218,7 @@ test("a pack gives each employer one card with its other roles inside it, and a 
   const next = (await front.getAttribute("data-job-id"))!;
   expect(next).not.toBe(leadId);
   expect(nestedIds).toContain(next);
-  await expect(position).toHaveText(/^Role \d of 2$/);
+  await expect(position).toHaveText(/^Employer \d of 2$/);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 

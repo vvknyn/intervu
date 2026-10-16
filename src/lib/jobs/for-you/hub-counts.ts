@@ -4,8 +4,9 @@
  * Packs without a live query yet omit the count (or show loading), never mock "24 jobs".
  */
 import { labelNamesPlace, matchBand, type MatchScore } from "@/lib/match/score";
-import { deckLeftOut } from "@/lib/jobs/for-you/band-order";
-import { hasLiveApplyUrl } from "@/lib/jobs/apply-url-health";
+import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
+import { listCandidates, readRows } from "@/lib/jobs/for-you/list-rows";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -26,12 +27,21 @@ export type HubCountSource =
 export type ScoredHubHit = { job: PublicJob; score: MatchScore };
 
 /**
- * The probe's hits a deck would list: the deck's own rule (`deckLeftOut`: too old, a different kind of role,
- * above their level, outside where they can work, asks for what the résumé doesn't show, Stretch) and its
- * dead-link rule (`hasLiveApplyUrl`). A tile counts these, so it cannot promise roles the deck leaves out.
+ * The pack's list as its deck would open it from these scored rows, and what it left out: the rows read with each opening
+ * once, minus the roles whose apply link no longer works and the ones already in the person's tracker (`listCandidates`),
+ * then the deck's own rule and fallbacks (`deckListFor`). A chip counts `jobs`, so it cannot promise roles the deck leaves
+ * out, and the welcome line's left-out reasons are the deck foot's. `found` is what the search said it found, when that is
+ * more than the rows read. `employers` is how many cards the deck makes of `jobs`: it gives each employer one (`collapseByEmployer`).
  */
-export function hubListedHits(scored: readonly ScoredHubHit[], nowMs: number): ScoredHubHit[] {
-    return scored.filter((hit) => hasLiveApplyUrl(hit.job) && deckLeftOut(hit.job, hit.score, nowMs) == null);
+export function hubList(
+    scored: readonly ScoredHubHit[],
+    nowMs: number,
+    options: { isTracked?: (job: PublicJob) => boolean; found?: number | null } = {},
+): { jobs: PublicJob[]; employers: number; summary: DeckLeftOutSummary } {
+    const scoreById = new Map(scored.map((hit) => [hit.job.id, hit.score] as const));
+    const { candidates, closed, tracked } = listCandidates(readRows(scored.map((hit) => hit.job)), options.isTracked);
+    const { ranked, summary } = deckListFor(candidates, (job) => scoreById.get(job.id) ?? null, nowMs);
+    return { jobs: ranked, employers: collapseByEmployer(ranked, (job) => job).length, summary: withListRemovals(summary, { closed, tracked }, options.found) };
 }
 
 /**
@@ -95,16 +105,6 @@ export function formatBrowseHubCorpusLine(pool: number | null | undefined): stri
     return `~${Math.floor(pool).toLocaleString()} roles`;
 }
 
-export function formatHubCorpusLine(pool: number | null | undefined, probing: boolean): string {
-    if (pool == null || !Number.isFinite(pool) || pool < 0) {
-        return probing ? "Matching…" : "";
-    }
-    const n = Math.floor(pool);
-    if (n <= 0) return probing ? "Matching…" : "";
-    const base = `~${n.toLocaleString()} matches ranked Strong first`;
-    return probing ? `${base} · Matching…` : base;
-}
-
 /**
  * Count Strong / Good bands from a score map over known job ids. A role whose
  * label names its place instead of a fit ("Outside Canada", "Country
@@ -162,74 +162,6 @@ export function resolveAllMatchesHubCount(input: {
     return { kind: "omit" };
 }
 
-/**
- * Resolve honest count sources for every hub pack from scored probe hits.
- * While still probing with no scores yet → loading; empty after settle → omit.
- */
-export function resolveAllPackHubCounts(input: {
-    loading: boolean;
-    probing: boolean;
-    poolTotal: number | null | undefined;
-    scored: ScoredHubHit[];
-    nowMs?: number;
-}): Record<HubPackId, HubCountSource> {
-    const nowMs = input.nowMs ?? Date.now();
-    const out = {} as Record<HubPackId, HubCountSource>;
-    const pending = input.loading || (input.probing && input.scored.length === 0);
-    const listed = hubListedHits(input.scored, nowMs);
-
-    for (const packId of HUB_PACK_IDS) {
-        if (pending) {
-            out[packId] = { kind: "loading" };
-            continue;
-        }
-        const packScores = listed
-            .filter((h) => jobMatchesHubPack(h.job, packId, nowMs))
-            .map((h) => h.score);
-        if (packId === "all") {
-            out[packId] = resolveAllMatchesHubCount({
-                loading: false,
-                total: input.poolTotal,
-                scores: packScores,
-                pool: input.poolTotal,
-            });
-            continue;
-        }
-        const bands = countFitBands(packScores);
-        if (bands.strong + bands.good > 0) {
-            out[packId] = {
-                kind: "bands",
-                strong: bands.strong,
-                good: bands.good,
-            };
-        } else if (bands.stretch > 0) {
-            out[packId] = { kind: "total", total: bands.stretch };
-        } else if (input.probing) {
-            out[packId] = { kind: "loading" };
-        } else {
-            out[packId] = { kind: "omit" };
-        }
-    }
-    return out;
-}
-
-/** Band totals suitable for localStorage memory / removal diffs. */
-export function packBandTotalsFromSources(
-    sources: Partial<Record<HubPackId, HubCountSource>>,
-): Partial<Record<HubPackId, { strong: number; good: number }>> {
-    const out: Partial<Record<HubPackId, { strong: number; good: number }>> = {};
-    for (const packId of HUB_PACK_IDS) {
-        const src = sources[packId];
-        if (!src) continue;
-        if (src.kind === "bands") {
-            out[packId] = { strong: src.strong, good: src.good };
-        } else if (src.kind === "total") {
-            out[packId] = { strong: 0, good: Math.floor(src.total) };
-        }
-    }
-    return out;
-}
-
 /** Card pill — a job count, same noun as the jobs-page result line. */
 export function formatHubRoleCount(total: number): string {
     if (!Number.isFinite(total) || total < 0) return "";
@@ -252,35 +184,6 @@ export function keywordPackLowerBound(counts: Array<CorpusCount | null | undefin
     const only = usable[0];
     if (usable.length === 1 && only?.kind === "exact") return { kind: "exact", value: only.value };
     return { kind: "floor", value: max };
-}
-
-/**
- * Pack counts for a résumé visitor. Every tile opens the résumé's pack list
- * (`packFilters`), so every tile counts inside that list: "all" is the list's
- * total, each other pack is `jobMatchesHubPack` over the list rows fetched so
- * far. Exact once those rows are the whole list, a floor before that.
- */
-export function resumeHubPackCounts(input: {
-    listTotal: CorpusCount;
-    listJobs: PublicJob[];
-    /** How many of the search's rows were read, when `listJobs` is only the ones a deck lists (`hubListedHits`). */
-    rowsRead?: number;
-    nowMs?: number;
-}): Record<HubPackId, CorpusCount> {
-    const nowMs = input.nowMs ?? Date.now();
-    const read = input.rowsRead ?? input.listJobs.length;
-    const whole = input.listTotal.kind === "exact" && read >= input.listTotal.value;
-    const out = {} as Record<HubPackId, CorpusCount>;
-    for (const packId of HUB_PACK_IDS) {
-        if (packId === "all") {
-            // Every row read: "all" is what the deck lists of them, not the search's total.
-            out[packId] = whole && input.rowsRead !== undefined ? { kind: "exact", value: input.listJobs.length } : input.listTotal;
-            continue;
-        }
-        const value = input.listJobs.filter((job) => jobMatchesHubPack(job, packId, nowMs)).length;
-        out[packId] = { kind: whole ? "exact" : "floor", value };
-    }
-    return out;
 }
 
 /** A pack chip's count: the pill without its noun ("96 roles" → "96", "31+ roles" → "31+", "…" stays). */

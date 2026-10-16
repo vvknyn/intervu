@@ -94,7 +94,7 @@ describe('JobsContent wiring (call-site gate, no file allowlist)', () => {
     it('every scoring call on the board passes the resolved signals', () => {
         const calls = SRC.split('\n').filter((line) => line.includes('scoreJobAgainstResume('));
         assert.ok(calls.length >= 2);
-        for (const line of calls) assert.match(line, /scoreJobAgainstResume\(resume, h, signals\)/, line);
+        for (const line of calls) assert.match(line, /scoreJobAgainstResume\(resume, \w+, signals\)/, line);
     });
 
     it('fit-ranking and the hub probe read the pack filters, not a résumé-only location', () => {

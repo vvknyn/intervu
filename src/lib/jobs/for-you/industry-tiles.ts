@@ -11,11 +11,9 @@
  * visitor sees the industry's first tiles, so the row doesn't start empty.
  */
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
-import { resumeHubPackCounts } from "@/lib/jobs/for-you/hub-counts";
 import type { HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import { isHubFilterTile, type HubFilterTileId } from "@/lib/jobs/for-you/hub-tiles";
 import type { IndustryId } from "@/lib/jobs/resume-industry";
-import type { PublicJob } from "@/lib/jobs/types";
 
 /** Most tiles beside "All your matches". */
 export const MAX_PACK_TILES = 6;
@@ -48,92 +46,53 @@ export function industryTileCandidates(industry: IndustryId): HubPackId[] {
     return ["all", ...INDUSTRY_TILE_IDS[industry], ...UNIVERSAL_TILE_IDS];
 }
 
-/** The filter tiles whose own search this industry's hub runs for a count (hub-tiles.ts). */
+/** The filter tiles whose own search this industry's hub reads rows from (hub-tiles.ts). */
 export function industryFilterTileIds(industry: IndustryId): HubFilterTileId[] {
     return industryTileCandidates(industry).filter((id): id is HubFilterTileId => id !== "all" && isHubFilterTile(id));
 }
 
 export type IndustryTileCounts = {
-    /** Row tiles: how many of the rows in hand each keeps (`resumeHubPackCounts`). */
-    rowCounts: Partial<Record<HubPackId, number>>;
-    /** How many of the pack's rows are in hand (the ones a deck lists). */
-    rowsInHand: number;
-    /** How many rows were read to get them, when that is more (`hubListedHits`). */
-    rowsRead?: number;
-    /** Filter tiles: their own search's total; undefined while counting, null when the read failed. */
-    filterCounts: Partial<Record<HubPackId, CorpusCount | null>>;
-    /** The pack's total ("All your matches"). */
-    allTotal: number | null;
+    /**
+     * The roles each tile's list opens with (`hubChipCounts`), "all" included: the pack's own list for "All your
+     * matches" and the row tiles, a filter tile's own search for that tile. Absent while counting, null when the read failed.
+     */
+    counts: Partial<Record<HubPackId, CorpusCount | null>>;
+    /** The pack's search returned no more rows than the list read, so its counts are the whole pack (a share of a few rows says little otherwise). */
+    wholePack?: boolean;
+    /** The search found nothing at all (its own total, not the listed roles). */
+    foundNothing?: boolean;
     /** Every count above is final. */
     settled: boolean;
 };
 
 /** False only when the counts show the tile holds too few roles or nearly all of them. */
-function tileHelps(id: HubPackId, counts: IndustryTileCounts): boolean {
+function tileHelps(id: HubPackId, input: IndustryTileCounts): boolean {
     // No roles in the pack: no tile can hold any, even one whose own count failed.
-    if (counts.allTotal === 0) return false;
-    if (isHubFilterTile(id)) {
-        const count = counts.filterCounts[id];
-        // Still counting, or the count failed: a missing number is not a reason to hide a tile.
-        if (count == null) return true;
-        if (count.value < MIN_TILE_ROLES) return false;
-        return !(counts.allTotal != null && counts.allTotal > 0 && count.value / counts.allTotal >= MAX_TILE_SHARE);
-    }
-    const kept = counts.rowCounts[id] ?? 0;
-    if (kept < MIN_TILE_ROLES) return false;
-    // A share of a few rows says little, unless those rows are the whole pack: then it is exact.
-    const wholePack = counts.allTotal != null && (counts.rowsRead ?? counts.rowsInHand) >= counts.allTotal;
-    const judged = counts.rowsInHand >= MIN_ROWS_FOR_SHARE || wholePack;
-    return !(judged && kept / counts.rowsInHand >= MAX_TILE_SHARE);
+    if (input.foundNothing) return false;
+    const count = input.counts[id];
+    // The count failed, or a filter tile's search is still being read: a missing number is not a reason to hide a tile.
+    // A row tile with no count holds none of the pack's rows.
+    if (count === null) return true;
+    if (count === undefined) return isHubFilterTile(id);
+    if (count.value < MIN_TILE_ROLES) return false;
+    const all = input.counts.all;
+    if (all == null || all.value <= 0) return true;
+    // A share of a few roles says little, unless those roles are the whole pack: then it is exact.
+    const judged = all.value >= MIN_ROWS_FOR_SHARE || input.wholePack === true;
+    return !(judged && count.value / all.value >= MAX_TILE_SHARE);
 }
 
 /**
  * The tiles to show, "all" first, then the industry's own, then the universal
  * ones. Universal tiles that help always show; the industry's fill the rest.
  */
-export function visibleIndustryTiles(industry: IndustryId, counts: IndustryTileCounts): HubPackId[] {
+export function visibleIndustryTiles(industry: IndustryId, input: IndustryTileCounts): HubPackId[] {
     const own = INDUSTRY_TILE_IDS[industry];
     const universal: readonly HubPackId[] = UNIVERSAL_TILE_IDS;
-    if (!counts.settled) {
+    if (!input.settled) {
         return ["all", ...own.slice(0, MAX_PACK_TILES - universal.length), ...universal];
     }
-    const keptUniversal = universal.filter((id) => tileHelps(id, counts));
-    const keptOwn = own.filter((id) => tileHelps(id, counts)).slice(0, MAX_PACK_TILES - keptUniversal.length);
+    const keptUniversal = universal.filter((id) => tileHelps(id, input));
+    const keptOwn = own.filter((id) => tileHelps(id, input)).slice(0, MAX_PACK_TILES - keptUniversal.length);
     return ["all", ...keptOwn, ...keptUniversal];
-}
-
-/**
- * The hub's tiles from what the probe has so far: the pack's total, the rows in
- * hand (each row tile counts its own among them) and each filter tile's search.
- * Settled once the list total, the probe and every filter tile count are in.
- */
-export function hubIndustryTiles(
-    industry: IndustryId,
-    input: {
-        listTotal: CorpusCount | null;
-        listJobs: PublicJob[];
-        /** How many rows were read to get `listJobs`, when it is only the ones a deck lists. */
-        rowsRead?: number;
-        filterCounts: Partial<Record<HubPackId, CorpusCount | null>>;
-        probing: boolean;
-        nowMs?: number;
-    },
-): HubPackId[] {
-    const rowCounts: Partial<Record<HubPackId, number>> = {};
-    if (input.listTotal) {
-        const counts = resumeHubPackCounts({ listTotal: input.listTotal, listJobs: input.listJobs, rowsRead: input.rowsRead, nowMs: input.nowMs });
-        for (const [id, count] of Object.entries(counts)) rowCounts[id as HubPackId] = count.value;
-    }
-    const settled =
-        input.listTotal != null &&
-        !input.probing &&
-        industryFilterTileIds(industry).every((id) => input.filterCounts[id] !== undefined);
-    return visibleIndustryTiles(industry, {
-        rowCounts,
-        rowsInHand: input.listJobs.length,
-        rowsRead: input.rowsRead,
-        filterCounts: input.filterCounts,
-        allTotal: input.listTotal?.value ?? null,
-        settled,
-    });
 }

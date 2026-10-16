@@ -26,16 +26,22 @@ describe("packs home live counts + deeper deck", () => {
         // Today takes the daily tip's place whenever it shows (signed in, or a résumé on the device).
         assert.match(src, /dailyApplyTip=\{todayShown \? null : DAILY_APPLY_HUB_TIP\}/);
         assert.match(src, /hubCorpusLine=\{hubCorpusLine\}/);
+        assert.match(src, /hubFitLine=\{hubFitLine\}/);
+        assert.match(src, /hubLeftOutLine=\{hubLeftOutLine\}/);
         assert.match(src, /hubMatching=/);
-        assert.match(src, /hubRemovalsLine=/);
+        // The removals line ("5 left All your matches") counted another thing than the chips and is gone.
+        assert.doesNotMatch(src, /hubRemovalsLine/);
         assert.match(src, /HUB_PROBE_LIMITS/);
         assert.doesNotMatch(src, /appliedTodayChrome/);
     });
 
-    it("CategoryHubGrid surfaces corpus + removals + matching pulse", () => {
+    it("CategoryHubGrid says what the chips count and why the rest were left out, plus the matching pulse", () => {
         const src = readFileSync(HUB, "utf8");
+        assert.match(src, /data-testid="hub-fit-line"/);
+        assert.match(src, /data-testid="hub-left-out-line"/);
         assert.match(src, /data-testid="hub-corpus-line"/);
-        assert.match(src, /data-testid="hub-removals-line"/);
+        assert.doesNotMatch(src, /hub-removals-line/);
+        assert.doesNotMatch(src, /Recently cleared/);
         assert.match(src, /hubMatching/);
         assert.match(src, /data-matching=/);
     });

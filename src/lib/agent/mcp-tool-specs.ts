@@ -312,8 +312,10 @@ export const MCP_TOOL_SPECS = {
             "left out like any other weaker fit unless nothing fits. So is a title that names none of your kinds of role " +
             "unless its posting shows your work (its text reads as your line of work, or your résumé covers most of what " +
             "it asks in words that name the work): general words it shares with your résumé, like performance, planning, software or solutions, are not enough. The list can be short: note and " +
-            "left_out say how many roles the search found and how many were left out for each reason, so report " +
-            "that count rather than padding the list. When nothing fits it lists the closest roles instead of " +
+            "left_out say what the search found and what became of it: found is every role the search found (shown " +
+            "only when the list read fewer than that), considered the roles it read (the best-ranked first rows), " +
+            "listed the ones that fit and by_reason how many were left out for each reason, so report those " +
+            "counts in those words rather than padding the list or calling considered all the roles found. When nothing fits it lists the closest roles instead of " +
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
             "weaker matches and that a more detailed résumé finds closer ones. When no role posted in the last 30 days " +
             "fits but older ones do, it lists those instead, best fit first, with older: true in left_out and a " +

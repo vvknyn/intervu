@@ -589,7 +589,7 @@ signedInTest("with a résumé, the packs home runs welcome, pack chips, Today, t
     await expect(today.getByTestId("today-see-more")).toHaveCount(0);
   } else {
     expect(await rows.count()).toBeLessThanOrEqual(TODAY_PICK_ROWS);
-    await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(No new roles fit you|\d+ new roles? fits? you) since \w+\.$/);
+    await expect(summary.getByTestId("today-stat-new")).toHaveText(/^(\d+ roles? posted this week fits? you(, (none|\d+) new since \w+)?|\d+ new roles? fits? you since \w+)\.$/);
     await expect(summary.getByTestId("today-next-step")).toHaveText(/^Next: /);
     for (const label of await rows.getByTestId("match-chip").allTextContents()) expect(label).toMatch(/^(Strong|Good)$/);
     await expect(rows.first().getByTestId("today-apply")).toBeVisible();
@@ -1026,7 +1026,7 @@ signedInTest("with nothing new since the last visit, Today says so, names the ne
   const today = page.getByTestId("today-home");
   const rows = today.getByTestId("today-new-row");
   await expect(rows).toHaveCount(1, { timeout: 60_000 });
-  await expect(today.getByTestId("today-stat-new")).toHaveText(/^No new roles fit you since \w+\.$/);
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^1 role posted this week fits you, none new since \w+\.$/);
   await expect(today.getByTestId("today-next-step")).toHaveText("Next: Apply to the role below, or give it a thumbs down so it stops showing.");
   await expect(today.getByTestId("today-stat-applied")).toHaveText("3 applications are waiting on a reply", { timeout: 30_000 });
   await expect(today.getByTestId("today-stat-applied")).toHaveAttribute("href", "/yours?stage=applied");
@@ -1509,7 +1509,7 @@ signedInTest("Today counts a pick as new when this device hadn't listed it befor
   const today = page.getByTestId("today-home");
   const rows = today.getByTestId("today-new-row");
   await expect(rows).toHaveCount(2, { timeout: 60_000 });
-  await expect(today.getByTestId("today-stat-new")).toHaveText(/^1 new role fits you since \w+\.$/);
+  await expect(today.getByTestId("today-stat-new")).toHaveText(/^2 roles posted this week fit you, 1 new since \w+\.$/);
   await expect(today.getByTestId("today-next-step")).toHaveText("Next: It's at the top, marked New. Apply if it suits you.");
   await expect(rows.and(page.locator('[data-job-id="reached-late"]')).getByTestId("today-new-badge")).toHaveCount(1);
   await expect(rows.and(page.locator('[data-job-id="listed-before"]')).getByTestId("today-new-badge")).toHaveCount(0);
@@ -1684,7 +1684,7 @@ signedInTest("the packs are one row of chips, and a chip says how many roles its
   expect(shown.length).toBeLessThanOrEqual(7);
 
   // A first visit: once every count settles the device remembers them, and no chip claims a gain.
-  const memoryKey = "velai.hub.tileCounts.v1";
+  const memoryKey = "velai.hub.tileCounts.v2";
   await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), memoryKey), { timeout: 90_000 }).not.toBeNull();
   await expect(page.locator('[data-testid^="hub-pack-delta-"]')).toHaveCount(0);
   // A count is exact or at least 10+: never "0+" or "1+", which read as tiny exact numbers.

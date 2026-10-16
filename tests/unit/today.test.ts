@@ -404,23 +404,41 @@ describe("todaySummary", () => {
     it("nothing new: says so, names the next step for the role still listed, and counts what's waiting in Applied (no daily goal)", () => {
         // Vivek, 2026-10-07: "0/12, 0 picks...but 11 applied...and 1 role to look at....so much confusion".
         assert.deepEqual(todaySummary(base), {
-            picks: "No new roles fit you since you were here earlier today.",
+            picks: "1 role posted this week fits you, none new since you were here earlier today.",
             next: "Apply to the role below, or give it a thumbs down so it stops showing.",
             appliedToday: null,
             waiting: "11 applications are waiting on a reply",
         });
         const many = todaySummary({ ...base, shown: 4, since: "since Friday" });
-        assert.equal(many.picks, "No new roles fit you since Friday.");
+        assert.equal(many.picks, "4 roles posted this week fit you, none new since Friday.");
         assert.equal(many.next, "Apply to the roles below that suit you, and give the rest a thumbs down so they stop showing.");
     });
 
     it("new picks: counts them since the last visit and points at the New ones at the top", () => {
+        // The number above the rows is the number of rows: 5 listed, 1 of them new.
         const one = todaySummary({ ...base, shown: 5, newCount: 1, since: "since Tuesday" });
-        assert.equal(one.picks, "1 new role fits you since Tuesday.");
+        assert.equal(one.picks, "5 roles posted this week fit you, 1 new since Tuesday.");
         assert.equal(one.next, "It's at the top, marked New. Apply if it suits you.");
         const two = todaySummary({ ...base, shown: 5, newCount: 2, since: "since yesterday" });
-        assert.equal(two.picks, "2 new roles fit you since yesterday.");
+        assert.equal(two.picks, "5 roles posted this week fit you, 2 new since yesterday.");
         assert.equal(two.next, "They're at the top, marked New. Apply to the ones that suit you.");
+        // Every role listed is new: no need to count twice.
+        const all = todaySummary({ ...base, shown: 2, newCount: 2, since: "since yesterday" });
+        assert.equal(all.picks, "2 new roles fit you since yesterday.");
+        assert.equal(todaySummary({ ...base, shown: 1, newCount: 1, since: "since Tuesday" }).picks, "1 new role fits you since Tuesday.");
+    });
+
+    it("rows that are employers holding several roles say both counts, each by its name", () => {
+        // One row per employer (`todaySlots`): 5 rows hold 8 roles, so "5 roles" would be a number the rows do not show.
+        const none = todaySummary({ ...base, shown: 5, roles: 8, since: "since Friday" });
+        assert.equal(none.picks, "5 employers have 8 roles posted this week that fit you, none new since Friday.");
+        const some = todaySummary({ ...base, shown: 5, roles: 8, newCount: 2, since: "since Friday" });
+        assert.equal(some.picks, "5 employers have 8 roles posted this week that fit you, 2 marked New since Friday.");
+        const all = todaySummary({ ...base, shown: 2, roles: 3, newCount: 2, since: "since Friday" });
+        assert.equal(all.picks, "2 employers have new roles that fit you since Friday.");
+        assert.equal(todaySummary({ ...base, firstVisit: true, shown: 1, roles: 3, since: "this week" }).picks, "1 employer has 3 roles posted this week that fit you.");
+        // A row per role: the count is the rows', as before.
+        assert.equal(todaySummary({ ...base, shown: 4, roles: 4, since: "since Friday" }).picks, "4 roles posted this week fit you, none new since Friday.");
     });
 
     it("a first visit counts the week's picks, none marked New", () => {

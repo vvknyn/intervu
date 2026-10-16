@@ -23,7 +23,7 @@ import { rankForYou } from "../jobs/for-you/ranked";
 import { collapseByEmployer } from "../jobs/for-you/employer-slot";
 import { todaySlots } from "../jobs/for-you/today";
 import { jobCompanyHref } from "../companies/paths";
-import type { DeckLeftOut } from "../jobs/for-you/band-order";
+import type { ListLeftOut } from "../jobs/for-you/band-order";
 import { formatLeftOutLine, NEAR_MISS_NOTICE, OLDER_FITS_NOTICE, OLDER_NEAR_MISS_NOTICE, writtenInParts } from "../jobs/for-you/left-out-copy";
 import { languageListText } from "../match/posting-language";
 import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
@@ -804,7 +804,7 @@ export interface ForYouHit extends JobDetailFields {
 export interface ForYouOut {
   hits: ForYouHit[];
   /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
-  left_out?: { considered: number; listed: number; /** Employers the listed roles are at: the list has one slot per employer, so `hits` are at most this many. */ employers?: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true; /** No role posted in the last 30 days fits: `hits` fit and were posted longer ago (with `near`: the closest of them, each a weaker fit). */ older?: true };
+  left_out?: { /** Roles the list read: the first rows of what the search found. */ considered: number; /** What the search found, when that is more than `considered`. */ found?: number; listed: number; /** Employers the listed roles are at: the list has one slot per employer, so `hits` are at most this many. */ employers?: number; by_reason: Partial<Record<ListLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true; /** No role posted in the last 30 days fits: `hits` fit and were posted longer ago (with `near`: the closest of them, each a weaker fit). */ older?: true };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -908,7 +908,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   return {
     hits,
     ...(ranked.leftOut.considered > 0
-      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, employers: deck.length, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}), ...(ranked.leftOut.older ? { older: true as const } : {}) } }
+      ? { left_out: { considered: ranked.leftOut.considered, ...(ranked.leftOut.found != null ? { found: ranked.leftOut.found } : {}), listed: ranked.leftOut.listed, employers: deck.length, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}), ...(ranked.leftOut.older ? { older: true as const } : {}) } }
       : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),

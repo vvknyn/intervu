@@ -516,6 +516,8 @@ export function ForYouHome({
     const olderFits = leftOut?.older === true && leftOut.near !== true && listedAny;
     // The deck lists one card per employer, so its count says both: the roles that fit and the employers they are at.
     const listedRoles = employerSlots ? visiblePacks.reduce((sum, job) => sum + (employerSlots.get(job.id) ? slotOpenings(employerSlots.get(job.id)!) : 1), 0) : visiblePacks.length;
+    // The header counts the cards: roles, until an employer holds more than one, and then employers, which it says.
+    const cardUnit = listedRoles > visiblePacks.length ? "employer" : "role";
     const showingLine = formatDeckShowingLine(listedRoles, olderNearMisses ? "older-near" : olderFits ? "older" : nearMisses ? "near" : "fit", visiblePacks.length);
     const leftOutLine = formatLeftOutLine(leftOut);
     // The languages they read postings in: a control where roles written in another were left out, and wherever they have changed them.
@@ -761,7 +763,7 @@ export function ForYouHome({
                     {canNavigate ? (
                         <p className="flex min-w-0 items-baseline gap-1.5 text-xs text-muted-foreground">
                             <span data-testid="for-you-deck-position" className="shrink-0 tabular-nums" aria-live="polite">
-                                Role {selectedIndex + 1} of {visiblePacks.length}
+                                {cardUnit === "employer" ? "Employer" : "Role"} {selectedIndex + 1} of {visiblePacks.length}
                             </span>
                             <span className="hidden min-w-0 truncate lg:inline">
                                 <span aria-hidden>· </span>
@@ -771,7 +773,9 @@ export function ForYouHome({
                                               ? `, ${displayCompanyBrand(upNext.company, upNext.company_domain, upNext.title)}`
                                               : ""
                                       }`
-                                    : "That's the last role here."}
+                                    : hasMore && onLoadMore
+                                      ? `That's the last ${cardUnit} so far.`
+                                      : `That's the last ${cardUnit} here.`}
                             </span>
                         </p>
                     ) : null}

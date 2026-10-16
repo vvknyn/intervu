@@ -618,7 +618,7 @@ export function TodayHomeView({
     const gated = gate != null && roles.length > rowLimit;
     // One plain line: what the numbers count and the next thing to do ("the UI needs to almost nudge the user to do
     // the next natural thing", Vivek 2026-10-07, after "0 new picks · 0 of 12 applied today" beside 11 applications).
-    const summary = todaySummary({ ready: status === "ready", shown: shown.length, newCount, firstVisit, since, appliedToday, appliedWaiting });
+    const summary = todaySummary({ ready: status === "ready", shown: shown.length, roles: shown.reduce((sum, r) => sum + 1 + (r.employer ? r.employer.more.length + r.employer.hidden : 0), 0), newCount, firstVisit, since, appliedToday, appliedWaiting });
     const summaryLine =
         summary.picks || summary.appliedToday || summary.waiting ? (
             <div className="space-y-0.5 text-sm" data-testid="today-summary">

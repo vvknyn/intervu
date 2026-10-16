@@ -1,15 +1,15 @@
 /**
- * What a packs-hub tile opens for a candidate with a résumé. A tile opens its
- * own filters, and its count comes from the same search as its list.
+ * What a packs-hub tile opens for a candidate with a résumé, and what its chip counts. A tile opens its own filters,
+ * and its chip counts the roles that list opens with: the deck's own rule applied to the rows that list's search
+ * returns (`hubList`), so a chip is never a promise the deck breaks.
  *
- * A filter tile is the résumé's pack (`packFilters`) with the tile's own board
- * filter on top: the deck is that search, "Edit filters" opens /jobs on it,
- * and the tile's count is its total. A row tile has no board filter (AI, Tech
- * for good, Lead, 1-Click apply): it opens the pack's list showing only the
- * rows `jobMatchesHubPack` keeps, and counts those rows (`resumeHubPackCounts`).
+ * A filter tile is the résumé's pack (`packFilters`) with the tile's own board filter on top: the deck is that search,
+ * "Edit filters" opens /jobs on it, and the chip counts what the deck lists of that search's rows. A row tile has no
+ * board filter (AI, Tech for good, Lead, 1-Click apply): it opens the pack's list showing only the rows
+ * `jobMatchesHubPack` keeps, and counts those rows among the pack's listed roles.
  */
 import type { CorpusCount } from "@/lib/jobs/corpus-count";
-import { formatHubPackCorpusRoleLabels, HUB_PACK_CORPUS_COUNT_LOADING } from "@/lib/jobs/for-you/hub-counts";
+import { hubList, HUB_PACK_CORPUS_COUNT_LOADING, formatHubPackCorpusRoleLabel, type ScoredHubHit } from "@/lib/jobs/for-you/hub-counts";
 import { HUB_PACK_IDS, jobMatchesHubPack, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
@@ -57,22 +57,48 @@ export function hubTileRows(jobs: PublicJob[], id: HubPackId | undefined, nowMs:
 }
 
 /**
- * Tile labels for a résumé visitor: the pack's own counts (`resumeHubPackCounts`),
- * with each filter tile labelled from its own search instead. A filter tile
- * whose count has not arrived shows the loading label; one whose read failed
- * shows no count, never a number from a different search.
+ * The count on every chip of a résumé visitor's hub: the roles its list opens with. "All your matches" and each row tile
+ * count the pack's own rows; a filter tile counts its own search's rows (`tiles`: absent while that read is in flight,
+ * `null` when it failed). While the pack's rows are still arriving (`settled` false) a pack's count is a floor, since
+ * more rows may still list.
+ */
+export function hubChipCounts(input: {
+    pack: readonly ScoredHubHit[];
+    tiles: Partial<Record<HubPackId, readonly ScoredHubHit[] | null>>;
+    isTracked?: (job: PublicJob) => boolean;
+    nowMs: number;
+    settled: boolean;
+}): Partial<Record<HubPackId, CorpusCount | null>> {
+    const { pack, tiles, isTracked, nowMs, settled } = input;
+    const listed = hubList(pack, nowMs, { isTracked }).jobs;
+    const out: Partial<Record<HubPackId, CorpusCount | null>> = {};
+    for (const id of HUB_PACK_IDS) {
+        if (id === "all") {
+            out[id] = { kind: settled ? "exact" : "floor", value: listed.length };
+        } else if (isHubFilterTile(id)) {
+            const rows = tiles[id];
+            if (rows === undefined) continue;
+            out[id] = rows === null ? null : { kind: "exact", value: hubList(rows, nowMs, { isTracked }).jobs.length };
+        } else {
+            out[id] = { kind: settled ? "exact" : "floor", value: listed.filter((job) => jobMatchesHubPack(job, id, nowMs)).length };
+        }
+    }
+    return out;
+}
+
+/**
+ * Chip labels for a résumé visitor: "15 roles", "14+ roles" while counting, "…" for a chip still waiting on its count
+ * (`loading` is before any of the pack's rows are in), and none for a filter tile whose read failed, never a number from
+ * a different search.
  */
 export function resumeTileLabels(
-    packCounts: Partial<Record<HubPackId, CorpusCount>>,
-    filterCounts: Partial<Record<HubPackId, CorpusCount | null>>,
+    counts: Partial<Record<HubPackId, CorpusCount | null>>,
     loading: boolean,
 ): Partial<Record<string, string>> {
-    const labels = formatHubPackCorpusRoleLabels(packCounts, { loading });
-    for (const id of HUB_FILTER_TILE_IDS) {
-        if (id === "all") continue;
-        const count = filterCounts[id];
-        if (count === undefined) labels[id] = HUB_PACK_CORPUS_COUNT_LOADING;
-        else labels[id] = count === null ? "" : formatHubPackCorpusRoleLabels({ [id]: count })[id] ?? "";
+    const labels: Partial<Record<string, string>> = {};
+    for (const id of HUB_PACK_IDS) {
+        const count = counts[id];
+        labels[id] = count === null ? "" : loading || count === undefined ? HUB_PACK_CORPUS_COUNT_LOADING : formatHubPackCorpusRoleLabel(count);
     }
     return labels;
 }
