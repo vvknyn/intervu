@@ -60,7 +60,7 @@ import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { contentFamilyLabel, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
-import { requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
+import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -205,6 +205,13 @@ export interface MatchScore {
      * never carried by its overlap with the résumé. Says what it reads as and the terms it was read from.
      */
     contentFamily?: ContentFamily;
+    /**
+     * The title is tied to none of the résumé's kinds of role (`role` "unverified") and nothing in the posting
+     * shows it is theirs: its text reads as none of the résumé's lines of work and the résumé does not cover its
+     * work (`contentLed`). Capped under Good (Vivek, 2026-10-16: a "Commercial Finance Business Partner" and a
+     * "Marketing Operations and Project Specialist" read Good on "performance, planning, analysis").
+     */
+    unproven?: true;
 }
 
 /**
@@ -967,6 +974,25 @@ export function contentOffTarget(
     return read;
 }
 
+/**
+ * A title tied to none of the résumé's kinds of role (`unverified`) whose posting shows nothing that makes it theirs:
+ * its text does not clearly read as one of the résumé's lines of work (a clear read of another line of work is
+ * already `contentOffTarget`) and the résumé does not cover what it asks (`CONTENT_LED_MIN_FIT` of it, on
+ * `CONTENT_LED_MIN_EVIDENCE` terms or more). Words shared with the résumé
+ * ("performance", "planning", "analysis") are not that proof: a "Commercial Finance Business Partner" and a
+ * "Marketing Operations and Project Specialist" read Good on them (Vivek, 2026-10-16), and no lexicon names every
+ * other line of work. A résumé too thin to read (no lines of work, or under `COVERAGE_MIN_RESUME_TERMS`) has
+ * nothing to prove a posting against, so its unverified titles keep the cap under Strong only.
+ */
+export function unprovenTitle(resume: ResumeData, job: PublicJob, role: RoleAffinity, contentLed: boolean, jd: MatchComponent["jd"]): boolean {
+    if (role !== "unverified" || contentLed) return false;
+    if (!resumeContentFamilies(resume) || resumeTermSet(resume).size < COVERAGE_MIN_RESUME_TERMS) return false;
+    if (jdTermsOf(job)?.family) return false;
+    // The résumé covers what the posting asks in its own right (the content half of `contentLedRole`): a short
+    // "Digital Product Lead" posting asking for the roadmap, backlog and requirements work a product résumé shows.
+    return !(jd != null && jd.fit >= CONTENT_LED_MIN_FIT && typeof jd.evidence === "number" && jd.evidence >= CONTENT_LED_MIN_EVIDENCE);
+}
+
 /** How the posting's TITLE alone relates to the candidate's own role (`roleAffinity` without the posting's text). */
 function titleAffinity(resume: ResumeData, job: PublicJob, preferred: readonly string[] = []): RoleAffinity {
     const fit = roleFit(resume, job, preferred);
@@ -1198,6 +1224,8 @@ export function scoreJobAgainstResume(
     const contentLed = !contentFamily && contentLedRole(role, overlap.jd) && (role !== "off-target" || offTargetCarriedByContent(resume, job, overlap.jd));
     // A title of another line of work caps a role only when the posting's content does not carry it (`contentLedRole`).
     const heldOffTarget = offTarget && !contentLed;
+    // A title tied to none of the résumé's kinds of role is Good only on what its posting shows (`unprovenTitle`).
+    const unproven = unprovenTitle(resume, job, role, contentLed, overlap.jd);
     const relevance = contentLed
         ? { ...overlap, detail: `${overlap.detail} · a title you haven't held, but the posting's day-to-day work shows on your résumé${gapNote}` }
         : offTarget
@@ -1207,9 +1235,11 @@ export function scoreJobAgainstResume(
             }
           : role === "adjacent"
             ? { ...overlap, detail: `${overlap.detail} · next to your role, not the same job${gapNote}` }
-            : gapNote
-              ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
-              : overlap;
+            : unproven
+              ? { ...overlap, detail: `${overlap.detail} · a title we couldn't tie to your role, and the posting doesn't read as your line of work${gapNote}` }
+              : gapNote
+                ? { ...overlap, detail: `${overlap.detail}${gapNote}` }
+                : overlap;
 
     // A people manager's role for a résumé that shows no one managed: said beside the level, where the receipt names what it asks.
     const newToManaging = titleManagesPeople(job.title) && !resumeTargets(resume).managed;
@@ -1230,7 +1260,7 @@ export function scoreJobAgainstResume(
     const jdFit = components[0]!.jd?.fit;
     const thinJd = typeof jdFit === "number" && jdFit < JD_GOOD_MIN_FIT;
     // A posting that asks for what the résumé doesn't show is a Stretch: its words overlapping the résumé's doesn't make up for it.
-    const capped = heldOffTarget || aboveLevel || newToManaging || thinJd || gaps.length > 0
+    const capped = heldOffTarget || unproven || aboveLevel || newToManaging || thinJd || gaps.length > 0
         ? Math.min(total, MATCH_BAND_GOOD_MIN - 1)
         : location.unknown || abroad || levelUnverified(signals, job) || (!contentLed && (role === "unverified" || role === "adjacent"))
           ? Math.min(total, MATCH_BAND_STRONG_MIN - 1)
@@ -1245,6 +1275,7 @@ export function scoreJobAgainstResume(
         ...(gaps.length > 0 ? { gaps } : {}),
         ...(contentLed && !aboveLevel && !newToManaging && gaps.length === 0 ? { contentLed: true as const } : {}),
         ...(contentFamily ? { contentFamily } : {}),
+        ...(unproven ? { unproven: true as const } : {}),
     };
     if (!abroad || !location.place) return score;
     return {

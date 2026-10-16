@@ -257,6 +257,11 @@ function roleSentence(score: MatchScore): string | null {
                 ? `It's a role next to yours (${yours}) rather than the same job, so it can't be a Strong match.`
                 : "It's a role next to yours rather than the same job, so it can't be a Strong match.";
         case "unverified":
+            // Nothing in the posting showed it is theirs (`unprovenTitle`): say what it lacked and the only words it shares.
+            if (score.unproven) {
+                const shared = postingTerms(score);
+                return `We couldn't tie this title to ${yours ? `your ${yours} role` : "a role on your résumé"}, and its text doesn't show your kind of work${shared.length > 0 ? `: it only shares words like ${listed(shared)} with your résumé` : ""}, so it's a Stretch at most.`;
+            }
             return yours
                 ? `We couldn't tie this title to your ${yours} role, so it can't be a Strong match.`
                 : "We couldn't tie this title to a role on your résumé, so it can't be a Strong match.";
@@ -312,9 +317,10 @@ export function explainMatch(score: MatchScore): string {
         .filter((reason): reason is MatchReason => Boolean(reason))
         .map((reason) => ({ reason, text: placeText(score, reason) ?? levelOf(score, reason) ?? LEVEL[reason] ?? PLACE[reason] ?? "" }))
         .filter((c) => c.text);
-    // A role the posting's text puts in another line of work says that and stops: "your résumé shows 99% of what it
-    // asks for" beside "a different kind of role" would read as the opposite (the share is of its words, not its work).
-    const terms = score.contentFamily ? null : termsClause(score);
+    // A role the posting's text puts in another line of work, or whose text shows none of the résumé's (`unproven`), says
+    // that and stops: "your résumé shows 99% of what it asks for" beside "a different kind of role" would read as the
+    // opposite (the share is of its words, not its work).
+    const terms = score.contentFamily || score.unproven ? null : termsClause(score);
 
     const support = clauses.filter((c) => !WEAK.has(c.reason)).map((c) => c.text);
     const weak = clauses.filter((c) => WEAK.has(c.reason)).map((c) => c.text);

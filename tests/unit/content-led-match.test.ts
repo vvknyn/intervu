@@ -221,8 +221,8 @@ describe("a title the résumé has not held whose posting asks for what it shows
         const text = explainMatch(scoreJobAgainstResume(resume, ADJACENT, signals)!);
         assert.match(text, /title you haven't held, but the posting's day-to-day work shows on your résumé \(/);
         assert.doesNotMatch(text, /can't be a Strong match/);
-        // The unchanged roles keep their sentence.
-        assert.match(explainMatch(scoreJobAgainstResume(resume, ADJACENT_THIN, signals)!), /can't be a Strong match/);
+        // A title it can't place whose posting says nothing the résumé could show says so (2026-10-16: such a title is Good only on what its posting shows).
+        assert.match(explainMatch(scoreJobAgainstResume(resume, ADJACENT_THIN, signals)!), /We couldn't tie this title to .+ and its text doesn't show your kind of work, so it's a Stretch at most\./);
     });
 });
 

@@ -11,7 +11,7 @@ import {
 } from "../../src/lib/match/content-family";
 import { FAMILY_LEXICON } from "../../src/lib/match/family-lexicon";
 import { jdTermsFromDescription } from "../../src/lib/match/jd-match";
-import { MATCH_BAND_GOOD_MIN, roleAffinity, scoreJobAgainstResume, type MatchScore } from "../../src/lib/match/score";
+import { JD_GOOD_MIN_FIT, MATCH_BAND_GOOD_MIN, roleAffinity, scoreJobAgainstResume, type MatchScore } from "../../src/lib/match/score";
 import { explainMatch } from "../../src/lib/match/explain";
 import { forYouLeftOut } from "../../src/lib/jobs/for-you/left-out";
 import { resolveCandidateSignals } from "../../src/lib/jobs/candidate-signals";
@@ -19,9 +19,11 @@ import { resumeDataFromPlainText } from "../../src/lib/resume/structure-resume-t
 import type { PublicJob } from "../../src/lib/jobs/types";
 import type { ResumeData } from "../../src/types/resume";
 import {
+    COMMERCIAL_FINANCE_TEXT,
     IT_SUPPORT_TEXT,
     PRODUCT_TEXT,
     SECURITY_OPS_TEXT,
+    SHORT_PRODUCT_LEAD_TEXT,
     SOCIAL_SERVICES_TEXT,
     SUPPLY_CHAIN_TEXT,
 } from "../fixtures/job-descriptions/content-family-postings";
@@ -310,5 +312,71 @@ describe("the content lane never lifts and never overrules the résumé's own ki
         const j = job("Reporting Coordinator", PRODUCT_TEXT.replace(/product/gi, "data"));
         const before = score(resume, withoutRead(j));
         assert.equal(score(resume, j).role, before.role);
+    });
+});
+
+describe("a title tied to none of the résumé's roles is Good only when its posting shows the résumé's work", () => {
+    // The "Commercial Finance Business Partner" of the 2026-10-16 deck: no line of work reads clearly in its text, and
+    // the words it shares with a product résumé ("performance", "planning", "analysis") made it Good.
+    const FINANCE_TITLE = "Commercial Finance Business Partner";
+
+    for (const [name, resume] of [
+        ["the product résumé", PM],
+        ["the technical account manager résumé", TAM],
+    ] as const) {
+        it(`${name}: a posting that shares only general words is a Stretch and left out, and says what it lacked`, () => {
+            const j = job(FINANCE_TITLE, COMMERCIAL_FINANCE_TEXT);
+            assert.equal(j.jd_terms?.family, undefined, "no line of work reads clearly in it");
+            const s = score(resume, j);
+            assert.equal(s.role, "unverified");
+            assert.equal(s.unproven, true);
+            assert.equal(s.gaps, undefined, "held by its title and text alone, not by a requirement");
+            assert.ok((s.components[0]!.jd?.fit ?? 0) >= JD_GOOD_MIN_FIT, "its words overlap the résumé enough to have read Good");
+            assert.ok(s.total < MATCH_BAND_GOOD_MIN, `${s.total}`);
+            assert.equal(forYouLeftOut(s, { keepUnplaced: true }), "stretch");
+            const why = explainMatch(s);
+            assert.match(why, /^We couldn't tie this title to your .+ role, and its text doesn't show your kind of work: it only shares words like .+ with your résumé, so it's a Stretch at most\./);
+            assert.ok(!/of what the posting asks for/.test(why), why);
+            assert.match(s.components[0]!.detail, /the posting doesn't read as your line of work/);
+        });
+    }
+
+    it("the same text under the résumé's own or a neighbouring title is scored as before: only an unplaced title needs the proof", () => {
+        const own = score(PM, job("Senior Product Manager", COMMERCIAL_FINANCE_TEXT));
+        assert.equal(own.role, "own");
+        assert.equal(own.unproven, undefined);
+        assert.ok(own.total >= MATCH_BAND_GOOD_MIN, `${own.total}`);
+        const next = score(TAM, job("Senior Product Manager", COMMERCIAL_FINANCE_TEXT));
+        assert.equal(next.role, "adjacent");
+        assert.equal(next.unproven, undefined);
+        assert.ok(next.total >= MATCH_BAND_GOOD_MIN, `${next.total}`);
+    });
+
+    it("an unplaced title whose text reads as the résumé's line of work keeps its fit", () => {
+        for (const resume of [PM, TAM]) {
+            const j = job("Platform Lead", PRODUCT_TEXT);
+            assert.equal(j.jd_terms?.family?.id, "product");
+            const s = score(resume, j);
+            assert.equal(s.role, "unverified");
+            assert.equal(s.unproven, undefined);
+            assert.ok(s.total >= MATCH_BAND_GOOD_MIN, `${s.total}`);
+        }
+    });
+
+    it("an unplaced title whose posting asks for what the résumé shows keeps its fit, however short its text", () => {
+        for (const resume of [PM, TAM]) {
+            const j = job("Digital Experience Lead, Member Platform", SHORT_PRODUCT_LEAD_TEXT);
+            assert.equal(j.jd_terms?.family, undefined, "too short for the lexicon to call");
+            const s = score(resume, j);
+            assert.equal(s.role, "unverified");
+            assert.equal(s.unproven, undefined);
+            assert.ok(s.total >= MATCH_BAND_GOOD_MIN, `${s.total}`);
+        }
+    });
+
+    it("a résumé too thin to read has nothing to prove a posting against: its unplaced titles keep the old cap", () => {
+        const s = score(THIN_RESUME, job(FINANCE_TITLE, COMMERCIAL_FINANCE_TEXT));
+        assert.equal(s.unproven, undefined);
+        assert.ok(!explainMatch(s).includes("doesn't show your kind of work"));
     });
 });
