@@ -360,7 +360,7 @@ import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
 import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { hubChipCounts, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
+import { hubChipLists, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
     formatBrowseHubCorpusLine,
@@ -3410,18 +3410,19 @@ export function JobsContent({
         };
     }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
 
-    // A résumé visitor's chips count the roles each tile's list opens with (`hubChipCounts`): the pack's own
+    // A résumé visitor's chips count the roles each tile's list opens with (`hubChipLists`): the pack's own
     // rows for "All your matches" and the row tiles, a filter tile's own search's rows for that tile, each
     // under the deck's rule and without the roles already in the tracker. Loading until the pack's search has
-    // answered and the tracker is read.
+    // answered and the tracker is read. Each chip also says the employers those roles are at, as the deck does.
     const hubSettled = hubFitProbe.total != null && !hubFitProbe.loading && !hubFitProbe.probing;
-    const hubChips = useMemo(
+    const hubChipRead = useMemo(
         () =>
             hubResumeKey
-                ? hubChipCounts({ pack: hubFitProbe.scored, tiles: hubTileScored, isTracked: hubIsTracked, nowMs, settled: hubSettled })
+                ? hubChipLists({ pack: hubFitProbe.scored, tiles: hubTileScored, isTracked: hubIsTracked, nowMs, settled: hubSettled })
                 : null,
         [hubResumeKey, hubFitProbe.scored, hubTileScored, hubIsTracked, nowMs, hubSettled],
     );
+    const hubChips = hubChipRead?.counts ?? null;
     // A probe that failed before the pack's search answered leaves every chip without a count, like the
     // corpus read's failure below.
     const hubCountLabels = useMemo(
@@ -3429,13 +3430,13 @@ export function JobsContent({
             hubChips
                 ? hubProbeFailed && hubFitProbe.total == null
                     ? {}
-                    : resumeTileLabels(hubChips, hubFitProbe.total == null || pursuitsLoading)
+                    : resumeTileLabels(hubChips, hubFitProbe.total == null || pursuitsLoading, hubChipRead?.employers)
                 : hubPackCorpusCounts?.ok === false
                   ? {}
                   : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
                         loading: hubPackCorpusCounts == null,
                     }),
-        [hubPackCorpusCounts, hubChips, hubProbeFailed, hubFitProbe.total, pursuitsLoading],
+        [hubPackCorpusCounts, hubChips, hubChipRead, hubProbeFailed, hubFitProbe.total, pursuitsLoading],
     );
 
     // A résumé visitor's chips: their industry's tiles, each shown only once its
