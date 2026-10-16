@@ -270,3 +270,17 @@ export function resumeContentFamilies(resume: ResumeData): ReadonlySet<string> |
     RESUME_FAMILIES.set(resume, set);
     return set;
 }
+
+/** Every term the lexicon holds as one of some line of work's own (not a circular title word), as it was counted. */
+const WORK_TERMS: ReadonlySet<string> = new Set(
+    Object.values(FAMILY_LEXICON).flatMap((lexicon) => lexicon.filter((entry) => entry.length === 2).map((entry) => entry[0])),
+);
+
+/**
+ * Whether a single word names work in some line of work: the lexicon learned it as setting that line's postings apart
+ * ("roadmap", "backlog", "sql", "observability", "payroll"). The words every posting and every industry uses
+ * ("software", "enterprise", "solutions", "management", "technology") set no line of work apart, so it holds none of them.
+ */
+export function isWorkWord(word: string): boolean {
+    return WORK_TERMS.has(stem(word.toLowerCase()));
+}

@@ -349,7 +349,7 @@ export interface JdCoverage {
 }
 
 /** A matched two-word phrase ("account management") says twice what a single word does. */
-const PHRASE_MATCH_WEIGHT = 2;
+export const PHRASE_MATCH_WEIGHT = 2;
 
 /** Requirements count 60%, duties 40% (whichever the posting has, when it has one). */
 const REQ_SHARE = 0.6;
