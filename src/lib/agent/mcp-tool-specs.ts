@@ -6,6 +6,7 @@ import { PURSUIT_STAGES } from "@/lib/pursuits/types";
 import { CHANGE_HISTORY_LIMIT } from "@/lib/companies/exhaust";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { optionalString } from "@/lib/validation";
+import { WRITTEN_LANGUAGES } from "@/lib/match/posting-language";
 
 /** Agent-facing choices per the CARRIED FINDING from Task 6: `tools.ts`
  *  indexes `POSTED_WITHIN_DAYS_TO_BUCKET` by exactly 7|30|90 and throws on
@@ -136,6 +137,8 @@ const searchPreferencesPatchInput = z.object({
     employmentType: z.enum(EMPLOYMENT_TYPES).optional(),
     salaryMin: z.number().int().min(0).optional(),
     postedWithinDays: postedWithinDaysSchema.optional(),
+    /** The languages they read postings in: [] follows their résumé's language again. */
+    languages: z.array(z.enum(WRITTEN_LANGUAGES)).max(WRITTEN_LANGUAGES.length).optional(),
 });
 
 /** `set_preferences`'s `answers` patch — every field optional; `custom` is
@@ -233,6 +236,9 @@ export const FIT_FIELDS_NOTE =
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
     "Store Manager and the like) is also Stretch when no role or line on their résumé shows them managing people; " +
     "leading a team's work (Team Lead) doesn't count. " +
+    "A role whose posting is written in a language they haven't chosen (search.languages in get_preferences, " +
+    "else the language of their résumé, plus English) is also Stretch, with the reason \"it's written in French, " +
+    "and you read postings in English\", and left out of the lists velai recommends. " +
     "Every job also carries " +
     "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
     "say how long ago it was checked when you say a role is open.";
@@ -293,7 +299,9 @@ export const MCP_TOOL_SPECS = {
             "take: it leaves out roles " +
             "past your level (Staff, Principal, Director or Executive roles, unless your résumé shows one), roles " +
             "that ask for what your résumé doesn't show (more years in the line of work than you have, a language, " +
-            "a clearance, a certification, managing people, selling), a different " +
+            "a clearance, a certification, managing people, selling), roles written in a language you haven't " +
+            "chosen (your résumé's language and English until you say otherwise; left_out counts them by language, " +
+            "\"8 written in French\": to include a language, or drop one, call set_preferences with search.languages), a different " +
             "kind of role (a title of another line of work whose posting asks for little of what your résumé shows, or " +
             "any title whose posting text reads as a line of work your résumé's experience does not show: a " +
             "\"Coordinator\" whose text is purchase orders and supply chain planning is a supply chain role; among the closest " +
@@ -327,7 +335,9 @@ export const MCP_TOOL_SPECS = {
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
             "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +
-            "show (more years than you have, a language, a clearance, a certification). The same roles Today on " +
+            "show (more years than you have, a language, a clearance, a certification), never one written in a language " +
+            "you haven't chosen (set_preferences search.languages; your résumé's language and English until you do; left_out.languages " +
+            "counts them by language, \"5 written in Spanish\", and the note says how to include one). The same roles Today on " +
             "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words: how the title relates to yours, what the posting asks for that your résumé shows (for a " +
@@ -462,7 +472,9 @@ export const MCP_TOOL_SPECS = {
             "velai and shared across every AI client paired to your account — not just this one — so " +
             "a fresh agent session can pick up where a previous one left off instead of re-interviewing " +
             "you. Returns configured:false with empty sections when nothing is saved yet — never " +
-            "fabricated defaults.",
+            "fabricated defaults. search.languages, when set, is the languages you read postings in: " +
+            "roles written in any other are left out of for_you, daily_picks, Today and the daily picks " +
+            "email; unset means your résumé's language and English.",
         inputSchema: getPreferencesInput,
     },
     set_preferences: {
@@ -472,7 +484,9 @@ export const MCP_TOOL_SPECS = {
             "AI client paired to your account. Give just the section(s) that are changing — search and " +
             "answers merge independently per field, so setting one value (e.g. just location) never " +
             "wipes sibling fields in that section or touches the other section. Custom answers merge " +
-            "key-by-key too — set a custom answer's value to null to remove it.",
+            "key-by-key too — set a custom answer's value to null to remove it. search.languages (e.g. " +
+            "[\"english\",\"french\"]) sets the languages you read postings in, so roles written in " +
+            "a language not listed are left out and counted; [] goes back to your résumé's language.",
         inputSchema: setPreferencesInput,
     },
     get_company: {

@@ -102,6 +102,8 @@ export async function previewDailyPicksForUser(
         siteUrl,
         unsubscribeUrl,
         picks: result.picks.map((role) => dailyPickItem(role, siteUrl)),
+        languages: result.signals.languages?.value ?? undefined,
+        languagesLeftOut: result.languagesLeftOut,
     });
     return { email, unsubscribeUrl, picks: result.picks, state, ...built };
 }

@@ -11,6 +11,9 @@
  *    be read, or the role names nowhere it hires (`placeUnknown`). A pick needs evidence, not the
  *    absence of a limit: "Remote" alone was read as open to anyone, so US-only roles were picks for
  *    people in Canada (2026-10-05). The deck keeps such a role last, with its caveat (`keepUnplaced`);
+ *  - `language`: its posting is written in a language the person does not read postings in (`MatchScore.language`:
+ *    their choice, else what their résumé is written in). A posting printed in two languages is in theirs if either is.
+ *    This is the language it is WRITTEN in; a posting that ASKS for a language is `requirement` below;
  *  - `level`: it asks for more seniority than the résumé shows (Staff, Principal, Director, Head of,
  *    a level above theirs), or its title manages people and nothing on the résumé shows managing anyone
  *    (`MatchScore.newToManaging`);
@@ -29,7 +32,7 @@
  */
 import { candidatePlaceUnread, matchBand, OUTSIDE_REASONS, outsideLevel, placeUnknown, type MatchScore } from "@/lib/match/score";
 
-export type ForYouLeftOut = "stretch" | "other-role" | "level" | "abroad" | "unplaced" | "requirement";
+export type ForYouLeftOut = "stretch" | "other-role" | "level" | "abroad" | "unplaced" | "requirement" | "language";
 
 export interface LeftOutOptions {
     /**
@@ -49,6 +52,8 @@ export function forYouLeftOut(score: MatchScore, options: LeftOutOptions = {}): 
     // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
     if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
     if (placeUnknown(score) && !options.keepUnplaced && !(options.keepWhenCandidatePlaceUnread && candidatePlaceUnread(score))) return "unplaced";
+    // Written in a language they do not read: a Stretch for that reason (score.ts), and the one a control undoes (Settings › Languages).
+    if (score.language) return "language";
     // Before the band: a role above their level, or managing people when they haven't, is a Stretch for that reason (score.ts).
     if (score.newToManaging || outsideLevel(score) || score.components.some((c) => c.reason === "level_below_ask")) return "level";
     // Likewise a role that asks for what the résumé doesn't show. Only an explicit ask counts (years, a language, a

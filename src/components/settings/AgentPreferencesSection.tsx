@@ -20,6 +20,7 @@ import {
 } from "@/actions/agent-preferences";
 import { Trash } from "@phosphor-icons/react";
 import { Switch } from "@/components/settings/Switch";
+import { LanguagesSetting } from "@/components/settings/LanguagesSetting";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";
 import {
@@ -343,6 +344,8 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             <p className="text-sm">Remote only</p>
                             <Switch checked={remoteOnly} onChange={() => setRemoteOnly((v) => !v)} aria-label="Remote only" />
                         </div>
+
+                        <LanguagesSetting uid={user.uid} />
                     </div>
 
                     <div className="space-y-4">

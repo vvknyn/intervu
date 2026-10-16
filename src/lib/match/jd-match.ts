@@ -42,6 +42,7 @@ import type { DescBlock } from "@/lib/jobs/format-description";
 import { evidencedSkills } from "@/lib/jobs/presentation";
 import { postingContentFamily, type ContentFamily } from "@/lib/match/content-family";
 import { jdAsksFromDescription, type JdAsks } from "@/lib/match/jd-asks";
+import { textLanguages } from "@/lib/match/posting-language";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -63,6 +64,12 @@ export interface JdTerms {
      * whatever its title. Absent when none does. Read next to the terms, once, where the description is.
      */
     family?: ContentFamily;
+    /**
+     * The languages the text is written in (`textLanguages`, posting-language.ts), the most used first: "french" for a
+     * posting in French, both for one printed in two. Absent when the text is too short or in none of the languages
+     * read there. The index carries no language of its own.
+     */
+    lang?: string[];
 }
 
 /** How many phrases each section keeps. Enough for a real posting's asks, small enough for a list row. */
@@ -244,7 +251,8 @@ export function jdTermsFromDescription(
     if (!terms) return null;
     // What line of work the text reads as (the posting's title is taken out of it first: it never reads the posting).
     const family = postingContentFamily(description, job?.title);
-    return family ? { ...terms, family } : terms;
+    const lang = textLanguages(description);
+    return { ...terms, ...(family ? { family } : {}), ...(lang ? { lang } : {}) };
 }
 
 function jdSectionTerms(description: string | null | undefined, job?: JdSourceJob): JdTerms | null {
@@ -252,7 +260,7 @@ function jdSectionTerms(description: string | null | undefined, job?: JdSourceJo
     // Skills the upstream extractor read from a real Requirements heading
     // (`evidencedSkills` — never the unstamped, fabricated ones) lead the asks.
     const skills = job ? evidencedSkills(job, "must_have_skills").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
-    const asks = jdAsksFromDescription(text, skills);
+    const asks = jdAsksFromDescription(text, skills, job?.title);
     const withAsks = (terms: JdTerms): JdTerms => (asks ? { ...terms, asks } : terms);
     const withSkills = (req: string[]) => [...new Set([...skills, ...req])].slice(0, JD_TERMS_PER_SECTION + skills.length);
     if (text.length < 40) return skills.length > 0 ? withAsks({ req: skills, duty: [] }) : null;

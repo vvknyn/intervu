@@ -6894,6 +6894,7 @@ export function JobsContent({
                                 matchScores={matchScores}
                                 resume={resume}
                                 signals={signals}
+                                accountKey={uid}
                                 nowMs={nowMs}
                                 fitResolving={fitResolving}
                                 loading={deckLoading}

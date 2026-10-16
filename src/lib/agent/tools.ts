@@ -21,7 +21,8 @@ import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidat
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
 import type { DeckLeftOut } from "../jobs/for-you/band-order";
-import { formatLeftOutLine, NEAR_MISS_NOTICE } from "../jobs/for-you/left-out-copy";
+import { formatLeftOutLine, NEAR_MISS_NOTICE, writtenInParts } from "../jobs/for-you/left-out-copy";
+import { languageListText } from "../match/posting-language";
 import { formatPlaceList, locationDropped, namedPlaces } from "../jobs/broaden";
 import { clusterJobs } from "../jobs/cluster";
 import { hasLiveApplyUrl } from "../jobs/apply-url-health";
@@ -377,6 +378,18 @@ export interface SearchOut {
 function joinNotes(...parts: (string | undefined | null)[]): string | undefined {
   const present = parts.filter((p): p is string => !!p);
   return present.length ? present.join("; ") : undefined;
+}
+
+/**
+ * What an agent tells the person when roles were left out for the language they are written in: how many, in which
+ * language, and the one way in (`set_preferences` `search.languages`) — the site's count and control, said for a chat.
+ */
+function languagesNote(read: readonly string[], leftOut: Readonly<Record<string, number>>, counted: boolean): string | undefined {
+  const parts = writtenInParts(leftOut);
+  if (parts.length === 0 || read.length === 0) return undefined;
+  const add = Object.keys(leftOut).filter((language) => (leftOut[language] ?? 0) > 0);
+  const lead = counted ? `${parts.join(", ")} left out this week` : "Roles written in another language are left out";
+  return `${lead} because you read postings in ${languageListText(read, "and")}; to include them, call set_preferences with search.languages [${[...read, ...add].map((l) => JSON.stringify(l)).join(", ")}]`;
 }
 
 /**
@@ -746,7 +759,7 @@ export interface ForYouHit extends JobDetailFields {
 export interface ForYouOut {
   hits: ForYouHit[];
   /** What the search returned and the list left out, by reason; the rest are `hits`, across all pages. */
-  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true };
+  left_out?: { considered: number; listed: number; by_reason: Partial<Record<DeckLeftOut, number>>; /** Roles left out as "language", by the language the posting is written in: { french: 8 }. */ languages?: Record<string, number>; /** Nothing fit: `hits` are the closest roles, each a weaker fit. */ near?: true };
   query_used: string;
   next_cursor?: string;
   resume_source: BaseResume["source"];
@@ -819,6 +832,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const nextCursor = nextCursorFor(offset, hits.length, deck.length, limit);
   // A list that holds only roles the résumé could take can be short, or empty: say how many were left out and why.
   const leftOutLine = formatLeftOutLine(ranked.leftOut);
+  const languagesOut = ranked.leftOut.languages ? languagesNote(signals?.languages?.value ?? [], ranked.leftOut.languages, false) : undefined;
   // Nothing fit: the list holds the closest roles, each a weaker fit, and says so (`rankForYou`'s near misses).
   const leftOutNote =
     offset === 0 && ranked.leftOut.near && deck.length > 0
@@ -828,11 +842,11 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
           ? `None of the roles found fit this résumé yet. ${leftOutLine}`
           : leftOutLine
         : null;
-  const note = joinNotes(limitNote, leftOutNote);
+  const note = joinNotes(limitNote, leftOutNote, offset === 0 ? languagesOut : undefined);
   return {
     hits,
     ...(ranked.leftOut.considered > 0
-      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.near ? { near: true as const } : {}) } }
+      ? { left_out: { considered: ranked.leftOut.considered, listed: ranked.leftOut.listed, by_reason: ranked.leftOut.byReason, ...(ranked.leftOut.languages ? { languages: ranked.leftOut.languages } : {}), ...(ranked.leftOut.near ? { near: true as const } : {}) } }
       : {}),
     query_used: ranked.query_used,
     ...(note ? { note } : {}),
@@ -855,6 +869,8 @@ export interface DailyPickHit extends JobDetailFields {
 export interface DailyPicksOut {
   picks: DailyPickHit[];
   email: { on: boolean; last_sent_at: string | null };
+  /** This week's roles left out only for the language they are written in, by that language: { french: 3 }. */
+  left_out?: { languages: Record<string, number> };
   unavailable?: boolean;
   note?: string;
 }
@@ -894,12 +910,16 @@ export async function toolDailyPicks(deps: ToolDeps, input: DailyPicksInput): Pr
   const budget = await deps.consumeRecordBudget(picks.length);
   if (!budget.ok) return { error: budget.error };
 
+  const languagesOut = result.languagesLeftOut;
+  const note = joinNotes(
+    picks.length === 0 ? "No role posted this week fits your own line of work, level and place yet — for_you lists the near ones" : undefined,
+    languagesOut ? languagesNote(result.signals.languages?.value ?? [], languagesOut, true) : undefined,
+  );
   return {
     picks,
     email,
-    ...(picks.length === 0
-      ? { note: "No role posted this week fits your own line of work, level and place yet — for_you lists the near ones" }
-      : {}),
+    ...(languagesOut ? { left_out: { languages: languagesOut } } : {}),
+    ...(note ? { note } : {}),
   };
 }
 

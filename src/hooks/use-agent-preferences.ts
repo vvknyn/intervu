@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { fetchAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
+import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
+import { normalizeLanguages } from "@/lib/match/posting-language";
 
 /**
  * The signed-in candidate's saved preferences, for `resolveCandidateSignals(resume, prefs)`.
@@ -72,6 +73,30 @@ export function reloadSignedInAgentPreferences(): void {
 /** What Settings just saved, so the next fit label uses it without a reload. */
 export function rememberAgentPreferences(uid: string, prefs: AgentPreferences) {
     publish({ uid, prefs });
+}
+
+/**
+ * Saves the languages they read postings in (`[]` follows their résumé's language) as the account's saved preference,
+ * shown at once and put back if the save fails. Resolves false when it could not be saved, so the caller says so
+ * where the person looked.
+ */
+export async function saveLanguageChoice(uid: string, languages: string[]): Promise<boolean> {
+    const next = normalizeLanguages(languages);
+    const before = current?.uid === uid ? current.prefs : null;
+    const base: AgentPreferences = before ?? { configured: true, search: {}, answers: { custom: {} } };
+    publish({ uid, prefs: { ...base, configured: true, search: { ...base.search, languages: next } } });
+    let saved: Awaited<ReturnType<typeof saveAgentPreferencesAction>> | null = null;
+    try {
+        saved = await saveAgentPreferencesAction({ search: { languages: next } });
+    } catch {
+        // A refused or dropped save is reported below, where they changed it.
+    }
+    if (!saved?.data) {
+        publish({ uid, prefs: before });
+        return false;
+    }
+    publish({ uid, prefs: saved.data });
+    return true;
 }
 
 export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean } {

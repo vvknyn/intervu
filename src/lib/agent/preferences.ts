@@ -30,6 +30,8 @@ export interface SearchPreferences {
     employmentType?: string;
     salaryMin?: number;
     postedWithinDays?: number;
+    /** The languages they read postings in, lowercase names ("english", "french"); unset or empty means their résumé's language. */
+    languages?: string[];
 }
 
 export interface AnswerPreferences {
