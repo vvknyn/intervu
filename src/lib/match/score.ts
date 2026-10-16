@@ -58,8 +58,8 @@ import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
-import { contentFamilyLabel, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
-import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, resumeTermSet } from "@/lib/match/jd-match";
+import { contentFamilyLabel, isWorkWord, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
+import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, PHRASE_MATCH_WEIGHT, resumeTermSet } from "@/lib/match/jd-match";
 import { languageLabel } from "@/lib/match/posting-language";
 import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
@@ -102,6 +102,12 @@ export interface MatchComponent {
         semantic?: number;
         evidence?: number;
         evidenceTerms?: string[];
+        /**
+         * Of those terms, the ones that name work (`workTerms`), weighed as coverage weighs them (a phrase twice a word):
+         * what proves a title the résumé can't place (`unprovenTitle`). `workTerms` is the first few of them.
+         */
+        workEvidence?: number;
+        workTerms?: string[];
         /**
          * The posting's responsibilities on their own (`JdCoverage.dutyShare`), absent when it has none readable:
          * `dutyFit` is their share on the scale `fit` uses, `dutyEvidence` how many of the terms the résumé shows
@@ -514,6 +520,21 @@ export function specificTerms(matched: readonly string[], job: Pick<PublicJob, "
 export const specificEvidence = (matched: readonly string[], job: Pick<PublicJob, "title">): number => specificTerms(matched, job).length;
 
 /**
+ * Of a posting's terms the résumé shows, the ones that name work rather than words every posting or every industry
+ * uses: a two-word phrase ("release coordination", "incident response"), or a single word the family lexicon holds as
+ * a term of some line of work (`isWorkWord`: "roadmap", "backlog", "sql"). A Trimble "Implementation and Training
+ * Consultant" posting read Good for a product résumé on thirteen shared words (Vivek's list, 2026-10-16), and
+ * "software", "enterprise", "solutions", "management", "technical" and "technology" were seven of them.
+ */
+export function workTerms(terms: readonly string[]): string[] {
+    return terms.filter((term) => term.includes(" ") || isWorkWord(term));
+}
+
+/** Their weight the way coverage weighs a match (jd-match.ts): a phrase twice a word. */
+export const workWeight = (terms: readonly string[]): number =>
+    terms.reduce((sum, term) => sum + (term.includes(" ") ? PHRASE_MATCH_WEIGHT : 1), 0);
+
+/**
  * What the title says vs. what the whole posting says: when the posting's text (or its meaning) has been
  * read, relevance IS how much of what it asks the résumé shows (jd-match.ts). The words of its title and
  * tags were a quarter of it (review, 2026-10-13), so a posting whose title the résumé never names scored
@@ -556,6 +577,8 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     // The embedding match reads meaning the words miss; it carries half the posting-level fit when on hand.
     const fit = semantic == null ? lexical : SEMANTIC_SHARE * semantic + (1 - SEMANTIC_SHARE) * lexical;
     const shown = jd.matched.slice(0, 4);
+    const specific = specificTerms(jd.matched, job);
+    const work = workTerms(specific);
     const dutyTerms = specificTerms(jd.dutyMatched, job);
     return {
         key: "relevance",
@@ -567,8 +590,10 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
             fit,
             matched: jd.matched.slice(0, 12),
             missing: jd.missing.slice(0, 12),
-            evidence: specificEvidence(jd.matched, job),
-            evidenceTerms: specificTerms(jd.matched, job).slice(0, 4),
+            evidence: specific.length,
+            evidenceTerms: specific.slice(0, 4),
+            workEvidence: workWeight(work),
+            workTerms: work.slice(0, 4),
             ...(jd.dutyShare != null
                 ? { dutyFit: jdFitScore(jd.dutyShare, resumeTermSet(resume).size), dutyEvidence: dutyTerms.length, dutyTerms: dutyTerms.slice(0, 4) }
                 : {}),
@@ -1011,12 +1036,14 @@ export function contentOffTarget(
 /**
  * A title tied to none of the résumé's kinds of role (`unverified`) whose posting shows nothing that makes it theirs:
  * its text does not clearly read as one of the résumé's lines of work (a clear read of another line of work is
- * already `contentOffTarget`) and the résumé does not cover what it asks (`CONTENT_LED_MIN_FIT` of it, on
- * `CONTENT_LED_MIN_EVIDENCE` terms or more). Words shared with the résumé
+ * already `contentOffTarget`) and the résumé does not cover what it asks (`CONTENT_LED_MIN_FIT` of it, on a
+ * `CONTENT_LED_MIN_EVIDENCE` weight of terms that name work, `workTerms`). Words shared with the résumé
  * ("performance", "planning", "analysis") are not that proof: a "Commercial Finance Business Partner" and a
  * "Marketing Operations and Project Specialist" read Good on them (Vivek, 2026-10-16), and no lexicon names every
- * other line of work. A résumé too thin to read (no lines of work, or under `COVERAGE_MIN_RESUME_TERMS`) has
- * nothing to prove a posting against, so its unverified titles keep the cap under Strong only.
+ * other line of work. Nor are the words every posting or industry uses ("software", "enterprise", "solutions"): a
+ * Trimble "Implementation and Training Consultant" read Good on them the same day. A résumé too thin to read (no
+ * lines of work, or under `COVERAGE_MIN_RESUME_TERMS`) has nothing to prove a posting against, so its unverified
+ * titles keep the cap under Strong only.
  */
 export function unprovenTitle(resume: ResumeData, job: PublicJob, role: RoleAffinity, contentLed: boolean, jd: MatchComponent["jd"]): boolean {
     if (role !== "unverified" || contentLed) return false;
@@ -1024,7 +1051,7 @@ export function unprovenTitle(resume: ResumeData, job: PublicJob, role: RoleAffi
     if (jdTermsOf(job)?.family) return false;
     // The résumé covers what the posting asks in its own right (the content half of `contentLedRole`): a short
     // "Digital Product Lead" posting asking for the roadmap, backlog and requirements work a product résumé shows.
-    return !(jd != null && jd.fit >= CONTENT_LED_MIN_FIT && typeof jd.evidence === "number" && jd.evidence >= CONTENT_LED_MIN_EVIDENCE);
+    return !(jd != null && jd.fit >= CONTENT_LED_MIN_FIT && typeof jd.workEvidence === "number" && jd.workEvidence >= CONTENT_LED_MIN_EVIDENCE);
 }
 
 /** How the posting's TITLE alone relates to the candidate's own role (`roleAffinity` without the posting's text). */

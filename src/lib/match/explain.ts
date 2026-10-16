@@ -195,7 +195,7 @@ const termStem = (word: string) => word.replace(/(?<!s)s$/, "");
  * already holds is dropped ("management" beside "product management", "rest" and "api" beside "rest api")
  * and a plural is listed once.
  */
-function postingTerms(score: MatchScore, kind: "evidenceTerms" | "dutyTerms" = "evidenceTerms"): string[] {
+function postingTerms(score: MatchScore, kind: "evidenceTerms" | "dutyTerms" | "workTerms" = "evidenceTerms"): string[] {
     const terms = (component(score, "relevance")?.jd?.[kind] ?? []).map((term) => ({
         term,
         words: new Set(term.toLowerCase().split(/[^a-z0-9+#.]+/).filter(Boolean).map(termStem)),
@@ -258,9 +258,10 @@ function roleSentence(score: MatchScore): string | null {
                 ? `It's a role next to yours (${yours}) rather than the same job, so it can't be a Strong match.`
                 : "It's a role next to yours rather than the same job, so it can't be a Strong match.";
         case "unverified":
-            // Nothing in the posting showed it is theirs (`unprovenTitle`): say what it lacked and the only words it shares.
+            // Nothing in the posting showed it is theirs (`unprovenTitle`): say what it lacked and the only words of work it
+            // shares, the ones its proof counted (`workTerms`), not the general words it also shares.
             if (score.unproven) {
-                const shared = postingTerms(score);
+                const shared = postingTerms(score, "workTerms");
                 return `We couldn't tie this title to ${yours ? `your ${yours} role` : "a role on your résumé"}, and its text doesn't show your kind of work${shared.length > 0 ? `: it only shares words like ${listed(shared)} with your résumé` : ""}, so it's a Stretch at most.`;
             }
             return yours

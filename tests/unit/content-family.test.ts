@@ -6,12 +6,23 @@ import {
     CONTENT_FAMILY_MIN_MARGIN,
     CONTENT_FAMILY_MIN_TERMS,
     contentFamilyLabel,
+    isWorkWord,
     postingContentFamily,
     resumeContentFamilies,
 } from "../../src/lib/match/content-family";
 import { FAMILY_LEXICON } from "../../src/lib/match/family-lexicon";
 import { jdTermsFromDescription } from "../../src/lib/match/jd-match";
-import { JD_GOOD_MIN_FIT, MATCH_BAND_GOOD_MIN, roleAffinity, scoreJobAgainstResume, type MatchScore } from "../../src/lib/match/score";
+import {
+    CONTENT_LED_MIN_EVIDENCE,
+    CONTENT_LED_MIN_FIT,
+    JD_GOOD_MIN_FIT,
+    MATCH_BAND_GOOD_MIN,
+    roleAffinity,
+    scoreJobAgainstResume,
+    workTerms,
+    workWeight,
+    type MatchScore,
+} from "../../src/lib/match/score";
 import { explainMatch } from "../../src/lib/match/explain";
 import { forYouLeftOut } from "../../src/lib/jobs/for-you/left-out";
 import { resolveCandidateSignals } from "../../src/lib/jobs/candidate-signals";
@@ -20,7 +31,9 @@ import type { PublicJob } from "../../src/lib/jobs/types";
 import type { ResumeData } from "../../src/types/resume";
 import {
     COMMERCIAL_FINANCE_TEXT,
+    GENERIC_WORDS_CONSULTANT_TEXT,
     IT_SUPPORT_TEXT,
+    PORTFOLIO_DELIVERY_TEXT,
     PRODUCT_TEXT,
     SECURITY_OPS_TEXT,
     SHORT_PRODUCT_LEAD_TEXT,
@@ -369,6 +382,45 @@ describe("a title tied to none of the résumé's roles is Good only when its pos
             assert.equal(j.jd_terms?.family, undefined, "too short for the lexicon to call");
             const s = score(resume, j);
             assert.equal(s.role, "unverified");
+            assert.equal(s.unproven, undefined);
+            assert.ok(s.total >= MATCH_BAND_GOOD_MIN, `${s.total}`);
+        }
+    });
+
+    it("only words that name work prove it: a phrase, or a word the lexicon holds for some line of work", () => {
+        for (const word of ["software", "enterprise", "solutions", "management", "technical", "technology"]) assert.equal(isWorkWord(word), false, word);
+        for (const word of ["roadmap", "backlog", "sql", "observability", "payroll", "clients"]) assert.equal(isWorkWord(word), true, word);
+        const terms = workTerms(["software", "release coordination", "roadmap", "solutions"]);
+        assert.deepEqual(terms, ["release coordination", "roadmap"]);
+        assert.equal(workWeight(terms), 3, "a phrase weighs twice a word, as in coverage");
+    });
+
+    it("an unplaced title whose posting shares only the words every posting or industry uses is a Stretch, however many it shares", () => {
+        for (const resume of [PM, TAM]) {
+            const j = job("Implementation and Training Consultant", GENERIC_WORDS_CONSULTANT_TEXT);
+            assert.equal(j.jd_terms?.family, undefined, "no line of work reads clearly in it");
+            const s = score(resume, j);
+            const jd = s.components[0]!.jd!;
+            assert.equal(s.role, "unverified");
+            assert.ok(jd.fit >= CONTENT_LED_MIN_FIT && (jd.evidence ?? 0) >= CONTENT_LED_MIN_EVIDENCE, "a count of every shared word would have proved it");
+            assert.ok((jd.workEvidence ?? 0) < CONTENT_LED_MIN_EVIDENCE, `${jd.workEvidence}`);
+            assert.equal(s.unproven, true);
+            assert.ok(s.total < MATCH_BAND_GOOD_MIN, `${s.total}`);
+            assert.equal(forYouLeftOut(s, { keepUnplaced: true }), "stretch");
+            // The why names only the words its proof counted, never the general ones.
+            const shared = explainMatch(s).match(/it only shares words like (.+) with your résumé/)?.[1] ?? "";
+            for (const generic of ["software", "enterprise", "solutions", "technical", "technology"]) assert.ok(!shared.includes(generic), shared);
+        }
+    });
+
+    it("a neighbouring role whose posting names the résumé's work keeps its fit at the lowest weight measured", () => {
+        for (const [resume, weight] of [
+            [PM, 9],
+            [TAM, 10],
+        ] as const) {
+            const s = score(resume, job("Portfolio Lead, Product Delivery", PORTFOLIO_DELIVERY_TEXT));
+            assert.equal(s.role, "unverified");
+            assert.equal(s.components[0]!.jd?.workEvidence, weight);
             assert.equal(s.unproven, undefined);
             assert.ok(s.total >= MATCH_BAND_GOOD_MIN, `${s.total}`);
         }
