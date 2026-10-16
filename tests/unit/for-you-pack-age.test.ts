@@ -127,6 +127,13 @@ describe('when no role from the last 30 days fits, the older roles that fit stan
         assert.equal(nearMissSummary(summary).older, undefined);
     });
 
+    it('keeps the count of roles left out for their language when older roles stand in', () => {
+        const summary = { considered: 6, listed: 0, byReason: { old: 3, language: 2 }, languages: { french: 2 } };
+        assert.deepEqual(olderFitsSummary(summary, 2).languages, { french: 2 });
+        assert.deepEqual(olderNearMissSummary(summary, 2).languages, { french: 2 });
+        assert.equal(olderFitsSummary({ considered: 2, listed: 0, byReason: { old: 2 } }, 2).languages, undefined);
+    });
+
     it('drops the old count once every old role is listed', () => {
         assert.deepEqual(olderFitsSummary({ considered: 2, listed: 0, byReason: { old: 2 } }, 2), { considered: 2, listed: 2, byReason: {}, older: true });
     });

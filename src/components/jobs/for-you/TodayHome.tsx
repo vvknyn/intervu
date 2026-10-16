@@ -36,13 +36,15 @@ import { RoleTuningButtons } from "@/components/jobs/for-you/RoleTuningButtons";
 import { TuningReasonPrompt } from "@/components/jobs/for-you/TuningReasonPrompt";
 import { useTuningReason, type TuningReasonPrompt as TuningReasonPromptState } from "@/hooks/use-tuning-reason";
 import { DailyPicksTodayLine, useDailyPicks } from "@/components/daily-picks/DailyPicksSwitch";
+import { LanguagesControl } from "@/components/jobs/LanguagesControl";
+import { useLanguageChoice } from "@/hooks/use-language-choice";
 import { pinEmailed } from "@/lib/daily-picks/pick";
 import { captureEvent, type HomeActionKind } from "@/lib/analytics/events";
 import type { SitePath } from "@/lib/auth/post-auth-destination";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
 import { locationDropped } from "@/lib/jobs/broaden";
 import { FIT_GUEST_PREVIEW_ROWS } from "@/lib/jobs/fit-gate";
-import { candidateCountries, type CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { candidateCountries, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { freshHubProbeMemo } from "@/lib/jobs/for-you/hub-counts";
 import { buildNeedsYou, savedRolesToCheck, starterSteps, type NeedsYouKind } from "@/lib/jobs/for-you/needs-you";
 import { packSearchParams } from "@/lib/jobs/for-you/pack-filters";
@@ -63,6 +65,7 @@ import {
     readTodayVisit,
     resolveTodaySince,
     sincePhrase,
+    todayLanguagesLeftOut,
     todaySummary,
     todaySearchFloor,
     tuneToday,
@@ -208,7 +211,9 @@ export function TodayHome({
     const [attempt, setAttempt] = useState(0);
 
     const windowFloorMs = nowMs - TODAY_PICKS_WINDOW_MS;
-    const memoKey = matching ? `${matching.resumeKey}\0${serializeJobsUrl(matching.pack)}` : "";
+    // The languages they read in are part of what the roles are scored against: choosing one scores the week again.
+    const languagesKey = matching?.signals.languages?.value?.join(",") ?? "";
+    const memoKey = matching ? `${matching.resumeKey}\0${serializeJobsUrl(matching.pack)}\0${languagesKey}` : "";
     const requestKey = `${memoKey}\0${attempt}`;
     const [settled, setSettled] = useState<{ key: string; search: PicksSearch } | null>(null);
     const search = useMemo<PicksSearch>(() => {
@@ -346,6 +351,23 @@ export function TodayHome({
     );
 
     const status: TodayStatus = matching ? search.kind : `no-resume-${noResume}`;
+    // The languages they read postings in: the control shows where this week's roles written in another were left out,
+    // and wherever they have changed them (Settings › Job search has it always).
+    const language = useLanguageChoice(accountKey);
+    const languagesLeftOut = useMemo(() => (search.kind === "ready" ? todayLanguagesLeftOut(search.roles, nowMs) : {}), [search, nowMs]);
+    const readLanguages = matching?.signals.languages?.value ?? null;
+    const languagesEl =
+        accountKey != null && matching && readLanguages && (Object.keys(languagesLeftOut).length > 0 || matching.signals.languages?.source === "explicit" || readLanguages.length > 1) ? (
+            <LanguagesControl
+                languages={readLanguages}
+                resumeDefault={resumeDefaultLanguages(matching.resume)}
+                leftOut={languagesLeftOut}
+                onChange={(stored) => void language.choose(stored)}
+                pending={language.pending}
+                testId="today-languages"
+                className="justify-start"
+            />
+        ) : null;
     // Picks need to know where they can work: with no country to check against, Today asks rather than guesses.
     const whereUnknown = matching != null && candidateCountries(matching.signals).length === 0;
 
@@ -405,6 +427,7 @@ export function TodayHome({
             likedIds={liked}
             emailedIds={emailedIds}
             dailyEmail={auth === "signed-in" ? <DailyPicksTodayLine control={daily} /> : null}
+            languages={languagesEl}
             tuning={tuning ? tuningLine(tuning) : null}
             gate={
                 auth === "signed-out" ? (
@@ -510,6 +533,7 @@ export function TodayHomeView({
     likedIds,
     emailedIds,
     dailyEmail = null,
+    languages = null,
     tuning,
     rowLimit = TODAY_PICK_ROWS,
     gate = null,
@@ -558,6 +582,8 @@ export function TodayHomeView({
     emailedIds?: ReadonlySet<string>;
     /** The daily picks email switch (`DailyPicksTodayLine`), under the summary once picks are ranked. */
     dailyEmail?: ReactNode;
+    /** `LanguagesControl`, under the basis: the languages the picks are written in, and the roles left out for theirs. */
+    languages?: ReactNode;
     /** "Tuned toward …, away from …." while ratings steer the list. */
     tuning: string | null;
     /** Rows shown: `TODAY_PICK_ROWS`, or a guest's fit preview (`FIT_GUEST_PREVIEW_ROWS`). */
@@ -668,6 +694,7 @@ export function TodayHomeView({
                               : "What needs you today. Add your résumé and this week's roles that fit it show here too."}
                     </p>
                     {summaryLine}
+                    {matched && languages ? languages : null}
                     {matched && dailyEmail ? dailyEmail : null}
                     {matched ? <TuningReasonPrompt prompt={tuningReason} /> : null}
                     {matched && tuning ? (

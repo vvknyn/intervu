@@ -3,6 +3,8 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { COMMERCIAL_FINANCE_TEXT, SOCIAL_SERVICES_TEXT, SUPPLY_CHAIN_TEXT } from "../../fixtures/job-descriptions/content-family-postings";
+import { FRENCH_ACCOUNT_TEXT } from "../../fixtures/job-descriptions/other-language-postings";
+import { TODAY_PICKS_FETCH_LIMIT } from "../../../src/lib/jobs/for-you/today";
 import { jdTermsFromDescription } from "../../../src/lib/match/jd-match";
 import { expect, test } from "./fixtures";
 import { answerListSearch, isListSearch } from "./list-search";
@@ -976,5 +978,118 @@ test("a posting under a title the résumé can't place that shares only general 
   await expect(front).toHaveAttribute("data-job-id", led.id);
   await expect(page.getByTestId("match-chip")).toHaveText("Strong");
   await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 2 roles found: 1 a weaker fit");
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-142 / J-JOBS-143 — Vivek, 2026-10-16: "I dont want french jobs...how does a user make sure that they either get or
+ * not get other language jobs". A posting WRITTEN in a language the person has not chosen (their résumé's language, plus
+ * English, until they say otherwise; `jd_terms.lang`) is left out of For You and Today with its language named, and the same
+ * control that says so brings it back or takes it away again. The postings are CONSTRUCTED for these journeys.
+ */
+
+/** `saveAgentPreferencesAction` answered in the browser as a signed-in account would be: it echoes the saved languages. Register after `withAccountApplications`. */
+async function withSavedLanguages(page: Page) {
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.fallback();
+      let languages: unknown;
+      try {
+        languages = (JSON.parse(req.postData() ?? "[]") as { search?: { languages?: unknown } }[])[0]?.search?.languages;
+      } catch {
+        return route.fallback();
+      }
+      if (!Array.isArray(languages)) return route.fallback();
+      const res = await route.fetch();
+      return route.fulfill({ response: res, body: withActionResult(await res.text(), { data: { configured: true, search: { languages }, answers: { custom: {} } } }) });
+    },
+  );
+}
+
+test("a pack leaves out a posting written in a language the person has not chosen, says which, and one tap brings it back or takes it away", { tag: ["@J-JOBS-142"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  const own = described(posting("88888888-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 3), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  // In the résumé's own line of work and under an English title, but written in French.
+  const french = described(posting("88888888-0000-4000-8000-000000000002", "Technical Account Manager", "Nordique Logiciels", "senior", 1), FRENCH_ACCOUNT_TEXT);
+  await withAccountApplications(page, []);
+  await withSavedLanguages(page);
+  await answerResumeSearch(page, [french, own], "journey-language");
+  await openPack(page);
+
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  const languages = page.getByTestId("for-you-languages");
+  await expect(position).toHaveText("Role 1 of 1", { timeout: 60_000 });
+  await expect(front).toHaveAttribute("data-job-id", own.id);
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 2 roles found: 1 written in French");
+  await expect(languages.getByTestId("for-you-languages-chip-english")).toBeVisible();
+  await expect(languages.getByTestId("for-you-languages-chip-french")).toHaveCount(0);
+  await expect(languages.getByTestId("for-you-languages-include-french")).toHaveText("Include French (1)");
+
+  // Include French: the posting is in the deck, nothing is left out, and French is a language they read.
+  await languages.getByTestId("for-you-languages-include-french").click();
+  await expect(position).toHaveText(/^Role \d of 2$/, { timeout: 30_000 });
+  if (!(await position.textContent())?.startsWith("Role 2")) await page.getByTestId("for-you-next").click();
+  await expect(page.getByTestId("for-you-left-out")).toHaveCount(0);
+  await expect(languages.getByTestId("for-you-languages-chip-french")).toBeVisible();
+  await expect(languages.getByTestId("for-you-languages-include-french")).toHaveCount(0);
+
+  // Take it away again with the same control: back to one role, French left out and counted.
+  await languages.getByRole("button", { name: "Stop showing postings written in French" }).click();
+  await expect(position).toHaveText("Role 1 of 1", { timeout: 30_000 });
+  await expect(page.getByTestId("for-you-left-out")).toHaveText("Left out of the 2 roles found: 1 written in French");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+test("Today leaves out a pick written in a language the person has not chosen, counts it beside the control, and the choice brings it back", { tag: ["@J-JOBS-143"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page, RICH_RESUME);
+  const own = described(posting("99999999-0000-4000-8000-000000000001", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 1), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const french = described(posting("99999999-0000-4000-8000-000000000002", "Technical Account Manager", "Nordique Logiciels", "senior", 1), FRENCH_ACCOUNT_TEXT);
+  await withAccountApplications(page, []);
+  await withSavedLanguages(page);
+  // This week's picks search (limited to the week), answered in the browser only.
+  await page.route("**/api/jobs/search", async (route) => {
+    const body = route.request().postDataJSON() as { limit?: number; postedSinceMs?: number };
+    if (body.limit !== TODAY_PICKS_FETCH_LIMIT || !body.postedSinceMs) return route.fallback();
+    return answerListSearch(route, { hits: [french, own], total: 2, backend: "meilisearch", configured: true, searchId: "journey-today-language" });
+  });
+  await page.goto("/jobs?view=for-you");
+
+  const today = page.getByTestId("today-home");
+  const rows = today.getByTestId("today-new-row");
+  const languages = today.getByTestId("today-languages");
+  await expect(rows).toHaveCount(1, { timeout: 60_000 });
+  await expect(rows.first()).toHaveAttribute("data-job-id", own.id);
+  await expect(languages.getByTestId("today-languages-include-french")).toHaveText("Include French (1)");
+
+  await languages.getByTestId("today-languages-include-french").click();
+  await expect(rows).toHaveCount(2, { timeout: 60_000 });
+  await expect(languages.getByTestId("today-languages-chip-french")).toBeVisible();
+
+  await languages.getByRole("button", { name: "Stop showing postings written in French" }).click();
+  await expect(rows).toHaveCount(1, { timeout: 60_000 });
+  await expect(languages.getByTestId("today-languages-include-french")).toHaveText("Include French (1)");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+test("a guest's ranked Search list keeps a posting written in another language, ranked as a Stretch, and offers no language control to a visitor with no account", { tag: ["@J-JOBS-145"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page, RICH_RESUME);
+  const own = described(posting("99999999-0000-4000-8000-000000000011", "Customer Delivery Lead, API Programs", "Orchard CRM", "senior", 1), askingForTheResumeWork("Orchard CRM", "Customer Delivery Lead, API Programs"));
+  const french = described(posting("99999999-0000-4000-8000-000000000012", "Technical Account Manager", "Nordique Logiciels", "senior", 1), FRENCH_ACCOUNT_TEXT);
+  await answerResumeSearch(page, [french, own], "journey-language-guest");
+  await page.goto("/jobs?view=search&sort=fit");
+
+  // Search is plain search: nothing is left out, the French posting is listed behind the posting in the résumé's language.
+  await expect.poll(() => rowIds(page), { timeout: 45_000 }).toEqual([own.id, french.id]);
+  await expect(page.getByTestId("job-row").nth(1).getByTestId("match-chip")).toHaveText("Stretch");
+  // For You and Today need an account, and the control lives there and in Settings: a guest is not shown one.
+  await expect(page.locator('[data-testid$="-languages"]')).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });

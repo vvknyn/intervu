@@ -23,6 +23,7 @@ import type { ApplicationSummary } from '../../src/lib/pursuits/list';
 import type { BaseResume } from '../../src/lib/resume/base-resume';
 import type { SetBaseResumeResult } from '../../src/lib/resume/set-resume';
 import type { AgentPreferences, AgentPreferencesPatch } from '../../src/lib/agent/preferences';
+import { jdTermsFromDescription } from '../../src/lib/match/jd-match';
 
 /** Built via the REAL `buildGazetteerIndex` (not hand-rolled) so the test
  *  fixture matches production shape exactly — "Toronto"/"Canada" both real
@@ -617,6 +618,46 @@ describe('toolForYou', () => {
     const ids1 = page1.hits.map((h) => h.id);
     const ids2 = page2.hits.map((h) => h.id);
     assert.equal(new Set([...ids1, ...ids2]).size, 4);
+  });
+
+  it('says how many roles it left out for the language they are written in, and the one way back in, rather than dropping them silently', async () => {
+    const french = `À propos du poste
+Nous construisons des services pour des milliers de clients au Québec et en Europe, et nous cherchons un Backend Engineer pour concevoir et livrer des services fiables.
+
+Votre rôle
+Vous travaillerez avec les équipes de produit, vous écrirez des tests automatisés et vous participerez aux revues de code de l'équipe tout au long de l'année.
+
+Exigences
+- Expérience en développement de logiciels et bonne connaissance du backend et du métier d'engineer
+- Capacité à communiquer avec les équipes techniques et avec la direction
+
+Pourquoi nous rejoindre
+Une équipe passionnée, un horaire flexible, des assurances collectives dès le premier jour.`;
+    const inFrench = (id: string, company: string) => {
+      const base = makeJob({ id, title: 'Backend Engineer', experience_level: 'mid', company, company_domain: `${id}.com`, description: french });
+      return { ...base, jd_terms: jdTermsFromDescription(french, base) } as PublicJob;
+    };
+    const english = makeJob({ id: 'job-en', title: 'Backend Engineer', experience_level: 'mid' });
+    const hits = [english, inFrench('job-fr-1', 'Alpha'), inFrench('job-fr-2', 'Beta')];
+    const readsEnglish: AgentPreferences = { configured: true, search: { languages: ['english'] }, answers: { custom: {} } };
+
+    const { deps } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME, preferences: readsEnglish });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    assert.deepEqual(out.hits.map((h) => h.id), ['job-en']);
+    assert.equal(out.left_out?.languages?.french, 2);
+    assert.match(out.note ?? '', /2 written in French/);
+    assert.match(out.note ?? '', /you read postings in English/);
+    assert.match(out.note ?? '', /set_preferences with search\.languages \["english", "french"\]/);
+
+    // Choosing French lists them and says nothing is left out.
+    const both: AgentPreferences = { configured: true, search: { languages: ['english', 'french'] }, answers: { custom: {} } };
+    const { deps: chosen } = stubDeps(hits, undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME, preferences: both });
+    const all = await toolForYou(chosen, {});
+    if ('error' in all) throw new Error('unexpected error shape');
+    assert.deepEqual(all.hits.map((h) => h.id).sort(), ['job-en', 'job-fr-1', 'job-fr-2']);
+    assert.equal(all.left_out?.languages, undefined);
+    assert.ok(!/written in French/.test(all.note ?? ''));
   });
 
   it('returns the structured NO_RESUME_ERROR when the credential has no stored resume', async () => {

@@ -7,6 +7,7 @@
  * Pure, no I/O — same isomorphic convention as score.ts.
  */
 import {
+    languageText,
     MATCH_BAND_STRONG_MIN,
     matchBand,
     matchBandLabel,
@@ -225,7 +226,7 @@ function contentLedSentence(score: MatchScore): string {
  * they haven't, or something the résumé doesn't show (score.ts). Its reason says that first.
  */
 const heldAsStretch = (score: MatchScore): boolean =>
-    component(score, "seniority")?.reason === "level_below_ask" || Boolean(score.newToManaging) || (score.gaps ?? []).length > 0;
+    component(score, "seniority")?.reason === "level_below_ask" || Boolean(score.newToManaging) || (score.gaps ?? []).length > 0 || Boolean(score.language);
 
 /**
  * What the posting asks for that the résumé shows, for a role whose title the résumé holds: the title,
@@ -327,6 +328,7 @@ export function explainMatch(score: MatchScore): string {
     const managing = [
         ...(score.newToManaging ? [newToManagingText(component(score, "seniority")?.level)] : []),
         ...(score.gaps ?? []).map((gap) => gap.text),
+        ...(score.language ? [languageText(score.language)] : []),
     ];
 
     const parts: string[] = [];

@@ -102,6 +102,8 @@ export interface DeckLeftOutSummary {
     listed: number;
     /** Roles left out, by the first reason that applies. */
     byReason: Partial<Record<DeckLeftOut, number>>;
+    /** The roles left out as "language", by the language the posting is written in (its most used): "french" → 8. */
+    languages?: Record<string, number>;
     /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
     near?: true;
     /**
@@ -128,7 +130,7 @@ export function orderNearMisses(
 /** `summary` for a list that shows the closest roles because nothing fit: they are `listed`, no longer left out. */
 export function nearMissSummary(summary: DeckLeftOutSummary): DeckLeftOutSummary {
     const { stretch = 0, ...rest } = summary.byReason;
-    return { considered: summary.considered, listed: stretch, byReason: rest, near: true };
+    return { considered: summary.considered, listed: stretch, byReason: rest, ...(summary.languages ? { languages: summary.languages } : {}), near: true };
 }
 
 /**
@@ -150,7 +152,7 @@ export function orderOlderFits(
 /** `summary` for a list that shows older roles because no newer one fits: `listed` are no longer left out. */
 export function olderFitsSummary(summary: DeckLeftOutSummary, listed: number): DeckLeftOutSummary {
     const { old = 0, ...rest } = summary.byReason;
-    return { considered: summary.considered, listed, byReason: old > listed ? { ...rest, old: old - listed } : rest, older: true };
+    return { considered: summary.considered, listed, byReason: old > listed ? { ...rest, old: old - listed } : rest, ...(summary.languages ? { languages: summary.languages } : {}), older: true };
 }
 
 /**
@@ -180,13 +182,17 @@ export function summarizeDeckLeftOut(
     nowMs: number,
 ): DeckLeftOutSummary {
     const byReason: DeckLeftOutSummary["byReason"] = {};
+    const languages: Record<string, number> = {};
     let listed = 0;
     for (const job of jobs) {
-        const reason = deckLeftOut(job, getScore(job), nowMs);
+        const score = getScore(job);
+        const reason = deckLeftOut(job, score, nowMs);
         if (reason == null) listed++;
         else byReason[reason] = (byReason[reason] ?? 0) + 1;
+        const written = reason === "language" ? score?.language?.posting[0] : undefined;
+        if (written) languages[written] = (languages[written] ?? 0) + 1;
     }
-    return { considered: jobs.length, listed, byReason };
+    return { considered: jobs.length, listed, byReason, ...(Object.keys(languages).length > 0 ? { languages } : {}) };
 }
 
 /**

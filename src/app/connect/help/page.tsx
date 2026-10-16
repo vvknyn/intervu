@@ -140,9 +140,10 @@ export default function ConnectHelpPage() {
             sanity-check a posting, or save something to your tracker, and it can do that right
             away. It can also list the roles that fit your résumé, found and matched on what each posting asks
             for before its title (the search looks for the duties and tools your résumé lists first, and your titles fill what is left), so a title you haven&apos;t held can show up (leaving out any
-            posted more than 30 days ago, above your level, asking for what your résumé doesn&apos;t show, whose text reads as another line of work
-            than your experience shows whatever it is called, or whose title is none of your kinds of role and whose
-            posting doesn&apos;t show your work, and saying how many it left out;
+            posted more than 30 days ago, above your level, asking for what your résumé doesn&apos;t show, written in a language you haven&apos;t chosen
+            (your résumé&apos;s language and English until you say otherwise; ask it to include French, say, or to stop showing it),
+            whose text reads as another line of work than your experience shows whatever it is called, or whose title is
+            none of your kinds of role and whose posting doesn&apos;t show your work, and saying how many it left out and why;
             when nothing fits, it lists the closest roles and says plainly that they are a weaker fit; when only
             older roles fit, it lists those and says how old they are; when not even a newer role is close, it lists the
             closest older ones and says they are a weaker fit and how old they are),

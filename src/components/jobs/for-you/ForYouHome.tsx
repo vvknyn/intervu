@@ -17,7 +17,9 @@ import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { searchJobs } from "@/lib/jobs/search-client";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { countResults, formatPlaceList, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
-import type { CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
+import { LanguagesControl } from "@/components/jobs/LanguagesControl";
+import { useLanguageChoice } from "@/hooks/use-language-choice";
 import { packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
 import { hubTile } from "@/lib/jobs/for-you/hub-tiles";
@@ -95,6 +97,8 @@ export interface ForYouHomeProps {
     resume: ResumeData | null;
     /** Résumé + saved preferences, resolved once by the page (`resolveCandidateSignals`). */
     signals: CandidateSignals | null;
+    /** The signed-in account, whose saved languages the list's control changes; a signed-out visitor's stay in the browser. */
+    accountKey?: string | null;
     nowMs: number;
     /** The ranked list's read failed (after its automatic retry). With no
      *  rows, this renders `LoadFailedState` instead of the empty state. */
@@ -180,6 +184,7 @@ export function ForYouHome({
     matchScores,
     resume,
     signals,
+    accountKey = null,
     nowMs,
     fitResolving,
     loading,
@@ -506,6 +511,20 @@ export function ForYouHome({
     const olderFits = leftOut?.older === true && leftOut.near !== true && listedAny;
     const showingLine = formatDeckShowingLine(visiblePacks.length, olderNearMisses ? "older-near" : olderFits ? "older" : nearMisses ? "near" : "fit");
     const leftOutLine = formatLeftOutLine(leftOut);
+    // The languages they read postings in: a control where roles written in another were left out, and wherever they have changed them.
+    const language = useLanguageChoice(accountKey);
+    const readLanguages = signals?.languages?.value ?? null;
+    const languagesEl =
+        accountKey != null && readLanguages && (Object.keys(leftOut?.languages ?? {}).length > 0 || signals?.languages?.source === "explicit" || readLanguages.length > 1) ? (
+            <LanguagesControl
+                languages={readLanguages}
+                resumeDefault={resumeDefaultLanguages(resume)}
+                leftOut={leftOut?.languages}
+                onChange={(stored) => void language.choose(stored)}
+                pending={language.pending}
+                testId="for-you-languages"
+            />
+        ) : null;
     // Roles came back and the rule left every one out: say how many and why, not a generic "right now".
     const noneFit = visiblePacks.length === 0 && leftOut != null && leftOut.listed === 0 && leftOutLine != null;
     // The pack's own count: what applying these filters returns, not the size of the deck on screen.
@@ -817,15 +836,20 @@ export function ForYouHome({
                                 : "Try Search to browse the full list—we'll keep your place here."
                         }
                         actions={
-                            showSearchCta ? (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    data-testid="for-you-empty-search-cta"
-                                    onClick={() => onHomeViewChange("search")}
-                                >
-                                    Go to Search
-                                </Button>
+                            showSearchCta || languagesEl ? (
+                                <div className="flex flex-col items-center gap-3">
+                                    {languagesEl}
+                                    {showSearchCta ? (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            data-testid="for-you-empty-search-cta"
+                                            onClick={() => onHomeViewChange("search")}
+                                        >
+                                            Go to Search
+                                        </Button>
+                                    ) : null}
+                                </div>
                             ) : undefined
                         }
                     />
@@ -883,7 +907,7 @@ export function ForYouHome({
                         />
                     </div>
                     {signupGate}
-                    {!signupGate && atEnd && (showingLine || leftOutLine || (hasMore && onLoadMore)) ? (
+                    {!signupGate && atEnd && (showingLine || leftOutLine || languagesEl || (hasMore && onLoadMore)) ? (
                         <div
                             className="flex shrink-0 flex-col items-center gap-2 pb-2"
                             data-testid="for-you-show-more-wrap"
@@ -904,6 +928,7 @@ export function ForYouHome({
                                     {leftOutLine}
                                 </p>
                             ) : null}
+                            {languagesEl}
                             {hasMore && onLoadMore ? (
                                 <Button
                                     type="button"

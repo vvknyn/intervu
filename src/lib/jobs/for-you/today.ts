@@ -110,6 +110,24 @@ export function sameRoleKey(job: PublicJob): string {
 }
 
 /**
+ * The week's roles Today left out only because they are written in a language the person has not chosen, counted by
+ * the language each is written in ("french" → 8), each opening once: the numbers beside "Include French".
+ */
+export function todayLanguagesLeftOut(roles: readonly TodayRole[], nowMs: number): Record<string, number> {
+    const seen = new Set<string>();
+    const out: Record<string, number> = {};
+    for (const r of roles) {
+        const written = deckLeftOut(r.job, r.score, nowMs, { strictPlace: true }) === "language" ? r.score.language?.posting[0] : undefined;
+        if (!written) continue;
+        const key = sameRoleKey(r.job);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out[written] = (out[written] ?? 0) + 1;
+    }
+    return out;
+}
+
+/**
  * Today's picks, best first: the roles `todayLeftOut` keeps that weren't
  * skipped here and aren't in the tracker, in the one order every recommending
  * list uses (`forYouSortKey`: age, reach, fit band, then what the posting asks

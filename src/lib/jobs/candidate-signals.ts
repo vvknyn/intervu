@@ -16,6 +16,7 @@ import type { AgentPreferences } from "@/lib/agent/preferences";
 import { statedSearch } from "@/lib/agent/preference-sources";
 import { deriveResumeLocationFacets } from "@/lib/jobs/resume-location";
 import { resumeHoldsPastSenior } from "@/lib/jobs/role-level";
+import { normalizeLanguages, resumeLanguages } from "@/lib/match/posting-language";
 import { resumeSeniorityBasis, splitPreferredRoles, topSkills, type Seniority, type SeniorityBasis } from "@/lib/jobs/resume-match";
 import { sanitizeLocation } from "@/lib/resume/contact-line";
 import { locationFromResumePlainText } from "@/lib/resume/structure-resume-text";
@@ -54,6 +55,13 @@ export interface CandidateSignals {
     skills: Signal<string[]>;
     /** Only ever `explicit`: how recent a role they want to see (Settings › Posted within), in days. */
     postedWithinDays?: Signal<number>;
+    /**
+     * The languages they read postings in, lowercase names ("english", "french"): what they chose (Settings › Languages, the
+     * list's own control, an agent's `set_preferences`) else what their résumé is written in, with English beside a résumé in
+     * another language. A posting written in none of them is left out (`MatchScore.language`). `unknown` when the résumé says
+     * too little to tell: no posting is judged by it then.
+     */
+    languages?: Signal<string[]>;
 }
 
 const SKILLS_CAP = 12;
@@ -181,6 +189,24 @@ function resolveSeniorityLevel(resume: ResumeData | null, prefs: AgentPreference
     return basis ? { ...signal(basis.level, "resume"), basis } : unknown();
 }
 
+/**
+ * What they chose, else what their résumé reads in. A résumé written in another language still reads English
+ * postings (English is most of what is posted, and an English role is the first thing a bilingual person would
+ * miss), so it is added; the person removes it with the same control that adds a language.
+ */
+function resolveLanguages(resume: ResumeData | null, prefs: AgentPreferences | null): Signal<string[]> {
+    const chosen = normalizeLanguages(prefs?.search.languages);
+    if (chosen.length > 0) return signal(chosen, "explicit");
+    const read = resumeLanguages(resume);
+    if (!read) return unknown();
+    return signal(read.includes("english") ? read : [...read, "english"], "resume");
+}
+
+/** The languages their résumé alone reads in (what `languages` is until they choose), or null when it says too little to tell. */
+export function resumeDefaultLanguages(resume: ResumeData | null | undefined): string[] | null {
+    return resolveLanguages(resume ?? null, null).value;
+}
+
 function resolveRoleFamily(resume: ResumeData | null, prefs: AgentPreferences | null): Signal<string> {
     const stated = prefs?.search.query?.trim();
     if (stated) return signal(stated, "explicit");
@@ -211,6 +237,7 @@ export function resolveCandidateSignals(
         ...(typeof prefs?.search.postedWithinDays === "number" && prefs.search.postedWithinDays > 0
             ? { postedWithinDays: signal(prefs.search.postedWithinDays, "explicit") }
             : {}),
+        languages: resolveLanguages(r, prefs),
         skills: skills.length > 0 ? signal(skills, "resume") : unknown(),
     };
 }
