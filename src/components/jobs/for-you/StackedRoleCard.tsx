@@ -74,6 +74,7 @@ export function StackedRoleCard({
     actions,
     tuning = null,
     tuningNote = null,
+    employerMore = null,
 }: {
     job: PublicJob;
     active: boolean;
@@ -88,6 +89,8 @@ export function StackedRoleCard({
     tuning?: ReactNode;
     /** Under the header row, beside where the thumbs were tapped: "Fewer like {role} — why?" (TuningReasonPrompt). */
     tuningNote?: ReactNode;
+    /** The employer's other roles in the deck, inside this card's slot (EmployerMore); null when it has none. */
+    employerMore?: ReactNode;
 }) {
     const presented = presentJob(job);
     const company = displayCompanyBrand(job.company, job.company_domain, job.title);
@@ -195,6 +198,8 @@ export function StackedRoleCard({
                         </ul>
                     ) : null}
                 </div>
+
+                {employerMore}
             </section>
 
             <section className="flex touch-pan-y touch-pinch-zoom flex-col gap-5 border-t border-border bg-background p-5 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0 lg:p-7">

@@ -692,6 +692,43 @@ Une équipe passionnée, un horaire flexible, des assurances collectives dès le
     assert.ok(['job-a', 'job-b'].includes(out.hits[0].id));
   });
 
+  it('gives each employer one place: its best role is the hit, its other roles ride in more_at_employer, and a page counts employers', async () => {
+    const partial = { experience_level: 'mid', tags: ['backend', 'fortran', 'cobol'], description: '' };
+    // Six openings at one employer (different titles, so they are five roles, not one cross-posted), one at another.
+    const big = ['Backend Engineer', 'Backend Software Engineer', 'Backend Platform Engineer', 'Backend Systems Engineer', 'Backend Services Engineer', 'Backend Data Engineer'].map((title, i) =>
+      makeJob({ id: `big-${i}`, title, ...partial }),
+    );
+    const small = makeJob({ id: 'small-0', title: 'Backend Engineer', company: 'Beta Co', company_domain: 'beta.com', ...partial });
+    const { deps } = stubDeps([...big, small], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const out = await toolForYou(deps, {});
+    if ('error' in out) throw new Error('unexpected error shape');
+    const employers = new Set(out.hits.map((h) => h.company_domain));
+    assert.equal(out.hits.length, employers.size, 'one hit per employer');
+    assert.equal(out.hits.length, 2);
+    assert.equal(out.left_out?.employers, 2);
+    const bigHit = out.hits.find((h) => h.company_domain === 'acme.com')!;
+    const named = [bigHit.id, ...(bigHit.more_at_employer?.roles.map((r) => r.id) ?? [])];
+    // Nothing is dropped silently: every role the list holds is a hit, a role under one, or counted as not shown.
+    assert.equal(named.length + (bigHit.more_at_employer?.hidden ?? 0) + 1, out.left_out?.listed);
+    assert.equal(named.length, 4, 'a slot shows four openings, its lead included');
+    assert.ok((bigHit.more_at_employer?.hidden ?? 0) >= 1 && bigHit.more_at_employer?.company_url?.endsWith('/co/acme--com'), 'the rest are counted, with the employer\'s page');
+    assert.ok(named.every((id) => id.startsWith('big-')));
+    assert.ok(bigHit.more_at_employer!.roles.every((r) => r.intervu_url.includes('/jobs/') && typeof r.fit_label === 'string'));
+    assert.equal(out.hits.find((h) => h.company_domain === 'beta.com')?.more_at_employer, undefined);
+
+    // A page of one is one employer, and the cursor walks employers.
+    const { deps: first } = stubDeps([...big, small], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const page1 = await toolForYou(first, { limit: 1 });
+    if ('error' in page1) throw new Error('unexpected error shape');
+    assert.equal(page1.hits.length, 1);
+    const { deps: second } = stubDeps([...big, small], undefined, {}, TEST_VOCAB, { baseResume: MATCHING_RESUME });
+    const page2 = await toolForYou(second, { limit: 1, cursor: page1.next_cursor });
+    if ('error' in page2) throw new Error('unexpected error shape');
+    assert.equal(page2.hits.length, 1);
+    assert.notEqual(page1.hits[0]!.company_domain, page2.hits[0]!.company_domain);
+    assert.equal(page2.next_cursor, undefined);
+  });
+
   it('returns no roles, with a note naming the place, when the search dropped every place the pack names', async () => {
     const { deps } = stubDeps([makeJob()], undefined, { unmatchedPlaceMentions: ['Iceland'] } as SearchResultExtra, TEST_VOCAB, {
       baseResume: MATCHING_RESUME,

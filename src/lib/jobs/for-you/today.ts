@@ -13,6 +13,7 @@ import { trackedPursuitFor, type TrackedIndex, type TrackedLike } from "@/lib/pu
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { needsPlaceCheck } from "@/lib/jobs/place-restriction";
 import { compareForYouKeys, deckLeftOut, forYouSortKey, postedTsOf, tuneRank } from "@/lib/jobs/for-you/band-order";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { tuneDeck, type TuningNudge } from "@/lib/jobs/for-you/tuning";
 import { forYouLeftOut, type ForYouLeftOut } from "@/lib/jobs/for-you/left-out";
@@ -93,7 +94,25 @@ export function interviewsThisWeek(pursuits: Pursuit[], nowMs: number): Pursuit[
         .sort((a, b) => (parseMs(a.interview_date) ?? 0) - (parseMs(b.interview_date) ?? 0));
 }
 
-export type TodayRole = { job: PublicJob; score: MatchScore };
+export type TodayRole = {
+    job: PublicJob;
+    score: MatchScore;
+    /** Set on a role that leads its employer's slot (`todaySlots`): the employer's other roles in the list, and how many more the slot does not show. */
+    employer?: { more: TodayRole[]; hidden: number };
+};
+
+/**
+ * Today's list with one slot per employer (`collapseByEmployer`, the last step on the one order): each role that leads
+ * its employer carries the employer's other picks (`employer.more`) instead of taking a row of its own, so five
+ * rows are five employers. Every surface that lists picks ends here: Today's rows, the daily picks email and the
+ * MCP `daily_picks` tool. The picks a visitor has skipped or the account has tracked are already out of `roles`,
+ * so an employer whose lead is turned down hands its slot to its next role.
+ */
+export function todaySlots(roles: readonly TodayRole[]): TodayRole[] {
+    return collapseByEmployer(roles, (role) => role.job).map((slot) =>
+        slot.more.length + slot.hidden === 0 ? slot.lead : { ...slot.lead, employer: { more: slot.more, hidden: slot.hidden } },
+    );
+}
 
 /**
  * Why a scored role is not one of today's picks: the rule every recommendation list shares (`forYouLeftOut`,

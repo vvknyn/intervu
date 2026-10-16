@@ -55,14 +55,19 @@ export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined
  */
 export type DeckListKind = "fit" | "near" | "older" | "older-near";
 
-/** The list's own count, at the foot of the deck. */
-export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit"): string | null {
+/**
+ * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
+ * `employers` fewer than the roles the count says both: "12 roles fit your résumé at 7 employers".
+ */
+export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit", employers?: number): string | null {
     const n = Math.floor(listed);
     if (!Number.isFinite(n) || n <= 0) return null;
-    if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit`;
-    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé · best fit first`;
+    const e = employers != null && Number.isFinite(employers) ? Math.floor(employers) : n;
+    const at = e > 0 && e < n ? ` at ${e.toLocaleString()} ${e === 1 ? "employer" : "employers"}` : "";
+    if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit`;
+    if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
+    if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
+    return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · best fit first`;
 }
 
 /** Said above the closest roles, when nothing fit: a short list is an honest one, never padded with a fit it does not have. */
