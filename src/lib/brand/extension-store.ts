@@ -3,7 +3,7 @@
  * something the extension does today (`extension/store/LISTING.md`, `extension/README.md`); keep it that way when
  * either changes. Name no other company here: the store rejected an earlier listing that named job sites.
  */
-export const CHROME_EXTENSION_ID = "pgaoelneidcpmnenhfaclhlmkaaibelg";
+export const CHROME_EXTENSION_ID = "jndkidbobccmcjochgioiiiiaaaldjjd";
 
 export const CHROME_EXTENSION_STORE_URL = `https://chromewebstore.google.com/detail/${CHROME_EXTENSION_ID}`;
 
