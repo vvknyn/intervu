@@ -26,7 +26,7 @@ import type { ResumeData } from "@/types/resume";
 import type { FacetKey } from "./types";
 import { splitRoleTitles, suggestAdjacentRolesLocal } from "./adjacent-roles";
 import { isRoleTitlePhrase } from "@/lib/resume/title-text";
-import { formatQuotedOrQuery } from "./fit-phrases";
+import { formatQuotedOrQuery, parseQuotedOrPhrases } from "./fit-phrases";
 import { resumeIndustry, type IndustryId } from "./resume-industry";
 import { computeYearsOfExperience } from "@/lib/resume/years-of-experience";
 import { titleLevel } from "./role-level";
@@ -584,6 +584,40 @@ export function buildMatchQuery(
     const levels = experienceLevelFacet(resumeSeniority(resume));
     if (levels) facets.experience_level = levels;
     return { q, facets, phrases: terms };
+}
+
+/**
+ * The other name a listing gives a line of work's senior role: "<line> Lead" for a title "<line> Manager" that names a
+ * line of work we know ("Product Manager" → "Product Lead", "Customer Success Manager" → "Customer Success Lead").
+ * A title phrase finds only its own words, so a pack for "Product Manager" never retrieved a "Digital Product Lead"
+ * (2026-10-17, from the outside analysis Vivek sent). Null for a title with a rank or generic word in its line
+ * ("Senior Product Manager", "General Manager") or one no role family names.
+ */
+export function leadTitleForm(title: string): string | null {
+    const match = /^([A-Za-z][A-Za-z &/-]*?)\s+manager$/i.exec((title ?? "").trim());
+    if (!match) return null;
+    const line = match[1]!.trim();
+    const words = line.toLowerCase().split(/\s+/);
+    if (words.some((word) => GENERIC_TITLE_WORDS.has(word)) || lineWords(line).length === 0) return null;
+    if (familiesNamedBy([title]).length === 0) return null;
+    return `${line} Lead`;
+}
+
+/** The most title phrases a pack's search carries (`capExploreTerms`). */
+export const PACK_TITLE_PHRASES_MAX = 4;
+
+/**
+ * A senior pack's title query with the lead title of its first "<line> Manager" phrase added (`leadTitleForm`), when
+ * it has room under `PACK_TITLE_PHRASES_MAX` and does not carry it already. A role titled Lead reads senior, so only
+ * a pack that retrieves senior roles asks for it.
+ */
+export function withLeadTitle(q: string): string {
+    const text = (q ?? "").trim();
+    const phrases = parseQuotedOrPhrases(text) ?? (text ? [text.replace(/"/g, "")] : []);
+    if (phrases.length === 0 || phrases.length >= PACK_TITLE_PHRASES_MAX) return q;
+    const has = (phrase: string) => phrases.some((p) => p.toLowerCase() === phrase.toLowerCase());
+    const lead = phrases.map(leadTitleForm).find((form): form is string => form != null && !has(form));
+    return lead ? formatQuotedOrQuery([...phrases, lead]) : q;
 }
 
 /**

@@ -291,7 +291,8 @@ export const MCP_TOOL_SPECS = {
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
             "pipeline behind the site's For-you view. It finds roles by what the posting asks for, not only by " +
             "title (the search behind it looks for the postings that mention the duties and the tools your résumé lists " +
-            "first, and your titles fill what is left): a role whose title your résumé never names but whose description asks for what your résumé " +
+            "first, and your titles fill what is left; a senior résumé's titles include their lead name, such as Product Lead beside " +
+            "Product Manager, read as the same line of work): a role whose title your résumé never names but whose description asks for what your résumé " +
             "shows is listed (group \"adjacent\", Strong when the posting is covered), even when the title is " +
             "another line of work's, once most of the skills it requires are on your résumé; the title only " +
             "breaks a tie between equal fits, it never filters. A remote role that names no country is " +
