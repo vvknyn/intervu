@@ -4,7 +4,8 @@
  */
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { semanticFitFromCosine, withSemanticFit, resumeEmbedText } from '../../src/lib/match/semantic-fit';
+import { SEMANTIC_MAX_IDS, semanticFitFromCosine, withSemanticFit, resumeEmbedText } from '../../src/lib/match/semantic-fit';
+import { FOR_YOU_READ_DEPTH } from '../../src/lib/jobs/for-you/pack-filters';
 import { SEMANTIC_COS_HI, SEMANTIC_COS_LO } from '../../src/lib/match/semantic-scale';
 import { scoreJobAgainstResume } from '../../src/lib/match/score';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
@@ -38,6 +39,20 @@ describe('semantic fit', () => {
         const far = scoreJobAgainstResume(RESUME, job(0.1), signals)!;
         assert.ok(close.total > far.total, `${close.total} vs ${far.total}`);
         assert.equal(close.components[0]!.jd?.semantic, 0.9);
+    });
+    it('reads the meaning of every row a pack list reads, so no row is scored on words alone beside one read for meaning', async () => {
+        assert.equal(SEMANTIC_MAX_IDS, FOR_YOU_READ_DEPTH);
+        const hits = Array.from({ length: FOR_YOU_READ_DEPTH + 20 }, (_, i) => mkJob(`r${i}`, { title: 'Product Manager' }));
+        let asked = 0;
+        const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+            const body = JSON.parse(String(init?.body)) as { docs: { key: string }[] };
+            asked = body.docs.length;
+            return new Response(JSON.stringify({ sims: Object.fromEntries(body.docs.map((d) => [d.key, 0.6])) }), { status: 200 });
+        }) as unknown as typeof fetch;
+        const out = await withSemanticFit(hits, RESUME, { url: 'http://sidecar.test', fetchImpl });
+        assert.equal(asked, FOR_YOU_READ_DEPTH);
+        assert.ok(out.slice(0, FOR_YOU_READ_DEPTH).every((hit) => typeof hit.semantic_fit === 'number'), 'rows 151 to 300 read meaning too');
+        assert.equal(out[FOR_YOU_READ_DEPTH]!.semantic_fit, undefined);
     });
     it('leaves the hits as they were when the sidecar fails', async () => {
         const hits = [mkJob('a', { title: 'Product Manager' })];
