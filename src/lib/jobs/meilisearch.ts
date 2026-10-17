@@ -1404,8 +1404,9 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
             weak: content ? keepWithinSenior(content.placed.weak) : [],
             titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? p.q ?? "")),
             unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
-            // The deck's first page is `FOR_YOU_POOL_WINDOW` rows; a later page slices the same composed list.
-            window: offset === 0 ? limit : FOR_YOU_POOL_WINDOW,
+            // The pool is composed for its first `FOR_YOU_POOL_WINDOW` rows (a smaller first page, the same shares);
+            // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
+            window: offset === 0 ? Math.min(limit, FOR_YOU_POOL_WINDOW) : FOR_YOU_POOL_WINDOW,
           })
         : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
       return {
@@ -1661,7 +1662,7 @@ function singleTitlePhrase(q: string | undefined): string[] {
 export const CONTENT_LANE_LIMIT = 100;
 /** How many rows each lane for roles that name no country reads. */
 export const UNPLACED_REMOTE_LANE_LIMIT = 100;
-/** The rows a deck's first page reads (JobsContent's `FOR_YOU_PAGE`): the window the pool is composed for. */
+/** The window the pool is composed for: its first 150 rows. A deck reads on past it (`FOR_YOU_READ_DEPTH`, pack-filters.ts) into the title lanes' next rows. */
 export const FOR_YOU_POOL_WINDOW = 150;
 /** The most roles that name no country a deck pools beside the placed ones. */
 export const UNPLACED_REMOTE_POOL = 20;

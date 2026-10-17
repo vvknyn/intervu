@@ -60,8 +60,8 @@ export interface RankForYouParams {
     search: (params: JobSearchParams) => Promise<JobSearchResult>;
     /** Candidate pool size fetched from `search` before ranking/paging —
      *  callers page the RETURNED, already-ranked list, never re-query per
-     *  page (pass `AGENT.SEARCH_DEPTH_CAP`, the existing agent-wide depth
-     *  cap — this module never invents its own). */
+     *  page (pass `FOR_YOU_READ_DEPTH`, the rows the site's deck reads, so
+     *  both rank the same roles — this module never invents its own). */
     candidateDepth: number;
     /** Résumé + saved preferences, resolved once by the caller
      *  (`resolveCandidateSignals`). Defaults to the résumé alone. */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { before, beforeEach, describe, it, mock } from "node:test";
 import { contentPairsFor, contentPhrasesFor, contentWordsFor, CONTENT_LANES_MAX, CONTENT_PHRASES_MAX, CONTENT_WORDS_MAX, sanitizeContentPhrases } from "../../src/lib/jobs/for-you/content-phrases";
-import { packContentPhrases, packSearchParams } from "../../src/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, packContentPhrases, packSearchParams } from "../../src/lib/jobs/for-you/pack-filters";
 import { formatQuotedOrQuery } from "../../src/lib/jobs/fit-phrases";
 import {
     CONTENT_LANE_LIMIT,
@@ -371,5 +371,44 @@ describe("what a pack search carries", () => {
         const a = normalizeSearchCacheKey(base);
         assert.notEqual(a, normalizeSearchCacheKey({ ...base, contentPhrases: ["release coordination"] }));
         assert.notEqual(a, normalizeSearchCacheKey({ ...base, unplacedRemote: true }));
+    });
+});
+
+describe("a deck reads on past the pool's first 150 rows", () => {
+    // 2026-10-17 ("just 14 roles?"): a 13-year PM's pack found 226 roles and read 150 of them. The content lanes claim
+    // most of the first 150, so the 76 it never scored were mostly the title lanes' rows: his own kind of role.
+    const q = formatQuotedOrQuery(["Product Manager", "Product Owner"]);
+    async function page(limit: number) {
+        mock.method(globalThis, "fetch", async () => jsonResponse(200, { hits: [], totalHits: 0 }));
+        await resolveCompanyIntent(q);
+        mock.reset();
+        mock.method(globalThis, "fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+            if (String(input).includes("/indexes/jobs/search") && init?.method === "POST") {
+                const body = JSON.parse(String(init.body)) as { q: string };
+                // Two lanes find each content row, so all 200 are strong: more than the 110 content places.
+                if (body.q === "release coordination" || body.q === "effort estimation") return jsonResponse(200, { hits: many("ca", 100), totalHits: 100 });
+                if (body.q === "incident command" || body.q === "backlog grooming") return jsonResponse(200, { hits: many("cb", 100), totalHits: 100 });
+                if (/product manager/i.test(body.q)) return jsonResponse(200, { hits: many("pm", 150), totalHits: 150 });
+                if (/product owner/i.test(body.q)) return jsonResponse(200, { hits: many("po", 150), totalHits: 150 });
+            }
+            return jsonResponse(200, { hits: [], totalHits: 0 });
+        });
+        const contentPhrases = ["release coordination", "effort estimation", "incident command", "backlog grooming"];
+        const result = await searchMeili({ q, sort: "relevance", fromResume: true, contentPhrases, limit, offset: 0 });
+        mock.reset();
+        return result;
+    }
+
+    it("reads FOR_YOU_READ_DEPTH (300) rows: the first 150 composed as before, then the title lanes' next rows", async () => {
+        assert.equal(FOR_YOU_READ_DEPTH, 300);
+        const shallow = await page(FOR_YOU_POOL_WINDOW);
+        const deep = await page(FOR_YOU_READ_DEPTH);
+        assert.equal(deep.total, 500);
+        assert.deepEqual(ids(deep.hits.slice(0, FOR_YOU_POOL_WINDOW)), ids(shallow.hits), "the first 150 are the same pool, its title floor kept");
+        assert.equal(shallow.hits.filter((j) => j.id.startsWith("c")).length, FOR_YOU_POOL_WINDOW - TITLE_POOL_FLOOR, "the content lanes claim most of the first 150");
+        const past = deep.hits.slice(FOR_YOU_POOL_WINDOW);
+        assert.equal(past.length, 150);
+        assert.ok(past.every((j) => j.id.startsWith("pm") || j.id.startsWith("po")), "past the first 150: the title lanes' next rows");
+        assert.equal(new Set(ids(deep.hits)).size, deep.hits.length, "no row twice");
     });
 });

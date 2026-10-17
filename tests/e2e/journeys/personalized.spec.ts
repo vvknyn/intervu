@@ -392,9 +392,10 @@ test("replacing the résumé refreshes the pack at once, with no reload: a TAM's
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a pack reaches a month of roles: the deck asks for 150 résumé-ranked rows, not the newest 60", { tag: ["@J-JOBS-129"] }, async ({ page, diagnostics }) => {
+test("a pack reaches a month of roles: the deck asks for 300 résumé-ranked rows, not the newest 60", { tag: ["@J-JOBS-129"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-13: the index orders a broad role query newest first, so 60 rows held only ~2 weeks
   // of PM roles and missed Thumbtack's 29-day-old PM, Growth, which other portals recommended.
+  // 2026-10-17: 150 read 150 of a 226-role pack; the deck now reads 300 (J-JOBS-151).
   await returningVisitor(page);
   await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
   await seedResume(page);
@@ -410,7 +411,58 @@ test("a pack reaches a month of roles: the deck asks for 150 résumé-ranked row
     return answerListSearch(route, { hits: [tam], total: 1, backend: "meilisearch", configured: true, searchId: "journey-depth" });
   });
   await openPack(page);
-  await expect.poll(() => Math.max(0, ...limits), { timeout: 30_000 }).toBe(150);
+  await expect.poll(() => Math.max(0, ...limits), { timeout: 30_000 }).toBe(300);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * J-JOBS-151 — Vivek, 2026-10-17: "why are the matches so thin...just 14 roles?" His pack's search found 226 roles and
+ * the hub and deck read the first 150; the 76 they never scored were mostly his own kind of role. Now they read 300. The
+ * search here found 226 roles (answered in the browser by the rows each request asks for): Technical Account Manager
+ * roles at places 11, 161 and 200, the rest a different kind of role. All three are counted on the hub and dealt in the
+ * deck, and the left-out line counts all 226. The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a pack reads every role its search found up to 300: roles found past the first 150 are counted and dealt", { tag: ["@J-JOBS-151"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const found = Array.from({ length: 226 }, (_, i) =>
+    // One employer each, so no two are the same opening listed twice (`clusterJobs`) and the list reads all 226.
+    posting(`bbbbbbbb-0000-4000-8000-${String(i).padStart(12, "0")}`, "Registered Nurse", `Lakeside Health ${i}`, "mid", 2),
+  );
+  const fits = { 10: "Fernway", 160: "Beacon Cloud", 199: "Kestrel IO" } as Record<number, string>;
+  for (const [at, company] of Object.entries(fits)) found[Number(at)] = posting(`bbbbbbbb-1111-4000-8000-${String(at).padStart(12, "0")}`, "Technical Account Manager", company, "senior", 3);
+  const limits: number[] = [];
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number; limit?: number };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    limits.push(parsed.limit ?? 0);
+    const hits = found.slice(0, parsed.limit ?? 20);
+    return answerListSearch(route, { hits, total: found.length, backend: "meilisearch", configured: true, searchId: "journey-read-depth" });
+  });
+
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("3 roles", { timeout: 90_000 });
+  const hubLeftOut = page.getByTestId("hub-left-out-line");
+  await expect(hubLeftOut).toContainText("Left out of the 226 roles found:");
+  await expect(hubLeftOut).not.toContainText("first");
+  expect(Math.max(...limits), "the hub's last count probe reads 300").toBe(300);
+
+  await openPack(page);
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  await expect(position).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  const cards = [await front.getAttribute("data-job-id")];
+  for (const n of [2, 3]) {
+    await page.getByTestId("for-you-next").click();
+    await expect(position).toHaveText(`Role ${n} of 3`);
+    cards.push(await front.getAttribute("data-job-id"));
+  }
+  expect(cards.sort()).toEqual(Object.keys(fits).map((at) => `bbbbbbbb-1111-4000-8000-${at.padStart(12, "0")}`).sort());
+  await expect(page.getByTestId("for-you-left-out")).not.toContainText("first");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
