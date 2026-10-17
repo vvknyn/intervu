@@ -60,7 +60,7 @@ describe('stated roles: typos and evidence', () => {
     it('a stated mid beside a long led career retrieves and fits Senior', () => {
         const signals = resolveCandidateSignals(TAM_PO, STATED);
         assert.equal(signals.seniority.value, 'senior');
-        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior']);
+        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior', 'lead']);
     });
 });
 
@@ -109,7 +109,7 @@ describe('a senior candidate gets mid-level roles too', async () => {
     const score = (j: ReturnType<typeof job>) => scoreJobAgainstResume(TAM_PO, j, signals)!;
 
     it('retrieves mid and senior', () => {
-        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior']);
+        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior', 'lead']);
     });
 
     it('a mid-level role fits: same seniority score as a senior one, not capped under Good', () => {

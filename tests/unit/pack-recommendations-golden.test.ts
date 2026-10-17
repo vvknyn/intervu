@@ -61,7 +61,7 @@ describe('what each golden résumé pack searches for', () => {
             assert.deepEqual(filters.facets.location_country, ['Canada']);
             assert.equal(resolveCandidateSignals(resume, null).seniority.value, 'senior');
             // Vivek, 2026-10-13: the other portals' picks were all Senior, Staff or Head of Product.
-            assert.deepEqual(filters.facets.experience_level, ['mid', 'senior']);
+            assert.deepEqual(filters.facets.experience_level, ['mid', 'senior', 'lead']);
         }
     });
 });

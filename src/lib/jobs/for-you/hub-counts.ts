@@ -46,9 +46,11 @@ export function hubList(
 
 /**
  * Progressive probe page sizes — early partial counts, then climb. The last step is the deck's first page
- * (`FOR_YOU_POOL_WINDOW`), so the roles a tile counts are the ones the deck opens with.
+ * (`FOR_YOU_READ_DEPTH`, pinned equal by a unit test), so the roles a tile counts are the ones the deck opens
+ * with. Each step reads at most about 75 rows it has not read before, so its rows' description terms
+ * (jd-terms.ts, cached once read) are in before their deadline and none is counted on its title alone.
  */
-export const HUB_PROBE_LIMITS = [24, 48, 80, 150] as const;
+export const HUB_PROBE_LIMITS = [24, 48, 80, 150, 225, 300] as const;
 
 /**
  * How long a finished hub probe (and its tile counts) stays good for the same résumé and pack.

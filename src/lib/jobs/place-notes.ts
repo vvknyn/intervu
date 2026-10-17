@@ -22,10 +22,17 @@ import { needsPlaceCheck, PLACE_NOTES_MAX_IDS, readPlaceRestriction, type Resolv
 import { resumeCountriesFromLocation } from "./resume-location";
 import type { PlaceRestriction, PublicJob } from "./types";
 
-/** How long a search waits for its rows' description places before it answers without them. */
+/**
+ * How long a search waits for its rows' description places before it answers without them. A résumé-built search
+ * waits as long as its terms read (`SEARCH_JD_READ_DEADLINE_MS`), which runs beside it, so it is no slower.
+ */
 export const SEARCH_PLACE_READ_DEADLINE_MS = 250;
-/** The most rows one search reads descriptions for (the hub's deepest count probe is 120). */
-export const SEARCH_PLACE_READ_MAX_IDS = 120;
+/**
+ * The most rows one search reads descriptions for: as many as a pack's list reads (`FOR_YOU_READ_DEPTH`). Only rows
+ * that name no single country are read, so a pack's remote roles that name no country, listed after its placed
+ * ones, are read too. At 120 the ones past it stayed "country not stated" even when their posting said Canada.
+ */
+export const SEARCH_PLACE_READ_MAX_IDS = 300;
 
 /** A city or region name to the canonical country it clearly sits in ("Bengaluru" → India; "Cambridge" → none). */
 export function gazetteerPlace(gazetteer: Gazetteer): ResolvePlace {

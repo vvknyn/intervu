@@ -14,6 +14,7 @@ import type { AgentPreferences } from "@/lib/agent/preferences";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { pickToday, placeCheckIds, todayLeftOut, withPlaceNotes, type TodayRole } from "@/lib/jobs/for-you/today";
 import { MAX_LATE_PLACE_READS, SEARCH_PLACE_READ_MAX_IDS, withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
+import { FOR_YOU_READ_DEPTH } from "@/lib/jobs/for-you/pack-filters";
 import { needsPlaceCheck, nextPlaceCheckIds, OPEN_ANYWHERE, readPlaceRestriction } from "@/lib/jobs/place-restriction";
 import { jobCountries, placeNamed, titlePlace } from "@/lib/jobs/resume-location";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -292,10 +293,12 @@ describe("every search page arrives with its rows' description places", () => {
     });
 
     it("reads at most a deep page's worth, and nothing when every row names a place", async () => {
-        const deep = Array.from({ length: 200 }, (_, i) => remote("Technical Account Manager", { id: `d${i}` }));
+        const deep = Array.from({ length: 400 }, (_, i) => remote("Technical Account Manager", { id: `d${i}` }));
         let count = 0;
         await withPlaceRestrictions(deep, { read: async (ids) => ((count = ids.length), {}) });
         assert.equal(count, SEARCH_PLACE_READ_MAX_IDS);
+        // As deep as a pack's list reads: its remote roles that name no country sit last, past row 120 (2026-10-17).
+        assert.equal(SEARCH_PLACE_READ_MAX_IDS, FOR_YOU_READ_DEPTH);
         let called = false;
         await withPlaceRestrictions([page[2]!, page[3]!], { read: async () => ((called = true), {}) });
         assert.equal(called, false);

@@ -16,7 +16,11 @@ import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
 export const SEMANTIC_DEADLINE_MS = 1500;
-export const SEMANTIC_MAX_IDS = 150;
+/**
+ * The most rows one search reads the meaning of: every row a pack's list reads (`FOR_YOU_READ_DEPTH`). At 150, once
+ * the lists read 300 (2026-10-17), rows 151 to 300 were scored on words alone beside rows that also read meaning.
+ */
+export const SEMANTIC_MAX_IDS = 300;
 /** The sidecar's address, or "" when none is configured: with none, a search does not look for one (`withSemanticFit`). */
 const embedUrl = () => (process.env.VELAI_EMBED_URL ?? "").trim().replace(/\/+$/, "");
 

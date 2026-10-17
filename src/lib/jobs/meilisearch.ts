@@ -1404,8 +1404,9 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
             weak: content ? keepWithinSenior(content.placed.weak) : [],
             titleLanes: lanes.map((lane, i) => applyRelevanceQualityReranking(lane, fitPhrases[i] ?? p.q ?? "")),
             unplaced: searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : [],
-            // The deck's first page is `FOR_YOU_POOL_WINDOW` rows; a later page slices the same composed list.
-            window: offset === 0 ? limit : FOR_YOU_POOL_WINDOW,
+            // The pool is composed for its first `FOR_YOU_POOL_WINDOW` rows (a smaller first page, the same shares);
+            // a deeper first page (`FOR_YOU_READ_DEPTH`) or a later page reads on into the same composed list.
+            window: offset === 0 ? Math.min(limit, FOR_YOU_POOL_WINDOW) : FOR_YOU_POOL_WINDOW,
           })
         : [...unique].sort((a, b) => compareJobsBySort(a, b, resolveEffectiveSort(p)));
       return {
@@ -1661,7 +1662,7 @@ function singleTitlePhrase(q: string | undefined): string[] {
 export const CONTENT_LANE_LIMIT = 100;
 /** How many rows each lane for roles that name no country reads. */
 export const UNPLACED_REMOTE_LANE_LIMIT = 100;
-/** The rows a deck's first page reads (JobsContent's `FOR_YOU_PAGE`): the window the pool is composed for. */
+/** The window the pool is composed for: its first 150 rows. A deck reads on past it (`FOR_YOU_READ_DEPTH`, pack-filters.ts) into the title lanes' next rows. */
 export const FOR_YOU_POOL_WINDOW = 150;
 /** The most roles that name no country a deck pools beside the placed ones. */
 export const UNPLACED_REMOTE_POOL = 20;
@@ -1710,9 +1711,12 @@ export function voteContentLanes(lanes: readonly (readonly PublicJob[])[]): { st
  *    a method, a domain) only counts if it is rare: the lane read every posting that mentions it
  *    (`CONTENT_LANE_LIMIT`).
  *  - `unplaced`, when `unplacedRemote`: remote roles that name no country, city or state, which the country
- *    filter leaves out of every other lane (`REMOTE_ANYWHERE_CLAUSE`), found by the first two content
- *    phrases of two words and by the first title phrase. A deck lists them last with the caveat ("Remote,
- *    country not stated"); Today and the daily picks do not ask for them.
+ *    filter leaves out of every other lane (`REMOTE_ANYWHERE_CLAUSE`), found by each title phrase and by the
+ *    first two content phrases of two words. Their posting text says where they hire (`withPlaceRestrictions`):
+ *    one open to the person's country or anywhere ranks like any placed role, one for another country is left
+ *    out, and one that says nowhere is listed last with the caveat ("Remote, country not stated"). Today and
+ *    the daily picks do not ask for them. Only the first title phrase used to look, so a pack for Product
+ *    Manager and Product Owner never found a no-country Product Owner role (2026-10-17).
  * Scoring against the whole résumé happens afterwards, as for every lane.
  */
 async function fetchContentLaneHits(
@@ -1750,7 +1754,7 @@ async function fetchContentLaneHits(
   const noCountry: JobSearchParams = { ...p, places: undefined, facets: { ...p.facets, location_country: undefined } };
   const remoteNoCountry = `(${REMOTE_ANYWHERE_CLAUSE})`;
   const unplacedLanes = Promise.all([
-    ...titlePhrases.slice(0, 1).map((phrase) =>
+    ...titlePhrases.map((phrase) =>
       run(phrase, noCountry, UNPLACED_REMOTE_LANE_LIMIT, { companyScoped, titleScoped: fitPhraseTitleScoped(phrase) }, remoteNoCountry),
     ),
     ...phrases.filter((phrase) => !isWord(phrase)).slice(0, 2).map((phrase) => run(phraseQuery(phrase), noCountry, UNPLACED_REMOTE_LANE_LIMIT, wholeDoc, remoteNoCountry)),
@@ -1772,7 +1776,9 @@ async function fetchContentLaneHits(
  *    (40 of 150) however much the content lanes found, and every place the content lanes did not use;
  *  - up to `UNPLACED_REMOTE_POOL` places (20) for remote roles that name no country, listed last by the deck.
  * A smaller window (the hub's first probe steps, Today) gives the same shares of its places, not the same
- * number. A later page slices the same composed list: the title lanes' rows past the window follow.
+ * number. A later page slices the same composed list: the title lanes' rows past the window follow, then the
+ * content lanes' rows, then the rest of the roles that name no country. Those used to stop at the 20: a deck
+ * reading 300 rows never weighed the others, even ones whose posting says they hire in Canada (2026-10-17).
  */
 export function composeContentFirstPool(args: {
   content: readonly PublicJob[];
@@ -1802,10 +1808,10 @@ export function composeContentFirstPool(args: {
   const spare = Math.max(0, args.window - fromContent.length - fromTitles.length - fromUnplaced.length);
   const later = [...args.content.slice(contentQuota), ...weak.slice(fromWeak.length)].filter((job) => !titleIds.has(job.id) && !unplacedIds.has(job.id));
   const moreContent = later.slice(0, spare);
-  const usedIds = new Set([...titleIds, ...moreContent.map((job) => job.id)]);
-  // Pages after the first: the title lanes' next rows, then the content rows still unplaced.
+  const usedIds = new Set([...contentIds, ...unplacedIds, ...titleIds, ...moreContent.map((job) => job.id)]);
+  // Pages after the first: the title lanes' next rows, then the content rows not listed yet, then the no-country roles past their quota.
   const tail: PublicJob[] = [];
-  for (const job of [...rest.slice(fromTitles.length), ...later.slice(spare)]) {
+  for (const job of [...rest.slice(fromTitles.length), ...later.slice(spare), ...args.unplaced]) {
     if (usedIds.has(job.id)) continue;
     usedIds.add(job.id);
     tail.push(job);

@@ -360,7 +360,7 @@ import { deckListFor, orderForYouJobsByBand, sortByFit, tuneRank, withListRemova
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
 import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
 import { hubChipLists, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import {
@@ -778,9 +778,10 @@ const PAGE = 20;
 /**
  * Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). The index orders a
  * broad role query newest first, so 60 rows held only the last ~2 weeks of PM roles and missed fits
- * a month old (Thumbtack's PM, Growth, 2026-10-13). Guests stay windowed by the depth cap.
+ * a month old (Thumbtack's PM, Growth, 2026-10-13); 150 left a 226-role pack's last 76 unscored,
+ * mostly its own titles (2026-10-17). Guests stay windowed by the depth cap.
  */
-const FOR_YOU_PAGE = 150;
+const FOR_YOU_PAGE = FOR_YOU_READ_DEPTH;
 /** Meili `pagination.maxTotalHits` — the deepest reachable result in page mode. */
 const MAX_REACHABLE = 100_000;
 /** How long a ranked list's read of its roles' description places may take
