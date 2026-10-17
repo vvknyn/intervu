@@ -232,7 +232,8 @@ export const FIT_FIELDS_NOTE =
     "is past senior: Stretch for anyone whose résumé shows no role at that rank, and left out of the lists velai " +
     "recommends (For You, Today, daily picks). " +
     "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
-    "Intern, Junior, Trainee or Apprentice is entry, however long its dates run), else their years in that line of work. " +
+    "Intern, Junior, Trainee, Apprentice or an opening Associate, as in Associate Product Manager, is entry, however long " +
+    "its dates run), else their years in that line of work. " +
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
     "Store Manager and the like) is also Stretch when no role or line on their résumé shows them managing people; " +
     "leading a team's work (Team Lead) doesn't count. " +

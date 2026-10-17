@@ -572,6 +572,27 @@ test("a senior pack asks for its title's lead name and deals a role titled that 
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+/**
+ * J-JOBS-155 — 2026-10-17, Vivek's Search screenshot: Rezdy's "Associate Product Manager" read Strong for his 13-year
+ * senior résumé. An opening "Associate" is the entry rung of the role it names, so the role is two levels below a
+ * senior résumé and out of its lists, whatever level the listing gives. The postings are CONSTRUCTED for this journey.
+ */
+test("a senior résumé's pack leaves out a role titled Associate, even when it is listed mid-level", { tag: ["@J-JOBS-155"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const associate = posting("ffffffff-0000-4000-8000-000000000001", "Associate Technical Account Manager", "Fernway", "mid", 1);
+  const own = posting("ffffffff-0000-4000-8000-000000000002", "Technical Account Manager", "Beacon Cloud", "senior", 2);
+  await withAccountApplications(page, []);
+  await answerResumeSearch(page, [associate, own], "journey-associate");
+  await openPack(page);
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 1", { timeout: 60_000 });
+  await expect(stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]')).toHaveAttribute("data-job-id", own.id);
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${associate.id}"]`)).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("a pack never deals a Staff, Principal or Director role to a résumé that shows none, and asks the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
   // senior, so these read senior and fitted; a role past Senior is now left out of the pool and of the deck.

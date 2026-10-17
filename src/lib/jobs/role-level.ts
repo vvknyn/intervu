@@ -7,12 +7,22 @@
 import type { Seniority } from "@/lib/jobs/resume-match";
 import type { ResumeData } from "@/types/resume";
 
-/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate", "Co-op student" read entry. */
+/** A rank word in a title: "Senior", "Lead", "Director" and up read senior; "Junior", "Intern", "Graduate", "Co-op student" (and an opening "Associate", `TITLE_ASSOCIATE`) read entry. */
 const TITLE_SENIOR = /\b(?:senior(?!s|\s+(?:care|living|home|homes|centre|center|services|citizens?)\b)|sr|lead(?!\s+gen)|principal|director|head of|vice president|vp|chief)\b/i;
 const TITLE_ENTRY = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|graduate|trainee|apprentice|co-?op (?:student|placement|term|position))\b/i;
 
 /** The entry words that mean the role itself is entry level. "Graduate" can name a degree ("Graduate Studies Coordinator"), so it is not one. */
 const TITLE_ENTRY_EXPLICIT = /\b(?:junior|jr|entry[- ]level|intern|internship|new grad|trainee|apprentice)\b/i;
+
+/**
+ * "Associate" opening a title ranks it below the role it names: "Associate Product Manager", "Associate Software
+ * Engineer", "Associate Consultant" are the entry rungs of those lines of work. Rezdy's "Associate Product Manager" read
+ * Strong for a 13-year PM (2026-10-17). A rank word above it is read first ("Associate Director", "Associate Vice
+ * President", `TITLE_SENIOR`), and the titles where Associate is a rank of its own are read as written: "Associate
+ * Partner", "Associate Professor", "Associate Dean", a lawyer's "Associate Attorney", "Associate Manager", and an
+ * "Associate, Investment Banking" (no title word follows it).
+ */
+const TITLE_ASSOCIATE = /^\W*associate\s+(?!(?:partner|professor|dean|attorney|lawyer|counsel|general counsel|solicitor|manager|nurse manager)\b)[a-z]/i;
 
 /**
  * A title that opens with "Manager" and then names what is managed: "Manager,
@@ -38,6 +48,7 @@ export function titleLevel(title: string | null | undefined): TitleLevel | null 
     if (TITLE_SENIOR.test(text)) return { level: "senior" };
     if (TITLE_RUNS_TEAM.test(text)) return { level: "senior", runsTeam: true };
     if (TITLE_ENTRY.test(text)) return { level: "entry", ...(TITLE_ENTRY_EXPLICIT.test(text) ? { explicit: true as const } : {}) };
+    if (TITLE_ASSOCIATE.test(text)) return { level: "entry", explicit: true };
     return null;
 }
 
