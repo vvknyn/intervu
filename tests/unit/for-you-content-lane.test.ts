@@ -182,6 +182,23 @@ describe("composeContentFirstPool", () => {
         assert.deepEqual(ids(pool.slice(window, window + 3)), ids(titles.slice(TITLE_POOL_FLOOR, TITLE_POOL_FLOOR + 3)));
     });
 
+    it("keeps the roles that name no country past its 20 places, after the title and content lanes' rows, so a deeper read weighs them", () => {
+        const content = many("c", 100);
+        const titles = many("t", 100);
+        const unplaced = many("u", 60);
+        const pool = composeContentFirstPool({ content, titleLanes: [titles], unplaced, window });
+        assert.equal(pool.length, 260, "nothing found is dropped");
+        assert.equal(new Set(ids(pool)).size, pool.length, "no row twice");
+        assert.equal(first(pool, "u").length, UNPLACED_REMOTE_POOL, "still 20 in the first 150");
+        const tail = pool.slice(window);
+        assert.deepEqual(ids(tail.slice(-40)), ids(unplaced.slice(UNPLACED_REMOTE_POOL)), "the other 40 come last, in their lanes' order");
+        assert.ok(tail.slice(0, -40).every((j) => !j.id.startsWith("u")), "after every placed row");
+        // A role the no-country lanes and a placed lane both found is listed once, in its placed row.
+        const shared = composeContentFirstPool({ content, titleLanes: [titles], unplaced: [...unplaced, titles[99]!], window });
+        assert.equal(ids(shared).filter((id) => id === "t99").length, 1);
+        assert.ok(ids(shared).indexOf("t99") < ids(shared).indexOf("u20"));
+    });
+
     it("roles several lanes found take the content places first; roles only one lane found take at most 20 of them", () => {
         const strong = many("s", 50);
         const weak = many("k", 200);
@@ -308,10 +325,13 @@ describe("searchMeili content lanes", () => {
         assert.ok(!rows.includes("common-only"), `a word more than ${CONTENT_LANE_LIMIT} postings mention is read through arbitrary rows and does not: ${rows.join(" | ")}`);
     });
 
-    it("looks for the roles that name no country with the title phrase and the two-word phrases only, never a single word", async () => {
+    it("looks for the roles that name no country with each title phrase and the two-word phrases only, never a single word", async () => {
         const asked = await run({ q, sort: "relevance", fromResume: true, contentPhrases: ["release coordination", "n8n"], unplacedRemote: true, limit: 150, offset: 0, ...canada });
         const bare = asked.calls.filter((c) => /location_country IS NULL/.test(c.filter.join(" ")));
-        assert.ok(bare.length >= 2);
+        const asks = bare.map((c) => c.q.replace(/"/g, ""));
+        // Every title phrase, not only the first: a pack for Product Manager and Product Owner looks for both.
+        assert.ok(asks.includes("Product Manager") && asks.includes("Product Owner"), asks.join(" | "));
+        assert.ok(asks.includes("release coordination"));
         assert.ok(bare.every((c) => c.q.replace(/"/g, "") !== "n8n"));
     });
 

@@ -294,8 +294,10 @@ export const MCP_TOOL_SPECS = {
             "first, and your titles fill what is left): a role whose title your résumé never names but whose description asks for what your résumé " +
             "shows is listed (group \"adjacent\", Strong when the posting is covered), even when the title is " +
             "another line of work's, once most of the skills it requires are on your résumé; the title only " +
-            "breaks a tie between equal fits, it never filters. A remote role that " +
-            "names no country is listed last with a note to check where it hires. It lists only roles you could " +
+            "breaks a tie between equal fits, it never filters. A remote role that names no country is " +
+            "read for where its posting says it hires: one open to your country or anywhere ranks like any other, one " +
+            "for another country is left out, and one that says nowhere is listed last with a note to check where it " +
+            "hires. It lists only roles you could " +
             "take: it leaves out roles posted more than 30 days ago (by the older of the posted date and the date " +
             "velai first saw the posting, so a posting an employer re-dated stays old; the age is in posted_at and " +
             "first_seen_at), roles " +
