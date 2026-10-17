@@ -88,6 +88,8 @@ describe("reading a place from a title or a place field", () => {
         assert.deepEqual(titlePlace("CSM (Remote - Germany)")?.countries, ["Germany"]);
         assert.deepEqual(titlePlace("Support Engineer - Anywhere in the UK")?.countries, ["United Kingdom"]);
         assert.equal(titlePlace("Customer Success Manager - EMEA")?.label, "EMEA");
+        assert.deepEqual(titlePlace("Product Owner (m/w/d)")?.countries, ["Germany", "Austria", "Switzerland"]);
+        assert.deepEqual(titlePlace("Chef de Produit (H/F)")?.countries, ["France"]);
         assert.deepEqual(jobCountries(mkJob("a", { location: "Remote (US only)" })), ["United States"]);
         assert.deepEqual(jobCountries(mkJob("b", { location: "US-based" })), ["United States"]);
         assert.deepEqual(jobCountries(mkJob("c", { location: "Remote India" })), ["India"]);

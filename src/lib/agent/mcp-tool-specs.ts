@@ -232,7 +232,8 @@ export const FIT_FIELDS_NOTE =
     "is past senior: Stretch for anyone whose résumé shows no role at that rank, and left out of the lists velai " +
     "recommends (For You, Today, daily picks). " +
     "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
-    "Intern, Junior, Trainee or Apprentice is entry, however long its dates run), else their years in that line of work. " +
+    "Intern, Junior, Trainee, Apprentice or an opening Associate, as in Associate Product Manager, is entry, however long " +
+    "its dates run), else their years in that line of work. " +
     "A role whose title manages people (\"Manager, X\", Director, Head of, VP, Supervisor, Engineering Manager, " +
     "Store Manager and the like) is also Stretch when no role or line on their résumé shows them managing people; " +
     "leading a team's work (Team Lead) doesn't count. " +
@@ -291,7 +292,8 @@ export const MCP_TOOL_SPECS = {
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
             "pipeline behind the site's For-you view. It finds roles by what the posting asks for, not only by " +
             "title (the search behind it looks for the postings that mention the duties and the tools your résumé lists " +
-            "first, and your titles fill what is left): a role whose title your résumé never names but whose description asks for what your résumé " +
+            "first, and your titles fill what is left; a senior résumé's titles include their lead name, such as Product Lead beside " +
+            "Product Manager, read as the same line of work): a role whose title your résumé never names but whose description asks for what your résumé " +
             "shows is listed (group \"adjacent\", Strong when the posting is covered), even when the title is " +
             "another line of work's, once most of the skills it requires are on your résumé; the title only " +
             "breaks a tie between equal fits, it never filters. A remote role that names no country is " +

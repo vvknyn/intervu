@@ -34,6 +34,8 @@ import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import { listedPastSenior, titlePastSenior } from "./role-level";
+import { payPlace } from "./pay-place";
+import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause } from "./unknown-inclusive-facets";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
@@ -1760,7 +1762,19 @@ async function fetchContentLaneHits(
     ...phrases.filter((phrase) => !isWord(phrase)).slice(0, 2).map((phrase) => run(phraseQuery(phrase), noCountry, UNPLACED_REMOTE_LANE_LIMIT, wholeDoc, remoteNoCountry)),
   ]);
   const [placedRows, lanes] = await Promise.all([placed, unplacedLanes]);
-  return { placed: placedRows, unplaced: interleaveFitPhraseLanes(lanes.map((lane) => lane.hits)) };
+  const wantedCountries = new Set(p.facets?.location_country ?? []);
+  const unplacedOpen = (hit: PublicJob): boolean => {
+    if (wantedCountries.size === 0) return true;
+    const named =
+      jobCountries(hit).length > 0
+        ? jobCountries(hit)
+        : (titlePlace(hit.title)?.countries ?? (payPlace(hit.salary_currency)?.countries ?? []));
+    return named.length === 0 || named.some((c) => wantedCountries.has(c));
+  };
+  return {
+    placed: placedRows,
+    unplaced: interleaveFitPhraseLanes(lanes.map((lane) => lane.hits.filter(unplacedOpen))),
+  };
 }
 
 /**
@@ -1804,14 +1818,14 @@ export function composeContentFirstPool(args: {
   // Every place the content and no-country lanes did not use goes to the title lanes' next rows...
   const fromTitles = rest.slice(0, Math.max(0, args.window - fromContent.length - fromUnplaced.length));
   const titleIds = new Set(fromTitles.map((job) => job.id));
-  // ...and when the title lanes have too few rows for them (a niche résumé), to the content lanes' next rows.
+  // ...and when the title lanes have too few rows for them (a niche résumé), to the strong content lanes' next rows.
   const spare = Math.max(0, args.window - fromContent.length - fromTitles.length - fromUnplaced.length);
-  const later = [...args.content.slice(contentQuota), ...weak.slice(fromWeak.length)].filter((job) => !titleIds.has(job.id) && !unplacedIds.has(job.id));
+  const later = args.content.slice(contentQuota).filter((job) => !titleIds.has(job.id) && !unplacedIds.has(job.id));
   const moreContent = later.slice(0, spare);
   const usedIds = new Set([...contentIds, ...unplacedIds, ...titleIds, ...moreContent.map((job) => job.id)]);
-  // Pages after the first: the title lanes' next rows, then the content rows not listed yet, then the no-country roles past their quota.
+  // Pages after the first: the title lanes' next rows, then the strong content rows not listed yet, then the no-country roles past their quota, then remaining one-lane weak rows.
   const tail: PublicJob[] = [];
-  for (const job of [...rest.slice(fromTitles.length), ...later.slice(spare), ...args.unplaced]) {
+  for (const job of [...rest.slice(fromTitles.length), ...later.slice(spare), ...args.unplaced, ...weak.slice(fromWeak.length)]) {
     if (usedIds.has(job.id)) continue;
     usedIds.add(job.id);
     tail.push(job);

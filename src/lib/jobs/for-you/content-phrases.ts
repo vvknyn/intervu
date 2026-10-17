@@ -31,6 +31,8 @@ const BROAD = new Set([
     "operational", "delivery", "process", "processes", "reporting", "research", "design", "service", "services", "systems", "system",
     "technical", "technology", "platform", "product", "products", "program", "project", "projects", "client", "clients", "customer",
     "customers", "data", "software", "solutions", "solution", "engineering", "leadership", "lead", "senior", "junior", "global",
+    "infrastructure", "optimization", "architecture", "implementation", "configuration", "performance", "deprecation", "governance",
+    "stakeholder", "stakeholders", "communication", "communications", "integration", "integrations", "transformation", "transformations",
 ]);
 
 /** A pair ending in one of these names a job ("product owner", "account manager"), not what the person does: the title lanes carry it. */
@@ -44,13 +46,17 @@ const WORD = /[^a-z0-9+#.]+/;
 const words = (text: string): string[] => text.toLowerCase().split(WORD).map((w) => w.replace(/^[.]+|[.]+$/g, "")).filter(Boolean);
 const stem = (word: string) => word.replace(/(?:es|s)$/, "");
 
-const clean = (w: string) => w.length >= 3 && !/^\d+$/.test(w) && !isGenericJdWord(w);
+const clean = (w: string) => w.length >= 3 && !/^\d/.test(w) && !isGenericJdWord(w);
+
+/** A domain or URL written in a role field ("velai.app"): a side project, not an employer role title. */
+const DOMAIN_ROLE = /^[a-z0-9-]+\.[a-z]{2,6}$/i;
 
 /**
  * Two-word phrases in order of how much the résumé leans on them: every run of two adjacent content words
  * (no function or job-ad word between them) in its summary, roles, projects and skills, counted across the
- * whole résumé, with a skill the person listed counting double. A pair repeated across roles ("release
- * coordination", "api migration") is what they actually do; one that appears once is a passing mention.
+ * whole résumé, with a skill the person listed counting double and a pair corroborated by their work prose
+ * gaining an extra point. A pair repeated across roles ("release coordination", "api migration") is what they
+ * actually do; one that appears once in a trailing side project is a passing mention.
  */
 function rankedPairs(resume: ResumeData, skip: ReadonlySet<string>): { pair: string; weight: number }[] {
     const counts = new Map<string, { n: number; first: number }>();
@@ -71,15 +77,29 @@ function rankedPairs(resume: ResumeData, skip: ReadonlySet<string>): { pair: str
             add(`${a} ${b}`, weight);
         }
     };
-    for (const group of resume.competencies ?? []) for (const skill of group?.skills ?? []) scan((skill ?? "").replace(/[&/(),]/g, " . "), 2);
-    const prose: string[] = [
-        resume.generatedSummary ?? "",
-        ...(resume.experience ?? []).map((e) => e.description ?? ""),
-        ...(resume.projects ?? []).map((e) => e.description ?? ""),
-    ];
+    for (const group of resume.competencies ?? []) {
+        for (const skill of group?.skills ?? []) {
+            const normalized = (skill ?? "")
+                .replace(/[(),]/g, " . ")
+                .replace(/^(\s*[a-z0-9+#.\-]+\s*)[&/](\s*[a-z0-9+#.\-]+\s*)$/i, "$1 $2")
+                .replace(/[&/]/g, " . ");
+            scan(normalized, 2);
+        }
+    }
+    const workEntries = (resume.experience ?? []).filter((e) => !DOMAIN_ROLE.test((e?.role ?? "").trim()));
+    const roleDescriptions =
+        workEntries.length > 0
+            ? workEntries.map((e) => e.description ?? "")
+            : [...(resume.experience ?? []).map((e) => e.description ?? ""), ...(resume.projects ?? []).map((e) => e.description ?? "")];
+    const prose: string[] = [resume.generatedSummary ?? "", ...roleDescriptions];
+    const proseStems = new Set(prose.flatMap(words).map(stem));
     for (const text of prose) for (const sentence of text.split(/[\n.;:!?()]+/)) scan(sentence.replace(/[&/,]/g, " . "), 1);
     return [...counts.entries()]
-        .map(([pair, { n, first }]) => ({ pair, weight: n, first }))
+        .map(([pair, { n, first }]) => {
+            const [a, b] = pair.split(" ") as [string, string];
+            const corroborated = proseStems.has(stem(a)) && proseStems.has(stem(b)) ? 1 : 0;
+            return { pair, weight: n + corroborated, first };
+        })
         .sort((x, y) => y.weight - x.weight || x.first - y.first);
 }
 

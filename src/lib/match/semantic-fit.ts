@@ -11,6 +11,7 @@
 import { createHash } from "node:crypto";
 import { buildJobSearchUrl } from "@/lib/jobs/get-job";
 import { host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
+import { splitPackSections } from "@/lib/jobs/for-you/pack-sections";
 import { SEMANTIC_COS_HI, SEMANTIC_COS_LO } from "@/lib/match/semantic-scale";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -26,12 +27,26 @@ const embedUrl = () => (process.env.VELAI_EMBED_URL ?? "").trim().replace(/\/+$/
 
 const sha = (s: string) => createHash("sha1").update(s).digest("hex").slice(0, 12);
 
-/** The résumé as one passage: what they do, what they did, what they know. */
+/** The résumé as one passage: what they do, what they know, what they did (skills before full role prose so 512-token encoders always read them). */
 export function resumeEmbedText(resume: ResumeData): string {
     const p = resume.profile ?? ({} as ResumeData["profile"]);
     const roles = (resume.experience ?? []).slice(0, 6).map((e) => `${e.role ?? ""} at ${e.company ?? ""}. ${e.description ?? ""}`);
     const skills = (resume.competencies ?? []).flatMap((c) => c.skills ?? []).slice(0, 40).join(", ");
-    return [p?.profession, resume.generatedSummary, ...roles, skills ? `Skills: ${skills}` : ""].filter(Boolean).join("\n").slice(0, 4000);
+    return [p?.profession, resume.generatedSummary, skills ? `Skills: ${skills}` : "", ...roles].filter(Boolean).join("\n").slice(0, 4000);
+}
+
+/** Put a posting's responsibilities and requirements ahead of company intro boilerplate and fine print so a 512-token embedding model reads the work first. */
+function jobEmbedPassage(raw: string): string {
+    if (raw.length < 400) return raw.slice(0, 3000);
+    const sections = splitPackSections(raw);
+    const toText = (blocks: typeof sections.about) =>
+        blocks
+            .filter((b) => !b.fine)
+            .map((b) => [b.lead, b.text, ...(b.items ?? [])].filter(Boolean).join("\n"))
+            .join("\n")
+            .trim();
+    const core = [toText(sections.responsibilities), toText(sections.requirements), toText(sections.about)].filter(Boolean).join("\n");
+    return (core || raw).slice(0, 3000);
 }
 
 /** Pure: a cosine from the model as a 0–1 fit (`semantic-scale.ts`). */
@@ -84,7 +99,7 @@ export async function withSemanticFit<T extends PublicJob>(
         ]).finally(() => clearTimeout(timer));
         if (!descriptions) return hits;
         const docs = hits.slice(0, SEMANTIC_MAX_IDS).map((hit) => {
-            const text = `${hit.title} at ${hit.company}.\n${(descriptions[hit.id] ?? hit.description ?? "").slice(0, 3000)}`;
+            const text = `${hit.title} at ${hit.company}.\n${jobEmbedPassage(descriptions[hit.id] ?? hit.description ?? "")}`;
             return { key: `${hit.id}:${sha(text)}`, id: hit.id, text };
         });
         const left = Math.max(300, deadlineMs - (Date.now() - started));

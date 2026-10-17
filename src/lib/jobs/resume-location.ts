@@ -257,7 +257,8 @@ const REGION_NAMES =
  * for a Toronto résumé. The first piece is the role itself and is never read.
  */
 export function titlePlace(title: string | null | undefined): { label: string; countries: string[] } | null {
-    const pieces = (title ?? "")
+    const raw = title ?? "";
+    const pieces = raw
         .split(PLACE_PIECE_SEPARATOR)
         .map((piece) => piece.trim())
         .filter(Boolean)
@@ -265,6 +266,12 @@ export function titlePlace(title: string | null | undefined): { label: string; c
     for (const piece of pieces) {
         const named = placeNamed(piece) ?? territoryPlace(piece);
         if (named) return named;
+    }
+    if (/\((?:m\/w\/d|w\/m\/d|d\/w\/m\*?|f\/m\/d|m\/f\/d)\)/i.test(raw)) {
+        return { label: "DACH", countries: ["Germany", "Austria", "Switzerland"] };
+    }
+    if (/\((?:h\/f|f\/h)\)/i.test(raw)) {
+        return { label: "France", countries: ["France"] };
     }
     return null;
 }
