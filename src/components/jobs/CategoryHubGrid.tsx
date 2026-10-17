@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { WaitState } from "@/components/ui/wait-state";
 import { readPacksProofLoading } from "@/lib/jobs/for-you/packs-proof-loading";
 import { DERIVED_CHIP_CLASS } from "@/components/jobs/for-you/ForYouPack";
+import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { HUB_TILE_FALLBACK_ICON, HUB_TILE_ICON } from "@/components/jobs/hub-tile-icons";
 import { useReturningVisitor } from "@/components/jobs/for-you/TodayHome";
 import { HUB_PACK_CORPUS_COUNT_LOADING } from "@/lib/jobs/for-you/hub-counts";
@@ -270,6 +271,9 @@ export function CategoryHubGrid({
             </ul>
 
             <div className="space-y-1 empty:hidden">{hubStatusLines}</div>
+
+            {/* The Chrome extension, in the tiles' own style: not a list, so it sits under them rather than among them. */}
+            <ExtensionTile />
 
             {footer}
         </section>

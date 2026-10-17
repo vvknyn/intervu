@@ -846,19 +846,10 @@ test("the packs hub and the deck count the same roles and employers in the same 
 });
 
 /**
- * J-JOBS-149 — Vivek, 2026-10-16 ("you're killing me...there used to be 1000s of jobs matched for me...now that card says
- * 14 and when I click the card it says 7", then, over a job board's home with a greeting above a grid of big tiles: "its
- * clean and big and actionable"): the packs hub is a greeting over big tiles, not a row of small chips. Each tile is one
- * whole button with a glyph, its title and the live count in a green chip, in the deck's own words ("14 roles", "14 roles
- * at 7 employers"); two across on a phone, rows of three or four on a desktop; there is no second "Browse all matches" button beside "All your matches"; "Welcome back" is said only
- * when this device's own visit record shows an earlier visit. A tile opens the list its count counts (J-JOBS-148 holds
- * the numbers to the deck; "Added this week" opens the 7-day window and as many roles as its tile counted). The postings are CONSTRUCTED for this journey (no real company or posting).
+ * Fourteen constructed roles at fourteen employers (three posted this week, nine with pay listed), answered in the browser
+ * for every list search: the packs hub's tiles and the deck behind them read their share (J-JOBS-149, J-JOBS-150).
  */
-test("the packs hub is a greeting over big tiles, each with a glyph, a count and a title, and a tile opens its list", { tag: ["@J-JOBS-149"] }, async ({ page, diagnostics }) => {
-  await returningVisitor(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
-  await seedResume(page);
-  await withAccountApplications(page, [], { postedDateSupported: true });
+async function answerHubRoles(page: Page) {
   // Fourteen roles at fourteen employers: three posted this week, nine with pay listed.
   const employers = ["Beacon Cloud", "Orchard CRM", "Harbor Pay", "Northstar Data", "Lumen Works", "Pinecone Labs", "Tidewater AI", "Cobalt Systems", "Juniper Cloud", "Redwood Metrics", "Summit Ledger", "Brightline", "Kestrel Data", "Maple Ridge Tech"];
   const titles = [
@@ -884,6 +875,23 @@ test("the packs hub is a greeting over big tiles, each with a glyph, a count and
           : roles;
     return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-hub-tiles" });
   });
+}
+
+/**
+ * J-JOBS-149 — Vivek, 2026-10-16 ("you're killing me...there used to be 1000s of jobs matched for me...now that card says
+ * 14 and when I click the card it says 7", then, over a job board's home with a greeting above a grid of big tiles: "its
+ * clean and big and actionable"): the packs hub is a greeting over big tiles, not a row of small chips. Each tile is one
+ * whole button with a glyph, its title and the live count in a green chip, in the deck's own words ("14 roles", "14 roles
+ * at 7 employers"); two across on a phone, rows of three or four on a desktop; there is no second "Browse all matches" button beside "All your matches"; "Welcome back" is said only
+ * when this device's own visit record shows an earlier visit. A tile opens the list its count counts (J-JOBS-148 holds
+ * the numbers to the deck; "Added this week" opens the 7-day window and as many roles as its tile counted). The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("the packs hub is a greeting over big tiles, each with a glyph, a count and a title, and a tile opens its list", { tag: ["@J-JOBS-149"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await withAccountApplications(page, [], { postedDateSupported: true });
+  await answerHubRoles(page);
 
   // A first visit on this device: a greeting, never "back".
   await page.goto("/jobs?view=for-you");
@@ -963,6 +971,73 @@ test("the packs hub is a greeting over big tiles, each with a glyph, a count and
   expect(new URL((await edit.getAttribute("href"))!, "http://x").searchParams.get("posted")).toBe("7d");
   await expect(page.getByTestId("for-you-deck-position")).toHaveText(new RegExp(`of ${freshCount}$`), { timeout: 30_000 });
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+/**
+ * J-JOBS-150 — Vivek, 2026-10-17: "there is no mention about our chrome extension..honestly, that extension is the best part of
+ * our product...everything else sucks". The packs hub and the signed-out front door say what the Chrome extension does on a
+ * job page and give one way to add it. On the hub it is a tile in the packs' own style under the pack tiles and above Today,
+ * not one of the tiles (it is not a list); on the front door it sits under the résumé invite. It says four things in a few
+ * words each (the fit, the posting check, the tailored résumé, filling the form and tracking it) and has one link, "Add to
+ * Chrome", to the extension's Chrome Web Store item in a new tab. A page cannot tell whether the extension is installed, so
+ * it never says "Open". No other company is named. The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/pgaoelneidcpmnenhfaclhlmkaaibelg";
+const EXTENSION_POINTS = ["Your fit for the role", "Checks if the posting looks current", "Your résumé tailored to the role", "Fills the form and tracks it"];
+
+async function expectExtensionTile(page: Page) {
+  const tile = page.getByTestId("extension-tile");
+  await expect(tile).toBeVisible({ timeout: 60_000 });
+  await expect(tile.getByRole("heading", { name: "Velai for Chrome" })).toBeVisible();
+  await expect(tile.getByTestId("extension-tile-points").locator("li")).toHaveText(EXTENSION_POINTS);
+  const link = tile.getByTestId("extension-tile-link");
+  await expect(link).toHaveText("Add to Chrome");
+  await expect(link).toHaveAttribute("href", EXTENSION_STORE_URL);
+  await expect(link).toHaveAttribute("target", "_blank");
+  expect(await link.getAttribute("rel")).toContain("noopener");
+  // Nothing on the page can tell it is installed, so there is no "Open".
+  await expect(tile.getByRole("link", { name: /^open/i })).toHaveCount(0);
+  expect(await tile.innerText()).not.toMatch(/linkedin|indeed|glassdoor|greenhouse|lever|workday|ashby|jobshifu/i);
+  // On screen: the whole width of the card on a phone, beside the title on a desktop.
+  const viewport = page.viewportSize()!;
+  const box = (await tile.boundingBox())!;
+  const linkBox = (await link.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  if (viewport.width < 600) expect(linkBox.width).toBeGreaterThanOrEqual(box.width - 60);
+  else expect(linkBox.x).toBeGreaterThan(box.x + box.width / 2);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  return tile;
+}
+
+test("the packs hub tells what the Chrome extension does and links its store page, between the tiles and Today", { tag: ["@J-JOBS-150"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  await withAccountApplications(page, []);
+  await answerHubRoles(page);
+  await page.goto("/jobs?view=for-you");
+  await expect(page.getByTestId("hub-pack-count-all")).toHaveText("14 roles", { timeout: 60_000 });
+  await expectExtensionTile(page);
+  // It is not a pack: the tiles are the lists, and this opens no list.
+  await expect(page.getByTestId("hub-pack-chips").getByTestId("extension-tile")).toHaveCount(0);
+  // Under the pack tiles, above Today.
+  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())!.y;
+  await expect(page.getByTestId("today-home")).toBeVisible({ timeout: 30_000 });
+  expect(await top("hub-pack-chips")).toBeLessThan(await top("extension-tile"));
+  expect(await top("extension-tile")).toBeLessThan(await top("today-home"));
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+});
+
+test("the signed-out front door tells what the Chrome extension does and links its store page, under the résumé invite", { tag: ["@J-JOBS-150"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.goto("/jobs");
+  await expectExtensionTile(page);
+  const top = async (selector: ReturnType<Page["getByTestId"]>) => (await selector.boundingBox())!.y;
+  await expect(page.getByTestId("privacy-promises")).toBeVisible({ timeout: 30_000 });
+  expect(await top(page.getByRole("region", { name: "Add your resume" }))).toBeLessThan(await top(page.getByTestId("extension-tile")));
+  expect(await top(page.getByTestId("extension-tile"))).toBeLessThan(await top(page.getByTestId("privacy-promises")));
+  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 /**
