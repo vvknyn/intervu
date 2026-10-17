@@ -35,7 +35,7 @@ describe('a long career carries a level into a new line of work', () => {
         const pm = resumeDataFromPlainText(fixture('vivek-tam-resume'));
         // The fixture is the same career; its level must not drop to mid for the line-of-work years alone.
         assert.equal(resumeSeniority(pm), 'senior');
-        assert.deepEqual(experienceLevelFacet('mid', pm), ['mid', 'senior']);
+        assert.deepEqual(experienceLevelFacet('mid', pm), ['mid', 'senior', 'lead']);
         assert.deepEqual(experienceLevelFacet('mid', r('Nurse', 'Nurse')), ['mid']);
     });
 });

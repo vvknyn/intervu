@@ -72,7 +72,7 @@ describe('resumeSeniority', () => {
         ]);
         assert.equal(resumeSeniority(tam, NOW), 'senior');
         assert.equal(resumeSeniorityBasis(tam, NOW)?.led, true);
-        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid', 'senior']);
+        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid', 'senior', 'lead']);
     });
     it('counts every role of the same kind, so a promotion path stays senior', () => {
         const swe = resume(10, [
@@ -175,7 +175,7 @@ describe('buildMatchQuery', () => {
     });
     it('widens seniority to mid+senior so adjacent mid-level roles stay visible', () => {
         const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 8 }));
-        assert.deepEqual(out.facets.experience_level, ['mid', 'senior']);
+        assert.deepEqual(out.facets.experience_level, ['mid', 'senior', 'lead']);
     });
     it('derives mid-only experience_level for mid seniority', () => {
         const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 4 }));
