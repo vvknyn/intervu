@@ -15,6 +15,14 @@ import type { JobSearchParams, PostedBucket } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
 /**
+ * How many of the roles a pack's search found its list reads and scores: the deck's first page, the hub's last count
+ * probe and its tiles, the fit-sorted Search list and For-you over MCP. The first `FOR_YOU_POOL_WINDOW` (150) are
+ * composed as the pool (meilisearch.ts); the rest are the title lanes' next rows. At 150, a 13-year PM's pack read 150
+ * of 226 found and the 76 it never scored were mostly Product Manager titles (2026-10-17: "just 14 roles?").
+ */
+export const FOR_YOU_READ_DEPTH = 300;
+
+/**
  * Resolved signals → the filter state that retrieves this candidate's pack.
  * A signal that is unknown adds no filter (unknown is not "anywhere the
  * search default decides"): no location known → no location facet.

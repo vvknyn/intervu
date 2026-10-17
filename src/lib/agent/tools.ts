@@ -20,6 +20,7 @@ import { fitFor } from "../jobs/for-you/fit";
 import { resolveCandidateSignals, type CandidateSignals } from "../jobs/candidate-signals";
 import type { InferReasonsResult } from "../jobs/for-you/infer-reasons";
 import { rankForYou } from "../jobs/for-you/ranked";
+import { FOR_YOU_READ_DEPTH } from "../jobs/for-you/pack-filters";
 import { collapseByEmployer } from "../jobs/for-you/employer-slot";
 import { todaySlots } from "../jobs/for-you/today";
 import { jobCompanyHref } from "../companies/paths";
@@ -819,7 +820,7 @@ export interface ForYouOut {
  * `decodeCursor`/`resolvePageSize`/`nextCursorFor` exactly as
  * `toolSearchJobs` does, but pages the already-ranked list in memory rather
  * than re-querying per page — `rankForYou` ranks the whole
- * `AGENT.SEARCH_DEPTH_CAP`-sized candidate set in one call.
+ * `FOR_YOU_READ_DEPTH`-sized candidate set (the rows the site's deck reads) in one call.
  */
 export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<ForYouOut | { error: string }> {
   const decoded = decodeCursor(input.cursor);
@@ -831,7 +832,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
   const { base, resume, signals } = await candidateFor(deps);
   if (!resume || !resumeIsUsable(resume)) return { error: noResumeError(base) };
 
-  const ranked = await rankForYou({ resume, signals, search: deps.search, candidateDepth: AGENT.SEARCH_DEPTH_CAP });
+  const ranked = await rankForYou({ resume, signals, search: deps.search, candidateDepth: FOR_YOU_READ_DEPTH });
   if (ranked.unavailable) {
     return {
       hits: [],

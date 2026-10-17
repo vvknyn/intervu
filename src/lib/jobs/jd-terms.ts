@@ -22,8 +22,13 @@ import type { PublicJob } from "./types";
 export const SEARCH_JD_READ_DEADLINE_MS = 900;
 /** A typed search by someone holding a résumé (`JobSearchParams.jdTerms`): the place read's own budget (`SEARCH_PLACE_READ_DEADLINE_MS`), so it is no slower. */
 export const SEARCH_JD_TYPED_READ_DEADLINE_MS = 250;
-/** The most rows one search reads (a pack's first page is 150; the hub's deepest probe 120). */
-export const SEARCH_JD_READ_MAX_IDS = 150;
+/** The most rows one search reads (a pack's first page and the hub's deepest probe, `FOR_YOU_READ_DEPTH`). */
+export const SEARCH_JD_READ_MAX_IDS = 300;
+/**
+ * Rows per read. A deeper page reads its rows in parts, one after the other, each within the deadline: its first 150
+ * get their terms exactly as a page of 150 did, and a part that misses its deadline leaves the parts after it unread.
+ */
+export const SEARCH_JD_READ_PART = 150;
 
 const JD_CACHE_MAX = 20_000;
 const JD_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -86,9 +91,10 @@ export async function readJdTerms(ids: string[], signal?: AbortSignal): Promise<
 
 /**
  * A résumé-ranked search's rows, each carrying its description's terms
- * (`jd_terms`). Bounded by `deadlineMs`: past it the rows come back as they
- * were, and the read still finishes in the background so the next search for
- * those rows is warm.
+ * (`jd_terms`). Read in parts of `SEARCH_JD_READ_PART` rows, each bounded by
+ * `deadlineMs`: past it that part's rows and the ones after it come back as
+ * they were, and its read still finishes in the background so the next search
+ * for those rows is warm.
  */
 export async function withJdTerms<T extends PublicJob>(
     hits: T[],
@@ -99,13 +105,26 @@ export async function withJdTerms<T extends PublicJob>(
 ): Promise<T[]> {
     const ids = hits.filter((hit) => hit.jd_terms === undefined).slice(0, SEARCH_JD_READ_MAX_IDS).map((hit) => hit.id);
     if (ids.length === 0) return hits;
+    const terms: Record<string, JdTerms | null> = {};
+    for (let start = 0; start < ids.length; start += SEARCH_JD_READ_PART) {
+        const part = await readPart(ids.slice(start, start + SEARCH_JD_READ_PART), read, deadlineMs);
+        if (!part) break;
+        Object.assign(terms, part);
+    }
+    return hits.map((hit) => (hit.id in terms ? { ...hit, jd_terms: terms[hit.id] ?? null } : hit));
+}
+
+/** One part's terms, or `null` when its read failed or missed `deadlineMs`. */
+async function readPart(
+    ids: string[],
+    read: (ids: string[], signal: AbortSignal) => Promise<Record<string, JdTerms | null>>,
+    deadlineMs: number,
+): Promise<Record<string, JdTerms | null> | null> {
     const controller = new AbortController();
     const reading = read(ids, controller.signal).catch(() => null);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const late = new Promise<null>((resolve) => {
         timer = setTimeout(() => resolve(null), deadlineMs);
     });
-    const terms = await Promise.race([reading, late]).finally(() => clearTimeout(timer));
-    if (!terms) return hits;
-    return hits.map((hit) => (hit.id in terms ? { ...hit, jd_terms: terms[hit.id] ?? null } : hit));
+    return Promise.race([reading, late]).finally(() => clearTimeout(timer));
 }

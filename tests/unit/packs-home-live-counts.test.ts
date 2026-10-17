@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { FOR_YOU_READ_DEPTH } from "../../src/lib/jobs/for-you/pack-filters";
+import { HUB_PROBE_LIMITS } from "../../src/lib/jobs/for-you/hub-counts";
 
 const HUB = join(__dirname, "../../src/components/jobs/CategoryHubGrid.tsx");
 const PAGE = join(__dirname, "../../src/app/jobs/JobsContent.tsx");
@@ -17,10 +19,13 @@ describe("packs home live counts + deeper deck", () => {
         assert.doesNotMatch(hubs, /\b\d+\+? (jobs|roles)\b/);
     });
 
-    it("page keeps PAGE=20 for SERP and FOR_YOU_PAGE=150 for pack deck (2026-10-13: 60 held only ~2 weeks of PM roles)", () => {
+    it("page keeps PAGE=20 for SERP and FOR_YOU_PAGE=FOR_YOU_READ_DEPTH (300) for pack deck (2026-10-13: 60 held only ~2 weeks of PM roles; 2026-10-17: 150 of 226)", () => {
         const src = readFileSync(PAGE, "utf8");
         assert.match(src, /const PAGE = 20/);
-        assert.match(src, /const FOR_YOU_PAGE = 150/);
+        assert.match(src, /const FOR_YOU_PAGE = FOR_YOU_READ_DEPTH/);
+        assert.equal(FOR_YOU_READ_DEPTH, 300);
+        // The hub's last count probe reads what the deck opens with.
+        assert.equal(HUB_PROBE_LIMITS[HUB_PROBE_LIMITS.length - 1], FOR_YOU_READ_DEPTH);
         assert.match(src, /firstPageLimit = deepForYou \? FOR_YOU_PAGE : PAGE/);
         assert.match(src, /hubCountLabels=\{hubCountLabels\}/);
         // Today takes the daily tip's place whenever it shows (signed in, or a résumé on the device).
