@@ -182,6 +182,7 @@ import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
+import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
 import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 import { SetupPanel } from "@/components/onboarding/SetupPanel";
@@ -7604,7 +7605,10 @@ export function JobsContent({
                     />
                 )}
                 {frontDoorAtRest && !setupPanelVisible && (
-                    <PrivacyPromises className="mx-auto mt-8 w-full max-w-[960px]" />
+                    <>
+                        <ExtensionTile className="mx-auto mt-8 w-full max-w-[960px]" />
+                        <PrivacyPromises className="mx-auto mt-8 w-full max-w-[960px]" />
+                    </>
                 )}
             </div>
 
