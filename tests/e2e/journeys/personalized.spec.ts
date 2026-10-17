@@ -499,6 +499,49 @@ test("a senior résumé's pack retrieves roles listed Lead and deals them", { ta
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+/**
+ * J-JOBS-153 — 2026-10-17, from the outside analysis Vivek sent ("215 remote PM roles with no country dropped early"): a
+ * pack kept at most 20 remote roles that name no country, and only rows in its first 120 had their posting read for
+ * where they hire. Now every such role the pack's lanes find is kept past its 20 and read, and the deck deals each by
+ * what its posting says: one that hires in Canada ranks with the placed roles, one for the US is left out, and one that
+ * says nowhere comes last. The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a remote role that names no country is dealt by what its posting says about where it hires", { tag: ["@J-JOBS-153"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const noCountry = { location: "Remote", location_city: null, location_state: null, location_country: null, work_type: "remote" };
+  const placed = posting("dddddddd-0000-4000-8000-000000000001", "Technical Account Manager", "Beacon Cloud", "senior", 2);
+  // Says nowhere it hires, and is the freshest: without a place it still comes last.
+  const nowhere = { ...posting("dddddddd-0000-4000-8000-000000000002", "Technical Account Manager", "Driftwood Apps", "senior", 1), ...noCountry, place_restriction: null };
+  const canada = { ...posting("dddddddd-0000-4000-8000-000000000003", "Technical Account Manager", "Maple Relay", "senior", 3), ...noCountry, place_restriction: { label: "Canada", countries: ["Canada"] } };
+  const usOnly = { ...posting("dddddddd-0000-4000-8000-000000000004", "Technical Account Manager", "Prairie Stack", "senior", 1), ...noCountry, place_restriction: { label: "United States", countries: ["United States"] } };
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    const hits = [placed, nowhere, canada, usOnly];
+    return answerListSearch(route, { hits, total: hits.length, backend: "meilisearch", configured: true, searchId: "journey-no-country" });
+  });
+  await openPack(page);
+  const stack = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"]');
+  const front = stack.locator('[data-testid="role-stack-card"][data-stack-pose="front"]');
+  const position = page.getByTestId("for-you-deck-position");
+  await expect(position).toHaveText("Role 1 of 3", { timeout: 60_000 });
+  const cards = [await front.getAttribute("data-job-id")];
+  for (const n of [2, 3]) {
+    await page.getByTestId("for-you-next").click();
+    await expect(position).toHaveText(`Role ${n} of 3`);
+    cards.push(await front.getAttribute("data-job-id"));
+  }
+  expect([...cards.slice(0, 2)].sort(), "the role whose posting says Canada ranks with the placed one").toEqual([placed.id, canada.id].sort());
+  expect(cards[2], "the role that says nowhere comes last").toBe(nowhere.id);
+  await expect(stack.locator(`[data-testid="role-stack-card"][data-job-id="${usOnly.id}"]`)).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("a pack never deals a Staff, Principal or Director role to a résumé that shows none, and asks the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
   // senior, so these read senior and fitted; a role past Senior is now left out of the pool and of the deck.

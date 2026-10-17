@@ -36,7 +36,7 @@ import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
 import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-notes";
-import { SEARCH_JD_TYPED_READ_DEADLINE_MS, withJdTerms } from "@/lib/jobs/jd-terms";
+import { SEARCH_JD_READ_DEADLINE_MS, SEARCH_JD_TYPED_READ_DEADLINE_MS, withJdTerms } from "@/lib/jobs/jd-terms";
 import { withSemanticFit } from "@/lib/match/semantic-fit";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ResumeData } from "@/types/resume";
@@ -187,9 +187,11 @@ export async function searchJobsAction(
   // A résumé-ranked search (a pack, Rank by fit, the hub probe) also gets each
   // row's requirement and duty terms, so the browser scores the whole posting
   // against the résumé it holds, not the title alone (jd-terms.ts). Both reads
-  // run together; each answers within its own deadline.
+  // run together; each answers within its own deadline. A résumé-built search
+  // gives the place read the terms read's deadline: its deeper list holds the
+  // remote roles that name no country, and the response waits for the terms anyway.
   const [placed, withTerms] = await Promise.all([
-    withPlaceRestrictions(result.hits),
+    params.fromResume ? withPlaceRestrictions(result.hits, { deadlineMs: SEARCH_JD_READ_DEADLINE_MS }) : withPlaceRestrictions(result.hits),
     // A résumé-built search waits a little longer for the terms (its whole
     // order depends on them); a typed search by someone holding a résumé gets
     // them within the place read's own budget, so it is no slower.
