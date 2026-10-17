@@ -1110,7 +1110,7 @@ test("the packs hub is a greeting over big tiles, each with a glyph, a count and
  * Chrome", to the extension's Chrome Web Store item in a new tab. A page cannot tell whether the extension is installed, so
  * it never says "Open". No other company is named. The postings are CONSTRUCTED for this journey (no real company or posting).
  */
-const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/pgaoelneidcpmnenhfaclhlmkaaibelg";
+const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/jndkidbobccmcjochgioiiiiaaaldjjd";
 const EXTENSION_POINTS = ["Your fit for the role", "Checks if the posting looks current", "Your résumé tailored to the role", "Fills the form and tracks it"];
 
 async function expectExtensionTile(page: Page) {
