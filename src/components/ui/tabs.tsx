@@ -79,7 +79,7 @@ function TabsList({
  * weight — which also keeps the row from shifting when the active tab changes.
  */
 export const tabItemVariants = cva(
-  "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-medium text-muted-foreground transition-colors motion-reduce:transition-none outline-none hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-transparent data-[state=active]:text-foreground data-[state=active]:after:bg-brand aria-[current]:text-foreground aria-[current]:after:bg-brand aria-pressed:text-foreground aria-pressed:after:bg-brand",
+  "relative inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap px-3 text-sm font-normal text-muted-foreground transition-colors motion-reduce:transition-none outline-none hover:text-foreground focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand disabled:pointer-events-none disabled:opacity-50 after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-transparent data-[state=active]:text-foreground data-[state=active]:after:bg-brand aria-[current]:text-foreground aria-[current]:after:bg-brand aria-pressed:text-foreground aria-pressed:after:bg-brand",
   {
     variants: {
       size: {

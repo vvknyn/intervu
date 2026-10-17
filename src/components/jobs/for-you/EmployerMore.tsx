@@ -49,9 +49,9 @@ export function EmployerMore({
         <details open={defaultOpen} data-testid={testId} className={cn("group/employer-more text-sm", className)}>
             <summary
                 data-testid={`${testId}-toggle`}
-                className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden"
+                className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-ctl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden"
             >
-                <CaretDown size={12} weight="bold" aria-hidden className="transition-transform group-open/employer-more:rotate-180" />
+                <CaretDown size={16} weight="bold" aria-hidden className="transition-transform group-open/employer-more:rotate-180" />
                 <span>
                     {total} more at {employer}
                 </span>
@@ -63,7 +63,7 @@ export function EmployerMore({
                     const age = postedAgeShort(derivePostedTs(job), nowMs);
                     return (
                         <li key={job.id} data-testid={`${testId}-role`} data-job-id={job.id} className="min-w-0">
-                            <Link href={jobPath(job)} className="line-clamp-2 font-medium text-foreground hover:underline">
+                            <Link href={jobPath(job)} className="line-clamp-2 font-normal text-foreground hover:underline">
                                 {presented.title}
                             </Link>
                             <div className="flex flex-wrap items-baseline text-muted-foreground">

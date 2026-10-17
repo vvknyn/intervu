@@ -1076,11 +1076,11 @@ export function JobDetail({
                                                 aria-hidden={s.status !== "unknown"}
                                             >
                                                 {relistCaution ? (
-                                                    <Warning size={14} weight="bold" />
+                                                    <Warning size={16} weight="bold" />
                                                 ) : s.status === "favorable" ? (
-                                                    <Check size={14} weight="bold" />
+                                                    <Check size={16} weight="bold" />
                                                 ) : s.status === "unfavorable" ? (
-                                                    <Minus size={14} weight="bold" />
+                                                    <Minus size={16} weight="bold" />
                                                 ) : null}
                                             </span>
                                             <div className="min-w-0 flex-1 leading-snug">

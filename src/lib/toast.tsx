@@ -169,7 +169,7 @@ export function Toaster() {
                                         dismissToast(t.id);
                                         t.action?.onClick();
                                     }}
-                                    className="designed-focus shrink-0 rounded-ctl font-medium text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:border-foreground"
+                                    className="designed-focus shrink-0 rounded-ctl font-semibold text-foreground underline underline-offset-2 transition-colors hover:text-muted-foreground focus-visible:border-foreground"
                                 >
                                     {t.action.label}
                                 </button>

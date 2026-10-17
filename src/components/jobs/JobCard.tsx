@@ -182,7 +182,7 @@ export function JobCard({
                 // touch, the line between them starts at the title's x, not
                 // the tile's.
                 "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live gap-x-3 px-[var(--list-inset)] pt-4",
-                active && "bg-surface-hover",
+                active && "bg-surface-hover border-l-2 border-l-brand",
             )}
         >
             <div className="self-start">

@@ -35,22 +35,23 @@
 
 const HEADING_KEYWORDS = new Set([
   "about the team", "about the role", "about us", "about the company",
-  "your role", "what you'll do", "what you'll be doing", "responsibilities",
-  "qualifications", "requirements", "what we're looking for",
-  "what we offer", "benefits", "compensation", "perks",
-  "the role", "the team", "the company", "our values", "why join",
+  "your role", "what you'll do", "what you\u2019ll do", "what you will do", "what you'll be doing", "responsibilities",
+  "qualifications", "requirements", "what we're looking for", "what we\u2019re looking for",
+  "what we offer", "benefits", "compensation", "total compensation", "perks", "perks & benefits",
+  "the role", "the team", "the company", "our values", "why join", "why join us",
   "minimum qualifications", "preferred qualifications", "nice to have",
   "your background", "your impact", "key responsibilities",
-  "what success looks like", "who you are", "what you bring", "what you'll bring", "what you will bring",
+  "what success looks like", "who you are", "what you bring", "what you'll bring", "what you\u2019ll bring", "what you will bring",
   "additional information", "equal opportunity", "eeo statement",
   "position purpose", "education", "experience", "education/experience",
-  "pay range", "salary", "salary range", "compensation range",
+  "pay range", "salary", "salary range", "base salary", "compensation range",
   "essential functions", "essential duties", "duties", "skills",
   "required skills", "preferred skills", "technical skills",
   "physical requirements", "work environment", "schedule",
   "company description", "job description", "the opportunity",
   "what your impact will be", "role overview", "overview", "summary",
-  "position summary", "what will your job entail",
+  "position summary", "job summary", "what will your job entail",
+  "job type", "employment type", "vacancy status", "work location", "security clearance",
 ]);
 
 // Common compound brand/product names that must not be split by the
@@ -144,29 +145,48 @@ export function repairRunTogethers(input: string): string {
   return text;
 }
 
+const INLINE_COLON_LABELS =
+  "Total Compensation|Compensation Range|Compensation|Pay Range|Salary Range|Base Salary|Salary|Vacancy Status|Job Type|Employment Type|Work Location|Location|Position Summary|Position Purpose|Role Overview|Job Summary|About the Role|About the Team|About Us|The Role|Your Role|Key Responsibilities|Responsibilities|Minimum Qualifications|Preferred Qualifications|Qualifications|Requirements|What You'?ll Do|What You\u2019ll Do|What You Will Do|What You'?ll Bring|What You\u2019ll Bring|What You Will Bring|What You Bring|What We Offer|Perks & Benefits|Benefits|Equal Opportunity|Schedule|Security Clearance|Clearance";
+
+const INLINE_BARE_HEADINGS =
+  "The Role|About the Role|About the Team|About Us|About the Company|Job Type|Position Summary|Role Overview|The Opportunity|What You'?ll Do|What You\u2019ll Do|What You Will Do|Key Responsibilities|Essential Functions|What You'?ll Bring|What You\u2019ll Bring|What You Will Bring|What You Bring|What We'?re Looking For|What We\u2019re Looking For|Minimum Qualifications|Preferred Qualifications|Required Skills|Preferred Skills|Nice to Have|What We Offer|Perks & Benefits|Why Join Us|Who You Are|Your Impact";
+
+const INLINE_HEADING_BODY_OPENERS =
+  "We|We're|We\u2019re|You|You'll|You\u2019ll|You're|You\u2019re|Our|The|This|As|In|At|For|To|Full|Part|Remote|Hybrid|Permanent|Contract|Own|Lead|Drive|Build|Design|Manage|Develop|Partner|Work|Support|Create|Deliver|Oversee|Ensure|Collaborate|Define|Execute|Must|Have|Bring|Bachelor|Master|Degree|Competitive|Comprehensive|[0-9]+\\+?";
+
 function promoteHeadings(input: string): string {
   let text = input;
   // "Section Word:" + space + Capital/digit/$ → paragraph break before
-  // the heading and after the colon. Only triggers for noun-phrase-
-  // shaped headings (≤40 chars, mostly letters/spaces/slash/dash). The
-  // third capture allows $ and digit so "Pay Range: $148,000" promotes.
+  // the heading and after the colon. Triggers after start-of-string, sentence
+  // punctuation, or a closing parenthesis/bracket (e.g., "(Hybrid - Ottawa) Total Compensation: CAD $140,000").
   text = text.replace(
-    /(^|[.!?]\s+)([A-Z][\w &/-]{2,40}):\s+([A-Z$0-9])/g,
+    /(^|[.!?)\]]\s+)([A-Z][\w &/-]{2,40}):\s+([A-Z$0-9])/g,
     "$1\n\n$2:\n$3",
   );
+  // Known section/metadata labels with a colon glued mid-line without preceding
+  // sentence punctuation (e.g., "experience and qualifications Vacancy Status: This posting...").
+  const inlineColonRe = new RegExp(
+    `(?<=\\S)[ \\t]+((?:${INLINE_COLON_LABELS})):[ \\t]+(?=[A-Z$0-9])`,
+    "g",
+  );
+  text = text.replace(inlineColonRe, "\n\n$1:\n");
+  // Flattened "About <Company>" heading glued mid-line before "<Company> is/helps..."
+  // or "We / Our / At" (e.g., "Product Manager About Anvil Anvil is a trusted partner...").
+  text = text.replace(
+    /(?:^|(?<=\S)[ \t]+)(About ([A-Z][\w&.'-]*(?:[ \t]+[A-Z][\w&.'-]*){0,2}))[ \t]+(?=\2\b|(?:We|Our|At)[ \t]+[A-Za-z])/g,
+    "\n\n$1\n\n",
+  );
+  // Flattened Title-Case section headings without colons glued mid-line before
+  // a clause opener (e.g., "...hiring for this role The Role We're looking for a Product Manager...").
+  const inlineBareRe = new RegExp(
+    `(?:^|(?<=\\n)|(?<=[.!?\\])]\\s)|(?<=[a-z0-9]\\s))(${INLINE_BARE_HEADINGS})[ \\t\\n]+(?=(?:${INLINE_HEADING_BODY_OPENERS})\\b)`,
+    "g",
+  );
+  text = text.replace(inlineBareRe, "\n\n$1\n\n");
   // ALL-CAPS section heading glued directly to its Titlecase body, no
   // colon and no space ("ABOUT GREYSTARGreystar is...", "JOB DESCRIPTION
   // SUMMARYThis role manages..." — observed live, sources that flatten
-  // HTML block edges with zero separator). The ALL-CAPS→Titlecase case
-  // transition is itself a knowable heading/body boundary — same run-
-  // together family as repairRunTogethers' lowercase→Capital and digit→
-  // Capital rules, just promoted to a paragraph break here instead of a
-  // bare space, since an isolated ALL-CAPS run is a heading shape
-  // considerHeading() already recognizes below. Unlike the genuinely
-  // ambiguous already-spaced "## Company Description CREATIVITY IS OUR
-  // SUPERPOWER" case (no case-transition signal at that boundary — see
-  // jobs-format-description-headings.test.ts), this one has a boundary
-  // regex backtracking finds deterministically.
+  // HTML block edges with zero separator).
   text = text.replace(
     /(^|[.!?]\s+)([A-Z][A-Z\s&/-]{2,58}[A-Z])(?=[A-Z][a-z])/g,
     "$1\n\n$2\n\n",
@@ -213,15 +233,6 @@ export function normalizeMarkdown(input: string): string {
   // "body" starts is ambiguous. Both knowable-end shapes are rewritten HERE
   // — before the generic bold-stripping a few lines down would destroy the
   // `**` boundary this depends on — into an isolated `\n\ntext:\n\n` block.
-  // The appended colon makes considerHeading()'s `endsWith(":")` rule
-  // promote it deterministically without relying on HEADING_KEYWORDS, which
-  // can't enumerate every "About {Company}"-shaped heading a source uses.
-  // Capped at 88 chars (considerHeading's own heading-length gate is ~90)
-  // so a long bold span or long line that merely happens to start with `#`
-  // isn't mistaken for a heading — it falls through to the generic ATX
-  // strip below unchanged, same as a run-together line with no bold/newline.
-  // Any colon already on the heading's own text is stripped first so the
-  // appended one can't double up ("Position Purpose:" → not "Purpose::").
   const isolateHeading = (heading: string) => `\n\n${heading.trim().replace(/:+$/, "")}:\n\n`;
   text = text.replace(
     /(?:^|[ \t]*\n|[ \t]+)#{1,6}[ \t]+\*\*([^*\n]{1,88})\*\*/g,
@@ -239,23 +250,36 @@ export function normalizeMarkdown(input: string): string {
   // Any leftover stray emphasis runs.
   text = text.replace(/\*{2,}/g, "").replace(/_{3,}/g, "");
   // A lone "*" left glued to the front of a word: the unmatched half of a
-  // mismatched run. `***1Password is growing**` pairs its last two stars
-  // with the first "**" above and leaves "*1Password" (2026-09-30, on a
-  // tracked 1Password role). A "* item" bullet has a space after its star
-  // and is untouched; "5*3" has no space before it.
+  // mismatched run.
   text = text.replace(/(^|[\s(])\*(?=[A-Za-z0-9$])/gm, "$1");
   // ATX headings (#, ##, …) anywhere → hard paragraph break, drop the #s.
-  // Keeps the heading text on its own logical line so a clean newline-
-  // terminated heading still reaches considerHeading(); a run-together
-  // heading just becomes a clean broken paragraph (no raw `#`).
   text = text.replace(/(?:^|[ \t]*\n|[ \t]+)#{1,6}[ \t]+/g, "\n\n");
   // Blockquote markers at line start.
   text = text.replace(/^[ \t]*>[ \t]?/gm, "");
   // Collapsed inline list bullets: stripHtml joins "<li>" items with a
   // bare " - " / " * " / " • ". Re-break them so the bullet grouper
-  // (•-*· / N. prefix) picks them up. Conservative: only when the marker
-  // is space-delimited and the item starts with a capital or "(".
-  text = text.replace(/[ \t]+[-*•][ \t]+(?=[A-Z(])/g, "\n- ");
+  // (•-*· / N. prefix) picks them up. Protect parenthetical / work-mode
+  // dashes like "Full Time (Remote Canada / Hybrid - Ottawa)" or "Monday - Friday"
+  // so location/schedule qualifiers are never chopped into bogus bullets.
+  text = text.replace(/[ \t]+[*•·][ \t]+(?=[A-Z(])/g, "\n- ");
+  text = text.replace(
+    /[ \t]+-[ \t]+(?=[A-Z(])/g,
+    (match, offset: number, full: string) => {
+      const before = full.slice(Math.max(0, offset - 32), offset);
+      const after = full.slice(offset + match.length, offset + match.length + 60);
+      // Inside parentheses: an unclosed ")" appears before any "(" on the same line.
+      if (/^[^()\n]*\)/.test(after)) return match;
+      // Work-mode, employment-type, or day-of-week dash compound ("Hybrid - Ottawa", "Monday - Friday").
+      if (
+        /\b(?:Hybrid|Remote|Onsite|On-site|In-person|Full[- ]Time|Part[- ]Time|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*$/i.test(
+          before,
+        )
+      ) {
+        return match;
+      }
+      return "\n- ";
+    },
+  );
   // Normalize leading "* " / "+ " bullets to "- " (matches bullet regex).
   text = text.replace(/^[ \t]*[*+][ \t]+/gm, "- ");
   return text;
@@ -372,6 +396,8 @@ function considerHeading(line: string): string | null {
   const lower = line.toLowerCase().replace(/[:.!?]+$/, "").trim();
   if (line.endsWith(":")) return line.replace(/:$/, "");
   if (HEADING_KEYWORDS.has(lower)) return line.replace(/:$/, "");
+  // "About <Company>" section header (1-3 capitalized words after About).
+  if (/^About [A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,2}$/.test(line.trim())) return line.trim();
   // "ALL-CAPS SECTION" pattern.
   if (/^[A-Z][A-Z\s&/-]{3,89}$/.test(line)) return line;
   return null;
@@ -385,7 +411,8 @@ function headingLike(text: string): boolean {
   // titles are already in HEADING_KEYWORDS.
   if (text.length > 70 || words < 2 || words > 10) return false;
   if (!/^[A-Z]/.test(text)) return false;
-  if (/[.,;:!]$/.test(text) || /[,;]/.test(text)) return false;
+  if (/[.,;:!]$/.test(text) || /[,;()/]/.test(text)) return false;
+  if (/^(?:full[- ]time|part[- ]time|contract|permanent|temporary|internship)\b/i.test(text)) return false;
   // "Location: Remote", "Salary: $90k" are label + value facts, not titles.
   if (/:\s*\S/.test(text)) return false;
   return /[a-z]/i.test(text);

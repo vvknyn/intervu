@@ -76,7 +76,7 @@ export function EmailCodeClient({ email, held, restartHref }: { email: string | 
                             required
                             maxLength={7}
                             disabled={isPending}
-                            className="text-center font-mono text-lg tracking-[0.3em]"
+                            className="text-center font-mono text-lg"
                         />
                     </Field>
                     <Button type="submit" disabled={isPending} className="w-full">

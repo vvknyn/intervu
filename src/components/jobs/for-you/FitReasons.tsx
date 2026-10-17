@@ -70,7 +70,7 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
                     <CaretDown
-                        size={14}
+                        size={16}
                         aria-hidden
                         className="text-muted-foreground transition-transform group-open:rotate-180"
                     />

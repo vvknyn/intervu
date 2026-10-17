@@ -244,7 +244,7 @@ export function SettingsContainer() {
                                     setDeleteError(null);
                                     setShowDeleteDialog(true);
                                 }}
-                                className="border-danger-text bg-transparent text-danger-text hover:bg-danger-text/10"
+                                className="border-danger-text bg-transparent text-danger-text hover:bg-surface-hover"
                             >
                                 Delete account
                             </Button>

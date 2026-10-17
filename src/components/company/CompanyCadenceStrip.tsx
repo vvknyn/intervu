@@ -17,6 +17,7 @@ function barHeight(n: number, max: number): string {
 
 /** The backlog week's grey. `border-strong` is near-white in dark mode, which
  *  made the week that should recede the loudest bar on the chart. */
+// design-lint-allow: intentional 40% muted bar fill to distinguish first-tracked backlog week from zero-listing bg-border
 const BACKLOG_TONE = "bg-muted-foreground/40";
 
 function barTone(w: WeeklyCadence): string {

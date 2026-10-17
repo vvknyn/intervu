@@ -28,26 +28,25 @@ export function ExtensionTile({ className }: { className?: string }) {
             aria-label={CHROME_EXTENSION_NAME}
             data-testid="extension-tile"
             className={cn(
-                "surface-paper flex flex-col gap-5 rounded-panel bg-surface-postcard p-5 text-surface-postcard-foreground md:flex-row md:items-center md:justify-between md:gap-8",
+                "surface-paper flex flex-col gap-4 rounded-panel border border-border bg-surface-postcard p-4 text-surface-postcard-foreground md:flex-row md:items-center md:justify-between md:gap-6",
                 className,
             )}
         >
-            <div className="flex items-start gap-4">
-                {/* The locked paper tile on navy, as an app icon: the cream tile alone would vanish on cream paper. */}
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-panel bg-surface-postcard-foreground">
-                    <BrandMark src={HEADER_MARK_SRC} className="h-8 w-8" pixelSize={32} />
+            <div className="flex items-start gap-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-panel border border-border bg-background">
+                    <BrandMark src={HEADER_MARK_SRC} className="h-7 w-7" pixelSize={28} />
                 </span>
-                <div className="space-y-3">
-                    <div className="space-y-1">
-                        <h3 className="text-xl font-semibold leading-snug text-balance">{CHROME_EXTENSION_NAME}</h3>
-                        <p className="text-sm text-muted-foreground">{CHROME_EXTENSION_LEAD}</p>
+                <div className="space-y-2">
+                    <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+                        <h3 className="text-base font-semibold leading-snug text-balance">{CHROME_EXTENSION_NAME}</h3>
+                        <p className="text-xs text-muted-foreground">{CHROME_EXTENSION_LEAD}</p>
                     </div>
-                    <ul className="grid gap-2 text-sm sm:grid-cols-2 sm:gap-x-6" data-testid="extension-tile-points">
+                    <ul className="grid gap-1.5 text-xs text-muted-foreground sm:grid-cols-2 lg:grid-cols-4 sm:gap-x-5" data-testid="extension-tile-points">
                         {CHROME_EXTENSION_POINTS.map((point) => {
                             const PointIcon = POINT_ICON[point.id];
                             return (
-                                <li key={point.id} className="flex items-center gap-2" data-testid={`extension-tile-point-${point.id}`}>
-                                    <PointIcon size={16} aria-hidden className="shrink-0" />
+                                <li key={point.id} className="flex items-center gap-1.5" data-testid={`extension-tile-point-${point.id}`}>
+                                    <PointIcon size={16} aria-hidden className="shrink-0 text-brand" />
                                     {point.text}
                                 </li>
                             );
@@ -55,7 +54,7 @@ export function ExtensionTile({ className }: { className?: string }) {
                     </ul>
                 </div>
             </div>
-            <Button asChild className="w-full md:w-auto">
+            <Button asChild className="w-full shrink-0 md:w-auto">
                 <a
                     href={CHROME_EXTENSION_STORE_URL}
                     target="_blank"

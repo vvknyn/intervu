@@ -241,18 +241,18 @@ export function CategoryHubGrid({
                                 onFocus={prefetchAdjacentHub}
                                 className={cn(
                                     "flex w-full flex-col justify-between gap-8 rounded-panel border bg-surface-postcard p-5 text-left text-surface-postcard-foreground transition-colors hover:border-surface-postcard-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand motion-reduce:transition-none",
-                                    active ? "border-surface-postcard-foreground" : "border-transparent",
+                                    active ? "border-surface-postcard-foreground" : "border-border",
                                 )}
                             >
                                 <span className="flex items-start justify-between gap-2">
-                                    <TileIcon size={24} aria-hidden />
+                                    <TileIcon size={24} aria-hidden className="text-brand" />
                                     {delta > 0 ? (
                                         <span className="text-xs font-semibold text-live-on-postcard tabular-nums" data-testid={`hub-pack-delta-${category.id}`}>
                                             +{delta}
                                         </span>
                                     ) : null}
                                 </span>
-                                <span className="flex flex-col items-start gap-2">
+                                <span className="flex flex-1 flex-col items-start justify-between gap-2">
                                     <span className="text-xl font-semibold leading-snug text-balance" data-testid={`hub-pack-title-${category.id}`}>{category.label}</span>
                                     {countLabel ? (
                                         <span

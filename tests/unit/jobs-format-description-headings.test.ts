@@ -151,3 +151,27 @@ test("normalizeMarkdown: a mismatched ***bold** run leaves no stray asterisk", (
   assert.match(normalizeMarkdown("Skills:\n* Python\n* SQL"), /- Python\n- SQL/);
   assert.match(normalizeMarkdown("A 5*3 grid."), /5\*3/);
 });
+
+test("formatDescription: Anvil flattened JD keeps parenthetical dash intact and promotes About <Company>, Total Compensation, Vacancy Status, and The Role", () => {
+  const raw =
+    "Product Manager About Anvil Anvil is a trusted partner in the defence industry, delivering cutting-edge solutions that enhance military capabilities and operational effectiveness.\n\nJob Type\nFull Time (Remote Canada / Hybrid - Ottawa) Total Compensation: CAD $140,000 - $165,000 base salary - Placement within range based on experience and qualifications Vacancy Status: This posting is for an existing vacancy at Anvil. We are actively hiring for this role The Role We're looking for a Product Manager to drive the execution of a complex, mission-critical software platform serving military customers.";
+  const blocks = formatDescription(raw);
+  const headings = blocks.filter((b) => b.type === "heading").map((b) => b.text);
+  assert.ok(headings.includes("About Anvil"), `expected About Anvil heading, got ${JSON.stringify(headings)}`);
+  assert.ok(headings.includes("Job Type"), `expected Job Type heading, got ${JSON.stringify(headings)}`);
+  assert.ok(headings.includes("Total Compensation"), `expected Total Compensation heading, got ${JSON.stringify(headings)}`);
+  assert.ok(headings.includes("Vacancy Status"), `expected Vacancy Status heading, got ${JSON.stringify(headings)}`);
+  assert.ok(headings.includes("The Role"), `expected The Role heading, got ${JSON.stringify(headings)}`);
+
+  const paras = blocks.filter((b) => b.type === "para").map((b) => b.text ?? "");
+  assert.ok(
+    paras.some((p) => p.includes("Full Time (Remote Canada / Hybrid - Ottawa)")),
+    `expected parenthetical dash to stay intact, got ${JSON.stringify(paras)}`,
+  );
+  const lists = blocks.filter((b) => b.type === "list");
+  assert.ok(
+    !lists.some((l) => (l.items ?? []).some((item) => item.startsWith("Ottawa)"))),
+    "must not split ' - Ottawa)' into a bogus bullet item",
+  );
+});
+

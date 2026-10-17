@@ -193,7 +193,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         <Button
                             variant="outline"
                             size="sm"
-                            className="border-danger-text text-danger-text hover:bg-danger-text/10"
+                            className="border-danger-text text-danger-text hover:bg-surface-hover"
                             onClick={() => void loadCredentials()}
                         >
                             Try again

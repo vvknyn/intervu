@@ -137,12 +137,16 @@ const PERKS_HEADINGS = new Set([
     "what we offer",
     "benefits",
     "perks",
+    "perks & benefits",
     "compensation",
+    "total compensation",
     "why join",
+    "why join us",
     "our values",
     "pay range",
     "salary",
     "salary range",
+    "base salary",
     "compensation range",
 ]);
 
@@ -153,7 +157,7 @@ function normalizeHeading(text: string | undefined): string {
 function classifyHeading(text: string | undefined): JdTemplateKey | "skip" | null {
     const key = normalizeHeading(text);
     if (!key) return null;
-    // Skip EEO / legal / company-about walls — not the role template.
+    // Skip EEO / legal / company-about walls and role-metadata rows — not the role template.
     if (
         key.includes("equal opportunity") ||
         key.includes("eeo") ||
@@ -165,7 +169,12 @@ function classifyHeading(text: string | undefined): JdTemplateKey | "skip" | nul
         key === "company description" ||
         key === "additional information" ||
         key === "physical requirements" ||
-        key === "work environment"
+        key === "work environment" ||
+        key === "job type" ||
+        key === "employment type" ||
+        key === "vacancy status" ||
+        key === "work location" ||
+        key === "security clearance"
     ) {
         return "skip";
     }
@@ -173,7 +182,18 @@ function classifyHeading(text: string | undefined): JdTemplateKey | "skip" | nul
     if (NICE_HEADINGS.has(key)) return "nice";
     if (BRING_HEADINGS.has(key)) return "bring";
     if (PERKS_HEADINGS.has(key)) return "perks";
-    if (key === "about the role" || key === "the role" || key === "overview" || key === "summary" || key === "position summary" || key === "position purpose" || key === "the opportunity" || key === "job description") {
+    if (
+        key === "about the role" ||
+        key === "the role" ||
+        key === "overview" ||
+        key === "summary" ||
+        key === "position summary" ||
+        key === "job summary" ||
+        key === "position purpose" ||
+        key === "the opportunity" ||
+        key === "job description" ||
+        key.startsWith("about ")
+    ) {
         return "hook";
     }
     return null;

@@ -221,11 +221,11 @@
   --surface-poster: 11 13 18;
   --surface-poster-foreground: 250 250 250;
   --surface-poster-muted: 156 163 175;
-  --surface-postcard: 244 240 230;
-  --surface-postcard-foreground: 12 26 51;
-  --surface-postcard-muted: 82 82 82;
-  /* Live accent on cream paper — `--live` fails WCAG AA on `--surface-postcard`. */
-  --live-on-postcard: 8 82 46;
+  --surface-postcard: 22 27 38;
+  --surface-postcard-foreground: 243 245 248;
+  --surface-postcard-muted: 162 172 190;
+  /* Live accent on elevated slate postcard — ≥4.5:1 on `--surface-postcard`. */
+  --live-on-postcard: 62 207 142;
   --surface-mark-tile: 20 23 32;
 
   /* Soft Signal accents */
@@ -339,36 +339,36 @@
 .dark {
   /* Dark theme — same Concept A canvas as :root (#0B0D12); cards/surfaces stay elevated. */
   --background: 11 13 18;
-  --foreground: 245 245 245;
-  --card: 16 18 24;
-  --card-foreground: 245 245 245;
-  --popover: 18 20 28;
-  --popover-foreground: 245 245 245;
+  --foreground: 245 247 250;
+  --card: 18 22 31;
+  --card-foreground: 245 247 250;
+  --popover: 20 24 34;
+  --popover-foreground: 245 247 250;
   --primary: var(--brand);
   --primary-foreground: var(--brand-foreground);
   --secondary: var(--chip);
-  --secondary-foreground: 245 245 245;
+  --secondary-foreground: 245 247 250;
   --muted: var(--chip);
-  --muted-foreground: 163 163 163;
+  --muted-foreground: 162 172 190;
   --accent: var(--brand);
   --accent-foreground: var(--brand-foreground);
   --destructive: 255 59 105;
   --destructive-foreground: 10 10 10;
-  --border: 38 38 38;
-  --input: 245 245 245;
+  --border: 38 44 58;
+  --input: 245 247 250;
   --ring: var(--brand);
   --chart-1: 45 104 255;
   --chart-2: 245 245 245;
   --chart-3: 163 163 163;
   --chart-4: 82 82 82;
   --chart-5: 38 38 38;
-  --sidebar: 14 14 14;
-  --sidebar-foreground: 245 245 245;
+  --sidebar: 14 17 24;
+  --sidebar-foreground: 245 247 250;
   --sidebar-primary: 45 104 255;
   --sidebar-primary-foreground: 10 10 10;
-  --sidebar-accent: 26 26 26;
-  --sidebar-accent-foreground: 245 245 245;
-  --sidebar-border: 38 38 38;
+  --sidebar-accent: 24 29 40;
+  --sidebar-accent-foreground: 245 247 250;
+  --sidebar-border: 38 44 58;
   --sidebar-ring: 45 104 255;
 
   /* Brand — slightly brighter green on the deepest ground */
@@ -382,21 +382,21 @@
   --brand-tint-bg-alt: 15 23 42;
 
   /* Site chrome (dark) */
-  --chrome: 14 14 14;
-  --chrome-foreground: 245 245 245;
+  --chrome: 11 13 18;
+  --chrome-foreground: 245 247 250;
 
   /* Surface + text levels */
-  --surface: 18 18 18;
-  --surface-hover: var(--chip);
-  --surface-2: var(--chip);
-  --surface-3: 38 38 38;
-  --border-strong: 245 245 245;
-  --text-2: 180 180 180;
-  --text-3: 140 140 140;
+  --surface: 18 22 31;
+  --surface-hover: 26 31 43;
+  --surface-2: 28 33 46;
+  --surface-3: 42 48 62;
+  --border-strong: 245 247 250;
+  --text-2: 182 190 204;
+  --text-3: 142 152 168;
 
   /* Soft Signal accents (dark) */
-  --chip: 26 26 26;
-  --faint: 115 115 115;
+  --chip: 24 29 40;
+  --faint: 122 132 148;
   --live: 47 191 113;
   --live-tint-bg: 14 37 23;
   --live-tint-bg-alt: 14 37 23;
