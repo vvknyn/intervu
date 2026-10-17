@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { orderForYouJobsByBand, matchBandSortKey } from "../../src/lib/jobs/for-you/band-order";
+import { compareForYouKeys, deckListFor, forYouSortKey, orderForYouJobsByBand, matchBandSortKey } from "../../src/lib/jobs/for-you/band-order";
 import type { MatchScore } from "../../src/lib/match/score";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
@@ -109,4 +109,50 @@ describe("orderForYouJobsByBand", () => {
             ["b", "a"],
         );
     });
+
+    it("deckListFor keeps relevant Stretch roles and unknown-country roles (including USD-paid unplaced remote) after Strong and Good fits", () => {
+        const strong = job("strong", "Product Manager");
+        const good = job("good", "Product Manager");
+        const stretchOwn = job("stretch-own", "Product Manager, Agent");
+        const unplacedUsd = job("unplaced-usd", "Product Manager");
+        const unproven = job("unproven", "Commercial Finance Partner");
+        const offTarget = job("off-target", "Senior Software Engineer");
+        const scores = new Map<string, MatchScore>([
+            ["strong", { ...score(88), role: "own" }],
+            ["good", { ...score(72), role: "own" }],
+            ["stretch-own", { ...score(58), role: "own", gaps: [{ kind: "skills", soft: true, text: "soft gap" }] }],
+            [
+                "unplaced-usd",
+                {
+                    total: 59,
+                    role: "own",
+                    outside: { home: ["Canada"], where: "the United States", currency: "USD", from: "resume", total: 80 },
+                    components: [
+                        { key: "relevance", label: "Relevance", detail: "test", score: 0.85 },
+                        { key: "seniority", label: "Seniority", detail: "test", score: 1, reason: "level_fits" },
+                        { key: "location", label: "Location", detail: "test", score: 0.65, reason: "remote_pay_abroad" },
+                    ],
+                },
+            ],
+            ["unproven", { ...score(55), role: "unverified", unproven: true }],
+            ["off-target", { ...score(59), role: "off-target" }],
+        ]);
+        const { ranked, summary } = deckListFor(
+            [unplacedUsd, offTarget, unproven, stretchOwn, good, strong],
+            (j) => scores.get(j.id) ?? null,
+            NOW,
+        );
+        assert.deepEqual(
+            ranked.map((j) => j.id),
+            ["strong", "good", "stretch-own", "unplaced-usd"],
+        );
+        assert.equal(summary.listed, 4);
+    });
+
+    it("forYouSortKey ranks own-role Stretch ahead of off-target Stretch on Search (sortByFit)", () => {
+        const ownStretch = forYouSortKey({ ...score(59), role: "own" }, NOW - 8 * 86_400_000, NOW);
+        const offTargetStretch = forYouSortKey({ ...score(59), role: "off-target" }, NOW - 2 * 86_400_000, NOW);
+        assert.ok(compareForYouKeys(ownStretch, offTargetStretch) < 0);
+    });
 });
+

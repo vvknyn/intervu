@@ -1375,11 +1375,14 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
     // A résumé-built search also looks for what the résumé shows in a posting's whole text (`contentPhrases`),
     // whatever the title says, so it runs the lanes even for a single title phrase.
     const contentPhrases = searchParams.fromResume && isRelevance ? sanitizeContentPhrases(searchParams.contentPhrases) : [];
-    if (shouldRunFitPhraseLane(searchParams) || contentPhrases.length > 0) {
+    const runUnplaced = Boolean(searchParams.unplacedRemote && isRelevance);
+    if (shouldRunFitPhraseLane(searchParams) || contentPhrases.length > 0 || runUnplaced) {
       const fitPhrases = resolveFitPhrases(searchParams) ?? singleTitlePhrase(searchParams.q);
       const [fetched, content] = await Promise.all([
         fetchFitPhraseLaneHits(h, searchParams, companyScoped, fitPhrases),
-        contentPhrases.length > 0 ? fetchContentLaneHits(h, searchParams, companyScoped, contentPhrases, fitPhrases) : Promise.resolve(null),
+        contentPhrases.length > 0 || runUnplaced
+          ? fetchContentLaneHits(h, searchParams, companyScoped, contentPhrases, fitPhrases)
+          : Promise.resolve(null),
       ]);
       const { facetDistribution } = fetched;
       // A lane whose own phrase names a role past Senior ("Staff Product Manager") was asked for by
@@ -1390,7 +1393,11 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
         : fetched.lanes;
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
-      for (const hit of [...lanes.flat(), ...(content ? keepWithinSenior([...content.placed.strong, ...content.placed.weak]) : [])]) {
+      for (const hit of [
+        ...lanes.flat(),
+        ...(content ? keepWithinSenior([...content.placed.strong, ...content.placed.weak]) : []),
+        ...(searchParams.unplacedRemote && content ? keepWithinSenior(content.unplaced) : []),
+      ]) {
         if (seen.has(hit.id)) continue;
         seen.add(hit.id);
         unique.push(hit);
@@ -1762,13 +1769,15 @@ async function fetchContentLaneHits(
     ...phrases.filter((phrase) => !isWord(phrase)).slice(0, 2).map((phrase) => run(phraseQuery(phrase), noCountry, UNPLACED_REMOTE_LANE_LIMIT, wholeDoc, remoteNoCountry)),
   ]);
   const [placedRows, lanes] = await Promise.all([placed, unplacedLanes]);
-  const wantedCountries = new Set(p.facets?.location_country ?? []);
+  const wantedCountries = new Set([
+    ...(p.facets?.location_country ?? []),
+    ...(p.places?.flatMap((pl) => pl.any.filter((f) => f.field === "location_country").map((f) => f.value)) ?? []),
+  ]);
   const unplacedOpen = (hit: PublicJob): boolean => {
     if (wantedCountries.size === 0) return true;
-    const named =
-      jobCountries(hit).length > 0
-        ? jobCountries(hit)
-        : (titlePlace(hit.title)?.countries ?? (payPlace(hit.salary_currency)?.countries ?? []));
+    // Do not drop an unplaced remote role solely because its pay currency is USD/EUR (`payPlace`):
+    // global and North American remote roles often post a USD range while hiring across the Americas.
+    const named = jobCountries(hit).length > 0 ? jobCountries(hit) : (titlePlace(hit.title)?.countries ?? []);
     return named.length === 0 || named.some((c) => wantedCountries.has(c));
   };
   return {

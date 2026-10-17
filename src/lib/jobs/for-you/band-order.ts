@@ -141,6 +141,19 @@ export function nearMissSummary(summary: DeckLeftOutSummary): DeckLeftOutSummary
     return { considered: summary.considered, listed: stretch, byReason: rest, ...(summary.languages ? { languages: summary.languages } : {}), near: true };
 }
 
+/** `summary` when relevant Stretch roles are appended after Strong and Good fits in a pack deck. */
+export function withListedStretchSummary(summary: DeckLeftOutSummary, listedTotal: number): DeckLeftOutSummary {
+    const added = Math.max(0, listedTotal - summary.listed);
+    if (added === 0) return summary;
+    const { stretch = 0, ...rest } = summary.byReason;
+    const remainingStretch = Math.max(0, stretch - added);
+    return {
+        ...summary,
+        listed: listedTotal,
+        byReason: remainingStretch > 0 ? { ...rest, stretch: remainingStretch } : rest,
+    };
+}
+
 /**
  * What a list holds when no role posted in the last 30 days fits: the roles that fit but were posted longer ago,
  * best first, so a rule about age never empties a list. They are marked as older (`DeckLeftOutSummary.older`, the
@@ -224,10 +237,10 @@ export function withListRemovals(
 
 /**
  * What a pack's deck holds of the roles it weighs, and what it says about the rest. One function for the deck and for the
- * packs hub's counts, so a count on the hub is the deck's: the roles that fit; when none does, the roles that fit and are
- * older (`orderOlderFits`); failing those the closest weaker fits (`orderNearMisses`), and failing those the closest older
- * ones (`orderOlderNearMisses`), so a list is never empty while roles were found. `summary` says which, and why the rest
- * were left out.
+ * packs hub's counts, so a count on the hub is the deck's: the roles that fit (plus relevant Stretch roles ranked after
+ * Strong and Good); when none does, the roles that fit and are older (`orderOlderFits`); failing those the closest weaker
+ * fits (`orderNearMisses`), and failing those the closest older ones (`orderOlderNearMisses`), so a list is never empty
+ * while roles were found. `summary` says which, and why the rest were left out.
  */
 export function deckListFor(
     candidates: readonly PublicJob[],
@@ -236,7 +249,15 @@ export function deckListFor(
 ): { ranked: PublicJob[]; summary: DeckLeftOutSummary } {
     const summary = summarizeDeckLeftOut(candidates, getScore, nowMs);
     const fitting = orderForYouJobsByBand(candidates, getScore, nowMs);
-    if (fitting.length > 0) return { ranked: fitting, summary };
+    if (fitting.length > 0) {
+        const ranked = orderForYouJobsByBand(
+            candidates,
+            getScore,
+            nowMs,
+            (reason, score) => reason == null || (reason === "stretch" && !score?.unproven),
+        );
+        return { ranked, summary: withListedStretchSummary(summary, ranked.length) };
+    }
     const older = orderOlderFits(candidates, getScore, nowMs);
     if (older.length > 0) return { ranked: older, summary: olderFitsSummary(summary, older.length) };
     const near = orderNearMisses(candidates, getScore, nowMs);
@@ -258,10 +279,10 @@ export function orderForYouJobsByBand(
     /** Places a role over two weeks old one band lower (`rankBand`), as every ranked list does. */
     nowMs: number,
     /** Which roles the list holds, by why `deckLeftOut` leaves them out (`null` = it does not). Default: the ones it does not. */
-    holds: (reason: DeckLeftOut | null) => boolean = (reason) => reason == null,
+    holds: (reason: DeckLeftOut | null, score?: MatchScore) => boolean = (reason) => reason == null,
 ): PublicJob[] {
     if (!getScore) return [...jobs];
-    return orderRoles(jobs, getScore, nowMs, (job, score) => holds(deckLeftOut(job, score, nowMs)));
+    return orderRoles(jobs, getScore, nowMs, (job, score) => holds(deckLeftOut(job, score, nowMs), score));
 }
 
 /** The scored roles `keep` holds, in `forYouSortKey`'s order (ties keep the incoming order). A recommendation holds only roles this résumé could take: not a tail of Stretch roles, not a label. */
@@ -327,12 +348,13 @@ export function forYouSortKey(score: MatchScore, postedTs: number | null, nowMs:
     const bands = BAND_SEQUENCE.length + 1;
     const age = packAgeTier(postedTs, nowMs, firstSeenAt ?? null);
     const tier = rankTier(score);
-    const group = tier >= OUT_OF_REACH_TIER ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
+    const offTargetStretch = (score.role === "off-target" && !score.contentLed) || Boolean(score.unproven);
+    const group = tier >= OUT_OF_REACH_TIER ? 3 : offTargetStretch ? 2 : tier >= STRETCH_TIER_FLOOR ? 1 : 0;
     const band = rankBand(score, postedTs, nowMs);
     // A capped total ties roles that fit differently; the components' own scores break the tie.
     const raw = score.components.reduce((sum, c) => sum + c.score, 0);
     const lift = score.role === "own" ? OWN_ROLE_LIFT : score.role === "family" ? FAMILY_ROLE_LIFT : 0;
-    return { key: (age * 3 + group) * bands + band, value: Math.round(rankingValue(score, postedTs, nowMs) + contentLead(score)), family: score.familyRank ?? 0, lift, raw };
+    return { key: (age * 4 + group) * bands + band, value: Math.round(rankingValue(score, postedTs, nowMs) + contentLead(score)), family: score.familyRank ?? 0, lift, raw };
 }
 
 export const compareForYouKeys = (a: ForYouSortKey, b: ForYouSortKey): number =>

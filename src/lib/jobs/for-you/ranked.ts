@@ -20,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { nearMissSummary, olderFitsSummary, olderNearMissSummary, orderForYouJobsByBand, orderNearMisses, orderOlderFits, orderOlderNearMisses, summarizeDeckLeftOut, withListRemovals, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -112,30 +112,11 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const allJobs = scored.map((s) => s.job);
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
-    const fitting = orderForYouJobsByBand(allJobs, scoreOf, nowMs);
-    // Nothing from the last 30 days fits: the roles that fit and were posted longer ago, marked as older, and failing
-    // those the closest roles, each a weaker fit (fresh ones, else older ones, marked as older), so the list is never
-    // empty while roles were found.
-    const none = fitting.length === 0;
-    const older = none ? orderOlderFits(allJobs, scoreOf, nowMs) : [];
-    const nearMisses = none && older.length === 0 ? orderNearMisses(allJobs, scoreOf, nowMs) : [];
-    const olderNear = none && older.length === 0 && nearMisses.length === 0 ? orderOlderNearMisses(allJobs, scoreOf, nowMs) : [];
-    const orderedJobs = fitting.length > 0 ? fitting : older.length > 0 ? older : nearMisses.length > 0 ? nearMisses : olderNear;
+    const { ranked: orderedJobs, summary: counted } = deckListFor(allJobs, scoreOf, nowMs);
     const targets = targetTitlesFromQuery(queryUsed);
-    const counted = summarizeDeckLeftOut(allJobs, scoreOf, nowMs);
     // `found` is what the search said it found when the pool read fewer rows than that (`withListRemovals` keeps it only then),
     // so "left out of the first 150 of 226 roles found" names both numbers and a count is never read as the whole search's.
-    const leftOut = withListRemovals(
-        older.length > 0
-            ? olderFitsSummary(counted, older.length)
-            : nearMisses.length > 0
-              ? nearMissSummary(counted)
-              : olderNear.length > 0
-                ? olderNearMissSummary(counted, olderNear.length)
-                : counted,
-        {},
-        result.total,
-    );
+    const leftOut = withListRemovals(counted, {}, result.total);
 
     const hits: RankedHit[] = orderedJobs.map((job) => {
         const entry = byId.get(job.id)!;

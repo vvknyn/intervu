@@ -42,15 +42,23 @@ export interface LeftOutOptions {
     keepWhenCandidatePlaceUnread?: boolean;
     /**
      * A list that shows the role with its caveat instead of hiding it: a role that names no place it hires (a bare
-     * "Remote") stays, and the rank puts it after every role whose place is clear. Today and the daily picks keep it
-     * out (a pick needs evidence); the deck and the MCP list say "country not stated" on the row.
+     * "Remote", even when paid in USD/EUR) stays, and the rank puts it after every role whose place is clear. Today and
+     * the daily picks keep it out (a pick needs evidence); the deck and the MCP list keep it at the end of the pack.
      */
     keepUnplaced?: boolean;
 }
 
+const STRICT_ABROAD_REASONS = new Set(["abroad", "remote_abroad"]);
+
 export function forYouLeftOut(score: MatchScore, options: LeftOutOptions = {}): ForYouLeftOut | null {
     // First: its total is held under Good for the place alone (`MatchScore.outside`), not for the fit.
-    if (score.outside || score.components.some((c) => c.reason != null && OUTSIDE_REASONS.has(c.reason))) return "abroad";
+    // When `keepUnplaced` is set (the For You pack deck), a remote role that names no country at all and only has
+    // `remote_pay_abroad` (e.g. "Remote" paid in USD) stays in the deck like an unplaced role rather than being hidden.
+    const abroadReasons = options.keepUnplaced ? STRICT_ABROAD_REASONS : OUTSIDE_REASONS;
+    const isAbroad = options.keepUnplaced
+        ? score.components.some((c) => c.reason != null && abroadReasons.has(c.reason))
+        : Boolean(score.outside) || score.components.some((c) => c.reason != null && abroadReasons.has(c.reason));
+    if (isAbroad) return "abroad";
     if (placeUnknown(score) && !options.keepUnplaced && !(options.keepWhenCandidatePlaceUnread && candidatePlaceUnread(score))) return "unplaced";
     // Written in a language they do not read: a Stretch for that reason (score.ts), and the one a control undoes (Settings › Languages).
     if (score.language) return "language";
@@ -58,8 +66,8 @@ export function forYouLeftOut(score: MatchScore, options: LeftOutOptions = {}): 
     if (score.newToManaging || outsideLevel(score) || score.components.some((c) => c.reason === "level_below_ask")) return "level";
     // Likewise a role that asks for what the résumé doesn't show. Only an explicit ask counts (years, a language, a
     // clearance, managing, selling, a certification). A coverage ratio (`RequirementGap.soft`: most required skills or
-    // half the requirement lines unanswered) is a ranking signal: it caps the role at Stretch, so it is left out below
-    // only as a weaker fit, and a list with nothing else shows it (`orderNearMisses`).
+    // half the requirement lines unanswered) is a ranking signal: it caps the role at Stretch, so it ranks in the
+    // Stretch band after Strong and Good roles.
     if (score.gaps?.some((gap) => !gap.soft)) return "requirement";
     // Before the band: a different kind of role is capped under Good for that, and "a different kind of role" says more than "a weaker fit".
     // An adjacent or unfamiliar title is not a different kind of role: the content of the posting decides, and the title only orders.

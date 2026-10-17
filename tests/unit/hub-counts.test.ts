@@ -347,16 +347,17 @@ describe("hubList: the pack's list as its deck would open it", () => {
         score: { total: 88, components: [], role: "own" } as MatchScore,
     });
 
-    it("drops a role the deck leaves out (too old, another kind of job, Stretch) and one with no apply link (the deck drops it too)", () => {
+    it("keeps relevant Stretch roles after Strong/Good, and drops a role the deck leaves out (too old, another kind of job, unproven Stretch) and one with no apply link", () => {
         const hits = [
             strong("listed"),
             strong("old", posted(70)),
             { job: job({ id: "other", title: "Registered Nurse", ...posted(2) }), score: { total: 70, components: [], role: "off-target" } as MatchScore },
             { job: job({ id: "stretch", title: "Product Manager", company: "Other Co", ...posted(2) }), score: { total: 45, components: [], role: "own" } as MatchScore },
+            { job: job({ id: "unproven-stretch", title: "Mystery Specialist", company: "Mystery Co", ...posted(2) }), score: { total: 45, components: [], role: "unverified", unproven: true } as MatchScore },
             strong("dead", { apply_url: "" }),
         ];
         const listed = hubList(hits, NOW).jobs.map((j) => j.id);
-        assert.deepEqual(listed, ["listed"]);
+        assert.deepEqual(listed, ["listed", "stretch"]);
     });
 
     it("leaves out a role already in the person's tracker, as the deck does, and says so", () => {
