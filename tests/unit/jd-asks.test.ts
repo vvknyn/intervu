@@ -49,12 +49,15 @@ describe('managing and selling', () => {
 });
 
 describe('certifications', () => {
-    it('reads the credentials named on a line that requires a certification', () => {
+    it('reads the credentials named on a line that requires a certification across fields', () => {
         assert.deepEqual(asks('Certification required: CISSP and Security+. You will own a book of accounts.')?.creds?.sort(), ['CISSP', 'Security+'].sort());
+        assert.deepEqual(asks('Must hold an active RN license and BLS certification. You will care for patients.')?.creds?.sort(), ['BLS', 'RN'].sort());
+        assert.deepEqual(asks('Required designation: CPA or CFA. You will lead month-end close.')?.creds?.sort(), ['CFA', 'CPA'].sort());
     });
-    it('does not read a tool or a degree as a credential, nor experience with one', () => {
+    it('does not read a tool, a degree, a compliance standard, an EEO label or a company certification as a candidate credential', () => {
         assert.equal(asks('Experience with AWS and SQL certification programs is helpful. A BSc or MBA. Own accounts.')?.creds, undefined);
         assert.equal(asks('Familiarity with CISSP controls and experience with CRM tools. You will own accounts.')?.creds, undefined);
+        assert.equal(asks('Our platform is PCI DSS certified and we are a certified WMBE employer. You will own AP workflows.')?.creds, undefined);
     });
 });
 

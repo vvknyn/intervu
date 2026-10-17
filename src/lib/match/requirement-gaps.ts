@@ -86,7 +86,8 @@ export function requirementGaps(
     const asked = yearsAsked(job.min_years_experience) ?? yearsAsked(asks?.years);
     const basis = resumeSeniorityBasis(resume);
     const have = basis ? Math.round(basis.lineYears ?? basis.years) : null;
-    if (asked != null && have != null && asked > have + YEARS_MARGIN) {
+    const margin = YEARS_MARGIN + (basis?.led ? 1 : 0);
+    if (asked != null && have != null && asked > have + margin) {
         gaps.push({ kind: "years", text: `it asks for ${asked}+ years and your résumé shows ${have} ${basis!.lineYears != null || basis!.role ? "in this line of work" : "in all"}` });
     }
 
@@ -120,7 +121,7 @@ export function requirementGaps(
     }
     const bullets = asks.bullets ?? [];
     if (bullets.length >= REQUIREMENT_BULLETS_MIN) {
-        const unanswered = bullets.filter((terms) => !terms.some((term) => resumeShowsTerm(resume, term)));
+        const unanswered = bullets.filter((terms) => !terms.some((term) => resumeShowsTerm(resume, term, { loose: true })));
         if ((bullets.length - unanswered.length) / bullets.length < REQUIREMENT_BULLETS_MIN_SHOWN_SHARE) {
             const named = unanswered.slice(0, 2).map((terms) => terms[0]!);
             gaps.push({ kind: "requirements", soft: true, text: `fewer than half of its requirements show on your résumé (${list(named)}${unanswered.length > 2 ? ", …" : ""})` });

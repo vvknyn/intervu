@@ -202,7 +202,7 @@ function topTerms(text: string, max: number, exclude?: ReadonlySet<string>): str
 
 /** The most bullets of a Requirements section whose terms ride on a list row (`JdAsks.bullets`). */
 const JD_BULLETS_MAX = 14;
-const JD_BULLET_TERMS = 3;
+const JD_BULLET_TERMS = 5;
 
 /**
  * Each requirement bullet's most telling terms, one list per bullet: what the posting asks one line at
@@ -361,16 +361,26 @@ const REQ_SHARE = 0.6;
  */
 const COVERAGE_PRIOR_WEIGHT = 6;
 
-function sectionCoverage(terms: readonly string[], resume: ResumeTermSet) {
+function loosePhraseHas(resume: ResumeTermSet, term: string): boolean {
+    if (!isPhrase(term)) return false;
+    const words = term.split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 2);
+    return words.length > 1 && words.every((w) => resumeHas(resume, w));
+}
+
+function sectionCoverage(terms: readonly string[], resume: ResumeTermSet, sectioned = true) {
     let have = 0;
     let total = 0;
     const matched: string[] = [];
     const missing: string[] = [];
+    const allowLoose = sectioned && terms.length >= 12;
     for (const term of terms) {
         const w = isPhrase(term) ? PHRASE_MATCH_WEIGHT : 1;
         total += w;
         if (resumeHas(resume, term)) {
             have += w;
+            matched.push(term);
+        } else if (allowLoose && loosePhraseHas(resume, term)) {
+            have += 1;
             matched.push(term);
         } else missing.push(term);
     }
@@ -384,8 +394,8 @@ function sectionCoverage(terms: readonly string[], resume: ResumeTermSet) {
  */
 export function jdCoverage(resume: ResumeData, jd: JdTerms): JdCoverage | null {
     const terms = resumeTermSet(resume);
-    const req = sectionCoverage(jd.req, terms);
-    const duty = sectionCoverage(jd.duty, terms);
+    const req = sectionCoverage(jd.req, terms, !jd.unsectioned);
+    const duty = sectionCoverage(jd.duty, terms, !jd.unsectioned);
     if (req.share == null && duty.share == null) return null;
     const coverage =
         req.share == null ? duty.share! : duty.share == null ? req.share : REQ_SHARE * req.share + (1 - REQ_SHARE) * duty.share;
@@ -444,10 +454,10 @@ export function jdTermsOf(job: JdSourceJob & { jd_terms?: JdTerms | null; descri
 
 
 /**
- * What a posting asks, read as kinds of work rather than words: "own the product roadmap and
- * lifecycle", "prioritize the backlog", "translate business needs into requirements". Word overlap
- * alone read Q2's and KOHO's Senior PM roles at 12% for a PM résumé that names roadmaps, backlog
- * grooming and requirements in other words (2026-10-13), while two portals rated them 77-78%.
+ * What a posting asks, read as kinds of work rather than words across industries: "own the product
+ * roadmap and lifecycle", "prioritize the backlog", "direct patient care", "month-end reconciliation",
+ * "preventive maintenance", "curriculum planning". Word overlap alone misses when a résumé and posting
+ * describe the same functional responsibility in different phrasings.
  */
 const CONCEPTS: Readonly<Record<string, RegExp>> = {
     roadmap: /\broad ?maps?\b|\bproduct (?:vision|strategy|strategies|direction)\b|\bvision\b/,
@@ -465,6 +475,19 @@ const CONCEPTS: Readonly<Record<string, RegExp>> = {
     leadership: /\blead\w*|\bmentor\w*|\bteams?\b/,
     data: /\bsql\b|\bdata\b|\bmachine learning\b|\bml\b|\bpython\b|\bai\b/,
     compliance: /\bcompliance\b|\bregulat\w*|\bsecurity\b|\brisk\b/,
+    clinical_care: /\bpatient (?:care|safety|assessment|intake)\b|\bbedside\b|\btriage\b|\bvital signs\b|\bacute care\b/,
+    medication_treatment: /\bmedication\w*|\bdispens\w*|\bpharmacology\b|\biv therapy\b|\bwound care\b|\brehabilitation\b/,
+    accounting_ledger: /\bgeneral ledger\b|\breconciliat\w*|\bmonth-end\b|\baccounts (?:payable|receivable)\b|\bgaap\b|\bifrs\b|\bbookkeeping\b/,
+    financial_audit_tax: /\bfinancial (?:reporting|statements?|analysis|modeling)\b|\baudit\w*|\btax\b|\bbudget\w*|\bvariance\b/,
+    teaching_curriculum: /\bcurriculum\b|\blesson plan\w*|\bclassroom\b|\bpedagogy\b|\binstruction\w*|\bstudent assessment\b/,
+    trades_maintenance: /\bwiring\b|\bcircuit\w*|\bhvac\b|\bplumbing\b|\bwelding\b|\bblueprints?\b|\bschematics?\b|\bpreventive maintenance\b/,
+    logistics_warehouse: /\binventory\b|\bwarehouse\b|\bshipping\b|\breceiving\b|\bsupply chain\b|\bprocurement\b|\bfreight\b|\bdispatch\w*/,
+    legal_contracts: /\blitigation\b|\bcontracts?\b|\blegal research\b|\bdrafting\b|\bpleadings?\b|\bcounsel\b/,
+    hr_talent: /\brecruit\w*|\btalent acquisition\b|\bemployee relations\b|\bpayroll\b|\bhris\b/,
+    design_ux: /\bwirefram\w*|\bprototyp\w*|\bfigma\b|\buser (?:experience|interface|flows?)\b|\bdesign systems?\b|\busability\b/,
+    marketing_growth: /\bcampaigns?\b|\bseo\b|\bsem\b|\bcontent strategy\b|\bbrand\b|\blead generation\b|\bconversion\b/,
+    hospitality_culinary: /\bfood safety\b|\bmenu\b|\bkitchen\b|\bguest service\b|\bbarista\b|\bcatering\b/,
+    lab_diagnostics: /\bspecimens?\b|\bassays?\b|\bpcr\b|\bmicrobiology\b|\bhematology\b|\blaboratory\b/,
 };
 
 function conceptsIn(text: string): Set<string> {

@@ -81,6 +81,20 @@ describe("contentPairsFor", () => {
         const words = contentPairsFor(RESUME).flatMap((p) => p.split(" "));
         assert.equal(new Set(words).size, words.length, words.join(" "));
     });
+
+    it("bridges two-word & or / skills ('Audit & Tax') without bridging multi-word clauses into cross-boundary pairs", () => {
+        const acct = {
+            profile: { name: "Alex", profession: "Accountant" },
+            generatedSummary: "Accountant owning audit and tax filings and user research.",
+            experience: [{ role: "Accountant", company: "Firm", description: "Led audit and tax preparation and user research." }],
+            competencies: [{ category: "Core", skills: ["Audit & Tax", "Product Discovery & User Research"] }],
+            education: [],
+        } as unknown as ResumeData;
+        const pairs = contentPairsFor(acct, ["Accountant", "Product Manager"]);
+        assert.ok(pairs.includes("audit tax"), pairs.join(" | "));
+        assert.ok(pairs.includes("user research"), pairs.join(" | "));
+        assert.ok(!pairs.includes("discovery user"), pairs.join(" | "));
+    });
 });
 
 describe("contentWordsFor", () => {

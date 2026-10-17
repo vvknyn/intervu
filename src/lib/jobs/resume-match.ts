@@ -187,6 +187,20 @@ export function roleEndYear(dates: string, nowYear: number): number | null {
  * (`STALE_ROLE_YEARS`) — or when its dates name no year, since an unknown
  * end is not evidence of an old role.
  */
+function searchableRoleTitles(role: string): string[] {
+    const trimmed = role.trim();
+    if (!trimmed) return [];
+    if (!trimmed.includes("(")) return [cleanRoleTitle(trimmed)];
+    const parts = roleTitleParts(trimmed);
+    const outer = cleanRoleTitle(parts[1] ?? "");
+    const inner = parts
+        .slice(2)
+        .filter((p) => !p.includes("("))
+        .map(cleanRoleTitle)
+        .filter((p) => isRoleTitlePhrase(p) && familiesNamedBy([p]).length > 0);
+    return [...new Set([outer, ...inner].filter(Boolean))];
+}
+
 function experienceRoleTitles(resume: ResumeData, nowYear?: number): string[] {
     const out: string[] = [];
     const seen = new Set<string>();
@@ -197,10 +211,12 @@ function experienceRoleTitles(resume: ResumeData, nowYear?: number): string[] {
             const ended = roleEndYear(entry?.dates ?? "", nowYear);
             if (ended !== null && nowYear - ended >= STALE_ROLE_YEARS) continue;
         }
-        const key = role.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(role);
+        for (const part of searchableRoleTitles(role)) {
+            const key = part.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push(part);
+        }
     }
     return out;
 }
@@ -303,15 +319,18 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     const current = (resume?.experience ?? []).map((e) => (e?.role ?? "").trim()).find(Boolean) ?? "";
     const profession = (resume?.profile?.profession ?? "").trim();
     const headlineIsJobTitle = Boolean(current) && profession.toLowerCase() === current.toLowerCase();
-    const headline = profession && !headlineIsJobTitle ? splitRoleTitles(profession).map(headlineRoleTitle) : [];
-    const currentTitle = current ? cleanRoleTitle(current) : "";
+    const headline =
+        profession && !headlineIsJobTitle
+            ? splitRoleTitles(profession).flatMap(searchableRoleTitles).map(headlineRoleTitle)
+            : [];
+    const currentTitles = current ? searchableRoleTitles(current) : [];
     // Roles the candidate SAID they want (Settings › Roles, setup's roles step) lead: they are the
     // clearest statement of intent there is. Before 2026-10-13 they were saved, shown as a chip on
     // For you, and read by nothing that searched or scored.
     const stated = preferred.map((p) => stripWorkMode(p)).filter(Boolean);
 
     const phrases: string[] = [];
-    for (const phrase of [...stated, ...headline, currentTitle].map(stripWorkMode)) {
+    for (const phrase of [...stated, ...headline, ...currentTitles].map(stripWorkMode)) {
         if (phrase && !phrases.some((p) => p.toLowerCase() === phrase.toLowerCase())) phrases.push(phrase);
     }
     const lead = summaryLeadTitle(resume?.generatedSummary ?? "");
@@ -322,7 +341,7 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
             ...familiesInOrder(headline),
             ...familiesInOrder(lead ? [lead] : []),
             ...familiesInOrder(categories),
-            ...familiesInOrder(currentTitle ? [currentTitle] : []),
+            ...familiesInOrder(currentTitles),
         ]),
     ];
 
@@ -345,6 +364,7 @@ export function targetRoles(resume: ResumeData, preferred: readonly string[] = [
     // A title held for years inside a joined current role ("Technical Account Manager (Client-Facing
     // Product Owner)", five years) is theirs as much as the headline's first title (2026-10-14).
     for (const title of yearsBackedTitles(resume)) {
+        if (!phrases.some((p) => p.toLowerCase() === title.toLowerCase())) phrases.push(title);
         if (!own.some((p) => p.toLowerCase() === title.toLowerCase())) own.push(title);
     }
     if (leadIsTitle && !own.some((p) => p.toLowerCase() === leadTitle.toLowerCase())) own.push(leadTitle);
@@ -519,7 +539,7 @@ export function correctRoleTypos(role: string): string {
  * Graduate", "Clinic Volunteer". Searched as a phrase it finds nothing and
  * spends one of the pack's four slots.
  */
-const NOT_A_JOB_TITLE = /\b(graduate|student|volunteer|candidate)\s*$/i;
+const NOT_A_JOB_TITLE = /\b(graduate|student|volunteer|candidate)\s*$|^[a-z0-9-]+\.[a-z]{2,6}$/i;
 
 const isJobTitle = (phrase: string) => !NOT_A_JOB_TITLE.test(phrase.trim());
 

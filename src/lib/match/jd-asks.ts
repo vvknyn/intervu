@@ -106,14 +106,30 @@ const CRED_EXPERIENCE = /\b(?:experience (?:with|in|using)|familiar(?:ity)? with
 const CRED_TOKEN = /\b(?:[A-Z]{2,8}\+?|[A-Z][a-z]+\+)(?![a-z])/g;
 /** Capitalised words that are not credentials. */
 const NOT_CRED = new Set(["AND", "OR", "THE", "FOR", "WITH", "US", "USA", "CA", "UK", "EU", "ON", "BC", "AB", "QC", "NS", "HR", "IT", "AI", "ML", "SQL", "API", "APIS", "SSO", "CRM", "SAAS", "B2B", "B2C", "ERP", "EMR", "EHR", "KPI", "KPIS", "OKR", "OKRS", "ROI", "SLA", "SLAS", "QBR", "QBRS", "PRD", "PRDS", "MBA", "BA", "BS", "BSC", "BASC", "MS", "MSC", "PHD", "AWS", "GCP", "CI", "CD", "UI", "UX", "QA", "NOTE", "EOE", "ASAP", "FTE", "PTO", "RSU", "RSUS", "DEI", "COVID", "NA", "EMEA", "APAC", "LATAM"]);
+/** Recognized candidate certifications, licences and professional designations (excludes compliance standards like PCI DSS, EEO labels like WMBE, and product acronyms). */
+const KNOWN_CREDS = new Set([
+    "CISSP", "CISM", "CISA", "CRISC", "CCSP", "CEH", "OSCP", "GIAC", "GSEC", "SECURITY+", "NETWORK+", "A+", "CYSA+",
+    "PMP", "CAPM", "PRINCE2", "CSM", "CSPO", "PSPO", "PSM", "SAFE", "ITIL", "TOGAF", "CBAP", "CCBA", "LSSBB", "LSSGB",
+    "CPA", "CFA", "CMA", "CIA", "CFP", "ACCA", "CGA", "CAMS", "CFCS", "FRM", "PRM", "CTP",
+    "RN", "LPN", "LVN", "RPN", "NP", "APRN", "CNS", "CRNA", "CNM", "CNA", "PSW", "BLS", "ACLS", "PALS", "NRP",
+    "CCRN", "CEN", "TNCC", "CPN", "OCN", "RD", "RDN", "RPH", "PHARMD", "MD", "DO", "DDS", "DMD", "OD", "DPM", "DVM",
+    "PT", "DPT", "OT", "OTR", "SLP", "CCC", "RT", "RRT", "LCSW", "LMSW", "LMFT", "LPC", "LPCC", "LMHC", "BCBA",
+    "PE", "FE", "EIT", "PENG", "PGEO", "LEED", "AIA", "NCARB",
+    "PHR", "SPHR", "GPHR", "SHRM", "CHRP", "CHRL", "CHRE", "CCMP",
+    "CCNA", "CCNP", "CCIE", "CKA", "CKAD", "CKS", "RHCSA", "RHCE",
+    "CDL", "AZ", "DZ", "TWIC", "OSHA", "WHMIS", "HACCP", "SERVSAFE", "CFAA", "ASE",
+    "FINRA", "SIE", "CSC", "CIM", "LLQP", "RIBO", "CIP", "FCIP",
+]);
 
 function credentialsAsked(lines: string[]): string[] {
     const out: string[] = [];
     for (const line of lines) {
         if (!CRED_WORD.test(line) || OPTIONAL.test(line) || CRED_EXPERIENCE.test(line)) continue;
+        if (COMPANY_VOICE.test(line) && !SEEKING_VOICE.test(line)) continue;
         for (const m of line.matchAll(CRED_TOKEN)) {
             const token = m[0]!;
-            if (NOT_CRED.has(token.toUpperCase().replace(/\+$/, ""))) continue;
+            const upper = token.toUpperCase();
+            if (NOT_CRED.has(upper.replace(/\+$/, "")) || !KNOWN_CREDS.has(upper)) continue;
             out.push(token);
         }
     }
