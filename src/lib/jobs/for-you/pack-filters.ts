@@ -6,7 +6,7 @@
  * link that lands them on `/jobs` with exactly this state.
  */
 import { candidateCountries, preferredRoles, type CandidateSignals } from "@/lib/jobs/candidate-signals";
-import { buildMatchQuery, experienceLevelFacet } from "@/lib/jobs/resume-match";
+import { buildMatchQuery, experienceLevelFacet, withLeadTitle } from "@/lib/jobs/resume-match";
 import { contentPhrasesFor } from "@/lib/jobs/for-you/content-phrases";
 import { parseQuotedOrPhrases } from "@/lib/jobs/fit-phrases";
 import { packContentMark, resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
@@ -39,7 +39,10 @@ export function packFilters(resume: ResumeData, signals: CandidateSignals): Jobs
     const countries = candidateCountries(signals);
     if (countries.length > 0) facets.location_country = countries;
     if (signals.remotePreference.value) facets.work_type = ["remote"];
-    return { ...DEFAULT_URL_STATE, postedBucket: packPostedBucket(signals), q, facets, sort: "fit" };
+    // A pack that retrieves senior roles also asks for its title's lead name ("Product Lead" beside "Product
+    // Manager"): a listing calls the same senior job either way, and a title phrase finds only its own words.
+    const titles = levels?.includes("senior") ? withLeadTitle(q) : q;
+    return { ...DEFAULT_URL_STATE, postedBucket: packPostedBucket(signals), q: titles, facets, sort: "fit" };
 }
 
 /**

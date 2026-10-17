@@ -542,6 +542,36 @@ test("a remote role that names no country is dealt by what its posting says abou
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+/**
+ * J-JOBS-154 — 2026-10-17, from the outside analysis Vivek sent ("exact title phrases miss ... Product Lead"): a
+ * title phrase finds only its own words, so a senior pack for "Technical Account Manager" never asked for a "Technical
+ * Account Lead", and one it met read as no kind of role (Stretch). Now a senior pack also asks for its title's lead
+ * name, and a role titled that way reads as the same line of work. The posting is CONSTRUCTED for this journey.
+ */
+test("a senior pack asks for its title's lead name and deals a role titled that way as its own line of work", { tag: ["@J-JOBS-154"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const lead = posting("eeeeeeee-0000-4000-8000-000000000001", "Technical Account Lead", "Beacon Cloud", "senior", 2);
+  const asked: string[] = [];
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number; q?: string };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    asked.push(parsed.q ?? "");
+    return answerListSearch(route, { hits: [lead], total: 1, backend: "meilisearch", configured: true, searchId: "journey-lead-title" });
+  });
+  await openPack(page);
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", lead.id, { timeout: 60_000 });
+  await expect(page.getByTestId("match-chip")).toHaveText("Strong");
+  expect(asked.length).toBeGreaterThan(0);
+  expect(asked.some((q) => q.includes('"Technical Account Lead"')), asked.join(" | ")).toBe(true);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("a pack never deals a Staff, Principal or Director role to a résumé that shows none, and asks the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
   // senior, so these read senior and fitted; a role past Senior is now left out of the pool and of the deck.
@@ -1267,7 +1297,8 @@ test("a title the résumé has not held reads Strong when its day-to-day work sh
   const tools = described(posting("99999999-0000-4000-8000-000000000002", "SecOps Engineer", "Alcumus", "senior", 1), sharingOnlyTheTools("Alcumus", "SecOps Engineer"));
   // Live descriptions often arrive as one run of text with no heading we read (Alcumus, Loopio, Risk Control, eBay on 2026-10-15): the same
   // work as the first posting's, under a title the résumé has not held. Its whole text is not evidence of the work, so it reads Good.
-  const flatTitle = "Delivery Operations Lead, API Programs";
+  // A title of no line of work we know: "Delivery Operations Lead" now reads as an operations role (J-JOBS-154), another line of work.
+  const flatTitle = "Client Delivery Lead, API Programs";
   const flat = described(
     posting("99999999-0000-4000-8000-000000000003", flatTitle, "Fernway", "senior", 2),
     askingForTheResumeWork("Fernway", flatTitle).split("\n\n").filter((_, index) => index % 2 === 1).join(" ").replace(/\n/g, " "),

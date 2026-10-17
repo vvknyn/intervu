@@ -212,13 +212,25 @@ const LEADER_ROLE_WORD = /\b(?:manager|director|head|lead|vp|vice president|owne
  * Product Management" run product management, so they are product roles, as "Director, Technical Account Management"
  * already reads as the TAM family (/technical account manag/). Without a leader word ("Product Management Intern",
  * "Product Management Office Coordinator", "Account Management Specialist") the title names the team the role sits in,
- * not the role, and is read as written. Own-title matching (`jobTitleMatchesTarget`) never reads it this way.
+ * not the role, and is read as written. A title "<line> Lead" is also read as "<line> Manager" (`LINE_LEAD`). Own-title
+ * matching (`jobTitleMatchesTarget`) never reads it this way.
  */
 function familyReadings(titles: string[]): string[] {
-    return normalizeTitles(titles).flatMap((title) =>
-        LEADER_ROLE_WORD.test(title) && /\bmanagement\b/i.test(title) ? [title, title.replace(/\bmanagement\b/gi, "manager")] : [title],
-    );
+    return normalizeTitles(titles).flatMap((title) => {
+        const readings = [title];
+        if (LEADER_ROLE_WORD.test(title) && /\bmanagement\b/i.test(title)) readings.push(title.replace(/\bmanagement\b/gi, "manager"));
+        if (LINE_LEAD.test(title)) readings.push(title.replace(LINE_LEAD, "$1 manager"));
+        return readings;
+    });
 }
+
+/**
+ * "<line> Lead" after the words of a line of work: "Product Lead", "Senior Product Lead, Payments", "Customer Success
+ * Lead". It is the senior role of that line under its other name, so it is read as "<line> Manager" too: a "Digital
+ * Product Lead" read as no kind of role and a product résumé had to prove it from its text (2026-10-17). "Lead" first
+ * ("Lead Product Designer") ranks the title it opens and is read as written, and so is a lead in sales ("Lead Gen").
+ */
+const LINE_LEAD = /\b([a-z][a-z&/-]*)\s+lead\b(?!\s*-?\s*gen)/i;
 
 function titleNamesFamily(family: RoleFamilyId, titles: string[]): boolean {
     for (const pattern of TITLE_FAMILY_PATTERNS[family]) {
