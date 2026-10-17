@@ -138,18 +138,29 @@ function yearsSeniorityBasis(resume: ResumeData | null | undefined, now: Date): 
 }
 
 /**
- * The `experience_level` facet values a candidate at `seniority` retrieves.
+ * The listing levels beside a step's own name that scoring reads as that step (`seniorityOfLevel`): a role
+ * listed Lead is a senior role. Executive also reads senior but is past Senior, which a pack's pool leaves
+ * out unless the résumé holds such a role (`resumeSearchMark`), so it is not retrieved here; nor is Intern,
+ * which reads entry but is mostly open to students only.
+ */
+const LISTED_AS: Partial<Record<Seniority, readonly string[]>> = { senior: ["lead"] };
+
+/**
+ * The `experience_level` facet values a candidate at `seniority` retrieves: each step and every listing level
+ * that reads as it, so a role scoring would take is never left out before it is scored (2026-10-17: roles
+ * listed Lead read senior and fitted, but a senior candidate's search never retrieved them).
  * Senior candidates often fit adjacent mid-level PM/TAM/CSM postings; senior-only
  * would hide most of those titles from Rank retrieval.
  */
 export function experienceLevelFacet(seniority: Seniority | null, resume?: ResumeData | null): string[] | null {
+    const listed = (steps: Seniority[]) => steps.flatMap((step) => [step, ...(LISTED_AS[step] ?? [])]);
     // A long career that already led people or work also retrieves one level up when the level comes
     // from fewer years in a new line of work: 5 years as a PM after Senior Engineer, Team Lead and
     // Technology Lead roles (13 years in all). Vivek, 2026-10-13: every pick other portals sent him was
     // Senior, Staff or Head of Product, and the mid-only search hid them all. Scoring keeps its level.
-    if (seniority === "mid" && resume && ledLongCareer(resume)) return ["mid", "senior"];
-    if (seniority === "senior") return ["mid", "senior"];
-    return seniority ? [seniority] : null;
+    if (seniority === "mid" && resume && ledLongCareer(resume)) return listed(["mid", "senior"]);
+    if (seniority === "senior") return listed(["mid", "senior"]);
+    return seniority ? listed([seniority]) : null;
 }
 
 /** A career of `LED_CAREER_MIN_YEARS` or more with a title that led people or work in it. */

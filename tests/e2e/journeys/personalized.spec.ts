@@ -466,6 +466,39 @@ test("a pack reads every role its search found up to 300: roles found past the f
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
+/**
+ * J-JOBS-152 — 2026-10-17, from the outside analysis Vivek sent ("Ten lead-level PM roles are never retrieved, even though
+ * scoring would accept them"): a role listed Lead reads senior and fits a senior résumé, but the pack's search asked for
+ * mid and senior listings only. Now it asks for every listing level that reads as the résumé's (mid, senior and Lead), and
+ * the Lead role is dealt. The postings are CONSTRUCTED for this journey (no real company or posting).
+ */
+test("a senior résumé's pack retrieves roles listed Lead and deals them", { tag: ["@J-JOBS-152"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await page.addInitScript((key) => localStorage.setItem(key, "1"), PACKS_HOME_INTRO_KEY);
+  await seedResume(page);
+  const lead = posting("cccccccc-0000-4000-8000-000000000001", "Technical Account Manager", "Beacon Cloud", "lead", 2);
+  const nurse = posting("cccccccc-0000-4000-8000-000000000002", "Registered Nurse", "Lakeside Health", "mid", 1);
+  const levels: string[][] = [];
+  await withAccountApplications(page, []);
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    if (!isListSearch(req)) return route.fallback();
+    const parsed = JSON.parse(req.postData() ?? "{}") as { fromResume?: boolean; offset?: number; facets?: { experience_level?: string[] } };
+    if (!parsed.fromResume || (parsed.offset ?? 0) !== 0) return route.fallback();
+    levels.push(parsed.facets?.experience_level ?? []);
+    return answerListSearch(route, { hits: [nurse, lead], total: 2, backend: "meilisearch", configured: true, searchId: "journey-lead-level" });
+  });
+  await openPack(page);
+  const front = page.locator('[data-testid="for-you-deck"] [data-testid="role-stack"] [data-testid="role-stack-card"][data-stack-pose="front"]');
+  await expect(front).toHaveAttribute("data-job-id", lead.id, { timeout: 60_000 });
+  await expect(page.getByTestId("for-you-deck-position")).toHaveText("Role 1 of 1");
+  // Every search that filters by level (a count with the level filter taken off sends none) asks for Lead too.
+  const filtered = levels.filter((asked) => asked.length > 0);
+  expect(filtered.length).toBeGreaterThan(0);
+  for (const asked of filtered) expect([...asked].sort()).toEqual(["lead", "mid", "senior"]);
+  expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("a pack never deals a Staff, Principal or Director role to a résumé that shows none, and asks the search to leave them out", { tag: ["@J-JOBS-130"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-14: "the majority of them are staff level... way senior to senior roles". The scale ends at
   // senior, so these read senior and fitted; a role past Senior is now left out of the pool and of the deck.
