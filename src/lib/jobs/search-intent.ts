@@ -24,11 +24,11 @@
  *    (see `resolveSelectionAfterRefresh`, result-state.ts). This is the one
  *    URL-carried signal not already implied by `query`/filters/sort above
  *    (which are themselves seeded from the URL on mount).
- *  - `forYouActive`: For-you (signed in with a usable résumé) is showing —
- *    that surface is always a ranked-results view, never the at-rest page.
+ *  - `fitActive`: the list is on "Best match" (a résumé ranks it) — that is
+ *    always a ranked-results view, never the at-rest page.
  *
  * When every clause clears (query emptied before any submit, filters back
- * to their defaults, no job open, For-you not active),
+ * to their defaults, no job open, fit not active),
  * this returns to false and the page returns to rest without a results
  * fetch — there is no additional state here beyond the caller-held
  * `explicitlySubmitted` flag, so nothing but that one flag can keep the
@@ -39,7 +39,7 @@ export interface SearchIntentInput {
     filtersAwayFromDefault: boolean;
     explicitlySubmitted: boolean;
     jobOpen: boolean;
-    forYouActive: boolean;
+    fitActive: boolean;
 }
 
 export function hasSearchIntent(input: SearchIntentInput): boolean {
@@ -48,6 +48,6 @@ export function hasSearchIntent(input: SearchIntentInput): boolean {
         input.filtersAwayFromDefault ||
         input.explicitlySubmitted ||
         input.jobOpen ||
-        input.forYouActive
+        input.fitActive
     );
 }

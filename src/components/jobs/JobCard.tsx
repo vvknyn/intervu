@@ -63,6 +63,7 @@ export function JobCard({
     showMatchTeaser = false,
     onMatchTeaserClick,
     matchAsOfDate = null,
+    reasonLine = null,
     pursuit,
     appliedPursuit,
     onGoAfter,
@@ -99,6 +100,8 @@ export function JobCard({
     onMatchTeaserClick?: () => void;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
+    /** Why a recommended role is listed (`rowReasonLine`): one line under the facts, only on a résumé-ranked list. */
+    reasonLine?: string | null;
     /** Existing pursuit for this job, if any — same contract JobDetail's
      *  bookmark reads. Optional (unlike JobDetail's required prop): the
      *  direct-construction unit test (jobs-card-posted-age.test.ts) renders
@@ -333,6 +336,11 @@ export function JobCard({
                             ]}
                         />
                     </div>
+                )}
+                {reasonLine && (
+                    <p data-testid="row-fit-reason" className="mt-1 line-clamp-1 text-left text-sm text-muted-foreground">
+                        {reasonLine}
+                    </p>
                 )}
             </div>
             {/* Right meta column: bookmark (rulebook's icon-only row

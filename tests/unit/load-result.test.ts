@@ -101,7 +101,6 @@ test("createServerListCache: failure is not cached, Retry re-reads, success is c
 
 test("every list surface renders LoadFailedState before its empty state", () => {
     const surfaces: Array<[string, RegExp]> = [
-        ["src/components/jobs/for-you/ForYouHome.tsx", /loadError \?[\s\S]*<LoadFailedState[\s\S]*testId="for-you-empty"/],
         ["src/app/jobs/JobsContent.tsx", /resultsPanel === "error" \?[\s\S]*?<LoadFailedState/],
         ["src/app/yours/page.tsx", /failed \?[\s\S]*<LoadFailedState[\s\S]*<TrackerEmptyState/],
         ["src/app/yours/history/page.tsx", /failed\) \{[\s\S]*<LoadFailedState[\s\S]*<HistoryEmptyState/],

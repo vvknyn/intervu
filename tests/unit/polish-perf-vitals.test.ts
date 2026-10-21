@@ -75,11 +75,10 @@ test("signed-out /jobs entry is server page + thin route gate", () => {
 });
 
 test("heavy jobs modules load via dynamic import in JobsContent", () => {
-    assert.match(JOBS_CONTENT, /import\("@\/components\/jobs\/CategoryHubGrid"\)/);
     assert.match(JOBS_CONTENT, /import\("@\/components\/jobs\/JobDetail"\)/);
     assert.match(JOBS_CONTENT, /import\("@\/components\/resume-builder\/ResumeImportModal"\)/);
     assert.match(JOBS_CONTENT, /const JobDetail = dynamic\(/);
-    assert.match(JOBS_CONTENT, /const ForYouHome = dynamic\(/);
+    assert.doesNotMatch(JOBS_CONTENT, /const ForYouHome = dynamic\(|CategoryHubGrid/, "the packs hub and the For you deck are gone");
 });
 
 test("in-page splash unchanged", () => {

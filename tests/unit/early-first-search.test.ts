@@ -22,9 +22,9 @@ test("only a typed search landing gets an early first search", () => {
     assert.equal(earlyFirstSearchParams("?q=%20%20", false), null);
     assert.equal(earlyFirstSearchParams("?country=CA", false), null, "filters only: left to JobsContent");
     assert.equal(earlyFirstSearchParams("?q=nurse&sort=fit", false), null, "résumé fit sends a deeper page");
-    assert.equal(earlyFirstSearchParams("?q=nurse&view=for-you", false), null, "For you sends a deeper page");
     assert.ok(earlyFirstSearchParams("?q=nurse", false));
-    assert.ok(earlyFirstSearchParams("?q=nurse&view=search&job=abc", false));
+    assert.ok(earlyFirstSearchParams("?q=nurse&job=abc", false));
+    assert.ok(earlyFirstSearchParams("?q=nurse&view=for-you", false), "an old ?view= link is read by nothing: it is a typed search");
 });
 
 test("the early request is the one JobsContent's first search sends for the URL", () => {

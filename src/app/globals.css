@@ -993,12 +993,6 @@ h4 {
    (.role-stack-screen), never less than its floor (.role-stack-stage). A
    sign-up card or a short screen scrolls the page instead of squeezing the
    cards. */
-body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"] {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-}
-
 [data-testid="for-you-home"].jobs-session-frame {
   min-height: 0;
   flex: 1 1 auto;
@@ -1112,21 +1106,6 @@ body:has([data-testid="for-you-home"]) [data-testid="jobs-home-view-transition"]
 
 .state-opacity-in {
   animation: state-opacity-in var(--transition-enter) var(--ease-standard) both;
-}
-
-/** For you ↔ Search main column — opacity only (no translate; keeps masthead/LCP stable). */
-@keyframes jobs-home-view-crossfade-in {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.jobs-home-view-crossfade {
-  animation: jobs-home-view-crossfade-in var(--transition-page) var(--ease-standard) both;
 }
 
 .for-you-deck-shell {

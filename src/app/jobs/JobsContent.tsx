@@ -42,7 +42,6 @@ import { FooterLinks } from "@/components/layout/Footer";
 import { getCurrentUser, onAuthChange, revalidateClientSession, type User } from "@/lib/firebase/client-auth";
 import {
     getDefaultBrowseAction,
-    getHubPackCorpusCountsAction,
     markJobAppliedAction,
     getJobsFreshnessAction,
     getPostedDateFilterSupportAction,
@@ -58,7 +57,6 @@ import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
 import { takeEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
-import { DAILY_APPLY_HUB_TIP } from "@/lib/pursuits/daily-apply-plan";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, addGuestPursuit, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
@@ -116,9 +114,16 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { TodayHome, TodayLastHere, useSeenBefore, type TodayNoResume } from "@/components/jobs/for-you/TodayHome";
-import { ResumeInUse, ResumeRemove, resumeInUseLabel } from "@/components/jobs/ResumeInUse";
-import { countResults, isThinResults, locationDropped } from "@/lib/jobs/broaden";
+import { useSeenBefore } from "@/hooks/use-visit";
+import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
+import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
+import { LanguagesControl } from "@/components/jobs/LanguagesControl";
+import { useLanguageChoice } from "@/hooks/use-language-choice";
+import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
+import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
+import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
+import { ResumeRemove } from "@/components/jobs/ResumeInUse";
+import { countResults, isThinResults } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
@@ -192,14 +197,6 @@ import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorRetur
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
 import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
-const CategoryHubGrid = dynamic(
-    () => import("@/components/jobs/CategoryHubGrid").then((m) => m.CategoryHubGrid),
-    { loading: () => null },
-);
-const HubYourJobs = dynamic(
-    () => import("@/components/jobs/for-you/HubYourJobs").then((m) => m.HubYourJobs),
-    { loading: () => null },
-);
 // `loading: () => null` on each: without it a dynamic() component holds up
 // the first render of everything around it until its own chunk arrives, and
 // these only show once a job is opened or the importer is asked for.
@@ -226,14 +223,6 @@ const SearchAutocomplete = dynamic(() =>
 const AuthPopover = dynamic(
     () => import("@/components/auth/auth-popover").then((m) => m.AuthPopover),
     { ssr: false },
-);
-const ForYouHome = dynamic(
-    () => import("@/components/jobs/for-you/ForYouHome").then((m) => m.ForYouHome),
-    { loading: () => null },
-);
-const ForYouHomePending = dynamic(
-    () => import("@/components/jobs/for-you/ForYouHome").then((m) => m.ForYouHomePending),
-    { loading: () => null },
 );
 const AccountEmailPrompt = dynamic(
     () => import("@/components/account/AccountEmailPrompt").then((m) => m.AccountEmailPrompt),
@@ -276,7 +265,7 @@ import {
     buildZeroResultPayload,
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
-import { loadFailed, readWithRetry, retryDelayMs, type LoadResult } from "@/lib/load-result";
+import { retryDelayMs } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
@@ -322,9 +311,6 @@ import {
     type PublicJob,
     type YearsExperienceBucket,
 } from "@/lib/jobs/types";
-import { HUB_PACK_SHORT_LABELS, type HubPackId } from "@/lib/jobs/for-you/hub-pack-filters";
-import { industryFilterTileIds, visibleIndustryTiles } from "@/lib/jobs/for-you/industry-tiles";
-import { resumeIndustry } from "@/lib/jobs/resume-industry";
 import {
     parseJobsUrl,
     serializeJobsUrl,
@@ -333,62 +319,24 @@ import {
     type JobsUrlState,
     type UrlSort,
 } from "@/lib/jobs/url-state";
-import { resolveJobsHomeView, type JobsHomeView } from "@/lib/jobs/for-you/home-view";
-import { JobsHomeViewTransition } from "@/components/jobs/for-you/JobsHomeViewTransition";
-import {
-    readLastJobsHomeView,
-    subscribeLastJobsHomeView,
-    writeLastJobsHomeView,
-} from "@/lib/jobs/for-you/last-home-view";
-import { ForYouToggle } from "@/components/jobs/for-you/ForYouToggle";
-import { PacksHomeIntroModal } from "@/components/jobs/for-you/PacksHomeIntroModal";
-import {
-    readPacksHomeIntroDismissed,
-    writePacksHomeIntroDismissed,
-} from "@/lib/jobs/for-you/packs-home-intro";
-import {
-    armFirstPackReveal,
-    consumeFirstPackReveal,
-} from "@/lib/jobs/for-you/first-pack-reveal";
 import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
 import {
     buildOptimisticPursuit,
     pruneConfirmedOptimisticPursuits,
 } from "@/lib/pursuits/optimistic-pursuit";
-import { deckListFor, orderForYouJobsByBand, sortByFit, tuneRank, withListRemovals } from "@/lib/jobs/for-you/band-order";
+import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
+import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
-import { candidateLocationFromResume } from "@/lib/jobs/for-you/pack-apply-location";
-import { FOR_YOU_READ_DEPTH, packContentPhrases, packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { hubChipLists, hubTile, hubTileRows, isHubFilterTile, isHubPackId, resumeTileLabels } from "@/lib/jobs/for-you/hub-tiles";
-import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
-import {
-    formatBrowseHubCorpusLine,
-    HUB_PROBE_LIMITS,
-    freshHubProbeMemo,
-    hubList,
-    formatHubPackCorpusRoleLabels,
-    type ScoredHubHit,
-} from "@/lib/jobs/for-you/hub-counts";
-import {
-    chipCountsToRemember,
-    hubCountsGate,
-    readHubTileCounts,
-    resolveHubCountDeltas,
-    writeHubTileCounts,
-    type HubCountsGate,
-    type HubPackCounts,
-    type HubProbeRead,
-} from "@/lib/jobs/for-you/hub-count-deltas";
-import { useForYouDeck } from "@/hooks/use-for-you-deck";
+import { FOR_YOU_READ_DEPTH, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
-import { buildJobSearchPayload, deckContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
+import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
-import { buildMatchQuery, mergeFacets } from "@/lib/jobs/resume-match";
+import { mergeFacets } from "@/lib/jobs/resume-match";
 import { toast } from "@/lib/toast";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import { LandingNotice } from "@/components/layout/LandingNotice";
@@ -397,12 +345,7 @@ import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
-import {
-    isConfirmedSignedIn,
-    isConfirmedSignedOut,
-    resolveJobsResumeOnFile,
-    shouldShowJobsHomeViewToggle,
-} from "@/lib/auth/jobs-chrome-gates";
+import { isConfirmedSignedIn, isConfirmedSignedOut, resolveJobsResumeOnFile } from "@/lib/auth/jobs-chrome-gates";
 import {
     AUTH_CTA_LABEL,
     formatAuthGateValueLine,
@@ -787,8 +730,9 @@ const MAX_REACHABLE = 100_000;
 /** How long a ranked list's read of its roles' description places may take
  *  (`/api/jobs/place-notes`); an opened deck waits at most this long for it. */
 const RANKED_PLACE_NOTES_DEADLINE_MS = 1_000;
-/** The deck's roles while it holds them (one stable empty list). */
-const NO_PACKS: PublicJob[] = [];
+
+/** The longest a signed-in account's unknown résumé holds the front door back (a failed presence read stays unknown). */
+const JOBS_HOME_PENDING_MAX_MS = 6_000;
 
 /** Jobs opened in a session before the résumé is offered (Screen 9). Three is
  *  the point where someone is demonstrably reading rather than glancing. */
@@ -1143,7 +1087,6 @@ export function JobsContent({
     // CTA (`buildCompanyJobsUrl`). Held next to `board` because they are the
     // same concern — see `scope` below.
     const [companyDomain, setCompanyDomain] = useState<string | null>(initialUrlState.companyDomain);
-    const [homeView, setHomeView] = useState<JobsUrlState["homeView"]>(initialUrlState.homeView);
     // Declared here (not down near `clearAll`/the rail JSX, where it used to
     // live) so the search effect below can read ONE `filterState` for this
     // render instead of five separate primitives — review fix, 2026-07-19,
@@ -1277,7 +1220,6 @@ export function JobsContent({
         // `buildUrlState({...})` without an explicit `sort` override.
         sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
         jobId: searchParams.get("job"),
-        homeView,
         ...overrides,
     });
 
@@ -1335,12 +1277,11 @@ export function JobsContent({
     // active (see the effect near `activeCount`/`filtersOpen` below — it
     // needs both, so it lives after them). `setDocked` is pulled out here so
     // the unmount cleanup can sit next to the rest of this page's setup.
-    const { setDocked, setHomeViewDocked } = useSearchDock();
+    const { setDocked } = useSearchDock();
 
     // The provider outlives this page, so a dock left set would follow the
     // person onto /resume or /trends and offer to edit a search they left.
     useEffect(() => () => setDocked(null), [setDocked]);
-    useEffect(() => () => setHomeViewDocked(false), [setHomeViewDocked]);
 
     // Perf first-paint (2026-09-18): the one piece of state `hasSearchIntent`
     // (lib/jobs/search-intent.ts) needs beyond derived query/filter/sort/URL
@@ -1491,12 +1432,9 @@ export function JobsContent({
     );
     const resultRef = useRef<JobsSearchActionResult | null>(null);
     resultRef.current = result;
-    // Which search `result` answers, and the last search that finished (rows or a
-    // final failure). The Search list keeps its rows through a background refresh;
-    // an opened pack never shows another search's rows (a tile opened from the hub
-    // listed the hub's roles, not remote ones, until its own search landed).
+    // Which search `result` answers. The list keeps its rows through a background refresh, but the
+    // recommendation's counts only describe the search they were made from.
     const [resultSearchKey, setResultSearchKey] = useState<string | null>(null);
-    const [settledSearchKey, setSettledSearchKey] = useState<string | null>(null);
     const [loading, setLoading] = useState(!initialSearch);
     const [loadingMore, setLoadingMore] = useState(false);
     // Set once `loadMore` hits the anonymous depth wall (`meta.gated`, see
@@ -1786,26 +1724,14 @@ export function JobsContent({
         return merged;
     }, [pursuitsByJobId, optimisticPursuits]);
     // Roles already applied to — by id, or the same opening listed again (lib/pursuits/applied.ts):
-    // badged on every row, and left out of a pack's deck.
+    // badged on every row, and left out of the résumé-ranked list.
     const appliedIndex = useMemo(
         () => trackedIndex([...pursuits, ...pursuitsByJobIdMerged.values()]),
         [pursuits, pursuitsByJobIdMerged],
     );
-    // The packs hub counts the roles a pack opens with, and a pack's deck leaves out the roles already in the tracker,
-    // so the hub reads the tracker as it is when its counts settle, not as it was when the probe began.
-    const appliedIndexRef = useRef(appliedIndex);
-    appliedIndexRef.current = appliedIndex;
-    const pursuitsLoadingRef = useRef(pursuitsLoading);
-    pursuitsLoadingRef.current = pursuitsLoading;
-    const hubIsTracked = useCallback((job: PublicJob) => trackedPursuitFor(job, appliedIndex) != null, [appliedIndex]);
     const { viewedIds, markViewed } = useViewed();
     const saveInFlightRef = useRef<Set<string>>(new Set());
     const [savePulseJobIds, setSavePulseJobIds] = useState<Set<string>>(() => new Set());
-    const [pendingFirstPackReveal, setPendingFirstPackReveal] = useState(false);
-    const [firstRevealHandoff, setFirstRevealHandoff] = useState(false);
-    const [firstRevealEnter, setFirstRevealEnter] = useState(false);
-    const [firstRevealDeckFocus, setFirstRevealDeckFocus] = useState(false);
-    const firstPackRevealAttemptedRef = useRef(false);
 
     const triggerSavePulse = useCallback((jobId: string) => {
         if (prefersReducedMotion()) return;
@@ -1832,9 +1758,6 @@ export function JobsContent({
     const [resume, setResume] = useState<ResumeData | null>(null);
     /** Bumped by every new résumé in this page (upload, edit), so a read that started before it is dropped. */
     const resumeGenerationRef = useRef(0);
-    /** A new résumé is in and its packs are being worked out again: the hub says so until they land. */
-    const [resumeRefreshing, setResumeRefreshing] = useState(false);
-    const refreshFromKeyRef = useRef("");
     // Read by the search effects (refs, so holding a résumé never re-runs a search by itself).
     const resumeHeldRef = useRef(false);
     resumeHeldRef.current = resume != null;
@@ -1852,7 +1775,7 @@ export function JobsContent({
     keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
-    // The phrases the pack's own search also looks for in a posting's text (`deckContentMark`), read by the search effects.
+    // The phrases the résumé's own search also looks for in a posting's text (`resumeContentMark`), read by the search effects.
     const packContentRef = useRef<{ q: string; phrases: string[] } | null>(null);
     packContentRef.current = useMemo(() => (resume && pack ? { q: pack.q.trim(), phrases: packContentPhrases(resume, pack.q) } : null), [resume, pack]);
     const [importOpen, setImportOpen] = useState(false);
@@ -1900,63 +1823,6 @@ export function JobsContent({
         } catch {
             /* private mode */
         }
-    };
-
-    const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
-    // Packs home stays CategoryHubGrid until the user opens a pack.
-    // Selecting a pack sets forYouPackDeckOpen and mounts ForYouHome postcard
-    // (1 of N), not CategoryHubGrid's internal modal.
-    const [forYouPackDeckOpen, setForYouPackDeckOpen] = useState(false);
-    const [hubSelectedCategoryId, setHubSelectedCategoryId] = useState<string | undefined>(undefined);
-    /** Live hub “all” counts from a quiet fit probe — never mock numbers. */
-    const [hubFitProbe, setHubFitProbe] = useState<{
-        loading: boolean;
-        probing: boolean;
-        total: number | null;
-        scored: ScoredHubHit[];
-    }>({ loading: false, probing: false, total: null, scored: [] });
-    // Unscored browse sample for pack pills when fit has no résumé yet.
-    // Opening a pack must not replace this with the deck page.
-    const [hubBrowse, setHubBrowse] = useState<{ jobs: PublicJob[]; total: number | null }>({
-        jobs: [],
-        total: null,
-    });
-    /** null = loading; a failed read renders no count, never "…" forever. */
-    const [hubPackCorpusCounts, setHubPackCorpusCounts] = useState<LoadResult<
-        Partial<Record<HubPackId, CorpusCount | null>>
-    > | null>(null);
-    // A filter tile counts the roles its own search's rows list (hub-tiles.ts): absent while that read is in flight, null when it failed.
-    const [hubTileScored, setHubTileScored] = useState<Partial<Record<HubPackId, ScoredHubHit[] | null>>>({});
-    // The probe's searches were refused (rate limit, index down): the chips drop their counts instead of "…" forever.
-    const [hubProbeFailed, setHubProbeFailed] = useState(false);
-    // "+N" per pack chip since the last visit (`hub-count-deltas.ts`), set once every count has settled.
-    const [hubCountDeltas, setHubCountDeltas] = useState<HubPackCounts>({});
-    // The last finished probe, so going back to the hub repaints its counts instead of searching again.
-    const hubProbeMemoRef = useRef<{
-        key: string;
-        at: number;
-        complete: boolean;
-        probe: typeof hubFitProbe;
-        tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>>;
-        deltas: HubPackCounts;
-    } | null>(null);
-    // Remembering this probe's counts, which waits for the tracker as well as for the probe (`hubCountsGate`).
-    const hubCountsGateRef = useRef<HubCountsGate<HubProbeRead> | null>(null);
-    useEffect(() => {
-        hubCountsGateRef.current?.tracker(!pursuitsLoading);
-    }, [pursuitsLoading]);
-    const forYouPackDeckOpenRef = useRef(forYouPackDeckOpen);
-    forYouPackDeckOpenRef.current = forYouPackDeckOpen;
-
-    // Packs-home intro — start dismissed to avoid SSR/hydration flash; reveal
-    // once localStorage says this user has not seen it.
-    const [packsIntroDismissed, setPacksIntroDismissed] = useState(true);
-    useEffect(() => {
-        setPacksIntroDismissed(readPacksHomeIntroDismissed());
-    }, []);
-    const dismissPacksIntro = () => {
-        writePacksHomeIntroDismissed();
-        setPacksIntroDismissed(true);
     };
 
     // Which auth value-line reason class to show (apply / generic).
@@ -2050,7 +1916,6 @@ export function JobsContent({
                 // reason `jobId` above is hardcoded rather than threaded in: it
                 // must never appear in `searchKey` or it would trigger a refetch.
                 hideViewed: false,
-                homeView: null,
             }) + (postedDateSupported ? "" : "&nodatesort"),
         // `postedDateSupported` participates because it changes the sort the
         // backend is asked for: when the probe resolves, the date sort becomes
@@ -2114,12 +1979,6 @@ export function JobsContent({
         resumeKnownOnServer,
     });
 
-    const lastHomeView = useSyncExternalStore(
-        subscribeLastJobsHomeView,
-        readLastJobsHomeView,
-        () => null,
-    );
-
     // Single gate behind every résumé invite on this page (band ghost word,
     // sort menu's fourth item, résumé-moment card) — see `needsResumeEntry`'s
     // own doc comment for why it reads `resumeOnFile` (server-aware) rather
@@ -2127,37 +1986,6 @@ export function JobsContent({
     // signed-in user with a résumé already on the server to "add" one.
     const showResumeEntry = needsResumeEntry({ signedIn, resumeOnFile, fitActive });
     const showResumeReplace = needsResumeReplace({ resumeOnFile });
-
-    const resolvedHomeView = useMemo(
-        () =>
-            resolveJobsHomeView({
-                urlView: homeView,
-                resumeOnFile,
-                companyDomain,
-                board,
-                q: query,
-                sort: fitActive ? "fit" : sortOverride ? modeToUrlSort(sortOverride) : null,
-                lastHomeView,
-                signedOut,
-            }),
-        [homeView, resumeOnFile, companyDomain, board, query, fitActive, sortOverride, lastHomeView, signedOut],
-    );
-    const showForYouHome = resolvedHomeView === "for-you";
-    // For you needs an account. A confirmed guest who asks for it gets one
-    // sign-in card, and no packs, counts or pack searches run behind it.
-    // While auth is still resolving it shows the pending shell, so a guest's
-    // last-seen For you cannot start the hub's searches before we know.
-    const forYouOpen = showForYouHome && signedIn;
-    const forYouGated = showForYouHome && signedOut;
-    const showSearchHome = resolvedHomeView === "search";
-    const showJobsHomePending = resolvedHomeView === "pending";
-    // Signed-in header row: For you ↔ Search. Not a Jobs-only tab.
-    const showHomeViewToggle = shouldShowJobsHomeViewToggle({
-        signedOut,
-        signedIn,
-        resumeOnFile,
-        showJobsHomePending,
-    });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -2218,7 +2046,6 @@ export function JobsContent({
             sort: sortOverride ? modeToUrlSort(sortOverride) : null,
             jobId: null,
             hideViewed: false,
-            homeView: null,
         }),
         [
             query,
@@ -2317,34 +2144,28 @@ export function JobsContent({
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
-        forYouActive: forYouOpen,
+        fitActive,
     });
+    // A signed-in account whose résumé is not known yet would flash the front door (an upload prompt) for the
+    // moment before its résumé-ranked list opens; a neutral column holds the place, for a few seconds at most.
+    const [pendingExpired, setPendingExpired] = useState(false);
+    useEffect(() => {
+        const t = window.setTimeout(() => setPendingExpired(true), JOBS_HOME_PENDING_MAX_MS);
+        return () => window.clearTimeout(t);
+    }, []);
+    const showJobsHomePending = signedIn && atRest && !searchIntent && resumeOnFile === null && !pendingExpired;
+    // The search chrome (masthead, search box, filters) shows unless the page is holding its place for the account.
+    const showSearchHome = !showJobsHomePending;
     // The at-rest front door: Search home, nothing typed, filtered or open.
     const frontDoorAtRest = atRest && showSearchHome && !searchIntent;
     // Single gate for "the header owns this search now" — lg+ always docks,
     // EXCEPT at rest, where the centered hero (not the header) owns search.
     const headerDockActive = isLgUp && showSearchHome && !atRest;
-    // Deliberately NOT `headerDockActive`: the For-you/Search toggle has to
-    // sit on the header row beside the mark in every state it's visible in,
-    // including the whole For-you view and "Search, no query yet" — both of
-    // which correctly leave `headerDockActive` false (there's no search box
-    // or filters to dock). The filter band stays closed unless a search is
-    // actually docked, so the switch never becomes a second chrome row.
-    const homeViewDockActive = showHomeViewToggle;
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
-    useEffect(() => {
-        setHomeViewDocked(homeViewDockActive);
-    }, [homeViewDockActive, setHomeViewDocked]);
-
     const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
-    // One hook per docked slot, gated by whichever flag governs it —
-    // `headerDockActive` for the search-only slots, `homeViewDockActive` for
-    // the toggle's slot alone. Distinct gates on purpose: `homeViewDockActive`
-    // is true in states where `headerDockActive` is false (see its
-    // definition above), so folding the toggle's slot into the search-only
-    // gate would re-widen that gate for every search-only mount too.
+    // One hook per docked slot, gated by `headerDockActive`.
     const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
     const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
     const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
@@ -2353,7 +2174,6 @@ export function JobsContent({
     const dockedExtrasMount = useDockedSlotMount(headerDockActive, "topbar-docked-extras");
     const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
     const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
-    const dockedHomeViewMount = useDockedSlotMount(homeViewDockActive, "topbar-docked-home-view");
 
     // Debounced search on query / facet / salary / visa changes. Zero query
     // no longer skips this — see `emptySearchState` above.
@@ -2406,17 +2226,16 @@ export function JobsContent({
                 // (actions/jobs.ts) for the cost-guard rationale. Every
                 // other state (a real query, fit-active, or zero-query WITH
                 // filters) is unchanged.
-                // Pack / For-you deck: deeper first page. SERP keeps PAGE.
-                const deepForYou =
-                    forYouPackDeckOpenRef.current || fitActiveRef.current;
-                const firstPageLimit = deepForYou ? FOR_YOU_PAGE : PAGE;
+                // A recommendation reads deeper (it drops roles before it lists, so it needs more to list
+                // from). A plain search keeps PAGE.
+                const firstPageLimit = fitActiveRef.current ? FOR_YOU_PAGE : PAGE;
                 const r =
                     emptySearchState === "overlay-ask"
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                              ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
-                              ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
+                              ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                              ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
                               offset: 0,
@@ -2438,7 +2257,6 @@ export function JobsContent({
                         return;
                     }
                     setSearchError(r.note ?? SEARCH_UNAVAILABLE_MESSAGE);
-                    setSettledSearchKey(searchKey);
                     // An initial failure needs backend metadata for the error
                     // state. A background failure must not blank existing hits.
                     if (!(resultRef.current?.hits.length)) {
@@ -2503,7 +2321,6 @@ export function JobsContent({
                 const interleavedHits = interleaveByCompany(r.hits);
                 setResult({ ...r, hits: interleavedHits });
                 setResultSearchKey(searchKey);
-                setSettledSearchKey(searchKey);
                 // A real search (not the pristine zero-query landing) that
                 // comes back empty — the denominator for "how often does
                 // search fail someone," not every empty render (a fresh
@@ -2660,8 +2477,7 @@ export function JobsContent({
                     } else {
                         setSearchError(SEARCH_UNAVAILABLE_MESSAGE);
                         // Settled, failed: an open pack shows the error and Retry, not its loading state.
-                        setSettledSearchKey(searchKey);
-                        // A thrown transport error is not an unconfigured backend
+                            // A thrown transport error is not an unconfigured backend
                         // or a successful empty result. Preserve prior data (if
                         // any) and let the explicit error state own first load.
                     }
@@ -2706,8 +2522,8 @@ export function JobsContent({
     // No search to wait for: flip `firstSearchSettled` so the secondary mount
     // probes gated on it (posted-date support, report-job-enabled,
     // live-jobs-count) aren't left waiting on a fetch that will never fire.
-    // Not while the home view is still pending, though: that resolves within
-    // moments into For you or a browse list, and settling early let those
+    // Not while the home is still pending, though: that resolves within
+    // moments into the résumé-ranked list or the front door, and settling early let those
     // probes (server actions run one at a time) queue ahead of the list's own
     // request, which measured ~1 s later on a throttled phone profile.
     useEffect(() => {
@@ -2963,40 +2779,53 @@ export function JobsContent({
         return Number.isFinite(ms) ? shortDate(ms).toLowerCase() : null;
     }, [resumeUpdatedAt]);
 
-    // `sort=fit`'s visible order: a stable resort of `clusters` by role tier, then the same
-    // per-job score above, applied client-side only while `fitActive`. This
-    // is layered ON TOP of `clusters` rather than folded into the
-    // `hits`/`displayHits`/`seamIndex` pipeline above — that machinery still
-    // drives relevance-mode recall and the "titled it" seam exactly as
-    // before. `sort=fit`'s actual backend mechanism is résumé-derived query
-    // text (`applyFit` → `buildMatchQuery`) feeding ordinary relevance
-    // ranking (see `urlSortToBackendSort`'s doc comment, search-payload.ts) — this only
-    // reorders what relevance already retrieved, so recall is untouched and
-    // the visible order now matches the chip. `Array.prototype.sort` is
-    // stable (ES2019+), so a tie (or a cluster with no score, -1) keeps its
-    // original relevance position instead of shuffling.
-    //
-    // An open row tile (AI, Tech for good…) keeps only the pack rows it counts
-    // (hub-tiles.ts) here, BEFORE the fit gate below: gated first, a guest's AI
-    // tile listed the AI roles among the pack's top 3, which was usually none.
-    const openHubTileId =
-        forYouPackDeckOpen && hubSelectedCategoryId && isHubPackId(hubSelectedCategoryId) ? hubSelectedCategoryId : undefined;
-    const rowTileOpen = openHubTileId !== undefined && !isHubFilterTile(openHubTileId);
-    // Inside each fit band, roles this device hasn't listed before come first (`sortByFit`), so a
-    // pack opened again leads with what's new to them, not the same top roles as last time.
+    // `sort=fit` is a recommendation, and follows the rule every list that recommends follows (the daily picks and
+    // their email, the MCP tools): the rows the search read, each opening once, without the roles whose apply link
+    // no longer works and the ones already in the tracker (`listCandidates`); then the roles that fit your
+    // résumé, or, when none does, the older ones that fit, or the closest, so it is never empty while roles were
+    // found (`deckListFor`); in the one order (`sortByFit`; inside a fit band, what this device has not listed
+    // before comes first, so the list opened again leads with what is new); one slot per employer, its other
+    // roles riding inside it (`collapseByEmployer`). `summary` says what was left out and why. A search without
+    // Best match is not a recommendation: every role it found is listed.
     const seenBefore = useSeenBefore();
-    const rankedClusters = useMemo(() => {
-        const ranked =
-            !fitActive || !matchScores
-                ? clusters
-                : sortByFit(clusters, (c) => ({ job: c.primary, score: matchScores.get(c.primary.id) }), {
-                      nowMs,
-                      seen: (id) => seenBefore?.has(id) ?? false,
-                  });
-        if (!rowTileOpen) return ranked;
-        const keep = new Set(hubTileRows(ranked.map((c) => c.primary), openHubTileId, nowMs).map((job) => job.id));
-        return ranked.filter((c) => keep.has(c.primary.id));
-    }, [clusters, fitActive, matchScores, seenBefore, rowTileOpen, openHubTileId, nowMs]);
+    // What the tracker held when this search's rows arrived: a list never offers a role the person already applied
+    // to ("the jobs I applied to keep coming back", review 2026-10-13). Taken once per search, so a role marked
+    // Applied from the list stays where it is until the next search.
+    const [listApplied, setListApplied] = useState<{ key: string; index: TrackedIndex } | null>(null);
+    useEffect(() => {
+        if (pursuitsLoading || listApplied?.key === searchKey) return;
+        setListApplied({ key: searchKey, index: appliedIndex });
+    }, [searchKey, pursuitsLoading, appliedIndex, listApplied?.key]);
+    const recommended = useMemo(() => {
+        if (!fitActive || !matchScores) return null;
+        const read = listCandidates(
+            clusters.map((c) => c.primary),
+            listApplied ? (job) => trackedPursuitFor(job, listApplied.index) != null : undefined,
+        );
+        const { ranked, summary } = deckListFor(read.candidates, (job) => matchScores.get(job.id) ?? null, nowMs);
+        const keep = new Set(ranked.map((job) => job.id));
+        const held = sortByFit(
+            clusters.filter((c) => keep.has(c.primary.id)),
+            (c) => ({ job: c.primary, score: matchScores.get(c.primary.id) }),
+            { nowMs, seen: (id) => seenBefore?.has(id) ?? false },
+        );
+        const slots = collapseByEmployer(held, (c) => c.primary);
+        return { slots, roles: held.length, summary: withListRemovals(summary, read, result?.total) };
+    }, [fitActive, matchScores, clusters, listApplied, nowMs, seenBefore, result?.total]);
+    const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
+    // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
+    const employerMoreByLead = useMemo(() => {
+        const byLead = new Map<string, { roles: EmployerMoreRole[]; hidden: number }>();
+        if (!recommended || !matchScores) return byLead;
+        for (const slot of recommended.slots) {
+            if (slot.more.length === 0 && slot.hidden === 0) continue;
+            byLead.set(slot.lead.primary.id, {
+                roles: slot.more.map((c) => ({ job: c.primary, score: matchScores.get(c.primary.id) ?? null })),
+                hidden: slot.hidden,
+            });
+        }
+        return byLead;
+    }, [recommended, matchScores]);
 
     // Honest display count for THIS search's result total (result-count
     // toolbar text + the end-of-list line below) — distinct from `total`
@@ -3007,14 +2836,35 @@ export function JobsContent({
     // resolver — see corpus-count.ts's header comment.
     const totalCount = resolveCorpusCount(result ?? { total: 0 }, MAX_REACHABLE);
 
+    // What the recommendation says about itself (its count, what it left out and why) only once the search it was
+    // made from has landed: a search in flight still shows the previous rows, and their count would be another list's.
+    const recommendedReady = recommended != null && !loading && resultSearchKey === searchKey;
+    const recommendedLine = recommendedReady ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
+    const language = useLanguageChoice(uid);
+    const readLanguages = signals?.languages?.value ?? null;
+    // The languages postings are read in: a control where roles written in another were left out, and wherever the
+    // person has changed them. Saved to the account, so only for a signed-in one.
+    const languagesEl =
+        recommendedReady &&
+        uid != null &&
+        readLanguages &&
+        (Object.keys(recommended.summary.languages ?? {}).length > 0 || signals?.languages?.source === "explicit" || readLanguages.length > 1) ? (
+            <LanguagesControl
+                languages={readLanguages}
+                resumeDefault={resumeDefaultLanguages(resume)}
+                leftOut={recommended.summary.languages}
+                onChange={(stored) => void language.choose(stored)}
+                pending={language.pending}
+                testId="list-languages"
+                className="justify-start"
+            />
+        ) : null;
     // The résumé-fit gate: a guest's ranked list stops after the free preview and
     // the rest needs an account. Applied at the SOURCE of every ranked surface —
     // the Search list, the For-you deck and keyboard order all read
     // `renderedClusters`, so no surface can show a row past the gate.
-    // A row tile's gate counts the tile's rows, not the whole pack's.
-    const gateTotal: CorpusCount = rowTileOpen
-        ? { kind: "exact", value: hubTileRows(clusters.map((c) => c.primary), openHubTileId, nowMs).length }
-        : totalCount;
+    // A recommendation's gate counts the roles it recommends, not the roles the search found.
+    const gateTotal: CorpusCount = recommended ? { kind: "exact", value: recommended.roles } : totalCount;
     const fitGate = useMemo(
         () => splitFitGate({ fitActive, ranked: matchScores !== null, signedOut, rows: rankedClusters, total: gateTotal }),
         [fitActive, matchScores, signedOut, rankedClusters, gateTotal.value, gateTotal.kind], // eslint-disable-line react-hooks/exhaustive-deps
@@ -3026,100 +2876,18 @@ export function JobsContent({
         writeTodaySeen(renderedClusters.slice(0, LISTED_ROWS).map((c) => c.primary.id));
     }, [fitActive, matchScores, loading, renderedClusters]);
 
-    // Not gated on `showForYouHome`: deck progress is owned by `useForYouDeck`
-    // below, which is called unconditionally so it survives the Search <->
-    // For-you toggle. Gating this list to the branch would collapse
-    // `visiblePacks` to empty while browsing Search, and the hook's own
-    // resize-clamp would zero the index before the user ever came back.
-    // Pack order is the one every list uses (age, reach, fit band, fit; the title only breaks an exact tie):
-    // see orderForYouJobsByBand.
-    // An opened pack lists only its own search's rows: while that search is in
-    // flight the deck loads rather than showing the previous search's roles.
-    const deckResultStale = forYouPackDeckOpen && resultSearchKey !== searchKey;
-    const deckRowsLoading = loading || (forYouPackDeckOpen && settledSearchKey !== searchKey);
-    // What the tracker held when this search's rows arrived: a pack never deals a role the person
-    // already applied to ("the jobs I applied to keep coming back", review 2026-10-13). Taken once per
-    // search, so a role marked Applied from the deck stays where it is until the next search.
-    const [deckApplied, setDeckApplied] = useState<{ key: string; index: TrackedIndex } | null>(null);
-    useEffect(() => {
-        if (pursuitsLoading || deckApplied?.key === searchKey) return;
-        setDeckApplied({ key: searchKey, index: appliedIndex });
-    }, [searchKey, pursuitsLoading, appliedIndex, deckApplied?.key]);
-    // The deck weighs the rows its search returned, each opening once, without the roles whose apply link no longer
-    // works and the ones already in the tracker (`listCandidates`): the same rows the hub's counts read.
-    const deckRows = useMemo(() => (deckResultStale ? [] : renderedClusters.map((c) => c.primary)), [deckResultStale, renderedClusters]);
-    const deckCandidates = useMemo(
-        () => listCandidates(deckRows, deckApplied ? (job) => trackedPursuitFor(job, deckApplied.index) != null : undefined),
-        [deckRows, deckApplied],
-    );
-    const deckScore = useMemo(() => (matchScores ? (job: PublicJob) => matchScores.get(job.id) ?? null : null), [matchScores]);
-    // When no role from the last 30 days fits, the deck holds the roles that fit and are older, marked as older; when none
-    // does, the closest ones (left out only as a weaker fit), under an honest line, not nothing (`deckListFor`).
-    const deckList = useMemo(() => {
-        if (!deckScore) return { ranked: orderForYouJobsByBand(deckCandidates.candidates, null, nowMs), summary: null };
-        const { ranked, summary } = deckListFor(deckCandidates.candidates, deckScore, nowMs);
-        return { ranked, summary: withListRemovals(summary, deckCandidates, result?.total) };
-    }, [deckCandidates, deckScore, nowMs, result?.total]);
-    const rankedPacks = deckList.ranked;
-    // What the deck left out of those roles and why (`deckLeftOut`), said at its foot and in its empty state.
-    const deckLeftOutSummary = deckList.summary;
-    // Search rows arrive with what their descriptions say about place
-    // (`withPlaceRestrictions`, searchJobsAction). When that read was too slow,
-    // the deck holds its roles until its first ones are read here (the effect
-    // after `useForYouDeck` below), so its first card is never one that is
-    // about to move down the pack.
-    const deckInView = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
-    const [deckPlacesReadKey, setDeckPlacesReadKey] = useState<string | null>(null);
-    const deckAwaitsPlaces = useMemo(
-        () =>
-            deckInView &&
-            matchScores !== null &&
-            deckPlacesReadKey !== searchKey &&
-            nextPlaceCheckIds(rankedPacks, 0, (id) => placeNotes.has(id)).length > 0,
-        [deckInView, matchScores, deckPlacesReadKey, searchKey, rankedPacks, placeNotes],
-    );
-    const deckLoading = deckRowsLoading || deckAwaitsPlaces;
-    const forYouPacks = deckAwaitsPlaces ? NO_PACKS : rankedPacks;
-    const isOwnRole = useCallback((job: PublicJob) => matchScores?.get(job.id)?.role === "own", [matchScores]);
-    const tuneRankOf = useCallback(
-        (job: PublicJob, nowMs: number) => {
-            const score = matchScores?.get(job.id);
-            return score ? tuneRank(score, job, nowMs) : null;
-        },
-        [matchScores],
-    );
-    const forYouDeck = useForYouDeck(forYouPacks, isOwnRole, tuneRankOf);
-
     // The browser's fallback for rows the search's own place read left unread
     // (it answers without them past a short deadline): reads what the
-    // descriptions of the ranked roles the person sees next say about place,
-    // the deck's from its open card on, or the fit-sorted list's from the top.
+    // descriptions of the ranked roles the person sees next say about place.
     // A role whose title and place fields name no country can still be for
     // people in one country only ("must be based in India",
     // `readPlaceRestriction`), and it then ranks and reads as abroad. A
-    // stretch of rows at a time (`nextPlaceCheckIds`), one request in flight;
-    // only an opened deck's first stretch holds anything, up to the deadline.
+    // stretch of rows at a time (`nextPlaceCheckIds`), one request in flight.
     const placeNotesInFlightRef = useRef(false);
     useEffect(() => {
-        if (!matchScores || placeNotesInFlightRef.current) return;
-        const listInView = !showForYouHome && fitActive && !loading;
-        const rows = deckInView
-            ? deckRowsLoading
-                ? null
-                : deckAwaitsPlaces
-                  ? rankedPacks
-                  : forYouDeck.visiblePacks
-            : listInView
-              ? renderedClusters.map((c) => c.primary)
-              : null;
-        if (!rows) return;
-        const key = searchKey;
-        const firstStretch = deckInView && deckPlacesReadKey !== key;
-        const ids = nextPlaceCheckIds(rows, deckInView && !deckAwaitsPlaces ? forYouDeck.activeIndex : 0, (id) => placeNotes.has(id));
-        if (ids.length === 0) {
-            if (firstStretch) setDeckPlacesReadKey(key);
-            return;
-        }
+        if (!matchScores || placeNotesInFlightRef.current || !fitActive || loading) return;
+        const ids = nextPlaceCheckIds(renderedClusters.map((c) => c.primary), 0, (id) => placeNotes.has(id));
+        if (ids.length === 0) return;
         placeNotesInFlightRef.current = true;
         void fetchPlaceNotes(ids, RANKED_PLACE_NOTES_DEADLINE_MS).then((notes) => {
             placeNotesInFlightRef.current = false;
@@ -3129,352 +2897,8 @@ export function JobsContent({
                 for (const id of ids) next.set(id, notes?.[id] ?? null);
                 return next;
             });
-            if (firstStretch) setDeckPlacesReadKey(key);
         });
-    }, [
-        matchScores,
-        showForYouHome,
-        fitActive,
-        loading,
-        deckInView,
-        deckRowsLoading,
-        deckAwaitsPlaces,
-        rankedPacks,
-        forYouDeck.visiblePacks,
-        forYouDeck.activeIndex,
-        renderedClusters,
-        searchKey,
-        deckPlacesReadKey,
-        placeNotes,
-    ]);
-
-    useEffect(() => {
-        if (!forYouOpen || firstPackRevealAttemptedRef.current) return;
-        if (!consumeFirstPackReveal()) return;
-        firstPackRevealAttemptedRef.current = true;
-        setPendingFirstPackReveal(true);
-    }, [forYouOpen]);
-
-    useEffect(() => {
-        if (!pendingFirstPackReveal || !hasUsableResume) return;
-        let cancelled = false;
-        void resolveAndApplyFit().then((applied) => {
-            if (cancelled || applied) return;
-            setPendingFirstPackReveal(false);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [pendingFirstPackReveal, hasUsableResume]);
-
-    useEffect(() => {
-        if (!pendingFirstPackReveal || fitResolving || loading || !fitActive) return;
-        if (forYouDeck.visiblePacks.length === 0) {
-            setPendingFirstPackReveal(false);
-            return;
-        }
-        setHubSelectedCategoryId(undefined);
-        setForYouPackDeckOpen(true);
-        forYouDeck.setActiveIndex(0);
-        if (!prefersReducedMotion()) {
-            setFirstRevealHandoff(true);
-            window.setTimeout(() => setFirstRevealHandoff(false), MOTION_DURATION_MS.enter);
-            setFirstRevealEnter(true);
-            window.setTimeout(() => setFirstRevealEnter(false), MOTION_DURATION_MS.enter);
-        }
-        setFirstRevealDeckFocus(true);
-        setPendingFirstPackReveal(false);
-    }, [
-        pendingFirstPackReveal,
-        fitResolving,
-        loading,
-        fitActive,
-        forYouDeck.visiblePacks.length,
-        forYouDeck.setActiveIndex,
-    ]);
-
-    // Same résumé content must not restart the probe. A new object identity
-    // (parallel fetches of the saved résumé) was cancelling the in-flight
-    // search before it could paint category counts.
-    // The industry of the résumé's profession picks which pack tiles the hub shows (industry-tiles.ts).
-    const hubIndustry = resume && hasUsableResume ? resumeIndustry(resume) : null;
-    const hubResumeKey =
-        resume && hasUsableResume && hubIndustry
-            ? `${buildMatchQuery(resume).q}\0${candidateLocationFromResume(resume)}\0${hubIndustry}`
-            : "";
-
-    // "Updating your matches" stays until the new résumé's packs have been probed (or 8s at most).
-    useEffect(() => {
-        if (!resumeRefreshing) return;
-        if (hubResumeKey && hubResumeKey !== refreshFromKeyRef.current && !hubFitProbe.loading && !hubFitProbe.probing && hubFitProbe.total != null) {
-            setResumeRefreshing(false);
-            return;
-        }
-        const t = window.setTimeout(() => setResumeRefreshing(false), 8_000);
-        return () => window.clearTimeout(t);
-    }, [resumeRefreshing, hubResumeKey, hubFitProbe.loading, hubFitProbe.probing, hubFitProbe.total]);
-
-    // No usable résumé (missing, junk, or still loading): paint pack counts
-    // from the browse hits already on the hub. Stop updating once a fit key
-    // exists or a pack is open, so a later deck page cannot blank the pills.
-    useEffect(() => {
-        if (!forYouOpen || forYouPackDeckOpen || hubResumeKey) return;
-        const current = result;
-        if (!current || !current.hits?.length) return;
-        setHubBrowse({
-            jobs: current.hits,
-            total: typeof current.total === "number" ? current.total : null,
-        });
-    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, result]);
-
-    useEffect(() => {
-        if (!forYouOpen) return;
-        let cancelled = false;
-        void readWithRetry(() => getHubPackCorpusCountsAction(locationDefaultSuppressed).catch(loadFailed)).then(
-            (counts) => {
-                if (!cancelled) setHubPackCorpusCounts(counts);
-            },
-        );
-        return () => {
-            cancelled = true;
-        };
-    }, [forYouOpen, locationDefaultSuppressed]);
-
-    // Progressive quiet fit probe — every pack gets live role counts from the
-    // first scored page. Deeper pages only refine the sample. The chips count the roles
-    // each pack's list opens with (`hubChipCounts`), the same rule its deck applies.
-    useEffect(() => {
-        if (!forYouOpen || forYouPackDeckOpen || !hubResumeKey || !resume || !signals || !pack || !hubIndustry) {
-            return;
-        }
-        const industry = hubIndustry;
-        const memoKey = `${hubResumeKey}\0${serializeJobsUrl(pack)}\0${JSON.stringify(agentPrefs ?? null)}`;
-        const memo = freshHubProbeMemo(hubProbeMemoRef.current, memoKey, Date.now());
-        if (memo) {
-            setHubProbeFailed(false);
-            setHubFitProbe(memo.probe);
-            setHubTileScored(memo.tiles);
-            setHubCountDeltas(memo.deltas);
-            return;
-        }
-        let cancelled = false;
-        // Every chip count is known: compare the exact ones with the last visit's, then remember these, for the
-        // chips the hub shows. The counts leave out the roles already in the tracker, so this runs once the probe
-        // has settled and the tracker has loaded, whichever comes last.
-        hubCountsGateRef.current?.cancel();
-        const countsGate = hubCountsGate<HubProbeRead>(
-            (read) => {
-                const isTracked = (job: PublicJob) => trackedPursuitFor(job, appliedIndexRef.current) != null;
-                const chipCounts = chipCountsToRemember({ ...read, industry, isTracked, nowMs: Date.now() });
-                const resolved = resolveHubCountDeltas(readHubTileCounts(), memoKey, chipCounts, Date.now());
-                writeHubTileCounts(resolved.next);
-                setHubCountDeltas(resolved.deltas);
-                const memoed = hubProbeMemoRef.current;
-                if (memoed?.key === memoKey) hubProbeMemoRef.current = { ...memoed, deltas: resolved.deltas };
-            },
-            !pursuitsLoadingRef.current,
-        );
-        hubCountsGateRef.current = countsGate;
-        setHubFitProbe((prev) => ({
-            ...prev,
-            loading: true,
-            probing: true,
-        }));
-        setHubTileScored({});
-        setHubCountDeltas({});
-        setHubProbeFailed(false);
-        // No count for any chip still waiting on one; the chips stay tappable.
-        const failProbe = () => {
-            setHubProbeFailed(true);
-            setHubTileScored((prev) =>
-                Object.fromEntries(industryFilterTileIds(industry).map((id) => [id, prev[id] ?? null])),
-            );
-        };
-
-        void (async () => {
-            try {
-                // The pack's own search params: the probe counts what the packs retrieve.
-                const packParams = packSearchParams(pack, signals, { resume, unplacedRemote: true });
-                // A role is scored once, whichever search returned it.
-                const scores = new Map<string, MatchScore | null>();
-                const scoreOf = (job: PublicJob): MatchScore | null => {
-                    if (!scores.has(job.id)) {
-                        try {
-                            scores.set(job.id, scoreJobAgainstResume(resume, job, signals));
-                        } catch {
-                            scores.set(job.id, null);
-                        }
-                    }
-                    return scores.get(job.id) ?? null;
-                };
-                const scoredById = new Map<string, ScoredHubHit>();
-                let poolTotal: number | null = null;
-                let unavailableRetries = 0;
-
-                for (let step = 0; step < HUB_PROBE_LIMITS.length; step++) {
-                    if (cancelled) return;
-                    const limit = HUB_PROBE_LIMITS[step];
-                    const r = await searchJobsAction({ ...packParams, limit, offset: 0, withFacets: step === 0 });
-                    if (cancelled) return;
-                    if (isUnavailableJobsResult(r)) {
-                        if (unavailableRetries < 1) {
-                            unavailableRetries += 1;
-                            step -= 1;
-                            await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
-                            continue;
-                        }
-                        setHubFitProbe({
-                            loading: false,
-                            probing: false,
-                            total: poolTotal,
-                            scored: [...scoredById.values()],
-                        });
-                        failProbe();
-                        return;
-                    }
-                    // The pack's location is where the candidate can work: a search that
-                    // dropped it (no roles there) matched nothing, not the whole corpus.
-                    const placesMissing = locationDropped(pack, r);
-                    poolTotal = placesMissing ? 0 : r.total;
-                    for (const h of placesMissing ? [] : (r.hits ?? [])) {
-                        if (scoredById.has(h.id)) continue;
-                        const score = scoreOf(h);
-                        if (score) scoredById.set(h.id, { job: h, score });
-                    }
-                    const scored = [...scoredById.values()];
-                    const isLast = step === HUB_PROBE_LIMITS.length - 1;
-                    setHubFitProbe({
-                        loading: false,
-                        probing: !isLast,
-                        total: poolTotal,
-                        scored,
-                    });
-                    if (!isLast) {
-                        await new Promise((resolve) => setTimeout(resolve, 450));
-                    }
-                }
-
-                if (cancelled) return;
-                const scored = [...scoredById.values()];
-                const probe = { loading: false, probing: false, total: poolTotal, scored };
-                setHubFitProbe(probe);
-
-                // Each filter tile lists its own search's rows (the one its deck sends), read one at a
-                // time after the pack so the hub stays inside the search rate limit.
-                const tiles: Partial<Record<HubPackId, ScoredHubHit[] | null>> = {};
-                for (const id of industryFilterTileIds(industry)) {
-                    const tile = hubTile(pack, id).state;
-                    let rows: ScoredHubHit[] | null = null;
-                    for (let attempt = 0; attempt < 2 && rows === null; attempt++) {
-                        if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs()));
-                        try {
-                            const r = await searchJobsAction({ ...packSearchParams(tile, signals, { resume, unplacedRemote: true }), limit: FOR_YOU_PAGE, offset: 0 });
-                            if (cancelled) return;
-                            if (isUnavailableJobsResult(r)) continue;
-                            // As for the pack: a search that dropped the tile's location matched nothing.
-                            rows = [];
-                            for (const h of locationDropped(tile, r) ? [] : (r.hits ?? [])) {
-                                const score = scoreOf(h);
-                                if (score) rows.push({ job: h, score });
-                            }
-                        } catch {
-                            rows = null;
-                        }
-                    }
-                    if (cancelled) return;
-                    tiles[id] = rows;
-                    setHubTileScored((prev) => ({ ...prev, [id]: rows }));
-                }
-                hubProbeMemoRef.current = {
-                    key: memoKey,
-                    at: Date.now(),
-                    complete: Object.values(tiles).every((rows) => rows != null),
-                    probe,
-                    tiles,
-                    deltas: {},
-                };
-                countsGate.settled({ scored, tiles, poolTotal });
-            } catch {
-                if (!cancelled) {
-                    setHubFitProbe((prev) => ({
-                        loading: false,
-                        probing: false,
-                        total: prev.total,
-                        scored: prev.scored,
-                    }));
-                    failProbe();
-                }
-            }
-        })();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [forYouOpen, forYouPackDeckOpen, hubResumeKey, hubIndustry, agentPrefs]);
-
-    // A résumé visitor's chips count the roles each tile's list opens with (`hubChipLists`): the pack's own
-    // rows for "All your matches" and the row tiles, a filter tile's own search's rows for that tile, each
-    // under the deck's rule and without the roles already in the tracker. Loading until the pack's search has
-    // answered and the tracker is read. Each chip also says the employers those roles are at, as the deck does.
-    const hubSettled = hubFitProbe.total != null && !hubFitProbe.loading && !hubFitProbe.probing;
-    const hubChipRead = useMemo(
-        () =>
-            hubResumeKey
-                ? hubChipLists({ pack: hubFitProbe.scored, tiles: hubTileScored, isTracked: hubIsTracked, nowMs, settled: hubSettled })
-                : null,
-        [hubResumeKey, hubFitProbe.scored, hubTileScored, hubIsTracked, nowMs, hubSettled],
-    );
-    const hubChips = hubChipRead?.counts ?? null;
-    // A probe that failed before the pack's search answered leaves every chip without a count, like the
-    // corpus read's failure below.
-    const hubCountLabels = useMemo(
-        () =>
-            hubChips
-                ? hubProbeFailed && hubFitProbe.total == null
-                    ? {}
-                    : resumeTileLabels(hubChips, hubFitProbe.total == null || pursuitsLoading, hubChipRead?.employers)
-                : hubPackCorpusCounts?.ok === false
-                  ? {}
-                  : formatHubPackCorpusRoleLabels(hubPackCorpusCounts?.data ?? {}, {
-                        loading: hubPackCorpusCounts == null,
-                    }),
-        [hubPackCorpusCounts, hubChips, hubChipRead, hubProbeFailed, hubFitProbe.total, pursuitsLoading],
-    );
-
-    // A résumé visitor's chips: their industry's tiles, each shown only once its
-    // count says it holds roles and narrows the list (industry-tiles.ts).
-    const hubCategories = useMemo(
-        () =>
-            hubChips && hubIndustry
-                ? visibleIndustryTiles(hubIndustry, {
-                      counts: hubChips,
-                      wholePack: hubFitProbe.total != null && hubFitProbe.scored.length >= hubFitProbe.total,
-                      foundNothing: hubFitProbe.total === 0,
-                      settled: hubSettled && !pursuitsLoading && industryFilterTileIds(hubIndustry).every((id) => hubTileScored[id] !== undefined),
-                  }).map((id) => ({ id, label: HUB_PACK_SHORT_LABELS[id] }))
-                : undefined,
-        [hubChips, hubIndustry, hubFitProbe.total, hubFitProbe.scored.length, hubSettled, pursuitsLoading, hubTileScored],
-    );
-
-    // What the packs hub says about the pack, in the deck's words: how many roles fit, and why the rest were left out
-    // (`hubList`, the deck's own rule over the rows its search returned). Once the pack's rows are all in.
-    const hubPackList = useMemo(
-        () =>
-            hubResumeKey && hubSettled && !pursuitsLoading
-                ? hubList(hubFitProbe.scored, nowMs, { isTracked: hubIsTracked, found: hubFitProbe.total })
-                : null,
-        [hubResumeKey, hubSettled, pursuitsLoading, hubFitProbe.scored, hubFitProbe.total, hubIsTracked, nowMs],
-    );
-    const hubSummary = hubPackList?.summary ?? null;
-    // The deck gives each employer one card, so the line says the employers as the deck's foot does.
-    const hubFitLine = useMemo(() => formatHubFitLine(hubSummary, hubPackList?.employers), [hubSummary, hubPackList]);
-    const hubLeftOutLine = useMemo(() => formatLeftOutLine(hubSummary), [hubSummary]);
-    // A visitor with no usable résumé has no matches to count: the corpus is "roles".
-    const hubCorpusLine = useMemo(
-        () => (!hubResumeKey && hubBrowse.total != null && hubBrowse.total > 0 ? formatBrowseHubCorpusLine(hubBrowse.total) : null),
-        [hubResumeKey, hubBrowse.total],
-    );
-
+    }, [matchScores, fitActive, loading, renderedClusters, placeNotes]);
 
     // The seam paragraph (above) is inserted at an EXACT `displayHits` index;
     // after clustering, positions no longer line up 1:1. Every member of one
@@ -3549,7 +2973,6 @@ export function JobsContent({
             setHideViewed(parsed.hideViewed);
             setBoard(parsed.board);
             setCompanyDomain(parsed.companyDomain);
-            setHomeView(parsed.homeView);
             setSortOverride(urlSortToBackendSort(parsed.sort));
             setFitActive(parsed.sort === "fit");
         }
@@ -3661,9 +3084,6 @@ export function JobsContent({
     // that path's job comes from the existence check above instead, but a
     // "try again" hydrate for it lands here the same way.
     const [hydratedDetail, setHydratedDetail] = useState<{ id: string; job: PublicJob; descriptionPending: boolean } | null>(null);
-    const [forYouHydrated, setForYouHydrated] = useState<
-        Map<string, { job: PublicJob; descriptionPending: boolean }>
-    >(() => new Map());
     const detailHydrationGuardRef = useRef<FitIntentGuard | null>(null);
     if (!detailHydrationGuardRef.current) detailHydrationGuardRef.current = new FitIntentGuard();
     // Set by `retryDescription` to force the hydration effect below to
@@ -3735,66 +3155,6 @@ export function JobsContent({
         })();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selected?.id ?? deadJobFoundJob?.id, selected?.description ?? deadJobFoundJob?.description, retryRequest]);
-
-    const forYouHydrateStartedRef = useRef<Set<string>>(new Set());
-
-    const handleForYouActivePackChange = useCallback((id: string) => {
-        const hit =
-            resultRef.current?.hits.find((h) => h.id === id) ??
-            renderedClusters.flatMap((c) => [c.primary, ...c.variants]).find((h) => h.id === id);
-        if (!hit) return;
-        if (hit.description !== undefined) {
-            setForYouHydrated((prev) => {
-                if (prev.get(id)?.job.description === hit.description) return prev;
-                const next = new Map(prev);
-                next.set(id, { job: hit, descriptionPending: false });
-                return next;
-            });
-            return;
-        }
-        if (forYouHydrateStartedRef.current.has(id)) return;
-        forYouHydrateStartedRef.current.add(id);
-        void (async () => {
-            const check = await detailFetcher.fetch(id);
-            if (check.status === "found") {
-                setForYouHydrated((prev) => {
-                    const next = new Map(prev);
-                    next.set(id, { job: check.job, descriptionPending: check.descriptionPending });
-                    return next;
-                });
-                // Still-pending fills (server deadline) must stay retryable —
-                // do not permanently block the id in forYouHydrateStartedRef.
-                if (check.descriptionPending) {
-                    forYouHydrateStartedRef.current.delete(id);
-                }
-                return;
-            }
-            // Unknown / not_found: drop the started bit so Try again / revisit
-            // can re-fetch instead of leaving "Couldn't load the full posting"
-            // forever for this pack.
-            forYouHydrateStartedRef.current.delete(id);
-            setForYouHydrated((prev) => {
-                const next = new Map(prev);
-                next.set(id, {
-                    job: { ...hit, description: null } as PublicJob,
-                    descriptionPending: check.status === "unknown",
-                });
-                return next;
-            });
-        })();
-    }, [renderedClusters]);
-
-    const retryForYouDescription = useCallback((id: string) => {
-        forYouHydrateStartedRef.current.delete(id);
-        setForYouHydrated((prev) => {
-            if (!prev.has(id)) return prev;
-            const next = new Map(prev);
-            next.delete(id);
-            return next;
-        });
-        // Re-enter the same hydrate chokepoint; started-ref was cleared above.
-        handleForYouActivePackChange(id);
-    }, [handleForYouActivePackChange]);
 
     // Clears the cached (timed-out) hydrate and requests a fresh fetch for
     // whichever job is currently in the detail pane — wired to the pending
@@ -3908,8 +3268,10 @@ export function JobsContent({
     );
 
     const total = result ? resolveHeadlineTotal(result) : 0;
+    // A recommendation is the rows its one deeper search read (`FOR_YOU_PAGE`): it does not page on, the left-out
+    // line says how many roles the search found.
     const hasMore =
-        result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
+        !recommended && result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
     // A4 — once `hasMore` goes false, WHY it stopped matters: genuinely out
     // of results, or just out of MAX_REACHABLE reach while `totalCount` (the
     // honest, facet-sum-recovered total) is far bigger. See
@@ -3975,8 +3337,8 @@ export function JobsContent({
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                ...resumeSearchMark(fitActiveRef.current || forYouPackDeckOpenRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
-                ...deckContentMark(forYouPackDeckOpenRef.current, query, packContentRef.current),
+                ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
                 limit: PAGE,
                 offset: ticket.offset,
             });
@@ -4824,29 +4186,6 @@ export function JobsContent({
         return readLocalFallback();
     };
 
-    // Hub pack counts need the saved résumé in memory. Mount no longer
-    // auto-fetches it, so the probe effect (which bails without `resume`)
-    // never started and every category sat on an empty count. One in-flight
-    // fetch: a new `user` object must not launch a second download that
-    // replaces `resume` and cancels the count probe.
-    // `hubResumeReading` lets Today say "Reading your résumé" rather than ask for one;
-    // `hubResumeAttempt` is Today's "Try again" when the saved one didn't load.
-    const hubResumeLoadRef = useRef(false);
-    const [hubResumeReading, setHubResumeReading] = useState(false);
-    const [hubResumeAttempt, setHubResumeAttempt] = useState(0);
-    useEffect(() => {
-        if (!forYouOpen || forYouPackDeckOpen) return;
-        if (resume && resumeIsUsable(resume)) return;
-        if (hubResumeLoadRef.current) return;
-        hubResumeLoadRef.current = true;
-        setHubResumeReading(true);
-        void resolveUsableResume()
-            .then((loaded) => {
-                if (!loaded) hubResumeLoadRef.current = false;
-            })
-            .finally(() => setHubResumeReading(false));
-    }, [forYouOpen, forYouPackDeckOpen, user, resume, hubResumeAttempt]);
-
     // A role opened by an account with a résumé on file: load it, so the role
     // offers Customize with it instead of asking for an upload it already has
     // (opened from a typed search, nothing else had loaded it).
@@ -4861,54 +4200,27 @@ export function JobsContent({
         });
     }, [detailJob?.id, user, resumeOnFile, resume]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Today on the packs home: ranked against the résumé once there is a usable one. Signed in it
-    // shows without one too (what needs them, and why there are no picks), so a slow or unreadable
-    // saved résumé never leaves the page looking like it has none.
-    const todayMatching = useMemo(
-        () => (resume && signals && pack && hubResumeKey ? { resume, resumeKey: hubResumeKey, signals, pack } : null),
-        [resume, signals, pack, hubResumeKey],
-    );
-    const todayShown = Boolean(todayMatching) || signedIn;
-    const todayNoResume: TodayNoResume =
-        hubResumeReading || (signedIn && resumeKnownOnServer == null)
-            ? "loading"
-            : resume || resumeKnownOnServer === true
-              ? "unreadable"
-              : "missing";
-
     // Sort menu → "Rank by fit": re-homed from the old Match mode. Same
     // pipeline (`buildMatchQuery` → query + seniority facet), but expressed
     // as `sort=fit` + a dismissible chip instead of a whole-page mode — see
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
-    const applyFit = (r: ResumeData, tileId?: HubPackId, homeViewOverride?: JobsHomeView) => {
-        // The pack's own filters — the same state "Edit filters" opens the board on — so fit-ranking
+    const applyFit = (r: ResumeData) => {
+        // The résumé's pack filters, the same state "Edit filters" opens the board on, so fit-ranking
         // the board and applying the pack by hand return the same rows. A place the user already
-        // picked is theirs, never replaced by the résumé's. A tile opened from the hub adds its own
-        // filter (hub-tiles.ts), and sets the window and salary floor to the tile's.
-        const tile = hubTile(packFilters(r, resolveCandidateSignals(r, agentPrefs)), tileId ?? "all").state;
-        const { q, facets: packFacets } = tile;
+        // picked is theirs, never replaced by the résumé's.
+        const { q, facets: packFacets, postedBucket: packBucket } = packFilters(r, resolveCandidateSignals(r, agentPrefs));
         const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
         const derived = { ...packFacets };
         if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
         const merged = mergeFacets(facets, derived);
-        // Every fit-ranked pack uses the pack's own window (30 days, or Settings › Posted within),
-        // not the board's 90-day default: opening For you from a résumé upload or the guest home
-        // passed no tile and so kept 90 days, ~half of the pack older than 30 days (2026-10-13).
+        // A recommendation uses the pack's own window (30 days, or Settings › Posted within), not the
+        // board's 90-day default: ~half of the roles of that window were older than 30 days (2026-10-13).
         // A window the person picked by hand on the board stays theirs.
-        const keepUserWindow = !tileId && postedExplicit;
-        const tileWindow = tileId
-            ? { postedBucket: tile.postedBucket, postedExplicit: tile.postedExplicit, salaryMin: tile.salaryMin }
-            : keepUserWindow
-              ? {}
-              : { postedBucket: tile.postedBucket, postedExplicit: true };
+        const keepUserWindow = postedExplicit;
         setFacets(merged);
-        if (tileId) {
-            setPostedBucket(tile.postedBucket);
-            setPostedExplicit(tile.postedExplicit ?? false);
-            setSalaryMin(tile.salaryMin);
-        } else if (!keepUserWindow) {
-            setPostedBucket(tile.postedBucket);
+        if (!keepUserWindow) {
+            setPostedBucket(packBucket);
             setPostedExplicit(true);
         }
         setQueryDraft(q);
@@ -4920,8 +4232,7 @@ export function JobsContent({
                 q,
                 facets: merged,
                 sort: "fit",
-                ...tileWindow,
-                ...(homeViewOverride ? { homeView: homeViewOverride } : {}),
+                ...(keepUserWindow ? {} : { postedBucket: packBucket, postedExplicit: true }),
             }),
             "replace",
         );
@@ -4942,14 +4253,14 @@ export function JobsContent({
     // @returns true once handled (fit applied, or superseded by a later
     // choice) — false only when no usable résumé was found, the signal a
     // caller uses to decide whether to fall back to the uploader.
-    const resolveAndApplyFit = async (tileId?: HubPackId): Promise<boolean> => {
+    const resolveAndApplyFit = async (): Promise<boolean> => {
         setFitResolving(true);
         try {
             const token = fitIntentRef.current!.begin();
             const r = await resolveUsableResume();
             if (!fitIntentRef.current!.isCurrent(token)) return true;
             if (r) {
-                applyFit(r, tileId);
+                applyFit(r);
                 return true;
             }
             return false;
@@ -4994,84 +4305,10 @@ export function JobsContent({
         setFitResolving(true);
         void resolveUsableResume()
             .then((r) => {
-                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r, "all");
+                if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r);
             })
             .finally(() => setFitResolving(false));
     }, [showSearchHome, authReady, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Do NOT auto-apply fit on for-you entry. Packs home is CategoryHubGrid
-    // (default whenever for-you + !advanced search + !explicit pack deck).
-    // applyFit writes q=/sort=fit; that must not displace the hub. Fit ranking
-    // stays user-initiated (Rank by fit / Best match) or inside an opened pack.
-    const setJobsHomeView = (view: JobsHomeView) => {
-        setHomeView(view);
-        writeLastJobsHomeView(view);
-        applyUrlState(buildUrlState({ homeView: view }), "replace");
-    };
-
-    /** Land on the 8-pack CategoryHubGrid (for-you; clears search intent + pack deck). */
-    const returnToJobPacksHub = () => {
-        setShowAdvancedSearch(false);
-        setForYouPackDeckOpen(false);
-        setHubSelectedCategoryId(undefined);
-        setFitActive(false);
-        setSortOverride(null);
-        setFacets({});
-        // A tile's window and salary floor are part of the tile, not carried to the next one.
-        setPostedBucket(DEFAULT_URL_STATE.postedBucket);
-        setPostedExplicit(false);
-        setSalaryMin(DEFAULT_URL_STATE.salaryMin);
-        setQueryDraft("");
-        setQuery("");
-        setHomeView("for-you");
-        writeLastJobsHomeView("for-you");
-        applyUrlState(
-            buildUrlState({
-                homeView: "for-you",
-                q: "",
-                facets: {},
-                postedBucket: DEFAULT_URL_STATE.postedBucket,
-                postedExplicit: undefined,
-                salaryMin: DEFAULT_URL_STATE.salaryMin,
-                sort: null,
-                jobId: null,
-            }),
-            "replace",
-        );
-    };
-
-    /** Open one pack from the packs home: a tile, "Browse all matches", or the Today header. */
-    const openHubPack = (id: string, source: "tile" | "browse_all" | "today") => {
-        captureEvent("pack_opened", { pack: id, source });
-        const tileId = isHubPackId(id) ? id : undefined;
-        setHubSelectedCategoryId(id);
-        setForYouPackDeckOpen(true);
-        forYouDeck.restart();
-        // The list mounts from browse hits without waiting
-        // on fit. A usable résumé still ranks when it arrives,
-        // with the tile's own filter on the pack (hub-tiles.ts).
-        // Without one, a filter tile still filters the browse list.
-        void resolveAndApplyFit(tileId).then((applied) => {
-            if (applied || !tileId || tileId === "all" || !isHubFilterTile(tileId)) return;
-            applyFilterState(hubTile(buildUrlState({ jobId: null }), tileId).state);
-        });
-    };
-
-    const selectJobsHome = (view: JobsHomeView) => {
-        if (view === "search") {
-            setShowAdvancedSearch(true);
-            setForYouPackDeckOpen(false);
-            setJobsHomeView("search");
-            return;
-        }
-        returnToJobPacksHub();
-    };
-
-    useEffect(() => {
-        if (resolvedHomeView === "for-you" || resolvedHomeView === "search") {
-            writeLastJobsHomeView(resolvedHomeView);
-        }
-    }, [resolvedHomeView]);
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
@@ -5264,31 +4501,18 @@ export function JobsContent({
         sourceLabel: string,
     ) => {
         resumeGenerationRef.current += 1;
-        refreshFromKeyRef.current = hubResumeKey;
         setResume(data);
-        setResumeRefreshing(true);
         const updatedAt = new Date().toISOString();
         setResumeUpdatedAt(updatedAt);
         setResumeSourceLabel(sourceLabel);
         setImportOpen(false);
-        // Packs hub after a résumé lands — CategoryHubGrid, not postcard deck/SERP.
-        setShowAdvancedSearch(false);
-        setForYouPackDeckOpen(false);
-        setHubSelectedCategoryId(undefined);
+        // The new résumé ranks the list again from a clean search, a guest's too (their top matches, then the fit gate).
         setFitActive(false);
         setSortOverride(null);
         setFacets({});
         setQueryDraft("");
         setQuery("");
-        // For you needs an account: a guest's résumé ranks the Search board
-        // (top matches, then the fit gate) instead of opening packs.
-        const home: JobsHomeView = user ? "for-you" : "search";
-        setHomeView(home);
-        writeLastJobsHomeView(home);
-        applyUrlState(
-            buildUrlState({ homeView: home, q: "", facets: {}, sort: null }),
-            "replace",
-        );
+        applyUrlState(buildUrlState({ q: "", facets: {}, sort: null }), "replace");
         if (user) {
             // A failed save keeps the résumé in this browser, as a guest's is,
             // so it still ranks here and the next visit can carry it into the
@@ -5316,16 +4540,10 @@ export function JobsContent({
         // hand yet — finish what they asked for now that one exists.
         const queuedAction = resumeActionAfterImportRef.current;
         resumeActionAfterImportRef.current = null;
-        const guestHome: JobsHomeView | undefined = user ? undefined : "search";
-        if (queuedAction?.kind === "fit") {
-            // Stale-guard check (see `handleUploadClick`'s doc comment): a
-            // sort choice made while the modal was open must win, not this.
-            if (fitIntentRef.current!.isCurrent(queuedAction.fitToken)) applyFit(data, undefined, guestHome);
-        } else if (guestHome) {
-            applyFit(data, undefined, guestHome);
-        } else {
-            armFirstPackReveal();
-        }
+        // Stale-guard check (see `handleUploadClick`'s doc comment): a
+        // sort choice made while the modal was open must win, not this.
+        if (queuedAction?.kind === "fit" && !fitIntentRef.current!.isCurrent(queuedAction.fitToken)) return;
+        applyFit(data);
     };
 
 
@@ -5446,14 +4664,15 @@ export function JobsContent({
     // results with a number describing a different, looser query. The Screen 4
     // sentence carries that state instead.
     const resultCountLine =
-        result?.configured && !loading && !result.widened
+        recommendedLine ??
+        (result?.configured && !loading && !result.widened && !recommended
             ? searchResultLine({
                   count: totalCount,
                   postedBucket: appliedPosted,
                   lastUpdated,
                   nowMs,
               })
-            : null;
+            : null);
 
     // "N more beyond 90 days — show all" affordance (2026-08-12) — gated on
     // `resultCountLine` being present so the affordance can never appear
@@ -5547,6 +4766,7 @@ export function JobsContent({
                 showMatchTeaser={showMatchTeaser}
                 onMatchTeaserClick={handleUploadClick}
                 matchAsOfDate={resumeAsOfDate}
+                reasonLine={recommended ? rowReasonLine(j, matchScores?.get(j.id), resume) : null}
                 pursuit={pursuitsByJobIdMerged.get(j.id)}
                 appliedPursuit={trackedPursuitFor(j, appliedIndex)}
                 onGoAfter={() => handleGoAfter(j)}
@@ -6155,21 +5375,8 @@ export function JobsContent({
      * results. The full-screen automation-first hero lives on `/`
      * (`src/app/page.tsx`), not on this route.
      */
-    const deckPanesLocked = forYouOpen && (showAdvancedSearch || forYouPackDeckOpen);
     return (
-        <div
-            className={
-                deckPanesLocked ? "flex min-h-0 flex-1 flex-col overflow-clip" : "min-h-screen"
-            }
-        >
-            {firstRevealHandoff ? (
-                <div
-                    /* dialog-primitive-exempt: decorative aria-hidden handoff veil, not a dialog */
-                    className="first-pack-reveal-handoff fixed inset-0 z-[var(--z-modal)]"
-                    aria-hidden
-                    data-testid="first-pack-reveal-handoff"
-                />
-            ) : null}
+        <div className="min-h-screen">
             {/* `data-shell="bleed"` is this page ASKING for the full window;
                 globals.css turns that into `--shell-max: none` for the header
                 and footer too, so all three left edges stay together. Each
@@ -6179,12 +5386,7 @@ export function JobsContent({
                 and the results grid is the one thing that stops widening. */}
             <div
                 data-shell="bleed"
-                className={cn(
-                    "shell-row flex flex-col",
-                    deckPanesLocked
-                        ? "min-h-0 flex-1 overflow-clip pt-2 sm:pt-3"
-                        : "pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] pt-2 sm:pt-3 lg:pb-20",
-                )}
+                className="shell-row flex flex-col pb-[calc(var(--mobile-tabbar-h)+env(safe-area-inset-bottom,0px))] pt-2 sm:pt-3 lg:pb-20"
             >
                 {/* Landing masthead — mounts whenever the front door is "at
                     rest" (`atRest`, broader than the old `showLandingMarketing`-
@@ -6200,8 +5402,6 @@ export function JobsContent({
                     exactly one h1. */}
                 {showSearchHome ? (
                         <div className={cn(atRest && "pb-1.5")}>
-                            {/* No "Back to Job Packs" row here: signed in, the header's For you
-                                tab is the same way back, and a guest's packs are a sign-in card. */}
                             {/* No rule under the title: the search box right
                                 below is the next thing, and a hairline between
                                 them read as one more divider in a stack of
@@ -6241,8 +5441,6 @@ export function JobsContent({
                 >
                     Skip to results
                 </a>
-
-                {/* For you ↔ Search is portaled into the header row beside the mark. */}
 
                 {!atRest && showColdOrientation && (
                     <div className={cn("mt-2 hidden lg:block", cappedContentClass)}>
@@ -6750,7 +5948,7 @@ export function JobsContent({
                         onUploadResume={handleUploadClick}
                         onFinished={() => {
                             toast.success(SETUP_DONE_MESSAGE);
-                            selectJobsHome("for-you");
+                            void resolveAndApplyFit();
                         }}
                     />
                 )}
@@ -6767,7 +5965,7 @@ export function JobsContent({
                             />
                         </div>
                         {resumeOnFile === true && !fitActive && !fitResolving && (
-                            <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit("all")} />
+                            <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit()} />
                         )}
                     </>
                 )}
@@ -6793,148 +5991,11 @@ export function JobsContent({
                         dockedExtrasMount,
                     )}
 
-                <JobsHomeViewTransition surface={resolvedHomeView}>
-                {forYouGated ? (
+                {showJobsHomePending ? (
                     <div className={cn("mt-4", cappedContentClass)}>
-                        <SignupGate
-                            reason="packs"
-                            originSurface="for_you"
-                            returnTo={serpReturnTo}
-                            onDismiss={() => selectJobsHome("search")}
-                            autoShown={{ hasResume: hasUsableResume }}
-                            className="mx-auto w-full max-w-xl"
-                        />
-                    </div>
-                ) : showForYouHome && !forYouOpen ? (
-                    <div className={cn("mt-4", cappedContentClass)}>
-                        <ForYouHomePending />
-                    </div>
-                ) : showForYouHome ? (
-                    <div className={cn(forYouPackDeckOpen ? "mt-1" : "mt-4", deckPanesLocked && "flex min-h-0 flex-1 flex-col overflow-clip", cappedContentClass)}>
-                        {/* Packs home = CategoryHubGrid by default. Do NOT gate on atRest —
-                            fit/query must not swap the 8-pack hub for the postcard deck.
-                            Leave hub for Advanced search (view=search) or when a pack is
-                            opened into ForYouHome (forYouPackDeckOpen). Pack tap / Browse
-                            all matches set forYouPackDeckOpen — not the hub modal. */}
-                        <ResumePlaceConfirm resume={resume} onUpdateResume={updateResume} />
-                        {!showAdvancedSearch && !forYouPackDeckOpen ? (
-                            <>
-                                {resumeRefreshing ? (
-                                    <p role="status" data-testid="resume-refreshing" className="mb-3 text-sm text-muted-foreground">
-                                        Updating your matches for your new résumé…
-                                    </p>
-                                ) : null}
-                                <CategoryHubGrid
-                                    categories={hubCategories}
-                                    userName={user?.displayName}
-                                    isAuthenticated={Boolean(user)}
-                                    hasResume={hasUsableResume}
-                                    activeCategoryId={hubSelectedCategoryId}
-                                    hubCountLabels={hubCountLabels}
-                                    hubCountDeltas={hubCountDeltas}
-                                    dailyApplyTip={todayShown ? null : DAILY_APPLY_HUB_TIP}
-                                    hubMatching={hubFitProbe.loading || hubFitProbe.probing}
-                                    hubCorpusLine={hubCorpusLine}
-                                    hubFitLine={hubFitLine}
-                                    hubLeftOutLine={hubLeftOutLine}
-                                    resumeLine={
-                                        todayMatching ? (
-                                            <ResumeInUse
-                                                label={resumeInUseLabel(resumeSourceLabel)}
-                                                onReplace={() => handleUploadClick()}
-                                            />
-                                        ) : null
-                                    }
-                                    lastHere={todayShown ? <TodayLastHere /> : null}
-                                    onSelectCategory={(category, source) => openHubPack(category.id, source)}
-                                    footer={
-                                        <div className="space-y-4">
-                                            {todayShown ? (
-                                                <TodayHome
-                                                    auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                                    returnTo={serpReturnTo}
-                                                    matching={todayMatching}
-                                                    noResume={todayNoResume}
-                                                    pursuits={pursuits}
-                                                    pursuitsLoading={pursuitsLoading}
-                                                    accountKey={user?.uid ?? null}
-                                                    onApply={handleOpenPosting}
-                                                    onOpenPack={(id) => openHubPack(id, "today")}
-                                                    onAddResume={() => handleUploadClick()}
-                                                    onRetryResume={() => setHubResumeAttempt((n) => n + 1)}
-                                                />
-                                            ) : null}
-                                            <HubYourJobs
-                                                auth={signedIn ? "signed-in" : signedOut ? "signed-out" : "pending"}
-                                                returnTo={serpReturnTo}
-                                            />
-                                        </div>
-                                    }
-                                />
-                            </>
-                        ) : (
-                            <ForYouHome
-                                visiblePacks={forYouDeck.visiblePacks}
-                                employerSlots={forYouDeck.slots}
-                                activeIndex={forYouDeck.activeIndex}
-                                onActiveIndexChange={forYouDeck.setActiveIndex}
-                                activeJob={forYouDeck.activeJob}
-                                onSkip={forYouDeck.handleSkip}
-                                onFewerLikeThis={forYouDeck.handleFewer}
-                                onMoreLikeThis={forYouDeck.handleMore}
-                                likedIds={forYouDeck.likedIds}
-                                onRoleSignal={forYouDeck.nudgeActive}
-                                tuning={forYouDeck.tuning}
-                                onResetTuning={forYouDeck.resetTuning}
-                                tuningReason={forYouDeck.tuningReason}
-                                matchScores={matchScores}
-                                resume={resume}
-                                signals={signals}
-                                accountKey={uid}
-                                nowMs={nowMs}
-                                fitResolving={fitResolving}
-                                loading={deckLoading}
-                                loadError={displaySearchError}
-                                onRetryLoad={retrySearch}
-                                fitActive={fitActive}
-                                hydratedJobs={forYouHydrated}
-                                onActivePackChange={handleForYouActivePackChange}
-                                onOpenRow={(job) => recordJobView(job.id, buildJobSnapshot(job))}
-                                onRetryDescription={retryForYouDescription}
-                                onOpenPosting={handleOpenPosting}
-                                onHomeViewChange={setJobsHomeView}
-                                showSearchCta={resumeOnFile === true}
-                                onReplaceResume={beginResumeUpload}
-                                hasUsableResume={hasUsableResume}
-                                firstRevealEnter={firstRevealEnter}
-                                firstRevealDeckFocus={firstRevealDeckFocus}
-                                onFirstRevealFocusDone={() => setFirstRevealDeckFocus(false)}
-                                onLoadMore={() => void loadMore()}
-                                loadingMore={loadingMore}
-                                hasMore={hasMore}
-                                signupGate={fitGateEl}
-                                resultTotal={deckResultStale ? null : (result?.total ?? null)}
-                                leftOut={deckResultStale ? null : deckLeftOutSummary}
-                                unmatchedPlaces={deckResultStale ? undefined : result?.unmatchedPlaceMentions}
-                                tileId={openHubTileId}
-                                onBackToPacks={forYouPackDeckOpen ? returnToJobPacksHub : undefined}
-                                activePursuit={
-                                    forYouDeck.activeJob
-                                        ? pursuitsByJobIdMerged.get(forYouDeck.activeJob.id)
-                                        : undefined
-                                }
-                                onGoAfter={handleGoAfter}
-                                saveSuccessPulse={
-                                    forYouDeck.activeJob
-                                        ? savePulseJobIds.has(forYouDeck.activeJob.id)
-                                        : false
-                                }
-                            />
-                        )}
-                    </div>
-                ) : showJobsHomePending ? (
-                    <div className={cn("mt-4", cappedContentClass)}>
-                        <ForYouHomePending />
+                        <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="jobs-home-pending">
+                            <JobsSessionLoadingShell />
+                        </div>
                     </div>
                 ) : (
                 <>
@@ -6944,21 +6005,16 @@ export function JobsContent({
                     the one gate: `searchIntent` above is false exactly when
                     the search-fetch effect also skipped its fetch, so there
                     is never a rendered results surface with no fetch behind
-                    it, and never a fetch whose results this doesn't show. The
-                    For-you/Search toggle (`homeViewToggleEl`, rendered once
-                    above this three-way view branch — see `showHomeViewToggle`)
-                    stays outside this gate: it's navigation chrome, not a
-                    result, and has to show in both views before either one's
-                    results fetch. */}
-                {/* For you is not a guest's home, so a guest's bare-city question
-                    is asked above the board their résumé ranks. Answering re-ranks. */}
+                    it, and never a fetch whose results this doesn't show. */}
+                {/* A guest's bare-city question is asked above the board their résumé
+                    ranks. Answering re-ranks. */}
                 {signedOut && fitActive && (
                     <div className={cn("mt-4 empty:hidden", cappedContentClass)}>
                         <ResumePlaceConfirm
                             resume={resume}
                             onUpdateResume={(settled) => {
                                 updateResume(settled);
-                                applyFit(settled, undefined, "search");
+                                applyFit(settled);
                             }}
                         />
                     </div>
@@ -7371,6 +6427,11 @@ export function JobsContent({
                                                     of `data-testid="results-clear-filters"`. What is left
                                                     here only reports: the count, the window, the scope. */}
                                             </div>
+                                            {/* A résumé-ranked list says what it left out and why, in the words the
+                                                daily picks and the MCP tools use (left-out-copy.ts). */}
+                                            {recommendedReady && recommended && (
+                                                <RecommendedListNotes summary={recommended.summary} languages={languagesEl} />
+                                            )}
                                             {/* The alerts switch's email form, right under the switch
                                                 that opened it (signed out). */}
                                             {!user && manualAlertOpen && (
@@ -7438,8 +6499,27 @@ export function JobsContent({
                                             `seamIndex` directly — see its own comment
                                             above (`clusterJobs`, lib/jobs/cluster.ts)
                                             for why a cluster can never straddle it. */}
+                                        {recommendedReady && recommended && recommended.slots.length === 0 && (
+                                            <div data-testid="list-none-fit" className="px-[var(--list-inset)] py-8 text-sm text-muted-foreground">
+                                                <p className="font-semibold text-foreground">None of the roles we found fit your résumé yet.</p>
+                                                {formatLeftOutLine(recommended.summary) && (
+                                                    <p className="mt-1">{formatLeftOutLine(recommended.summary)}.</p>
+                                                )}
+                                                {languagesEl && <div className="mt-3">{languagesEl}</div>}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    data-testid="list-none-fit-show-all"
+                                                    className="mt-4"
+                                                    onClick={() => chooseSort("relevance")}
+                                                >
+                                                    Show every role we found
+                                                </Button>
+                                            </div>
+                                        )}
                                         {renderedClusters.flatMap((cluster, i) => {
                                             const expanded = expandedClusters.has(cluster.primary.id);
+                                            const employerMore = employerMoreByLead.get(cluster.primary.id);
                                             const rows = [
                                                 renderJobRow(
                                                     cluster.primary,
@@ -7454,7 +6534,30 @@ export function JobsContent({
                                                     i === 0,
                                                 ),
                                                 ...(expanded ? cluster.variants.map((v) => renderJobRow(v)) : []),
+                                                ...(employerMore
+                                                    ? [
+                                                          <EmployerMore
+                                                              key={`more-${cluster.primary.id}`}
+                                                              lead={cluster.primary}
+                                                              roles={employerMore.roles}
+                                                              hidden={employerMore.hidden}
+                                                              nowMs={nowMs}
+                                                              className="px-[var(--list-inset)] pb-3 pt-1"
+                                                          />,
+                                                      ]
+                                                    : []),
                                             ];
+                                            // The Chrome extension, once, after the 4th role (or the last, on a
+                                            // short list) of a list ranked against the résumé: it is the other
+                                            // place a person reads fit, and the list is where they already are.
+                                            if (recommendedReady && recommended && i === Math.min(3, renderedClusters.length - 1)) {
+                                                rows.push(
+                                                    <ExtensionTile
+                                                        key="extension-tile-list"
+                                                        className="mx-[var(--list-inset)] my-4"
+                                                    />,
+                                                );
+                                            }
                                             // A1 (front-door redesign): mobile-only
                                             // ColdVisitorOrientation mount, after the 3rd
                                             // row — same `showColdOrientation` condition as
@@ -7593,8 +6696,6 @@ export function JobsContent({
                 </>
                 )}
 
-                </JobsHomeViewTransition>
-
                 {/* Closing pitch after the live feed — one mount, same
                     `showsFrontDoorBand` gate as before. Source order is the
                     first-viewport contract: jobs, then the résumé invite. */}
@@ -7628,15 +6729,6 @@ export function JobsContent({
                 onRestoreDetected={restoreLocationDefault}
                 onContinue={handleLocationSheetContinue}
             />
-
-            {showHomeViewToggle && dockedHomeViewMount &&
-                createPortal(
-                    <ForYouToggle
-                        value={resolvedHomeView === "search" ? "search" : "for-you"}
-                        onChange={selectJobsHome}
-                    />,
-                    dockedHomeViewMount,
-                )}
 
             <AuthPopover
                 open={authOpen}
@@ -7687,19 +6779,6 @@ export function JobsContent({
                 }
                 reason={authGateReason ?? undefined}
             />
-            <PacksHomeIntroModal
-                open={
-                    !packsIntroDismissed &&
-                    resumeOnFile === true &&
-                    forYouOpen
-                }
-                onGotIt={dismissPacksIntro}
-                onAddOrReplaceResume={() => {
-                    dismissPacksIntro();
-                    beginResumeUpload();
-                }}
-            />
-
             <ResumeImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}

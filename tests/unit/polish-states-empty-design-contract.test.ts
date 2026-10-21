@@ -14,7 +14,6 @@ const BATCH3_SOURCES = [
     "src/components/layout/jobs-session-loading.tsx",
     "src/components/layout/offline-shell.tsx",
     "src/components/layout/route-status-chrome.tsx",
-    "src/components/jobs/for-you/ForYouHome.tsx",
     "src/components/mock/EmptyStatesMock.tsx",
     "src/app/mock/empty-states/page.tsx",
     "src/app/not-found.tsx",

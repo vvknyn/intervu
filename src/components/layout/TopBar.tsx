@@ -52,7 +52,7 @@ export function TopBar() {
     // that page already had the same stats in hand, so this also removes a
     // duplicate fetch. This slot now belongs to the docked search below.
     const authChrome = resolveAuthChrome(user);
-    const { docked, homeViewDocked } = useSearchDock();
+    const { docked } = useSearchDock();
     const navBadges = useNavBadgeCounts();
     // The header's ONE nav: every product destination as an underline tab.
     const navTabs = NAV_TABS.filter((t) => {
@@ -64,9 +64,7 @@ export function TopBar() {
             // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
             return !leanSurface && authChrome === "authenticated";
         }
-        // The For you ↔ Search switch IS the Jobs destination's tab while docked;
-        // a second "Jobs" link beside it would be two navs for one page.
-        return !(homeViewDocked && t.match(pathname));
+        return true;
     });
     const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
 
@@ -104,10 +102,7 @@ export function TopBar() {
                 in it, plus fold the band's own height into "header height". */}
             <div
                 data-region="header"
-                className={cn(
-                    "shell-row relative flex h-[var(--topbar-h)] items-center justify-between",
-                    homeViewDocked ? "gap-2 sm:gap-4" : "gap-6",
-                )}
+                className="shell-row relative flex h-[var(--topbar-h)] items-center justify-between gap-6"
             >
                 <Link
                     href="/"
@@ -119,13 +114,6 @@ export function TopBar() {
                 >
                     <BrandLockup markClassName="h-8 w-8" />
                 </Link>
-                {/* For you ↔ Search, same row as the mark. Always in the DOM so
-                    the jobs page can portal into it; `hidden` keeps an empty
-                    slot out of the flex gap on every other route. */}
-                <div
-                    data-testid="topbar-docked-home-view"
-                    className={cn("flex shrink-0 items-center", !homeViewDocked && "hidden")}
-                />
 
                 {/* `flex-1` so the row's leftover width lands HERE rather than
                     as a gap in the middle of the bar. `justify-end` keeps the

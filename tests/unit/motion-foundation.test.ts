@@ -46,7 +46,6 @@ describe("motion token contract in globals.css", () => {
     assert.match(GLOBALS, /\.designed-press/);
     assert.match(GLOBALS, /\.interactive-lift/);
     assert.match(GLOBALS, /\.enter-reveal/);
-    assert.match(GLOBALS, /\.jobs-home-view-crossfade/);
     assert.match(GLOBALS, /\.designed-focus:focus-visible/);
     assert.match(GLOBALS, /\.designed-focus-ring:focus-visible/);
   });
