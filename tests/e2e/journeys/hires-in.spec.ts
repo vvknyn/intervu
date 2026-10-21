@@ -116,3 +116,38 @@ test("a remote role whose posting hires in Canada says 'Hires in Canada' with th
   await expect(quote).toContainText("This role is open to candidates located in the US or Canada.");
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+/**
+ * Journey for the place a plain "Remote" row says its posting limits it to — see tests/journeys/CATALOG.md (J-JOBS-157).
+ * From the same CareerHound teardown: their cards tell Remote Canada from Remote North America from Remote US. Velai reads
+ * it from the posting, so the row says "Remote (North America)" with the posting's line, and a posting that names no place
+ * stays "Remote".
+ */
+test("a plain 'Remote' row says the place its posting limits it to, with the posting's line, and stays 'Remote' when the posting names none", { tag: ["@J-JOBS-157"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await seedResume(page);
+  const northAmerica = remotePosting("44444444-0000-4000-8000-000000000001", "Cedar Relay", {
+    place_restriction: { label: "North America", countries: ["Canada", "United States", "Mexico"], quote: "You can work from anywhere in North America." },
+  });
+  const canada = remotePosting("44444444-0000-4000-8000-000000000002", "Harbor Stack", {
+    place_restriction: { label: "Canada", countries: ["Canada"], quote: "Remote in Canada." },
+  });
+  const nowhere = remotePosting("44444444-0000-4000-8000-000000000003", "Driftwood Apps", { place_restriction: null });
+  const listed = [northAmerica, canada, nowhere];
+  await page.route("**/*", async (route) => {
+    const req = route.request();
+    const body = req.postData() ?? "";
+    if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
+    return answerListSearch(route, { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId: "journey-remote-scope" });
+  });
+  await page.goto("/jobs?view=search&sort=fit");
+  const place = (company: string) => page.getByTestId("job-row").filter({ hasText: company }).getByTestId("job-location");
+  await expect(place("Cedar Relay")).toBeVisible({ timeout: 45_000 });
+  await expect(place("Cedar Relay")).toHaveText("Remote (North America)");
+  await expect(place("Cedar Relay")).toHaveAttribute("title", "The posting says: “You can work from anywhere in North America.”");
+  await expect(place("Harbor Stack")).toHaveText("Remote (Canada)");
+  // A posting that names no place keeps plain "Remote", with no claim and no line.
+  await expect(place("Driftwood Apps")).toHaveText("Remote");
+  await expect(place("Driftwood Apps")).not.toHaveAttribute("title", /.+/);
+  expect(diagnostics.pageErrors).toEqual([]);
+});

@@ -6,12 +6,13 @@ import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, SignIn, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
+import { remoteScope, withRemoteScope } from "@/lib/jobs/remote-scope";
 import { ContextHelp } from "@/components/ui/context-help";
 import { ShareAction } from "@/components/ui/share-action";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { KpiStat, MetaLine, PostingCheckSignalsGrid } from "@/components/jobs/job-detail-primitives";
-import { HiresInLine, hiresNoteOf } from "@/components/jobs/HiresIn";
+import { HiresInLine, hiresNoteOf, RemoteScopeLine } from "@/components/jobs/HiresIn";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
@@ -563,7 +564,9 @@ export function JobDetail({
     // `locationSummary` does, so cleaning before the split risks mangling a
     // semicolon-joined string that also happens to contain a dash.
     const presented = presentJob(job);
-    const locationDisplay = presented.location;
+    // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
+    const scope = remoteScope(job);
+    const locationDisplay = withRemoteScope(presented.location, scope);
     const jobTitle = presented.title;
     const blocks = useMemo(() => formatDescription(job.description), [job.description]);
     // `formatDescription(undefined)` and `formatDescription("")` both return
@@ -817,7 +820,7 @@ export function JobDetail({
                         </div>
                     )}
                     {/* A remote role whose posting says it hires in the candidate's country: the word and the posting's own line. */}
-                    {hiresNoteOf(matchScore) && <HiresInLine note={hiresNoteOf(matchScore)!} />}
+                    {hiresNoteOf(matchScore) ? <HiresInLine note={hiresNoteOf(matchScore)!} /> : scope && <RemoteScopeLine scope={scope} />}
                     {exceptionMark && (
                         // Rulebook: status reads as a plain colored WORD, not a
                         // bordered/bg pill — each part already carries its own

@@ -40,6 +40,15 @@ export function HiresInWord({ note }: { note: HiresNote }) {
     );
 }
 
+/** The detail pane's line for a remote role whose posting limits it to a place its fields don't name (`remoteScope`): the posting's own words. */
+export function RemoteScopeLine({ scope }: { scope: { label: string; quote: string } }) {
+    return (
+        <p data-testid="remote-scope-line" className="mt-2 text-sm leading-snug text-muted-foreground">
+            The posting says: “{scope.quote}”
+        </p>
+    );
+}
+
 /** The detail pane's line: the word and the posting's own words beside it. */
 export function HiresInLine({ note }: { note: HiresNote }) {
     return (

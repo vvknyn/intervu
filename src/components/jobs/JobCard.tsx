@@ -41,6 +41,7 @@ import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobPath } from "@/lib/jobs/job-slug";
+import { remoteScope, withRemoteScope } from "@/lib/jobs/remote-scope";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { MatchScore } from "@/lib/match/score";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -148,6 +149,8 @@ export function JobCard({
     const freshness = classifyPostingFreshness(job, now);
     // "Hires in Canada" for a remote role whose posting says so in words its place fields lack (HiresIn.tsx).
     const hires = hiresNoteOf(matchScore);
+    // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
+    const scope = remoteScope(job);
     // A4 (soft-surfaces): the row's only "active" signal is the ABSENCE of
     // an exceptionMark — "review"/"ghost"/"relisted" verdicts surface via
     // `exceptionMark` above (rowExceptionMark, the single chokepoint for
@@ -288,7 +291,11 @@ export function JobCard({
                             ) : (
                                 <span>{presented.company.name}</span>
                             ),
-                            locationKnown && <span data-testid="job-location">{presented.location}</span>,
+                            locationKnown && (
+                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : undefined}>
+                                    {withRemoteScope(presented.location, scope)}
+                                </span>
+                            ),
                         ]}
                     />
                 </div>
