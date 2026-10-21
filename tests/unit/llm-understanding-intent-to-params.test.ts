@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { applyIntent } from "../../src/lib/jobs/llm-understanding/intent-to-params";
 import { EMPTY_INTENT, type JobSearchIntent } from "../../src/lib/jobs/llm-understanding/schema";
 import { FACETABLE_KEYS, type JobSearchParams, type PlaceClause } from "../../src/lib/jobs/types";
+import { unmatchedPlaceNote } from "../../src/lib/jobs/result-state";
 import fixtures from "./fixtures/nl-search-intents.json";
 
 const PLACE: PlaceClause = { any: [{ field: "location_city", value: "Toronto" }] };
@@ -91,4 +92,11 @@ test("one title plus terms is plain text", () => {
 test("mentions append to existing ones without duplicates", () => {
     const out = applyIntent({ unmatchedQueryMentions: ["a"] }, intent({ unparsed: ["a", "b"] }));
     assert.deepEqual(mentions(out), ["a", "b"]);
+});
+
+test("one note covers place mentions and query mentions, in either combination", () => {
+    assert.equal(unmatchedPlaceNote(undefined, undefined), null);
+    assert.equal(unmatchedPlaceNote(["Atlantis"]), 'We have no roles in "Atlantis" — showing results without it.');
+    assert.equal(unmatchedPlaceNote(undefined, ["a", "b"]), `We couldn't apply "a" and "b" — searched without them.`);
+    assert.match(unmatchedPlaceNote(["Atlantis"], ["a"]) ?? "", /Atlantis.*couldn't apply "a"/);
 });

@@ -4731,7 +4731,7 @@ export function JobsContent({
     // (see `unmatchedPlaceNote`, result-state.ts) got dropped rather than
     // kept as a doomed exact-facet predicate; this is the honest caption for
     // that, same shape as `degradedNote` above.
-    const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions);
+    const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions, result?.unmatchedQueryMentions);
 
     // An employer search with a place asked for lists the employer's roles in
     // that place first; this captions where they end (`employerElsewhereNote`).

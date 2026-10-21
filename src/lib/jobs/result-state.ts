@@ -121,13 +121,25 @@ export function degradedResultsNote(result: JobSearchResult): string | null {
  * `defaultedLocation`'s identical shape, search.ts/actions/jobs.ts), never on
  * `JobSearchResult` itself, so there is no result object to reach into here.
  */
-export function unmatchedPlaceNote(mentions: string[] | undefined): string | null {
-    if (!mentions || mentions.length === 0) return null;
+export function unmatchedPlaceNote(
+    placeMentions: string[] | undefined,
+    queryMentions?: string[],
+): string | null {
+    const notes: string[] = [];
+    if (placeMentions?.length) {
+        notes.push(`We have no roles in ${quotedList(placeMentions)} — showing results without ${pronoun(placeMentions)}.`);
+    }
+    // The LLM stage's leftovers (`unmatchedQueryMentions`): words it read but
+    // could not turn into a filter, or was told to exclude.
+    if (queryMentions?.length) notes.push(`We couldn't apply ${quotedList(queryMentions)} — searched without ${pronoun(queryMentions)}.`);
+    return notes.length ? notes.join(" ") : null;
+}
+
+const pronoun = (xs: string[]) => (xs.length === 1 ? "it" : "them");
+
+function quotedList(mentions: string[]): string {
     const quoted = mentions.map((m) => `"${m}"`);
-    const list =
-        quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
-    const pronoun = mentions.length === 1 ? "it" : "them";
-    return `We have no roles in ${list} — showing results without ${pronoun}.`;
+    return quoted.length === 1 ? quoted[0] : `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]}`;
 }
 
 /**

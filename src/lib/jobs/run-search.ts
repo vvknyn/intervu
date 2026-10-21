@@ -41,6 +41,7 @@ export type JobsSearchWithProbes = JobSearchResult & {
   defaultedLocation?: string;
   remoteAnywhere?: boolean;
   unmatchedPlaceMentions?: string[];
+  unmatchedQueryMentions?: string[];
   /** Additive by convention, same as `meta`/`defaultedLocation` above —
    *  always set by `runJobsSearch` itself, but optional here so a caller
    *  that returns early without reaching it (e.g. `searchJobsAction`'s

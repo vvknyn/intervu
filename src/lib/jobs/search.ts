@@ -20,6 +20,7 @@ import {
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
+import { applyLlmUnderstanding } from "./llm-understanding";
 import { applyQueryUnderstanding, resolveLocationFacet, type LocationVocabulary } from "./query-understanding";
 import { loadGazetteer } from "../geo/gazetteer";
 import { createCorpusValueChecker } from "../geo/corpus-values";
@@ -103,10 +104,16 @@ export async function understandSearchParams(raw: JobSearchParams): Promise<JobS
   const needsVocab =
     !raw.id && Boolean((raw.q ?? "").trim() || LOCATION_FACET_FIELDS.some((f) => raw.facets?.[f]?.length));
   const vocab = needsVocab ? await locationVocabulary() : undefined;
-  return vocab
-    ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
-    : await applyQueryUnderstanding(raw, vocab);
+  const understood = await applyQueryUnderstanding(raw, vocab);
+  return vocab ? await resolveLocationFacet(await applyLlmUnderstanding(understood, { vocab }), vocab) : understood;
 }
+
+/** The request-scoped "we searched without this" facts, spread onto every
+ *  return point (see the `unmatchedPlaceMentions` note in searchJobs). */
+const requestMentions = (p: JobSearchParams) => ({
+  ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+  ...(p.unmatchedQueryMentions && { unmatchedQueryMentions: p.unmatchedQueryMentions }),
+});
 
 export async function searchJobs(
   raw: JobSearchParams,
@@ -129,6 +136,7 @@ export async function searchJobs(
      *  through every return point below. */
     remoteAnywhere?: boolean;
     unmatchedPlaceMentions?: string[];
+    unmatchedQueryMentions?: string[];
   }
 > {
   // Vocabulary is only relevant when there's something to resolve — query
@@ -190,7 +198,7 @@ export async function searchJobs(
         ...result,
         meta: { degraded: false, servedFrom: "live" },
         ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+        ...requestMentions(p),
       };
     }
     if (backend === "snapshot-preview") {
@@ -198,7 +206,7 @@ export async function searchJobs(
         ...(await searchSnapshotPreview(p)),
         effectiveQ: p.q ?? "",
         ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+        ...requestMentions(p),
       };
     }
   } catch (e) {
@@ -226,8 +234,7 @@ export async function searchJobs(
           // it must not be stamped there. Same reasoning for
           // `unmatchedPlaceMentions`.
           ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation, remoteAnywhere }),
-          ...(degraded.servedKey === "exact" &&
-            p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+          ...(degraded.servedKey === "exact" && requestMentions(p)),
         };
       }
     }
@@ -242,7 +249,7 @@ export async function searchJobs(
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
       ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-      ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+      ...requestMentions(p),
     };
   }
   // Config-error state (no backend configured at all), not a search

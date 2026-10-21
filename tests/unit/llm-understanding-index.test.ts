@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyLlmUnderstanding } from "../../src/lib/jobs/llm-understanding";
-import { createLruCache, type ParseDeps } from "../../src/lib/jobs/llm-understanding/parse";
+import { createLruCache, type ParseDeps, type ParsedIntent } from "../../src/lib/jobs/llm-understanding/parse";
 import type { LocationVocabulary } from "../../src/lib/jobs/query-understanding";
 import type { LadderRung } from "../../src/lib/llm/model-ladder";
 
 const rungs: LadderRung[] = [{ model: "a", timeoutMs: 1, isFallback: false }, { model: "paid", timeoutMs: 1, isFallback: true }];
 function parse(reply: () => string): ParseDeps & { calls: number } {
-    const d = { calls: 0, rungs, cache: createLruCache(5), generate: async () => { d.calls++; return reply(); } };
+    const d = { calls: 0, rungs, cache: createLruCache<ParsedIntent>(5), generate: async () => { d.calls++; return reply(); } };
     return d;
 }
 const vocab = {
