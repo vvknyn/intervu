@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_MODEL, FREE_LADDER } from "@/lib/llm/models";
 import { resolveModelLadder } from "@/lib/llm/model-ladder";
+import { liveRungs } from "@/lib/llm/live-rungs";
 import { parseQuotedOrPhrases } from "../fit-phrases";
 import { resolveExactFacetValue, type LocationVocabulary } from "../query-understanding";
 import type { JobSearchParams, PlaceClause } from "../types";
@@ -18,10 +19,10 @@ export interface LlmUnderstandingDeps {
  *  `resolveLLMConfig` (which does): it reads the shared key directly and
  *  `parseIntent` only ever walks the free rungs. A missing key just fails
  *  every rung, and the deterministic result stands. */
-function defaultParseDeps(): ParseDeps {
+async function defaultParseDeps(): Promise<ParseDeps> {
     const apiKey = process.env.OPENROUTER_API_KEY ?? "";
     return {
-        rungs: resolveModelLadder({ provider: "openrouter", model: DEFAULT_MODEL }, FREE_LADDER),
+        rungs: await liveRungs(resolveModelLadder({ provider: "openrouter", model: DEFAULT_MODEL }, FREE_LADDER)),
         cache: defaultIntentCache,
         generate: async (rung, prompt) => {
             const { ProviderFactory } = await import("@/lib/llm/providers");
@@ -62,7 +63,7 @@ async function resolveIntentPlace(loc: JobSearchIntent["location"], vocab: Locat
  */
 export async function applyLlmUnderstanding(p: JobSearchParams, deps: LlmUnderstandingDeps = {}): Promise<JobSearchParams> {
     if (!worthParsing(p)) return p;
-    const parsed = await parseIntent(p.q ?? "", deps.parse ?? defaultParseDeps());
+    const parsed = await parseIntent(p.q ?? "", deps.parse ?? await defaultParseDeps());
     if (!parsed || isDeepStrictEqual(parsed.intent, EMPTY_INTENT)) return p;
     const { location } = parsed.intent;
     const needsPlace = Boolean(location.city || location.state || location.country) && !p.places?.length && !p.facets?.location_country?.length;
