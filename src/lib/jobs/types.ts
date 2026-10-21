@@ -415,6 +415,14 @@ export interface JobSearchParams {
    * location as zero roles there (`locationDropped`, broaden.ts).
    */
   unmatchedPlaceMentions?: string[];
+  /**
+   * Typed fragments the LLM stage (`applyLlmUnderstanding`) could not turn into
+   * a filter, plus anything it was told to exclude. A different fact from
+   * `unmatchedPlaceMentions` (that one is place words the corpus lacks and
+   * suppresses the IP default); this is "we searched without this", surfaced
+   * by `unmatchedQueryNote` (result-state.ts), never dropped silently.
+   */
+  unmatchedQueryMentions?: string[];
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
