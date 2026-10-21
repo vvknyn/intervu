@@ -64,7 +64,7 @@ import { languageLabel } from "@/lib/match/posting-language";
 import { COVERAGE_MIN_RESUME_TERMS, requiredSkillsShown, requirementGaps, type RequirementGap } from "@/lib/match/requirement-gaps";
 import { buildMatchQuery, seniorityFromYears, targetRoles, topSkills, type Seniority } from "@/lib/jobs/resume-match";
 import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from "@/lib/match/duty-signals";
-import type { PublicJob } from "@/lib/jobs/types";
+import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
 export type MatchComponentKey = "relevance" | "seniority" | "location";
@@ -81,6 +81,13 @@ export interface MatchComponent {
     unknown?: boolean;
     /** Which verdict `detail` states, for surfaces that word it themselves (match/explain.ts). */
     reason?: MatchReason;
+    /**
+     * Location only, on a remote role open to the candidate's country: the posting says it hires there in
+     * words its place fields don't carry, and these are the words ("Remote, Canada; Austin, TX"). Shown as
+     * "Hires in Canada" with the line beside it; absent when the role's own place fields already say the
+     * country, and never set without a line to show.
+     */
+    hires?: { country: string; quote: string };
     /** Relevance only: how many of the posting's terms the résumé has, of how many. */
     terms?: { matched: number; of: number };
     /**
@@ -642,6 +649,9 @@ const locationComponent = (
     ...(place ? { place } : {}),
 });
 
+/** The longest place text that can stand as the posting's line for a `hires` note: a place, not a breadcrumb dump. */
+const HIRES_QUOTE_MAX = 120;
+
 /**
  * Candidate location vs job location. One rule, for every country and role: a
  * role is open to the candidate only on positive evidence, and anything else
@@ -666,32 +676,69 @@ const locationComponent = (
  *
  * A remote-only preference says how they want to work, not where they can:
  * a remote role tied to another country is still `remote_abroad`.
+ *
+ * An open remote role whose place fields don't say the candidate's country alone
+ * carries `hires`: the country and the posting's own line that puts the role there
+ * (its place text, or its description: "Remote, Canada; Austin, TX"). A welcome
+ * ("Canadians welcome") adds the candidate's country to the role's and never takes
+ * another's away.
  */
 function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponent {
     const remote = isRemoteWorkType(job.work_type);
-    let jobList = jobCountries(job);
+    const own = candidateCountries(signals);
+    const fieldList = jobCountries(job);
+    let jobList = fieldList;
     let jobPlace: string | null = null;
-    for (const named of [titlePlace(job.title), job.place_restriction ?? null]) {
+    // The posting's own words behind each country its place fields leave out (`hires`).
+    const quotes = new Map<string, string>();
+    const locationLine = (job.location ?? "").trim();
+    // A place text that names more countries than the tag does ("Remote, Canada; Austin, TX" tagged United States) is
+    // a posting that hires in each: the tag kept the first place only.
+    if (locationLine && locationLine.length <= HIRES_QUOTE_MAX) {
+        const written = jobCountries({ ...job, location_country: null });
+        for (const country of written) quotes.set(country, locationLine);
+        if (fieldList.length > 0) jobList = [...fieldList, ...written.filter((country) => !fieldList.includes(country))];
+    }
+    for (const named of [titlePlace(job.title), job.place_restriction ?? null] as Array<Pick<PlaceRestriction, "label" | "countries" | "quote" | "open"> | null>) {
         if (!named || named.countries.length === 0) continue;
+        // A welcome ("Canadians welcome") adds the candidate's own country to the role's; it never takes another's away.
+        if (named.open) {
+            const welcome = named.countries.filter((country) => own.includes(country) && !jobList.includes(country));
+            if (welcome.length > 0) jobList = [...jobList, ...welcome];
+            if (named.quote) for (const country of named.countries) quotes.set(country, named.quote);
+            continue;
+        }
         if (jobList.length === 0) {
             jobList = named.countries;
             jobPlace = named.label;
+            if (named.quote) for (const country of named.countries) quotes.set(country, named.quote);
             continue;
         }
         const narrowed = jobList.filter((country) => named.countries.includes(country));
         if (narrowed.length > 0 && narrowed.length < jobList.length) {
             jobList = narrowed;
             jobPlace = named.label;
+            if (named.quote) for (const country of narrowed) quotes.set(country, named.quote);
         }
     }
     const wantsRemote = Boolean(signals.remotePreference.value) && remote;
+    // "Hires in Canada" on a remote role open to the candidate's country, when its place fields don't already say
+    // only that country and a line of the posting does.
+    const hiresIn = (component: MatchComponent): MatchComponent => {
+        if (!remote) return component;
+        for (const country of own) {
+            const quote = quotes.get(country);
+            if (!jobList.includes(country) || !quote || (fieldList.length === 1 && fieldList[0] === country)) continue;
+            return { ...component, hires: { country, quote } };
+        }
+        return component;
+    };
     if (remote && jobList.length === 0 && opensAnywhere(job)) {
         return wantsRemote
             ? locationComponent("remote_preferred", "remote — matches your remote-only preference", 1)
             : locationComponent("remote_anywhere", "remote — open to people anywhere", 1);
     }
 
-    const own = candidateCountries(signals);
     if (own.length === 0) {
         return locationComponent(
             signals.location.value ? "resume_place_unmatched" : "no_resume_place",
@@ -718,9 +765,9 @@ function scoreLocation(signals: CandidateSignals, job: PublicJob): MatchComponen
         );
     }
     if (own.some((country) => jobList.includes(country))) {
-        if (wantsRemote) return locationComponent("remote_preferred", "remote — matches your remote-only preference", 1);
+        if (wantsRemote) return hiresIn(locationComponent("remote_preferred", "remote — matches your remote-only preference", 1));
         return remote
-            ? locationComponent("remote_same_country", "remote — same country", 1)
+            ? hiresIn(locationComponent("remote_same_country", "remote — same country", 1))
             : locationComponent("same_country", "same country", 1);
     }
     if (relocatesTo(signals, jobList)) return locationComponent("relocation_country", "in a country you said you'd relocate to", 0.8);
