@@ -14,6 +14,7 @@ import { isUnavailableJobsResult } from "./result-state";
 import { resolveCorpusCount, type CorpusCount } from "./corpus-count";
 import type { CountryLookup } from "../geo/ip-country";
 import type { JobSearchParams, JobSearchResult } from "./types";
+import type { UnderstoodSearch } from "./understood";
 import { DEFAULT_URL_STATE } from "./url-state";
 
 export interface RunJobsSearchContext {

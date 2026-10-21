@@ -59,7 +59,7 @@ test("an empty parse never wipes the query", async () => {
 
 test("a location the corpus knows becomes a place clause; one it lacks becomes a mention", async () => {
     const known = await applyLlmUnderstanding({ q: "x y" }, { parse: parse(() => JSON.stringify({ titles: ["x y"], location: { city: "Toronto" } })), vocab });
-    assert.deepEqual(known.places, [{ any: [{ field: "location_city", value: "Toronto" }] }]);
+    assert.deepEqual(known.places, [{ any: [{ field: "location_city", value: "Toronto" }], label: "Toronto" }]);
     const lost = await applyLlmUnderstanding({ q: "x y" }, { parse: parse(() => JSON.stringify({ titles: ["x y"], location: { city: "Atlantis" } })), vocab });
     assert.equal(lost.places, undefined);
     assert.deepEqual(lost.unmatchedQueryMentions, ["Atlantis"]);

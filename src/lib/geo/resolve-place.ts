@@ -219,11 +219,12 @@ export function countryPlaceCandidates(iso2: string, gazetteer: Gazetteer): Plac
  */
 export function placeClause(
   any: PlaceFilter[],
-  opts: { country?: boolean; remoteAnywhere?: boolean; scopedToCountry?: PlaceFilter[] },
+  opts: { country?: boolean; remoteAnywhere?: boolean; scopedToCountry?: PlaceFilter[]; label?: string },
 ): PlaceClause {
   const clause: PlaceClause =
     opts.scopedToCountry && opts.scopedToCountry.length > 0 ? { any, scopedToCountry: opts.scopedToCountry } : { any };
   if (opts.remoteAnywhere) clause.remoteAnywhere = true;
+  if (opts.label) clause.label = opts.label;
   return clause;
 }
 

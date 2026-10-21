@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { DEFAULT_MODEL, FREE_LADDER } from "@/lib/llm/models";
 import { resolveModelLadder } from "@/lib/llm/model-ladder";
 import { liveRungs } from "@/lib/llm/live-rungs";
+import { placeClause } from "@/lib/geo/resolve-place";
 import { parseQuotedOrPhrases } from "../fit-phrases";
 import { resolveExactFacetValue, type LocationVocabulary } from "../query-understanding";
 import type { JobSearchParams, PlaceClause } from "../types";
@@ -50,7 +51,7 @@ function worthParsing(p: JobSearchParams): boolean {
 async function resolveIntentPlace(loc: JobSearchIntent["location"], vocab: LocationVocabulary): Promise<PlaceClause[]> {
     for (const phrase of [loc.city, loc.state, loc.country]) {
         const any = phrase ? await resolveExactFacetValue(phrase, vocab) : [];
-        if (any.length) return [{ any }];
+        if (any.length) return [placeClause(any, { label: phrase ?? undefined })];
     }
     return [];
 }

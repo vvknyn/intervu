@@ -535,6 +535,13 @@ export interface PlaceClause {
    * (meilisearch.ts) is the only reader.
    */
   remoteAnywhere?: true;
+  /**
+   * The place as the searcher would type it ("Canada", "Toronto"), set only
+   * on clauses the query-understanding stages read out of free text. The
+   * client re-submits it as a location facet so the place shows up as an
+   * ordinary removable chip (see `diffUnderstood`, understood.ts).
+   */
+  label?: string;
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";
