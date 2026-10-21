@@ -59,8 +59,7 @@ export function TopBar() {
         // Signed out there is no product nav (sign-in / create-account instead).
         if (!user) return false;
         if (t.href === "/connect") {
-            // Lean hub/deck/apply: drop desktop header MCP (/connect). Pack-deck
-            // `for-you-mcp-handoff` stays — that is not TopBar chrome.
+            // Lean jobs/apply surfaces: drop the desktop header MCP link (/connect).
             // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
             return !leanSurface && authChrome === "authenticated";
         }
@@ -243,9 +242,7 @@ export function TopBar() {
                 </div>
             </div>
 
-            {/* Second row — active filters only. For you ↔ Search lives on
-                the header row beside the mark, so this band must not open
-                just to hold that switch. */}
+            {/* Second row — active filters only. */}
             {docked && (
                 <div data-region="band" className="hidden bg-muted lg:block">
                     {/* Wrap instead of horizontal scroll — long query chips truncate

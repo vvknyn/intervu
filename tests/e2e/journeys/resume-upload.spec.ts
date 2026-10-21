@@ -1,7 +1,6 @@
 import path from "node:path";
 import type { Locator, Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { PACKS_HOME_INTRO_KEY } from "../../../src/lib/jobs/for-you/packs-home-intro";
 import { expect, test } from "./fixtures";
 import { signedInTest, withoutMockSignInHydration } from "./signed-in";
 
@@ -268,15 +267,14 @@ test("Sealed AI that never finishes reading leaves the quick match within 30 s, 
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-signedInTest("Signed in with a résumé on file, Replace on For you opens Rank jobs by your résumé, and a partly read résumé ranks with no confidence gate or endless model spinner", { tag: ["@J-RESUME-46"] }, async ({ page, diagnostics }) => {
+signedInTest("Signed in with a résumé on file, Replace on the jobs list opens Rank jobs by your résumé, and a partly read résumé ranks with no confidence gate or endless model spinner", { tag: ["@J-RESUME-46"] }, async ({ page, diagnostics }) => {
   test.setTimeout(120_000);
   // Vivek 2026-10-08 on velai.app/jobs, ranked against an earlier résumé: Replace showed
   // "Manual edit required 56%", "Confidence is 56%, needs to be above 90" and a model
   // spinner whose only way out was a small Skip link.
   await page.addInitScript(
-    ([onboardingKey, introKey]) => {
+    ([onboardingKey]) => {
       localStorage.setItem(onboardingKey, "1");
-      localStorage.setItem(introKey, "1");
       localStorage.setItem("velai.localAi.enabled", "1");
       if (localStorage.getItem("velai.localAi.resume")) return;
       const resume = {
@@ -288,14 +286,14 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
       };
       localStorage.setItem("velai.localAi.resume", JSON.stringify({ data: resume, updatedAt: new Date().toISOString(), sourceLabel: "Sam_Rivera_Resume.pdf" }));
     },
-    [ONBOARDING_COMPLETED_STORAGE_KEY, PACKS_HOME_INTRO_KEY] as const,
+    [ONBOARDING_COMPLETED_STORAGE_KEY] as const,
   );
   await hangingModel(page);
-  await page.goto("/jobs?view=for-you");
+  await page.goto("/jobs");
 
-  const inUse = page.getByTestId("today-resume-in-use");
-  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Sam_Rivera_Resume.pdf", { timeout: 30_000 });
-  await inUse.getByTestId("today-replace-resume").click();
+  const inUse = page.getByTestId("resume-as-of");
+  await expect(inUse).toContainText("Scoring with Sam_Rivera_Resume.pdf", { timeout: 30_000 });
+  await inUse.getByTestId("jobs-replace-resume").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "Rank jobs by your résumé" })).toBeVisible();
 
@@ -313,7 +311,7 @@ signedInTest("Signed in with a résumé on file, Replace on For you opens Rank j
   await expect(dialog.getByTestId("resume-model-skip")).toHaveCount(0);
   await rank.click();
   await expect(dialog).toBeHidden();
-  await expect(inUse.getByTestId("today-resume-in-use-label")).toHaveText("Priya_Raman_Resume.txt", { timeout: 30_000 });
+  await expect(inUse).toContainText("Scoring with Priya_Raman_Resume.txt", { timeout: 30_000 });
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 

@@ -119,11 +119,11 @@ import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/E
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
-import { formatHubFitLine, formatLeftOutLine } from "@/lib/jobs/for-you/left-out-copy";
+import { formatHubFitLine } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
 import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
-import { countResults, isThinResults } from "@/lib/jobs/broaden";
+import { countResults, formatPlaceList, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
@@ -994,12 +994,12 @@ function ListTail({
                     Showing the first {MAX_REACHABLE.toLocaleString()} of{" "}
                     {formatCorpusCount(totalCount)} — add a search or filter to narrow.
                 </p>
-            ) : (
+            ) : totalCount.value > 0 ? (
                 <p className="text-xs text-muted-foreground">
                     You&apos;ve reached the end — {formatCorpusCount(totalCount)}{" "}
                     {totalCount.value === 1 ? "role" : "roles"}.
                 </p>
-            )}
+            ) : null}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
         </div>
     );
@@ -2792,14 +2792,21 @@ export function JobsContent({
     // to ("the jobs I applied to keep coming back", review 2026-10-13). Taken once per search, so a role marked
     // Applied from the list stays where it is until the next search.
     const [listApplied, setListApplied] = useState<{ key: string; index: TrackedIndex } | null>(null);
+    // Taken again when the account answers (the sign-in answer can land after the first rows), never for a role
+    // marked Applied in this sitting.
+    const listAppliedKey = `${searchKey}|${uid ?? ""}`;
     useEffect(() => {
-        if (pursuitsLoading || listApplied?.key === searchKey) return;
-        setListApplied({ key: searchKey, index: appliedIndex });
-    }, [searchKey, pursuitsLoading, appliedIndex, listApplied?.key]);
+        if (pursuitsLoading || listApplied?.key === listAppliedKey) return;
+        setListApplied({ key: listAppliedKey, index: appliedIndex });
+    }, [listAppliedKey, pursuitsLoading, appliedIndex, listApplied?.key]);
+    // A place the search could not match is dropped from it and the rows come back from everywhere. For roles you
+    // could take that is none, not the world (an Iceland résumé's list was a million roles from other countries).
+    const fitPlaces = useMemo(() => namedPlaces({ ...DEFAULT_URL_STATE, facets }), [facets]);
+    const placeDropped = result != null && fitPlaces.length > 0 && locationDropped({ ...DEFAULT_URL_STATE, facets }, result);
     const recommended = useMemo(() => {
         if (!fitActive || !matchScores) return null;
         const read = listCandidates(
-            clusters.map((c) => c.primary),
+            placeDropped ? [] : clusters.map((c) => c.primary),
             listApplied ? (job) => trackedPursuitFor(job, listApplied.index) != null : undefined,
         );
         const { ranked, summary } = deckListFor(read.candidates, (job) => matchScores.get(job.id) ?? null, nowMs);
@@ -2811,7 +2818,7 @@ export function JobsContent({
         );
         const slots = collapseByEmployer(held, (c) => c.primary);
         return { slots, roles: held.length, summary: withListRemovals(summary, read, result?.total) };
-    }, [fitActive, matchScores, clusters, listApplied, nowMs, seenBefore, result?.total]);
+    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total]);
     const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
@@ -2839,7 +2846,8 @@ export function JobsContent({
     // What the recommendation says about itself (its count, what it left out and why) only once the search it was
     // made from has landed: a search in flight still shows the previous rows, and their count would be another list's.
     const recommendedReady = recommended != null && !loading && resultSearchKey === searchKey;
-    const recommendedLine = recommendedReady ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
+    // Nothing is said twice: a list with no role to count has its headline in the empty state below.
+    const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
     const language = useLanguageChoice(uid);
     const readLanguages = signals?.languages?.value ?? null;
     // The languages postings are read in: a control where roles written in another were left out, and wherever the
@@ -3009,10 +3017,12 @@ export function JobsContent({
     // the two can't drift into disagreeing about what "no selection" renders.
     const selected = useMemo(() => {
         if (!selectedId) {
-            return atRest ? null : (hits[0] ?? null);
+            if (atRest) return null;
+            // A list that recommends previews the first role it lists, never one it left out.
+            return recommended ? (renderedClusters[0]?.primary ?? null) : (hits[0] ?? null);
         }
         return hits.find((h) => h.id === selectedId) ?? null;
-    }, [hits, selectedId, atRest]);
+    }, [hits, selectedId, atRest, recommended, renderedClusters]);
 
     // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
     // selection that the CURRENT search's first page has already resolved
@@ -6501,10 +6511,12 @@ export function JobsContent({
                                             for why a cluster can never straddle it. */}
                                         {recommendedReady && recommended && recommended.slots.length === 0 && (
                                             <div data-testid="list-none-fit" className="px-[var(--list-inset)] py-8 text-sm text-muted-foreground">
-                                                <p className="font-semibold text-foreground">None of the roles we found fit your résumé yet.</p>
-                                                {formatLeftOutLine(recommended.summary) && (
-                                                    <p className="mt-1">{formatLeftOutLine(recommended.summary)}.</p>
-                                                )}
+                                                <p className="font-semibold text-foreground">
+                                                    {placeDropped
+                                                        ? `No roles in ${formatPlaceList(fitPlaces)} yet.`
+                                                        : "None of the roles we found fit your résumé yet."}
+                                                </p>
+                                                {placeDropped && <p className="mt-1">We have no listings there, so none fit where you can work.</p>}
                                                 {languagesEl && <div className="mt-3">{languagesEl}</div>}
                                                 <Button
                                                     type="button"
@@ -6674,7 +6686,7 @@ export function JobsContent({
                                         doc comment, above). */}
                                     <ListTail
                                         endOfListState={endOfListState}
-                                        totalCount={totalCount}
+                                        totalCount={recommended ? gateTotal : totalCount}
                                         seeds={searchSeeds}
                                         onSubmitSeed={submitSearch}
                                     />

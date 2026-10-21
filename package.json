@@ -17,7 +17,6 @@
     "test:ui": "playwright test --ui",
     "test:journeys": "node scripts/journey-summary.mjs && playwright test -c playwright.journeys.config.ts",
     "test:journeys:prod": "PLAYWRIGHT_BASE_URL=https://velai.app npm run test:journeys",
-    "audit:packs:prod": "PLAYWRIGHT_BASE_URL=https://velai.app playwright test -c playwright.audit.config.ts",
     "test:headed": "playwright test --headed",
     "test:nav": "playwright test tests/e2e/navigation.spec.ts",
     "test:auth": "playwright test tests/e2e/auth.spec.ts",

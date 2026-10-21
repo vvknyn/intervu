@@ -88,7 +88,7 @@ test("a remote role whose posting hires in Canada says 'Hires in Canada' with th
     if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
     return answerListSearch(route, { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId: "journey-hires-in" });
   });
-  await page.goto("/jobs?view=search&sort=fit");
+  await page.goto("/jobs?sort=fit");
   const row = (company: string) => page.getByTestId("job-row").filter({ hasText: company });
   await expect(row("Maple Relay")).toBeVisible({ timeout: 45_000 });
 
@@ -140,7 +140,7 @@ test("a plain 'Remote' row says the place its posting limits it to, with the pos
     if (!isListSearch(req) || !body.includes('"withFacets":true') || !body.includes('"offset":0')) return route.fallback();
     return answerListSearch(route, { hits: listed, total: listed.length, backend: "meilisearch", configured: true, searchId: "journey-remote-scope" });
   });
-  await page.goto("/jobs?view=search&sort=fit");
+  await page.goto("/jobs?sort=fit");
   const place = (company: string) => page.getByTestId("job-row").filter({ hasText: company }).getByTestId("job-location");
   await expect(place("Cedar Relay")).toBeVisible({ timeout: 45_000 });
   await expect(place("Cedar Relay")).toHaveText("Remote (North America)");

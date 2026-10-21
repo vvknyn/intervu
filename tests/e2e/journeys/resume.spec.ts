@@ -166,7 +166,7 @@ async function uploadGuestPdf(page: Page, fixture: string): Promise<Uint8Array> 
 
 /** From a guest's local résumé: open the first engineering role's Customize dialog with a rules draft ready. */
 async function customizeFirstEngineeringRole(page: Page) {
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
   // By name: on a phone the role itself is open in a sheet, which is a dialog too.
@@ -321,9 +321,9 @@ test.describe("signed in (dev-server only)", () => {
     await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
     await page.goto("/jobs");
 
-    await expect(page.getByTestId("job-packs-hub")).toBeVisible({ timeout: 30_000 });
-    // The Today header mounts only once a résumé has loaded and been read into signals.
-    await expect(page.getByTestId("today-home")).toBeVisible({ timeout: 20_000 });
+    // The list ranks against the saved résumé: it opens on the fit sort, with the résumé in use named in the toolbar.
+    await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+    await expect(page.getByTestId("resume-as-of")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Add your résumé", { exact: true })).toHaveCount(0);
   });
 
@@ -331,7 +331,7 @@ test.describe("signed in (dev-server only)", () => {
     // Nothing on a typed search had loaded the saved résumé, so the role asked
     // an account that has one to "Upload résumé to customize" (validation, 2026-10-09).
     await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
-    await page.goto("/jobs?view=search&q=engineer");
+    await page.goto("/jobs?q=engineer");
     await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
 
     await expect(page.locator('[data-testid="local-customize-open"]:visible').first()).toBeVisible({ timeout: 20_000 });
