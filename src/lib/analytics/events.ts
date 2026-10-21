@@ -271,39 +271,6 @@ export interface EventPayloads {
    *  ledger; this only joins the click to a PostHog person. */
   landed_pledge_clicked: { job_id: string | null };
 
-  /** The packs home's Today header settled: what it showed. Once per load. */
-  home_viewed: {
-    new_count: number;
-    applied_today: number;
-    follow_ups: number;
-    interviews: number;
-    /** False on a first visit (the list covers the past week). */
-    has_last_visit: boolean;
-  };
-  /** Something on the Today header was used. */
-  home_action_clicked: {
-    kind: HomeActionKind;
-    job_id?: string;
-    /** The starter step used (`kind: "starter_step"`). */
-    step?: "apply" | "save_search" | "follow";
-  } & Partial<MatchQualityAnalyticsProps>;
-  /**
-   * The visitor said why they tapped "more" or "fewer like this" (tuning.ts
-   * `TuningReason`). Aggregated, it says where fit is miscalibrated: many
-   * "level" answers on "fewer" mean the seniority read is off, many "role"
-   * answers that the pack searches the wrong titles. Nothing from the résumé.
-   */
-  tuning_reason_chosen: {
-    signal: "more" | "fewer";
-    reason: "role" | "level" | "place" | "company" | "field" | "done";
-    surface: "deck" | "today";
-    job_id: string;
-  };
-  /** A pack opened from the packs home: a tile, "Browse all matches", or Today's "All of this week". */
-  pack_opened: {
-    pack: string;
-    source: "tile" | "browse_all" | "today";
-  };
   /** A search saved to the account or this browser (the weekly email reads the account's). */
   saved_search_created: {
     /** The Save search control, the results line's alerts switch, the search a guest signed in to save, or setup's weekly-email step. */
@@ -336,34 +303,6 @@ export interface EventPayloads {
 }
 
 export type UpgradePlan = "pro_founding" | "data_api";
-
-/** What was used in Today on the packs home (`home_action_clicked.kind`). */
-export type HomeActionKind =
-  | "new_role_open"
-  | "new_role_apply"
-  | "new_role_skip"
-  // A pick's thumbs up / thumbs down, and Reset on the tuning line.
-  | "new_role_more"
-  | "new_role_fewer"
-  | "tuning_reset"
-  // "Add your résumé" / "Replace résumé" where the picks would be.
-  | "add_resume"
-  // "Set where you can work" when neither Settings nor the résumé names a country.
-  | "set_location"
-  | "see_more"
-  | "stat_new"
-  | "stat_applied"
-  | "stat_follow_ups"
-  | "stat_interviews"
-  // "Needs you": an item's button, by the item's kind; "Show N more"; "Open tracker" on the empty list; a starter step.
-  | "needs_interview"
-  | "needs_follow_up"
-  | "needs_closed"
-  | "needs_saved_search"
-  | "needs_follow"
-  | "needs_more"
-  | "needs_tracker"
-  | "starter_step";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

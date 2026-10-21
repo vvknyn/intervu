@@ -5,7 +5,6 @@ import {
     isConfirmedSignedIn,
     isConfirmedSignedOut,
     resolveJobsResumeOnFile,
-    shouldShowJobsHomeViewToggle,
 } from "../../src/lib/auth/jobs-chrome-gates";
 import { readFileSync } from "node:fs";
 
@@ -85,48 +84,6 @@ test("a guest résumé in this browser that is not usable is not on file", () =>
     );
 });
 
-test("For-you toggle never renders for a confirmed signed-out session", () => {
-    assert.equal(
-        shouldShowJobsHomeViewToggle({
-            signedOut: true,
-            signedIn: false,
-            resumeOnFile: true,
-            showJobsHomePending: true,
-        }),
-        false,
-    );
-});
-
-test("For-you toggle shows for every confirmed signed-in session", () => {
-    assert.equal(
-        shouldShowJobsHomeViewToggle({
-            signedOut: false,
-            signedIn: true,
-            resumeOnFile: true,
-            showJobsHomePending: false,
-        }),
-        true,
-    );
-    assert.equal(
-        shouldShowJobsHomeViewToggle({
-            signedOut: false,
-            signedIn: true,
-            resumeOnFile: false,
-            showJobsHomePending: false,
-        }),
-        true,
-    );
-    assert.equal(
-        shouldShowJobsHomeViewToggle({
-            signedOut: false,
-            signedIn: false,
-            resumeOnFile: null,
-            showJobsHomePending: true,
-        }),
-        false,
-    );
-});
-
 test("clearSessionClientStores wires every session-tied cache invalidator", () => {
     const src = readFileSync(new URL("../../src/lib/auth/session-client-stores.ts", import.meta.url), "utf8");
     assert.match(src, /invalidateSavedSearchesCache/);
@@ -160,9 +117,8 @@ test("signOut bumps epoch, clears client stores, and notifies listeners", () => 
     );
 });
 
-test("jobs page gates For-you chrome on confirmed session and clears stale résumé", () => {
+test("jobs page resolves the résumé on file from the confirmed session and clears a stale one", () => {
     const src = readFileSync(new URL("../../src/app/jobs/JobsContent.tsx", import.meta.url), "utf8");
-    assert.match(src, /shouldShowJobsHomeViewToggle/);
     assert.match(src, /resolveJobsResumeOnFile/);
     assert.match(src, /signedOut \|\| readUsableLocalResume\(\)\) return;\s*setResume\(null\)/);
     assert.match(src, /setGuestResumeInBrowser\(stored != null\)/);

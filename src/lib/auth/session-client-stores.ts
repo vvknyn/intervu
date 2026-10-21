@@ -8,12 +8,14 @@
  */
 
 import { clearLocalAiResume } from "@/lib/local-ai/resume-storage";
-import { LAST_JOBS_HOME_VIEW_KEY } from "@/lib/jobs/for-you/last-home-view";
 import { clearSavedSearches } from "@/lib/jobs/saved-searches";
 import { invalidateSavedSearchesCache } from "@/lib/jobs/use-saved-searches";
 import { invalidateFollowsCache } from "@/lib/follows/use-follows";
 import { invalidatePursuitsCache } from "@/lib/pursuits/use-pursuits";
 import { forgetOnboarding } from "@/hooks/use-onboarding";
+
+/** The For you / Search choice an earlier release kept in this browser: nothing reads it now, sign-out still forgets it. */
+const LEGACY_JOBS_HOME_VIEW_KEY = "intervu.jobs.homeView";
 
 function clearStorageKey(key: string): void {
     if (typeof window === "undefined") return;
@@ -31,6 +33,6 @@ export function clearSessionClientStores(): void {
     invalidatePursuitsCache();
     clearSavedSearches();
     clearLocalAiResume();
-    clearStorageKey(LAST_JOBS_HOME_VIEW_KEY);
+    clearStorageKey(LEGACY_JOBS_HOME_VIEW_KEY);
     forgetOnboarding();
 }

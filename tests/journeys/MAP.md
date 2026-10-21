@@ -6,8 +6,7 @@ A readable map of the journeys in [CATALOG.md](CATALOG.md), grouped by where a v
 
 **The rule:** a list of jobs appears only when there is a reason for it: the visitor's résumé, their own search or filters, or the specific job, company or career page they came for. Since release 16 (#711, #723):
 - Bare /jobs is a front door with no rows: the search box, the field links, a live count of the week's roles in the visitor's country plus remote (tapping it opens that week's roles), their last search, and the résumé band.
-- A résumé on file opens Search on the roles ranked against it, from the last 30 days: a guest sees their top 3, then a sign-in card; a signed-in user sees the whole list.
-- For you (job packs) needs an account. A guest who opens it gets one sign-in card.
+- A résumé on file opens the list on the roles ranked against it, from the last 30 days, one row per employer: a guest sees their top 3, then a sign-in card; a signed-in user sees the whole list. It is one page shape signed in or out: there is no For you dashboard, packs hub, Today or For you / Search switch, and an old `?view=for-you` link opens this list. The list says how many roles fit and what it left out and why.
 - Typed search stays open to guests and covers the last 90 days, newer roles first among equally good matches. A guest sees the first 90 rows, then a sign-in card. A country search no longer lists remote roles tagged to a city or state elsewhere.
 - Company and job pages stay public.
 
@@ -24,18 +23,15 @@ flowchart TD
   D -- taps the week's count --> W["That week's roles"]:::ok
   D -- searches or picks filters --> F["Results for their search, last 90 days<br/>best match, newest first among equals<br/>a guest sees the first 90 rows"]:::ok
   F -- scrolls past row 90 --> G1["Sign-in card:<br/>See the other N roles"]:::gate
-  C -. opens For you .-> G3["Sign-in card:<br/>See your job packs"]:::gate
   B -- yes --> J{Résumé on file?}
   J -- no --> K["Résumé card:<br/>Upload or Skip"]:::ok
   K -- Skip --> L["Front door, no job rows<br/>Add your résumé to see the roles that fit you"]:::door
   K -- Upload --> M
-  J -- yes --> M["For you: job packs<br/>best fit, last 30 days"]:::ok
-  M -- Search tab --> N["Search opens on<br/>every role that fits them"]:::ok
+  J -- yes --> M["The list: every role that fits them<br/>best fit first, last 30 days, no sign-in card"]:::ok
   L -- searches --> F2["Results, no limit, last 90 days<br/>best match, newest first among equals"]:::ok
-  N -- searches --> F2
+  M -- searches --> F2
   G1 -- signs up --> F2
   G2 -- signs up --> M
-  G3 -- signs up --> J
   classDef gate fill:#efe6d2,stroke:#8a6a1f,color:#2e2308
   classDef entry fill:#e4e6ec,stroke:#5a6070,color:#17191e
   classDef door fill:#eceef2,stroke:#5a6070,color:#17191e
@@ -52,23 +48,23 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | Stage | Catalog rows | Rows | Covered | Uncovered | Known-bug | Bug noted |
 |-------|--------------|-----:|--------:|----------:|----------:|----------:|
 | [Landing on /jobs with no search](#landing-on-jobs-with-no-search) | JOBS 01, 03, 21, 24–25, 29–30, 55, 58, 60, 65–66 · SRCH 01–02, 18 · MOB 01, 14, 16–18, 23 · ALERTS 21–23 · NAV 01, 06, 21 · SPEED 05–08 | 31 | 17 | 14 | 0 | 0 |
-| [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–35 · FILT 01–26 · MOB 02, 11–13, 21, 25–27 · SPEED 01–04 | 84 | 25 | 59 | 0 | 0 |
-| [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93, 103, 107 · AUTH 31–33 · RESUME 08, 28–29, 40–44, 46–49, 51 · MODAL 01 | 33 | 27 | 6 | 0 | 0 |
-| [For you: job packs](#for-you-job-packs) | JOBS 19–20, 27, 31, 37–45, 47–48, 50–52, 80, 92, 94, 96–102, 105–106, 108–113 · NAV 30–32 | 39 | 35 | 4 | 0 | 0 |
-| [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75, 104, 114 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–45 · ERR 07–08 | 59 | 25 | 34 | 0 | 0 |
-| [Apply](#apply) | APPLY 01–33 | 33 | 8 | 25 | 0 | 0 |
-| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–73 · NAV 10 · MODAL 04 | 77 | 30 | 47 | 0 | 0 |
+| [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–40 · FILT 01–26 · MOB 02, 11–13, 21, 25–28 · SPEED 01–04 | 90 | 32 | 58 | 0 | 0 |
+| [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93, 103, 107, 121–122, 124 · AUTH 31–33 · RESUME 08, 28–29, 40–44, 46–49, 51 · MODAL 01 | 36 | 29 | 7 | 0 | 0 |
+| [The résumé-ranked list: what fits and what is left out](#the-résumé-ranked-list-what-fits-and-what-is-left-out) | JOBS 31, 37, 52, 99–100, 102, 105, 110–111, 115–118, 120, 125–138, 140–142, 144–146, 148, 150–158 · NAV 31–32 | 46 | 45 | 1 | 0 | 0 |
+| [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75, 104 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–45 · ERR 07–08 | 58 | 24 | 34 | 0 | 0 |
+| [Apply](#apply) | APPLY 01–33 | 33 | 9 | 24 | 0 | 0 |
+| [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–77 · NAV 10 · MODAL 04 | 81 | 34 | 47 | 0 | 0 |
 | [Saved searches, alerts, follows](#saved-searches-alerts-follows) | JOBS 22 · ALERTS 01–16, 18–20, 26–29, 31–41, 43–48 | 41 | 11 | 30 | 0 | 0 |
 | [Company pages](#company-pages) | COMPANY 01–02, 04–31, 35–42, 44–49 | 44 | 15 | 29 | 0 | 0 |
 | [Sign in and create account](#sign-in-and-create-account) | JOBS 79 · AUTH 01–30, 34–36, 39–56 · NAV 03–05, 17–19 | 58 | 13 | 45 | 0 | 0 |
 | [New-account setup](#new-account-setup) | ONBOARD 01–10 | 10 | 10 | 0 | 0 | 0 |
 | [Résumé page and Customize](#résumé-page-and-customize) | RESUME 01–07, 09–23, 25–27, 30–39, 45, 50, 52–54 · MODAL 03, 06 | 42 | 17 | 25 | 0 | 0 |
-| [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–33 · NAV 11–13, 20 | 35 | 6 | 29 | 0 | 0 |
-| [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–30 · OAUTH 01–22 | 55 | 11 | 44 | 0 | 0 |
-| [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–32 · SEO 01–09 | 40 | 7 | 33 | 0 | 0 |
+| [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–34 · NAV 11–13, 20 | 36 | 7 | 29 | 0 | 0 |
+| [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–31 · OAUTH 01–22 | 56 | 12 | 44 | 0 | 0 |
+| [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–40 · SEO 01–09 | 48 | 16 | 32 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–11 | 11 | 6 | 5 | 0 | 0 |
-| [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–42 · ERR 01–06, 10–15, 17–18 · ADMIN 01–04 · MODAL 02, 05 | 49 | 15 | 34 | 0 | 0 |
-| **All stages** | | **741** | **278** | **463** | **0** | **0** |
+| [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–42 · ERR 01–06, 10–15, 17–18 · ADMIN 01–05 · MODAL 02, 05 | 50 | 15 | 35 | 0 | 0 |
+| **All stages** | | **771** | **312** | **459** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search
@@ -83,9 +79,9 @@ Typing a search or picking filters, and everything on the results list: suggesti
 
 Adding a résumé from /jobs, checking what was read from it, and seeing roles ranked against it: a guest sees their top 3, then a sign-in card; a signed-in user sees the whole list. A résumé on file opens Search on this list once per visit. Also the board's prompts to add one ("Rank with my résumé", the résumé moment) and the résumé step right after sign-up.
 
-### For you: job packs
+### The résumé-ranked list: what fits and what is left out
 
-The job packs a visitor with a résumé gets on For you: pack tiles and their counts, opening a pack and coming back, the For you / Search switch, and what a pack shows when a read fails. For you is signed-in only: a guest who opens it gets one sign-in card.
+What the list does once a résumé is on file, signed in or not: which roles it keeps (last 30 days, the country and level the résumé can take, its own kind of role, one row per employer), the count line and what it left out and why, the fit label and reason on each row, applied roles kept out, and what it shows when nothing fits, the place has no roles, or a read fails. The Chrome extension tile sits in it once.
 
 ### Job detail: pane, sheet, page
 

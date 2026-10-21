@@ -1,7 +1,6 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
-import { LAST_JOBS_HOME_VIEW_KEY } from "../../../src/lib/jobs/for-you/last-home-view";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
 
@@ -124,14 +123,12 @@ const SYNTHETIC_RESUME = {
   generatedSummary: "Senior software engineer with 7 years of experience building backend and full-stack systems.",
 };
 
-/** The fit gate after exactly the top 3 ranked rows, on whichever ranked surface is showing. */
-async function expectTopThreeThenFitGate(page: Page, surface: "list" | "stack") {
+/** The fit gate after exactly the top 3 ranked rows. */
+async function expectTopThreeThenFitGate(page: Page) {
   const card = gate(page, "fit");
   await expect(card).toBeVisible({ timeout: 45_000 });
   await expect(card.getByRole("heading")).toHaveText(/^See all ([\d,]+\+? matches ranked for you|your ranked matches)$/);
-  // Search lists the three as rows; an opened For-you pack stacks them one role at a time.
-  if (surface === "list") await expect(page.getByTestId("job-row")).toHaveCount(3);
-  else await expect(page.getByTestId("for-you-deck-position")).toHaveText(/^Role 1 of 3$/);
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
   await expectDoors(page, "fit", /^\/jobs\?.*sort=fit/);
   await expect(card.getByTestId("signup-gate-dismiss")).toBeVisible();
 }
@@ -148,53 +145,33 @@ const seedGuestResume = (page: Page) =>
 test("a guest with a résumé sees their top 3 matches, then the fit gate", { tag: ["@J-JOBS-34"] }, async ({ page }) => {
   await returningVisitor(page);
   await seedGuestResume(page);
-  await page.goto("/jobs?view=search&sort=fit");
-  await expectTopThreeThenFitGate(page, "list");
+  await page.goto("/jobs?sort=fit");
+  await expectTopThreeThenFitGate(page);
 });
 
-/** Nothing of For you renders behind a guest's gate: no packs hub, no pack, no ranked rows. */
-async function expectNoPacks(page: Page) {
-  await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
-  await expect(page.getByTestId("for-you-home")).toHaveCount(0);
-  await expect(page.getByTestId("job-row")).toHaveCount(0);
-  // No tracker or Recently viewed band either: it lives on the hub, which needs an account.
-  await expect(page.getByTestId("hub-your-jobs")).toHaveCount(0);
-}
-
-test("a guest who opens For you gets one sign-in card instead of job packs", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
+test("a guest who opens an old For you link gets their ranked list, top 3 and the fit gate, with no packs hub", { tag: ["@J-JOBS-35"] }, async ({ page }) => {
   await returningVisitor(page);
   await seedGuestResume(page);
   await page.goto("/jobs?view=for-you");
-  const card = gate(page, "packs");
-  await expect(card).toBeVisible({ timeout: 45_000 });
-  await expect(card.getByRole("heading")).toHaveText("See your job packs");
-  await expectDoors(page, "packs", /^\/jobs\?.*view=for-you/);
-  await expectNoPacks(page);
-  // Settle: nothing behind the card paints once the page is idle.
-  await page.waitForTimeout(3_000);
-  await expectNoPacks(page);
-
-  // Not now goes to Search.
-  await card.getByTestId("signup-gate-dismiss").click();
-  await expect(page).toHaveURL(/[?&]view=search/);
-  await expect(card).toHaveCount(0);
-  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible();
-  // Search has no way back to packs a guest cannot open.
-  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
-});
-
-test("a guest with a résumé in this browser, who saw For you before, lands on Search with their top 3 matches", { tag: ["@J-JOBS-59"] }, async ({ page }) => {
-  await returningVisitor(page);
-  await seedGuestResume(page);
-  await page.addInitScript((key) => localStorage.setItem(key, "for-you"), LAST_JOBS_HOME_VIEW_KEY);
-  await page.goto("/jobs");
-  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible({ timeout: 45_000 });
-  await expectTopThreeThenFitGate(page, "list");
+  // The link's view is ignored: the list opens on the résumé's matches.
+  await expectTopThreeThenFitGate(page);
+  await expect(page).toHaveURL(/[?&]sort=fit/);
   await expect(gate(page, "packs")).toHaveCount(0);
   await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
-  await expect(page.getByTestId("jobs-back-to-packs")).toHaveCount(0);
-  expect(new URL(page.url()).searchParams.get("view")).not.toBe("for-you");
+  await expect(page.getByTestId("for-you-home")).toHaveCount(0);
+  // Settle: nothing else paints behind the card once the page is idle.
+  await page.waitForTimeout(3_000);
+  await expect(page.getByTestId("job-row")).toHaveCount(3);
+  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible();
+});
+
+test("a guest with a résumé in this browser lands on their top 3 matches and the fit gate", { tag: ["@J-JOBS-59"] }, async ({ page }) => {
+  await returningVisitor(page);
+  await seedGuestResume(page);
+  await page.goto("/jobs");
+  await expect(page.getByPlaceholder("Job title, skill, or company").first()).toBeVisible({ timeout: 45_000 });
+  await expectTopThreeThenFitGate(page);
+  await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
 });
 
 /** Two first-run résumés: the review shows each one's own title and location, and ranking applies them. */
@@ -265,9 +242,8 @@ for (const resume of FIRST_RUN_RESUMES) {
     await dialog.getByRole("button", { name: "Rank my jobs" }).click();
     await expect(page).toHaveURL(new RegExp(`country=${encodeURIComponent(resume.country).replace(/%20/g, "(\\+|%20)")}.*sort=fit|sort=fit.*country=`));
     expect(new URL(page.url()).searchParams.get("country")).toBe(resume.country);
-    // For you needs an account: the guest's résumé ranks the Search board, not a packs hub.
-    expect(new URL(page.url()).searchParams.get("view")).toBe("search");
-    await expectTopThreeThenFitGate(page, "list");
+    // The guest's résumé ranks the list: top 3, then the gate.
+    await expectTopThreeThenFitGate(page);
     await expect(page.locator('[data-testid^="hub-pack-card-"]')).toHaveCount(0);
   });
 }

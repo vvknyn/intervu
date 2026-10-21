@@ -826,7 +826,7 @@ export interface ForYouOut {
  * `decodeCursor`/`resolvePageSize`/`nextCursorFor` exactly as
  * `toolSearchJobs` does, but pages the already-ranked list in memory rather
  * than re-querying per page — `rankForYou` ranks the whole
- * `FOR_YOU_READ_DEPTH`-sized candidate set (the rows the site's deck reads) in one call.
+ * `FOR_YOU_READ_DEPTH`-sized candidate set (the rows the site's list reads) in one call.
  */
 export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<ForYouOut | { error: string }> {
   const decoded = decodeCursor(input.cursor);
@@ -851,7 +851,7 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
 
   // The pack's location is where the candidate can work: a search that
   // dropped every place it names returned roles from anywhere, which the
-  // site's For you shows as none ("No roles in Iceland yet", ForYouHome.tsx).
+  // site's list shows as none ("No roles in Iceland yet", JobsContent).
   if (locationDropped(ranked.filters, ranked)) {
     const places = formatPlaceList(namedPlaces(ranked.filters));
     return {
@@ -862,8 +862,8 @@ export async function toolForYou(deps: ToolDeps, input: ForYouInput): Promise<Fo
     };
   }
 
-  // What the site's For-you deck drops before it lists a pack (JobsContent's
-  // `rankedPacks`): repeat postings of one role (same title and company, kept
+  // What the site's list drops before it lists the roles that fit (JobsContent's
+  // `recommended`): repeat postings of one role (same title and company, kept
   // at the best-ranked copy, `clusterJobs`) and roles with no apply link
   // (`hasLiveApplyUrl`).
   const listed = new Set(

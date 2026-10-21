@@ -14,7 +14,7 @@ const REST: SearchIntentInput = {
     filtersAwayFromDefault: false,
     explicitlySubmitted: false,
     jobOpen: false,
-    forYouActive: false,
+    fitActive: false,
 };
 
 test("at rest (nothing set) has no search intent", () => {
@@ -34,7 +34,7 @@ test("a URL-carried job open alone has search intent, with no query and no submi
 });
 
 test("For-you active alone has search intent, with no query and no submit", () => {
-    assert.equal(hasSearchIntent({ ...REST, forYouActive: true }), true);
+    assert.equal(hasSearchIntent({ ...REST, fitActive: true }), true);
 });
 
 test("a query typed then cleared before any submit has no search intent — nothing lingers on the transient query alone", () => {

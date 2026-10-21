@@ -2,7 +2,7 @@ import type { Page } from "@playwright/test";
 import { test as base } from "./fixtures";
 
 /**
- * For you needs an account, so its journeys run signed in.
+ * Journeys that need an account run signed in.
  *
  * - E2E_STORAGE_STATE set (a storageState file captured from a real sign-in):
  *   the spec runs as that account anywhere, prod included. Use an account with
@@ -12,7 +12,7 @@ import { test as base } from "./fixtures";
  *   hook, which only a local dev server honours, and skips on any other origin.
  */
 export const SIGNED_IN_SKIP_REASON =
-  "For you needs an account: set E2E_STORAGE_STATE, or run against a local dev server (dev-only __INTERVU_E2E_AUTH__ hook)";
+  "This journey needs an account: set E2E_STORAGE_STATE, or run against a local dev server (dev-only __INTERVU_E2E_AUTH__ hook)";
 
 export const isLocalOrigin = (baseURL: string | undefined) =>
   /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");

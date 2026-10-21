@@ -31,7 +31,7 @@ export const SEARCH_FIRST_PAGE_SIZE = 20;
  */
 export function earlyFirstSearchParams(search: string, suppressLocationDefault: boolean): JobSearchParams | null {
     const state = parseJobsUrl(new URLSearchParams(search));
-    if (!state.q.trim() || state.sort === "fit" || state.homeView === "for-you") return null;
+    if (!state.q.trim() || state.sort === "fit") return null;
     // JobsContent: sortOverride = urlSortToBackendSort(url sort); backendSort =
     // coerceSortToSupported(resolveEffectiveSort(...), postedDateSupported),
     // with postedDateSupported starting true.
