@@ -1,3 +1,4 @@
+import type { DefaultedField } from "./search-defaults";
 import type { BoardId } from "@/lib/boards/types";
 
 /**
@@ -343,6 +344,13 @@ export interface JobSearchParams {
   sort?: JobSortMode;
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
+  /**
+   * Fields in this request that hold the fresh-visit default nobody chose
+   * (`SEARCH_DEFAULTS`). The understanding stages treat them as unset, so a
+   * typed "posted this week" can replace them; whatever no stage sets keeps
+   * the default, so a plain browse searches exactly as before.
+   */
+  defaultedFields?: readonly DefaultedField[];
   /**
    * Restrict to jobs whose `min_years_experience` falls in this bucket — OR
    * that lack the field entirely (see `buildFilter`'s composed clause,

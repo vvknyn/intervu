@@ -28,6 +28,7 @@ import type { CountryLookup } from "../geo/ip-country";
 import { applyLocationDefault } from "../geo/ip-default";
 import { getDegradedServe, sharedLiveSearch, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
+import { restoreDefaults, stripDefaulted } from "./search-defaults";
 import { diffUnderstood, understoodSource, type UnderstoodSearch } from "./understood";
 export type { SearchServeMeta } from "./search-cache";
 
@@ -110,12 +111,18 @@ async function understandWithDiff(raw: JobSearchParams): Promise<{ params: JobSe
   const needsVocab =
     !raw.id && Boolean((raw.q ?? "").trim() || LOCATION_FACET_FIELDS.some((f) => raw.facets?.[f]?.length));
   const vocab = needsVocab ? await locationVocabulary() : undefined;
-  const deterministic = await applyQueryUnderstanding(raw, vocab);
-  if (!vocab) return { params: deterministic, understood: diffUnderstood(raw, deterministic, "deterministic") };
+  // Stages see the request without its untouched defaults (a default is not a
+  // selection); the diff is taken before the defaults go back, so it names only
+  // what the stages set.
+  const chosen = stripDefaulted(raw);
+  const deterministic = await applyQueryUnderstanding(chosen, vocab);
+  if (!vocab) {
+    return { params: restoreDefaults(deterministic, raw), understood: diffUnderstood(chosen, deterministic, "deterministic") };
+  }
   const final = await applyLlmUnderstanding(deterministic, { vocab });
   return {
-    params: await resolveLocationFacet(final, vocab),
-    understood: diffUnderstood(raw, final, understoodSource(deterministic, final)),
+    params: restoreDefaults(await resolveLocationFacet(final, vocab), raw),
+    understood: diffUnderstood(chosen, final, understoodSource(deterministic, final)),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { BoardId } from "@/lib/boards/types";
 import { isBoardId } from "@/lib/boards/allowlists";
+import { SEARCH_DEFAULTS } from "./search-defaults";
 import type { FacetKey, JobSearchParams, JobSortMode, PostedBucket, YearsExperienceBucket } from "./types";
 
 /** Sort values as they appear in the URL. `fit` = résumé rank (resolved page-side). */
@@ -98,7 +99,7 @@ export const DEFAULT_URL_STATE: JobsUrlState = {
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: "90d",
+    postedBucket: SEARCH_DEFAULTS.postedBucket,
     yearsExperience: undefined,
     hideGhosts: true,
     hideViewed: false,
