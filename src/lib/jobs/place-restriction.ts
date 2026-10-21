@@ -24,6 +24,10 @@
  * `{ label: "anywhere", countries: [] }`, so nothing weaker (the pay's
  * currency, `pay-place.ts`) overrides what the employer wrote.
  *
+ * The sentence that said it rides along as `quote`, so a surface can show a
+ * label next to the posting's own words ("Hires in Canada: \"Remote, Canada;
+ * Austin, TX\""), never a claim without its line.
+ *
  * Isomorphic and pure: the server passes a gazetteer-backed `resolveCity`.
  */
 import { jobCountries, placeNamed, resumeCountriesFromLocation, titlePlace } from "./resume-location";
@@ -99,9 +103,42 @@ const REQUIREMENT_PATTERNS: RegExp[] = [
     ),
     // "remote within the US", "remote across Europe", "remote, US only"
     new RegExp(String.raw`\bremote\s+(?:within|across|throughout)\s+` + PLACE_TEXT, "gi"),
-    // "Location: Remote (India)" on its own line
-    /(?:^|\n)\s*(?:job\s+|work\s+)?location\s*[:\-–]\s*([^\n]{2,80})/gi,
+    // "work from anywhere in North America", "live anywhere within Canada"
+    new RegExp(String.raw`\b(?:work|working|live|living|based|located|reside|residing)\s+(?:remotely\s+)?(?:from\s+)?anywhere\s+(?:in|within|across|throughout)\s+` + PLACE_TEXT, "gi"),
 ];
+
+/**
+ * Sentences that welcome people from a place without limiting the role to it ("Candidates in Canada and the US are
+ * welcome to apply", "Canada-based candidates are encouraged", "Canadians welcome"): the place is one the role
+ * hires in, not the only one, so it reads as `open` (`PlaceRestriction.open`) and only ever adds to a candidate's
+ * countries, never takes another's away.
+ */
+const WELCOME_PATTERNS: RegExp[] = [
+    // "Candidates in Canada and the US are welcome to apply", "applicants across North America are encouraged"
+    new RegExp(
+        String.raw`\b(?:candidates|applicants|residents|people|talent)\s+(?:(?:who\s+(?:are|live|reside)\s+)?(?:currently\s+)?(?:located|based|living|residing)\s+)?(?:in|across|throughout|within|from)\s+` +
+            String.raw`([^.;:!?\n()]{2,60}?)\s+(?:are|is)\s+(?:all\s+)?(?:welcome|encouraged|eligible|invited|considered|accepted)\b`,
+        "gi",
+    ),
+    // "Canada-based candidates are welcome", "US-based applicants encouraged to apply" (a country is capitalised, so no `i`)
+    new RegExp(
+        String.raw`\b((?:[Tt]he\s+)?[A-Z][A-Za-z.]*(?:\s[A-Z][A-Za-z.]*)?)[-\s]based\s+(?:candidates|applicants|talent|employees)\s+(?:are\s+)?(?:welcome|encouraged|eligible)\b`,
+        "g",
+    ),
+];
+
+/**
+ * Lines that head a posting with where it is, each capturing the rest of the line; split at its commas, brackets,
+ * semicolons and dashes (`LINE_PIECES`) and read a place at a time:
+ * "Location: Remote (India)", "Remote, Canada; Austin, TX", "Remote - US or Canada", "Remote within Canada".
+ * A hyphen with no space ("Remote-first company…") never opens a list.
+ */
+const LINE_PATTERNS: RegExp[] = [
+    /(?:^|\n)\s*(?:job\s+|work\s+)?location\s*[:\-–]\s*([^\n]{2,80})/gi,
+    /(?:^|\n)[ \t]*(?:[-•*·]\s*)?remote(?:ly)?[ \t]*(?:[,:(]|\s[-–—]\s|\s(?:in|within)\s)[ \t]*([^\n]{2,80})/gi,
+];
+const LINE_PIECES = /[(),;|]|\s[-–—]\s|\s+or\s+/i;
+const IS_LINE = /^\s*(?:(?:job\s+|work\s+)?location\s*[:\-–]|(?:[-•*·]\s*)?remote)/i;
 
 /** Words before a requirement that lift it: "you don't need to be based in", "regardless of where". */
 const LIFTED = /(?:\b(?:not|no need|never|regardless|wherever|irrespective)\b|n['’]t\b)[^.!?;\n]*$/i;
@@ -227,8 +264,46 @@ function stripHtml(text: string): string {
         .replace(/<\s*(?:br|\/p|\/li|\/div|\/h\d)\s*\/?>/gi, "\n")
         .replace(/<[^>]+>/g, " ")
         .replace(/&nbsp;/gi, " ")
+        .replace(/&#(\d{2,5});/g, (_m, code: string) => String.fromCodePoint(Number(code)))
+        .replace(/&(quot|apos|rsquo|lsquo|ldquo|rdquo|ndash|mdash);/gi, (_m, name: string) => ENTITY_TEXT[name.toLowerCase()]!)
         .replace(/&amp;/gi, "&")
         .replace(/[ \t]+/g, " ");
+}
+
+const ENTITY_TEXT: Record<string, string> = { quot: '"', apos: "'", rsquo: "’", lsquo: "‘", ldquo: "“", rdquo: "”", ndash: "–", mdash: "—" };
+
+/** The longest quote kept: a sentence, not a paragraph. */
+const QUOTE_MAX = 200;
+
+/**
+ * The sentence (or line) around a match, as the posting wrote it bar markup and "U.S." → "US": from the
+ * previous full stop or line break to the next, cut to the words around the match when it runs long.
+ */
+function quoteAround(text: string, at: number, length: number): string | undefined {
+    const breaks = /[.!?\n]/;
+    // A line pattern's match opens with the line break before it; the line itself starts after.
+    while (length > 0 && /\s/.test(text[at] ?? "")) {
+        at++;
+        length--;
+    }
+    let start = at;
+    while (start > 0 && !breaks.test(text[start - 1]!)) start--;
+    let end = at + length;
+    while (end < text.length && !breaks.test(text[end]!)) end++;
+    if (end < text.length && text[end] !== "\n") end++;
+    let from = start;
+    let to = end;
+    if (to - from > QUOTE_MAX) {
+        from = Math.max(start, at - Math.floor((QUOTE_MAX - length) / 2));
+        to = Math.min(end, from + QUOTE_MAX);
+    }
+    const body = text
+        .slice(from, to)
+        .replace(/\s+/g, " ")
+        .replace(/^[\s\-•*·]+/, "")
+        .trim();
+    if (body.length < 3) return undefined;
+    return `${from > start ? "…" : ""}${body}${to < end ? "…" : ""}`;
 }
 
 /**
@@ -275,6 +350,12 @@ export function readPlaceRestriction(description: string | null | undefined, res
     if (!description) return null;
     const text = undotAbbreviations(stripHtml(description));
     const found: PlaceRestriction[] = [];
+    const welcomed: PlaceRestriction[] = [];
+    // Each place read from a match carries the sentence around that match.
+    const keep = (places: PlaceRestriction[], match: RegExpMatchArray, into = found) => {
+        const quote = quoteAround(text, match.index ?? 0, match[0].length);
+        into.push(...places.map((place) => (quote ? { ...place, quote } : place)));
+    };
     let open = OPEN_ANYWHERE_PATTERNS.some((pattern) => pattern.test(text));
     // The words before a requirement and its own opening words read together, so "no need to be based in" is lifted
     // though the requirement's match starts at "need to".
@@ -283,16 +364,15 @@ export function readPlaceRestriction(description: string | null | undefined, res
         const lead = text.slice(Math.max(0, at - 60), at) + match[0].slice(0, match[0].length - match[1]!.length);
         return LIFTED.test(lead) && !STILL_REQUIRED.test(text.slice(at + match[0].length - match[1]!.length));
     };
-    for (const pattern of REQUIREMENT_PATTERNS) {
+    for (const pattern of [...REQUIREMENT_PATTERNS, ...LINE_PATTERNS]) {
         pattern.lastIndex = 0;
         for (const match of text.matchAll(pattern)) {
             if (lifted(match)) continue;
-            const isLocationLine = /location\s*[:\-–]/i.test(match[0]);
-            const pieces = isLocationLine ? match[1]!.split(/[(),;|]|\s[-–—]\s|\s+or\s+/i) : [match[1]!];
+            const pieces = IS_LINE.test(match[0]) ? match[1]!.split(LINE_PIECES).map((piece) => piece.replace(/[.:\s]+$/, "")) : [match[1]!];
             for (const piece of pieces) {
                 const places = phrasePlaces(piece, resolvePlace);
                 if (places === "anywhere") open = true;
-                else found.push(...places);
+                else keep(places, match);
             }
         }
     }
@@ -300,22 +380,37 @@ export function readPlaceRestriction(description: string | null | undefined, res
         pattern.lastIndex = 0;
         for (const match of text.matchAll(pattern)) {
             if (lifted(match) || /^\s*(?:is\s+|are\s+)?not\b/i.test(text.slice((match.index ?? 0) + match[0].length))) continue;
-            found.push(...(/citizens?\s+of\s/i.test(match[0]) ? citizenOf(match[1]!, resolvePlace) : citizenPlace(match[1]!)));
+            keep(/citizens?\s+of\s/i.test(match[0]) ? citizenOf(match[1]!, resolvePlace) : citizenPlace(match[1]!), match);
         }
     }
     for (const pattern of NEGATED_CITIZEN_PATTERNS) {
         pattern.lastIndex = 0;
         for (const match of text.matchAll(pattern)) {
-            if (STILL_REQUIRED.test(text.slice((match.index ?? 0) + match[0].length))) found.push(...citizenPlace(match[1]!));
+            if (STILL_REQUIRED.test(text.slice((match.index ?? 0) + match[0].length))) keep(citizenPlace(match[1]!), match);
         }
+    }
+    for (const pattern of WELCOME_PATTERNS) {
+        pattern.lastIndex = 0;
+        for (const match of text.matchAll(pattern)) {
+            if (lifted(match)) continue;
+            const places = phrasePlaces(match[1]!, resolvePlace);
+            if (places !== "anywhere") keep(places, match, welcomed);
+        }
+    }
+    // "Canadians welcome", "Americans are encouraged to apply": a people named by what it is called (a demonym is capitalised, so no `i`).
+    for (const match of text.matchAll(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)s\s+(?:are\s+)?(?:welcome|encouraged)\b/g)) {
+        if (!lifted(match)) keep(citizenPlace(match[1]!), match, welcomed);
     }
     for (const [pattern, country] of CLEARANCES) {
         const match = text.match(pattern);
         const before = match ? text.slice(Math.max(0, (match.index ?? 0) - 60), match.index ?? 0) : "";
-        if (match && !LIFTED.test(before)) found.push({ label: country, countries: [country] });
+        if (match && !LIFTED.test(before)) keep([{ label: country, countries: [country] }], match);
     }
-    if (found.length === 0) return open ? OPEN_ANYWHERE : null;
-    const countries = [...new Set(found.flatMap((place) => place.countries))];
-    const labels = [...new Set(found.map((place) => place.label))];
-    return { label: labels.slice(0, 3).join(" or "), countries };
+    // A limit outweighs a welcome: "must be based in the US" and "Canadians welcome" together is the US.
+    const places = found.length > 0 ? found : welcomed;
+    if (places.length === 0) return open ? OPEN_ANYWHERE : null;
+    const countries = [...new Set(places.flatMap((place) => place.countries))];
+    const labels = [...new Set(places.map((place) => place.label))];
+    const quote = places.find((place) => place.quote)?.quote;
+    return { label: labels.slice(0, 3).join(" or "), countries, ...(quote ? { quote } : {}), ...(found.length === 0 ? { open: true as const } : {}) };
 }

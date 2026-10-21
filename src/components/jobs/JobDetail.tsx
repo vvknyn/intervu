@@ -11,6 +11,7 @@ import { ShareAction } from "@/components/ui/share-action";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { KpiStat, MetaLine, PostingCheckSignalsGrid } from "@/components/jobs/job-detail-primitives";
+import { HiresInLine, hiresNoteOf } from "@/components/jobs/HiresIn";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import type { MatchScore } from "@/lib/match/score";
 import { useJobViewedCapture } from "@/lib/analytics/use-job-viewed-capture";
@@ -815,6 +816,8 @@ export function JobDetail({
                             <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
                         </div>
                     )}
+                    {/* A remote role whose posting says it hires in the candidate's country: the word and the posting's own line. */}
+                    {hiresNoteOf(matchScore) && <HiresInLine note={hiresNoteOf(matchScore)!} />}
                     {exceptionMark && (
                         // Rulebook: status reads as a plain colored WORD, not a
                         // bordered/bg pill — each part already carries its own

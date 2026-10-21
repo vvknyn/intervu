@@ -33,6 +33,17 @@ export type GhostChecked = Pick<PublicJob, "ghost_badge" | "ghost_checked_at"> &
 export interface PlaceRestriction {
   label: string;
   countries: string[];
+  /**
+   * The posting's own sentence that says it ("This role is open to candidates located in the US or
+   * Canada."), tags removed, so a label built on the place can show where it came from. Absent for an
+   * open-anywhere reading and for a place read from a title or a pay currency.
+   */
+  quote?: string;
+  /**
+   * The countries are welcome, not the only ones ("Canadians welcome"): the posting hires there and may hire
+   * elsewhere, so it adds to a candidate's countries and never takes another's away.
+   */
+  open?: true;
 }
 
 import type { JdTerms } from "../match/jd-match";
