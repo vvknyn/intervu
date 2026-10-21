@@ -16,6 +16,10 @@ export interface LlmUnderstandingDeps {
     parse?: ParseDeps;
 }
 
+/** The rungs the product walks (dead catalog entries dropped); the live grading test reads the same list. */
+export const understandingRungs = async () =>
+    liveRungs(resolveModelLadder({ provider: "openrouter", model: DEFAULT_MODEL }, FREE_LADDER));
+
 /** Anonymous search must not require sign-in, so this does NOT go through
  *  `resolveLLMConfig` (which does): it reads the shared key directly and
  *  `parseIntent` only ever walks the free rungs. A missing key just fails
@@ -23,7 +27,7 @@ export interface LlmUnderstandingDeps {
 async function defaultParseDeps(): Promise<ParseDeps> {
     const apiKey = process.env.OPENROUTER_API_KEY ?? "";
     return {
-        rungs: await liveRungs(resolveModelLadder({ provider: "openrouter", model: DEFAULT_MODEL }, FREE_LADDER)),
+        rungs: await understandingRungs(),
         cache: defaultIntentCache,
         generate: async (rung, prompt) => {
             const { ProviderFactory } = await import("@/lib/llm/providers");

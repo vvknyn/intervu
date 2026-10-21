@@ -2,8 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { cacheKey, createLruCache, parseIntent, type ParsedIntent } from "../../src/lib/jobs/llm-understanding/parse";
 import type { JobSearchIntent } from "../../src/lib/jobs/llm-understanding/schema";
-import { FREE_LADDER } from "../../src/lib/llm/models";
-import { resolveModelLadder } from "../../src/lib/llm/model-ladder";
+import { understandingRungs } from "../../src/lib/jobs/llm-understanding";
 import { ProviderFactory } from "../../src/lib/llm/providers";
 import fixtures from "./fixtures/nl-search-intents.json";
 
@@ -30,7 +29,7 @@ function grade(got: JobSearchIntent, want: JobSearchIntent): string[] {
 
 test("live ladder grading over all fixtures", { skip: !process.env.RUN_LIVE_LADDER }, async () => {
     const apiKey = process.env.OPENROUTER_API_KEY ?? "";
-    const rungs = resolveModelLadder({ provider: "openrouter", model: "paid" }, FREE_LADDER);
+    const rungs = await understandingRungs();
     const latencies: number[] = [];
     const models: Record<string, number> = {};
     let pass = 0;
