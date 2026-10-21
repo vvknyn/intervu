@@ -266,6 +266,7 @@ import {
     buildZeroResultPayload,
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
+import { mergeUnderstood, understoodLine } from "@/lib/jobs/understood";
 import { retryDelayMs } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
@@ -2322,6 +2323,7 @@ export function JobsContent({
                 const interleavedHits = interleaveByCompany(r.hits);
                 setResult({ ...r, hits: interleavedHits });
                 setResultSearchKey(searchKey);
+                absorbUnderstood(r);
                 // A real search (not the pristine zero-query landing) that
                 // comes back empty — the denominator for "how often does
                 // search fail someone," not every empty render (a fresh
@@ -3519,7 +3521,7 @@ export function JobsContent({
     // one shot — the shared tail of both `clearAll` and a single chip's
     // `onRemove` (via `activeFilterEntries(...).clear`), so the two can never
     // drift on which fields a "clear" touches.
-    const applyFilterState = (next: FilterState) => {
+    const applyFilterState = (next: FilterState, q: string = query) => {
         for (const facet of changedFilterFacets(filterState, next)) {
             captureEvent("search_filter_applied", { facet });
         }
@@ -3528,6 +3530,10 @@ export function JobsContent({
         // chains straight into a submit (same event turn, before any
         // re-render), the render-scope `filterState` is one commit behind.
         filterStateRef.current = next;
+        if (q !== query) {
+            setQuery(q);
+            setQueryDraft(q);
+        }
         setFacets(next.facets);
         setSalaryMin(next.salaryMin);
         setVisaOnly(next.visaOnly);
@@ -3539,6 +3545,7 @@ export function JobsContent({
         setCompanyDomain(next.companyDomain);
         applyUrlState(
             buildUrlState({
+                q,
                 facets: next.facets,
                 salaryMin: next.salaryMin,
                 visaOnly: next.visaOnly,
@@ -3551,6 +3558,29 @@ export function JobsContent({
             }),
             "replace",
         );
+    };
+
+    // What the server understood from the typed words becomes ordinary filter
+    // state, so it shows as the same removable chips as a click would and is
+    // removed the same way. The one-line caption and the "couldn't use" note
+    // are tied to the exact query + filters they describe (`understoodSig`):
+    // the follow-up search this triggers keeps them, any edit by the searcher
+    // drops them.
+    const understoodSig = () => `${query}|${JSON.stringify(filterState)}`;
+    const [understoodCaption, setUnderstoodCaption] = useState<{ sig: string; line: string; unmatched: string | null } | null>(null);
+    const absorbUnderstood = (r: JobsSearchActionResult) => {
+        if (!r.understood) return;
+        const before = filterStateRef.current;
+        const next = mergeUnderstood(before, r.understood.params);
+        if (next === before) return;
+        const beforeKeys = new Set(activeFilterEntries(before).map((e) => e.key));
+        const added = activeFilterEntries(next).filter((e) => !beforeKeys.has(e.key));
+        setUnderstoodCaption({
+            sig: `${r.understood.residualQ}|${JSON.stringify(next)}`,
+            line: understoodLine(r.understood.residualQ, added, chipLabelForEntry),
+            unmatched: unmatchedPlaceNote(r.unmatchedPlaceMentions, r.unmatchedQueryMentions),
+        });
+        applyFilterState(next, r.understood.residualQ);
     };
 
     const applyFilterStateWithIntent = useCallback(
@@ -4731,7 +4761,9 @@ export function JobsContent({
     // (see `unmatchedPlaceNote`, result-state.ts) got dropped rather than
     // kept as a doomed exact-facet predicate; this is the honest caption for
     // that, same shape as `degradedNote` above.
-    const unmatchedNote = unmatchedPlaceNote(result?.unmatchedPlaceMentions, result?.unmatchedQueryMentions);
+    const liveCaption = understoodCaption?.sig === understoodSig() ? understoodCaption : null;
+    const unmatchedNote =
+        unmatchedPlaceNote(result?.unmatchedPlaceMentions, result?.unmatchedQueryMentions) ?? liveCaption?.unmatched ?? null;
 
     // An employer search with a place asked for lists the employer's roles in
     // that place first; this captions where they end (`employerElsewhereNote`).
@@ -6224,8 +6256,14 @@ export function JobsContent({
                                 </p>
                             )}
 
+                            {!loading && liveCaption && (
+                                <p data-testid="understood-note" className="mb-3 text-sm text-muted-foreground">
+                                    {liveCaption.line}
+                                </p>
+                            )}
+
                             {!loading && unmatchedNote && (
-                                <p data-testid="unmatched-place-note" className="mb-3 text-sm text-muted-foreground">
+                                <p data-testid="unmatched-note" className="mb-3 text-sm text-muted-foreground">
                                     {unmatchedNote}
                                 </p>
                             )}
