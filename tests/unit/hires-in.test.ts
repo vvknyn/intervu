@@ -11,10 +11,11 @@ import { after, before, describe, it, mock } from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { HiresInLine, HiresInWord, hiresNoteOf } from "@/components/jobs/HiresIn";
+import { HiresInLine, HiresInWord, hiresNoteOf, RemoteScopeLine } from "@/components/jobs/HiresIn";
 import { JobCard } from "@/components/jobs/JobCard";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { readPlaceRestriction } from "@/lib/jobs/place-restriction";
+import { remoteScope, withRemoteScope } from "@/lib/jobs/remote-scope";
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import { explainMatch } from "@/lib/match/explain";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
@@ -178,5 +179,48 @@ describe("the row and the detail pane say it with the line", () => {
         assert.match(html, /“Remote, Canada; Austin, TX”/);
         // A country whose name takes "the" reads the way the rest of the site says it.
         assert.match(renderToStaticMarkup(React.createElement(HiresInWord, { note: { country: "United States", quote: "Remote - US" } })), /Hires in the United States/);
+    });
+});
+
+describe("a plain 'Remote' says where its posting limits it", () => {
+    const place = (text: string) => readPlaceRestriction(text);
+
+    it("reads 'Remote (Canada)', 'Remote (North America)' and 'Remote (United States)' from the posting, with its line", () => {
+        const canada = remoteScope(remote({ place_restriction: place("Remote in Canada.\nAbout us") }));
+        assert.deepEqual(canada, { label: "Canada", quote: "Remote in Canada." });
+        assert.equal(withRemoteScope("Remote", canada), "Remote (Canada)");
+        assert.equal(remoteScope(remote({ place_restriction: place("You can work from anywhere in North America.") }))?.label, "North America");
+        assert.equal(withRemoteScope("Remote", remoteScope(remote({ place_restriction: place("Candidates must be authorized to work in the U.S.") }))), "Remote (United States)");
+        // The same rule for another country.
+        assert.equal(withRemoteScope("Remote", remoteScope(remote({ place_restriction: place("This is a remote role based in Brazil, reporting to our CTO.") }))), "Remote (Brazil)");
+    });
+
+    it("says nothing for a role whose fields or title name a place, one that is not remote, a welcome, or a posting that names nowhere", () => {
+        const canada = place("Remote in Canada.");
+        assert.equal(remoteScope(remote({ place_restriction: canada, location: "Remote, Canada", location_country: "Canada" })), null);
+        assert.equal(remoteScope(remote({ place_restriction: canada, title: "Technical Account Manager (Canada)" })), null);
+        assert.equal(remoteScope(remote({ place_restriction: canada, work_type: "hybrid" })), null);
+        assert.equal(remoteScope(remote({ place_restriction: place("Canadians are welcome to apply.") })), null);
+        assert.equal(remoteScope(remote({ place_restriction: place("We hire everywhere. Work from anywhere in the world.") })), null);
+        assert.equal(remoteScope(remote({ place_restriction: null })), null);
+        assert.equal(remoteScope(remote()), null);
+    });
+
+    it("leaves any location that is not plain 'Remote' as written", () => {
+        const scope = { label: "Canada", quote: "Remote in Canada." };
+        assert.equal(withRemoteScope("Remote - Worldwide", scope), "Remote - Worldwide");
+        assert.equal(withRemoteScope("Toronto, ON", scope), "Toronto, ON");
+        assert.equal(withRemoteScope("Remote", null), "Remote");
+    });
+
+    it("a row shows the scope in its place, with the posting's line as its title", () => {
+        const job = remote({ id: "scoped", place_restriction: place("Remote in Canada.") });
+        const html = renderToStaticMarkup(React.createElement(JobCard, { job, active: false, opened: false, onClick: () => {}, now: NOW }));
+        assert.match(html, /data-testid="job-location"[^>]*>Remote \(Canada\)</);
+        assert.match(html, /title="The posting says: “Remote in Canada.”"/);
+        // The detail pane prints the same line.
+        assert.match(renderToStaticMarkup(React.createElement(RemoteScopeLine, { scope: { label: "Canada", quote: "Remote in Canada." } })), /The posting says: “Remote in Canada.”/);
+        const plain = renderToStaticMarkup(React.createElement(JobCard, { job: remote({ id: "plain" }), active: false, opened: false, onClick: () => {}, now: NOW }));
+        assert.match(plain, /data-testid="job-location"[^>]*>Remote</);
     });
 });

@@ -8,6 +8,7 @@
  * off tool input — so a call can only ever act as the authenticated
  * credential's own subject.
  */
+import { remoteScope, type RemoteScope } from "@/lib/jobs/remote-scope";
 import type {
   JobSearchParams, JobSearchResult, JobSortMode, PanelFacetKey, PlaceClause, PostedBucket, PublicJob,
   YearsExperienceBucket,
@@ -318,6 +319,10 @@ export type JobDetailFields = Pick<
    *  site's "✓ live 3h ago" / "checked 12d ago". `null` when there is no
    *  check time to claim — the site says "Check time unavailable". */
   last_checked_at: string | null;
+  /** Where a remote role says it is open when its place fields name no country: the place as its posting wrote
+   *  it and the posting's own sentence (`remoteScope`, jobs/remote-scope.ts), the "Remote (Canada)" the site
+   *  shows. Present only when the posting's description was read and states a place; never a guess. */
+  remote_scope?: RemoteScope;
 };
 
 export function toJobDetailFields(
@@ -347,6 +352,7 @@ export function toJobDetailFields(
     vacancy_status, ghost_badge,
     intervu_url: jobShareUrl(getSiteUrl(), job),
     last_checked_at: latestCheckAt(job),
+    ...(remoteScope(job) ? { remote_scope: remoteScope(job)! } : {}),
     ...(fit && resume
       ? {
           match: fit.match,

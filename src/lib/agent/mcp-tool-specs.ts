@@ -245,7 +245,10 @@ export const FIT_FIELDS_NOTE =
     "and you read postings in English\", and left out of the lists velai recommends. " +
     "Every job also carries " +
     "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
-    "say how long ago it was checked when you say a role is open.";
+    "say how long ago it was checked when you say a role is open. A remote role whose place fields name no country " +
+    "but whose posting limits it to a place carries remote_scope — that place as the posting wrote it (label) and its " +
+    "own sentence (quote): say \"remote in <label>\" only with the sentence quoted, and with no remote_scope the " +
+    "posting names no place, so do not guess one.";
 
 /**
  * The one tool catalog — title, description, and wire schema for every tool
