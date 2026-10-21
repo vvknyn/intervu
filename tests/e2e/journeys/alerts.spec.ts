@@ -147,14 +147,14 @@ test("a signed-in user never gets the guest email-alert form; Save search is the
     },
     [ONBOARDING_COMPLETED_STORAGE_KEY],
   );
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("save-search-trigger").first()).toBeVisible({ timeout: 30_000 });
   // The toolbar "Get alerts" opened the guest email form for signed-in users too.
   await expect(page.getByTestId("jobs-create-alert-trigger")).toHaveCount(0);
   await expect(page.getByTestId("result-line-get-alerts")).toHaveCount(0);
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
 
-  await page.goto("/jobs?view=search&q=zzzzqxwv");
+  await page.goto("/jobs?q=zzzzqxwv");
   await expect(page.getByTestId("jobs-create-alert-trigger")).toHaveCount(0);
   await page.waitForTimeout(2_000);
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
@@ -175,7 +175,7 @@ test("a signed-in person's Save search saves to the account, not to this browser
     }
     return undefined;
   });
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
   // Save the search once its results show, as a person would. Next runs a
   // page's server actions one at a time and the search is one, so a save
@@ -220,7 +220,7 @@ test("a signed-in person's Save search goes out at once while the search is stil
       return route.fallback();
     },
   );
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("job-row")).toHaveCount(0);
   await page.getByTestId("save-search-trigger").first().click();
@@ -258,7 +258,7 @@ test("signed in, the Weekly job alerts switch saves this search to the account, 
     }
     return undefined;
   });
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /weekly job alerts/i });

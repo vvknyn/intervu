@@ -6,7 +6,7 @@ import { expect, test } from "./fixtures";
 /**
  * Journeys for the header nav — see tests/journeys/CATALOG.md (J-NAV-*). Read-only.
  *
- * The For you / Search tabs only render for a signed-in user, and the only
+ * The header's follow-alerts and tracker chips only render for a signed-in user, and the only
  * sign-in a spec can fake is the dev-only `window.__INTERVU_E2E_AUTH__` hook,
  * which a production build ignores. So this spec runs against a local dev
  * server and skips itself against any other origin.
@@ -50,26 +50,6 @@ test.afterEach(({ page }) => page.unrouteAll({ behavior: "ignoreErrors" }));
 test.beforeEach(({ baseURL }) => {
   const local = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL ?? "http://localhost:3000");
   test.skip(!local, "signed-in header needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
-});
-
-test("header shows For you and Search tabs; clicking one moves aria-current and the URL", { tag: ["@J-NAV-30"] }, async ({ page }) => {
-  await signInWithFollowAlerts(page);
-  await page.goto("/jobs");
-  const header = page.locator('[data-region="header"]');
-  const forYou = header.getByTestId("jobs-home-for-you");
-  const search = header.getByTestId("jobs-home-search");
-  await expect(forYou).toBeVisible();
-  await expect(search).toBeVisible();
-
-  await search.click();
-  await expect(search).toHaveAttribute("aria-current", "true");
-  await expect(forYou).not.toHaveAttribute("aria-current", /.+/);
-  await expect(page).toHaveURL(/[?&]view=search/);
-
-  await forYou.click();
-  await expect(forYou).toHaveAttribute("aria-current", "true");
-  await expect(search).not.toHaveAttribute("aria-current", /.+/);
-  await expect(page).not.toHaveURL(/[?&]view=search/);
 });
 
 test("header follow-alerts count chip sits fully inside the header bar", { tag: ["@J-NAV-31"] }, async ({ page }) => {
@@ -121,20 +101,16 @@ function resolveTextAndBackdrop(el: Element): { fg: [number, number, number]; bg
 /** WCAG 2.x AA: 4.5:1 for normal text, 3:1 for large (>= 24px, or >= 18.66px bold). */
 const requiredRatio = (fontPx: number, fontWeight: number) => (fontPx >= 24 || (fontPx >= 18.66 && fontWeight >= 700) ? 3 : WCAG_AA_NORMAL_TEXT);
 
-test("header tab and count-chip text meet WCAG AA contrast against their real backdrop", { tag: ["@J-NAV-32"] }, async ({ page }) => {
+test("header count-chip text meets WCAG AA contrast against its real backdrop", { tag: ["@J-NAV-32"] }, async ({ page }) => {
   await signInWithFollowAlerts(page);
   await page.goto("/jobs");
   // Colours are read once, so a `transition-colors` fade must not be sampled mid-way.
   await page.addStyleTag({ content: "*, *::before, *::after { transition: none !important; }" });
   const header = page.locator('[data-region="header"]');
   await expect(page.getByTestId("topbar-follow-alerts-count")).toBeVisible({ timeout: 30_000 });
-  // Make Search the inactive tab (the default view is not fixed). Résumé and the
-  // Tracker count are lg-only, so they are measured when the header shows them.
+  // Résumé and the Tracker count are lg-only, so they are measured when the header shows them.
   // The Tracker chip renders because the mock answers every empty-body action (follows AND applications) with one row.
-  await header.getByTestId("jobs-home-for-you").click();
-  await expect(header.getByTestId("jobs-home-search")).not.toHaveAttribute("aria-current", /.+/);
   const targets = [
-    header.getByTestId("jobs-home-search"),
     page.getByTestId("topbar-follow-alerts-count"),
     ...((page.viewportSize()?.width ?? 0) >= 1024 ? [header.getByTestId("topbar-resume"), header.getByTestId("topbar-tracker-badge")] : []),
   ];

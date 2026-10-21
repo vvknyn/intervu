@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const FOR_YOU = join(__dirname, "../../src/components/jobs/for-you");
 const JOBS = join(__dirname, "../../src/components/jobs");
 const RESUME = join(__dirname, "../../src/components/resume-builder");
 const COMPANY = join(__dirname, "../../src/components/company");
@@ -30,21 +29,6 @@ const sizesOf = (src: string, ...testids: string[]) =>
     });
 
 describe("for-you mobile chrome", () => {
-    it("ForYouHome keeps pack navigation and skip controls at phone-friendly tap targets", () => {
-        const src = readFileSync(join(FOR_YOU, "ForYouHome.tsx"), "utf8");
-        assert.doesNotMatch(src, /for-you-preferences/, "preference chips are Search-only");
-        // One role at a time (stacked role cards): Previous / Next move through the pack, Skip drops a role.
-        assert.match(src, /<RoleStack/);
-        assert.match(src, /onSwipe=/, "a phone swipe moves through the stack too");
-        assert.deepEqual(
-            sizesOf(src, "for-you-download-apply", "for-you-skip", "for-you-previous", "for-you-next"),
-            [undefined, undefined, undefined, undefined],
-        );
-        const stack = readFileSync(join(FOR_YOU, "RoleStack.tsx"), "utf8");
-        assert.match(stack, /resolveDeckSwipe/);
-        assert.match(stack, /touch-pan-y/, "vertical scroll inside a card stays native");
-    });
-
     it("LocalCustomizePanel dialog and footer actions are phone-friendly", () => {
         const src = readFileSync(join(JOBS, "LocalCustomizePanel.tsx"), "utf8");
         assert.match(src, /<DialogBody[^>]*data-testid="local-customize-panel"/, "body scrolls on the dialog primitive");
@@ -96,26 +80,6 @@ describe("for-you mobile chrome", () => {
             /border-t border-border px-6/,
             "footer zone must carry px-6",
         );
-    });
-
-    it("ForYouDeck exposes swipe navigate + touch-pan-y for phone deck", () => {
-        const src = readFileSync(join(FOR_YOU, "ForYouDeck.tsx"), "utf8");
-        assert.match(src, /onSwipeNavigate/);
-        assert.match(src, /touch-pan-y/);
-        assert.match(src, /resolveDeckSwipe/);
-        assert.match(src, /data-testid="for-you-deck"/);
-    });
-
-    it("CategoryHubGrid hub is touch-first with safe-area and big tiles two across on a phone", () => {
-        const src = readFileSync(join(JOBS, "CategoryHubGrid.tsx"), "utf8");
-        assert.match(src, /data-testid="job-packs-hub"/);
-        assert.match(src, /safe-area-inset-bottom/);
-        assert.match(src, /touch-manipulation/);
-        // The packs are tiles in a grid, two across on a phone; the first one ("All your matches") has no second button beside it.
-        assert.match(src, /data-testid="hub-pack-chips"\s+className=\{cn\("grid grid-cols-2 /);
-        assert.doesNotMatch(src, /hub-browse-all-matches/);
-        // A tile is one whole-width button: no hand-rolled height, so the control scale has nothing to flag.
-        assert.match(src, /flex w-full flex-col justify-between gap-8 rounded-panel border bg-surface-postcard p-5/);
     });
 
     it("ApplyReturnPrompt is Yes / Not yet / Skip with thumb-sized targets", () => {

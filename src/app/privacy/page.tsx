@@ -176,7 +176,7 @@ export default function PrivacyPage() {
           many jobs came back, and which result was opened. It holds no account id, IP address or browser id, so a
           search can&apos;t be traced back to you, and it is how we learn what people look for and which jobs and
           employers we&apos;re missing. It is encrypted the same way as account data and deleted after 90 days.
-          Searches Velai builds from your résumé (ranking by fit, For you, and Today) are not recorded. If
+          Searches Velai builds from your résumé (ranking by fit, and the daily picks) are not recorded. If
           you&apos;re signed in, the jobs you click, open, save, or apply to are tied to your account so we can
           improve your results. Search records made before the move were not copied, and were deleted with the
           rest of Firestore.
@@ -213,7 +213,7 @@ export default function PrivacyPage() {
         <p>
           Job search itself runs against a Meilisearch index we operate. When you run a search, our servers send the
           text you typed and the filter choices you selected to that index so it can return matching listings. If you
-          use rank-by-fit, For you, or similar résumé-backed retrieval, our servers also send a search query derived
+          use rank-by-fit or similar résumé-backed retrieval, our servers also send a search query derived
           from your parsed résumé — for example experience role titles, headline profession, inferred adjacent role
           titles, top skill names, and an experience-level filter from your years of experience — plus a country
           filter inferred from your résumé location when we can. We do not send your full résumé file or raw résumé
@@ -356,7 +356,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           Daily picks are off until you turn them on. When they&apos;re on, our server reads the résumé saved on your
-          account once a day, ranks the roles posted that week by the same rules as Today (no AI), and emails you up
+          account once a day, ranks the roles posted that week by the same rules as the list on the jobs page that ranks by fit (no AI), and emails you up
           to five. So no role is sent twice, we keep which roles we&apos;ve sent you and when, encrypted with the rest
           of your account and erased with it.
         </p>

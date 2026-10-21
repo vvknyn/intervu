@@ -9,10 +9,10 @@ export function shouldHideSiteChrome(pathname: string): boolean {
 }
 
 /**
- * Lean Betalist product loop — hub / For-you deck / apply-return all live under
+ * Lean Betalist product loop — the jobs list / apply-return all live under
  * `/jobs` and `/resume`. On these surfaces we drop surplus chrome (desktop header MCP link,
  * dense multi-link footer) while keeping TopBar shell, MobileTabBar, and the
- * in-deck MCP handoff (`for-you-mcp-handoff`).
+ * job-detail MCP handoff.
  */
 export function isLeanProductSurface(pathname: string): boolean {
     return (

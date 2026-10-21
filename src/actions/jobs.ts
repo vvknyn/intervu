@@ -27,10 +27,6 @@ import {
 import { relatedCountryIso2 } from "@/lib/jobs/related-country";
 import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, resolveLiveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import {
-  fetchAllHubPackCorpusCounts,
-  type HubPackCorpusCounts,
-} from "@/lib/jobs/for-you/hub-pack-corpus";
 import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
@@ -381,13 +377,6 @@ const DEFAULT_BROWSE_LIMIT = 20;
  * path above; this is the one fixed shape cheap enough to share across every
  * visitor from the same country instead of hitting the corpus per visitor.
  */
-const getCachedHubPackCorpusCounts = unstable_cache(
-  async (places: PlaceClause[] | undefined): Promise<HubPackCorpusCounts> =>
-    fetchAllHubPackCorpusCounts(places),
-  ["jobs-hub-pack-corpus-counts"],
-  { revalidate: 600 },
-);
-
 const getCachedDefaultBrowse = unstable_cache(
   // `postedDateSupported` is a cache-key dimension (an `unstable_cache`d
   // function's own arguments participate in its key, same as `places`
@@ -437,22 +426,6 @@ const getCachedDefaultBrowse = unstable_cache(
  * a visitor who already dismissed the default-location chip must not have
  * it silently reapplied just because they landed back on an empty query.
  */
-/** Corpus-scale hub pack pill counts — shared cache keyed by default-browse `places`. */
-export async function getHubPackCorpusCountsAction(
-  suppressLocationDefault: boolean,
-): Promise<LoadResult<HubPackCorpusCounts>> {
-  const ip = await getClientIp();
-  if (!allowSearchRequest(ip)) return loadFailed("rate limited");
-  const iso2 = suppressLocationDefault ? null : await countryLookup(ip);
-  const places = iso2 ? placesForCountry(iso2, loadGazetteer()) : undefined;
-  try {
-    return loaded(await getCachedHubPackCorpusCounts(places));
-  } catch (e) {
-    console.error("[jobs-hub-pack-corpus-counts] action transport error:", e);
-    return loadFailed(e);
-  }
-}
-
 export async function getDefaultBrowseAction(
   suppressLocationDefault: boolean,
 ): Promise<

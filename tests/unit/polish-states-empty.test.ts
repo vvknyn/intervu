@@ -11,13 +11,6 @@ function read(rel: string): string {
 }
 
 describe("polish batch 3 — states and empties", () => {
-    it("loaded and pending for-you roots share jobs-session-frame", () => {
-        const home = read("src/components/jobs/for-you/ForYouHome.tsx");
-        assert.match(home, /JOBS_SESSION_FRAME_CLASS[\s\S]*data-testid="for-you-home"/);
-        assert.match(home, /JOBS_SESSION_FRAME_CLASS[\s\S]*data-testid="for-you-home-pending"/);
-        assert.match(home, /state-opacity-in/);
-    });
-
     it("session shell exposes warm loading copy and session paper slot", () => {
         const shell = read("src/components/layout/jobs-session-loading.tsx");
         const labelMatch = shell.match(
@@ -34,17 +27,6 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(shell, /aria-busy="true"/);
     });
 
-    it("ForYouHomePending delegates to JobsSessionLoadingShell", () => {
-        const home = read("src/components/jobs/for-you/ForYouHome.tsx");
-        assert.match(home, /ForYouHomePending[\s\S]*JobsSessionLoadingShell/);
-    });
-
-    it("for-you empty omits search CTA when showSearchCta is false", () => {
-        const home = read("src/components/jobs/for-you/ForYouHome.tsx");
-        assert.match(home, /showSearchCta\s*\?/);
-        assert.match(home, /for-you-empty-search-cta/);
-    });
-
     it("guest tracker empty keeps auth footer conveyor", () => {
         const yours = read("src/app/yours/page.tsx");
         assert.match(yours, /yours-guest-empty/);
@@ -53,10 +35,9 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(yours, /footer=\{/);
     });
 
-    it("ConceptAEmptyState adopted on tracker, history, and for-you deck empty", () => {
+    it("ConceptAEmptyState adopted on tracker and history empty", () => {
         assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyState/);
         assert.match(read("src/app/yours/history/page.tsx"), /ConceptAEmptyState[\s\S]*history-empty/);
-        assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyState[\s\S]*for-you-empty/);
     });
 
     it("zero-data tracker hides search and lane chrome; populated keeps them", () => {
@@ -73,13 +54,12 @@ describe("polish batch 3 — states and empties", () => {
         assert.match(yours, /\{TRACKER_FILTER_EMPTY\}/);
     });
 
-    it("tracker and history use after-controls slot; for-you uses page placement", () => {
+    it("tracker and history use the after-controls slot", () => {
         assert.match(read("src/app/yours/page.tsx"), /ConceptAEmptyPageSlot[\s\S]*placement="after-controls"[\s\S]*TrackerEmptyState/);
         assert.match(
             read("src/app/yours/history/page.tsx"),
             /ConceptAEmptyPageSlot[\s\S]*placement="after-controls"[\s\S]*HistoryEmptyState/,
         );
-        assert.match(read("src/components/jobs/for-you/ForYouHome.tsx"), /ConceptAEmptyPageSlot[\s\S]*placement="page"/);
         const mock = read("src/components/mock/EmptyStatesMock.tsx");
         assert.match(mock, /surface === "tracker"[\s\S]*placement="after-controls"/);
         assert.match(mock, /surface === "history"[\s\S]*placement="after-controls"/);

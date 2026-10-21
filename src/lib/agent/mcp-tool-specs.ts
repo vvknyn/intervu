@@ -233,7 +233,7 @@ export const FIT_FIELDS_NOTE =
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
     "A role whose title is Staff, Principal, Distinguished, Director, Head of, VP or Chief, or that is listed as Executive, " +
     "is past senior: Stretch for anyone whose résumé shows no role at that rank, and left out of the lists velai " +
-    "recommends (For You, Today, daily picks). " +
+    "recommends (the jobs list ranked against their résumé, daily picks). " +
     "Their own level is the one their current title names when it names one (Senior or \"Manager, X\" is senior; " +
     "Intern, Junior, Trainee, Apprentice or an opening Associate, as in Associate Product Manager, is entry, however long " +
     "its dates run), else their years in that line of work. " +
@@ -296,7 +296,7 @@ export const MCP_TOOL_SPECS = {
         title: "Jobs ranked by fit",
         description:
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
-            "pipeline behind the site's For-you view. It finds roles by what the posting asks for, not only by " +
+            "rule behind the site's jobs list when a résumé is on file. It finds roles by what the posting asks for, not only by " +
             "title (the search behind it looks for the postings that mention the duties and the tools your résumé lists " +
             "first, and your titles fill what is left; a senior résumé's titles include their lead name, such as Product Lead beside " +
             "Product Manager, read as the same line of work): a role whose title your résumé never names but whose description asks for what your résumé " +
@@ -323,7 +323,7 @@ export const MCP_TOOL_SPECS = {
             "unless its posting shows your work (its text reads as your line of work, or your résumé covers most of what " +
             "it asks in words that name the work): general words it shares with your résumé, like performance, planning, software or solutions, are not enough. The list can be short: note and " +
             "left_out say what the search found and what became of it: found is every role the search found (shown " +
-            "only when the list read fewer than that), considered the roles it read (the best-ranked first rows, up to 300, as many as the site's For You reads), " +
+            "only when the list read fewer than that), considered the roles it read (the best-ranked first rows, up to 300, as many as the site's list reads), " +
             "listed the ones that fit and by_reason how many were left out for each reason, so report those " +
             "counts in those words rather than padding the list or calling considered all the roles found. When nothing fits it lists the closest roles instead of " +
             "none, each a weaker fit, with near: true in left_out and a note saying so: tell the user they are " +
@@ -359,12 +359,12 @@ export const MCP_TOOL_SPECS = {
             "managing people when your résumé shows no one managed, never one asking for what your résumé doesn't " +
             "show (more years than you have, a language, a clearance, a certification), never one written in a language " +
             "you haven't chosen (set_preferences search.languages; your résumé's language and English until you do; left_out.languages " +
-            "counts them by language, \"5 written in Spanish\", and the note says how to include one). The same roles Today on " +
-            "velai.app lists and the daily picks email sends, by the same rules, with no AI. Each pick carries " +
+            "counts them by language, \"5 written in Spanish\", and the note says how to include one). The same roles the " +
+            "daily picks email sends, by the same rules, with no AI. Each pick carries " +
             "the SAME detail get_job returns plus fit_label, match, why (the fit reason in the site's own " +
             "words: how the title relates to yours, what the posting asks for that your résumé shows (for a " +
             "title you haven't held, its day-to-day work), its place and level) and emailed (already sent in a daily picks email). An employer " +
-            "has one pick, its best role's, and its other picks this week are in that pick's more_at_employer (the email lists them under it), as the deck and Today do. Best fit first, the same order the deck and " +
+            "has one pick, its best role's, and its other picks this week are in that pick's more_at_employer (the email lists them under it), as the site's jobs list does. Best fit first, the same order the site's list and " +
             "for_you use: what the posting asks for that your résumé shows leads, and your own title only breaks " +
             "a tie; roles not emailed yet come first within a fit band. Pass " +
             "email: true to turn the daily picks email on (up to 5 employers a day, each with its other new roles under it, nothing on days with none; " +
@@ -496,7 +496,7 @@ export const MCP_TOOL_SPECS = {
             "a fresh agent session can pick up where a previous one left off instead of re-interviewing " +
             "you. Returns configured:false with empty sections when nothing is saved yet — never " +
             "fabricated defaults. search.languages, when set, is the languages you read postings in: " +
-            "roles written in any other are left out of for_you, daily_picks, Today and the daily picks " +
+            "roles written in any other are left out of for_you, daily_picks, the site's recommended list and the daily picks " +
             "email; unset means your résumé's language and English.",
         inputSchema: getPreferencesInput,
     },

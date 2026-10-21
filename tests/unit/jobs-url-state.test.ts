@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     parseJobsUrl, serializeJobsUrl, DEFAULT_URL_STATE, urlSortToMode,
-    shouldResetSortOnQueryChange,
+    shouldResetSortOnQueryChange, jobsBoardHref,
 } from "../../src/lib/jobs/url-state";
 
 test("all-defaults serializes to empty string", () => {
@@ -60,16 +60,11 @@ test("out-of-range salary floors stay out of the URL and are dropped when read",
     assert.equal(parseJobsUrl(new URLSearchParams("salary=75K")).salaryMin, 75_000);
 });
 
-test("view=for-you and view=search round-trip when explicit", () => {
-    for (const view of ["for-you", "search"] as const) {
-        const s = { ...DEFAULT_URL_STATE, homeView: view };
-        assert.deepEqual(parseJobsUrl(new URLSearchParams(serializeJobsUrl(s).slice(1))), s);
-    }
-});
-
-test("default homeView stays out of the URL", () => {
+test("an old ?view= link opens the list: nothing reads it, nothing writes it", () => {
+    const s = parseJobsUrl(new URLSearchParams("view=for-you"));
+    assert.deepEqual(s, DEFAULT_URL_STATE);
     assert.equal(serializeJobsUrl(DEFAULT_URL_STATE), "");
-    assert.equal(parseJobsUrl(new URLSearchParams("")).homeView, null);
+    assert.equal(jobsBoardHref(DEFAULT_URL_STATE), "/jobs");
 });
 
 // Product decision: fresh visits default to a window instead of unset —

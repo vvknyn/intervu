@@ -13,7 +13,6 @@ import {
 
 const read = (path: string) => readFileSync(join(__dirname, "../..", path), "utf8");
 const TILE = read("src/components/jobs/ExtensionTile.tsx");
-const HUB = read("src/components/jobs/CategoryHubGrid.tsx");
 const PAGE = read("src/app/jobs/JobsContent.tsx");
 
 describe("the Velai Chrome extension tile", () => {
@@ -42,12 +41,11 @@ describe("the Velai Chrome extension tile", () => {
         assert.doesNotMatch(TILE, /Open (the )?extension|>\s*Open\s*</);
     });
 
-    it("sits under the pack tiles and above Today on the hub, and is not one of the tiles", () => {
-        const tiles = HUB.indexOf('data-testid="hub-pack-chips"');
-        const tile = HUB.indexOf("<ExtensionTile />");
-        const footer = HUB.indexOf("{footer}");
-        assert.ok(tiles > 0 && tile > tiles && footer > tile);
-        assert.doesNotMatch(HUB.slice(tiles, HUB.indexOf("</ul>", tiles)), /ExtensionTile/);
+    it("sits once inside a list ranked against the résumé, after the fourth role, and is not a row", () => {
+        const at = PAGE.indexOf('key="extension-tile-list"');
+        assert.ok(at > 0, "the list mounts the tile");
+        assert.equal(PAGE.split('key="extension-tile-list"').length, 2, "once, not per row");
+        assert.match(PAGE.slice(at - 400, at), /recommendedReady && recommended && i === Math\.min\(3, renderedClusters\.length - 1\)/);
     });
 
     it("sits on the at-rest front door between the résumé invite and the privacy panel", () => {

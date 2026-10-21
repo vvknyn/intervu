@@ -56,11 +56,6 @@ export const ANALYTICS_EVENTS = {
   founding_seat_reserved: "founding_seat_reserved",
   landed_pledge_clicked: "landed_pledge_clicked",
 
-  home_viewed: "home_viewed",
-  home_action_clicked: "home_action_clicked",
-  pack_opened: "pack_opened",
-  tuning_reason_chosen: "tuning_reason_chosen",
-
   saved_search_created: "saved_search_created",
 
   onboarding_strip_shown: "onboarding_strip_shown",

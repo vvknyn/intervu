@@ -423,7 +423,8 @@ test("a posting whose lists and titles arrived as plain lines reads as headings,
   // requirement as its own paragraph and "What you should bring with you" as
   // body text, because ingest turns <li> and <strong> titles into bare lines.
   const body = await openJobWithDescription(page, stripHtmlLikeIngest(EXPEL_TAM_HTML));
-  await expect(body.getByRole("heading")).toHaveText(["About Expel", "What you’ll do", "What you should bring with you", "Compensation"], { timeout: 20_000 });
+  // Each heading wears the emoji of its kind ahead of its words (aria-hidden, so the heading's name is the words alone).
+  await expect(body.getByRole("heading")).toHaveText([/About Expel$/, /What you’ll do$/, /What you should bring with you$/, /Compensation$/], { timeout: 20_000 });
   await expect(body).toHaveAttribute("data-layout", "rules");
   const lists = body.getByRole("list");
   await expect(lists).toHaveCount(2);

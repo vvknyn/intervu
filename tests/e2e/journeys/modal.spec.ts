@@ -188,7 +188,7 @@ test("Customize résumé dialog sits above its dim layer: its buttons take click
     },
     [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_RESUME_KEY, GUEST_RESUME] as const,
   );
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   // The row centre is the company link; the title is the detail affordance.
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
@@ -280,7 +280,7 @@ test("Customize résumé leaves the guest's résumé as it was: the draft is cop
     },
     [ONBOARDING_COMPLETED_STORAGE_KEY, LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY, GUEST_RESUME] as const,
   );
-  await page.goto("/jobs?view=search&q=engineer");
+  await page.goto("/jobs?q=engineer");
   await page.getByTestId("job-row").getByTestId("job-title").first().click({ timeout: 45_000 });
   const open = page.locator('[data-testid="local-customize-open"]:visible').first();
   // By name: on a phone the job sheet is a dialog too.

@@ -81,8 +81,7 @@ describe("signed-out gates go through SignupGate", () => {
         assert.match(jobs, /const renderedClusters = fitGate\.visible;/);
         // The ungated list feeds only the gate itself: declaration, `rows:`, deps.
         assert.equal(jobs.match(/\brankedClusters\b/g)?.length, 3, "a surface reads rankedClusters past the fit gate");
-        assert.match(jobs, /<ForYouHome[\s\S]*signupGate=\{fitGateEl\}/);
-        assert.match(read("components/jobs/for-you/ForYouHome.tsx"), /\{signupGate\}/);
+        assert.match(jobs, /\{fitGateEl\}/);
     });
 
     it("only the primitive renders the gate card", () => {

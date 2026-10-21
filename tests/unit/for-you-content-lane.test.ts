@@ -17,7 +17,7 @@ import {
     voteContentLanes,
 } from "../../src/lib/jobs/meilisearch";
 import { normalizeSearchCacheKey } from "../../src/lib/jobs/search-cache";
-import { deckContentMark, packContentMark } from "../../src/lib/jobs/search-payload";
+import { resumeContentMark, packContentMark } from "../../src/lib/jobs/search-payload";
 import { resolveCandidateSignals } from "../../src/lib/jobs/candidate-signals";
 import { packFilters } from "../../src/lib/jobs/for-you/pack-filters";
 import type { PublicJob } from "../../src/lib/jobs/types";
@@ -393,10 +393,10 @@ describe("what a pack search carries", () => {
 
     it("the deck carries them only for the résumé pack's own query, never for one typed beside it", () => {
         const pack = { q: filters.q.trim(), phrases: ["release coordination"] };
-        assert.deepEqual(deckContentMark(true, filters.q, pack), { contentPhrases: ["release coordination"], unplacedRemote: true });
-        assert.deepEqual(deckContentMark(true, "data analyst", pack), {});
-        assert.deepEqual(deckContentMark(false, filters.q, pack), {});
-        assert.deepEqual(deckContentMark(true, filters.q, null), {});
+        assert.deepEqual(resumeContentMark(true, filters.q, pack), { contentPhrases: ["release coordination"], unplacedRemote: true });
+        assert.deepEqual(resumeContentMark(true, "data analyst", pack), {});
+        assert.deepEqual(resumeContentMark(false, filters.q, pack), {});
+        assert.deepEqual(resumeContentMark(true, filters.q, null), {});
         assert.deepEqual(packContentMark([], true), {});
     });
 

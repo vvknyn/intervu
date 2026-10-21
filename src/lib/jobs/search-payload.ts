@@ -119,16 +119,16 @@ export function searchParamsFromUrlState(
 
 /**
  * The extra params a résumé's own pack search carries: the phrases its skills show, so the pool holds the
- * postings that ask for them whatever their title (`JobSearchParams.contentPhrases`), and, for a deck, the
- * remote roles that name no country (`unplacedRemote`). Nothing for a search someone typed.
+ * postings that ask for them whatever their title (`JobSearchParams.contentPhrases`), and the remote roles
+ * that name no country (`unplacedRemote`). Nothing for a search someone typed.
  */
-export function deckContentMark(
-    deckOpen: boolean,
+export function resumeContentMark(
+    fitActive: boolean,
     query: string,
     pack: { q: string; phrases: readonly string[] } | null,
 ): Pick<JobSearchParams, "contentPhrases" | "unplacedRemote"> {
     // Only the résumé pack's own search: a query typed beside Rank by fit is looked up as typed.
-    if (!deckOpen || !pack || query.trim() !== pack.q) return {};
+    if (!fitActive || !pack || query.trim() !== pack.q) return {};
     return packContentMark(pack.phrases, true);
 }
 

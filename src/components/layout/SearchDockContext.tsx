@@ -47,33 +47,18 @@ export type DockedSearch = {
 type DockValue = {
     docked: DockedSearch;
     setDocked: (next: DockedSearch) => void;
-    /**
-     * Separate from `docked`: the For-you/Search toggle sits on the header
-     * row beside the mark at every width, including For you (no query, no
-     * filters — `docked` stays `null`) and Search before a query is typed.
-     * It must not open the filter band. Folding this into `docked` would
-     * make a Search-only concern also mean "is the toggle showing."
-     */
-    homeViewDocked: boolean;
-    setHomeViewDocked: (next: boolean) => void;
 };
 
 const SearchDockCtx = createContext<DockValue>({
     docked: null,
     setDocked: () => {},
-    homeViewDocked: false,
-    setHomeViewDocked: () => {},
 });
 
 export function SearchDockProvider({ children }: { children: React.ReactNode }) {
     const [docked, setDocked] = useState<DockedSearch>(null);
-    const [homeViewDocked, setHomeViewDocked] = useState(false);
     // Memoised so TopBar doesn't re-render on every unrelated layout render —
     // this provider sits above the whole app.
-    const value = useMemo(
-        () => ({ docked, setDocked, homeViewDocked, setHomeViewDocked }),
-        [docked, homeViewDocked],
-    );
+    const value = useMemo(() => ({ docked, setDocked }), [docked]);
     return <SearchDockCtx.Provider value={value}>{children}</SearchDockCtx.Provider>;
 }
 
