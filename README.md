@@ -165,6 +165,14 @@ ENCRYPTION_KEY=your-32-byte-hex-key
 # Comma-separated admin emails (unlimited shared-key use). Defaults to the owner.
 ADMIN_EMAILS=you@example.com
 
+# --- Stripe billing (optional backend; see docs/billing.md — no UI wired) ---
+# STRIPE_SECRET_KEY=
+# STRIPE_WEBHOOK_SECRET=
+# STRIPE_PRICE_IDS=
+# STRIPE_CHECKOUT_SUCCESS_URL=
+# STRIPE_CHECKOUT_CANCEL_URL=
+# STRIPE_PORTAL_RETURN_URL=
+
 # --- Jobs (optional; the Find-jobs tab is empty without these) ---
 MEILISEARCH_HOST=https://your-meili-host
 MEILISEARCH_SEARCH_KEY=...      # read-only search key used at request time
