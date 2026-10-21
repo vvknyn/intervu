@@ -114,7 +114,8 @@ import {
 } from "@/lib/jobs/location-default-preference";
 import { BroadenOptions } from "@/components/jobs/BroadenOptions";
 import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm";
-import { useSeenBefore } from "@/hooks/use-visit";
+import { useVisit } from "@/hooks/use-visit";
+import { listNewSince } from "@/lib/jobs/list-new-since";
 import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
 import { LanguagesControl } from "@/components/jobs/LanguagesControl";
@@ -2787,7 +2788,7 @@ export function JobsContent({
     // before comes first, so the list opened again leads with what is new); one slot per employer, its other
     // roles riding inside it (`collapseByEmployer`). `summary` says what was left out and why. A search without
     // Best match is not a recommendation: every role it found is listed.
-    const seenBefore = useSeenBefore();
+    const { sinceMs: lastVisitMs, seenBefore } = useVisit();
     // What the tracker held when this search's rows arrived: a list never offers a role the person already applied
     // to ("the jobs I applied to keep coming back", review 2026-10-13). Taken once per search, so a role marked
     // Applied from the list stays where it is until the next search.
@@ -2883,6 +2884,20 @@ export function JobsContent({
         if (!fitActive || !matchScores || loading || renderedClusters.length === 0) return;
         writeTodaySeen(renderedClusters.slice(0, LISTED_ROWS).map((c) => c.primary.id));
     }, [fitActive, matchScores, loading, renderedClusters]);
+    // A visitor who comes back is told how many of the roles it opens with are new since they were last here
+    // (`listNewSince`: not listed on this device before, and carrying the row's own New mark).
+    const listNew = useMemo(
+        () =>
+            recommendedReady
+                ? listNewSince({
+                      rows: renderedClusters.slice(0, LISTED_ROWS).map((c) => c.primary),
+                      seenBefore,
+                      sinceMs: lastVisitMs,
+                      nowMs,
+                  })
+                : null,
+        [recommendedReady, renderedClusters, seenBefore, lastVisitMs, nowMs],
+    );
 
     // The browser's fallback for rows the search's own place read left unread
     // (it answers without them past a short deadline): reads what the
@@ -6100,8 +6115,10 @@ export function JobsContent({
                                 <div className="px-[var(--list-inset)]">
                                 {/* The new-since line leads the group and stays for the
                                     visit. Alerts for this search are the switch on the
-                                    results line below it. */}
-                                <BoardVisitBanner resultCount={hits.length} />
+                                    results line below it. A résumé-ranked list says its
+                                    own on the results line (`listNew`): a count of the
+                                    whole board above it would be another list's number. */}
+                                {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                 {localAiGuestEnabled && !user && (
                                     <div
                                         data-testid="local-ai-guest-banner"
@@ -6380,6 +6397,14 @@ export function JobsContent({
                                                     >
                                                         {resultCountLine}
                                                     </span>
+                                                    {listNew && (
+                                                        <span className="flex items-center gap-2">
+                                                            <span className="size-2 shrink-0 rounded-pill bg-brand" aria-hidden />
+                                                            <span data-testid="list-new-since" className="text-foreground">
+                                                                {listNew.text}
+                                                            </span>
+                                                        </span>
+                                                    )}
                                                     {beyondWindow.show && (
                                                         <span className="flex items-center gap-1.5">
                                                             {beyondWindowText}

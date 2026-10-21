@@ -50,7 +50,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Landing on /jobs with no search](#landing-on-jobs-with-no-search) | JOBS 01, 03, 21, 24–25, 29–30, 55, 58, 60, 65–66 · SRCH 01–02, 18 · MOB 01, 14, 16–18, 23 · ALERTS 21–23 · NAV 01, 06, 21 · SPEED 05–08 | 31 | 17 | 14 | 0 | 0 |
 | [Search, filters and results](#search-filters-and-results) | JOBS 04–08, 14–18, 26, 28, 67–74 · SRCH 03–17, 19–23, 30–40 · FILT 01–26 · MOB 02, 11–13, 21, 25–28 · SPEED 01–04 | 90 | 32 | 58 | 0 | 0 |
 | [Résumé upload and top matches](#résumé-upload-and-top-matches) | JOBS 34–36, 54, 56–57, 59, 61, 76–78, 90–91, 93, 103, 107, 121–122, 124 · AUTH 31–33 · RESUME 08, 28–29, 40–44, 46–49, 51 · MODAL 01 | 36 | 29 | 7 | 0 | 0 |
-| [The résumé-ranked list: what fits and what is left out](#the-résumé-ranked-list-what-fits-and-what-is-left-out) | JOBS 31, 37, 52, 99–100, 102, 105, 110–111, 115–118, 120, 125–138, 140–142, 144–146, 148, 150–158 · NAV 31–32 | 46 | 45 | 1 | 0 | 0 |
+| [The résumé-ranked list: what fits and what is left out](#the-résumé-ranked-list-what-fits-and-what-is-left-out) | JOBS 31, 37, 52, 99–100, 102, 105, 110–111, 115–118, 120, 125–138, 140–142, 144–146, 148, 150–159 · NAV 31–32 | 47 | 46 | 1 | 0 | 0 |
 | [Job detail: pane, sheet, page](#job-detail-pane-sheet-page) | JOBS 09–13, 23, 53, 75, 104 · MOB 03, 09–10, 24 · DETAIL 01–37, 40–45 · ERR 07–08 | 58 | 24 | 34 | 0 | 0 |
 | [Apply](#apply) | APPLY 01–33 | 33 | 9 | 24 | 0 | 0 |
 | [Save and tracker](#save-and-tracker) | JOBS 32–33 · TRACKER 01–77 · NAV 10 · MODAL 04 | 81 | 34 | 47 | 0 | 0 |
@@ -64,7 +64,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–40 · SEO 01–09 | 48 | 16 | 32 | 0 | 0 |
 | [Pricing and founding seat](#pricing-and-founding-seat) | PRICING 01–11 | 11 | 6 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–42 · ERR 01–06, 10–15, 17–18 · ADMIN 01–05 · MODAL 02, 05 | 50 | 15 | 35 | 0 | 0 |
-| **All stages** | | **771** | **312** | **459** | **0** | **0** |
+| **All stages** | | **772** | **313** | **459** | **0** | **0** |
 <!-- stage-table:end -->
 
 ### Landing on /jobs with no search
