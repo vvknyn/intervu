@@ -123,6 +123,10 @@ function placeName(place: string): string {
 
 /** "remote — based in Europe" names where; say it rather than "another country". */
 function placeText(score: MatchScore, reason: MatchReason): string | null {
+    const hires = component(score, "location")?.hires;
+    if (hires && reason === "remote_same_country") {
+        return `it's remote and the posting hires in ${placeName(hires.country)}: “${hires.quote.replace(/[.!?]+$/, "")}”`;
+    }
     const detail = component(score, "location")?.detail ?? "";
     if (reason === "remote_pay_abroad") {
         const paid = detail.match(/paid in (\S+) — likely for people in (.+)$/);

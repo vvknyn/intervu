@@ -147,7 +147,9 @@ export default function ConnectHelpPage() {
             when nothing fits, it lists the closest roles and says plainly that they are a weaker fit; when only
             older roles fit, it lists those and says how old they are; when not even a newer role is close, it lists the
             closest older ones and says they are a weaker fit and how old they are; each employer has one place in the
-            list, its best fit&apos;s, with its other roles that fit listed under it),
+            list, its best fit&apos;s, with its other roles that fit listed under it), marking a remote role whose
+            posting says it hires in your country with the posting&apos;s own line that says so, and naming the place a remote
+            role is open to (&quot;Remote (North America)&quot;) when its posting says so,
             list today&apos;s picks (one per employer, the same way), and turn the daily picks email on or off. Actually opening a listing and filling out the application form needs a
             different kind of tool — one with browser control, like Claude Code. Either way,
             nothing here ever submits an application by itself; you&apos;re always the one who

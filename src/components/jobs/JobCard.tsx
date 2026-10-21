@@ -29,6 +29,7 @@
 import Link from "next/link";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ContextHelp } from "@/components/ui/context-help";
+import { HiresInWord, hiresNoteOf } from "@/components/jobs/HiresIn";
 import { MatchChip, MatchChipTeaser } from "@/components/jobs/MatchChip";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
@@ -40,6 +41,7 @@ import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
 import { presentJob } from "@/lib/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobPath } from "@/lib/jobs/job-slug";
+import { remoteScope, withRemoteScope } from "@/lib/jobs/remote-scope";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { MatchScore } from "@/lib/match/score";
 import type { Pursuit } from "@/lib/pursuits/types";
@@ -148,6 +150,10 @@ export function JobCard({
     // text AND its own chip would say the same fact twice.
     const factChips = buildFactChips(job, null, null).filter((c) => c.kind === "work_type" || c.kind === "salary");
     const freshness = classifyPostingFreshness(job, now);
+    // "Hires in Canada" for a remote role whose posting says so in words its place fields lack (HiresIn.tsx).
+    const hires = hiresNoteOf(matchScore);
+    // A plain "Remote" reads "Remote (Canada)" when its posting limits it to a place its fields leave out (remote-scope.ts).
+    const scope = remoteScope(job);
     // A4 (soft-surfaces): the row's only "active" signal is the ABSENCE of
     // an exceptionMark — "review"/"ghost"/"relisted" verdicts surface via
     // `exceptionMark` above (rowExceptionMark, the single chokepoint for
@@ -288,7 +294,11 @@ export function JobCard({
                             ) : (
                                 <span>{presented.company.name}</span>
                             ),
-                            locationKnown && <span data-testid="job-location">{presented.location}</span>,
+                            locationKnown && (
+                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : undefined}>
+                                    {withRemoteScope(presented.location, scope)}
+                                </span>
+                            ),
                         ]}
                     />
                 </div>
@@ -300,7 +310,7 @@ export function JobCard({
                     the detail pane's verdict word — sharing this line with
                     the facts (instead of a second row) is what keeps the
                     comfortable row inside the rulebook's 96-112px band. */}
-                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0) && (
+                {(factChips.length > 0 || freshness.kind === "fresh" || variantCount > 0 || hires) && (
                     <div className="mt-1 flex flex-wrap items-baseline text-sm text-muted-foreground">
                         <MetaLine
                             items={[
@@ -309,6 +319,7 @@ export function JobCard({
                                         {c.label}
                                     </span>
                                 )),
+                                hires && <HiresInWord note={hires} />,
                                 // "New" reads the SAME 7-day `classifyPostingFreshness`
                                 // window everything else on the row already uses.
                                 freshness.kind === "fresh" && (

@@ -225,7 +225,10 @@ export const FIT_FIELDS_NOTE =
     "outside where they can work, or \"Country unclear\" — plus match (the score behind it) and fit_reasons, " +
     "scored with their saved preferences the same way the site scores them, and missing_terms (words in the " +
     "role's title and tags the résumé doesn't have, as the posting writes them). Use fit_label when you describe " +
-    "a role's fit; never call a role labelled Outside or Country unclear a fit. A role above their level is " +
+    "a role's fit; never call a role labelled Outside or Country unclear a fit. A remote role whose posting says it " +
+    "hires in their country in words its place fields lack carries match.components[key location].hires — the " +
+    "country and the posting's own line: say \"hires in <country>\" only with that line quoted, never without it. " +
+    "A role above their level is " +
     "always Stretch: a role's level is the highest of its listed level, its title (a rank word like Senior, or a " +
     "title that runs a team like \"Manager, Customer Success\") and the years it asks for (3-6 mid, 7+ senior). " +
     "A role whose title is Staff, Principal, Distinguished, Director, Head of, VP or Chief, or that is listed as Executive, " +
@@ -242,7 +245,10 @@ export const FIT_FIELDS_NOTE =
     "and you read postings in English\", and left out of the lists velai recommends. " +
     "Every job also carries " +
     "last_checked_at, when velai last checked the posting is still up (null when there is no check time); " +
-    "say how long ago it was checked when you say a role is open.";
+    "say how long ago it was checked when you say a role is open. A remote role whose place fields name no country " +
+    "but whose posting limits it to a place carries remote_scope — that place as the posting wrote it (label) and its " +
+    "own sentence (quote): say \"remote in <label>\" only with the sentence quoted, and with no remote_scope the " +
+    "posting names no place, so do not guess one.";
 
 /**
  * The one tool catalog — title, description, and wire schema for every tool
