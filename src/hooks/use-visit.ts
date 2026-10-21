@@ -35,11 +35,3 @@ export function useVisit(): { hydrated: boolean; sinceMs: number | null; nowMs: 
     }, [memo]);
     return { hydrated: memo != null, sinceMs: memo?.visit.sinceMs ?? null, nowMs: memo?.at ?? 0, seenBefore: memo?.seenBefore ?? null };
 }
-
-/**
- * The roles this device had listed before this sitting (`readTodaySeen`), for the ranked list to put what is new to
- * the person first inside a fit band (`sortByFit`). Reads without recording a visit. Client-only.
- */
-export function useSeenBefore(): ReadonlySet<string> | null {
-    return useSyncExternalStore(subscribeNever, visitSnapshot, () => null)?.seenBefore ?? null;
-}

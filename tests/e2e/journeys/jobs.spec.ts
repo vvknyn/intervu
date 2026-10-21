@@ -860,6 +860,58 @@ signedInTest("a fit-ranked list opened again leads with roles this device hasn't
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+const WEEKDAY_OR_YESTERDAY = "(yesterday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)";
+
+signedInTest("a list opened again says how many of its first roles are new since this device was last here, counting only fresh roles it had not listed", { tag: ["@J-JOBS-159"] }, async ({ page, diagnostics }) => {
+  // Coordinator brief, 2026-10-21: stickiness for the one list ("N new matches since your last visit"), with the honest first-visit gate.
+  await returningVisitor(page);
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("e2e-visit-seeded")) return;
+    sessionStorage.setItem("e2e-visit-seeded", "1");
+    localStorage.setItem("intervu.today.visit", JSON.stringify({ lastSeenAt: new Date(Date.now() - 3 * 86_400_000).toISOString(), since: null }));
+    localStorage.setItem("intervu.today.seen", JSON.stringify(["listed-before"]));
+  });
+  await withResume(page, "Toronto, Ontario, Canada");
+  const now = new Date().toISOString();
+  const longAgo = new Date(Date.now() - 20 * 86_400_000).toISOString();
+  await answerFitList(
+    page,
+    [
+      remoteRole("listed-before", "Software Engineer", "Remote, Canada", { first_seen_at: now }),
+      remoteRole("new-a", "Software Engineer", "Remote, Canada", { first_seen_at: now }),
+      remoteRole("new-b", "Software Engineer", "Remote, Canada", { first_seen_at: now }),
+      // Not listed on this device before, but 20 days old: further down a list it was always in, not new.
+      remoteRole("old-unlisted", "Software Engineer", "Remote, Canada", { posted_at: longAgo, first_seen_at: longAgo }),
+    ],
+    "e2e-new-since",
+  );
+  await page.goto("/jobs?sort=fit");
+  await expect(page.getByTestId("job-row")).toHaveCount(4, { timeout: 60_000 });
+  // Two roles are new; the one listed last time and the old one are not.
+  await expect(page.getByTestId("list-new-since")).toHaveText(new RegExp(`^2 new since ${WEEKDAY_OR_YESTERDAY}$`), { timeout: 30_000 });
+  // One line about "since your last visit" on a ranked list, not a board-wide count above it.
+  await expect(page.getByTestId("board-visit-banner")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
+signedInTest("a list opened for the first time on a device makes no claim about what is new since a last visit", { tag: ["@J-JOBS-159"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  const now = new Date().toISOString();
+  await answerFitList(
+    page,
+    [remoteRole("first-a", "Software Engineer", "Remote, Canada", { first_seen_at: now }), remoteRole("first-b", "Software Engineer", "Remote, Canada", { first_seen_at: now })],
+    "e2e-new-since-first",
+  );
+  await page.goto("/jobs?sort=fit");
+  await expect(page.getByTestId("job-row")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.getByTestId("result-line")).toBeVisible();
+  await expect(page.getByTestId("list-new-since")).toHaveCount(0);
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 test("a guest's Search names the résumé it ranks against, and Remove forgets it for good", { tag: ["@J-JOBS-61"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   // The upload's file name, as the importer stores it. Seeded once, so the reload below finds what Remove left.
