@@ -46,9 +46,9 @@ describe("mock routes production gate", () => {
         assert.equal(mockRoutesVisible("test", undefined), true);
     });
 
-    it("every mock page route lives under the gated mock layout (including for-you-deck)", () => {
+    it("every mock page route lives under the gated mock layout (including related-jobs)", () => {
         const routes = listMockRouteSegments();
-        assert.ok(routes.includes("for-you-deck"), `expected for-you-deck in ${routes.join(", ")}`);
+        assert.ok(routes.includes("related-jobs"), `expected related-jobs in ${routes.join(", ")}`);
         assert.ok(routes.length >= 1, "at least one mock route");
 
         for (const segment of routes) {

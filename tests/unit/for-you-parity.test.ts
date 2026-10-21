@@ -11,7 +11,6 @@ import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { packContentPhrases, packFilters } from '../../src/lib/jobs/for-you/pack-filters';
 import { rankForYou } from '../../src/lib/jobs/for-you/ranked';
 import { resumeSearchMark, searchParamsFromUrlState } from '../../src/lib/jobs/search-payload';
-import { resolveJobsHomeView } from '../../src/lib/jobs/for-you/home-view';
 import { jobsBoardHref, parseJobsUrl } from '../../src/lib/jobs/url-state';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
 import type { JobSearchParams } from '../../src/lib/jobs/types';
@@ -112,22 +111,6 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
             const parsed = parseJobsUrl(new URL(jobsBoardHref(filters), 'https://velai.test').searchParams);
             assert.deepEqual(searchParamsFromUrlState(parsed), searchParamsFromUrlState(filters), persona.name);
             assert.equal(jobsBoardHref(filters).startsWith('/jobs'), true);
-        }
-    });
-
-    it('the Edit-filters link lands on the search board, not back on the For-you home', () => {
-        for (const persona of PERSONAS) {
-            const filters = packFilters(persona.resume, resolveCandidateSignals(persona.resume, persona.prefs));
-            const parsed = parseJobsUrl(new URL(jobsBoardHref(filters), 'https://velai.test').searchParams);
-            const view = resolveJobsHomeView({
-                urlView: parsed.homeView,
-                resumeOnFile: true,
-                companyDomain: parsed.companyDomain,
-                board: parsed.board,
-                q: parsed.q,
-                sort: parsed.sort,
-            });
-            assert.equal(view, 'search', persona.name);
         }
     });
 

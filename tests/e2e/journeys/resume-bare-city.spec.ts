@@ -50,7 +50,6 @@ test("a bare city on the contact line is asked about above the ranked board; Yes
     // No guess: the review leaves the location blank.
     await expect(dialog.getByLabel("Location", { exact: true })).toHaveValue("", { timeout: 30_000 });
     await dialog.getByRole("button", { name: "Rank my jobs" }).click();
-    await expect(page).toHaveURL(/[?&]view=search/);
     await expect(page).toHaveURL(/[?&]sort=fit/);
 
     const prompt = page.getByTestId("resume-place-confirm");
@@ -82,7 +81,7 @@ test("an ambiguous bare city offers every candidate; None of these leaves the lo
         },
         [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY],
     );
-    await page.goto("/jobs?view=search&sort=fit");
+    await page.goto("/jobs?sort=fit");
 
     const prompt = page.getByTestId("resume-place-confirm");
     await expect(prompt).toContainText("Which place is it?", { timeout: 30_000 });

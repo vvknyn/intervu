@@ -96,7 +96,7 @@ async function openCustomizeFor(page: Page, resume: object, posting: Posting, qu
     if (new URL(req.url()).pathname === `/api/jobs/${posting.id}/description`) return route.fulfill({ json: answer });
     return route.fallback();
   });
-  await page.goto(`/jobs?view=search&q=${query}`);
+  await page.goto(`/jobs?q=${query}`);
   await page.getByTestId("job-row").getByTestId("job-title").filter({ hasText: posting.title }).first().click({ timeout: 45_000 });
   await page.locator('[data-testid="local-customize-open"]:visible').first().click({ timeout: 15_000 });
   // By name: on a phone the role itself is open in a sheet, which is a dialog too.

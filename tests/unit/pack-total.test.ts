@@ -84,26 +84,19 @@ describe('pack total comes from the pack search', () => {
 
 describe('JobsContent wiring (call-site gate, no file allowlist)', () => {
     const SRC = readFileSync('src/app/jobs/JobsContent.tsx', 'utf8');
-    const HOME = readFileSync('src/components/jobs/for-you/ForYouHome.tsx', 'utf8');
-
-    it('the deck total is not the pack total', () => {
-        assert.doesNotMatch(HOME, /packTotal\s*=\s*visiblePacks/);
-        assert.match(HOME, /countResults\(filters,/);
-    });
 
     it('every scoring call on the board passes the resolved signals', () => {
         const calls = SRC.split('\n').filter((line) => line.includes('scoreJobAgainstResume('));
-        assert.ok(calls.length >= 2);
+        assert.ok(calls.length >= 1);
         for (const line of calls) assert.match(line, /scoreJobAgainstResume\(resume, \w+, signals\)/, line);
     });
 
-    it('fit-ranking and the hub probe read the pack filters, not a résumé-only location', () => {
+    it('fit-ranking reads the pack filters, not a résumé-only location', () => {
         assert.doesNotMatch(SRC, /packApplyLocationFacets/);
         assert.equal((SRC.match(/packFilters\(/g) ?? []).length, 2);
     });
 
     it('renders the broaden options for empty and thin results, and has no Canada carve-out', () => {
-        assert.match(SRC, /broadenSlot=\{broadenNudge\}/);
         assert.match(SRC, /^\s*\{broadenNudge\}$/m);
         assert.doesNotMatch(SRC, /isCanadaDeckJob|canada-deck|resolveUrlSort/);
     });

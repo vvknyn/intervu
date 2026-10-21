@@ -30,18 +30,3 @@ export function resolveJobsResumeOnFile(input: {
     if (!input.authReady) return null;
     return input.signedIn ? input.resumeKnownOnServer : false;
 }
-
-/**
- * Header-row For you ⇄ Search switch. A confirmed signed-in session always
- * gets it, including when no résumé is on file yet. Signed-out sessions,
- * and auth that has not resolved, never see it.
- */
-export function shouldShowJobsHomeViewToggle(input: {
-    signedOut: boolean;
-    signedIn: boolean;
-    resumeOnFile: boolean | null;
-    showJobsHomePending: boolean;
-}): boolean {
-    if (input.signedOut || !input.signedIn) return false;
-    return true;
-}
