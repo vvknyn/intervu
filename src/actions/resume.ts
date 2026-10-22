@@ -5,7 +5,7 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
-import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { resumeIsOnFile } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
 
@@ -13,16 +13,16 @@ import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
  * Presence-only signal for a returning visit: does this user have a usable
  * résumé on file, without shipping the résumé itself down to the client.
  * Reuses `fetchResumeData`'s read (same doc, same migration) and the shared
- * `resumeIsUsable` bar rather than a second usability check — the client
+ * `resumeIsOnFile` bar rather than a second usability check — the client
  * gets a boolean, never the document.
  */
 export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null }> {
     const { data, text, updatedAt } = await fetchResumeData();
+    const hasResume = resumeIsOnFile({ data, text });
     // A text-only résumé counts as on file without reading it here: the
     // browser structures it (`storedResumeData`), never this server.
     // `updatedAt` (a timestamp, nothing from the résumé) lets a guest copy
     // parsed more recently replace it on sign-in (`shouldAdoptGuestResume`).
-    const hasResume = resumeIsUsable(data) || Boolean(text);
     return { hasResume, ...(hasResume ? { updatedAt: updatedAt ?? null } : {}) };
 }
 

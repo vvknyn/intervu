@@ -115,7 +115,7 @@ describe("jobs filter toolbar chrome", () => {
 
         const activeRow = src.slice(
             src.indexOf('data-testid="active-filter-row"'),
-            src.indexOf('data-testid="active-filter-row"') + 400,
+            src.indexOf('data-testid="active-filter-row"') + 700,
         );
         assert.match(activeRow, /flex-wrap/);
         assert.match(activeRow, /overflow-x-clip/);
@@ -135,7 +135,8 @@ describe("jobs filter toolbar chrome", () => {
         );
         assert.match(toolbarScroller, /flex-wrap/);
         assert.match(toolbarScroller, /overflow-x-clip/);
-        assert.match(toolbarScroller, /\boverflow-x-auto/); // narrow column: one scrollable row
+        // narrow column: one scrollable row, shared with the active chips (the wrapper scrolls)
+        assert.match(src.slice(src.indexOf('data-testid="jobs-toolbar-rows"'), src.indexOf('data-testid="jobs-toolbar-rows"') + 300), /\boverflow-x-auto/);
         assert.doesNotMatch(toolbarScroller, /flex-nowrap/);
     });
 
