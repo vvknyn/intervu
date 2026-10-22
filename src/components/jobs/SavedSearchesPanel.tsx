@@ -14,7 +14,7 @@ import { noteSetupFacts } from "@/hooks/use-onboarding";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { SignupGate } from "@/components/auth/SignupGate";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
-import { guestSaveGateReached } from "@/lib/auth/guest-save-gate";
+import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { readVisitCursor, writeVisitCursor } from "@/lib/jobs/visit-cursor";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import {
@@ -76,12 +76,12 @@ export function SavedSearchesPanel({
     const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
     const [removingId, setRemovingId] = useState<string | null>(null);
-    // A guest past their free save sees the signup gate instead of a name
+    // A guest sees the signup gate instead of a name
     // field; the search they meant to save is saved once they sign in.
     const [gated, setGated] = useState<PendingSavedSearch | null>(null);
 
     const startSave = () => {
-        if (!getSignedInUser() && guestSaveGateReached()) {
+        if (decideSaveAttempt(!!getSignedInUser()) === "gate") {
             setGated({ name: suggestSavedSearchName(urlState), href: hrefFromJobsUrlState(urlState) });
             return;
         }

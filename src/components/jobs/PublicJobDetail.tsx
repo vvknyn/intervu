@@ -22,7 +22,7 @@ import {
     GUEST_SAVE_TOAST,
     type AuthGateReason,
 } from "@/lib/auth/auth-gate-copy";
-import { guestSaveGateReached, recordGuestSave } from "@/lib/auth/guest-save-gate";
+import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { shortDate } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -32,7 +32,7 @@ import { classifySentinel } from "@/lib/llm/sentinels";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
-import { addGuestPursuit, listGuestPursuits } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import {
     buildOptimisticPursuit,
@@ -346,23 +346,8 @@ export function PublicJobDetail({
     });
 
     const handleGoAfter = (target: PublicJob) => {
-        if (!user) {
-            if (guestSaveGateReached()) {
-                openAuth("save", "user");
-                return;
-            }
-            addGuestPursuit(target);
-            recordGuestSave();
-            if (!prefersReducedMotion()) hapticTap("success");
-            triggerSavePulse();
-            toast.success(GUEST_SAVE_TOAST);
-            // A guest's first save is a real save — same placement rule as
-            // jobs/page.tsx's handleGoAfter: after the gate branch above (which
-            // returns instead of saving), so a rejected click never counts.
-            captureEvent("job_saved", {
-                job_id: target.id,
-                ...matchAnalyticsProps(matchScoreFor(target)),
-            });
+        if (decideSaveAttempt(!!user) === "gate") {
+            openAuth("save", "user");
             return;
         }
         if (saveInFlightRef.current.has(target.id)) return;
