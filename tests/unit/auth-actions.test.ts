@@ -5,11 +5,14 @@ import type { User, AuthenticationResponse } from "@workos-inc/node";
 import {
     signUpCore,
     signInCore,
+    verifyPasswordEmailCodeCore,
+    resendVerificationCodeCore,
     requestPasswordResetCore,
     confirmPasswordResetCore,
 } from "../../src/actions/auth";
 import type { AuthActionDeps } from "../../src/lib/auth/auth-action-deps";
 import { usernameEmail } from "../../src/lib/auth/username-email";
+import { EMAIL_CODE_FORMAT_MESSAGE, EMAIL_CODE_WRONG_MESSAGE } from "../../src/lib/auth/email-code-copy";
 import { PASSWORD_TOO_SHORT_MESSAGE } from "../../src/lib/auth/password-rules";
 import { SIGNUP_FAILED_MESSAGE } from "../../src/lib/auth/auth-refusal-copy";
 import { WORKOS_EMAIL_TAKEN_MESSAGE, WORKOS_WEAK_PASSWORD_MESSAGE } from "../../src/lib/auth/workos-errors";
@@ -326,5 +329,97 @@ describe("confirmPasswordResetCore — expired or invalid token", () => {
         const result = await confirmPasswordResetCore(deps, { token: "tok-abc", newPassword: "password1234" });
 
         assert.deepEqual(result, { error: WORKOS_WEAK_PASSWORD_MESSAGE });
+    });
+});
+
+// WorkOS's AuthenticationException for an unverified address: `code` plus the
+// token the emailed code is redeemed against (node_modules/@workos-inc/node
+// factory-VM3aexOH.d.mts: AuthenticationException).
+const verificationRequired = () => ({
+    name: "AuthenticationException",
+    status: 403,
+    code: "email_verification_required",
+    pendingAuthenticationToken: "pat_secret",
+});
+
+describe("email verification required (signup dead end, 2026-10-22)", () => {
+    it("signUpCore: the auto sign-in held for a code returns the verify step, not the sign-in-again notice", async () => {
+        const deps: Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession"> = {
+            createUser: async () => fakeUser({ id: "user_new" }),
+            deleteUser: async () => {},
+            createProfile: async () => {},
+            authenticateWithPassword: async () => { throw verificationRequired(); },
+            saveSession: async () => {},
+        };
+        const result = await signUpCore(deps, { username: "dave", password: "hunter22", email: "dave@example.com" });
+        assert.deepEqual(result, { verify: { pendingAuthenticationToken: "pat_secret", email: "dave@example.com" } });
+    });
+
+    it("signInCore: a returning user who never verified gets the same step (class case), with the resolved email", async () => {
+        const deps: Pick<AuthActionDeps, "authenticateWithPassword" | "saveSession"> = {
+            authenticateWithPassword: async () => { throw verificationRequired(); },
+            saveSession: async () => {},
+        };
+        const result = await signInCore(deps, { identifier: "  erin@example.com ", password: "hunter22" });
+        assert.deepEqual(result, { verify: { pendingAuthenticationToken: "pat_secret", email: "erin@example.com" } });
+    });
+
+    it("signInCore: any other AuthenticationException stays the generic error", async () => {
+        const deps: Pick<AuthActionDeps, "authenticateWithPassword" | "saveSession"> = {
+            authenticateWithPassword: async () => { throw { name: "AuthenticationException", code: "mfa_challenge", pendingAuthenticationToken: "x" }; },
+            saveSession: async () => {},
+        };
+        const result = await signInCore(deps, { identifier: "erin@example.com", password: "hunter22" });
+        assert.deepEqual(result, { error: "Sign-in failed — try again in a moment." });
+    });
+
+    it("verifyPasswordEmailCodeCore: a right code redeems the token (digits normalised) and saves the session", async () => {
+        const user = fakeUser({ id: "user_v" });
+        const saved: AuthenticationResponse[] = [];
+        let sent: { code: string; pendingAuthenticationToken: string } | undefined;
+        const result = await verifyPasswordEmailCodeCore(
+            {
+                authenticateWithEmailVerification: async (o) => { sent = o; return fakeAuthResponse(user); },
+                saveSession: async (a) => { saved.push(a); },
+            },
+            { code: "123 456", pendingAuthenticationToken: "pat_secret" },
+        );
+        assert.deepEqual(sent, { code: "123456", pendingAuthenticationToken: "pat_secret" });
+        assert.equal(saved.length, 1);
+        assert.deepEqual(result, { success: true, user });
+    });
+
+    it("verifyPasswordEmailCodeCore: a refused code answers the shared wrong-code copy and saves nothing", async () => {
+        let saves = 0;
+        const result = await verifyPasswordEmailCodeCore(
+            {
+                authenticateWithEmailVerification: async () => { throw { name: "AuthenticationException", status: 403 }; },
+                saveSession: async () => { saves++; },
+            },
+            { code: "654321", pendingAuthenticationToken: "pat_secret" },
+        );
+        assert.deepEqual(result, { error: EMAIL_CODE_WRONG_MESSAGE });
+        assert.equal(saves, 0);
+    });
+
+    it("verifyPasswordEmailCodeCore: a malformed code never reaches WorkOS", async () => {
+        let calls = 0;
+        const result = await verifyPasswordEmailCodeCore(
+            { authenticateWithEmailVerification: async () => { calls++; return fakeAuthResponse(fakeUser()); }, saveSession: async () => {} },
+            { code: "12ab", pendingAuthenticationToken: "pat_secret" },
+        );
+        assert.deepEqual(result, { error: EMAIL_CODE_FORMAT_MESSAGE });
+        assert.equal(calls, 0);
+    });
+
+    it("resendVerificationCodeCore: info notice on success, error when WorkOS refuses", async () => {
+        const sentTo: string[] = [];
+        assert.deepEqual(
+            await resendVerificationCodeCore({ resendVerificationEmail: async (e) => { sentTo.push(e); } }, { email: "a@example.com" }),
+            { notice: "We sent a new code. Check your email.", kind: "info" },
+        );
+        assert.deepEqual(sentTo, ["a@example.com"]);
+        const refused = await resendVerificationCodeCore({ resendVerificationEmail: async () => { throw { status: 429 }; } }, { email: "a@example.com" });
+        assert.ok("error" in refused);
     });
 });

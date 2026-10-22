@@ -21,8 +21,9 @@
  *
  * `AuthenticationException` covers every WorkOS-flagged auth condition that
  * isn't a plain wrong password (email_verification_required, MFA, radar
- * challenges, ...) — spec decision §2: the password form has no step for
- * any of them, so all of those collapse to the same generic fallback here.
+ * challenges, ...). The password form has a code step only for
+ * email_verification_required (`emailVerificationChallenge`); the rest
+ * collapse to the generic fallback here.
  * WorkOS does hold some Google sign-ins for an emailed code; /auth/callback
  * sends those to /auth/verify-email (email-code-pending.ts), not through
  * this mapping.
@@ -54,6 +55,34 @@ export function workosErrorCodes(err: unknown): string[] {
     }
   }
   return codes;
+}
+
+/**
+ * Pure: the code step WorkOS wants before it will authenticate this person,
+ * or null when the failure is anything else. WorkOS answers a password
+ * sign-in for an unverified address with an `AuthenticationException`
+ * (`code: "email_verification_required"`) carrying the token that the emailed
+ * code is later redeemed against (`authenticateWithEmailVerification`).
+ */
+export function emailVerificationChallenge(err: unknown): { pendingAuthenticationToken: string } | null {
+  const e = err as { code?: unknown; pendingAuthenticationToken?: unknown } | null;
+  if (e?.code !== "email_verification_required" || typeof e.pendingAuthenticationToken !== "string") return null;
+  return { pendingAuthenticationToken: e.pendingAuthenticationToken };
+}
+
+/** WorkOS will not sign this person in until they enter the code it just emailed. */
+export type VerifyStep = { verify: { pendingAuthenticationToken: string; email: string } };
+
+/**
+ * The one place a password-auth failure becomes a code step. Signup's
+ * auto sign-in and a returning unverified user's sign-in both route here, so
+ * neither can fall back to a message the form has no way to act on. Null for
+ * every other failure; the caller words that. The error carries the pending
+ * token, so callers must not log it.
+ */
+export function verifyStepFor(err: unknown, email: string): VerifyStep | null {
+  const challenge = emailVerificationChallenge(err);
+  return challenge ? { verify: { ...challenge, email } } : null;
 }
 
 export function friendlyWorkosAuthMessage(err: unknown, fallback: string): string {
