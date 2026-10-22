@@ -60,8 +60,9 @@ describe('what each golden résumé pack searches for', () => {
             const filters = packFilters(resume, resolveCandidateSignals(resume, null));
             assert.deepEqual(filters.facets.location_country, ['Canada']);
             assert.equal(resolveCandidateSignals(resume, null).seniority.value, 'senior');
-            // Vivek, 2026-10-13: the other portals' picks were all Senior, Staff or Head of Product.
-            assert.deepEqual(filters.facets.experience_level, ['mid', 'senior', 'lead']);
+            // Vivek, 2026-10-13: the other portals' picks were all Senior, Staff or Head of Product. The level ranks them
+            // (signals above), it no longer filters the search (2026-10-22).
+            assert.equal(filters.facets.experience_level, undefined);
         }
     });
 });
