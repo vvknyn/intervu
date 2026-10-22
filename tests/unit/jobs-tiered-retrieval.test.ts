@@ -143,6 +143,8 @@ describe("runTieredRetrieval — federated multi-search for bare role queries", 
 
         assert.ok(!("attributesToSearchOn" in whole), JSON.stringify(whole));
         assert.equal(whole.federationOptions.weight, 1);
+        assert.equal(strict.matchingStrategy, "all", "tier 1 requires every word");
+        assert.equal(whole.matchingStrategy, "last", "tier 2 relaxes: partial matches rank below full ones, not dropped");
         assert.ok(!("limit" in whole) && !("offset" in whole) && !("facets" in whole), JSON.stringify(whole));
     });
 

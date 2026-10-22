@@ -474,7 +474,7 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   companyScoped?: boolean;
   /** Title-only recall lane for seniority+role pair searches. */
   titleScoped?: boolean;
-  /** Expand pass: whole-document retrieval, still `matchingStrategy: "all"`. */
+  /** Whole-document retrieval (tier 2 / expand pass): `matchingStrategy: "last"`. */
   wholeDocument?: boolean;
   /** Ask for `_rankingScoreDetails` on every hit — only the relevance-sorted
    *  typed search sets this, for `preferNewerAmongCloseMatches` below, which
@@ -947,10 +947,12 @@ export function buildSearchBody(
     // query is CLASSIFIED as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
     ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
-    // Requiring every word is the honest default; `searchMeili` runs one
-    // whole-document expand pass (`wholeDocument`) only after a strict/scoped
-    // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
-    matchingStrategy,
+    // Requiring every word is the honest default for the strict (title-first)
+    // pass. The whole-document pass relaxes to "last" (drops trailing words) —
+    // a partial word match ranks below a full one (tier weights) rather than
+    // disappearing. Ruling 2026-10-22: "return all search results ranked by
+    // relevance and fit". Decided here so every whole-document caller agrees.
+    matchingStrategy: opts?.wholeDocument ? "last" : matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
     // `limit`/`offset`, not `hitsPerPage`/`page` — page mode forces exhaustive
