@@ -30,6 +30,7 @@ import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
 import { parseQuotedOrPhrases } from "./fit-phrases";
+import { applyTypedFilterTokens } from "./query-tokens";
 import { isNeutralLocationFacetValue, LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
@@ -51,21 +52,32 @@ export interface ParsedQuery {
   workTypes: string[];
 }
 
+/** A work-mode word under negation ("not remote", "no hybrid roles") is an exclusion, not a selection:
+ *  the table leaves it in the query for `parseExclusionTokens` to consume and report. */
+const NOT_NEGATED = String.raw`(?<!\b(?:no|not|without|excluding)\s+)`;
+const wm = (src: string): RegExp => new RegExp(`${NOT_NEGATED}\\b${src}\\b`, "gi");
+
+/** "<N> days (in|in the|at the) office|onsite" — a quantified onsite ask: 1-4 days is hybrid, 5+ is onsite. */
+const OFFICE_DAYS_RE = wm(String.raw`([1-9]\d*)\s+days?\s+(?:(?:in|at)\s+(?:the\s+)?)?(?:office|on-?site)(?:\s+(?:max|maximum|at\s+most|tops|a\s+week|per\s+week|each\s+week))?`);
+
 /** Longest phrases first, so "work from home" is consumed before any single-word pass could see its words. */
 const WORK_TYPE_PHRASES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bwork[- ]from[- ]home\b/gi, "remote"],
-  [/\bin[- ]office\b/gi, "onsite"],
-  [/\bon[- ]site\b/gi, "onsite"],
-  [/\bwfh\b/gi, "remote"],
-  [/\bremote\b/gi, "remote"],
-  [/\bhybrid\b/gi, "hybrid"],
-  [/\bonsite\b/gi, "onsite"],
+  [wm("work[- ]from[- ]home"), "remote"],
+  [wm("in[- ]office"), "onsite"],
+  [wm("on[- ]site"), "onsite"],
+  [wm("wfh"), "remote"],
+  [wm("remote"), "remote"],
+  [wm("hybrid"), "hybrid"],
+  [wm("onsite"), "onsite"],
 ];
 
 /** Pure — no I/O, so behavior locks under unit test. */
 export function parseWorkTypeTokens(q: string): ParsedQuery {
-  let residual = q;
   const found = new Set<string>();
+  let residual = q.replace(OFFICE_DAYS_RE, (_m, days: string) => {
+    found.add(Number(days) >= 5 ? "onsite" : "hybrid");
+    return " ";
+  });
   for (const [re, canonical] of WORK_TYPE_PHRASES) {
     const next = residual.replace(re, " ");
     if (next !== residual) {
@@ -133,6 +145,8 @@ export interface ParsedPlaces {
   residualQ: string;
   /** One clause per matched place — OR'd by `buildFilter`. */
   places: PlaceClause[];
+  /** The canonical name each clause was read from, aligned with `places` (absent when none matched). */
+  labels?: string[];
 }
 
 /**
@@ -217,13 +231,15 @@ export async function parsePlaceTokens(
   const results = await vocab.corpusChecker(groups, caps);
 
   const places: PlaceClause[] = [];
+  const labels: string[] = [];
   resolutions.forEach((r, i) => {
     const any = results[i * 2];
     if (any.length === 0) return; // nothing this resolution proposed exists in the corpus at all
     const scope = results[i * 2 + 1];
     places.push(placeClause(any, { country: r.entity.type === "country", scopedToCountry: scope.length > 0 ? scope : undefined }));
+    labels.push(r.entity.name);
   });
-  return { residualQ, places };
+  return { residualQ, places, labels };
 }
 
 /**
@@ -623,14 +639,20 @@ export async function applyQueryUnderstanding(
     next = { ...next, q: residualQ };
   }
 
+  // Salary / posted window / years / employment type / exclusions: consumed
+  // before the place matcher so "150k" or "last 2 weeks" can never be read as
+  // place words.
+  next = applyTypedFilterTokens(next);
+
   const hasExplicitPlaces = (p.places?.length ?? 0) > 0;
   if (vocab && !p.facets?.location_country?.length && !hasExplicitPlaces) {
     const parsed = await parsePlaceTokens((next.q ?? "").trim(), vocab, true);
     if (parsed.places.length > 0) {
-      const places =
-        workTypes.length > 0 && !explicitWorkType
-          ? parsed.places.map((clause) => ({ ...clause, workTypes: [...workTypes] }))
-          : parsed.places;
+      const places = parsed.places.map((clause, i) => ({
+        ...clause,
+        ...(workTypes.length > 0 && !explicitWorkType && { workTypes: [...workTypes] }),
+        label: parsed.labels?.[i],
+      }));
       next = { ...next, q: parsed.residualQ, places };
     }
   }

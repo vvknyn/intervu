@@ -1,6 +1,7 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
 import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
 import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
+import { defaultedFields } from "@/lib/jobs/search-defaults";
 import { urlSortToMode, type JobsUrlState, type UrlSort } from "@/lib/jobs/url-state";
 
 /**
@@ -65,7 +66,7 @@ export function buildJobSearchPayload(
 ): Pick<
     JobSearchParams,
     | "q" | "facets" | "salaryMin" | "visaOnly" | "postedBucket" | "yearsExperience" | "hideGhosts" | "sort"
-    | "board" | "companyDomain" | "suppressLocationDefault"
+    | "board" | "companyDomain" | "suppressLocationDefault" | "defaultedFields"
 > {
     return {
         q: query.trim() || undefined,
@@ -73,6 +74,7 @@ export function buildJobSearchPayload(
         salaryMin: state.salaryMin || undefined,
         visaOnly: state.visaOnly || undefined,
         postedBucket: effectivePostedBucket(state, postedDateSupported),
+        defaultedFields: postedDateSupported ? defaultedFields(state) : undefined,
         yearsExperience: state.yearsExperience,
         hideGhosts: state.hideGhosts,
         sort: sort ?? undefined,

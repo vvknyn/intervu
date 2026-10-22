@@ -5,6 +5,7 @@ import { AUTH_REQUIRED } from "@/lib/llm/credit-gate";
 import { resolveLLMConfig } from "@/lib/llm/resolve-config";
 import { ProviderConfig } from "@/lib/llm/types";
 import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-ladder";
+import { liveRungs } from "@/lib/llm/live-rungs";
 import { FREE_LADDER } from "@/lib/llm/models";
 import { stripProviderPrefix } from "@/lib/llm/strip-provider-prefix";
 import { getServerUser } from "@/lib/auth/server-user";
@@ -107,7 +108,7 @@ export const fetchJSON = async (
     // for whichever ones remembered to opt in. Two callers still skip them: one
     // that named its own model (the override picks THE model, not a starting
     // point) and Groq, handled inside resolveModelLadder by provider check.
-    const rungs = resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model));
+    const rungs = await liveRungs(resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model)));
     const traceId = crypto.randomUUID();
     let distinctId: string | undefined;
     try {

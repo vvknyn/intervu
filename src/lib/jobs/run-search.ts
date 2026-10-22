@@ -14,6 +14,7 @@ import { isUnavailableJobsResult } from "./result-state";
 import { resolveCorpusCount, type CorpusCount } from "./corpus-count";
 import type { CountryLookup } from "../geo/ip-country";
 import type { JobSearchParams, JobSearchResult } from "./types";
+import type { UnderstoodSearch } from "./understood";
 import { DEFAULT_URL_STATE } from "./url-state";
 
 export interface RunJobsSearchContext {
@@ -41,6 +42,8 @@ export type JobsSearchWithProbes = JobSearchResult & {
   defaultedLocation?: string;
   remoteAnywhere?: boolean;
   unmatchedPlaceMentions?: string[];
+  unmatchedQueryMentions?: string[];
+  understood?: UnderstoodSearch;
   /** Additive by convention, same as `meta`/`defaultedLocation` above —
    *  always set by `runJobsSearch` itself, but optional here so a caller
    *  that returns early without reaching it (e.g. `searchJobsAction`'s

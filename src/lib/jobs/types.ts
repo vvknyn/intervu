@@ -1,3 +1,4 @@
+import type { DefaultedField } from "./search-defaults";
 import type { BoardId } from "@/lib/boards/types";
 
 /**
@@ -344,6 +345,13 @@ export interface JobSearchParams {
   /** Restrict to jobs whose sanitized posted_ts falls in this age bucket. */
   postedBucket?: PostedBucket;
   /**
+   * Fields in this request that hold the fresh-visit default nobody chose
+   * (`SEARCH_DEFAULTS`). The understanding stages treat them as unset, so a
+   * typed "posted this week" can replace them; whatever no stage sets keeps
+   * the default, so a plain browse searches exactly as before.
+   */
+  defaultedFields?: readonly DefaultedField[];
+  /**
    * Restrict to jobs whose `min_years_experience` falls in this bucket — OR
    * that lack the field entirely (see `buildFilter`'s composed clause,
    * meilisearch.ts). The missing-field union is REQUIRED, not an edge case:
@@ -415,6 +423,14 @@ export interface JobSearchParams {
    * location as zero roles there (`locationDropped`, broaden.ts).
    */
   unmatchedPlaceMentions?: string[];
+  /**
+   * Typed fragments the LLM stage (`applyLlmUnderstanding`) could not turn into
+   * a filter, plus anything it was told to exclude. A different fact from
+   * `unmatchedPlaceMentions` (that one is place words the corpus lacks and
+   * suppresses the IP default); this is "we searched without this", surfaced
+   * by `unmatchedQueryNote` (result-state.ts), never dropped silently.
+   */
+  unmatchedQueryMentions?: string[];
   limit?: number;
   offset?: number;
   /** Request facet distributions (counts per value) to drive the filter UI. */
@@ -527,6 +543,13 @@ export interface PlaceClause {
    * (meilisearch.ts) is the only reader.
    */
   remoteAnywhere?: true;
+  /**
+   * The place as the searcher would type it ("Canada", "Toronto"), set only
+   * on clauses the query-understanding stages read out of free text. The
+   * client re-submits it as a location facet so the place shows up as an
+   * ordinary removable chip (see `diffUnderstood`, understood.ts).
+   */
+  label?: string;
 }
 
 export type JobsBackendKind = "meilisearch" | "snapshot-preview" | "unconfigured";

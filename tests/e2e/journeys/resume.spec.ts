@@ -375,8 +375,6 @@ test("A signed-in import that doesn't reach the account says so, keeps the résu
   await dialog.getByTestId("resume-import-parse-primary").click();
   await expect(dialog.getByRole("button", { name: "Back" })).toBeVisible({ timeout: 30_000 });
   await dialog.locator('[data-slot="dialog-footer"]').getByRole("button").last().click();
-  // The first look at the packs opens over the page; the message waits behind it.
-  await page.getByRole("dialog").getByRole("button", { name: /^Got it/ }).click({ timeout: 30_000 });
 
   const notSaved = page.getByRole("alert").filter({ hasText: "Your résumé didn't save to your account" });
   await expect(notSaved).toBeVisible({ timeout: 15_000 });

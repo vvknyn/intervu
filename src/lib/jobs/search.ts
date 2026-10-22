@@ -20,6 +20,7 @@ import {
 } from "./meilisearch";
 import { previewEnabled, searchSnapshotPreview } from "./snapshot-preview";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "./result-state";
+import { applyLlmUnderstanding } from "./llm-understanding";
 import { applyQueryUnderstanding, resolveLocationFacet, type LocationVocabulary } from "./query-understanding";
 import { loadGazetteer } from "../geo/gazetteer";
 import { createCorpusValueChecker } from "../geo/corpus-values";
@@ -27,6 +28,8 @@ import type { CountryLookup } from "../geo/ip-country";
 import { applyLocationDefault } from "../geo/ip-default";
 import { getDegradedServe, sharedLiveSearch, type SearchServeMeta } from "./search-cache";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, JobSuggestions } from "./types";
+import { restoreDefaults, stripDefaulted } from "./search-defaults";
+import { diffUnderstood, understoodSource, type UnderstoodSearch } from "./understood";
 export type { SearchServeMeta } from "./search-cache";
 
 export function activeBackend(): JobsBackendKind {
@@ -100,13 +103,36 @@ export async function locationVocabulary(): Promise<LocationVocabulary> {
  * typed/picked, not a guess from request IP.
  */
 export async function understandSearchParams(raw: JobSearchParams): Promise<JobSearchParams> {
+  return (await understandWithDiff(raw)).params;
+}
+
+/** `understandSearchParams` plus what its stages set that the caller did not (see `diffUnderstood`). */
+async function understandWithDiff(raw: JobSearchParams): Promise<{ params: JobSearchParams; understood?: UnderstoodSearch }> {
   const needsVocab =
     !raw.id && Boolean((raw.q ?? "").trim() || LOCATION_FACET_FIELDS.some((f) => raw.facets?.[f]?.length));
   const vocab = needsVocab ? await locationVocabulary() : undefined;
-  return vocab
-    ? await resolveLocationFacet(await applyQueryUnderstanding(raw, vocab), vocab)
-    : await applyQueryUnderstanding(raw, vocab);
+  // Stages see the request without its untouched defaults (a default is not a
+  // selection); the diff is taken before the defaults go back, so it names only
+  // what the stages set.
+  const chosen = stripDefaulted(raw);
+  const deterministic = await applyQueryUnderstanding(chosen, vocab);
+  if (!vocab) {
+    return { params: restoreDefaults(deterministic, raw), understood: diffUnderstood(chosen, deterministic, "deterministic") };
+  }
+  const final = await applyLlmUnderstanding(deterministic, { vocab });
+  return {
+    params: restoreDefaults(await resolveLocationFacet(final, vocab), raw),
+    understood: diffUnderstood(chosen, final, understoodSource(deterministic, final)),
+  };
 }
+
+/** The request-scoped "we searched without this" facts, spread onto every
+ *  return point (see the `unmatchedPlaceMentions` note in searchJobs). */
+const requestMentions = (p: JobSearchParams, understood?: UnderstoodSearch) => ({
+  ...(understood && { understood }),
+  ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+  ...(p.unmatchedQueryMentions && { unmatchedQueryMentions: p.unmatchedQueryMentions }),
+});
 
 export async function searchJobs(
   raw: JobSearchParams,
@@ -129,6 +155,8 @@ export async function searchJobs(
      *  through every return point below. */
     remoteAnywhere?: boolean;
     unmatchedPlaceMentions?: string[];
+    unmatchedQueryMentions?: string[];
+    understood?: UnderstoodSearch;
   }
 > {
   // Vocabulary is only relevant when there's something to resolve — query
@@ -139,7 +167,7 @@ export async function searchJobs(
   // text, no country) can't silently skip resolution and leak an
   // unconverted facet into `buildFilter`'s generic AND-across-keys loop. The
   // dead-link id probe and plain browses skip the lookup entirely.
-  const understood = await understandSearchParams(raw);
+  const { params: understood, understood: heard } = await understandWithDiff(raw);
 
   // IP country default — last in the understanding pipeline, and only when
   // NOTHING else already said where to search: not a typed/MCP place, not
@@ -190,7 +218,7 @@ export async function searchJobs(
         ...result,
         meta: { degraded: false, servedFrom: "live" },
         ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+        ...requestMentions(p, heard),
       };
     }
     if (backend === "snapshot-preview") {
@@ -198,7 +226,7 @@ export async function searchJobs(
         ...(await searchSnapshotPreview(p)),
         effectiveQ: p.q ?? "",
         ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-        ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+        ...requestMentions(p, heard),
       };
     }
   } catch (e) {
@@ -226,8 +254,7 @@ export async function searchJobs(
           // it must not be stamped there. Same reasoning for
           // `unmatchedPlaceMentions`.
           ...(degraded.servedKey === "exact" && defaultedLocation && { defaultedLocation, remoteAnywhere }),
-          ...(degraded.servedKey === "exact" &&
-            p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+          ...(degraded.servedKey === "exact" && requestMentions(p, heard)),
         };
       }
     }
@@ -242,7 +269,7 @@ export async function searchJobs(
       unavailable: true,
       note: SEARCH_UNAVAILABLE_MESSAGE,
       ...(defaultedLocation && { defaultedLocation, remoteAnywhere }),
-      ...(p.unmatchedPlaceMentions && { unmatchedPlaceMentions: p.unmatchedPlaceMentions }),
+      ...requestMentions(p, heard),
     };
   }
   // Config-error state (no backend configured at all), not a search
