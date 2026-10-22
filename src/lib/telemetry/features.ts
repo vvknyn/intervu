@@ -183,6 +183,25 @@ function extractDescriptionFacts(description: string | null) {
   };
 }
 
+/** Fields the extractor dereferences unguarded (`job.title.length`,
+ *  `source.replace`). A Meili doc missing any of them (e.g. id-only stubs) is
+ *  skipped, not extracted. */
+export const REQUIRED_STRING_FIELDS = ["id", "title", "source"] as const;
+
+export function hasRequiredFeatureFields(doc: Partial<PublicJob>): doc is PublicJob {
+  return REQUIRED_STRING_FIELDS.every((f) => typeof doc[f] === "string");
+}
+
+/** Extracts features for every complete doc and counts the rest — one bad doc
+ *  must not crash the whole run. */
+export function extractJobFeaturesBatch(
+  jobs: Partial<PublicJob>[],
+  now: number,
+): { features: JobFeatures[]; skipped: number } {
+  const features = jobs.filter(hasRequiredFeatureFields).map((job) => extractJobFeatures(job, now));
+  return { features, skipped: jobs.length - features.length };
+}
+
 /** `now` is injected (epoch ms) so `computed_at`/`days_open` are
  *  deterministic under test, matching the house clock-injection pattern
  *  (`SearchLogContext.now` in `@/lib/jobs/search-log`). */
