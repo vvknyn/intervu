@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     seniorityFromYears,
+    experienceLevelFacet,
     resumeSeniority,
     resumeSeniorityBasis,
     buildMatchQuery,
@@ -72,7 +73,7 @@ describe('resumeSeniority', () => {
         ]);
         assert.equal(resumeSeniority(tam, NOW), 'senior');
         assert.equal(resumeSeniorityBasis(tam, NOW)?.led, true);
-        assert.deepEqual(buildMatchQuery(tam).facets.experience_level, ['mid', 'senior', 'lead']);
+        assert.deepEqual(experienceLevelFacet(resumeSeniority(tam, NOW), tam), ['mid', 'senior', 'lead']);
     });
     it('counts every role of the same kind, so a promotion path stays senior', () => {
         const swe = resume(10, [
@@ -173,17 +174,10 @@ describe('buildMatchQuery', () => {
         assert.match(out.q, /backend engineer|software engineer|senior backend engineer/i);
         assert.doesNotMatch(out.q, /\bgo\b|\bkafka\b/i);
     });
-    it('widens seniority to mid+senior so adjacent mid-level roles stay visible', () => {
-        const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 8 }));
-        assert.deepEqual(out.facets.experience_level, ['mid', 'senior', 'lead']);
-    });
-    it('derives mid-only experience_level for mid seniority', () => {
-        const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 4 }));
-        assert.deepEqual(out.facets.experience_level, ['mid']);
-    });
-    it('omits experience_level when years is 0/unknown', () => {
-        const out = buildMatchQuery(mk({ profession: 'X', yearsOfExperience: 0 }));
-        assert.equal(out.facets.experience_level, undefined);
+    it('derives no facets at any seniority: the résumé ranks, it never filters', () => {
+        for (const yearsOfExperience of [0, 4, 8]) {
+            assert.deepEqual(buildMatchQuery(mk({ profession: 'X', yearsOfExperience })).facets, {}, String(yearsOfExperience));
+        }
     });
     it('falls back to top skills when profession is missing (skills-only résumé)', () => {
         const out = buildMatchQuery(
@@ -520,9 +514,8 @@ Python, SQL, Pandas, scikit-learn, Tableau, Statistics`;
         assert.ok(titles.includes('Full Stack Developer'), titles.join(', '));
     });
 
-    it('a data science intern keeps the data titles that share its line of work, and searches entry level', () => {
+    it('a data science intern keeps the data titles that share its line of work', () => {
         const q = buildMatchQuery(read(INTERN), 2026);
         assert.deepEqual(q.phrases, ['Data Science Intern', 'Data Analyst', 'Data Engineer']);
-        assert.deepEqual(q.facets.experience_level, ['entry']);
     });
 });

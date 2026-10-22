@@ -57,10 +57,10 @@ describe('stated roles: typos and evidence', () => {
         assert.equal(roleAffinity(TAM_PO, job('Customer Success Manager'), roles), 'adjacent');
     });
 
-    it('a stated mid beside a long led career retrieves and fits Senior', () => {
+    it('a stated mid beside a long led career fits Senior, and the pack does not filter by level', () => {
         const signals = resolveCandidateSignals(TAM_PO, STATED);
         assert.equal(signals.seniority.value, 'senior');
-        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior', 'lead']);
+        assert.equal(packFilters(TAM_PO, signals).facets.experience_level, undefined);
     });
 });
 
@@ -108,8 +108,8 @@ describe('a senior candidate gets mid-level roles too', async () => {
         mkJob(id, { title, location: 'Remote - Canada', location_country: 'Canada', work_type: 'remote', experience_level: level, posted_ts: NOW - 2 * 86_400_000 });
     const score = (j: ReturnType<typeof job>) => scoreJobAgainstResume(TAM_PO, j, signals)!;
 
-    it('retrieves mid and senior', () => {
-        assert.deepEqual(packFilters(TAM_PO, signals).facets.experience_level, ['mid', 'senior', 'lead']);
+    it('retrieves every level: the stated level ranks, it does not filter', () => {
+        assert.equal(packFilters(TAM_PO, signals).facets.experience_level, undefined);
     });
 
     it('a mid-level role fits: same seniority score as a senior one, not capped under Good', () => {
