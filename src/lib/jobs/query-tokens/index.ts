@@ -1,5 +1,6 @@
 import type { JobSearchParams } from "../types";
 import { tidy } from "./consume";
+import { parseExclusionTokens } from "./exclusions";
 import { parseEmploymentTypeTokens } from "./employment-type";
 import { parsePostedWindowTokens } from "./posted-window";
 import { parseSalaryTokens } from "./salary";
@@ -47,6 +48,10 @@ export function applyTypedFilterTokens(p: JobSearchParams): JobSearchParams {
       next.facets = { ...p.facets, employment_type: employment.employmentTypes };
     }
   }
+
+  const exclusions = parseExclusionTokens(q);
+  q = exclusions.residualQ;
+  mentions.push(...exclusions.mentions);
 
   if (mentions.length) next.unmatchedQueryMentions = [...new Set([...(p.unmatchedQueryMentions ?? []), ...mentions])];
   return q === (p.q ?? "").trim() && !mentions.length ? p : { ...next, q: tidy(q) };
