@@ -37,6 +37,19 @@ export function parseTrackerStage(value: string | null | undefined): BoardColumn
     return value && BOARD_COLUMN_IDS.has(value) ? (value as BoardColumn) : null;
 }
 
+export type TrackerBoardLayout = "lanes" | "tabs";
+
+/** Wide viewports (md+) keep the kanban lanes; phones get a tab per lane over the same cards. */
+export function trackerBoardLayout(isMdUp: boolean): TrackerBoardLayout {
+    return isMdUp ? "lanes" : "tabs";
+}
+
+/** Lanes to render: a `?stage=` filter wins, else every lane (lanes) or the active tab's lane (tabs). */
+export function trackerLanesToRender(layout: TrackerBoardLayout, stage: BoardColumn | null, activeTab: BoardColumn): BoardColumn[] {
+    if (stage) return [stage];
+    return layout === "lanes" ? TRACKER_BOARD_COLUMNS.map(({ column }) => column) : [activeTab];
+}
+
 /** Which board columns to render for the active chip filter. */
 export function visibleTrackerBoardColumns(filter: TrackerFilter): BoardColumn[] {
     if (filter === "all") return TRACKER_BOARD_COLUMNS.map(({ column }) => column);

@@ -8,6 +8,13 @@ import type { Pursuit } from "@/lib/pursuits/types";
 /** Default daily goal — middle of the 10–15 soft pace. */
 export const DEFAULT_DAILY_APPLY_GOAL = 12;
 
+/** The "Today N/12" plan line only shows once the user is actually at pace. */
+const DAILY_PLAN_MIN_APPLIED = 10;
+
+export function showDailyPlan(appliedToday: number): boolean {
+    return appliedToday >= DAILY_PLAN_MIN_APPLIED;
+}
+
 /** Soft pace copy for hub tip — quiet Swiss, no AI-slop. */
 export const DAILY_APPLY_HUB_TIP =
     "Aim for 10–15 tailored applies today. Tracker counts mark-applied.";
