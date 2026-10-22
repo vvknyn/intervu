@@ -15,6 +15,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { afterPursuitsReadHold } from "@/lib/pursuits/read-hold";
 import { createServerListCache } from "@/lib/server-list-cache";
 import { getApplications, upsertPursuitForJob, createManualPursuit } from "@/actions/application";
 import { keepGuestAppliedResumeAction } from "@/actions/applications";
@@ -22,7 +23,10 @@ import type { Pursuit } from "@/lib/pursuits/types";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
 import { listGuestPursuits, clearGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
 
-const server = createServerListCache(getApplications);
+const server = createServerListCache(async () => {
+    await afterPursuitsReadHold();
+    return getApplications();
+});
 
 export function invalidatePursuitsCache(): void {
     server.invalidate();

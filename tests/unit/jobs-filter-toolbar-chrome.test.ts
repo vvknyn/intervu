@@ -315,13 +315,15 @@ describe("jobs filter toolbar chrome", () => {
         }
     });
 
-    it("Rank by fit and compact Save search use quiet text, not chipVariants", () => {
+    it("Rank by fit is the outlined action Button, compact Save search uses quiet text, neither uses chipVariants", () => {
         const page = readFileSync(PAGE, "utf8");
         const saved = readFileSync(SAVED_SEARCHES, "utf8");
-        const rankBlock = page.slice(page.indexOf('data-testid="jobs-rank-by-fit"'), page.indexOf('data-testid="jobs-rank-by-fit"') + 350);
+        const rankAt = page.indexOf('data-testid="jobs-rank-by-fit"');
+        const rankBlock = page.slice(page.lastIndexOf("<Button", rankAt), rankAt + 350);
         assert.doesNotMatch(rankBlock, /chipVariants/);
-        // Quiet text on the button face: the step sets the type (2026-09-29).
-        assert.match(rankBlock, /"ctl-button [^"]*text-foreground/);
+        // The outlined action of the detail pane's "Customize résumé" (same Button variant and size token).
+        assert.match(rankBlock, /variant="outline"/);
+        assert.match(rankBlock, /size=\{jobActionSize\}/);
         assert.doesNotMatch(rankBlock, /\btext-(?:xs|sm)\b|\bfont-semibold\b/);
 
         const asOfBlock = page.slice(page.indexOf('data-testid="resume-as-of"'), page.indexOf('data-testid="resume-as-of"') + 550);

@@ -55,6 +55,7 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
 import { takeEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
+import { holdPursuitsRead, releasePursuitsRead } from "@/lib/pursuits/read-hold";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
@@ -136,7 +137,7 @@ import { indexCategories } from "@/lib/jobs/index-categories";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
-import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { jobActionSize, toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -172,7 +173,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
-import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
+import { searchBoxFor } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace, offersRankByFit } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
@@ -294,7 +295,7 @@ import {
 } from "@/lib/jobs/resume-cta-copy";
 import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
-import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
+import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel, sortTriggerLabel } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type JobSearchParams,
@@ -321,7 +322,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitUrlState, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, keepsTypedQuery, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
@@ -702,6 +703,8 @@ function DeadJobUnresolved({
 /** Page size for SERP results + each infinite-scroll / Show more chunk.
  *  The early first search JobsRouteGate sends uses the same size
  *  (`SEARCH_FIRST_PAGE_SIZE`, pinned equal by early-first-search.test.ts). */
+/** The longest the tracker read waits for the first search before it goes anyway. */
+const PURSUITS_HOLD_MAX_MS = 4000;
 const PAGE = 20;
 /**
  * Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). The index orders a
@@ -1623,6 +1626,8 @@ export function JobsContent({
             setEmailNudgeOpen(false);
             return;
         }
+        // Not needed for rows: it waits for the first search so it never queues ahead of it.
+        if (!firstSearchSettled) return;
         // A failed read (one still queued when the page is left fails) shows no nudge, never a page error.
         void getAccountEmailStateAction()
             .then((res) => {
@@ -1631,7 +1636,7 @@ export function JobsContent({
                 setAccountPendingEmail(res.data.pendingEmail);
             })
             .catch(() => {});
-    }, [user?.uid]);
+    }, [user?.uid, firstSearchSettled]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
     // is not available during SSR). `guestSaveCount` drives both the banner
@@ -1679,6 +1684,15 @@ export function JobsContent({
     }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
+    // The tracker read (rows are filtered by it, never dropped) queues behind the first search.
+    useLayoutEffect(() => {
+        holdPursuitsRead(PURSUITS_HOLD_MAX_MS);
+        return releasePursuitsRead;
+    }, []);
+    useEffect(() => {
+        if (!firstSearchSettled) return;
+        releasePursuitsRead();
+    }, [firstSearchSettled]);
     const { byJobId: pursuitsByJobId, pursuits, loading: pursuitsLoading } = usePursuits();
     const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
     const pursuitsByJobIdMerged = useMemo(() => {
@@ -1740,6 +1754,7 @@ export function JobsContent({
     keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    const searchBox = searchBoxFor(queryDraft, query, fitActive, pack?.q ?? null);
     // The phrases the résumé's own search also looks for in a posting's text (`resumeContentMark`), read by the search effects.
     const packContentRef = useRef<{ q: string; phrases: string[] } | null>(null);
     packContentRef.current = useMemo(() => (resume && pack ? { q: pack.q.trim(), phrases: packContentPhrases(resume, pack.q) } : null), [resume, pack]);
@@ -3638,13 +3653,13 @@ export function JobsContent({
             return;
         }
         setDocked({
-            value: queryDraft,
+            value: searchBox.value,
             onChange: setQueryDraft,
             onSubmit: (v) => {
                 searchAutocompleteRef.current?.close();
                 submitSearchRef.current(v);
             },
-            placeholder: SEARCH_PLACEHOLDER,
+            placeholder: searchBox.placeholder,
             // FacetBar-owned filters (salary, posted, work mode, experience)
             // render as dropdown chips — only the leftovers become dismiss chips.
             // The applied-location-default chip is PREPENDED by the same
@@ -3678,7 +3693,7 @@ export function JobsContent({
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showSearchHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
+    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -4128,6 +4143,13 @@ export function JobsContent({
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
+        // The server's own read of the stored résumé (until this page takes a newer one): no second read before the first search.
+        const seeded = initial?.resume && resumeGenerationRef.current === 0 && resumeOnFile !== false ? storedResumeData(initial.resume.data, initial.resume.text) : undefined;
+        if (seeded && resumeIsUsable(seeded)) {
+            setResume(seeded);
+            setResumeUpdatedAt(initial?.resume?.updatedAt ?? null);
+            return seeded;
+        }
         // A read that started before an upload must not put the old résumé back when it lands.
         const generation = resumeGenerationRef.current;
         const readLocalFallback = (): ResumeData | null => {
@@ -4191,7 +4213,15 @@ export function JobsContent({
         // the server's signed-in redirect so both land on one address). A recommendation uses the pack's own
         // window (30 days, or Settings › Posted within), not the board's 90-day default: ~half of the roles of
         // that window were older than 30 days (2026-10-13). A window picked by hand stays theirs.
+        const base = buildUrlState();
         const fit = fitApplication(r, agentPrefs, { facets, postedExplicit });
+        if (keepsTypedQuery(base)) {
+            // A search the visitor typed is theirs: fit only ranks it (the résumé terms still score every row).
+            setSortOverride(null);
+            setFitActive(true);
+            applyUrlState(fitRankUrlState(base, fit), "replace");
+            return;
+        }
         setFacets(fit.facets);
         if (!fit.keepUserWindow) {
             setPostedBucket(fit.postedBucket);
@@ -4201,7 +4231,7 @@ export function JobsContent({
         setQuery(fit.q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(fitUrlState(buildUrlState(), fit), "replace");
+        applyUrlState(fitUrlState(base, fit), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -5030,28 +5060,29 @@ export function JobsContent({
     // rows when it appears.
     const rankByFitPending = initialSearch != null && !fitActive && resumeOnFile === null;
     const rankByFitEl = showRankByFit ? (
-        <button
+        <Button
             type="button"
+            variant="outline"
+            size={jobActionSize}
             data-testid="jobs-rank-by-fit"
             title={RANK_SECONDARY_COPY}
             onClick={() => void handleRankByFit()}
-            className={cn(
-                toolbarControlHeight,
-                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
-            )}
+            className="shrink-0 whitespace-nowrap"
         >
             Rank with my résumé
-        </button>
+        </Button>
     ) : rankByFitPending ? (
-        <button
+        <Button
             type="button"
+            variant="outline"
+            size={jobActionSize}
             aria-hidden
             tabIndex={-1}
             disabled
-            className={cn(toolbarControlHeight, "ctl-button invisible inline-flex shrink-0 items-center whitespace-nowrap")}
+            className="invisible shrink-0 whitespace-nowrap"
         >
             Rank with my résumé
-        </button>
+        </Button>
     ) : null;
 
     const savedSearchMountEl =
@@ -5140,7 +5171,7 @@ export function JobsContent({
         <div className="relative flex h-full w-full items-center">
             <SearchAutocomplete
                 ref={searchAutocompleteRef}
-                value={queryDraft}
+                value={searchBox.value}
                 onChange={setQueryDraft}
                 onSearch={() => {
                     searchAutocompleteRef.current?.close();
@@ -5152,7 +5183,7 @@ export function JobsContent({
                 }}
                 suggest={suggestForBox}
                 seeds={searchSeeds}
-                placeholder={SEARCH_PLACEHOLDER}
+                placeholder={searchBox.placeholder}
                 ariaLabel="Search"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
@@ -5165,7 +5196,7 @@ export function JobsContent({
     // segmented group always has exactly one filled segment, which reads as
     // a filled button living in a region required to carry zero).
     const relevanceLabel = sortOptionLabel("relevance", resumeOnFile);
-    const sortLabel = fitActive ? relevanceLabel : sortOptionLabel(effectiveSort, resumeOnFile);
+    const sortLabel = sortTriggerLabel(effectiveSort, resumeOnFile, fitActive);
     const sortEl = result?.configured ? (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -5480,7 +5511,7 @@ export function JobsContent({
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
-                                    value={queryDraft}
+                                    value={searchBox.value}
                                     onChange={(v) => {
                                         setQueryDraft(v);
                                     }}
@@ -5496,7 +5527,7 @@ export function JobsContent({
                                     }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
-                                    placeholder={SEARCH_PLACEHOLDER}
+                                    placeholder={searchBox.placeholder}
                                     ariaLabel="Search"
                                     name="q"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}

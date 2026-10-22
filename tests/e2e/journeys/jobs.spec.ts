@@ -922,6 +922,28 @@ signedInTest("a list opened for the first time on a device makes no claim about 
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
+signedInTest("a fit list on the résumé's own query shows an empty box that searches within the matches, and ranking a typed search keeps it", { tag: ["@J-JOBS-160"] }, async ({ page, diagnostics }) => {
+  await returningVisitor(page);
+  await withResume(page, "Toronto, Ontario, Canada");
+  await answerFitList(page, [remoteRole("fit-a", "Software Engineer", "Remote, Canada"), remoteRole("fit-b", "Software Engineer", "Remote, Canada")], "e2e-rank-keeps-query");
+  // The résumé's own query is in the address but not in the box.
+  await page.goto("/jobs");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(page.getByTestId("job-row")).toHaveCount(2, { timeout: 60_000 });
+  await expect(page.getByLabel("Search", { exact: true }).first()).toHaveValue("");
+  await expect(page.getByLabel("Search", { exact: true }).first()).toHaveAttribute("placeholder", "Search within your matches");
+  // A search the visitor typed stays theirs when they rank it by fit.
+  await page.goto("/jobs?q=nurse&sort=relevance");
+  await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 60_000 });
+  await page.getByTestId("jobs-sort-trigger").click();
+  await page.getByTestId("jobs-sort-relevance").click();
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/[?&]q=nurse/);
+  await expect(page.getByLabel("Search", { exact: true }).first()).toHaveValue("nurse");
+  expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
+  expect(diagnostics.serverErrors).toEqual([]);
+});
+
 test("a guest's Search names the résumé it ranks against, and Remove forgets it for good", { tag: ["@J-JOBS-61"] }, async ({ page, diagnostics }) => {
   await returningVisitor(page);
   // The upload's file name, as the importer stores it. Seeded once, so the reload below finds what Remove left.
