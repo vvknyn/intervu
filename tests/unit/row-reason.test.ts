@@ -13,7 +13,7 @@ const resume = { profile: { profession: "Senior Product Manager" }, experience: 
 // One realistic detail per key, with the long " — verdict" tail each generator appends.
 const DETAIL: Record<(typeof MATCH_COMPONENT_KEYS)[number], string> = {
     relevance: "7 of 12 terms this role names",
-    seniority: "mid-level role — matches your mid-level level (5 years of experience)",
+    seniority: "senior role — matches your senior level (10 years of experience)",
     location: "remote — matches your remote-only preference and the long tail that follows it",
 };
 
@@ -25,10 +25,15 @@ describe("rowReasonLine (compact row form)", () => {
         it(`${key}: lead clause only, within the bound`, () => {
             const line = rowReasonLine(job, score({ key }), null)!;
             assert.ok(line.length <= ROW_REASON_MAX, line);
-            assert.ok(!line.includes(" — "), line);
+            assert.ok(!line.includes("("), line);
             assert.ok(line.startsWith(key[0].toUpperCase() + key.slice(1) + ": "), line);
         });
     }
+
+    it("keeps the fit claim when it fits (parenthetical dropped), falls back to the lead clause when it overflows", () => {
+        assert.equal(rowReasonLine(job, score({ key: "seniority" }), null), "Seniority: senior role — matches your senior level");
+        assert.equal(rowReasonLine(job, score({ key: "location" }), null), "Location: remote");
+    });
 
     it("title overlap is compact and bounded, even for a very long résumé role", () => {
         const pm = { id: "2", title: "Senior Product Manager" } as PublicJob;
