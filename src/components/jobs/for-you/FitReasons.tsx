@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { MatchChip } from "@/components/jobs/MatchChip";
+import { Button } from "@/components/ui/button";
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
 import { inferReasons, TITLE_OVERLAP_LEAD } from "@/lib/jobs/for-you/infer-reasons";
@@ -11,6 +12,8 @@ import { fitTerms } from "@/lib/match/fit-terms";
 import { SignalChip } from "@/components/jobs/SignalChip";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
+import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
+import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
 
 /** Quiet row-label treatment: sentence case, normal tracking, on-scale size
@@ -135,5 +138,28 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                 )}
             </div>
         </details>
+    );
+}
+
+/**
+ * The one place a role's detail asks a visitor without a résumé for one: the
+ * "Why this fits" section it would fill. Replaces the same button that used to
+ * repeat in every role's action row.
+ */
+export function FitReasonsUploadSlot({ onUploadResume }: { onUploadResume: () => void }) {
+    return (
+        <section data-testid="fit-upload-slot" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-panel bg-surface px-4 py-3.5">
+            <h3 className="text-sm font-semibold text-foreground">Why this fits</h3>
+            <Button
+                size={jobActionSize}
+                type="button"
+                variant="outline"
+                data-testid="job-detail-upload-to-customize"
+                onClick={onUploadResume}
+                className="shrink-0"
+            >
+                {UPLOAD_TO_CUSTOMIZE_LABEL}
+            </Button>
+        </section>
     );
 }

@@ -11,12 +11,9 @@ import {
 const ROOT = join(__dirname, "..", "..");
 
 const ONBOARDING_PROSE_FILES = [
-    "src/components/onboarding/WelcomeStrip.tsx",
     "src/components/onboarding/SetupSheet.tsx",
-    "src/components/onboarding/SetupPanel.tsx",
     "src/components/onboarding/SetupSteps.tsx",
     "src/lib/onboarding/steps.ts",
-    "src/lib/onboarding/copy.ts",
 ];
 
 /** Standalone lowercase product name — not velai.app URLs or code identifiers. */

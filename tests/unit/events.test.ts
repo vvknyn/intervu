@@ -105,7 +105,6 @@ test("ANALYTICS_EVENTS pins the exact wire name for every declared event", () =>
     landed_pledge_clicked: "landed_pledge_clicked",
     list_rendered: "list_rendered",
     saved_search_created: "saved_search_created",
-    onboarding_strip_shown: "onboarding_strip_shown",
     onboarding_setup_opened: "onboarding_setup_opened",
     onboarding_step_answered: "onboarding_step_answered",
     onboarding_later: "onboarding_later",

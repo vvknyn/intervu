@@ -2,48 +2,53 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     AUTH_CTA_LABEL,
-    AUTH_GATE_RESUME_ACCOUNT_LINE,
     authCardCopy,
-    authGateTitle,
+    authGateCopy,
     formatAuthGateValueLine,
     guestKeepLine,
     SIGNUP_SUBCOPY,
     RESUME_UPLOAD_CTA,
+    type AuthGateReason,
 } from "../../src/lib/auth/auth-gate-copy";
+import { SIGNUP_GATE_ID_BY_REASON } from "../../src/lib/auth/gate-attempt";
 import { RESUME_LOCAL_DEVICE_BANNER } from "../../src/lib/jobs/resume-privacy-copy";
+
+/** Every reason the app emits (gate-attempt.ts keys one row per `AuthGateReason`). */
+const REASONS = Object.keys(SIGNUP_GATE_ID_BY_REASON) as AuthGateReason[];
+
 test("guestKeepLine is null for zero count", () => {
     assert.equal(guestKeepLine(0), null);
 });
 
-test("formatAuthGateValueLine for save mentions tracker sync", () => {
-    const line = formatAuthGateValueLine("save", 0);
-    assert.match(line, /sync across devices/i);
+test("authGateCopy: every reason has a title and ONE sentence line, with no copy shared between reasons", () => {
+    assert.equal(REASONS.length, 13);
+    const seen = new Set<string>();
+    for (const reason of REASONS) {
+        const { title, line } = authGateCopy(reason);
+        assert.ok(title.length > 0, `${reason} title`);
+        assert.match(line, /^[^.!?]+(\.|: [^.!?]+\.)?$/, `${reason} line is one sentence: ${line}`);
+        for (const text of [title, line]) {
+            assert.ok(!seen.has(text), `${reason} repeats "${text}"`);
+            seen.add(text);
+        }
+    }
 });
 
-test('fit gate has title and body from copy matrix', () => {
-    assert.equal(authGateTitle("fit"), "Create your free account to rank every job by your résumé.");
-    // The card also opens after a guest upload: it must never ask for the résumé again.
-    for (const reason of ["fit", "resume"] as const) {
-        assert.doesNotMatch(authGateTitle(reason)!, /then upload/i);
-        assert.doesNotMatch(formatAuthGateValueLine(reason, 0), /We read your résumé/i);
+test("fit and résumé lines are true before and after an upload and keep the privacy promise", () => {
+    for (const reason of ["fit", "resume", "packs"] as const) {
+        const { title, line } = authGateCopy(reason);
+        assert.doesNotMatch(title, /then upload/i);
+        assert.doesNotMatch(line, /We read your résumé/i);
+        assert.match(line, /encrypted/);
     }
-    assert.match(formatAuthGateValueLine("fit", 0), /personalized job picks/i);
-    assert.match(formatAuthGateValueLine("fit", 0), /Strong\/Good\/Stretch/i);
 });
 
-test("fit and résumé sign-in cards add the account line under the unlock line", () => {
-    for (const reason of ["fit", "resume"] as const) {
-        const line = formatAuthGateValueLine(reason, 0);
-        const unlockAt = line.indexOf("personalized job picks");
-        const accountAt = line.indexOf(AUTH_GATE_RESUME_ACCOUNT_LINE);
-        assert.ok(unlockAt >= 0, reason);
-        assert.ok(accountAt > unlockAt, reason);
-        assert.match(line, /structured version with your account, encrypted, never the original file/);
+test("formatAuthGateValueLine prefixes the saved-role line and keeps the reason's line", () => {
+    for (const reason of ["save", "alert", "company"] as const) {
+        const { line } = authGateCopy(reason);
+        assert.equal(formatAuthGateValueLine(reason, 0), line);
+        assert.equal(formatAuthGateValueLine(reason, 2), `We'll keep the 2 roles you've saved on this device. ${line}`);
     }
-    assert.equal(
-        formatAuthGateValueLine("save", 0).includes(AUTH_GATE_RESUME_ACCOUNT_LINE),
-        false,
-    );
 });
 
 test("résumé-step banner says where the file and the structured résumé are kept", () => {
@@ -51,19 +56,6 @@ test("résumé-step banner says where the file and the structured résumé are k
         RESUME_LOCAL_DEVICE_BANNER,
         "Parsed on this device. The file is read here and never uploaded. The structured result stays in this browser until you sign in, when it is saved to your account encrypted. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.",
     );
-});
-
-test('save gate has title from copy matrix', () => {
-    assert.equal(authGateTitle("save"), "Sign in to save this job to Tracker.");
-});
-
-test('generic and topbar use tracker sync copy', () => {
-    assert.match(formatAuthGateValueLine("generic", 0), /sync your tracker across devices/i);
-    assert.match(formatAuthGateValueLine("topbar", 0), /sync your tracker across devices/i);
-});
-
-test("tailor gate mentions sync, not auth wall before customize", () => {
-    assert.match(formatAuthGateValueLine("tailor", 0), /sync/i);
 });
 
 test("resume upload CTA names the importer — uploading needs no account", () => {

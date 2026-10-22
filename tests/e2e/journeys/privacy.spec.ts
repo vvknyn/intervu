@@ -60,20 +60,16 @@ test("the privacy policy opens with Velai's résumé promises and a Your résum�
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the front door says the résumé stays private in its first screen and links each promise to the policy", { tag: ["@J-JOBS-115"] }, async ({ page, diagnostics }) => {
+test("the front door says the résumé stays private in its first screen and links to the policy", { tag: ["@J-JOBS-115"] }, async ({ page, diagnostics }) => {
   await page.goto("/jobs");
   const line = page.getByTestId("front-door-privacy-line");
   await expect(line).toBeVisible({ timeout: 10_000 });
   await expect(line).toContainText(PRIVACY_HEADLINE);
-  await expect(line.getByRole("link", { name: "How" })).toHaveAttribute("href", "/privacy#your-resume");
-
-  const promises = page.getByTestId("privacy-promises");
-  await promises.scrollIntoViewIfNeeded();
-  await expect(promises).toBeVisible();
-  await expect(promises.locator("[data-promise]")).toHaveCount(PRIVACY_PROMISES.length);
-
-  await promises.locator('[data-promise="encrypted"] a').click();
+  // The promises themselves live on the policy page, not in a band on the front door.
+  await expect(page.getByTestId("privacy-promises")).toHaveCount(0);
+  await line.getByRole("link", { name: "How" }).click();
   await expect(page).toHaveURL(/\/privacy#your-resume$/);
+  await expect(page.getByTestId("privacy-promises")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Your résumé", exact: true })).toBeInViewport();
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);

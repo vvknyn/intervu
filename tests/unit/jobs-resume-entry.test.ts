@@ -1,8 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { needsResumeEntry, needsResumeReplace, offersRankByFit } from '../../src/lib/jobs/resume-entry';
+import { jobsResumeEntries, needsResumeEntry, offersRankByFit, resumeReadLine } from '../../src/lib/jobs/resume-entry';
+import type { ResumeData } from '../../src/types/resume';
 
 describe('needsResumeEntry', () => {
     it('guest, no résumé known — show the entry', () => {
@@ -41,31 +40,6 @@ describe('needsResumeEntry', () => {
     });
 });
 
-describe('needsResumeReplace', () => {
-    it('résumé confirmed on file — show replace (signed in or guest)', () => {
-        assert.equal(needsResumeReplace({ resumeOnFile: true }), true);
-    });
-
-    it('no résumé on file — stay quiet', () => {
-        assert.equal(needsResumeReplace({ resumeOnFile: false }), false);
-    });
-
-    it('presence unknown — stay quiet', () => {
-        assert.equal(needsResumeReplace({ resumeOnFile: null }), false);
-    });
-});
-
-describe('local-ai guest banner replace entry', () => {
-    it('banner wires Replace résumé through handleUploadClick', () => {
-        const page = readFileSync(join(__dirname, '../../src/app/jobs/JobsContent.tsx'), 'utf8');
-        const bannerStart = page.indexOf('data-testid="local-ai-guest-banner"');
-        const bannerEnd = page.indexOf('data-testid="guest-save-banner"', bannerStart);
-        const banner = page.slice(bannerStart, bannerEnd > bannerStart ? bannerEnd : bannerStart + 900);
-        assert.match(banner, /data-testid="local-ai-replace-resume"/);
-        assert.match(banner, /handleUploadClick\(\)/);
-    });
-});
-
 describe('offersRankByFit', () => {
     const cases: Array<[boolean | null, boolean, boolean]> = [
         [true, false, true],
@@ -82,5 +56,39 @@ describe('offersRankByFit', () => {
     }
     it('the add-a-résumé invite stays off for someone who has one', () => {
         assert.equal(needsResumeEntry({ signedIn: true, resumeOnFile: true, fitActive: false }), false);
+    });
+});
+
+describe('jobsResumeEntries', () => {
+    const states: Array<[boolean | null, boolean, string[]]> = [
+        [false, false, ['toolbar', 'sort', 'detail']],
+        [true, false, ['toolbar', 'sort']],
+        [null, false, ['detail']],
+        [true, true, []],
+        [false, true, ['detail']],
+        [null, true, ['detail']],
+    ];
+    for (const [resumeOnFile, fitActive, want] of states) {
+        it(`resumeOnFile=${resumeOnFile} fitActive=${fitActive} -> ${want.join('+') || 'none'}`, () => {
+            const got = jobsResumeEntries({ resumeOnFile, fitActive });
+            assert.deepEqual(got, want);
+            assert.ok(got.length <= 3, 'never more than three résumé entry points on /jobs');
+        });
+    }
+});
+
+describe('resumeReadLine', () => {
+    const resume = (profile: Partial<ResumeData['profile']>, roles: string[] = []) =>
+        ({ profile, experience: roles.map((role) => ({ role })) }) as unknown as ResumeData;
+
+    it('title then place', () => {
+        assert.equal(resumeReadLine(resume({ profession: 'Data Engineer', location: 'Toronto' })), 'We read: Data Engineer · Toronto');
+    });
+    it('falls back to the first experience role when the profile has no title', () => {
+        assert.equal(resumeReadLine(resume({ location: 'Berlin' }, ['', 'Staff Designer'])), 'We read: Staff Designer · Berlin');
+    });
+    it('title alone, and null when it read neither', () => {
+        assert.equal(resumeReadLine(resume({ profession: 'Nurse' })), 'We read: Nurse');
+        assert.equal(resumeReadLine(resume({})), null);
     });
 });

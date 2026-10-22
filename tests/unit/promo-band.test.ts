@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { pickPromoBand } from "../../src/lib/jobs/promo-band";
+import { PROMO_BAND_PRIORITY, pickPromoBand } from "../../src/lib/jobs/promo-band";
 
 test("nothing eligible shows no band", () => {
-    assert.equal(pickPromoBand({ "cold-orientation": false, extension: false }), null);
+    assert.equal(pickPromoBand({ extension: false }), null);
 });
 
-test("a single eligible band shows, whichever it is", () => {
-    assert.equal(pickPromoBand({ "cold-orientation": true, extension: false }), "cold-orientation");
-    assert.equal(pickPromoBand({ "cold-orientation": false, extension: true }), "extension");
+test("an eligible band shows", () => {
+    assert.equal(pickPromoBand({ extension: true }), "extension");
 });
 
-test("two eligible bands never show together: the higher priority wins", () => {
-    assert.equal(pickPromoBand({ "cold-orientation": true, extension: true }), "cold-orientation");
+test("the result is one band id or none, whatever is eligible", () => {
+    const all = Object.fromEntries(PROMO_BAND_PRIORITY.map((id) => [id, true])) as Parameters<typeof pickPromoBand>[0];
+    assert.equal(pickPromoBand(all), PROMO_BAND_PRIORITY[0]);
 });

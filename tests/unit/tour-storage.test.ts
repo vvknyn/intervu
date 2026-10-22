@@ -13,7 +13,6 @@ import {
 const STORAGE_KEY = "intervu-tour-state";
 const PROVIDER = path.join(process.cwd(), "src/components/tour/TourProvider.tsx");
 const OVERLAY = path.join(process.cwd(), "src/components/tour/TourOverlay.tsx");
-const JOBS_PAGE = path.join(process.cwd(), "src/app/jobs/JobsContent.tsx");
 
 class FakeLocalStorage {
   private store = new Map<string, string>();
@@ -85,10 +84,5 @@ test("tour storage", async (t) => {
   await t.test("TourProvider Escape calls minimizeTour", () => {
     const src = readFileSync(PROVIDER, "utf8");
     assert.match(src, /e\.key === "Escape"[\s\S]*?minimizeTour\(\)/);
-  });
-
-  await t.test("jobs auto-start gated on hasSeenTour('jobs')", () => {
-    const src = readFileSync(JOBS_PAGE, "utf8");
-    assert.match(src, /hasSeenTour\("jobs"\)/);
   });
 });

@@ -15,6 +15,7 @@ const REST: SearchIntentInput = {
     explicitlySubmitted: false,
     jobOpen: false,
     fitActive: false,
+    rowsAtArrival: false,
 };
 
 test("at rest (nothing set) has no search intent", () => {
@@ -44,4 +45,8 @@ test("a query typed then cleared before any submit has no search intent — noth
     // own for the transient clauses — only `explicitlySubmitted` is sticky,
     // and it isn't set here.
     assert.equal(hasSearchIntent({ ...REST, query: "" }), false);
+});
+
+test("a viewer whose arrival shows rows (signed out) has search intent with nothing set", () => {
+    assert.equal(hasSearchIntent({ ...REST, rowsAtArrival: true }), true);
 });

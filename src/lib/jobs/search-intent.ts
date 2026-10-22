@@ -6,9 +6,10 @@
  *
  * One OR of every way a visitor can arrive at "show me jobs," so a future
  * entry point is covered by construction instead of a new special case
- * landing here later. Arriving is not one of them: bare /jobs at rest shows
- * no rows (a list needs a reason — a résumé, a search, filters, or the job
- * the visitor came for), where it used to run a newest-roles feed:
+ * landing here later. Arriving is one only where the front door says so
+ * (`rowsAtArrival`, `frontDoorRegions`): a signed-out visitor sees job rows
+ * at once, like every job site. Anyone else at rest shows no rows (a list
+ * needs a reason — a résumé, a search, filters, or the job they came for):
  *
  *  - `query`: the debounced (never per-keystroke) search text is non-empty.
  *  - `filtersAwayFromDefault`: any filter or sort control differs from its
@@ -24,6 +25,8 @@
  *    (see `resolveSelectionAfterRefresh`, result-state.ts). This is the one
  *    URL-carried signal not already implied by `query`/filters/sort above
  *    (which are themselves seeded from the URL on mount).
+ *  - `rowsAtArrival`: the front door lists rows for this viewer on arrival
+ *    (`frontDoorRegions(...).rows`).
  *  - `fitActive`: the list is on "Best match" (a résumé ranks it) — that is
  *    always a ranked-results view, never the at-rest page.
  *
@@ -40,6 +43,7 @@ export interface SearchIntentInput {
     explicitlySubmitted: boolean;
     jobOpen: boolean;
     fitActive: boolean;
+    rowsAtArrival: boolean;
 }
 
 export function hasSearchIntent(input: SearchIntentInput): boolean {
@@ -48,6 +52,7 @@ export function hasSearchIntent(input: SearchIntentInput): boolean {
         input.filtersAwayFromDefault ||
         input.explicitlySubmitted ||
         input.jobOpen ||
-        input.fitActive
+        input.fitActive ||
+        input.rowsAtArrival
     );
 }

@@ -16,7 +16,6 @@ import {
     jobsTabHelperCopy,
 } from "../../src/lib/jobs/resume-cta-copy";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "../../src/lib/marketing/public-copy";
-import { connectTabLabel } from "../../src/components/layout/nav-tabs";
 
 test("jobs tab helper copy matches contract", () => {
     assert.equal(
@@ -87,11 +86,6 @@ test("resume upload promise matches contract", () => {
 test("post-signup résumé gate title matches contract", () => {
     assert.equal(POST_SIGNUP_RESUME_GATE_TITLE, "Upload your résumé");
     assert.doesNotMatch(POST_SIGNUP_RESUME_GATE_TITLE, /jungle|rails|packet/i);
-});
-
-test("connectTabLabel switches on résumé presence", () => {
-    assert.equal(connectTabLabel(false), "Add résumé");
-    assert.equal(connectTabLabel(true), "Résumé & AI");
 });
 
 test("PUBLIC_ANTI_SCORE_SENTENCE matches contract", () => {

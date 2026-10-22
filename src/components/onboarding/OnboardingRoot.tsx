@@ -2,7 +2,7 @@
 
 /**
  * Mounted once under the header (app/layout.tsx): points the setup store at
- * the signed-in account and renders the welcome strip and the setup sheet.
+ * the signed-in account and renders the setup sheet.
  * Renders nothing for a guest or an account with no setup to offer.
  */
 import { useEffect, useRef } from "react";
@@ -11,7 +11,6 @@ import { onAuthChange } from "@/lib/firebase/client-auth";
 import { finishIfAllHeld, loadOnboarding, openSetupSheet, refreshOnboardingIfStale, useOnboarding } from "@/hooks/use-onboarding";
 import { isSetupLink, withoutSetupLink } from "@/lib/onboarding/links";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
-import { WelcomeStrip } from "./WelcomeStrip";
 import { SetupSheet } from "./SetupSheet";
 
 export function OnboardingRoot() {
@@ -53,10 +52,5 @@ export function OnboardingRoot() {
     }, [view, open, pathname]);
 
     if (!view || shouldHideSiteChrome(pathname)) return null;
-    return (
-        <>
-            <WelcomeStrip />
-            <SetupSheet />
-        </>
-    );
+    return <SetupSheet />;
 }

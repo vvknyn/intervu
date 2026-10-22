@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONNECT_TAB, NAV_TABS, TRENDS_TAB, connectTabLabel, mobilePrimaryTabs } from "../../src/components/layout/nav-tabs";
+import { RESUME_TAB, NAV_TABS, TRENDS_TAB, resumeTabLabel, mobilePrimaryTabs } from "../../src/components/layout/nav-tabs";
 
 const TOPBAR = join(__dirname, "..", "..", "src", "components", "layout", "TopBar.tsx");
 const ADMIN = join(__dirname, "..", "..", "src", "app", "admin", "page.tsx");
@@ -22,18 +22,20 @@ test("TRENDS_TAB is a footer-only /trends entry", () => {
     assert.equal(TRENDS_TAB.match("/"), false);
 });
 
-test("Agents tab is present with its own icon and no cta variant", () => {
-    const connect = NAV_TABS.find((t) => t.href === "/connect");
-    assert.ok(connect);
-    assert.equal(connect?.label, "Add résumé");
-    assert.equal(connect?.shortLabel, "Add résumé");
-    assert.ok(connect?.icon);
-    assert.equal(connect?.variant, undefined);
+test("the nav has exactly one résumé entry and it points at /resume, not the AI pairing", () => {
+    const resumeTabs = NAV_TABS.filter((t) => /résumé/i.test(t.label));
+    assert.deepEqual(resumeTabs, [RESUME_TAB]);
+    assert.equal(RESUME_TAB.href, "/resume");
+    assert.equal(RESUME_TAB.match("/resume"), true);
+    assert.equal(RESUME_TAB.match("/connect"), false);
+    assert.ok(RESUME_TAB.icon);
+    assert.equal(RESUME_TAB.variant, undefined);
+    assert.ok(!NAV_TABS.some((t) => t.href === "/connect"), "the AI pairing is reached from Settings, not the nav");
 });
 
-test("connectTabLabel reflects résumé presence without hardcoding Connect AI", () => {
-    assert.equal(connectTabLabel(false), "Add résumé");
-    assert.equal(connectTabLabel(true), "Résumé & AI");
+test("resumeTabLabel reflects résumé presence, connected and not", () => {
+    assert.equal(resumeTabLabel(false), "Add résumé");
+    assert.equal(resumeTabLabel(true), "Résumé & AI");
 });
 
 test("NAV_TABS no longer markets /prep or /resume-builder as top-level nav", () => {
@@ -59,17 +61,8 @@ test("mobilePrimaryTabs: mobilePrimary:false is excluded; a tab without the fiel
     assert.deepEqual(result.map((t) => t.href), ["/unset"]);
 });
 
-test("Connect AI tab opts out of the mobile bar but stays a desktop bar tab", () => {
-    assert.equal(CONNECT_TAB.mobilePrimary, false);
-    assert.ok(NAV_TABS.includes(CONNECT_TAB), "must still be in the desktop-rendered NAV_TABS");
-    assert.ok(!mobilePrimaryTabs(NAV_TABS).includes(CONNECT_TAB), "must be filtered out of the mobile bar's tab list");
-});
-
-test("Connect nav is not active on /openclaw", () => {
-    const agents = NAV_TABS.find((t) => t.href === "/connect");
-    assert.ok(agents);
-    assert.equal(agents!.match("/openclaw"), false);
-    assert.equal(agents!.match("/connect"), true);
+test("the résumé tab is on the mobile bar as well as the desktop bar", () => {
+    assert.ok(mobilePrimaryTabs(NAV_TABS).includes(RESUME_TAB));
 });
 
 test("current-page marker is the shared tab primitive's bar, driven by aria-current", () => {

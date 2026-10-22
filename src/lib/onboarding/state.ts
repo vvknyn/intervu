@@ -113,26 +113,6 @@ export function setupOpen(record: OnboardingRecord | null, outcomes: StepOutcome
     return record?.state === "open" && outcomes !== null && firstOpenStep(outcomes) !== null;
 }
 
-/**
- * Whether the welcome strip shows today: setup still open, not put off with
- * Later today, and today is one of the first `STRIP_VISIT_DAYS` days it
- * showed on. `day` is which of those days today is (1-based), and
- * `recordDay` says today still has to be added to the record.
- */
-export function stripDecision(
-    record: OnboardingRecord | null,
-    outcomes: StepOutcomes | null,
-    today: string,
-): { show: boolean; day: number; recordDay: boolean } {
-    const hidden = { show: false, day: 0, recordDay: false };
-    if (!record || !setupOpen(record, outcomes)) return hidden;
-    if (record.hidden_day === today) return hidden;
-    const at = record.strip_days.indexOf(today);
-    if (at !== -1) return { show: true, day: at + 1, recordDay: false };
-    if (record.strip_days.length >= STRIP_VISIT_DAYS) return hidden;
-    return { show: true, day: record.strip_days.length + 1, recordDay: true };
-}
-
 /** What one write changes; every field optional. */
 export interface OnboardingPatch {
     step?: { step: SetupStep; outcome: StepOutcome };

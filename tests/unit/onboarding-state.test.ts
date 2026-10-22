@@ -10,7 +10,6 @@ import {
     parseOnboardingRecord,
     setupOpen,
     stepOutcomes,
-    stripDecision,
     type OnboardingRecord,
     type SetupFacts,
 } from "../../src/lib/onboarding/state";
@@ -76,35 +75,13 @@ describe("stepOutcomes", () => {
     });
 });
 
-describe("stripDecision", () => {
-    const open = (r: OnboardingRecord) => stepOutcomes(r, NOTHING);
-
-    it("shows on the first day and two more visit days, then only the account menu offers setup", () => {
-        let record = fresh();
-        const days = ["2026-10-05", "2026-10-08", "2026-10-20"];
-        days.forEach((day, i) => {
-            const decision = stripDecision(record, open(record), day);
-            assert.deepEqual(decision, { show: true, day: i + 1, recordDay: true });
-            record = applyOnboardingPatch(record, { stripDay: day });
-            // The same day again: still showing, nothing more to record.
-            assert.deepEqual(stripDecision(record, open(record), day), { show: true, day: i + 1, recordDay: false });
-        });
-        assert.equal(stripDecision(record, open(record), "2026-10-21").show, false);
-        assert.equal(setupOpen(record, open(record)), true);
-        // A fourth day is never recorded.
-        assert.deepEqual(applyOnboardingPatch(record, { stripDay: "2026-10-21" }).strip_days, days);
-    });
-
-    it("Later hides it for the rest of that day only", () => {
-        const record = applyOnboardingPatch(applyOnboardingPatch(fresh(), { stripDay: "2026-10-05" }), { laterDay: "2026-10-05" });
-        assert.equal(stripDecision(record, open(record), "2026-10-05").show, false);
-        assert.deepEqual(stripDecision(record, open(record), "2026-10-06"), { show: true, day: 2, recordDay: true });
-    });
-
-    it("never shows for an account without setup, or once it is finished", () => {
-        assert.equal(stripDecision(null, null, "2026-10-05").show, false);
-        const finished = applyOnboardingPatch(fresh(), { finish: true });
-        assert.equal(stripDecision(finished, open(finished), "2026-10-05").show, false);
+describe("setupOpen", () => {
+    it("is on offer while a step is open, and gone for no setup or a finished one", () => {
+        const record = fresh();
+        assert.equal(setupOpen(record, stepOutcomes(record, NOTHING)), true);
+        assert.equal(setupOpen(null, null), false);
+        const finished = applyOnboardingPatch(record, { finish: true });
+        assert.equal(setupOpen(finished, stepOutcomes(finished, NOTHING)), false);
     });
 });
 

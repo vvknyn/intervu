@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { captureEvent } from "@/lib/analytics/events";
 import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
-import { AUTH_CTA_LABEL, authGateTitle, resolveAuthOpenEvent, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
+import { AUTH_CTA_LABEL, authGateCopy, resolveAuthOpenEvent, type AuthGateReason, type AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import {
     beginGateAttempt,
     clearGateAttempt,
@@ -182,11 +182,8 @@ export function AuthPopover({
         onOpenChange(false);
     };
 
-    const gateTitle = authGateTitle(effectiveReason);
-    const headline = gateTitle ? { title: gateTitle, body: valueLine } : undefined;
-    const valueLineNode = !gateTitle && valueLine && (
-        <p className="mb-4 text-sm leading-normal text-muted-foreground">{valueLine}</p>
-    );
+    const gateCopy = authGateCopy(effectiveReason);
+    const headline = reason || valueLine ? { title: gateCopy.title, body: valueLine ?? gateCopy.line } : undefined;
 
     if (!showTrigger) {
         return (
@@ -195,8 +192,7 @@ export function AuthPopover({
                     className="sm:max-w-105 max-h-[min(640px,var(--overlay-max-h))] bg-surface-2 p-5 pt-7 sm:p-6 sm:pt-8"
                     onCloseAutoFocus={handleDialogCloseAutoFocus}
                 >
-                    <DialogTitle className="sr-only">{gateTitle ?? "Authentication"}</DialogTitle>
-                    {valueLineNode}
+                    <DialogTitle className="sr-only">{headline?.title ?? "Authentication"}</DialogTitle>
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
                 </DialogContent>
             </Dialog>
@@ -212,7 +208,6 @@ export function AuthPopover({
             </PopoverTrigger>
             <PopoverContent align="end" className="w-105 max-h-[min(92dvh,640px)] overflow-y-auto overscroll-contain bg-surface-2 p-5 pt-7 shadow-[var(--shadow-overlay)] sm:p-6 sm:pt-8">
                 <div>
-                    {valueLineNode}
                     <LoginForm key={defaultTab} onSuccess={handleSuccess} defaultTab={defaultTab} headline={headline} />
                 </div>
             </PopoverContent>

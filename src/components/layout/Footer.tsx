@@ -12,7 +12,7 @@ import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-sta
  *  `FooterLinks` appends `?from=<pathname>` for any entry carrying it, keyed
  *  on the property itself rather than on which link this happens to be. */
 export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
-    { label: "Research", href: "/research/ghost-jobs" },
+    { label: "About the checks", href: GHOST_RESEARCH_HREF },
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
@@ -59,7 +59,7 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
             aria-label="Company"
             className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
         >
-            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends" || t.href === "/connect"), ...LEGAL_LINKS].map((link) => (
+            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                 <Link
                     key={link.href}
                     href={"fromCurrentPage" in link && link.fromCurrentPage ? withFromParam(link.href, pathname) : link.href}

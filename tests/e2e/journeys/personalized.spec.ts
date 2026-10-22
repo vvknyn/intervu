@@ -892,13 +892,11 @@ async function answerHubRoles(page: Page) {
  * is named. The postings are CONSTRUCTED for this journey (no real company or posting).
  */
 const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/jndkidbobccmcjochgioiiiiaaaldjjd";
-const EXTENSION_POINTS = ["Your fit for the role", "Checks if the posting looks current", "Your résumé tailored to the role", "Fills the form and tracks it"];
 
 async function expectExtensionTile(page: Page) {
   const tile = page.getByTestId("extension-tile");
   await expect(tile).toBeVisible({ timeout: 60_000 });
-  await expect(tile.getByRole("heading", { name: "Velai for Chrome" })).toBeVisible();
-  await expect(tile.getByTestId("extension-tile-points").locator("li")).toHaveText(EXTENSION_POINTS);
+  await expect(tile).toContainText("Velai for Chrome");
   const link = tile.getByTestId("extension-tile-link");
   await expect(link).toHaveText("Add to Chrome");
   await expect(link).toHaveAttribute("href", EXTENSION_STORE_URL);
@@ -935,17 +933,6 @@ test("the list tells what the Chrome extension does and links its store page, on
   expect(await top(rows.nth(3))).toBeLessThan(await top(page.getByTestId("extension-tile")));
   expect(await top(page.getByTestId("extension-tile"))).toBeLessThan(await top(rows.nth(4)));
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
-});
-
-test("the signed-out front door tells what the Chrome extension does and links its store page, under the résumé invite", { tag: ["@J-JOBS-150"] }, async ({ page, diagnostics }) => {
-  await returningVisitor(page);
-  await page.goto("/jobs");
-  await expectExtensionTile(page);
-  const top = async (selector: ReturnType<Page["getByTestId"]>) => (await selector.boundingBox())!.y;
-  await expect(page.getByTestId("privacy-promises")).toBeVisible({ timeout: 30_000 });
-  expect(await top(page.getByRole("region", { name: "Add your resume" }))).toBeLessThan(await top(page.getByTestId("extension-tile")));
-  expect(await top(page.getByTestId("extension-tile"))).toBeLessThan(await top(page.getByTestId("privacy-promises")));
-  expect(diagnostics.pageErrors).toEqual([]);
 });
 
 /**

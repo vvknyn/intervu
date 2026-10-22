@@ -95,7 +95,6 @@ export function JobCard({
      *  no signed-in résumé or no comparable field — renders no chip, never a
      *  fabricated 0 (Rule 3, match-contract.md). */
     matchScore?: MatchScore | null;
-    /** When true and `matchScore` is absent, render a locked fit teaser. */
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
     /** Why a recommended role is listed (`rowReasonLine`): two lines at most under the facts (the compact form), only on a résumé-ranked list. */
