@@ -23,3 +23,21 @@ describe('rank by fit keeps what the visitor typed (I3)', () => {
         assert.ok(!keepsTypedQuery({ ...DEFAULT_URL_STATE, q: '   ' }));
     });
 });
+
+import { FIT_SEARCH_PLACEHOLDER, SEARCH_PLACEHOLDER, searchBoxFor } from '../../src/lib/jobs/search-copy';
+
+describe('the search box hides the résumé-derived query (I4)', () => {
+    it('fit list on the pack query: empty box, "within your matches"', () => {
+        assert.deepEqual(searchBoxFor('product manager', 'product manager', true, 'product manager'), { value: '', placeholder: FIT_SEARCH_PLACEHOLDER });
+    });
+    for (const [name, args] of [
+        ['typed query in fit mode', ['nurse', 'nurse', true, 'product manager']],
+        ['half-typed over the pack query', ['product manager x', 'product manager', true, 'product manager']],
+        ['not fit mode', ['product manager', 'product manager', false, 'product manager']],
+        ['no résumé yet', ['product manager', 'product manager', true, null]],
+    ] as const) {
+        it(`${name}: the draft shows`, () => {
+            assert.deepEqual(searchBoxFor(args[0], args[1], args[2], args[3]), { value: args[0], placeholder: SEARCH_PLACEHOLDER });
+        });
+    }
+});

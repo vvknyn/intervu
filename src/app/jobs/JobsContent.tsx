@@ -172,7 +172,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
-import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
+import { searchBoxFor } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace, offersRankByFit } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
@@ -1740,6 +1740,7 @@ export function JobsContent({
     keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
+    const searchBox = searchBoxFor(queryDraft, query, fitActive, pack?.q ?? null);
     // The phrases the résumé's own search also looks for in a posting's text (`resumeContentMark`), read by the search effects.
     const packContentRef = useRef<{ q: string; phrases: string[] } | null>(null);
     packContentRef.current = useMemo(() => (resume && pack ? { q: pack.q.trim(), phrases: packContentPhrases(resume, pack.q) } : null), [resume, pack]);
@@ -3638,13 +3639,13 @@ export function JobsContent({
             return;
         }
         setDocked({
-            value: queryDraft,
+            value: searchBox.value,
             onChange: setQueryDraft,
             onSubmit: (v) => {
                 searchAutocompleteRef.current?.close();
                 submitSearchRef.current(v);
             },
-            placeholder: SEARCH_PLACEHOLDER,
+            placeholder: searchBox.placeholder,
             // FacetBar-owned filters (salary, posted, work mode, experience)
             // render as dropdown chips — only the leftovers become dismiss chips.
             // The applied-location-default chip is PREPENDED by the same
@@ -3678,7 +3679,7 @@ export function JobsContent({
         // forever (React #185, "Maximum update depth exceeded" — the exact
         // defect this replaced, see the git history on this file). A
         // derived primitive changes only when the rendered content does.
-    }, [showSearchHome, headerDockActive, queryDraft, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
+    }, [showSearchHome, headerDockActive, searchBox.value, searchBox.placeholder, activeChipsKey, dockChipsKey, dockedDefaultLocationIso2, dockedDefaultRemoteAnywhere, activeCount, filtersOpen, setDocked]);
 
     const facetsMountSite = resolveFacetsMountSite({ isXlUp, isLgUp, filtersOpen });
     const panelToggleFacet = (key: FacetKey, value: string) =>
@@ -5149,7 +5150,7 @@ export function JobsContent({
         <div className="relative flex h-full w-full items-center">
             <SearchAutocomplete
                 ref={searchAutocompleteRef}
-                value={queryDraft}
+                value={searchBox.value}
                 onChange={setQueryDraft}
                 onSearch={() => {
                     searchAutocompleteRef.current?.close();
@@ -5161,7 +5162,7 @@ export function JobsContent({
                 }}
                 suggest={suggestForBox}
                 seeds={searchSeeds}
-                placeholder={SEARCH_PLACEHOLDER}
+                placeholder={searchBox.placeholder}
                 ariaLabel="Search"
                 className="h-full min-h-0 min-w-0 flex-1 rounded-pill border-0 bg-transparent px-1 text-base font-semibold text-foreground placeholder:font-normal placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:border-0 focus-visible:bg-transparent"
                 containerClassName="h-full min-w-0 flex-1 overflow-visible"
@@ -5489,7 +5490,7 @@ export function JobsContent({
                             <div className="relative flex min-w-0 w-full sm:flex-1 items-center">
                                 <SearchAutocomplete
                                     ref={searchAutocompleteRef}
-                                    value={queryDraft}
+                                    value={searchBox.value}
                                     onChange={(v) => {
                                         setQueryDraft(v);
                                     }}
@@ -5505,7 +5506,7 @@ export function JobsContent({
                                     }}
                                     suggest={suggestForBox}
                                     seeds={searchSeeds}
-                                    placeholder={SEARCH_PLACEHOLDER}
+                                    placeholder={searchBox.placeholder}
                                     ariaLabel="Search"
                                     name="q"
                                     leadingIcon={<MagnifyingGlass size={16} weight="bold" />}
