@@ -4,6 +4,12 @@ import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { languageLabel, WRITTEN_LANGUAGES } from "@/lib/match/posting-language";
 import { cn } from "@/lib/utils";
 
+/** What to save for a new list of languages: `[]` when it is just the résumé's language again, so a résumé replaced later in another language is followed. */
+export function storedLanguages(next: readonly string[], resumeDefault: readonly string[] | null): string[] {
+    const follows = resumeDefault != null && next.length === resumeDefault.length && next.every((language) => resumeDefault.includes(language));
+    return follows ? [] : [...next];
+}
+
 /**
  * The languages a person reads postings in, as the control that changes them (Settings › Job search, the foot of
  * For You, Today). A posting written in a language not listed here is left out of those lists with that reason
@@ -33,10 +39,7 @@ export function LanguagesControl({
     testId: string;
     className?: string;
 }) {
-    const change = (next: string[]) => {
-        const follows = resumeDefault != null && next.length === resumeDefault.length && next.every((language) => resumeDefault.includes(language));
-        onChange(follows ? [] : next);
-    };
+    const change = (next: string[]) => onChange(storedLanguages(next, resumeDefault));
     const add = (language: string) => {
         if (language && !languages.includes(language)) change([...languages, language]);
     };

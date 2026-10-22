@@ -20,7 +20,7 @@
  */
 import { resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { packFilters, packSearchParams } from "@/lib/jobs/for-you/pack-filters";
-import { deckListFor, withListRemovals, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
+import { deckListFor, withListRemovals, withRankedLowerLeftOut, type DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import { fitFor } from "@/lib/jobs/for-you/fit";
 import { targetTitlesFromQuery, jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
 import { decodeText } from "@/lib/jobs/presentation";
@@ -112,7 +112,8 @@ export async function rankForYou(params: RankForYouParams): Promise<RankForYouRe
     const byId = new Map(scored.map((s) => [s.job.id, s] as const));
     const allJobs = scored.map((s) => s.job);
     const scoreOf = (job: PublicJob) => byId.get(job.id)?.match ?? null;
-    const { ranked: orderedJobs, summary: counted } = deckListFor(allJobs, scoreOf, nowMs);
+    // The agent's list holds only the roles that fit: the ones the web list ranks lower are left out here, as they always were.
+    const { ranked: orderedJobs, summary: counted } = withRankedLowerLeftOut(deckListFor(allJobs, scoreOf, nowMs));
     const targets = targetTitlesFromQuery(queryUsed);
     // `found` is what the search said it found when the pool read fewer rows than that (`withListRemovals` keeps it only then),
     // so "left out of the first 150 of 226 roles found" names both numbers and a count is never read as the whole search's.
