@@ -22,15 +22,6 @@ describe("reachable surfaces — no Canada marketing claims", () => {
         assert.ok(!LEGAL_LINKS.some((link) => link.href.includes("canada-jobs")));
     });
 
-    it("FrontDoorDetailPitch.tsx has no Canada wording or FOOTER_PROVENANCE_LINE", () => {
-        const src = readFileSync(
-            join(ROOT, "src/components/jobs/front-door/FrontDoorDetailPitch.tsx"),
-            "utf8",
-        );
-        assert.doesNotMatch(src, CANADA_RE);
-        assert.doesNotMatch(src, /FOOTER_PROVENANCE_LINE/);
-    });
-
     it("seo/constants.ts has no Canada wording", () => {
         const src = readFileSync(join(ROOT, "src/lib/seo/constants.ts"), "utf8");
         assert.doesNotMatch(src, CANADA_RE);

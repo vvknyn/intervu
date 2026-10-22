@@ -11,7 +11,6 @@ import { isConfirmedSignedOut } from "@/lib/auth/jobs-chrome-gates";
 import { ApplyIntentDialog } from "@/components/jobs/ApplyIntentDialog";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
 import { ApplyReturnPrompt, useApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
-import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/jobs/GuestApplyTrackPrompt";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import type { AuthGateTrigger } from "@/lib/auth/auth-gate-copy";
 import { fetchResumeData } from "@/actions/resume";
@@ -99,7 +98,6 @@ export function PublicJobDetail({
     const [resumeSettled, setResumeSettled] = useState(false);
     const [authGateReason, setAuthGateReason] = useState<AuthGateReason | null>(null);
     const [authTrigger, setAuthTrigger] = useState<AuthGateTrigger>("user");
-    const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
     const router = useRouter();
     const { byJobId } = usePursuits();
     // A guest's tracker lives in localStorage, which the server can't read, so
@@ -347,20 +345,6 @@ export function PublicJobDetail({
         },
     });
 
-    const handleGuestTrackSignIn = () => {
-        setAuthGateReason("tracker");
-        setAuthTrigger("user");
-        recordAuthGateOpen({
-            storage: window.sessionStorage,
-            reason: "tracker",
-            trigger: "user",
-            originSurface: "job_detail",
-            jobId: job.id,
-        });
-        gate({ kind: "apply", payload: job }, { originSurface: "job_detail", gateReason: "tracker" });
-        setGuestTrackPrompt(null);
-    };
-
     const handleGoAfter = (target: PublicJob) => {
         if (!user) {
             if (guestSaveGateReached()) {
@@ -547,11 +531,6 @@ export function PublicJobDetail({
                     saveSuccessPulse={savePulse}
                 />
             )}
-            <GuestApplyTrackPrompt
-                record={guestTrackPrompt}
-                onSignIn={handleGuestTrackSignIn}
-                onDismiss={() => setGuestTrackPrompt(null)}
-            />
             {layout === "document" && (
                 <ApplyReturnPrompt
                     record={applyReturnPrompt}

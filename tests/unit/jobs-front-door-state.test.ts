@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { hubGreeting, isAtRest, showsFrontDoorBand } from "../../src/lib/jobs/front-door-state";
+import { frontDoorRegions, hubGreeting, isAtRest } from "../../src/lib/jobs/front-door-state";
 
 describe("isAtRest", () => {
     it("no query, no job — at rest", () => {
@@ -21,50 +21,6 @@ describe("isAtRest", () => {
 
     it("both a query and a job — not at rest", () => {
         assert.equal(isAtRest({ query: "nurse", jobParam: "abc123" }), false);
-    });
-});
-
-describe("showsFrontDoorBand", () => {
-    it("at rest, signed out, no résumé — show the band", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: true, signedIn: false, resumeOnFile: false, fitActive: false }),
-            true,
-        );
-    });
-
-    it("at rest, signed in, server confirms no résumé — show the band", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: true, signedIn: true, resumeOnFile: false, fitActive: false }),
-            true,
-        );
-    });
-
-    it("not at rest (a query is running) — never show the band, even with no résumé", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: false, signedIn: false, resumeOnFile: false, fitActive: false }),
-            false,
-        );
-    });
-
-    it("at rest but résumé confirmed on file — nothing left to invite", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: true, signedIn: true, resumeOnFile: true, fitActive: false }),
-            false,
-        );
-    });
-
-    it("at rest but already ranking by fit — the band has nothing left to offer", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: true, signedIn: false, resumeOnFile: false, fitActive: true }),
-            false,
-        );
-    });
-
-    it("at rest, résumé presence unknown (server round trip not back yet) — stay quiet", () => {
-        assert.equal(
-            showsFrontDoorBand({ atRest: true, signedIn: true, resumeOnFile: null, fitActive: false }),
-            false,
-        );
     });
 });
 
@@ -102,5 +58,60 @@ describe("hubGreeting — derived from real state, 'Welcome back' only for a kno
     it("says 'ranked against your résumé' only when a résumé exists", () => {
         assert.match(hubGreeting({ signedIn: false, hasResume: true }).subtitle, /résumé/);
         assert.doesNotMatch(hubGreeting({ signedIn: true, userName: "A", hasResume: false }).subtitle, /résumé|background/);
+    });
+});
+
+describe("frontDoorRegions", () => {
+    const anon = { signedIn: false, signedOut: true, resumeOnFile: false, fitActive: false };
+
+    it("signed out: job rows at once, and the résumé band is the one band", () => {
+        assert.deepEqual(frontDoorRegions(anon), { rows: true, band: "resume" });
+    });
+
+    it("signed in without a résumé: no arrival rows, still the one résumé band", () => {
+        assert.deepEqual(frontDoorRegions({ signedIn: true, signedOut: false, resumeOnFile: false, fitActive: false }), { rows: false, band: "resume" });
+    });
+
+    it("signed in with a résumé: its ranked list opens instead, no band", () => {
+        assert.deepEqual(frontDoorRegions({ signedIn: true, signedOut: false, resumeOnFile: true, fitActive: false }), { rows: false, band: null });
+    });
+
+    it("signed out with fit already active or a résumé unknown: no band, rows kept", () => {
+        assert.deepEqual(frontDoorRegions({ ...anon, fitActive: true }), { rows: true, band: null });
+        assert.deepEqual(frontDoorRegions({ ...anon, resumeOnFile: null }), { rows: true, band: null });
+    });
+
+    it("auth not yet known: no rows (a signed-in account must not flash the signed-out list)", () => {
+        assert.equal(frontDoorRegions({ ...anon, signedOut: false }).rows, false);
+    });
+
+    it("never more than one band, and no region for the pitches that moved to the footer", () => {
+        for (const signedIn of [true, false]) {
+            for (const resumeOnFile of [true, false, null]) {
+                for (const fitActive of [true, false]) {
+                    const regions = frontDoorRegions({ signedIn, signedOut: !signedIn, resumeOnFile, fitActive });
+                    assert.deepEqual(Object.keys(regions).sort(), ["band", "rows"]);
+                    assert.ok(regions.band === null || regions.band === "resume");
+                }
+            }
+        }
+    });
+});
+
+describe("frontDoorRegions band — who still needs the résumé invite", () => {
+    const base: Parameters<typeof frontDoorRegions>[0] = { signedIn: false, signedOut: true, resumeOnFile: false, fitActive: false };
+    const band = (over: Partial<typeof base>) => frontDoorRegions({ ...base, ...over }).band;
+
+    it("signed in, server confirms no résumé — the band", () => {
+        assert.equal(band({ signedIn: true, signedOut: false }), "resume");
+    });
+
+    it("résumé confirmed on file, or already ranking by fit — nothing left to invite", () => {
+        assert.equal(band({ signedIn: true, signedOut: false, resumeOnFile: true }), null);
+        assert.equal(band({ fitActive: true }), null);
+    });
+
+    it("résumé presence unknown (server round trip not back yet) — stay quiet", () => {
+        assert.equal(band({ signedIn: true, signedOut: false, resumeOnFile: null }), null);
     });
 });

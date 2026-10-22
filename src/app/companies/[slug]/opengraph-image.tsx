@@ -3,7 +3,7 @@ import { companyFromSlug } from "@/lib/companies/paths";
 import { SITE_NAME } from "@/lib/seo/constants";
 
 export const runtime = "edge";
-export const alt = `${SITE_NAME} — company hiring truth`;
+export const alt = `${SITE_NAME} — company hiring record`;
 export const size = OG_IMAGE_SIZE;
 export const contentType = OG_IMAGE_CONTENT_TYPE;
 
@@ -13,5 +13,5 @@ export const contentType = OG_IMAGE_CONTENT_TYPE;
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const name = companyFromSlug(slug);
-  return buildPageOgImage(name, "Hiring truth");
+  return buildPageOgImage(name, "Hiring record");
 }

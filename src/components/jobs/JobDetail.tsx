@@ -50,7 +50,7 @@ import { resolveDescriptionSectionState } from "@/lib/jobs/description-section-s
 import { useDescriptionSettled } from "@/components/jobs/use-description-settled";
 import { LocalCustomizePanel } from "@/components/jobs/LocalCustomizePanel";
 import { DescriptionLoadingStatus } from "@/components/jobs/for-you/DescriptionLoadingStatus";
-import { FitReasons } from "@/components/jobs/for-you/FitReasons";
+import { FitReasons, FitReasonsUploadSlot } from "@/components/jobs/for-you/FitReasons";
 import { DotsThree } from "@phosphor-icons/react";
 import {
     DropdownMenu,
@@ -59,7 +59,6 @@ import {
     DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import type { ResumeData } from "@/types/resume";
-import { UPLOAD_TO_CUSTOMIZE_LABEL } from "@/lib/jobs/resume-cta-copy";
 import { WaitBar } from "@/components/ui/wait-state";
 
 /**
@@ -607,7 +606,7 @@ export function JobDetail({
     // feeds `jobCompanyHref` below, which uses it to build the `/companies/`
     // slug when the job has no `company_domain`, so it can't move to the
     // brand form without moving the slug too. `companyBrand` is the reader-
-    // facing text (header, hiring-truth heading, MCP handoff copy) — same
+    // facing text (header, hiring-record heading, MCP handoff copy) — same
     // split `displayCompanyBrand`'s own doc comment calls out.
     const cleanedCompany = displayCompany(job.company, job.company_domain);
     const companyBrand = displayCompanyBrand(job.company, job.company_domain, job.title);
@@ -674,7 +673,7 @@ export function JobDetail({
     }, [relatedKey, signedIn, descriptionSettled]);
 
     // ITEM N (2026-08-15), decoupled from sign-in 2026-08-20 — the
-    // hiring-truth rail's "Live roles" figure used to read
+    // hiring-record rail's "Live roles" figure used to read
     // `job.company_open_count`, a sync-time aggregate baked onto the job
     // document that structurally drifts from /co/[slug]'s own live count for
     // the same company (delta sync can't carry cross-table data). This used
@@ -877,16 +876,6 @@ export function JobDetail({
                                 signedIn={signedIn}
                                 onSignInToSync={onSignInToSync}
                             />
-                        ) : onUploadResume ? (
-                            <Button size={jobActionSize}
-                                type="button"
-                                variant="outline"
-                                data-testid="job-detail-upload-to-customize"
-                                onClick={onUploadResume}
-                                className="shrink-0"
-                            >
-                                {UPLOAD_TO_CUSTOMIZE_LABEL}
-                            </Button>
                         ) : null}
                         {/* RowBookmarkButton is a fixed-size icon-only square
                             control (no text-label prop) — `rounded-ctl` plus
@@ -1046,9 +1035,11 @@ export function JobDetail({
                 {/* Why this fits (mock B5) — same MatchChip already mounted in
                     the title row, reused (never a second "Fit N" pill). Gated
                     on the same `matchScore` presence check as that chip. */}
-                {matchScore && (
+                {matchScore ? (
                     <FitReasons job={job} score={matchScore} asOfDate={matchAsOfDate} resume={resume} jobId={job.id} />
-                )}
+                ) : resume == null && onUploadResume ? (
+                    <FitReasonsUploadSlot onUploadResume={onUploadResume} />
+                ) : null}
 
                 {/* Posting check (rulebook item e): white card on the panel's
                     grey fill (rounded-panel, no border) — same header/
@@ -1257,13 +1248,13 @@ export function JobDetail({
                     </div>
                 )}
 
-                {/* Company hiring-truth mini-KPI rail (rulebook item g): keep
+                {/* Company hiring mini-KPI rail (rulebook item g): keep
                     content, render on page bg with a hairline top divider
                     instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
                     <div className="border-t border-border py-6">
                         <h3 className="text-base font-semibold text-foreground">
-                            {companyBrand || "This company"} · hiring truth
+                            {companyBrand || "This company"} · hiring record
                         </h3>
                         {/* Verbatim-or-absent (founding-wound law, about-line.ts) — a
                             single job's description is a much thinner corpus than
@@ -1339,7 +1330,7 @@ export function JobDetail({
                 {/* Footnote position (serp-readout-redesign.html annotation
                     9) — moved from between the description and the company
                     rail; "how you match" reads as an afterthought, not a
-                    hiring-truth-rail peer. */}
+                    hiring-record-rail peer. */}
                 {/* `McpHandoffActions` (src/components/mcp/, shared with
                     /yours/[id] — out of this pass's scope) renders its own
                     primary CTA with a `bg-brand` fill; the rulebook allows

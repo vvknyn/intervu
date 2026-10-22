@@ -21,19 +21,24 @@ export function isAtRest({ query, jobParam }: { query: string; jobParam: string 
 }
 
 /**
- * Whether the front-door résumé-upload band should render. One rule reused
- * at both its mount sites (desktop under the masthead, mobile inside the
- * results flatMap) so they can't drift apart — the band only ever shows at
- * rest, and only when `needsResumeEntry` says this visitor doesn't have a
- * usable résumé on record yet.
+ * What the /jobs front door is made of, by viewer state — the one place that
+ * decides it, so a new region joins here and the "one band" rule holds by
+ * construction (`band` is a single slot, never a list):
+ *  - `rows`: job rows are on screen at once, like every job site. A CONFIRMED
+ *    signed-out arrival (`signedOut`, not merely "no user yet") is a reason to list; a signed-in account's reason is its own
+ *    résumé-ranked list (the at-rest auto-fit) or its search.
+ *  - `band`: the résumé-upload invite — fit is the differentiator, so it is
+ *    the only promo at rest; `needsResumeEntry` says who still needs it.
+ * The band only ever shows at rest (the caller's `atRest`). Privacy promises, the extension tile and the posting-check pitch are footer
+ * links, not regions.
  */
-export function showsFrontDoorBand(input: {
-    atRest: boolean;
+export function frontDoorRegions(input: {
     signedIn: boolean;
+    signedOut: boolean;
     resumeOnFile: boolean | null;
     fitActive: boolean;
-}): boolean {
-    return input.atRest && needsResumeEntry(input);
+}): { rows: boolean; band: "resume" | null } {
+    return { rows: input.signedOut, band: needsResumeEntry(input) ? "resume" : null };
 }
 
 /**

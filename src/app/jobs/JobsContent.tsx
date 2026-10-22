@@ -67,7 +67,6 @@ import { withSettleGuard } from "@/lib/jobs/settle-guard";
 import { fetchResumeData } from "@/actions/resume";
 import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
 import { trackedIndex, trackedPursuitFor, type TrackedIndex } from "@/lib/pursuits/applied";
-import { pickExceptionJit } from "@/lib/jobs/should-show-relist-jit";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
 import {
     decodeText,
@@ -175,13 +174,12 @@ import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusC
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
 import { needsResumeEntry, needsResumeReplace, offersRankByFit } from "@/lib/jobs/resume-entry";
-import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
+import { frontDoorRegions, isAtRest } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
 import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResumeBand";
 import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { pickPromoBand } from "@/lib/jobs/promo-band";
-import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
 import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 import { SetupPanel } from "@/components/onboarding/SetupPanel";
 import { SETUP_DONE_MESSAGE } from "@/components/onboarding/SetupSheet";
@@ -189,7 +187,6 @@ import { noteResumeOnFile, useOnboarding } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
-import { FrontDoorDetailPitch } from "@/components/jobs/front-door/FrontDoorDetailPitch";
 // `loading: () => null` on each: without it a dynamic() component holds up
 // the first render of everything around it until its own chunk arrives, and
 // these only show once a job is opened or the importer is asked for.
@@ -279,7 +276,6 @@ import { resolveFacetsMountSite, showsFiltersToggle } from "@/lib/jobs/serp-dens
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
 import { useApplyReturnPrompt, ApplyReturnPrompt, type ApplyReturnJob } from "@/components/jobs/ApplyReturnPrompt";
-import { GuestApplyTrackPrompt, type GuestApplyTrackRecord } from "@/components/jobs/GuestApplyTrackPrompt";
 import { readGateAttempt } from "@/lib/auth/gate-attempt";
 import {
     authGateReasonToFunnelReason,
@@ -325,7 +321,6 @@ import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, keepsTypedQuery, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
-import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
@@ -2120,12 +2115,17 @@ export function JobsContent({
     // param (a deliberate deep link/row click), not `selectedId` (whose
     // ambient default-browse auto-selection is not deliberate intent — see
     // `atRest`'s own comment above for the same distinction).
+    // Known anonymous: the middleware saw no session, or the client confirmed none.
+    const frontDoor = frontDoorRegions({ signedIn, signedOut: signedOut || signedOutOnServer, resumeOnFile, fitActive });
+    // The pane previews the first row, as on any job site, whenever the front door lists rows; otherwise nothing is picked for the visitor.
+    const noAmbientPreview = atRest && !frontDoor.rows;
     const searchIntent = hasSearchIntent({
         query,
         filtersAwayFromDefault: activeEntries.length > 0 || sortOverride !== null,
         explicitlySubmitted,
         jobOpen: Boolean(searchParams.get("job")),
         fitActive,
+        rowsAtArrival: frontDoor.rows,
     });
     // A signed-in account whose résumé is not known yet would flash the front door (an upload prompt) for the
     // moment before its résumé-ranked list opens; a neutral column holds the place, for a few seconds at most.
@@ -2156,7 +2156,7 @@ export function JobsContent({
     const showLandingMarketing = isPristineLanding && showSearchHome;
     const showToolbarFilters = isLgUp || !showLandingMarketing;
 
-    const { startTour, hasSeenTour, isActive: tourActive, pageId: tourPageId } = useTour();
+    const { isActive: tourActive } = useTour();
     // One hook per docked slot, gated by `headerDockActive`.
     const dockedFacetsMount = useDockedSlotMount(headerDockActive, "topbar-docked-facets");
     const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
@@ -2359,7 +2359,7 @@ export function JobsContent({
                 // (a filter-only visitor is at rest too, and the detail pane
                 // should pitch rather than ambient-preview for them as well).
                 setSelectedId(
-                    atRest && !selection.preserveDeliberateDetail
+                    noAmbientPreview && !selection.preserveDeliberateDetail
                         ? null
                         : selection.selectedId,
                 );
@@ -3038,12 +3038,12 @@ export function JobsContent({
     // the two can't drift into disagreeing about what "no selection" renders.
     const selected = useMemo(() => {
         if (!selectedId) {
-            if (atRest) return null;
+            if (noAmbientPreview) return null;
             // A list that recommends previews the first role it lists, never one it left out.
             return recommended ? (renderedClusters[0]?.primary ?? null) : (hits[0] ?? null);
         }
         return hits.find((h) => h.id === selectedId) ?? null;
-    }, [hits, selectedId, atRest, recommended, renderedClusters]);
+    }, [hits, selectedId, noAmbientPreview, recommended, renderedClusters]);
 
     // Task 11 — dead-link EXISTENCE-CHECK CANDIDATE: a deliberate URL
     // selection that the CURRENT search's first page has already resolved
@@ -3220,37 +3220,6 @@ export function JobsContent({
         [detailJob?.id, hydratedDetail, deadJobResolved],
     );
     const detailPursuit = detailJob ? pursuitsByJobIdMerged.get(detailJob.id) : undefined;
-
-    const mainJobsTourActive = tourActive && tourPageId === "jobs";
-
-    useEffect(() => {
-        const EXCEPTION_TOURS = ["jobs-relist", "jobs-stale", "jobs-exception-both"] as const;
-        const exceptionTourActive =
-            tourActive && EXCEPTION_TOURS.includes(tourPageId as (typeof EXCEPTION_TOURS)[number]);
-        if (exceptionTourActive) return;
-
-        const bothInDom = !!document.querySelector('[data-exception="both"]');
-        const staleInDom = !!document.querySelector('[data-exception="stale"]');
-        const relistInDom = !!document.querySelector('[data-exception="relisted"]');
-        const kind = pickExceptionJit({
-            mainTourActive: mainJobsTourActive,
-            hasSeenMainTour: hasSeenTour("jobs"),
-            exceptionTourActive: tourActive && exceptionTourActive,
-            hasSeenBoth: hasSeenTour("jobs-exception-both"),
-            hasSeenStale: hasSeenTour("jobs-stale"),
-            hasSeenRelist: hasSeenTour("jobs-relist"),
-            bothInDom,
-            staleInDom,
-            relistInDom,
-            listingsVisible: hits.length > 0,
-        });
-        if (!kind) return;
-
-        const tourId =
-            kind === "both" ? "jobs-exception-both" : kind === "stale" ? "jobs-stale" : "jobs-relist";
-        const id = requestAnimationFrame(() => startTour(tourId));
-        return () => cancelAnimationFrame(id);
-    }, [mainJobsTourActive, hasSeenTour, startTour, tourActive, tourPageId, selectedId, hits.length, detailJob?.id]);
 
     // The detail panel's "also in" chip (docs-mockup.html Comp B2) reads the
     // SAME `clusters` the SERP rows already group `hits` into (cluster.ts) —
@@ -3793,7 +3762,6 @@ export function JobsContent({
     // hollow without a résumé — else depart); guest → auth-first via the one
     // shared gate (`use-gated-apply.ts`), same chokepoint every job surface
     // uses.
-    const [guestTrackPrompt, setGuestTrackPrompt] = useState<GuestApplyTrackRecord | null>(null);
 
     const gatedOpenPosting = useGatedApply<PublicJob>({
         user,
@@ -4011,26 +3979,6 @@ export function JobsContent({
         setAuthGateReason(reason);
         setAuthTrigger(trigger);
         setAuthOpen(true);
-    };
-
-    const handleGuestTrackSignIn = () => {
-        if (!guestTrackPrompt) return;
-        const job = hits.find((h) => h.id === guestTrackPrompt.jobId) ?? detailJob;
-        setAuthGateReason("tracker");
-        setAuthTrigger("user");
-        recordAuthGateOpen({
-            storage: window.sessionStorage,
-            reason: "tracker",
-            trigger: "user",
-            originSurface: "job_detail",
-            jobId: guestTrackPrompt.jobId,
-        });
-        if (job) {
-            gate({ kind: "apply", payload: job }, { originSurface: "job_detail", gateReason: "tracker" });
-        } else {
-            setAuthOpen(true);
-        }
-        setGuestTrackPrompt(null);
     };
 
     // Guest→auth merge (pursuits + follows + saved searches) — at most once
@@ -5317,14 +5265,11 @@ export function JobsContent({
     );
 
     // At most one promo band sits above the results header, never between rows (see promo-band.ts).
-    // The cold card needs a running search and a visitor with no résumé (at rest the front-door band does
-    // that job); the Chrome tile rides on a list already ranked against the résumé. The cold card is
-    // phone/tablet only: the desktop toolbar already carries "Rank with my résumé".
+    // The Chrome tile rides on a list already ranked against the résumé; at rest the résumé band is the one promo.
     const promoBand = pickPromoBand({
-        "cold-orientation": !atRest && !user && resumeOnFile !== true && !hasUsableResume,
         extension: recommendedReady && recommended != null,
     });
-    const frontDoorBandVisible = showsFrontDoorBand({ atRest, signedIn, resumeOnFile, fitActive });
+    const frontDoorBandVisible = atRest && frontDoor.band !== null;
     // A new account that landed on bare /jobs gets setup as the page itself,
     // in place of the résumé band (components/onboarding/SetupPanel.tsx).
     const onboarding = useOnboarding();
@@ -5943,8 +5888,6 @@ export function JobsContent({
                                 <div className="p-4">
                                     <JobDetailSkeleton />
                                 </div>
-                            ) : atRest ? (
-                                <FrontDoorDetailPitch onSignInClick={() => openAuth("generic", "user")} />
                             ) : (
                                 <p className="p-6 text-xs text-muted-foreground" data-testid="detail-pane-placeholder">
                                     Select a role to read it here.
@@ -5976,12 +5919,7 @@ export function JobsContent({
                                     results line below it. A résumé-ranked list says its
                                     own on the results line (`listNew`): a count of the
                                     whole board above it would be another list's number. */}
-                                {promoBand === "cold-orientation" && (
-                                    <div className="lg:hidden">
-                                        <ColdVisitorOrientation onRankByFit={() => handleUploadClick()} />
-                                    </div>
-                                )}
-                                {promoBand === "extension" && <ExtensionTile variant="band" className="mb-3" />}
+                                {promoBand === "extension" && <ExtensionTile className="mb-3" />}
                                 {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                 {localAiGuestEnabled && !user && (
                                     <div
@@ -6578,7 +6516,7 @@ export function JobsContent({
                 )}
 
                 {/* Closing pitch after the live feed — one mount, same
-                    `showsFrontDoorBand` gate as before. Source order is the
+                    `frontDoorRegions` band gate as before. Source order is the
                     first-viewport contract: jobs, then the résumé invite. */}
                 {frontDoorBandVisible && !setupPanelVisible && (
                     <FrontDoorResumeBand
@@ -6586,12 +6524,6 @@ export function JobsContent({
                         onUploadClick={handleUploadClick}
                         onSignInClick={() => openAuth("generic", "user")}
                     />
-                )}
-                {frontDoorAtRest && !setupPanelVisible && (
-                    <>
-                        <ExtensionTile className="mx-auto mt-8 w-full max-w-[960px]" />
-                        <PrivacyPromises className="mx-auto mt-8 w-full max-w-[960px]" />
-                    </>
                 )}
             </div>
 
@@ -6790,11 +6722,6 @@ export function JobsContent({
                 }}
             />
 
-            <GuestApplyTrackPrompt
-                record={guestTrackPrompt}
-                onSignIn={handleGuestTrackSignIn}
-                onDismiss={() => setGuestTrackPrompt(null)}
-            />
             <ApplyReturnPrompt
                 record={detailMountSite === "sheet" ? null : applyReturnPrompt}
                 onMarkApplied={markApplyReturnApplied}

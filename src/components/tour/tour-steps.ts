@@ -1,7 +1,5 @@
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
-import { RELISTED_EXPLAIN } from "@/lib/jobs/relisted-explain";
 import { EXCEPTION_KEY_BODY, EXCEPTION_KEY_TITLE } from "@/lib/jobs/row-exception";
-import { GHOST_META } from "@/lib/jobs/presentation";
 
 export interface TourStep {
   selector: string;
@@ -46,30 +44,6 @@ export const tourSteps: Record<string, TourStep[]> = {
       description: JOBS_USP.connect.body,
       placement: "top",
       optional: true,
-    },
-  ],
-  "jobs-relist": [
-    {
-      selector: '[data-tour="row-exception"][data-exception="relisted"]',
-      title: "This one was relisted",
-      description: RELISTED_EXPLAIN,
-      placement: "bottom",
-    },
-  ],
-  "jobs-stale": [
-    {
-      selector: '[data-tour="row-exception"][data-exception="stale"]',
-      title: GHOST_META.likely_ghost!.label,
-      description: GHOST_META.likely_ghost!.explain,
-      placement: "bottom",
-    },
-  ],
-  "jobs-exception-both": [
-    {
-      selector: '[data-tour="row-exception"][data-exception="both"]',
-      title: "Relisted and possibly stale",
-      description: `${RELISTED_EXPLAIN} ${GHOST_META.likely_ghost!.explain}`,
-      placement: "bottom",
     },
   ],
   dashboard: [

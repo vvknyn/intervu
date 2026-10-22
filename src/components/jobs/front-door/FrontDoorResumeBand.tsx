@@ -10,9 +10,8 @@ import {
 
 /**
  * The /jobs at-rest front door's résumé-upload band (requirement 2). A
- * brand-filled panel on the page column, replacing `ColdVisitorOrientation` at rest (see
- * `showColdOrientation`'s doc comment in page.tsx). Visibility is
- * `showsFrontDoorBand` (lib/jobs/front-door-state.ts) — the same rule for
+ * brand-filled panel on the page column, the one promo at rest. Visibility is
+ * `frontDoorRegions().band` (lib/jobs/front-door-state.ts) — the same rule for
  * signed-out AND signed-in visitors without a résumé on file, so both this
  * band and page.tsx's other résumé-entry surfaces (`needsResumeEntry`) can't
  * disagree about who needs the invite.
@@ -27,7 +26,7 @@ import {
  * 2026-09-17: the band's second, outline "Sign in" button was cut; signing
  * in is now the `AUTH_CTA_LABEL` word inside `RESUME_UPLOAD_SIGNIN_LINE`
  * below, rendered as a link — same split-on-embedded-label convention
- * `FrontDoorDetailPitch` uses for `FOOTER_PROVENANCE_LINE`). A signed-in
+ * the retired detail pitch used for `FOOTER_PROVENANCE_LINE`). A signed-in
  * account (the one /jobs used to put a full-page onboarding card in front of)
  * gets its own subcopy, since its upload is saved to the account rather than
  * kept in the browser, and no line asking it to sign in.

@@ -937,17 +937,6 @@ test("the list tells what the Chrome extension does and links its store page, on
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 
-test("the signed-out front door tells what the Chrome extension does and links its store page, under the résumé invite", { tag: ["@J-JOBS-150"] }, async ({ page, diagnostics }) => {
-  await returningVisitor(page);
-  await page.goto("/jobs");
-  await expectExtensionTile(page);
-  const top = async (selector: ReturnType<Page["getByTestId"]>) => (await selector.boundingBox())!.y;
-  await expect(page.getByTestId("privacy-promises")).toBeVisible({ timeout: 30_000 });
-  expect(await top(page.getByRole("region", { name: "Add your resume" }))).toBeLessThan(await top(page.getByTestId("extension-tile")));
-  expect(await top(page.getByTestId("extension-tile"))).toBeLessThan(await top(page.getByTestId("privacy-promises")));
-  expect(diagnostics.pageErrors).toEqual([]);
-});
-
 /**
  * J-JOBS-136 — Vivek, 2026-10-14/15: "FIRST MATCH the rest of the experience and skills content to the job profiles
  * and then match the title if necessary AT THE END"; "that is how people find adjacent roles or titles that they

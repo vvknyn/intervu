@@ -12,7 +12,7 @@ import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-sta
  *  `FooterLinks` appends `?from=<pathname>` for any entry carrying it, keyed
  *  on the property itself rather than on which link this happens to be. */
 export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
-    { label: "Research", href: "/research/ghost-jobs" },
+    { label: "About the checks", href: GHOST_RESEARCH_HREF },
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
