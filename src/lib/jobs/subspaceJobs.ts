@@ -13,8 +13,6 @@
  */
 import type { JobsApiEnvelope, PublicJob } from "./types";
 
-const DEFAULT_BASE_URL = "https://www.thesubspace.io/api/v1";
-
 export class SubspaceJobsError extends Error {
   status?: number;
   code?: string;
@@ -26,8 +24,14 @@ export class SubspaceJobsError extends Error {
   }
 }
 
-function baseUrl(): string {
-  return (process.env.SUBSPACE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
+/** The one place the Subspace API base is resolved. Read lazily (call time) so
+ *  `next build` works without the env. There is deliberately NO default: the
+ *  public host serves a static marketing site, not the API, so a fallback would
+ *  return 200 text/html and fail silently. */
+export function subspaceApiBase(): string {
+  const base = process.env.SUBSPACE_API_BASE_URL;
+  if (!base) throw new Error("SUBSPACE_API_BASE_URL is not set — the Subspace API has no public host");
+  return base.replace(/\/+$/, "");
 }
 
 function requireApiKey(): string {
@@ -85,7 +89,7 @@ async function fetchWithDeadline(
 }
 
 async function postJson<T>(path: string, body: unknown, opts?: { timeoutMs?: number }): Promise<T> {
-  const url = new URL(`${baseUrl()}${path}`);
+  const url = new URL(`${subspaceApiBase()}${path}`);
 
   const res = await fetchWithDeadline(
     path,
@@ -126,7 +130,7 @@ async function getJson(
   params: Record<string, string | number | undefined>,
   opts?: { timeoutMs?: number },
 ): Promise<JobsApiEnvelope> {
-  const url = new URL(`${baseUrl()}${path}`);
+  const url = new URL(`${subspaceApiBase()}${path}`);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   }

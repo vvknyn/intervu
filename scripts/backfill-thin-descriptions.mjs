@@ -17,7 +17,8 @@ const TEASER_MAX_LEN = 220; // keep in sync with src/lib/jobs/fill-description.t
 const MEILI_HOST = (process.env.MEILISEARCH_HOST || "").replace(/\/+$/, "");
 const MEILI_KEY = process.env.MEILISEARCH_SEARCH_KEY || process.env.MEILISEARCH_ADMIN_KEY || "";
 const SUBSPACE_KEY = process.env.SUBSPACE_API_KEY || "";
-const SUBSPACE_BASE = (process.env.SUBSPACE_API_BASE_URL || "https://www.thesubspace.io/api/v1").replace(/\/+$/, "");
+const SUBSPACE_BASE = (process.env.SUBSPACE_API_BASE_URL || "").replace(/\/+$/, "");
+if (!SUBSPACE_BASE) throw new Error("SUBSPACE_API_BASE_URL is not set — the Subspace API has no public host");
 
 const args = Object.fromEntries(
   process.argv.slice(2).map((a) => {
