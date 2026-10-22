@@ -10,6 +10,7 @@ import {
     shouldScopeTextMatchToTitle,
     isPageSorted,
     sortOptionLabel,
+    sortTriggerLabel,
 } from '../../src/lib/jobs/sort';
 import { JOB_SORT_MODES } from '../../src/lib/jobs/types';
 import type { PublicJob } from '../../src/lib/jobs/types';
@@ -186,6 +187,21 @@ describe('coerceSortToSupported', () => {
         assert.deepEqual(buildMeiliSort({ q: 'engineer', sort: coerceSortToSupported('newest', true) }), [
             'posted_ts:desc',
         ]);
+    });
+});
+
+describe('sortTriggerLabel (the trigger tells the truth about what ranks the list)', () => {
+    it('fit-ranked reads Best match, whatever the résumé flag', () => {
+        for (const mode of JOB_SORT_MODES) assert.equal(sortTriggerLabel(mode, true, true), 'Best match');
+    });
+    it('a résumé user on plain relevance reads Relevance, not Best match', () => {
+        assert.equal(sortTriggerLabel('relevance', true, false), 'Relevance');
+    });
+    it('no résumé, and the other modes, keep the option label', () => {
+        for (const mode of JOB_SORT_MODES) {
+            for (const resumeOnFile of [false, null]) assert.equal(sortTriggerLabel(mode, resumeOnFile, false), sortOptionLabel(mode, resumeOnFile));
+        }
+        assert.equal(sortTriggerLabel('newest', true, false), 'Freshest');
     });
 });
 

@@ -136,7 +136,7 @@ import { indexCategories } from "@/lib/jobs/index-categories";
 import { JOBS_USP } from "@/lib/jobs/jobs-usp-copy";
 import { useTour } from "@/hooks/use-tour";
 import { useDockedSlotMount } from "@/hooks/use-docked-slot-mount";
-import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
+import { jobActionSize, toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { captureEvent } from "@/lib/analytics/events";
 import { resultSetAnalyticsId } from "@/lib/analytics/result-set-id";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
@@ -294,7 +294,7 @@ import {
 } from "@/lib/jobs/resume-cta-copy";
 import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
 import { clusterJobs, clusterToggleLabel } from "@/lib/jobs/cluster";
-import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel } from "@/lib/jobs/sort";
+import { coerceSortToSupported, resolveEffectiveSort, shouldScopeTextMatchToTitle, sortOptionLabel, sortTriggerLabel } from "@/lib/jobs/sort";
 import {
     type FacetKey,
     type JobSearchParams,
@@ -5030,28 +5030,29 @@ export function JobsContent({
     // rows when it appears.
     const rankByFitPending = initialSearch != null && !fitActive && resumeOnFile === null;
     const rankByFitEl = showRankByFit ? (
-        <button
+        <Button
             type="button"
+            variant="outline"
+            size={jobActionSize}
             data-testid="jobs-rank-by-fit"
             title={RANK_SECONDARY_COPY}
             onClick={() => void handleRankByFit()}
-            className={cn(
-                toolbarControlHeight,
-                "ctl-button inline-flex shrink-0 items-center whitespace-nowrap text-foreground transition-colors",
-            )}
+            className="shrink-0 whitespace-nowrap"
         >
             Rank with my résumé
-        </button>
+        </Button>
     ) : rankByFitPending ? (
-        <button
+        <Button
             type="button"
+            variant="outline"
+            size={jobActionSize}
             aria-hidden
             tabIndex={-1}
             disabled
-            className={cn(toolbarControlHeight, "ctl-button invisible inline-flex shrink-0 items-center whitespace-nowrap")}
+            className="invisible shrink-0 whitespace-nowrap"
         >
             Rank with my résumé
-        </button>
+        </Button>
     ) : null;
 
     const savedSearchMountEl =
@@ -5165,7 +5166,7 @@ export function JobsContent({
     // segmented group always has exactly one filled segment, which reads as
     // a filled button living in a region required to carry zero).
     const relevanceLabel = sortOptionLabel("relevance", resumeOnFile);
-    const sortLabel = fitActive ? relevanceLabel : sortOptionLabel(effectiveSort, resumeOnFile);
+    const sortLabel = sortTriggerLabel(effectiveSort, resumeOnFile, fitActive);
     const sortEl = result?.configured ? (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>

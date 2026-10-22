@@ -32,6 +32,15 @@ export function sortOptionLabel(mode: JobSortMode, resumeOnFile: boolean | null)
     }
 }
 
+/**
+ * The sort trigger's label: "Best match" only when the list is actually ranked by the résumé fit; a résumé user
+ * on plain relevance sees "Relevance", so the label never claims a ranking the list does not have.
+ */
+export function sortTriggerLabel(mode: JobSortMode, resumeOnFile: boolean | null, fitActive: boolean): string {
+    if (fitActive) return "Best match";
+    return mode === "relevance" && resumeOnFile === true ? "Relevance" : sortOptionLabel(mode, resumeOnFile);
+}
+
 export function buildMeiliSort(p: JobSearchParams, legacy = false): string[] | undefined {
     const mode = resolveEffectiveSort(p);
     const tsField = legacy ? "posted_at" : "posted_ts";

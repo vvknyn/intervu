@@ -42,6 +42,18 @@ describe("rowReasonLine (compact row form)", () => {
         assert.ok(rowReasonLine(pm, score({ key: "relevance" }), long)!.length <= ROW_REASON_MAX);
     });
 
+    it("title overlap drops a parenthetical in the role instead of clipping inside it", () => {
+        const pm = { id: "2", title: "Senior Product Manager" } as PublicJob;
+        const r = (role: string) => ({ profile: {}, experience: [{ role }] }) as ResumeData;
+        assert.equal(rowReasonLine(pm, score({ key: "relevance" }), r("Senior Product Manager, Northstar Billing (Payments)")), "Title overlap · Senior Product Manager, Northstar Billing");
+        assert.equal(rowReasonLine(pm, score({ key: "relevance" }), r("Senior Product Manager (Growth) II")), "Title overlap · Senior Product Manager II");
+    });
+
+    it("a mid-string parenthetical in a component detail is dropped too", () => {
+        const s = { total: 80, components: [{ label: "Seniority", detail: "senior (10 yrs) role — matches you", score: 0.9 }] } as MatchScore;
+        assert.equal(rowReasonLine(job, s, null), "Seniority: senior role — matches you");
+    });
+
     it("says nothing when no component is strong or the fit is unknown", () => {
         assert.equal(rowReasonLine(job, score({ key: "seniority", score: 0.5 }), null), null);
         assert.equal(rowReasonLine(job, score({ key: "seniority", unknown: true }), null), null);
@@ -52,9 +64,11 @@ describe("rowReasonLine (compact row form)", () => {
 describe("row text is never a one-line ellipsis", () => {
     const card = readFileSync(path.join(process.cwd(), "src/components/jobs/JobCard.tsx"), "utf8");
     const tag = (id: string) => card.match(new RegExp(`data-testid="${id}"[^>]*>`))?.[0] ?? "";
-    for (const id of ["row-fit-reason", "job-row-meta"]) {
-        it(`${id} clamps to 2 lines`, () => assert.match(tag(id) || card.slice(card.indexOf(id), card.indexOf(id) + 400), /line-clamp-2/));
-    }
+    it("job-row-meta clamps to 2 lines", () => assert.match(tag("job-row-meta") || card.slice(card.indexOf("job-row-meta"), card.indexOf("job-row-meta") + 400), /line-clamp-2/));
+    it("row-fit-reason wraps in full (bounded text, no clamp)", () => {
+        assert.ok(tag("row-fit-reason"), "row-fit-reason element not found");
+        assert.doesNotMatch(tag("row-fit-reason"), /line-clamp/);
+    });
     it("meta line carries the full string in title", () => assert.match(card.slice(card.indexOf('data-testid="job-row-meta"') - 20, card.indexOf('data-testid="job-row-meta"') + 300), /title=/));
 });
 

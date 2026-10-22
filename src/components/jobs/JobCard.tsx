@@ -350,7 +350,7 @@ export function JobCard({
                     </div>
                 )}
                 {reasonLine && (
-                    <p data-testid="row-fit-reason" className="mt-1 line-clamp-2 text-left text-sm text-muted-foreground">
+                    <p data-testid="row-fit-reason" className="mt-1 text-left text-sm text-muted-foreground">
                         {reasonLine}
                     </p>
                 )}
