@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
+import { toast } from '@/lib/toast'
+import { presentAuthResult, type AuthPresentation } from './present-auth-result'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
 import { authStartedPayloadFromAttempt } from '@/lib/analytics/auth-event-payload'
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
@@ -122,6 +124,24 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const setMessage = useCallback((text: string | null) => {
         setNotice(text === null ? null : { text, id: ++noticeIdRef.current })
     }, [])
+    // Runs a presented answer: false when the press did not sign the person in
+    // (an inline error, or a toast that sends them on to sign in).
+    const applyAuthPresentation = useCallback((presented: AuthPresentation, onNotSignedIn?: () => void): boolean => {
+        if ("ok" in presented) {
+            setMessage(null)
+            return true
+        }
+        onNotSignedIn?.()
+        if ("inline" in presented) {
+            setMessage(presented.inline)
+            return false
+        }
+        setMessage(null)
+        toast[presented.toast.kind](presented.toast.text)
+        if (presented.switchTab) setActiveTab(presented.switchTab)
+        if (presented.prefill) setUsername(presented.prefill.username)
+        return false
+    }, [setMessage])
     useEffect(() => {
         if (notice) cardTopRef.current?.scrollIntoView({ block: 'nearest' })
     }, [notice])
@@ -146,11 +166,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
             formData.append('username', username)
             formData.append('password', password)
             const result = await signIn(null, formData)
-            if ("error" in result) {
-                setMessage(result.error)
-                return
-            }
-            setMessage(null)
+            if (!applyAuthPresentation(presentAuthResult(result, { username }))) return
             router.refresh()
             revalidateClientSession()
             await syncGuestFollowsToServer()
@@ -227,12 +243,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 formData.append('password', password)
                 formData.append('turnstileToken', check.token ?? '')
                 const result = await signUp(null, formData)
-                if ("error" in result) {
-                    turnstile.reset()
-                    setMessage(result.error)
-                    return
-                }
-                setMessage(null)
+                if (!applyAuthPresentation(presentAuthResult(result, { username }), turnstile.reset)) return
                 // `signUp` already authenticates the fresh account and saves the
                 // session server-side — no second client-side sign-in round trip.
                 //
@@ -241,7 +252,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
                 // so an abandoned Google redirect + password signup cannot double-fire.
                 clearSignupSignalCookieFromDocument()
-                if (result.signupCompleted) {
+                if ("signupCompleted" in result && result.signupCompleted) {
                     captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() }) // signup-once: gated on the server claim (claimSignupEvent)
                 }
                 clearGateAttempt(window.sessionStorage)

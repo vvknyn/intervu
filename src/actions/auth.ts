@@ -70,7 +70,7 @@ function logSignupRefused(reason: string, attrs: Record<string, string | number 
 export async function signUpCore(
     deps: Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession">,
     input: { username: string; password: string; email: string },
-): Promise<{ error: string } | { success: true; user: User }> {
+): Promise<{ error: string } | { notice: string; kind: "success" | "info" } | { success: true; user: User }> {
     const { username, password, email } = input;
 
     let created: User;
@@ -108,14 +108,14 @@ export async function signUpCore(
         // sign-in failed. A distinct message from a bad-credentials sign-in
         // failure: this person's password is correct, they just need to
         // submit it once more.
-        return { error: "Account created — please sign in." };
+        return { notice: "Account created — sign in to continue.", kind: "success" };
     }
 }
 
 export async function signUp(
     prevState: any,
     formData: FormData,
-): Promise<{ error: string } | { success: true; signupCompleted: boolean }> {
+): Promise<{ error: string } | { notice: string; kind: "success" | "info" } | { success: true; signupCompleted: boolean }> {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
     const turnstileToken = formData.get("turnstileToken") as string | null;
@@ -194,7 +194,7 @@ export async function signUp(
 
     const deps = await realAuthActionDeps();
     const result = await signUpCore(deps, { username, password, email });
-    if ("error" in result) return result;
+    if (!("success" in result)) return result;
 
     // Deferred, not awaited: welcome email + org membership
     // must never turn a successful signup into an error, and a person
