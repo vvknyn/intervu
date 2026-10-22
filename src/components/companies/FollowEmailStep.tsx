@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
-import { followEmailPrompt, followEmailSentLine } from "@/lib/follows/persist-copy";
+import { confirmLinkCreatesAccountLine, followEmailPrompt, followEmailSentLine } from "@/lib/follows/persist-copy";
 import { recordFollowFunnelAction } from "@/actions/follow-funnel";
 
 export interface FollowEmailStepProps {
@@ -86,7 +86,7 @@ export function FollowEmailStep({ companyDomain, displayName, onSignInInstead }:
   return (
     <div data-testid="follow-email-step" className="max-w-[220px] text-right">
       <form onSubmit={handleSubmit} className="space-y-2">
-        <p className="text-xs leading-snug text-muted-foreground">{followEmailPrompt(displayName)}</p>
+        <p className="text-xs leading-snug text-muted-foreground">{followEmailPrompt(displayName)} {confirmLinkCreatesAccountLine()}</p>
         <Input
           type="email"
           required
