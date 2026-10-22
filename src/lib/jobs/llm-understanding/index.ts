@@ -44,6 +44,9 @@ async function defaultParseDeps(): Promise<ParseDeps> {
     };
 }
 
+/** The LLM stage is OFF unless the server sets JOBS_LLM_UNDERSTANDING=1 (no free or paid model answers reliably inside the 4 s budget). The single read of the flag. */
+export const llmUnderstandingEnabled = (): boolean => process.env.JOBS_LLM_UNDERSTANDING === "1";
+
 /** Two words or a digit: a lone word is already handled by Meili synonyms and typo tolerance. */
 function worthParsing(p: JobSearchParams): boolean {
     const q = (p.q ?? "").trim();
@@ -61,13 +64,13 @@ async function resolveIntentPlace(loc: JobSearchIntent["location"], vocab: Locat
 }
 
 /**
- * Pipeline stage after `applyQueryUnderstanding`: send the RESIDUAL query text
+ * Pipeline stage after `applyQueryUnderstanding` (flag-gated, see `llmUnderstandingEnabled`): send the RESIDUAL query text
  * through the free LLM rungs and write what comes back into the params. Any
  * failure (every rung down, empty answer) returns `p` untouched, so the
  * deterministic result still searches.
  */
 export async function applyLlmUnderstanding(p: JobSearchParams, deps: LlmUnderstandingDeps = {}): Promise<JobSearchParams> {
-    if (!worthParsing(p)) return p;
+    if (!llmUnderstandingEnabled() || !worthParsing(p)) return p;
     const parsed = await parseIntent(p.q ?? "", deps.parse ?? await defaultParseDeps());
     if (!parsed || isDeepStrictEqual(parsed.intent, EMPTY_INTENT)) return p;
     const { location } = parsed.intent;

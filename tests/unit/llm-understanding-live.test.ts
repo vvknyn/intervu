@@ -7,7 +7,7 @@ import { ProviderFactory } from "../../src/lib/llm/providers";
 import fixtures from "./fixtures/nl-search-intents.json";
 
 /** Grades the live free ladder against the fixtures per their `_grading` note.
- *  Opt-in: RUN_LIVE_LADDER=1 (needs OPENROUTER_API_KEY; spends free-tier calls). */
+ *  Opt-in: RUN_LIVE_LADDER=1 and JOBS_LLM_UNDERSTANDING=1 (needs OPENROUTER_API_KEY; spends free-tier calls). */
 const set = (xs: string[]) => [...new Set(xs.map((x) => x.toLowerCase().trim()))].sort();
 function grade(got: JobSearchIntent, want: JobSearchIntent): string[] {
     const bad: string[] = [];
@@ -27,7 +27,7 @@ function grade(got: JobSearchIntent, want: JobSearchIntent): string[] {
     return bad;
 }
 
-test("live ladder grading over all fixtures", { skip: !process.env.RUN_LIVE_LADDER }, async () => {
+test("live ladder grading over all fixtures", { skip: !process.env.RUN_LIVE_LADDER || process.env.JOBS_LLM_UNDERSTANDING !== "1" }, async () => {
     const apiKey = process.env.OPENROUTER_API_KEY ?? "";
     const rungs = await understandingRungs();
     const latencies: number[] = [];
