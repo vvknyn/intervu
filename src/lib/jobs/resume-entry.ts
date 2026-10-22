@@ -50,9 +50,16 @@ export function jobsResumeEntries({ resumeOnFile, fitActive }: { resumeOnFile: b
     return entries;
 }
 
-/** The one résumé-state strip above a fit-ranked list: what it ranked by, then what it read (title, place); the lead alone when it read neither. */
-export function resumeReadLine(resume: ResumeData): string {
+export const RESUME_READ_LABEL = "Ranked by your résumé";
+
+/** The résumé-state strip's readable detail: what it read (title, place), or null when it read neither. */
+export function resumeReadDetail(resume: ResumeData): string | null {
     const title = resume.profile?.profession?.trim() || resume.experience?.find((e) => e.role?.trim())?.role.trim();
     const place = resume.profile?.location?.trim();
-    return ["Ranked by your résumé", title, place].filter(Boolean).join(" · ");
+    return [title, place].filter(Boolean).join(" · ") || null;
+}
+
+/** The one résumé-state strip above a fit-ranked list, as one string: the lead, then the detail when there is one. */
+export function resumeReadLine(resume: ResumeData): string {
+    return [RESUME_READ_LABEL, resumeReadDetail(resume)].filter(Boolean).join(" · ");
 }
