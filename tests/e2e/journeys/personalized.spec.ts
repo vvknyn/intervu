@@ -253,7 +253,7 @@ test("when no role from the last 30 days fits, the list holds the older roles th
   await answerResumeSearch(page, [oldest, older], "journey-pack-older");
   await openFitList(page);
 
-  await expect(page.getByTestId("list-notice")).toContainText("No role posted in the last 30 days fits your résumé yet", { timeout: 60_000 });
+  await expect(page.getByTestId("list-notice")).toContainText("each card shows its age", { timeout: 60_000 });
   await expect(page.getByTestId("list-none-fit")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(2);
   // The row's age is the list's own, in months once a posting is a month old.
@@ -739,7 +739,7 @@ test("a list where nothing fits holds the closest roles under an honest line, no
   await answerResumeSearch(page, [staff, ...close], "journey-closest");
   await openFitList(page);
 
-  await expect(page.getByTestId("list-notice")).toContainText("None of the roles we found fit your résumé well yet. These are the closest", { timeout: 60_000 });
+  await expect(page.getByTestId("list-notice")).toContainText("Add detail to your résumé for closer matches", { timeout: 60_000 });
   await expect(page.getByTestId("list-none-fit")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(2);
   for (const row of await page.getByTestId("job-row").all()) await expect(row.getByTestId("match-chip")).toHaveText("Stretch");
@@ -767,7 +767,7 @@ test("a list where only older roles are posted and none fits holds the closest o
   await answerResumeSearch(page, closeOld, "journey-closest-older");
   await openFitList(page);
 
-  await expect(page.getByTestId("list-notice")).toContainText("nothing posted in the last 30 days is close", { timeout: 60_000 });
+  await expect(page.getByTestId("list-notice")).toContainText("add detail to your résumé for closer matches", { timeout: 60_000 });
   await expect(page.getByTestId("list-none-fit")).toHaveCount(0);
   await expect(page.getByTestId("job-row")).toHaveCount(2);
   for (const row of await page.getByTestId("job-row").all()) {
