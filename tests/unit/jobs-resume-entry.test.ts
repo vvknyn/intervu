@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { jobsResumeEntries, needsResumeEntry, offersRankByFit, resumeReadLine } from '../../src/lib/jobs/resume-entry';
+import { jobsResumeEntries, needsResumeEntry, offersRankByFit, resumeReadDetail, resumeReadLine, RESUME_READ_LABEL } from '../../src/lib/jobs/resume-entry';
 import type { ResumeData } from '../../src/types/resume';
 
 describe('needsResumeEntry', () => {
@@ -95,5 +95,21 @@ describe('resumeReadLine', () => {
     });
     it('still says it ranked by the résumé when it read neither', () => {
         assert.equal(resumeReadLine(resume({})), 'Ranked by your résumé');
+    });
+});
+
+describe('resumeReadDetail', () => {
+    const resume = (profile: Partial<ResumeData['profile']>, roles: string[] = []) =>
+        ({ profile, experience: roles.map((role) => ({ role })) }) as unknown as ResumeData;
+
+    it('title and place', () => {
+        assert.equal(resumeReadDetail(resume({ profession: 'Senior Product Manager', location: 'Toronto, ON, Canada' })), 'Senior Product Manager · Toronto, ON, Canada');
+    });
+    it('role only', () => {
+        assert.equal(resumeReadDetail(resume({}, ['Nurse'])), 'Nurse');
+    });
+    it('null when it read neither, so the strip is the label and the action alone', () => {
+        assert.equal(resumeReadDetail(resume({})), null);
+        assert.equal(RESUME_READ_LABEL, 'Ranked by your résumé');
     });
 });
