@@ -129,6 +129,19 @@ export const OLDER_FITS_NOTICE = `No role posted in the last ${PACK_MAX_AGE_DAYS
 /** Said above the closest older roles, when nothing newer is even close: a weaker fit, posted longer ago, and each card says how old it is. */
 export const OLDER_NEAR_MISS_NOTICE = `None of the roles we found fit your résumé well yet, and nothing posted in the last ${PACK_MAX_AGE_DAYS} days is close. These are the closest, each a weaker fit, posted longer ago, and some may already be filled. Each card says how old it is.`;
 
+const RESUME_ACTION = { label: "Résumé", href: "/resume" };
+
+/**
+ * The one quiet line the résumé-ranked list shows under its header, which already carries the count and "each a weaker fit" /
+ * "posted over 30 days ago": it adds only what the header lacks. The paragraph notices above are for agent prose.
+ */
+export function listNoticeLine(kind: DeckListKind): { text: string; action?: { label: string; href: string } } | null {
+    if (kind === "near") return { text: "Add detail to your résumé for closer matches", action: RESUME_ACTION };
+    if (kind === "older") return { text: "Some may already be filled · each card shows its age" };
+    if (kind === "older-near") return { text: "Some may already be filled · add detail to your résumé for closer matches", action: RESUME_ACTION };
+    return null;
+}
+
 /** The roles a list ranks lower, and the roles it leaves out: the two counts the one disclosure line (`formatRankedLine`) gives. */
 export const rankedLowerTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.rankedLower ?? {}).reduce((sum, n) => sum + n, 0);
 export const hiddenTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.byReason).reduce((sum, n) => sum + n, 0);
