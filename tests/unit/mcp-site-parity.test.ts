@@ -33,6 +33,7 @@ import type { BaseResume } from '../../src/lib/resume/base-resume';
 import path from 'node:path';
 import { TAILOR_POSTINGS } from '../fixtures/job-descriptions/tailor-postings';
 import { siteSearch } from '../../src/lib/agent/site-search';
+import { deckListFor } from '../../src/lib/jobs/for-you/band-order';
 import { withPlaceCountries } from '../../src/lib/agent/place-countries';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { withDescriptionPlace, withPlaceRestrictions } from '../../src/lib/jobs/place-notes';
@@ -214,9 +215,12 @@ describe('MCP tools label a role the way the site does', () => {
             // one card per role, only roles with an apply link (JobsContent `rankedPacks`).
             const signals = resolveCandidateSignals(persona.resume, withPlaceCountries(persona.prefs));
             const pack = await corpusStub(CORPUS).search({ ...packSearchParams(packFilters(persona.resume, signals)), limit: 100, offset: 0 });
-            const deck = clusterJobs(await listRows(pack.hits))
+            const cards = clusterJobs(await listRows(pack.hits))
                 .map((c) => c.primary)
                 .filter(hasLiveApplyUrl);
+            // The site lists `ranked` then a ranked-lower tail (`lower`); the agent's `for_you` keeps only the roles that fit,
+            // which is the site's `ranked` (withRankedLowerLeftOut). Compare like with like.
+            const deck = deckListFor(cards, (job) => scoreJobAgainstResume(persona.resume, job, signals), Date.now()).ranked;
 
             assert.deepEqual(new Set(out.hits.map((h) => h.id)), new Set(deck.map((j) => j.id)), persona.name);
             const rows = new Map(deck.map((row) => [row.id, row] as const));
