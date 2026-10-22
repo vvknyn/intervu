@@ -52,21 +52,32 @@ export interface ParsedQuery {
   workTypes: string[];
 }
 
+/** A work-mode word under negation ("not remote", "no hybrid roles") is an exclusion, not a selection:
+ *  the table leaves it in the query for `parseExclusionTokens` to consume and report. */
+const NOT_NEGATED = String.raw`(?<!\b(?:no|not|without|excluding)\s+)`;
+const wm = (src: string): RegExp => new RegExp(`${NOT_NEGATED}\\b${src}\\b`, "gi");
+
+/** "<N> days (in|in the|at the) office|onsite" — a quantified onsite ask: 1-4 days is hybrid, 5+ is onsite. */
+const OFFICE_DAYS_RE = wm(String.raw`([1-9]\d*)\s+days?\s+(?:(?:in|at)\s+(?:the\s+)?)?(?:office|on-?site)(?:\s+(?:max|maximum|at\s+most|tops|a\s+week|per\s+week|each\s+week))?`);
+
 /** Longest phrases first, so "work from home" is consumed before any single-word pass could see its words. */
 const WORK_TYPE_PHRASES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bwork[- ]from[- ]home\b/gi, "remote"],
-  [/\bin[- ]office\b/gi, "onsite"],
-  [/\bon[- ]site\b/gi, "onsite"],
-  [/\bwfh\b/gi, "remote"],
-  [/\bremote\b/gi, "remote"],
-  [/\bhybrid\b/gi, "hybrid"],
-  [/\bonsite\b/gi, "onsite"],
+  [wm("work[- ]from[- ]home"), "remote"],
+  [wm("in[- ]office"), "onsite"],
+  [wm("on[- ]site"), "onsite"],
+  [wm("wfh"), "remote"],
+  [wm("remote"), "remote"],
+  [wm("hybrid"), "hybrid"],
+  [wm("onsite"), "onsite"],
 ];
 
 /** Pure — no I/O, so behavior locks under unit test. */
 export function parseWorkTypeTokens(q: string): ParsedQuery {
-  let residual = q;
   const found = new Set<string>();
+  let residual = q.replace(OFFICE_DAYS_RE, (_m, days: string) => {
+    found.add(Number(days) >= 5 ? "onsite" : "hybrid");
+    return " ";
+  });
   for (const [re, canonical] of WORK_TYPE_PHRASES) {
     const next = residual.replace(re, " ");
     if (next !== residual) {

@@ -310,11 +310,10 @@
         "postedBucket": null,
         "yearsExperience": null,
         "employment_type": null,
-        "work_type": null,
-        "residualQ": "solutions architect salesforce, 3 days in office max, Chicago",
+        "work_type": "hybrid",
+        "residualQ": "solutions architect salesforce, Chicago",
         "mentions": []
-      },
-      "knownGap": "the existing work-type parser reads \"in office\" inside \"3 days in office max\" as onsite (a false filter for a hybrid ask); its fix belongs to parseWorkTypeTokens, not this stage"
+      }
     },
     {
       "q": "lead designer figma design systems",

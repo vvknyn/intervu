@@ -48,6 +48,10 @@ const extras: [string, Partial<Expect>][] = [
     ["barista full-time this week 30,000", {
         salaryMin: 30000, postedBucket: "7d", employment_type: "full_time", residualQ: "barista",
     }],
+    ["data analyst not remote", { residualQ: "data analyst", mentions: ["not remote"] }],
+    ["no hybrid roles", { residualQ: "", mentions: ["no hybrid roles"] }],
+    ["java developer 2 days in the office", { work_type: "hybrid", residualQ: "java developer" }],
+    ["java developer 5 days onsite", { work_type: "onsite", residualQ: "java developer" }],
     ["internship designer", { employment_type: "internship", residualQ: "designer" }],
 ];
 for (const [q, want] of extras) {
