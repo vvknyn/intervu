@@ -98,7 +98,7 @@ export function JobCard({
     /** When true and `matchScore` is absent, render a locked fit teaser. */
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
-    /** Why a recommended role is listed (`rowReasonLine`): one line under the facts, only on a résumé-ranked list. */
+    /** Why a recommended role is listed (`rowReasonLine`): two lines at most under the facts (the compact form), only on a résumé-ranked list. */
     reasonLine?: string | null;
     /** Existing pursuit for this job, if any — same contract JobDetail's
      *  bookmark reads. Optional (unlike JobDetail's required prop): the
@@ -265,7 +265,11 @@ export function JobCard({
                     wrapped to its own line starting with a stray dot, and as
                     a flex item a company name that wrapped left the dot
                     floating beside it (2026-10-02). */}
-                <div className="mt-1 text-left text-sm text-muted-foreground">
+                <div
+                    data-testid="job-row-meta"
+                    title={[presented.company.name, locationKnown && withRemoteScope(place, scope)].filter(Boolean).join(" · ")}
+                    className="mt-1 line-clamp-2 text-left text-sm text-muted-foreground"
+                >
                     <DotSeparated
                         items={[
                             onCompany ? (
@@ -346,7 +350,7 @@ export function JobCard({
                     </div>
                 )}
                 {reasonLine && (
-                    <p data-testid="row-fit-reason" className="mt-1 line-clamp-1 text-left text-sm text-muted-foreground">
+                    <p data-testid="row-fit-reason" className="mt-1 line-clamp-2 text-left text-sm text-muted-foreground">
                         {reasonLine}
                     </p>
                 )}

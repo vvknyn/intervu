@@ -39,3 +39,12 @@ export function needsResumeReplace({
 }): boolean {
     return resumeOnFile === true;
 }
+
+/**
+ * Whether the toolbar / Sort menu offer "Rank with my résumé": any time the list is not already ranked by fit
+ * and presence is known. `true` runs the fit; `false` falls through to the upload path; `null` stays quiet.
+ * Separate from `needsResumeEntry` (the "add a résumé" invite), which must stay off for someone who has one.
+ */
+export function offersRankByFit({ resumeOnFile, fitActive }: { resumeOnFile: boolean | null; fitActive: boolean }): boolean {
+    return !fitActive && resumeOnFile !== null;
+}

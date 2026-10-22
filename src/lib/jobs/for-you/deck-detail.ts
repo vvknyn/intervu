@@ -9,11 +9,8 @@ function uniqueOverlap(a: string[], b: string[]): string[] {
     return [...new Set(a.filter((token) => setB.has(token.toLowerCase())))];
 }
 
-/**
- * One sentence under the title when a résumé role actually overlaps the
- * posting title. Term-count and country are not an overlap — those return null.
- */
-export function deckOverlapSentence(job: PublicJob, resume: ResumeData | null): string | null {
+/** The résumé role whose title shares ≥2 meaningful words with the posting title, or null. */
+export function deckOverlapTitle(job: PublicJob, resume: ResumeData | null): string | null {
     const jobTitle = job.title?.trim();
     if (!resume || !jobTitle) return null;
     const jobTokens = meaningfulTitleTokens(jobTitle);
@@ -32,8 +29,16 @@ export function deckOverlapSentence(job: PublicJob, resume: ResumeData | null): 
         if (hits.length < 2) continue;
         if (!best || hits.length > best.hits) best = { title: candidate.trim(), hits: hits.length };
     }
-    if (!best) return null;
-    return `Overlaps your ${best.title} experience.`;
+    return best ? best.title : null;
+}
+
+/**
+ * One sentence under the title when a résumé role actually overlaps the
+ * posting title. Term-count and country are not an overlap — those return null.
+ */
+export function deckOverlapSentence(job: PublicJob, resume: ResumeData | null): string | null {
+    const title = deckOverlapTitle(job, resume);
+    return title ? `Overlaps your ${title} experience.` : null;
 }
 
 /** Present facts only — no empty labeled rows. Order matches the decision header. */

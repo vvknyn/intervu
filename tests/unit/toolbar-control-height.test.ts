@@ -111,7 +111,9 @@ test("toolbar control height", async (t) => {
         );
         assert.match(scroller, /@2xl:flex-wrap/);
         assert.match(scroller, /@2xl:overflow-x-clip/);
-        assert.match(scroller, /\boverflow-x-auto/);
+        // The scrolling lives on the wrapper shared with the active chips (one row below @2xl).
+        const rows = pageSrc.slice(pageSrc.indexOf('data-testid="jobs-toolbar-rows"'), pageSrc.indexOf('data-testid="jobs-toolbar-rows"') + 300);
+        assert.match(rows, /\boverflow-x-auto/);
         assert.doesNotMatch(scroller, /flex-nowrap/);
     });
 

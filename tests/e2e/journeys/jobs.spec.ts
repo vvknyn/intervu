@@ -109,6 +109,16 @@ for (const visitor of VISITORS) {
     await expect(page.locator('[data-testid="detail-pane"]:visible, [data-testid="mobile-detail-scroller"]:visible').first()).toBeVisible();
   });
 
+  test(`${visitor.name} reads every data line on a row: company/place and the fit reason are never cut to one line`, { tag: ["@J-JOBS-01"] }, async ({ page, baseURL }) => {
+    await openJobs(page, baseURL, visitor.previousSession, "/jobs?q=engineer");
+    await expectBoard(page, 30_000);
+    const meta = page.getByTestId("job-row-meta");
+    await expect(meta.first()).toBeVisible();
+    // Clamped to at most two lines (the full string is in `title`), never the old single-line ellipsis.
+    const tooTall = await meta.evaluateAll((els) => els.filter((e) => e.clientHeight > 2 * parseFloat(getComputedStyle(e).lineHeight) + 1).length);
+    expect(tooTall).toBe(0);
+  });
+
   test(`${visitor.name} clicks Sign in or Get started and the front door is still there 2s later`, { tag: ["@J-JOBS-24"] }, async ({ page, baseURL }) => {
     await openJobs(page, baseURL, visitor.previousSession);
     await expectFrontDoor(page);
