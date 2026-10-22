@@ -57,7 +57,10 @@ export interface JobsEntryInput {
 export function resolveJobsEntry(input: JobsEntryInput): JobsEntry {
     const { user, search, resumeOnFile, fitPath } = input;
     if (!user) return { kind: "render", initial: null };
-    if (resumeOnFile === true && fitPath && isBareJobsAddress(search)) return { kind: "redirect", url: fitPath };
+    // A target that is itself bare would 307 to itself forever; render instead.
+    if (resumeOnFile === true && fitPath && isBareJobsAddress(search) && !isBareJobsAddress(new URLSearchParams(fitPath.split("?")[1] ?? ""))) {
+        return { kind: "redirect", url: fitPath };
+    }
     return { kind: "render", initial: { user, resumeOnFile } };
 }
 

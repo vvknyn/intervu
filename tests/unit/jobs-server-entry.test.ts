@@ -57,6 +57,12 @@ describe('resolveJobsEntry', () => {
         });
     });
 
+    it('a fit address that is itself bare renders, never redirects to itself', () => {
+        for (const degenerate of ['/jobs', '/jobs?utm_source=x']) {
+            assert.equal(resolveJobsEntry({ user: USER, search: bare(), resumeOnFile: true, fitPath: degenerate }).kind, 'render');
+        }
+    });
+
     it('signed in with a search, job, filter, sort or importer link: renders, never redirects', () => {
         for (const qs of ['q=pm', 'job=abc', 'remote=1&work=remote', 'sort=newest', 'resume=1']) {
             const entry = resolveJobsEntry({ user: USER, search: bare(qs), resumeOnFile: true, fitPath: fit });
