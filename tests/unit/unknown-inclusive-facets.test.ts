@@ -34,8 +34,31 @@ describe("a seniority selection also matches un-derived levels (ruling 20:10)", 
     assert.equal(clause.match(/experience_level = "unknown"/g)?.length, 1, clause);
   });
 
-  it("facets without a never-derived value keep their plain OR clause", () => {
-    assert.deepEqual(buildFilter({ facets: { work_type: ["remote", "hybrid"] } }).slice(1), ['(work_type = "hybrid" OR work_type = "remote")']);
+  it("facets outside the registry keep their plain OR clause", () => {
+    assert.deepEqual(buildFilter({ facets: { employment_type: ["full_time", "contract"] } }).slice(1), ['(employment_type = "contract" OR employment_type = "full_time")']);
+  });
+
+  it("work mode (ruling 2026-10-22) keeps un-derived rows like seniority does", () => {
+    const [clause] = buildFilter({ facets: { work_type: ["remote", "hybrid"] } }).slice(1);
+    for (const t of ['work_type = "hybrid"', 'work_type = "remote"', 'work_type = "unknown"', "work_type IS NULL", "work_type NOT EXISTS"]) {
+      assert.ok(clause.includes(t), clause);
+    }
+  });
+
+  it("a salary floor keeps postings with no stated salary", () => {
+    for (const min of [60_000, 150_000]) {
+      const [clause] = buildFilter({ salaryMin: min }).slice(1);
+      assert.ok(clause.includes(`salary_max >= ${min} OR salary_min >= ${min}`), clause);
+      for (const t of ["salary_max IS NULL", "salary_max NOT EXISTS", "salary_min IS NULL", "salary_min NOT EXISTS"]) assert.ok(clause.includes(t), clause);
+    }
+  });
+
+  it("knownOnly builds the strict twin of every unknown-inclusive clause; the posted window is strict either way", () => {
+    const p = { salaryMin: 90_000, facets: { work_type: ["remote"], experience_level: ["senior"] }, postedBucket: "7d" as const };
+    const strict = buildFilter(p, false, { knownOnly: true }).join(" | ");
+    assert.ok(!/unknown|IS NULL|NOT EXISTS/.test(strict), strict);
+    const inclusive = buildFilter(p).join(" | ");
+    assert.ok(/posted_ts >= \d+/.test(inclusive) && !/posted_ts IS NULL|posted_ts NOT EXISTS/.test(inclusive), inclusive);
   });
 });
 
@@ -46,9 +69,11 @@ describe("in-memory predicate mirrors the Meili clause", () => {
     assert.equal(facetValueMatches("experience_level", null, ["senior"]), true);
     assert.equal(facetValueMatches("experience_level", "mid", ["senior"]), false);
     assert.equal(facetValueMatches("work_type", "onsite", ["remote"]), false);
-    assert.equal(facetValueMatches("work_type", null, ["remote"]), false, "work_type has no unknown-inclusive rule");
-    assert.equal(isUnknownFacetValue("work_type", "unknown"), false);
-    assert.equal(facetFilterClause("work_type", ["remote"]), '(work_type = "remote")');
+    assert.equal(facetValueMatches("work_type", null, ["remote"]), true);
+    assert.equal(facetValueMatches("work_type", "unknown", ["remote"]), true);
+    assert.equal(isUnknownFacetValue("employment_type", "unknown"), false, "unregistered facets stay strict");
+    assert.equal(facetFilterClause("employment_type", ["contract"]), '(employment_type = "contract")');
+    assert.equal(facetFilterClause("work_type", ["remote"], true), '(work_type = "remote")');
   });
 });
 
