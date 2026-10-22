@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { deckLeftOut, nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from '../../src/lib/jobs/for-you/band-order';
 import { forYouLeftOut } from '../../src/lib/jobs/for-you/left-out';
-import { formatDeckShowingLine, formatLeftOutLine, leftOutParts, NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
+import { formatDeckShowingLine, formatLeftOutLine, leftOutParts, listNoticeLine, NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { scoreJobAgainstResume, type MatchScore } from '../../src/lib/match/score';
 import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
@@ -170,5 +170,17 @@ describe('real scores: the rule on the TAM résumé', () => {
         assert.equal(reason(canada('Staff Technical Account Manager', 'senior')), 'level');
         assert.equal(reason(canada('Junior Technical Account Manager', 'mid')), 'level');
         assert.equal(reason(canada('Software Engineer, SRE', 'senior')), 'other-role');
+    });
+});
+
+describe('listNoticeLine: one quiet line, never a paragraph', () => {
+    const resume = { label: 'Résumé', href: '/resume' };
+    it('says only what the header lacks, with the résumé as the action when detail would help', () => {
+        assert.deepEqual(listNoticeLine('near'), { text: 'Add detail to your résumé for closer matches', action: resume });
+        assert.deepEqual(listNoticeLine('older'), { text: 'Some may already be filled · each card shows its age' });
+        assert.deepEqual(listNoticeLine('older-near'), { text: 'Some may already be filled · add detail to your résumé for closer matches', action: resume });
+    });
+    it('has no line for a list of roles that fit', () => {
+        assert.equal(listNoticeLine('fit'), null);
     });
 });
