@@ -64,7 +64,7 @@ import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData } from "@/actions/resume";
+import { fetchResumeData, persistStructuredResume } from "@/actions/resume";
 import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
 import { trackedIndex, trackedPursuitFor, type TrackedIndex } from "@/lib/pursuits/applied";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
@@ -327,7 +327,7 @@ import { LandingNotice } from "@/components/layout/LandingNotice";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
-import { storedResumeData } from "@/lib/resume/stored-resume-data";
+import { storedResumeData, shouldPersistStructured } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import { isConfirmedSignedIn, isConfirmedSignedOut, jobsHomeHold, resolveJobsResumeOnFile } from "@/lib/auth/jobs-chrome-gates";
 import {
@@ -4026,11 +4026,21 @@ export function JobsContent({
     // state can still be empty for a returning user with one saved — check it
     // first (fast path, no network round-trip), else ask the server. Mirrors
     // `resumeIsUsable`'s bar exactly.
+    const structuredSavedRef = useRef(false);
+    // First in-browser structuring of a text-only résumé: save it once, so the next server render has the fit address.
+    const persistStructuredOnce = (args: Parameters<typeof shouldPersistStructured>[0]) => {
+        if (structuredSavedRef.current || !shouldPersistStructured(args) || !args.structured) return;
+        structuredSavedRef.current = true;
+        void persistStructuredResume(args.structured).catch(() => {
+            structuredSavedRef.current = false;
+        });
+    };
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
         // The server's own read of the stored résumé (until this page takes a newer one): no second read before the first search.
         const seeded = initial?.resume && resumeGenerationRef.current === 0 && resumeOnFile !== false ? storedResumeData(initial.resume.data, initial.resume.text) : undefined;
         if (seeded && resumeIsUsable(seeded)) {
+            persistStructuredOnce({ signedIn: Boolean(user), serverData: initial?.resume?.data, serverText: initial?.resume?.text, structured: seeded });
             setResume(seeded);
             setResumeUpdatedAt(initial?.resume?.updatedAt ?? null);
             return seeded;
@@ -4063,6 +4073,7 @@ export function JobsContent({
             const cloud = fetched ? storedResumeData(fetched.data, fetched.text) : undefined;
             if (resumeGenerationRef.current !== generation) return null;
             if (cloud && resumeIsUsable(cloud)) {
+                persistStructuredOnce({ signedIn: true, serverData: fetched?.data, serverText: fetched?.text, structured: cloud });
                 setResume(cloud);
                 setResumeUpdatedAt(fetched?.updatedAt ?? null);
                 return cloud;

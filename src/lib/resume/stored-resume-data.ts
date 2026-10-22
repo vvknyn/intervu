@@ -1,5 +1,6 @@
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -19,4 +20,23 @@ export function storedResumeData(resumeData: ResumeData | undefined, resumeText:
     if (resumeData && hasResumeContent(resumeData)) return resumeData;
     if (typeof resumeText === "string" && resumeText.trim()) return resumeDataFromPlainText(resumeText);
     return resumeData;
+}
+
+/**
+ * Whether the structured copy the browser just made from a text-only résumé
+ * should be saved, so the next server render has data to build the fit address
+ * from. Only a signed-in viewer whose server copy has no structured content
+ * (the text was all that came down) and whose structuring produced something
+ * usable; a guest's résumé never leaves the device.
+ */
+export function shouldPersistStructured(args: {
+    signedIn: boolean;
+    serverData: ResumeData | undefined;
+    serverText: unknown;
+    structured: ResumeData | undefined;
+}): boolean {
+    if (!args.signedIn) return false;
+    if (args.serverData && hasResumeContent(args.serverData)) return false;
+    if (typeof args.serverText !== "string" || !args.serverText.trim()) return false;
+    return Boolean(args.structured && resumeIsUsable(args.structured));
 }
