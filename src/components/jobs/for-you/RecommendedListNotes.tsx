@@ -1,8 +1,11 @@
 import type { ReactNode } from "react";
+import { RANKED_LOWER_ANCHOR, RankedListDisclosure } from "@/components/jobs/for-you/RankedListDisclosure";
 import type { DeckLeftOutSummary } from "@/lib/jobs/for-you/band-order";
 import {
     deckListKind,
-    formatLeftOutLine,
+    disclosureRows,
+    formatRankedLine,
+    type DisclosureRow,
     NEAR_MISS_NOTICE,
     OLDER_FITS_NOTICE,
     OLDER_NEAR_MISS_NOTICE,
@@ -18,14 +21,31 @@ export function recommendedListNotice(summary: DeckLeftOutSummary): string | nul
 }
 
 /**
- * Under a résumé-ranked list's count: the notice when the list holds the closest or the older roles, what the list left out and
- * why ("Left out of the 226 roles found: 41 above your level · ..."), and the control for the languages postings are read in.
- * Plain secondary text, in the same words everywhere a recommendation is counted (`left-out-copy.ts`).
+ * Under a résumé-ranked list's count: the notice when the list holds the closest or the older roles, and one quiet line
+ * about the rest ("Showing 236 of 368 · 122 ranked lower · 54 hidden") that opens to a row per bucket with its action and,
+ * last, the control for the languages postings are read in (`left-out-copy.ts` words every surface).
  */
-export function RecommendedListNotes({ summary, languages }: { summary: DeckLeftOutSummary; languages?: ReactNode }) {
+export function RecommendedListNotes({
+    summary,
+    languages,
+    employers,
+    onInclude,
+}: {
+    summary: DeckLeftOutSummary;
+    /** The languages control; inside the opened line when there is one, else on its own. */
+    languages?: ReactNode;
+    employers?: number;
+    /** Brings back the roles a row names (`DisclosureRow.action` "include"). */
+    onInclude: (row: DisclosureRow) => void;
+}) {
     const notice = recommendedListNotice(summary);
-    const leftOut = formatLeftOutLine(summary);
-    if (!notice && !leftOut && !languages) return null;
+    const line = formatRankedLine(summary);
+    if (!notice && !line && !languages) return null;
+    const rows = disclosureRows(summary, employers);
+    const act = (row: DisclosureRow) => {
+        if (row.action?.kind === "jump") document.getElementById(RANKED_LOWER_ANCHOR)?.scrollIntoView({ behavior: "smooth", block: "start" });
+        else if (row.action?.kind === "include") onInclude(row);
+    };
     return (
         <div data-testid="list-notes" className="mb-3 space-y-2 px-[var(--list-inset)] text-sm text-muted-foreground">
             {notice ? (
@@ -33,8 +53,7 @@ export function RecommendedListNotes({ summary, languages }: { summary: DeckLeft
                     {notice}
                 </p>
             ) : null}
-            {leftOut ? <p data-testid="list-left-out">{leftOut}</p> : null}
-            {languages}
+            {line ? <RankedListDisclosure line={line} rows={rows} onAction={act} footer={languages} /> : languages}
         </div>
     );
 }
