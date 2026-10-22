@@ -244,7 +244,10 @@ describe("jobs filter toolbar chrome", () => {
         assert.ok(actionsIdx > -1);
         // An empty flex-1 spacer takes a row gap of its own, which stranded the
         // "?" on a 390px phone (J-NAV-35); the margin takes none.
-        assert.match(toolbar.slice(actionsIdx, actionsIdx + 120), /className="wrap-row ml-auto /);
+        assert.match(toolbar.slice(actionsIdx, actionsIdx + 120), /className="ml-auto flex [^"]*\bgap-2\b/);
+        // Rank and Sort sit in display:contents wrappers at lg, where wrap-row's child margins no longer apply:
+        // the gap token on the cluster is what separates them.
+        assert.doesNotMatch(toolbar.slice(actionsIdx, actionsIdx + 120), /wrap-row/);
         assert.doesNotMatch(toolbar, /<div className="min-w-0 flex-1" aria-hidden \/>/);
         assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /savedSearchMountEl/);
         assert.match(toolbar.slice(actionsIdx, actionsIdx + 400), /\{sortEl\}/);
@@ -328,8 +331,12 @@ describe("jobs filter toolbar chrome", () => {
 
         // One résumé-state strip above the list; the toolbar carries no "Replace" or as-of text.
         assert.doesNotMatch(page, /data-testid="resume-as-of"|data-testid="jobs-replace-resume"/);
-        const strip = page.slice(page.indexOf('data-testid="resume-read-strip"'), page.indexOf('data-testid="resume-read-strip"') + 500);
-        assert.match(strip, /resumeReadText/);
+        const strip = page.slice(page.indexOf('data-testid="resume-read-strip"'), page.indexOf('data-testid="resume-read-strip"') + 1100);
+        assert.match(strip, /resumeReadDetailText/);
+        // One line at any column width: the detail truncates, the action can never orphan onto a second line.
+        assert.doesNotMatch(strip, /flex-wrap/);
+        assert.match(strip.slice(strip.indexOf('data-testid="resume-read-detail"')), /^[^>]*className="min-w-0 truncate"/);
+        assert.match(strip.slice(strip.indexOf('href="/resume"')), /^[^>]*className="shrink-0 whitespace-nowrap /);
         assert.match(strip, /href="\/resume"/);
         assert.doesNotMatch(page, /update to rescore/);
         assert.doesNotMatch(page, /scored against your résumé of/);

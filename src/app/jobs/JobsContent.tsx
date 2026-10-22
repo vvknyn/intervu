@@ -170,7 +170,7 @@ import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilise
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
-import { offersRankByFit, resumeReadLine } from "@/lib/jobs/resume-entry";
+import { offersRankByFit, RESUME_READ_LABEL, resumeReadDetail, resumeReadLine } from "@/lib/jobs/resume-entry";
 import { frontDoorRegions, isAtRest } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
@@ -5137,6 +5137,7 @@ export function JobsContent({
         label?.trim() || r?.profile?.name?.trim() || "Pasted text";
 
     const resumeReadText = hasUsableResume && resume ? resumeReadLine(resume) : null;
+    const resumeReadDetailText = hasUsableResume && resume ? resumeReadDetail(resume) : null;
 
     const showJobsToolbarRow = !headerDockActive;
     const showJobsToolbarSection =
@@ -5580,7 +5581,7 @@ export function JobsContent({
                             gap of its own, and that 8px pushed the "?" onto a
                             line by itself on a 390px phone (J-NAV-35). */}
                         {!headerDockActive && (
-                            <div data-testid="jobs-toolbar-actions" className="wrap-row ml-auto min-w-0 max-w-full max-lg:flex">
+                            <div data-testid="jobs-toolbar-actions" className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                 {savedSearchMountElInToolbar}
                                 {/* Below lg, Sort lives in the Filters sheet (its own Sort group). */}
                                 <span className="hidden lg:contents">{sortEl}</span>
@@ -5811,13 +5812,17 @@ export function JobsContent({
                                 {fitActive && resumeReadText && (
                                     <div
                                         data-testid="resume-read-strip"
-                                        className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground"
+                                        title={displayResumeLabel(resumeSourceLabel, resume)}
+                                        className="mb-3 flex items-baseline gap-x-2 text-sm text-muted-foreground"
                                     >
-                                        <span title={displayResumeLabel(resumeSourceLabel, resume)}>{resumeReadText}</span>
-                                        <span aria-hidden>·</span>
+                                        <span className="shrink-0">{RESUME_READ_LABEL}</span>
+                                        {resumeReadDetailText && (
+                                            <span data-testid="resume-read-detail" className="min-w-0 truncate">· {resumeReadDetailText}</span>
+                                        )}
+                                        <span aria-hidden className="shrink-0">·</span>
                                         <Link
                                             href="/resume"
-                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                            className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             Edit
                                         </Link>
@@ -5827,7 +5832,7 @@ export function JobsContent({
                                                 <ResumeRemove
                                                     onRemove={removeGuestResume}
                                                     testIdPrefix="jobs"
-                                                    className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                                    className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                                 />
                                             </>
                                         )}
