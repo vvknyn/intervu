@@ -3,11 +3,11 @@ import { test } from "node:test";
 import { PROMO_BAND_PRIORITY, pickPromoBand } from "../../src/lib/jobs/promo-band";
 
 test("nothing eligible shows no band", () => {
-    assert.equal(pickPromoBand({ extension: false }), null);
+    assert.equal(pickPromoBand({ resume: false, extension: false }), null);
 });
 
 test("an eligible band shows", () => {
-    assert.equal(pickPromoBand({ extension: true }), "extension");
+    assert.equal(pickPromoBand({ resume: false, extension: true }), "extension");
 });
 
 test("the result is one band id or none, whatever is eligible", () => {
