@@ -4,7 +4,7 @@
  * Research / Trends live in the footer.
  */
 import type { ComponentType } from "react";
-import { FileText, Kanban, MagnifyingGlass, PlugsConnected, UserCircle } from "@phosphor-icons/react";
+import { FileText, Kanban, MagnifyingGlass, UserCircle } from "@phosphor-icons/react";
 
 /**
  * Live counters a nav tab can carry. A tab DECLARES which counter it wants;
@@ -65,36 +65,24 @@ function ResumeIcon() {
     return <FileText size={20} aria-hidden />;
 }
 
-function ConnectIcon() {
-    return <PlugsConnected size={20} aria-hidden />;
-}
-
 function AccountIcon() {
     return <UserCircle size={20} aria-hidden />;
 }
 
-/** The MCP/agent-pairing tab — named so the footer can link the SAME entry
- *  (label, href, icon) rather than re-typing "Connect AI"/"/connect" as a
- *  second copy, the way `TRENDS_TAB` below is shared with FOOTER_EXTRA_TABS.
- *  `mobilePrimary: false` keeps it off MobileTabBar's fixed bottom bar (a
- *  pairing flow isn't a top-5 daily action on a phone); it stays reachable
- *  from the footer and from Settings (AgentAccessSection.tsx already links
- *  `/connect`), and desktop's `barTabs` still renders it every time. */
-/** Resume/AI nav label — "Add résumé" until connected, then "Résumé & AI". */
-export function connectTabLabel(resumeConnected: boolean): string {
+/** Résumé nav label — "Add résumé" until connected, then "Résumé & AI". */
+export function resumeTabLabel(resumeConnected: boolean): string {
     return resumeConnected ? "Résumé & AI" : "Add résumé";
 }
 
-export const CONNECT_TAB: NavTab = {
+/** The ONE résumé entry in the nav: /resume (the AI pairing at /connect lives in Settings). */
+export const RESUME_TAB: NavTab = {
     label: "Add résumé",
     shortLabel: "Add résumé",
-    href: "/connect",
-    testId: "topbar-connect",
-    match: (p) => p.startsWith("/connect"),
+    href: "/resume",
+    testId: "topbar-resume",
+    match: (p) => p.startsWith("/resume"),
     tourSelector: "nav-connect",
-    icon: ConnectIcon,
-    title: "Optional: Pair your AI assistant (Claude, Cursor, Gemini) via MCP",
-    mobilePrimary: false,
+    icon: ResumeIcon,
 };
 
 export const NAV_TABS: NavTab[] = [
@@ -106,14 +94,7 @@ export const NAV_TABS: NavTab[] = [
         match: (p) => p === "/jobs" || p.startsWith("/jobs/"),
         icon: JobsIcon,
     },
-    {
-        label: "Résumé",
-        shortLabel: "Résumé",
-        href: "/resume",
-        testId: "topbar-resume",
-        match: (p) => p.startsWith("/resume"),
-        icon: ResumeIcon,
-    },
+    RESUME_TAB,
     {
         label: "Tracker",
         shortLabel: "Tracker",
@@ -126,7 +107,6 @@ export const NAV_TABS: NavTab[] = [
         // now rides on the destination it was already pointing at.
         badge: "pursuits",
     },
-    CONNECT_TAB,
 ];
 
 /** Mobile-only: Account as fourth tab (desktop uses DP avatar). */
@@ -156,5 +136,4 @@ export const FOOTER_EXTRA_TABS: NavTab[] = [
         match: (p) => p.startsWith("/research"),
     },
     TRENDS_TAB,
-    CONNECT_TAB,
 ];

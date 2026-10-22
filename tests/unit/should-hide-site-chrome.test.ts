@@ -49,11 +49,3 @@ test("remote-jobs hub quiets the SEO footer; other hubs and product routes do no
   assert.match(footer, /isQuietFooterPath\(pathname\)/);
   assert.match(footer, /LeanFooterContent/);
 });
-
-test("TopBar filters desktop /connect on lean surfaces and when signed out", () => {
-  const src = readFileSync(TOPBAR, "utf8");
-  assert.match(src, /isLeanProductSurface\(pathname\)/);
-  assert.match(src, /leanSurface/);
-  // e8aa53a1 turned the /connect filter into an allow predicate (same rule, positive form).
-  assert.match(src, /return !leanSurface && authChrome === "authenticated";/);
-});

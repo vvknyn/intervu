@@ -176,18 +176,6 @@ test("wordmark lockup call sites: no local text-brand override on BrandLockup wr
     );
 });
 
-test("TopBar: MCP/Connect tab hidden when signed out on public chrome", () => {
-    const topbar = readFileSync(path.join(ROOT, "src/components/layout/TopBar.tsx"), "utf8");
-    // e8aa53a1 inverted the guard into the tab filter: /connect is kept only
-    // when auth has resolved to signed in.
-    assert.match(
-        topbar,
-        /authChrome === "authenticated"/,
-        "desktop /connect must drop unless auth has resolved to signed in",
-    );
-    assert.match(topbar, /leanSurface/, "lean surfaces still drop /connect");
-});
-
 test("elevation is none: every --shadow-* scale key resolves to none", () => {
     const scaleKeys = tailwindShadowScaleKeys();
     const shadows = declarations(GLOBALS).filter((d) => scaleKeys.has(d.name));

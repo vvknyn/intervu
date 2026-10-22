@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
+import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/ui/user-avatar";
 import {
     DropdownMenu,
@@ -19,7 +20,6 @@ import { useShareControl } from "@/components/ui/share-action";
 import { withShareRef } from "@/lib/share/share-decision";
 import { getSiteUrl, SHARE_APP_TEXT, SITE_NAME } from "@/lib/seo/constants";
 import { openSetupSheet, useOnboarding } from "@/hooks/use-onboarding";
-import { setupStepsLeftLabel } from "@/lib/onboarding/copy";
 import { SETUP_STEPS } from "@/lib/onboarding/state";
 
 /** "Share Velai" account-menu entry — same share control as JobDetail's
@@ -66,7 +66,7 @@ export interface AccountMenuProps {
 export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenuProps) {
     // Feedback opens after the menu closes: menus sit a layer above dialogs, so a menu left open would cover it.
     const [feedbackOpen, setFeedbackOpen] = useState(false);
-    // A new account's setup while it has a step left; after the strip's three visit days, the only way back to it.
+    // A new account's setup while it has a step left: the one place it shows (the count on the item below).
     const onboarding = useOnboarding();
     const setupLeft = onboarding.open ? SETUP_STEPS.length - onboarding.answered : 0;
     return (
@@ -91,7 +91,10 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                     {setupLeft > 0 ? (
                         <>
                             <DropdownMenuItem data-testid="account-menu-finish-setup" onSelect={() => openSetupSheet("menu")}>
-                                Finish setup ({setupStepsLeftLabel(setupLeft)})
+                                Finish setup
+                                <Badge variant="brand" data-testid="account-menu-setup-badge" aria-label={`${setupLeft} ${setupLeft === 1 ? "step" : "steps"} left`} className="ml-auto">
+                                    {setupLeft}
+                                </Badge>
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>

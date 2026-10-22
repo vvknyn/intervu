@@ -4,7 +4,6 @@
 
 import { ANALYTICS_EVENTS } from "@/lib/analytics/event-names";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import { AUTH_GATE_RESUME_UNLOCK_BODY } from "@/lib/jobs/resume-privacy-copy";
 
 export type AuthGateReason =
     | "apply"
@@ -41,81 +40,45 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY =
     "Get job alerts, saved searches, and an application tracker — on any device.";
 
-/**
- * Fit and résumé sign-in cards open both before and after a guest uploads, so
- * their copy must be true in both states: it never asks for a résumé the
- * visitor already gave, and never claims one was read when none was.
- */
-const RESUME_GATE_TITLE = "Create your free account to rank every job by your résumé.";
-
-/** Under the unlock line on fit and résumé sign-in cards. */
-export const AUTH_GATE_RESUME_ACCOUNT_LINE =
-    "Your résumé is read in this browser. Signing in keeps the structured version with your account, encrypted, never the original file, including one you already added.";
-
-const FIT_RESUME_GATE_BODY = `${AUTH_GATE_RESUME_UNLOCK_BODY}\n\n${AUTH_GATE_RESUME_ACCOUNT_LINE}`;
-
-interface AuthGateCopy {
-    title?: string;
-    body: string;
-    /** Names the attempted action — the `SignupGate` card headline. Falls back to `title`. */
-    action?: string;
-    /** Card headline when the gate can quote a true count (hidden remainder or total matches) (already formatted, "N" or "N+"). */
-    actionWithCount?: (count: string) => string;
+/** One gate, one headline and one sentence giving the reason. `titleWithCount` quotes a TRUE count (already formatted, "N" or "N+"). */
+interface AuthGateEntry {
+    title: string;
+    line: string;
+    titleWithCount?: (count: string) => string;
 }
 
-const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateCopy> = {
-    apply: {
-        title: "Sign in to apply",
-        body: "Create a free account to open the employer posting and keep your applications in one place.",
-    },
-    generic: { body: "Sign in to sync your tracker across devices." },
-    topbar: { body: "Sign in to sync your tracker across devices." },
-    save: {
-        title: "Sign in to save this job to Tracker.",
-        action: "Keep your saved roles on every device",
-        body: "Your saved jobs and application stages will sync across devices.",
-    },
+/**
+ * The ONE copy family for every signed-out gate (popover, `SignupGate` card). The fit and résumé
+ * cards open both before and after a guest uploads, so their lines are true in both states: they
+ * never ask for a résumé the visitor already gave, and never claim one was read when none was.
+ */
+const AUTH_GATE_COPY: Record<AuthGateReason, AuthGateEntry> = {
+    apply: { title: "Sign in to apply", line: "A free account opens the employer posting and keeps your applications in one place." },
+    generic: { title: "Sync your tracker across devices", line: "A free account keeps your saved jobs and application stages on every device." },
+    topbar: { title: "Join Velai", line: "Get job alerts, saved searches and an application tracker, free on any device." },
+    save: { title: "Sign in to save this job", line: "Saved jobs and their stages sync across your devices." },
+    tracker: { title: "Sign in to track this application", line: "Your applications and their stages stay in your Tracker on every device." },
     fit: {
-        title: RESUME_GATE_TITLE,
-        action: "See all your ranked matches",
-        actionWithCount: (count) => `See all ${count} matches ranked for you`,
-        body: FIT_RESUME_GATE_BODY,
+        title: "See all your ranked matches",
+        titleWithCount: (count) => `See all ${count} matches ranked for you`,
+        line: "A free account shows every match ranked by your résumé and keeps its structured version, encrypted.",
     },
-    tailor: {
-        body: "Sign in to sync this tailored version across devices.",
-    },
-    resume: {
-        title: RESUME_GATE_TITLE,
-        body: FIT_RESUME_GATE_BODY,
-    },
-    packs: {
-        title: RESUME_GATE_TITLE,
-        action: "See your job packs",
-        body: FIT_RESUME_GATE_BODY,
-    },
-    tracker: {
-        title: "Sign in to track this application",
-        action: "See the roles you've applied to and viewed",
-        body: "Your saved jobs and application stages will sync across devices.",
-    },
-    alert: {
-        action: "Save this search",
-        body: "A free account keeps this search and emails you when new roles match.",
-    },
-    follow: { body: "Sign in to keep the companies you follow across devices." },
-    company: {
-        action: "Open the full hiring record",
-        body: "It's free: how an employer's postings close, what their hiring runs on, and their public filings, plus job alerts and a tracker.",
-    },
+    resume: { title: "Rank every job by your résumé", line: "A free account keeps the structured version of your résumé, encrypted, never the original file." },
+    packs: { title: "See your job packs", line: "Packs are ranked by your résumé; a free account keeps its structured version, encrypted." },
+    tailor: { title: "Sign in to keep this version", line: "A free account syncs your tailored résumé across devices." },
+    alert: { title: "Save this search", line: "A free account keeps it and emails you when new roles match." },
+    follow: { title: "Follow this company", line: "A free account keeps the companies you follow across devices." },
+    company: { title: "Open the full hiring record", line: "It's free: how this employer's postings close and what their hiring runs on, plus alerts and a tracker." },
     depth: {
-        action: "See every result",
-        actionWithCount: (hidden) => `See the other ${hidden} roles that match`,
-        body: "It's free, and it also gets you saved searches and email alerts.",
+        title: "See every result",
+        titleWithCount: (hidden) => `See the other ${hidden} roles that match`,
+        line: "It's free, and it also gets you saved searches and email alerts.",
     },
 };
 
-export function authGateTitle(reason: AuthGateReason): string | undefined {
-    return AUTH_GATE_COPY[reason].title;
+export function authGateCopy(reason: AuthGateReason): { title: string; line: string } {
+    const { title, line } = AUTH_GATE_COPY[reason];
+    return { title, line };
 }
 
 export function guestKeepLine(guestPursuitCount: number): string | null {
@@ -127,7 +90,7 @@ export function guestKeepLine(guestPursuitCount: number): string | null {
 
 export function formatAuthGateValueLine(reason: AuthGateReason, guestPursuitCount = 0): string {
     const keep = guestKeepLine(guestPursuitCount);
-    const lead = AUTH_GATE_COPY[reason].body;
+    const lead = AUTH_GATE_COPY[reason].line;
     return keep ? `${keep} ${lead}` : lead;
 }
 
@@ -142,18 +105,11 @@ export interface SignupGateCopy {
     signInLabel: string;
 }
 
-/**
- * Copy for the one signed-out gate card (`SignupGate`): names the attempted
- * action, says what the account gives, and quotes a hidden count only when the
- * caller holds a true one — a floor renders "N+", never a bare number.
- */
+/** `SignupGate` card copy: the gate's headline (quoting a hidden count only when the caller holds a true one; a floor renders "N+") and its one line. */
 export function signupGateCopy(reason: AuthGateReason, count?: CorpusCount | null): SignupGateCopy {
     const entry = AUTH_GATE_COPY[reason];
-    const title =
-        count && entry.actionWithCount
-            ? entry.actionWithCount(formatCorpusCount(count))
-            : (entry.action ?? entry.title ?? "Create your free account");
-    return { title, body: entry.body, createLabel: SIGNUP_GATE_CREATE_LABEL, signInLabel: AUTH_CTA_LABEL };
+    const title = count && entry.titleWithCount ? entry.titleWithCount(formatCorpusCount(count)) : entry.title;
+    return { title, body: entry.line, createLabel: SIGNUP_GATE_CREATE_LABEL, signInLabel: AUTH_CTA_LABEL };
 }
 
 export type AuthCardTab = "login" | "signup";
@@ -184,7 +140,7 @@ export const GUEST_AUTH_STRINGS: Record<string, string> = {
     GENERIC_LINE: formatAuthGateValueLine("generic", 0),
     SAVE_LINE: formatAuthGateValueLine("save", 0),
     FIT_LINE: formatAuthGateValueLine("fit", 0),
-    FIT_TITLE: authGateTitle("fit")!,
-    SAVE_TITLE: authGateTitle("save")!,
+    FIT_TITLE: authGateCopy("fit").title,
+    SAVE_TITLE: authGateCopy("save").title,
     TAILOR_LINE: formatAuthGateValueLine("tailor", 0),
 };

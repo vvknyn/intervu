@@ -4,9 +4,8 @@ import { actionObject, PRODUCTION_SIGN_IN_ACCOUNT, signInLikeProduction, withAct
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 
 /**
- * A new account's setup (components/onboarding/): the welcome strip beside
- * the page it signed in on, the three-step sheet, setup as /jobs itself, and
- * the account menu's "Finish setup". Signed in the way production is, with
+ * A new account's setup (components/onboarding/): the three-step sheet,
+ * opened only from the account menu's "Finish setup" (with its count badge). Signed in the way production is, with
  * the account's setup, its Settings › Preferences writes and its saved
  * searches answered here, so nothing is written anywhere.
  */
@@ -107,6 +106,13 @@ async function openAccountMenu(page: Page) {
   await expect(page.getByRole("menu")).toBeVisible();
 }
 
+/** The only way into setup: the avatar menu's "Finish setup" (with its count badge). */
+async function openSetupSheet(page: Page) {
+  await openAccountMenu(page);
+  await page.getByTestId("account-menu-finish-setup").click();
+  await expect(page.getByTestId("setup-sheet")).toBeVisible();
+}
+
 const marker = (scope: Locator, step: string) => scope.locator(`[data-testid="setup-step-marker"][data-step="${step}"]`);
 const writesWith = (account: Account, key: string) => account.setupWrites.filter((w) => key in w);
 
@@ -114,50 +120,43 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("a new account on the company page it signed in on gets that page, a one-line welcome strip and no dialog; Set up opens the steps over the page", { tag: ["@J-ONBOARD-01"] }, async ({ page, diagnostics }) => {
-  const account = await signInNewAccount(page, freshView());
+test("a new account on the company page it signed in on gets that page and no dialog or strip; Finish setup in the account menu opens the steps over the page", { tag: ["@J-ONBOARD-01"] }, async ({ page, diagnostics }) => {
+  await signInNewAccount(page, freshView());
   await page.goto(COMPANY);
   await signedIn(page);
 
-  const strip = page.getByTestId("welcome-strip");
-  await expect(strip).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByTestId("welcome-strip")).toHaveCount(0);
   await expect(page).toHaveURL(new RegExp(`${COMPANY}$`));
-  // Today counts as the first of the strip's visit days.
-  await expect.poll(() => writesWith(account, "stripDay").length).toBe(1);
 
-  await page.getByTestId("welcome-strip-setup").click();
+  await openSetupSheet(page);
   const sheet = page.getByTestId("setup-sheet");
-  await expect(sheet).toBeVisible();
   await expect(sheet.getByRole("heading", { name: "What kind of role are you after?" })).toBeVisible();
   await expect(sheet.getByTestId("setup-step-marker")).toHaveCount(3);
   await expect(marker(sheet, "resume")).toHaveAttribute("aria-current", "step");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a new account that landed on bare /jobs gets setup as the page itself, with no strip on top", { tag: ["@J-ONBOARD-02"] }, async ({ page, diagnostics }) => {
+test("a new account on bare /jobs sees the search itself, no setup panel or strip, and a count badge on the account menu's Finish setup", { tag: ["@J-ONBOARD-02"] }, async ({ page, diagnostics }) => {
   await signInNewAccount(page, freshView());
   await page.goto("/jobs");
   await signedIn(page);
 
-  const panel = page.getByTestId("setup-panel");
-  await expect(panel).toBeVisible({ timeout: 30_000 });
-  await expect(panel.getByRole("heading", { name: "Set up your search" })).toBeVisible();
+  await expect(page.getByTestId("search-submit").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("setup-panel")).toHaveCount(0);
   await expect(page.getByTestId("welcome-strip")).toHaveCount(0);
-  // "Add your résumé" opens the importer right here, not on another page.
-  await panel.getByTestId("setup-add-resume").click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(page).toHaveURL(/\/jobs(\?|$)/);
+  await openAccountMenu(page);
+  await expect(page.getByTestId("account-menu-setup-badge")).toHaveText("3");
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("every step skips: setup says it's done, goes away for good, and the account menu stops offering it", { tag: ["@J-ONBOARD-03"] }, async ({ page, diagnostics }) => {
+test("every step skips: setup says it's done, and the account menu stops offering it", { tag: ["@J-ONBOARD-03"] }, async ({ page, diagnostics }) => {
   const account = await signInNewAccount(page, freshView());
   await page.goto("/jobs");
   await signedIn(page);
 
-  const panel = page.getByTestId("setup-panel");
-  await expect(panel).toBeVisible({ timeout: 30_000 });
+  await openSetupSheet(page);
+  const panel = page.getByTestId("setup-sheet");
   await panel.getByTestId("setup-skip").click();
   await expect(panel.getByRole("heading", { name: "Where can you work?" })).toBeVisible();
   await expect(marker(panel, "resume")).toHaveAttribute("data-outcome", "skipped");
@@ -166,8 +165,7 @@ test("every step skips: setup says it's done, goes away for good, and the accoun
   await panel.getByTestId("setup-skip").click();
 
   await expect(page.getByText("Setup done. Change any of it in Settings › Preferences.")).toBeVisible();
-  await expect(page.getByTestId("setup-panel")).toHaveCount(0);
-  await expect(page.getByTestId("welcome-strip")).toHaveCount(0);
+  await expect(page.getByTestId("setup-sheet")).toHaveCount(0);
   await expect
     .poll(() => account.setupWrites.filter((w) => "step" in w).map((w) => actionObject(w.step)))
     .toEqual([
@@ -184,36 +182,32 @@ test("every step skips: setup says it's done, goes away for good, and the accoun
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("Later hides the strip for the day and the account menu still offers Finish setup; after three visit days only the menu does", { tag: ["@J-ONBOARD-04"] }, async ({ page, diagnostics }) => {
+test("closing the sheet is Later: the account menu still offers Finish setup with its count badge", { tag: ["@J-ONBOARD-04"] }, async ({ page, diagnostics }) => {
   const account = await signInNewAccount(page, freshView());
   await page.goto(COMPANY);
   await signedIn(page);
 
-  await expect(page.getByTestId("welcome-strip")).toBeVisible({ timeout: 15_000 });
-  await page.getByTestId("welcome-strip-later").click();
-  await expect(page.getByTestId("welcome-strip")).toHaveCount(0);
+  await openSetupSheet(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("setup-sheet")).toHaveCount(0);
   await expect.poll(() => writesWith(account, "laterDay").length).toBe(1);
 
   await openAccountMenu(page);
-  const finish = page.getByTestId("account-menu-finish-setup");
-  await expect(finish).toHaveText("Finish setup (3 steps left)");
-  await finish.click();
+  await expect(page.getByTestId("account-menu-finish-setup")).toContainText("Finish setup");
+  await expect(page.getByTestId("account-menu-setup-badge")).toHaveText("3");
+  await page.getByTestId("account-menu-finish-setup").click();
   await expect(page.getByTestId("setup-sheet")).toBeVisible();
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a setup whose strip already showed on three earlier days shows no strip, only the account menu's Finish setup", { tag: ["@J-ONBOARD-04"] }, async ({ page, diagnostics }) => {
-  const account = await signInNewAccount(
-    page,
-    freshView({ record: { strip_days: ["2026-01-05", "2026-01-06", "2026-01-08"], steps: { resume: "skipped" } } }),
-  );
+test("the menu badge counts the steps still open, not the steps there are", { tag: ["@J-ONBOARD-04"] }, async ({ page, diagnostics }) => {
+  await signInNewAccount(page, freshView({ record: { steps: { resume: "skipped" } } }));
   await page.goto(COMPANY);
   await signedIn(page);
 
   await openAccountMenu(page);
-  await expect(page.getByTestId("account-menu-finish-setup")).toHaveText("Finish setup (2 steps left)");
+  await expect(page.getByTestId("account-menu-setup-badge")).toHaveText("2");
   await expect(page.getByTestId("welcome-strip")).toHaveCount(0);
-  expect(writesWith(account, "stripDay")).toEqual([]);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
@@ -235,7 +229,7 @@ test("a résumé already in this browser answers step 1 and fills step 2's place
   await page.goto(COMPANY);
   await signedIn(page);
 
-  await page.getByTestId("welcome-strip-setup").click({ timeout: 15_000 });
+  await openSetupSheet(page);
   const sheet = page.getByTestId("setup-sheet");
   await expect(marker(sheet, "resume")).toHaveAttribute("data-outcome", "done");
   await expect(marker(sheet, "place")).toHaveAttribute("aria-current", "step");
@@ -249,7 +243,7 @@ test("step 2 says where its place came from and saves the answer to Settings ›
   await page.goto(COMPANY);
   await signedIn(page);
 
-  await page.getByTestId("welcome-strip-setup").click({ timeout: 15_000 });
+  await openSetupSheet(page);
   const sheet = page.getByTestId("setup-sheet");
   await sheet.getByTestId("setup-skip").click();
   await expect(sheet.getByTestId("setup-place")).toHaveValue("Canada");
@@ -286,7 +280,7 @@ test("step 3 shows the weekly search it would save, and saves it only on the tap
   await signedIn(page);
 
   // The account already holds roles and a place, so setup opens on step 3.
-  await page.getByTestId("welcome-strip-setup").click({ timeout: 15_000 });
+  await openSetupSheet(page);
   const sheet = page.getByTestId("setup-sheet");
   await expect(sheet.getByRole("heading", { name: "Get new roles by email?" })).toBeVisible();
   await expect(sheet.getByTestId("setup-email-search")).toHaveText("Registered nurse in Toronto, ON");
@@ -306,31 +300,23 @@ test("step 3 shows the weekly search it would save, and saves it only on the tap
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("on a phone the strip is one line and a swipe down closes the sheet as Later", { tag: ["@J-ONBOARD-08"] }, async ({ page, diagnostics }, testInfo) => {
+test("on a phone a swipe down closes the sheet as Later", { tag: ["@J-ONBOARD-08"] }, async ({ page, diagnostics }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile", "a phone width");
   const account = await signInNewAccount(page, freshView());
   await page.goto(COMPANY);
   await signedIn(page);
 
-  const strip = page.getByTestId("welcome-strip");
-  await expect(strip).toBeVisible({ timeout: 15_000 });
-  const line = await strip.locator("p").boundingBox();
-  const lineHeight = await strip.locator("p").evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
-  expect(Math.round(line!.height)).toBeLessThanOrEqual(Math.ceil(lineHeight));
-
-  await page.getByTestId("welcome-strip-setup").click();
+  await openSetupSheet(page);
   const sheet = page.getByTestId("setup-sheet");
-  await expect(sheet).toBeVisible();
   await expect.poll(() => sheet.evaluate((el) => el.getAnimations().length), { timeout: 10_000 }).toBe(0);
   const open = (await sheet.boundingBox())!;
   await fingerDrag(page, open.x + open.width / 2, open.y + 10, 240);
   await expect(sheet).toBeHidden();
   await expect.poll(() => writesWith(account, "laterDay").length).toBe(1);
-  await expect(strip).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("an account made before setup existed sees no strip, no setup on /jobs and no Finish setup", { tag: ["@J-ONBOARD-09"] }, async ({ page, diagnostics }) => {
+test("an account made before setup existed sees no Finish setup", { tag: ["@J-ONBOARD-09"] }, async ({ page, diagnostics }) => {
   const account = await signInNewAccount(page, null);
   await page.goto(COMPANY);
   await signedIn(page);
@@ -358,8 +344,6 @@ test("the welcome email's Finish setup link opens the steps over /jobs and leave
   await expect(sheet).toBeVisible({ timeout: 15_000 });
   await expect(sheet.getByRole("heading", { name: "What kind of role are you after?" })).toBeVisible();
   await expect(page).not.toHaveURL(/setup=open/);
-  // The sheet is the setup on screen; the panel steps aside under it.
-  await expect(page.getByTestId("setup-panel")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

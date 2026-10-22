@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { readLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
-import { connectTabLabel } from "@/components/layout/nav-tabs";
+import { resumeTabLabel } from "@/components/layout/nav-tabs";
 
 function readLocalResumeConnected(): boolean {
     if (typeof window === "undefined") return false;
@@ -12,8 +12,8 @@ function readLocalResumeConnected(): boolean {
     return stored != null && resumeIsUsable(stored.data);
 }
 
-/** Desktop/mobile Connect tab label from local or account résumé presence. */
-export function useConnectTabLabel(uid: string | null | undefined, authReady: boolean): string {
+/** Desktop/mobile Résumé tab label from local or account résumé presence. */
+export function useResumeTabLabel(uid: string | null | undefined, authReady: boolean): string {
     const signedIn = authReady && !!uid;
     const resumeOnFile = useResumePresence(uid ?? null, authReady);
     const [localConnected, setLocalConnected] = useState(readLocalResumeConnected);
@@ -23,5 +23,5 @@ export function useConnectTabLabel(uid: string | null | undefined, authReady: bo
     }, [uid, resumeOnFile]);
 
     const localGuestConnected = !signedIn && localConnected;
-    return connectTabLabel((signedIn && resumeOnFile === true) || localGuestConnected);
+    return resumeTabLabel((signedIn && resumeOnFile === true) || localGuestConnected);
 }

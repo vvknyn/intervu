@@ -292,7 +292,7 @@ signedInTest("Signed in with a résumé on file, Replace on the jobs list opens 
   await page.goto("/jobs");
 
   const inUse = page.getByTestId("resume-as-of");
-  await expect(inUse).toContainText("Scoring with Sam_Rivera_Resume.pdf", { timeout: 30_000 });
+  await expect(inUse).toContainText("Ranked by your résumé", { timeout: 30_000 });
   await inUse.getByTestId("jobs-replace-resume").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading", { name: "Rank jobs by your résumé" })).toBeVisible();
@@ -311,7 +311,7 @@ signedInTest("Signed in with a résumé on file, Replace on the jobs list opens 
   await expect(dialog.getByTestId("resume-model-skip")).toHaveCount(0);
   await rank.click();
   await expect(dialog).toBeHidden();
-  await expect(inUse).toContainText("Scoring with Priya_Raman_Resume.txt", { timeout: 30_000 });
+  await expect(inUse).toContainText("Ranked by your résumé", { timeout: 30_000 });
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
 });
 

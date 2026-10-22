@@ -84,7 +84,7 @@ describe("/jobs list inset — single source of truth", () => {
         // `assert.match`'s repeated `.test()` calls against that shared
         // instance mutate its `lastIndex`, corrupting later assertions.
         assert.match(group, /var\(--list-inset\)/, "banner group must open with a var(--list-inset) container");
-        for (const testid of ["local-ai-guest-banner", "guest-save-banner"]) {
+        for (const testid of ["guest-save-banner"]) {
             assert.match(group, new RegExp(`data-testid="${testid}"`), `${testid} must sit inside the inset banner group`);
         }
     });

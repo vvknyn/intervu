@@ -1,13 +1,12 @@
 "use client";
 
 /**
- * A new account's setup as one shared store, so the welcome strip, the setup
- * sheet, the /jobs panel, the account menu and Today all read the same
- * answer (rules: lib/onboarding/state.ts).
+ * A new account's setup as one shared store, so the setup sheet, the
+ * account menu and Today all read the same answer (rules: lib/onboarding/state.ts).
  *
  * Read once per account per page load (`getOnboardingAction`) and kept in
- * this browser per account, so the strip paints with the page on the next
- * load instead of popping in after a round trip. An account with no setup
+ * this browser per account, so the account menu's count paints with the page
+ * on the next load instead of popping in after a round trip. An account with no setup
  * (made before it existed) or a finished one is remembered as such and never
  * read again on this device.
  */
@@ -24,7 +23,6 @@ import {
     parseOnboardingRecord,
     setupOpen,
     stepOutcomes,
-    stripDecision,
     SETUP_STEPS,
     type OnboardingPatch,
     type SetupFacts,
@@ -33,7 +31,7 @@ import {
     type StepOutcomes,
 } from "@/lib/onboarding/state";
 
-export type SetupSurface = "strip" | "menu" | "jobs_page" | "email";
+export type SetupSurface = "menu" | "email";
 
 interface Snapshot {
     uid: string | null;
@@ -42,8 +40,6 @@ interface Snapshot {
     /** A résumé kept in this browser (a guest's, carried into the account). */
     localResume: boolean;
     sheet: SetupSurface | null;
-    /** /jobs shows setup as the page itself, so the strip steps aside. */
-    inlinePanels: number;
 }
 
 const CACHE_PREFIX = "velai.onboarding.";
@@ -54,7 +50,7 @@ const RETRY_MS = 400;
 /** A tab coming back after this long re-reads, so a search saved in another tab ticks its step off. */
 const STALE_MS = 60_000;
 
-let snapshot: Snapshot = { uid: null, view: undefined, localResume: false, sheet: null, inlinePanels: 0 };
+let snapshot: Snapshot = { uid: null, view: undefined, localResume: false, sheet: null };
 let loadingUid: string | null = null;
 let lastReadAt = 0;
 let finishSent = false;
@@ -127,7 +123,7 @@ async function read(uid: string) {
     }
 }
 
-/** Points the store at the signed-in account (or none); the strip's root calls this on every auth change. */
+/** Points the store at the signed-in account (or none); the setup root calls this on every auth change. */
 export function loadOnboarding(uid: string | null) {
     if (snapshot.uid === uid) return;
     finishSent = false;
@@ -216,12 +212,7 @@ export function finishIfAllHeld() {
     write({ finish: true });
 }
 
-export function markStripDay(day: string, visitDay: number) {
-    captureEvent("onboarding_strip_shown", { day: visitDay });
-    write({ stripDay: day });
-}
-
-/** "Later", or the sheet closed before the last step: the strip waits for the next visit day. */
+/** "Later", or the sheet closed before the last step. */
 export function putSetupOff() {
     const outcomes = outcomesOf(snapshot);
     captureEvent("onboarding_later", { answered: outcomes ? answeredCount(outcomes) : 0 });
@@ -237,22 +228,14 @@ export function closeSetupSheet() {
     set({ sheet: null });
 }
 
-export function registerInlineSetup(): () => void {
-    set({ inlinePanels: snapshot.inlinePanels + 1 });
-    return () => set({ inlinePanels: Math.max(0, snapshot.inlinePanels - 1) });
-}
-
 export interface OnboardingState {
     uid: string | null;
     view: OnboardingView | null | undefined;
     outcomes: StepOutcomes | null;
     /** Setup still has a step to offer (account menu, sheet). */
     open: boolean;
-    strip: ReturnType<typeof stripDecision>;
     answered: number;
     sheet: SetupSurface | null;
-    inlinePanelShown: boolean;
-    today: string;
 }
 
 const getSnapshot = () => snapshot;
@@ -262,17 +245,13 @@ export function useOnboarding(): OnboardingState {
     const s = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
     const outcomes = outcomesOf(s);
     const record = s.view ? s.view.record : null;
-    const today = localDay();
     return {
         uid: s.uid,
         view: s.view,
         outcomes,
         open: setupOpen(record, outcomes),
-        strip: stripDecision(record, outcomes, today),
         answered: outcomes ? answeredCount(outcomes) : 0,
         sheet: s.sheet,
-        inlinePanelShown: s.inlinePanels > 0,
-        today,
     };
 }
 

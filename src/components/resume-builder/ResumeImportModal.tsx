@@ -92,6 +92,11 @@ interface ResumeImportModalProps {
     };
     /** The signed-in person's saved preferences, so the review's "Level used for ranking" is the level ranking reads. */
     agentPreferences?: AgentPreferences | null;
+    /**
+     * Skip the review step when the quick read can already rank jobs: the caller applies it at once and
+     * shows what was read afterwards (/jobs: the "We read" strip). A read that can't rank still opens review.
+     */
+    rankFirst?: boolean;
 }
 
 type ImportStep = 'input' | 'parsing' | 'review';
@@ -122,7 +127,7 @@ function joinWords(words: string[]): string {
     return words.length > 1 ? `${words.slice(0, -1).join(", ")} or ${words[words.length - 1]}` : words[0] ?? "";
 }
 
-export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext, agentPreferences }: ResumeImportModalProps) {
+export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "Apply to Resume", title, description, storageNote, funnelContext, agentPreferences, rankFirst = false }: ResumeImportModalProps) {
     const [step, setStep] = useState<ImportStep>('input');
     const [inputMethod, setInputMethod] = useState<InputMethod>('file');
     const [pastedText, setPastedText] = useState("");
@@ -272,7 +277,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         setEngineLabel(local.engineLabel);
         setParseResult(local.data);
         setEditedData(local.data.parsed);
-        setStep('review');
         captureEvent(
             "resume_parse_succeeded",
             buildResumeFunnelPayload({
@@ -284,7 +288,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 ...funnelContext,
             }),
         );
-        return local.data.parsed;
+        return local.data;
     };
 
     const adoptImproved = (result: LocalParseResult) => {
@@ -361,7 +365,13 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             setStep('parsing');
             captureEvent("resume_parse_started", buildResumeFunnelPayload({ ...funnelContext }));
 
-            const quick = await runParse(textContent);
+            const read = await runParse(textContent);
+            const quick = read.parsed;
+            if (rankFirst && canAcceptLocalParse(quick)) {
+                acceptRead(quick, read);
+                return;
+            }
+            setStep('review');
 
             // Sealed AI reads it only where this server has it, and only a read
             // it can add to (`modelReadNeeded`): no tokens on a résumé the quick read got.
@@ -396,8 +406,11 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
     const missingFields = useMemo(() => (editedData ? missingMatchFields(editedData) : []), [editedData]);
 
     const handleConfirm = () => {
-        if (!editedData || !parseResult) return;
-        if (!canAcceptLocalParse(editedData)) {
+        if (editedData && parseResult) acceptRead(editedData, parseResult);
+    };
+
+    const acceptRead = (data: ResumeData, read: ParsedResumeResult) => {
+        if (!canAcceptLocalParse(data)) {
             captureEvent(
                 "resume_upload_rejected",
                 buildResumeFunnelPayload({
@@ -407,7 +420,6 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
             );
             return;
         }
-        const overall = reviewConfidence?.overall ?? parseResult.confidence.overall;
         const sourceLabel =
             inputMethod === "file" && selectedFile
                 ? selectedFile.name
@@ -415,8 +427,8 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
         captureEvent(
             "resume_review_completed",
             buildResumeFunnelPayload({
-                section_count: editedData.experience.length + editedData.education.length,
-                warning_count: parseResult.warnings?.length ?? 0,
+                section_count: data.experience.length + data.education.length,
+                warning_count: read.warnings?.length ?? 0,
                 ...funnelContext,
             }),
         );
@@ -428,7 +440,7 @@ export function ResumeImportModal({ isOpen, onClose, onImport, confirmLabel = "A
                 ...funnelContext,
             }),
         );
-        onImport(editedData, contentType, overall, sourceLabel);
+        onImport(data, contentType, scoreLocalParseConfidence(data).overall, sourceLabel);
         handleClose();
     };
 

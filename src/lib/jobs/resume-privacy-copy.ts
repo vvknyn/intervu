@@ -64,10 +64,6 @@ export const RESUME_IMPORT_SEALED_LINE = "Your name and contact details are take
 export const RESUME_IMPORT_SEALED_DETAIL =
     "If the quick read misses something, the text without your name or contact details goes to Tinfoil's sealed AI server, encrypted so only that server can read it. Velai can't read it on the way.";
 
-/** Auth popover body when unlocking résumé-backed features (fit/resume gates). */
-export const AUTH_GATE_RESUME_UNLOCK_BODY =
-    "We'll return you here with personalized job picks, Strong/Good/Stretch fit bands, customize tools, and tailored PDFs.";
-
 /** /jobs front-door résumé band (signed-out or no résumé on file). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
     "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.";

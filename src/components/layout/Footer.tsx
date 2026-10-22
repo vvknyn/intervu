@@ -59,7 +59,7 @@ export function FooterLinks({ children }: { children?: React.ReactNode }) {
             aria-label="Company"
             className="flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-muted-foreground"
         >
-            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends" || t.href === "/connect"), ...LEGAL_LINKS].map((link) => (
+            {[...FOOTER_EXTRA_TABS.filter((t) => t.href === "/trends"), ...LEGAL_LINKS].map((link) => (
                 <Link
                     key={link.href}
                     href={"fromCurrentPage" in link && link.fromCurrentPage ? withFromParam(link.href, pathname) : link.href}

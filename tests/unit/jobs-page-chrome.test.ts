@@ -78,9 +78,10 @@ describe("header nav", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.doesNotMatch(src, /DropdownMenu(Trigger|Content)/);
         assert.match(src, /<TabNav\b[\s\S]*<TabItem\b[\s\S]*asChild/);
-        const agents = NAV_TABS.find((t) => t.testId === "topbar-connect");
-        assert.equal(agents?.label, "Add résumé");
-        assert.equal(agents?.tourSelector, "nav-connect");
+        const resume = NAV_TABS.find((t) => t.testId === "topbar-resume");
+        assert.equal(resume?.label, "Add résumé");
+        assert.equal(resume?.href, "/resume");
+        assert.equal(resume?.tourSelector, "nav-connect");
     });
 
     it("TopBar has no theme control — product is dark-only", () => {
@@ -204,11 +205,6 @@ describe("jobs page chrome guards", () => {
         );
         assert.doesNotMatch(pending, /topbar-signin|topbar-create-account/);
         assert.match(pending, /topbar-auth-pending/);
-    });
-
-    it("résumé prompts stay off while any jobs tour is active", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /showResumeMoment[\s\S]*!tourActive/);
     });
 
     it("SERP renders exactly one h1 — masthead branch or sr-only fallback, never both", () => {
