@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { getIntervuPg } from "@/lib/pg/pool";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { consumeAndSaveSearchAlert, setContactCookie } from "@/lib/identity/contact-cookie";
+import { establishSessionForVerifiedEmail } from "@/lib/auth/verified-email-session";
 import { relativeRedirect } from "@/lib/http/relative-redirect";
 import { captureServerEvent } from "@/lib/analytics/server-capture";
 
@@ -35,6 +36,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     captureServerEvent("search_alert_verified", consumed.distinctId, consumed.analytics);
   }
 
+  await establishSessionForVerifiedEmail(consumed.email);
   await setContactCookie(consumed.contactToken);
   const safePath = validateNextParam(consumed.redirectPath) ?? FALLBACK_PATH;
   const separator = safePath.includes("?") ? "&" : "?";

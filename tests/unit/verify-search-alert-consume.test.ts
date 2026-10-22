@@ -61,6 +61,7 @@ describe("consumeAndSaveSearchAlert — success", () => {
     assert.deepEqual(result, {
       redirectPath: "/jobs?q=pm",
       contactToken: "tok-1",
+      email: "a@b.co",
       distinctId: null,
       analytics: null,
     });
