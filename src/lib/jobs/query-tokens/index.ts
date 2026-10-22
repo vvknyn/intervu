@@ -2,6 +2,7 @@ import type { JobSearchParams } from "../types";
 import { tidy } from "./consume";
 import { parsePostedWindowTokens } from "./posted-window";
 import { parseSalaryTokens } from "./salary";
+import { parseYearsTokens } from "./years";
 
 /**
  * Typed filter words → the same params the filter panel sets ("typing it =
@@ -29,6 +30,13 @@ export function applyTypedFilterTokens(p: JobSearchParams): JobSearchParams {
     q = posted.residualQ;
     if (posted.postedBucket) next.postedBucket = posted.postedBucket;
     mentions.push(...(posted.mentions ?? []));
+  }
+
+  if (p.yearsExperience === undefined) {
+    const years = parseYearsTokens(q);
+    q = years.residualQ;
+    if (years.yearsExperience) next.yearsExperience = years.yearsExperience;
+    mentions.push(...(years.mentions ?? []));
   }
 
   if (mentions.length) next.unmatchedQueryMentions = [...new Set([...(p.unmatchedQueryMentions ?? []), ...mentions])];
