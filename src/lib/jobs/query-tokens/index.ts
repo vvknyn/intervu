@@ -1,5 +1,6 @@
 import type { JobSearchParams } from "../types";
 import { tidy } from "./consume";
+import { parsePostedWindowTokens } from "./posted-window";
 import { parseSalaryTokens } from "./salary";
 
 /**
@@ -13,6 +14,7 @@ import { parseSalaryTokens } from "./salary";
 export function applyTypedFilterTokens(p: JobSearchParams): JobSearchParams {
   let q = (p.q ?? "").trim();
   const next: JobSearchParams = { ...p };
+  const mentions: string[] = [];
 
   if (p.salaryMin === undefined) {
     const salary = parseSalaryTokens(q);
@@ -22,5 +24,13 @@ export function applyTypedFilterTokens(p: JobSearchParams): JobSearchParams {
     }
   }
 
-  return q === (p.q ?? "").trim() ? p : { ...next, q: tidy(q) };
+  if (p.postedBucket === undefined) {
+    const posted = parsePostedWindowTokens(q);
+    q = posted.residualQ;
+    if (posted.postedBucket) next.postedBucket = posted.postedBucket;
+    mentions.push(...(posted.mentions ?? []));
+  }
+
+  if (mentions.length) next.unmatchedQueryMentions = [...new Set([...(p.unmatchedQueryMentions ?? []), ...mentions])];
+  return q === (p.q ?? "").trim() && !mentions.length ? p : { ...next, q: tidy(q) };
 }
