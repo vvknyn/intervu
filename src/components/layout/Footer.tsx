@@ -11,8 +11,8 @@ import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-sta
  *  marks a link whose destination wants to know where the visitor was —
  *  `FooterLinks` appends `?from=<pathname>` for any entry carrying it, keyed
  *  on the property itself rather than on which link this happens to be. */
-export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true }[] = [
-    { label: "About the checks", href: GHOST_RESEARCH_HREF },
+export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true; lean?: true }[] = [
+    { label: "About the checks", href: GHOST_RESEARCH_HREF, lean: true },
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
@@ -24,15 +24,12 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true 
     { label: "Contact", href: "/contact" },
     { label: "Report a bug", href: "/contact?kind=bug", fromCurrentPage: true },
     { label: "Setup help", href: "/connect/help" },
-    { label: "Privacy", href: "/privacy" },
-    { label: "Terms", href: "/terms" },
+    { label: "Privacy", href: "/privacy", lean: true },
+    { label: "Terms", href: "/terms", lean: true },
 ];
 
-/** Minimal legal strip for lean hub/deck/apply — not the marketing link farm. */
-export const LEAN_LEGAL_LINKS: { label: string; href: string }[] = [
-    { label: "Privacy", href: "/privacy" },
-    { label: "Terms", href: "/terms" },
-];
+/** Minimal strip for lean hub/deck/apply/jobs — the `lean` entries of the one list above, not the marketing link farm. */
+export const LEAN_LEGAL_LINKS = LEGAL_LINKS.filter((l) => l.lean);
 
 
 /** Appends `from=<pathname>` to `href` for a link flagged `fromCurrentPage`,
@@ -137,7 +134,7 @@ export function Footer() {
     return <FooterContent />;
 }
 
-/** Privacy/Terms only — keeps legal reachable without the ~17-link farm on
+/** The `lean` links only (checks, Privacy, Terms) — keeps legal reachable without the ~17-link farm on
  *  hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     const prefetchOnIntent = usePrefetchOnIntent();

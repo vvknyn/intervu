@@ -81,14 +81,19 @@ describe('resumeReadLine', () => {
     const resume = (profile: Partial<ResumeData['profile']>, roles: string[] = []) =>
         ({ profile, experience: roles.map((role) => ({ role })) }) as unknown as ResumeData;
 
-    it('title then place', () => {
-        assert.equal(resumeReadLine(resume({ profession: 'Data Engineer', location: 'Toronto' })), 'We read: Data Engineer · Toronto');
+    it('title then place, behind the one "Ranked by your résumé" lead', () => {
+        assert.equal(
+            resumeReadLine(resume({ profession: 'Data Engineer', location: 'Toronto' })),
+            'Ranked by your résumé · Data Engineer · Toronto',
+        );
     });
     it('falls back to the first experience role when the profile has no title', () => {
-        assert.equal(resumeReadLine(resume({ location: 'Berlin' }, ['', 'Staff Designer'])), 'We read: Staff Designer · Berlin');
+        assert.equal(resumeReadLine(resume({ location: 'Berlin' }, ['', 'Staff Designer'])), 'Ranked by your résumé · Staff Designer · Berlin');
     });
-    it('title alone, and null when it read neither', () => {
-        assert.equal(resumeReadLine(resume({ profession: 'Nurse' })), 'We read: Nurse');
-        assert.equal(resumeReadLine(resume({})), null);
+    it('role alone when there is no place', () => {
+        assert.equal(resumeReadLine(resume({ profession: 'Nurse' })), 'Ranked by your résumé · Nurse');
+    });
+    it('still says it ranked by the résumé when it read neither', () => {
+        assert.equal(resumeReadLine(resume({})), 'Ranked by your résumé');
     });
 });

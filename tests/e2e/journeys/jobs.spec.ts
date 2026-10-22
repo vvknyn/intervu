@@ -951,7 +951,7 @@ test("a guest's Search names the résumé it ranks against, and Remove forgets i
   await page.goto("/jobs");
   // For you needs an account, so a guest's résumé opens Search on their top 3.
   await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
-  const inUse = page.getByTestId("resume-as-of");
+  const inUse = page.getByTestId("resume-read-strip");
   await expect(inUse).toContainText("Ranked by your résumé");
 
   // Remove asks once; "Keep it" changes nothing.
@@ -963,14 +963,14 @@ test("a guest's Search names the résumé it ranks against, and Remove forgets i
   await inUse.getByTestId("jobs-remove-resume-yes").click();
   // Nothing is ranked against a résumé now: the front door, no rows, no fit sort.
   await expectFrontDoor(page, 30_000);
-  await expect(page.getByTestId("resume-as-of")).toHaveCount(0);
+  await expect(page.getByTestId("resume-read-strip")).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]sort=fit/);
   expect(await page.evaluate((key) => localStorage.getItem(key), LOCAL_AI_RESUME_KEY)).toBeNull();
 
   // A reload doesn't bring it back.
   await page.goto("/jobs");
   await expectFrontDoor(page, 30_000);
-  await expect(page.getByTestId("resume-as-of")).toHaveCount(0);
+  await expect(page.getByTestId("resume-read-strip")).toHaveCount(0);
   expect(diagnostics.pageErrors).toEqual([]);
 });
 

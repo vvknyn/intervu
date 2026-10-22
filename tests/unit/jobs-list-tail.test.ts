@@ -99,11 +99,9 @@ test("BrowseSeedRow's tail usage lives inside ListTail's own guard", () => {
 });
 
 test("nothing interactive renders in the results-container source after ListTail's call site — the tail is last", () => {
-    // End marker is the page-level résumé band that follows the results
-    // ternary — not part of the list container. (`<LocationPickerSheet`
-    // used to be the next sibling; the band now sits between the feed and
-    // that sheet so the first viewport is jobs, not the upload invite.)
-    const afterTailCallSite = section("<ListTail", "{frontDoorBandVisible &&");
+    // End marker is the page's AuthPopover, the first sibling after the results ternary. The résumé band no longer
+    // follows the feed: it is the list's index-0 slot (promo-band.ts).
+    const afterTailCallSite = section("<ListTail", "<AuthPopover");
     assert.doesNotMatch(
         afterTailCallSite,
         /onClick=|<button\b/,
