@@ -12,6 +12,7 @@ import { classifyCountryValue } from "@/lib/jobs/country-classification";
 import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
 import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { GHOST_META } from "@/lib/jobs/presentation";
+import { SEARCH_DEFAULTS } from "@/lib/jobs/search-defaults";
 import { capitalizeWords } from "@/lib/text-case";
 
 /**
@@ -351,7 +352,7 @@ export const PRISTINE_FILTER_STATE: FilterState = {
     facets: {},
     salaryMin: 0,
     visaOnly: false,
-    postedBucket: "90d",
+    postedBucket: SEARCH_DEFAULTS.postedBucket,
     yearsExperience: undefined,
     hideGhosts: true,
     board: null,
