@@ -70,10 +70,11 @@ export function formatLeftOutLine(summary: DeckLeftOutSummary | null | undefined
  */
 export type DeckListKind = "fit" | "near" | "older" | "older-near";
 
-/** Which kind of list a summary describes (`deckListFor` marks the fallbacks with `near` and `older`). */
-export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older"> | null | undefined): DeckListKind {
-    if (summary?.near && summary.older) return "older-near";
-    if (summary?.near) return "near";
+/** Which kind of list a summary describes (`deckListFor` marks the fallbacks with `near` and `older`; a list that read roles and listed none is the nothing-fits list with no closest roles to show). */
+export function deckListKind(summary: Pick<DeckLeftOutSummary, "near" | "older" | "listed" | "considered"> | null | undefined): DeckListKind {
+    const nothingFits = !!summary?.near || (summary != null && summary.listed === 0 && summary.considered > 0);
+    if (nothingFits && summary?.older) return "older-near";
+    if (nothingFits) return "near";
     if (summary?.older) return "older";
     return "fit";
 }

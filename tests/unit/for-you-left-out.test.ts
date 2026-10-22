@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { resolveCandidateSignals } from '../../src/lib/jobs/candidate-signals';
 import { deckLeftOut, nearMissSummary, orderForYouJobsByBand, orderNearMisses, summarizeDeckLeftOut } from '../../src/lib/jobs/for-you/band-order';
 import { forYouLeftOut } from '../../src/lib/jobs/for-you/left-out';
-import { formatDeckShowingLine, formatLeftOutLine, leftOutParts, listNoticeLine, NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
+import { deckListKind, formatDeckShowingLine, formatLeftOutLine, leftOutParts, listNoticeLine, NEAR_MISS_NOTICE } from '../../src/lib/jobs/for-you/left-out-copy';
 import { todayLeftOut } from '../../src/lib/jobs/for-you/today';
 import { scoreJobAgainstResume, type MatchScore } from '../../src/lib/match/score';
 import { resumeDataFromPlainText } from '../../src/lib/resume/structure-resume-text';
@@ -182,5 +182,24 @@ describe('listNoticeLine: one quiet line, never a paragraph', () => {
     });
     it('has no line for a list of roles that fit', () => {
         assert.equal(listNoticeLine('fit'), null);
+    });
+});
+
+describe('deckListKind: a list that read roles and listed none is the degenerate nothing-fits list', () => {
+    const resume = { label: 'Résumé', href: '/resume' };
+    const zero = { considered: 25, listed: 0, byReason: {}, rankedLower: { stretch: 25 } };
+    it('gets the near notice with the résumé action', () => {
+        assert.equal(deckListKind(zero), 'near');
+        assert.deepEqual(listNoticeLine(deckListKind(zero)), { text: 'Add detail to your résumé for closer matches', action: resume });
+    });
+    it('gets the older-near notice when the roles are older', () => {
+        assert.equal(deckListKind({ ...zero, older: true }), 'older-near');
+    });
+    it('is unchanged when roles are listed, and has no kind of its own when nothing was read', () => {
+        assert.equal(deckListKind({ considered: 25, listed: 3 }), 'fit');
+        assert.equal(deckListKind({ considered: 25, listed: 3, near: true }), 'near');
+        assert.equal(deckListKind({ considered: 25, listed: 3, older: true }), 'older');
+        assert.equal(listNoticeLine(deckListKind({ considered: 0, listed: 0 })), null);
+        assert.equal(deckListKind(null), 'fit');
     });
 });
