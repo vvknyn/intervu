@@ -191,11 +191,11 @@ describe('coerceSortToSupported', () => {
 });
 
 describe('sortTriggerLabel (the trigger tells the truth about what ranks the list)', () => {
-    it('fit-ranked reads Best match, whatever the résumé flag', () => {
-        for (const mode of JOB_SORT_MODES) assert.equal(sortTriggerLabel(mode, true, true), 'Best match');
+    it('fit-ranked reads Best fit, whatever the résumé flag or the backend mode', () => {
+        for (const mode of JOB_SORT_MODES) for (const r of [true, false, null]) assert.equal(sortTriggerLabel(mode, r, true), 'Best fit');
     });
-    it('a résumé user on plain relevance reads Relevance, not Best match', () => {
-        assert.equal(sortTriggerLabel('relevance', true, false), 'Relevance');
+    it('a résumé user on plain relevance reads Best match: the one click away from Best fit', () => {
+        assert.equal(sortTriggerLabel('relevance', true, false), 'Best match');
     });
     it('no résumé, and the other modes, keep the option label', () => {
         for (const mode of JOB_SORT_MODES) {
