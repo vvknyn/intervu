@@ -271,9 +271,13 @@ export function deckListFor(
 ): { ranked: PublicJob[]; lower: PublicJob[]; summary: DeckLeftOutSummary } {
     const main = deckMainList(candidates, getScore, nowMs);
     const listedIds = new Set(main.ranked.map((job) => job.id));
+    // Nothing fits (the closest weaker fits lead, or not even those): a hard cut would leave the list shorter than the search
+    // found, and ranking by fit never shrinks the list. Every scored role the list does not lead with ranks lower.
+    const nothingFits = main.summary.near === true || main.ranked.length === 0;
     const lowerReasons = new Set<DeckLeftOut>([...RANKED_LOWER_REASONS, ...(include.abroad ? ["abroad" as const, "unplaced" as const] : []), ...(include.older ? ["old" as const] : [])]);
     const lowerReason = (job: PublicJob, score: MatchScore): DeckLeftOut | null => {
         const reason = deckLeftOut(job, score, nowMs);
+        if (nothingFits) return reason;
         // An older role the person included still has to pass every other cut (an older role abroad stays out).
         const rest = reason === "old" ? deckLeftOut(job, score, nowMs, { ignoreAge: true }) : null;
         return reason != null && lowerReasons.has(reason) && (rest == null || lowerReasons.has(rest)) ? reason : null;
