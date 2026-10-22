@@ -30,7 +30,7 @@ test("the expand pass drops title-first scoping back to whole-document search", 
     assert.deepEqual(strict.attributesToSearchOn, ["title", "company", "tags"]);
     const expanded = buildSearchBody({ q: "product manager canada" }, false, "all", { wholeDocument: true });
     assert.ok(!("attributesToSearchOn" in expanded));
-    assert.equal(expanded.matchingStrategy, "last");
+    assert.equal(expanded.matchingStrategy, "all");
 });
 
 test("a company-name query scopes retrieval to the company attribute", () => {
@@ -44,11 +44,8 @@ test("strict matching is the default — every query word must match", () => {
     assert.equal(buildSearchBody({ q: "technical account manager" }, false).matchingStrategy, "all");
 });
 
-test("whole-document pass relaxes to last — partial word matches rank lower instead of vanishing", () => {
-    for (const q of ["x", "technical account manager", "registered nurse"]) {
-        assert.equal(buildSearchBody({ q }, false, "all", { wholeDocument: true }).matchingStrategy, "last", q);
-        assert.equal(buildSearchBody({ q }, false, "all").matchingStrategy, "all", q);
-    }
+test("expand pass keeps matchingStrategy all — never last", () => {
+    assert.equal(buildSearchBody({ q: "x" }, false, "all", { wholeDocument: true }).matchingStrategy, "all");
 });
 
 test("relax fires only on a true query miss — zero hits, not thin pages", () => {
@@ -139,7 +136,7 @@ test("the expand pass drops tech-skill scoping back to whole-document search", (
     assert.deepEqual(strict.attributesToSearchOn, ["title", "tags", "description"]);
     const expanded = buildSearchBody({ q: "Rust", sort: "newest" }, false, "all", { wholeDocument: true });
     assert.ok(!("attributesToSearchOn" in expanded), JSON.stringify(expanded));
-    assert.equal(expanded.matchingStrategy, "last");
+    assert.equal(expanded.matchingStrategy, "all");
 });
 
 test("same q produces identical attributesToSearchOn across all sort modes", () => {

@@ -476,7 +476,7 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   companyScoped?: boolean;
   /** Title-only recall lane for seniority+role pair searches. */
   titleScoped?: boolean;
-  /** Whole-document retrieval (tier 2 / expand pass): `matchingStrategy: "last"`. */
+  /** Expand pass: whole-document retrieval; the caller picks the `matchingStrategy`. */
   wholeDocument?: boolean;
   /** Ask for `_rankingScoreDetails` on every hit — only the relevance-sorted
    *  typed search sets this, for `preferNewerAmongCloseMatches` below, which
@@ -949,12 +949,11 @@ export function buildSearchBody(
     // query is CLASSIFIED as, only how its short tokens are matched.
     q: quoteShortTokens(p.q ?? ""),
     ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
-    // Requiring every word is the honest default for the strict (title-first)
-    // pass. The whole-document pass relaxes to "last" (drops trailing words) —
-    // a partial word match ranks below a full one (tier weights) rather than
-    // disappearing. Ruling 2026-10-22: "return all search results ranked by
-    // relevance and fit". Decided here so every whole-document caller agrees.
-    matchingStrategy: opts?.wholeDocument ? "last" : matchingStrategy,
+    // Requiring every word is the honest default; `searchMeili` runs one
+    // whole-document expand pass (`wholeDocument`) only after a strict/scoped
+    // pass returns zero — never word-dropping (`matchingStrategy: "last"`),
+    // except tier 2 of `runTieredRetrieval`, which is weighted below tier 1.
+    matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
     // `limit`/`offset`, not `hitsPerPage`/`page` — page mode forces exhaustive
@@ -1178,7 +1177,10 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
   const details = rankingScoreDetails ? { rankingScoreDetails } : {};
   const query = (opts: BuildSearchBodyOpts, weight: number, tier: 1 | 2) => {
-    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, "all", { ...details, ...opts });
+    // Tier 2 (whole document) drops trailing words: a partial match ranks below a full one
+    // (tier 1 weight) instead of disappearing. Ruling 2026-10-22, "return all search results
+    // ranked by relevance and fit". Decided here so both the known and unknown pairs agree.
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, opts.wholeDocument ? "last" : "all", { ...details, ...opts });
     return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
   };
   // Known-value matches lead (tier weights 100 / 1). When a filter admits
