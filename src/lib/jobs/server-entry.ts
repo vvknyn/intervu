@@ -25,6 +25,18 @@ export const ENTRY_BUDGET_MS = 400;
 export interface JobsInitial {
     user: ServerUser;
     resumeOnFile: boolean | null;
+    /**
+     * The stored résumé as the server read it (structured data, or only the uploaded text), so the client never
+     * reads it again before the first search. Text stays text: the browser structures it (`storedResumeData`),
+     * résumé parsing never runs on our servers.
+     */
+    resume?: StoredResume;
+}
+
+export interface StoredResume {
+    data?: ResumeData;
+    text?: string;
+    updatedAt?: string | null;
 }
 
 export type JobsEntry = { kind: "redirect"; url: string } | { kind: "render"; initial: JobsInitial | null };
@@ -52,16 +64,18 @@ export interface JobsEntryInput {
     resumeOnFile: boolean | null;
     /** The fit address, when the stored résumé is structured. `null` for none, text-only or a missed read. */
     fitPath: string | null;
+    /** The stored résumé the read returned; handed on only when one is on file. */
+    resume?: StoredResume | null;
 }
 
 export function resolveJobsEntry(input: JobsEntryInput): JobsEntry {
-    const { user, search, resumeOnFile, fitPath } = input;
+    const { user, search, resumeOnFile, fitPath, resume } = input;
     if (!user) return { kind: "render", initial: null };
     // A target that is itself bare would 307 to itself forever; render instead.
     if (resumeOnFile === true && fitPath && isBareJobsAddress(search) && !isBareJobsAddress(new URLSearchParams(fitPath.split("?")[1] ?? ""))) {
         return { kind: "redirect", url: fitPath };
     }
-    return { kind: "render", initial: { user, resumeOnFile } };
+    return { kind: "render", initial: { user, resumeOnFile, ...(resumeOnFile === true && resume ? { resume } : {}) } };
 }
 
 const MISSED = Symbol("missed");

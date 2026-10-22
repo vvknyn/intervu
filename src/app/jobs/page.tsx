@@ -33,6 +33,7 @@ export default async function JobsPage({
         // A failed read is not "no résumé": only a read that answered says so.
         resumeOnFile: stored && !stored.error ? resumeIsOnFile(stored) : null,
         // The fit address needs the stated preferences too; without them the client builds it, as before.
+        resume: stored && !stored.error ? { data: stored.data, text: stored.text, updatedAt: stored.updatedAt } : null,
         fitPath: stored?.data && resumeIsUsable(stored.data) && prefs?.data ? fitEntryPath(stored.data, prefs.data) : null,
     });
     if (entry.kind === "redirect") redirect(entry.url);
