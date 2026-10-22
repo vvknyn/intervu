@@ -24,14 +24,20 @@ function buildQuery({ titles, terms }: JobSearchIntent): { q: string; leftover: 
  */
 export function applyIntent(p: JobSearchParams, intent: JobSearchIntent, places: PlaceClause[] = []): JobSearchParams {
     const { q, leftover } = buildQuery(intent);
-    const mentions = [...leftover, ...intent.unparsed, ...intent.exclude_titles.map((t) => `not ${t}`)];
+    // Seniority is never a filter (query-understanding.ts: the corpus's "mid" dump bucket would drop
+    // correctly-titled roles) — it stays a mention; title-first ranking orders by it.
+    const mentions = [
+        ...leftover,
+        ...intent.unparsed,
+        ...intent.exclude_titles.map((t) => `not ${t}`),
+        ...(intent.experience_level ? [`${intent.experience_level} level`] : []),
+    ];
     const facets: JobSearchParams["facets"] = { ...p.facets };
     const setFacet = (key: FacetKey, value: string | null) => {
         if (value && !facets[key]?.length) facets[key] = [value];
     };
     setFacet("work_type", intent.work_mode);
     setFacet("employment_type", intent.employment_type);
-    setFacet("experience_level", intent.experience_level);
 
     let postedBucket = p.postedBucket;
     const days = intent.posted_within_days;

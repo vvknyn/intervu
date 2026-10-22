@@ -19,7 +19,8 @@ test("every fixture: only FACETABLE_KEYS written, and no non-null field is silen
         for (const k of Object.keys(out.facets ?? {})) assert.ok((FACETABLE_KEYS as readonly string[]).includes(k), `${why}: ${k}`);
         if (e.work_mode) assert.deepEqual(out.facets?.work_type, [e.work_mode], why);
         if (e.employment_type) assert.deepEqual(out.facets?.employment_type, [e.employment_type], why);
-        if (e.experience_level) assert.deepEqual(out.facets?.experience_level, [e.experience_level], why);
+        assert.equal(out.facets?.experience_level, undefined, `${why}: seniority is never a filter`);
+        if (e.experience_level) assert.ok(mentions(out).includes(`${e.experience_level} level`), why);
         if (e.min_salary.amount) assert.equal(out.salaryMin, e.min_salary.amount, why);
         if (e.min_years !== null) assert.ok(out.yearsExperience, why);
         if (e.posted_within_days) {
@@ -32,6 +33,14 @@ test("every fixture: only FACETABLE_KEYS written, and no non-null field is silen
         for (const w of [...e.titles, ...e.terms]) {
             assert.ok(q.includes(w.toLowerCase()) || mentions(out).some((m) => m.toLowerCase().includes(w.toLowerCase())), `${why}: ${w}`);
         }
+    }
+});
+
+test("a stated seniority is a mention, never an experience_level filter, for every level", () => {
+    for (const level of ["entry", "mid", "senior", "lead"] as const) {
+        const out = applyIntent({}, intent({ experience_level: level }));
+        assert.equal(out.facets?.experience_level, undefined, level);
+        assert.deepEqual(mentions(out), [`${level} level`]);
     }
 });
 
