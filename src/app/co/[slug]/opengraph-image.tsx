@@ -8,12 +8,12 @@ import { SITE_NAME } from "@/lib/seo/constants";
 // import alone. This route never renders exhaust data into the image (only
 // `data.name`), so nothing gated is exposed by the switch.
 export const runtime = "nodejs";
-export const alt = `${SITE_NAME} — company hiring truth`;
+export const alt = `${SITE_NAME} — company hiring record`;
 export const size = OG_IMAGE_SIZE;
 export const contentType = OG_IMAGE_CONTENT_TYPE;
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const data = await getCompanyPageData(slug);
-  return buildPageOgImage(data?.name ?? "Company", "Hiring truth");
+  return buildPageOgImage(data?.name ?? "Company", "Hiring record");
 }

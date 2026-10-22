@@ -258,27 +258,8 @@ export function deriveGhostSignals(
     return signals;
 }
 
-/**
- * A representative sample of `deriveGhostSignals`' output — one line per
- * fact family (freshness/reposts/description/pay), using the EXACT strings
- * that function produces for a typical fresh, substantive, undisclosed-salary
- * posting. Used by the /jobs front door's at-rest detail pane (no job is
- * selected there, so there is no real `PublicJob` to derive signals FROM) to
- * preview what the "posting check" looks like without inventing new copy —
- * a test asserts these four strings are a literal subset of what
- * `deriveGhostSignals` actually emits, so this can't drift into a fabricated
- * claim about what the check does.
- */
-export const REPRESENTATIVE_GHOST_SIGNALS: GhostSignal[] = [
-    { text: "posted within the last 7 days", status: "favorable", kind: "freshness" },
-    { text: "repost (close/reopen) history not tracked yet", status: "unknown", kind: "reposts" },
-    { text: "description has real substance", status: "favorable", kind: "description" },
-    { text: "salary not disclosed (common for some regions)", status: "unknown", kind: "pay" },
-];
-
 /** Ghost-check ledger tagline — single source of truth for JobDetail.tsx's
- *  posting-check footer and any other surface (the front door's at-rest
- *  pitch pane) that previews the same feature. */
+ *  posting-check footer. */
 export const GHOST_CHECK_TAGLINE = "every signal automated · nothing inferred";
 
 export interface ExposureBadge {

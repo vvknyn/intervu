@@ -62,9 +62,9 @@ test("never sold or read by analytics: no words in replays or clicks, résumé s
     assert.equal(params.fromResume, true, "a pack's search is built from the résumé, so it must be marked unlogged");
 });
 
-test("the front door says it in the first screen and shows the promises", () => {
+test("the front door says it in the first screen and links the promises on the policy page", () => {
     const jobs = read("src/app/jobs/JobsContent.tsx");
     assert.match(jobs, /\{PRIVACY_HEADLINE\}/);
-    assert.match(jobs, /<PrivacyPromises /);
+    assert.doesNotMatch(jobs, /<PrivacyPromises /, "the promises are a policy-page block, not a front-door band");
     assert.match(PRIVACY_HEADLINE, /read in your browser and encrypted when saved/);
 });

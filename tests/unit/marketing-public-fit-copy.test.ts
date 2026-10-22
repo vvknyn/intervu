@@ -22,7 +22,6 @@ const PUBLIC_MARKETING_FILES = [
     "src/app/eluta-alternative/page.tsx",
     "src/app/indeed-alternative/page.tsx",
     "src/app/linkedin-jobs-alternative/page.tsx",
-    "src/components/jobs/front-door/FrontDoorDetailPitch.tsx",
 ];
 
 describe("public marketing — band-only fit copy", () => {

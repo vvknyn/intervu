@@ -195,6 +195,28 @@ describe("Customize dialog contract", () => {
         assert.doesNotMatch(docBar, /resume=|onUploadResume=/, "the job page's phone bar carries Apply and Save only");
     });
 
+    it("a role opened without a résumé asks for one in exactly one place: the Why this fits section, not the action row", () => {
+        for (const job of [baseJob(), baseJob({ id: "job-2", title: "Staff Engineer", company: "Globex" })]) {
+            const html = renderToStaticMarkup(
+                React.createElement(JobDetail, {
+                    job,
+                    now: Date.now(),
+                    source: "direct",
+                    onOpenPosting: noop,
+                    onGoAfter: noop,
+                    pursuit: undefined,
+                    signedIn: false,
+                    resume: null,
+                    onUploadResume: noop,
+                }),
+            );
+            assert.equal(html.split("Upload résumé to customize").length - 1, 1, job.title);
+            const slot = html.indexOf('data-testid="fit-upload-slot"');
+            assert.ok(slot > 0 && html.indexOf("Why this fits", slot) > 0);
+            assert.ok(html.indexOf("job-detail-upload-to-customize") > slot);
+        }
+    });
+
     it("SSR JobDetail shows the trigger and does not emit the draft inline", () => {
         const html = renderToStaticMarkup(
             React.createElement(JobDetail, {

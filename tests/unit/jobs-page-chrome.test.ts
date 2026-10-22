@@ -3,10 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { JOBS_USP } from "../../src/lib/jobs/jobs-usp-copy";
-import { RELISTED_EXPLAIN } from "../../src/lib/jobs/relisted-explain";
 import { EXCEPTION_KEY_BODY, EXCEPTION_KEY_TITLE } from "../../src/lib/jobs/row-exception";
-import { GHOST_META } from "../../src/lib/jobs/presentation";
-import { pickExceptionJit, shouldShowRelistJit } from "../../src/lib/jobs/should-show-relist-jit";
 import { tourSteps } from "../../src/components/tour/tour-steps";
 import { NAV_TABS } from "../../src/components/layout/nav-tabs";
 
@@ -142,109 +139,18 @@ describe("header nav", () => {
     });
 });
 
-describe("jobs-relist JIT tour", () => {
-    it("is a one-step tour using the shared RELISTED_EXPLAIN copy", () => {
-        const steps = tourSteps["jobs-relist"];
-        assert.ok(steps);
-        assert.equal(steps.length, 1);
-        assert.equal(steps[0].selector, '[data-tour="row-exception"][data-exception="relisted"]');
-        assert.match(steps[0].title, /relist/i);
-        assert.equal(steps[0].description, RELISTED_EXPLAIN);
+describe("tours never auto-start", () => {
+    const page = readFileSync(PAGE, "utf8");
+
+    it("the jobs page starts a tour only from the explicit \"?\" button", () => {
+        const calls = page.match(/startTour\(/g) ?? [];
+        assert.equal(calls.length, 1, "a second startTour( call is an auto-start path");
+        assert.match(page, /onClick=\{\(\) => startTour\(\)\}/);
     });
 
-    it("jobs-stale and jobs-exception-both one-step tours exist", () => {
-        const stale = tourSteps["jobs-stale"];
-        assert.ok(stale);
-        assert.equal(stale[0].selector, '[data-tour="row-exception"][data-exception="stale"]');
-        assert.equal(stale[0].description, GHOST_META.likely_ghost!.explain);
-
-        const both = tourSteps["jobs-exception-both"];
-        assert.ok(both);
-        assert.equal(both[0].selector, '[data-tour="row-exception"][data-exception="both"]');
-        assert.match(both[0].description, /refreshed/i);
-        assert.match(both[0].description, /may no longer be live/i);
-    });
-
-    it("shouldShowRelistJit: false unless main tour done, unseen, relist in DOM, and listings visible", () => {
-        const cases = [
-            { mainTourActive: true, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: true, relistInDom: true, listingsVisible: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: false, listingsVisible: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: false, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: false, expected: false },
-            { mainTourActive: false, hasSeenMainTour: true, hasSeenRelist: false, relistInDom: true, listingsVisible: true, expected: true },
-        ] as const;
-
-        for (const c of cases) {
-            assert.equal(
-                shouldShowRelistJit(c),
-                c.expected,
-                `main=${c.mainTourActive} seenMain=${c.hasSeenMainTour} seenRelist=${c.hasSeenRelist} dom=${c.relistInDom} listings=${c.listingsVisible}`,
-            );
-        }
-    });
-
-    it("pickExceptionJit: both wins over stale and relisted", () => {
-        assert.equal(
-            pickExceptionJit({
-                mainTourActive: false,
-                hasSeenMainTour: true,
-                exceptionTourActive: false,
-                hasSeenBoth: false,
-                hasSeenStale: false,
-                hasSeenRelist: false,
-                bothInDom: true,
-                staleInDom: true,
-                relistInDom: true,
-                listingsVisible: true,
-            }),
-            "both",
-        );
-        assert.equal(
-            pickExceptionJit({
-                mainTourActive: false,
-                hasSeenMainTour: true,
-                exceptionTourActive: false,
-                hasSeenBoth: true,
-                hasSeenStale: false,
-                hasSeenRelist: false,
-                bothInDom: false,
-                staleInDom: true,
-                relistInDom: true,
-                listingsVisible: true,
-            }),
-            "stale",
-        );
-        assert.equal(
-            pickExceptionJit({
-                mainTourActive: false,
-                hasSeenMainTour: true,
-                exceptionTourActive: false,
-                hasSeenBoth: true,
-                hasSeenStale: true,
-                hasSeenRelist: false,
-                bothInDom: false,
-                staleInDom: false,
-                relistInDom: true,
-                listingsVisible: true,
-            }),
-            "relisted",
-        );
-        assert.equal(
-            pickExceptionJit({
-                mainTourActive: false,
-                hasSeenMainTour: true,
-                exceptionTourActive: false,
-                hasSeenBoth: true,
-                hasSeenStale: true,
-                hasSeenRelist: false,
-                bothInDom: false,
-                staleInDom: false,
-                relistInDom: true,
-                listingsVisible: false,
-            }),
-            null,
-        );
+    it("no first-visit or exception coachmark can be queued by the page", () => {
+        assert.doesNotMatch(page, /pickExceptionJit|requestAnimationFrame\(\(\) => startTour/);
+        for (const id of ["jobs-relist", "jobs-stale", "jobs-exception-both"]) assert.equal(tourSteps[id], undefined, id);
     });
 });
 
@@ -448,17 +354,6 @@ describe("jobs page chrome guards", () => {
         assert.match(jobCard, /rowExceptionMark/);
         assert.match(jobCard, /data-exception=\{exceptionMark\.kind\}/);
         assert.match(jobCard, /data-testid="row-exception"/);
-    });
-
-    it("exception JIT queries data-exception selectors and pickExceptionJit", () => {
-        const src = readFileSync(PAGE, "utf8");
-        assert.match(src, /pickExceptionJit/);
-        assert.match(src, /listingsVisible: hits\.length > 0/);
-        assert.match(src, /\[data-exception="both"\]/);
-        assert.match(src, /\[data-exception="stale"\]/);
-        assert.match(src, /\[data-exception="relisted"\]/);
-        assert.match(src, /jobs-exception-both/);
-        assert.match(src, /jobs-stale/);
     });
 
     it("TourProvider resolves visible tour targets, not hidden duplicates", () => {
