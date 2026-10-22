@@ -41,16 +41,15 @@ describe("the Velai Chrome extension tile", () => {
         assert.doesNotMatch(TILE, /Open (the )?extension|>\s*Open\s*</);
     });
 
-    it("sits once inside a list ranked against the résumé, after the fourth role, and is not a row", () => {
-        const at = PAGE.indexOf('key="extension-tile-list"');
-        assert.ok(at > 0, "the list mounts the tile");
-        assert.equal(PAGE.split('key="extension-tile-list"').length, 2, "once, not per row");
-        assert.match(PAGE.slice(at - 400, at), /recommendedReady && recommended && i === Math\.min\(3, renderedClusters\.length - 1\)/);
+    it("shows in the list slot only as the one promo band, and the front door keeps the full tile", () => {
+        assert.match(PAGE, /promoBand === "extension" && <ExtensionTile variant="band"/);
+        assert.equal(PAGE.split("<ExtensionTile").length - 1, 2, "band + front door, never per row");
+        assert.doesNotMatch(PAGE, /extension-tile-list/);
     });
 
     it("sits on the at-rest front door between the résumé invite and the privacy panel", () => {
         const band = PAGE.indexOf("<FrontDoorResumeBand");
-        const tile = PAGE.indexOf("<ExtensionTile ");
+        const tile = PAGE.indexOf("<ExtensionTile className");
         const privacy = PAGE.indexOf("<PrivacyPromises ");
         assert.ok(band > 0 && tile > band && privacy > tile);
         assert.match(PAGE.slice(tile - 200, tile), /frontDoorAtRest && !setupPanelVisible/);

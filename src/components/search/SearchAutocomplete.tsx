@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId, type RefObject } from "react";
+import { Fragment, useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
 import { createPortal } from "react-dom";
 import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
 import { Input } from "@/components/ui/input";
@@ -66,11 +66,6 @@ interface SearchAutocompleteProps {
      * parallel seed-specific handler.
      */
     seeds?: string[];
-    /** A control stacked directly under this box (the phone's location row)
-     *  that the suggestions must not cover — they hang below it instead.
-     *  Covered, it could not be tapped while the list was open, and a tap
-     *  there picked a suggestion (focus group, 2026-10-12). */
-    keepClearRef?: RefObject<HTMLElement | null>;
 }
 
 export interface SearchAutocompleteHandle {
@@ -123,7 +118,6 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     leadingIcon,
     suggest,
     seeds,
-    keepClearRef,
     ariaLabel = "Search jobs",
     name,
 }, ref) {
@@ -190,7 +184,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
     const showClear = Boolean(onClear) && value.length > 0;
     const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
-    const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen, 8, keepClearRef);
+    const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen, 8);
     useImperativeHandle(
         ref,
         () => ({
@@ -403,7 +397,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         aria-label="Clear search"
                         title="Clear search"
                         // Same guard as the suggestion `<li>` items above and
-                        // the sibling `topbar-docked-location-clear` button:
+                        // this field's clear button:
                         // without it, mousedown moves focus to this button
                         // before onClick fires, blurring the Input. Touch taps
                         // are unaffected — they fire their own click regardless

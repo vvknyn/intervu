@@ -64,7 +64,7 @@ const leadingDots = (roots: Locator) =>
 
 for (const width of [390, 320]) {
     for (const path of ["/jobs", "/jobs?q=engineer"]) {
-        test(`on a ${width}px phone Search spans the search box under its two fields and the toolbar shares its edges, with no second Search bar (${path})`, { tag: ["@J-MOB-17"] }, async ({ page, diagnostics }, testInfo) => {
+        test(`on a ${width}px phone Search sits inline at the end of the one-row search box and the toolbar shares its edges, with no second Search bar (${path})`, { tag: ["@J-MOB-17"] }, async ({ page, diagnostics }, testInfo) => {
             test.skip(testInfo.project.name !== "mobile", "a phone width");
             await page.setViewportSize({ width, height: 800 });
             await returningVisitor(page);
@@ -74,10 +74,9 @@ for (const width of [390, 320]) {
             await expect(dock).toBeVisible({ timeout: 15_000 });
             await expect(submit).toHaveCount(1);
             const [d, s] = [await box(dock), await box(submit)];
-            // It sat level with the first field, leaving a hole beside the second (2026-10-02).
-            expect(s.y).toBeGreaterThanOrEqual(d.y + d.height);
-            expect(Math.abs(s.x - d.x)).toBeLessThanOrEqual(1);
-            expect(Math.abs(s.width - d.width)).toBeLessThanOrEqual(1);
+            // One row: the search button is an icon beside the box, not a full-width bar under it (2026-10-22).
+            expect(Math.abs((s.y + s.height / 2) - (d.y + d.height / 2))).toBeLessThanOrEqual(d.height / 2);
+            expect(s.x).toBeGreaterThanOrEqual(d.x + d.width - 1);
             // A filled copy of it was pinned above the tab bar too.
             await expect(page.getByTestId("mobile-search-cta")).toHaveCount(0);
 
@@ -208,7 +207,7 @@ async function expectSheetBar(page: Page, title: string | RegExp, content: Locat
     await expect(sheet).toBeHidden();
 }
 
-test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, location, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
+test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
     const now = new Date().toISOString();
@@ -230,10 +229,6 @@ test("on a phone every bottom sheet opens under the same bar: a title and a Clos
     await page.goto("/jobs?q=engineer");
     await page.getByTestId("filters-toggle").click();
     await expectSheetBar(page, "Filters", page.getByTestId("filters-panel"));
-
-    await page.goto("/jobs");
-    await page.getByTestId("location-picker-trigger").click();
-    await expectSheetBar(page, "Where do you want to work?", page.getByRole("dialog").getByRole("checkbox").first());
 
     await page.goto("/yours");
     await page.getByTestId("tracker-track-role-cta").first().click();
@@ -307,7 +302,7 @@ async function expectSwipeCloses(sheet: Locator) {
     await expect(sheet).toBeHidden();
 }
 
-test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets it settle back open (filters, location, tracker, job)", { tag: ["@J-MOB-27"] }, async ({ page, diagnostics }, testInfo) => {
+test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets it settle back open (filters, tracker, job)", { tag: ["@J-MOB-27"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
     const now = new Date().toISOString();
@@ -330,10 +325,6 @@ test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets 
     await page.getByTestId("filters-toggle").click();
     await expectSwipeCloses(page.getByRole("dialog", { name: "Filters" }));
 
-    await page.goto("/jobs");
-    await page.getByTestId("location-picker-trigger").click();
-    await expectSwipeCloses(page.getByRole("dialog", { name: "Where do you want to work?" }));
-
     await page.goto("/yours");
     await page.getByTestId("tracker-track-role-cta").first().click();
     await expectSwipeCloses(page.getByRole("dialog", { name: "Track a role" }));
@@ -354,61 +345,4 @@ test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets 
         test.info().annotations.push({ type: "skipped-part", description: "this server lists no jobs (no search backend), so there is no job sheet to swipe" });
     }
     expect(diagnostics.pageErrors).toEqual([]);
-});
-
-/**
- * The phone's location sheet had eleven country rows and an "Other" row to
- * open before a city could be typed, so a nurse in Calgary picked Canada and
- * got Edmonton and Hamilton (focus group, 2026-10-12). The sheet now opens
- * with the desktop box's search at the top.
- */
-test("on a phone the location sheet searches places: typing a city and tapping it filters the results to that city", { tag: ["@J-MOB-13"] }, async ({ page, diagnostics }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "the location sheet is the phone's control");
-    await returningVisitor(page);
-    await page.goto("/jobs?q=engineer");
-    test.skip(!(await rowsIfAny(page)), "this server lists no jobs (no search backend)");
-
-    await page.getByTestId("location-picker-trigger").click();
-    const sheet = page.getByRole("dialog", { name: "Where do you want to work?" });
-    const box = sheet.getByTestId("location-sheet-input");
-    await expect(box).toBeVisible();
-    // The search sits above the country rows, where a thumb reaches it first.
-    expect((await box.boundingBox())!.y).toBeLessThan((await sheet.getByTestId("location-sheet-country-canada").boundingBox())!.y);
-
-    await box.fill("Toront");
-    const toronto = sheet.getByRole("option").filter({ hasText: /^Toronto/ }).first();
-    await expect(toronto).toBeVisible({ timeout: 15_000 });
-    await toronto.click();
-
-    await expect(sheet).toBeHidden();
-    await expect(page.getByTestId("location-picker-trigger")).toContainText("Toronto", { timeout: 15_000 });
-    await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 20_000 });
-    const places = await page.getByTestId("job-row").locator('[data-testid="job-location"]').allInnerTexts();
-    expect(places.length).toBeGreaterThan(0);
-    for (const place of places) expect(place).toMatch(/Toronto|Remote/i);
-    expect(diagnostics.pageErrors).toEqual([]);
-});
-
-/**
- * The search box's suggestions opened over the location row stacked under
- * it, so on a phone the row could not be reached while they showed, and a
- * tap there picked a suggestion instead (focus group, 2026-10-12).
- */
-test("on a phone the search suggestions leave the location row uncovered, and tapping it opens the location sheet", { tag: ["@J-MOB-28"] }, async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "the rows stack only on a phone");
-    await returningVisitor(page);
-    await page.goto("/jobs");
-    const input = page.getByPlaceholder("Job title, skill, or company");
-    await input.click();
-    await input.pressSequentially("nurs");
-    const list = page.getByRole("listbox", { name: "Search suggestions" });
-    await expect(list).toBeVisible({ timeout: 15_000 });
-
-    const trigger = page.getByTestId("location-picker-trigger");
-    const row = await box(trigger);
-    const panel = await box(list);
-    expect(panel.y, "the suggestions start below the location row").toBeGreaterThanOrEqual(row.y + row.height);
-
-    await trigger.click();
-    await expect(page.getByRole("dialog", { name: "Where do you want to work?" })).toBeVisible();
 });

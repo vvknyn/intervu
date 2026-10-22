@@ -104,14 +104,14 @@ test("toolbar control height", async (t) => {
         assert.doesNotMatch(seg!, HEIGHT_UTIL);
     });
 
-    await t.test("the toolbar scroller wraps instead of horizontal scroll", () => {
+    await t.test("the toolbar scroller is one scrollable row in a narrow column and wraps in a wide one", () => {
         const scroller = pageSrc.slice(
             pageSrc.indexOf('data-testid="jobs-toolbar-scroller"'),
             pageSrc.indexOf('data-testid="jobs-toolbar-scroller"') + 300,
         );
-        assert.match(scroller, /flex-wrap/);
-        assert.match(scroller, /overflow-x-clip/);
-        assert.doesNotMatch(scroller, /overflow-x-auto/);
+        assert.match(scroller, /@2xl:flex-wrap/);
+        assert.match(scroller, /@2xl:overflow-x-clip/);
+        assert.match(scroller, /\boverflow-x-auto/);
         assert.doesNotMatch(scroller, /flex-nowrap/);
     });
 

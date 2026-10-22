@@ -115,21 +115,11 @@ test.describe('saved searches — guest path', () => {
      * existing localStorage broker (SavedSearchesPanel's `commitSave`,
      * signed-out branch) — no network/auth involved.
      */
-    test('saving a search adds it to the saved-search list', async ({ page }) => {
+    test('a guest turning on Job alert opens the email form under the results line', async ({ page }) => {
         await page.goto('/jobs?q=engineer&posted=any');
         await expect(page.getByPlaceholder(/Job title/i)).toHaveValue('engineer');
 
-        const trigger = page.getByTestId('save-search-trigger');
-        await expect(trigger).toBeVisible();
-        await trigger.click();
-
-        const nameInput = page.getByTestId('save-search-name');
-        await expect(nameInput).toBeVisible();
-        await nameInput.fill('My engineer search');
-
-        await page.getByTestId('save-search-commit').click();
-
-        const item = page.getByTestId('saved-search-item').filter({ hasText: 'My engineer search' });
-        await expect(item).toBeVisible();
+        await page.getByTestId('search-alert-switch').getByRole('switch', { name: /job alert/i }).click();
+        await expect(page.getByTestId('search-alert-capture')).toBeVisible();
     });
 });

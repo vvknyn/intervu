@@ -22,7 +22,7 @@ export function savedSearchFor(saved: readonly SavedSearch[], urlState: JobsUrlS
 }
 
 /**
- * Weekly job alerts for the search on screen, as one switch on the results
+ * The "Job alert" switch for the search on screen, as one switch on the results
  * line (Vivek, 2026-10-10, after Autodesk's careers search: a quiet control
  * in place of three sentences). It replaced the toolbar's "Get alerts", the
  * visit line's "Email me new roles" and the results line's "Get new matches
@@ -126,10 +126,10 @@ export function SearchAlertSwitch({
                     checked={on}
                     onChange={() => void toggle()}
                     disabled={busy}
-                    aria-label="Weekly job alerts for this search"
+                    aria-label="Job alert for this search"
                 />
                 <label htmlFor={id} className="cursor-pointer whitespace-nowrap text-sm text-foreground">
-                    Weekly job alerts
+                    Job alert
                 </label>
             </div>
             {note && (

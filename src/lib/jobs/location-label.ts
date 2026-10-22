@@ -26,73 +26,12 @@
  * remote-only) still always wins and is never itself mistaken for
  * "detected".
  */
-import { LOCATION_FACET_FIELDS, isRemoteWorkTypeValue } from "./meilisearch";
-import { locationDefaultScope, shouldShowLocationDefaultChip } from "./location-default-preference";
-import type { FilterState } from "@/components/jobs/FilterPanel";
-
-export const LOCATION_TRIGGER_PLACEHOLDER = "City, state, or remote";
+import { locationDefaultScope } from "./location-default-preference";
 
 /** Same "Near {region}[ or remote] (detected)" copy the location sheet's own
- *  detected-label uses (LocationPickerSheet via jobs/page.tsx) — the ONE
- *  formatter both surfaces call so the wording can't drift into a third
- *  variant of the same disclosure. `remoteAnywhere` derives the scope from
+ *  detected-label uses — the ONE formatter, so the wording can't drift. `remoteAnywhere` derives the scope from
  *  the actual applied filter (`locationDefaultScope`, same as the toolbar
  *  chip) rather than always naming the bare country. */
 export function detectedLocationLabel(iso2: string, remoteAnywhere: boolean | undefined): string {
     return `Near ${locationDefaultScope(iso2, remoteAnywhere)} (detected)`;
-}
-
-export function locationTriggerLabel(
-    state: FilterState,
-    defaultedLocation?: string | null,
-    remoteAnywhere?: boolean,
-): string {
-    // Every location field, not only `location_country`: a city picked from
-    // a suggestion lands in `location_city`, and the phone's field showed the
-    // empty placeholder over results filtered to that city.
-    const values = LOCATION_FACET_FIELDS.flatMap((field) => state.facets[field] ?? [])
-        .map((v) => v.trim())
-        .filter(Boolean);
-    if (values.length === 1) return values[0]!;
-    if (values.length > 1) {
-        // A trigger is one line of a narrow control, so past the first place it
-        // reports a COUNT rather than truncating a list — "Montréal +2" says how
-        // much is hidden, where "Montréal, Toron…" only says that something is.
-        // The chips row below spells all of them out and can remove any one.
-        return `${values[0]} +${values.length - 1}`;
-    }
-
-    // The SAME predicate the toolbar's DefaultLocationChip gates on
-    // (`shouldShowLocationDefaultChip`, location-default-preference.ts) — the
-    // one chokepoint for "is the geo default still in effect," shared so the
-    // chip and this trigger can never disagree about it by construction
-    // (PR #461 review BLOCKER: they used to each keep their own check).
-    //
-    // It deliberately has no `work_type`/remote check, because the server's
-    // own gate doesn't either: `hasLocationSignal` (lib/geo/ip-default.ts)
-    // only looks at `suppressLocationDefault`/`places`/location facets,
-    // so picking "Remote" does NOT suppress the default server-side —
-    // `buildFilter` (lib/jobs/meilisearch.ts) ANDs the `work_type = remote`
-    // clause with the detected country's `places` clause, so results really
-    // are still geo-scoped. Hiding the disclosure here once remote is picked
-    // would misreport that active narrowing as absent.
-    const chosenLocations = LOCATION_FACET_FIELDS.flatMap((field) => state.facets[field] ?? []);
-    const defaultInEffect = shouldShowLocationDefaultChip(defaultedLocation, chosenLocations);
-
-    // Same "Remote" copy the mobile Remote chip always shows
-    // (FilterChipsRow.tsx) — an explicit remote-only pick is still a choice
-    // the searcher made, so it's never itself relabeled as "detected"; it's
-    // combined with the disclosure (not replaced by it) when the default is
-    // also in effect, per the server-truth note above.
-    if ((state.facets.work_type ?? []).some(isRemoteWorkTypeValue)) {
-        // "Remote" already leads the label, so the country half never adds
-        // its own "or remote" — that would just repeat what "Remote" already
-        // said (`false`, not `remoteAnywhere`: this branch's own explicit
-        // pick, not the geo default's bypass, is what's disclosed here).
-        return defaultInEffect ? `Remote · ${detectedLocationLabel(defaultedLocation!, false)}` : "Remote";
-    }
-
-    if (defaultInEffect) return detectedLocationLabel(defaultedLocation!, remoteAnywhere);
-
-    return LOCATION_TRIGGER_PLACEHOLDER;
 }
