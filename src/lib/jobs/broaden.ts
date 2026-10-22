@@ -20,7 +20,7 @@ export function isThinResults(total: number): boolean {
     return total < THIN_RESULTS_BELOW;
 }
 
-export type BroadenRungId = "remote_anywhere" | "relocation" | "remove_location" | "any_seniority" | "any_date";
+export type BroadenRungId = "remote_anywhere" | "relocation" | "remove_location" | "any_seniority" | "any_salary" | "any_date";
 
 export interface BroadenRung {
     id: BroadenRungId;
@@ -149,6 +149,9 @@ export function broadenRungs(state: JobsUrlState, ctx: BroadenContext = {}): Bro
         const facets = { ...state.facets };
         delete facets.experience_level;
         rungs.push({ id: "any_seniority", label: "Any seniority", next: change({ facets, yearsExperience: undefined }) });
+    }
+    if (state.salaryMin > 0) {
+        rungs.push({ id: "any_salary", label: "Any salary", next: change({ salaryMin: 0 }) });
     }
     if (state.postedBucket) {
         const wider = WIDER_POSTED[state.postedBucket];

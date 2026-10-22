@@ -74,6 +74,9 @@ function facetMatches(job: PublicJob, params: JobSearchParams): boolean {
     if (work.length > 0 && !work.includes(job.work_type)) return false;
     const levels = wanted('experience_level');
     if (levels.length > 0 && !facetValueMatches('experience_level', job.experience_level, levels)) return false;
+    // Mirrors `salaryMinClause`: a posting stating no salary is kept.
+    const stated = job.salary_max ?? job.salary_min ?? null;
+    if (params.salaryMin && stated != null && stated < params.salaryMin) return false;
     return true;
 }
 
