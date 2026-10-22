@@ -114,4 +114,20 @@ export function JobsSessionLoadingShell({ className }: { className?: string }) {
     );
 }
 
-export { SESSION_LOADING_LABEL };
+const FIT_HOLD_LABEL = "Finding live roles…";
+
+/** The same column while a signed-in résumé's ranked list is being fetched: the session is known, the rows are not. */
+export function JobsFitHoldShell({ className }: { className?: string }) {
+    return (
+        <div
+            className={cn("flex flex-1 flex-col state-opacity-in poster-noise rounded-panel bg-background p-2", className)}
+            data-testid="jobs-fit-hold"
+            role="status"
+            aria-busy="true"
+        >
+            <ForYouDeckSkeleton tone="session" statusLabel={FIT_HOLD_LABEL} statusProminent />
+        </div>
+    );
+}
+
+export { FIT_HOLD_LABEL, SESSION_LOADING_LABEL };

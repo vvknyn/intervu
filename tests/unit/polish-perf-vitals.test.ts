@@ -70,7 +70,7 @@ test("signed-out /jobs entry is server page + thin route gate", () => {
     // server-first-rows.ts), rendered as a first visit on a phone sees it, and
     // a signed-out visitor's front door (/jobs/front-door, server-front-door.ts).
     assert.match(JOBS_GATE, /import \{ JobsContent, type InitialSearch \} from "@\/app\/jobs\/JobsContent";/);
-    assert.match(JOBS_GATE, /const renderedOnServer = initialSearch != null \|\| signedOut;/);
+    assert.match(JOBS_GATE, /const renderedOnServer = initialSearch != null \|\| signedOut \|\| initial != null;/);
     assert.match(JOBS_GATE, /if \(!mounted && !renderedOnServer\) return null;/);
 });
 

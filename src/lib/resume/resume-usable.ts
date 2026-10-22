@@ -17,3 +17,12 @@ export function resumeIsUsable(d: ResumeData | undefined): boolean {
     if (!d) return false;
     return Boolean(buildMatchQuery(d).q);
 }
+
+/**
+ * A résumé is "on file" when the stored document is usable, or only its text
+ * is stored (the browser structures that; no server parses it). The one bar
+ * `hasUsableResumeOnFile` and the /jobs server entry both answer by.
+ */
+export function resumeIsOnFile(stored: { data?: ResumeData; text?: string }): boolean {
+    return resumeIsUsable(stored.data) || Boolean(stored.text);
+}

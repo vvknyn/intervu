@@ -97,11 +97,11 @@ test("the page renders the list on the server, signed out, inline in the HTML", 
     assert.match(page, /<JobsRouteGate signedOut \/>/);
 
     const gate = read("src/app/jobs/JobsRouteGate.tsx");
-    assert.match(gate, /<JobsContent initialSearch=\{initialSearch\} signedOutOnServer=\{signedOut\} \/>/);
+    assert.match(gate, /<JobsContent initialSearch=\{initialSearch\} signedOutOnServer=\{signedOut\} initial=\{initial\} \/>/);
     // No boundary on the server-rendered pages: React streams a large
     // finished boundary apart and shows it on the next animation frame.
     assert.match(gate, /if \(renderedOnServer\) return content;/);
 
     const content = read("src/app/jobs/JobsContent.tsx");
-    assert.match(content, /const \[authReady, setAuthReady\] = useState\(signedOutOnServer\);/);
+    assert.match(content, /const \[authReady, setAuthReady\] = useState\(signedOutOnServer \|\| initial != null\);/);
 });

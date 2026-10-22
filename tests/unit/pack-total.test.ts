@@ -93,7 +93,9 @@ describe('JobsContent wiring (call-site gate, no file allowlist)', () => {
 
     it('fit-ranking reads the pack filters, not a résumé-only location', () => {
         assert.doesNotMatch(SRC, /packApplyLocationFacets/);
-        assert.equal((SRC.match(/packFilters\(/g) ?? []).length, 2);
+        // The pack memo, and `fitApplication` (pack-filters.ts: packFilters laid over the board's filters).
+        assert.equal((SRC.match(/packFilters\(/g) ?? []).length, 1);
+        assert.equal((SRC.match(/fitApplication\(/g) ?? []).length, 1);
     });
 
     it('renders the broaden options for empty and thin results, and has no Canada carve-out', () => {

@@ -5,13 +5,15 @@
  * fit only reorders the result (rank-for-you). `jobsBoardHref` (url-state.ts) is the
  * link that lands them on `/jobs` with exactly this state.
  */
-import { candidateCountries, preferredRoles, type CandidateSignals } from "@/lib/jobs/candidate-signals";
-import { buildMatchQuery, experienceLevelFacet, withLeadTitle } from "@/lib/jobs/resume-match";
+import { candidateCountries, preferredRoles, resolveCandidateSignals, type CandidateSignals } from "@/lib/jobs/candidate-signals";
+import type { AgentPreferences } from "@/lib/agent/preferences";
+import { LOCATION_FACET_FIELDS } from "@/lib/jobs/meilisearch";
+import { buildMatchQuery, experienceLevelFacet, mergeFacets, withLeadTitle } from "@/lib/jobs/resume-match";
 import { contentPhrasesFor } from "@/lib/jobs/for-you/content-phrases";
 import { parseQuotedOrPhrases } from "@/lib/jobs/fit-phrases";
 import { packContentMark, resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
 import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, type JobsUrlState } from "@/lib/jobs/url-state";
-import type { JobSearchParams, PostedBucket } from "@/lib/jobs/types";
+import type { FacetKey, JobSearchParams, PostedBucket } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
 /**
@@ -84,4 +86,43 @@ export function packContentPhrases(resume: ResumeData, q: string | null | undefi
     const text = (q ?? "").trim();
     const phrases = parseQuotedOrPhrases(text) ?? (text ? [text.replace(/"/g, "")] : []);
     return contentPhrasesFor(resume, phrases);
+}
+
+/** What the résumé's fit ranking sets on the board. */
+export interface FitApplication {
+    q: string;
+    facets: Partial<Record<FacetKey, string[]>>;
+    postedBucket: PostedBucket | undefined;
+    /** The visitor pinned a Posted window by hand: the fit leaves it theirs. */
+    keepUserWindow: boolean;
+}
+
+/**
+ * The résumé's pack filters laid over the board's current ones: the same state "Edit filters" opens the board on,
+ * so fit-ranking the board and applying the pack by hand return the same rows. A place the user already picked is
+ * theirs, never replaced by the résumé's; a Posted window they pinned stays theirs. The one computation behind
+ * the client's `applyFit` and the server's signed-in redirect (`fitEntryPath`), so both land on the same address.
+ */
+export function fitApplication(
+    resume: ResumeData,
+    agentPrefs: AgentPreferences | null | undefined,
+    current: { facets: Partial<Record<FacetKey, string[]>>; postedExplicit: boolean },
+): FitApplication {
+    const { q, facets: packFacets, postedBucket } = packFilters(resume, resolveCandidateSignals(resume, agentPrefs));
+    const derived = { ...packFacets };
+    if (LOCATION_FACET_FIELDS.some((field) => (current.facets[field] ?? []).length > 0)) {
+        for (const field of LOCATION_FACET_FIELDS) delete derived[field];
+    }
+    return { q, facets: mergeFacets(current.facets, derived), postedBucket, keepUserWindow: current.postedExplicit };
+}
+
+/** `base` with the fit applied: its query and facets, `sort=fit`, and the pack's window unless the visitor pinned one. */
+export function fitUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlState {
+    return {
+        ...base,
+        q: fit.q,
+        facets: fit.facets,
+        sort: "fit",
+        ...(fit.keepUserWindow ? {} : { postedBucket: fit.postedBucket, postedExplicit: true }),
+    };
 }
