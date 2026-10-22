@@ -207,6 +207,8 @@ export async function parsePlaceTokens(
     const rejected = new Set<PlaceResolution>();
     await Promise.all(
       resolutions.map(async (r) => {
+        // Only a city can be a company name in free text; a country/region/state never is.
+        if (r.entity.type !== "city") return;
         for (const candidate of companyCorroborationCandidates(r, scan.tokens)) {
           if (await vocab.companyProbe(candidate)) {
             rejected.add(r);

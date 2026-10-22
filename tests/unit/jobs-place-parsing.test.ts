@@ -1181,3 +1181,39 @@ test("(l) PROTECTIVE: an ordinary picked city the gazetteer has never heard of i
   const p = await resolveLocationFacet({ facets: { location_city: ["Canandaigua"] } }, REROUTE_VOCAB);
   assert.deepEqual(p.places, [{ any: [{ field: "location_city", value: "Canandaigua" }] }]);
 });
+
+/* ------------ country/region entities are never company names ------------
+ * Live: "manager canada" -> company "Brookfield Canada Renewable Manager LP",
+ * "engineer canada" -> "Engineers Canada". The unordered, typo-tolerant company
+ * probe matched, cancelled the country filter, and the IP default location
+ * filled the gap. A typed country (or region/state) is never a company name in
+ * free text, so only cities are corroborated against the company field.
+ */
+const COUNTRY_COMPANY_PROBE: CompanyProbe = async (phrase) => /canada|australia|toronto/i.test(phrase);
+const COUNTRY_VOCAB = fakeVocab(
+  [
+    { field: "location_country", value: "Canada" },
+    { field: "location_country", value: "Australia" },
+    { field: "location_city", value: "Toronto" },
+  ],
+  GAZETTEER,
+  COUNTRY_COMPANY_PROBE,
+);
+
+test("country is never cancelled by a company probe: 'senior product manager canada' stays a Canada filter", async () => {
+  const { residualQ, places } = await parsePlaceTokens("senior product manager canada", COUNTRY_VOCAB, true);
+  assert.equal(residualQ, "senior product manager");
+  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Canada" }] }]);
+});
+
+test("country is never cancelled by a company probe: 'engineer australia' stays an Australia filter", async () => {
+  const { residualQ, places } = await parsePlaceTokens("engineer australia", COUNTRY_VOCAB, true);
+  assert.equal(residualQ, "engineer");
+  assert.deepEqual(places, [{ any: [{ field: "location_country", value: "Australia" }] }]);
+});
+
+test("cities are still corroborated: a company-probe hit still rejects 'engineer toronto'", async () => {
+  const { residualQ, places } = await parsePlaceTokens("engineer toronto", COUNTRY_VOCAB, true);
+  assert.equal(residualQ, "engineer toronto");
+  assert.deepEqual(places, []);
+});
