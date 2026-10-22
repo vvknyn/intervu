@@ -8,6 +8,7 @@ import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
 import { resumeIsOnFile } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
+import { planStructuredPersist } from "@/lib/resume/set-resume";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -85,6 +86,22 @@ export async function fetchResumeData(): Promise<{
         console.error("[Resume] Fetch Exception:", e);
         return { error: e.message };
     }
+}
+
+/**
+ * Saves what the browser structured from a text-only résumé, once, so the next
+ * server render has structured data to build the fit address from. Same write
+ * as the review step (`saveResumeData`, which replaces the text twin: every
+ * reader prefers the structured copy, so the text is unreachable after this).
+ * The server only validates; the structuring happened on the device.
+ */
+export async function persistStructuredResume(candidate: ResumeData): Promise<{ saved: boolean }> {
+    const stored = await fetchResumeData();
+    if (stored.error) return { saved: false };
+    const plan = planStructuredPersist(stored, candidate);
+    if (!plan.persist) return { saved: false };
+    const result = await saveResumeData(plan.data);
+    return { saved: !result.error && !result.textOnly };
 }
 
 /**

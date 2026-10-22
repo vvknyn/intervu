@@ -8,6 +8,7 @@ import {
     planResumeUpload,
     validateResumeUploadText,
     isBareDocumentId,
+    planStructuredPersist,
 } from "@/lib/resume/set-resume";
 import { AGENT } from "@/lib/agent/config";
 import type { BaseResume } from "@/lib/resume/base-resume";
@@ -324,5 +325,26 @@ describe("isBareDocumentId()", () => {
         ]) {
             assert.equal(isBareDocumentId(id), false, `${id} should be rejected`);
         }
+    });
+});
+
+describe("planStructuredPersist", () => {
+    const nurse = blankResume({ generatedSummary: "Nurse, 4 years.", profile: { name: "A", profession: "Nurse", yearsOfExperience: 4, location: "", email: "", phone: "" } });
+    const dev = blankResume({ generatedSummary: "Dev, 8 years." });
+
+    it("persists a valid structured copy when the server holds only text", () => {
+        const plan = planStructuredPersist({ text: "raw" }, nurse);
+        assert.ok(plan.persist && plan.data.profile.profession === "Nurse");
+        assert.equal(planStructuredPersist({ data: blankResume(), text: "raw" }, dev).persist, true);
+    });
+    it("never overwrites structured content the server already has", () => {
+        assert.deepEqual(planStructuredPersist({ data: nurse, text: "raw" }, dev), { persist: false, reason: "has-structured" });
+    });
+    it("persists nothing when there is no stored text", () => {
+        assert.deepEqual(planStructuredPersist({}, nurse), { persist: false, reason: "no-text" });
+    });
+    it("rejects a payload that fails validation", () => {
+        assert.deepEqual(planStructuredPersist({ text: "raw" }, { experience: "nope" }), { persist: false, reason: "invalid" });
+        assert.deepEqual(planStructuredPersist({ text: "raw" }, null), { persist: false, reason: "invalid" });
     });
 });
