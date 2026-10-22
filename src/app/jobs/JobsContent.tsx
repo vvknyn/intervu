@@ -55,6 +55,7 @@ import { reportJobEnabledAction } from "@/actions/report-job";
 import { releaseFirstListHold } from "@/lib/perf/schedule-after-load-or-idle";
 import { takeEarlyFirstSearch } from "@/lib/jobs/early-first-search";
 import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
+import { holdPursuitsRead, releasePursuitsRead } from "@/lib/pursuits/read-hold";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
@@ -702,6 +703,8 @@ function DeadJobUnresolved({
 /** Page size for SERP results + each infinite-scroll / Show more chunk.
  *  The early first search JobsRouteGate sends uses the same size
  *  (`SEARCH_FIRST_PAGE_SIZE`, pinned equal by early-first-search.test.ts). */
+/** The longest the tracker read waits for the first search before it goes anyway. */
+const PURSUITS_HOLD_MAX_MS = 4000;
 const PAGE = 20;
 /**
  * Deeper first page for For-you / pack-open deck fetches (Strong→Good→Stretch). The index orders a
@@ -1623,6 +1626,8 @@ export function JobsContent({
             setEmailNudgeOpen(false);
             return;
         }
+        // Not needed for rows: it waits for the first search so it never queues ahead of it.
+        if (!firstSearchSettled) return;
         // A failed read (one still queued when the page is left fails) shows no nudge, never a page error.
         void getAccountEmailStateAction()
             .then((res) => {
@@ -1631,7 +1636,7 @@ export function JobsContent({
                 setAccountPendingEmail(res.data.pendingEmail);
             })
             .catch(() => {});
-    }, [user?.uid]);
+    }, [user?.uid, firstSearchSettled]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
     // Progressive guest save gating — initialized post-mount (localStorage
     // is not available during SSR). `guestSaveCount` drives both the banner
@@ -1679,6 +1684,15 @@ export function JobsContent({
     }, [firstSearchSettled]);
     // Replaces the old session-only `appliedIds` state (forgot on reload) —
     // one shared, cached fetch that also serves TopBar and /yours.
+    // The tracker read (rows are filtered by it, never dropped) queues behind the first search.
+    useLayoutEffect(() => {
+        holdPursuitsRead(PURSUITS_HOLD_MAX_MS);
+        return releasePursuitsRead;
+    }, []);
+    useEffect(() => {
+        if (!firstSearchSettled) return;
+        releasePursuitsRead();
+    }, [firstSearchSettled]);
     const { byJobId: pursuitsByJobId, pursuits, loading: pursuitsLoading } = usePursuits();
     const [optimisticPursuits, setOptimisticPursuits] = useState<Map<string, Pursuit>>(() => new Map());
     const pursuitsByJobIdMerged = useMemo(() => {
