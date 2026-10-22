@@ -2120,7 +2120,6 @@ export function JobsContent({
     const dockedFieldDirectoryMount = useDockedSlotMount(headerDockActive, "topbar-docked-field-directory");
     const dockedQueryMount = useDockedSlotMount(headerDockActive, "topbar-docked-query");
     const dockedSortMount = useDockedSlotMount(headerDockActive, "topbar-docked-sort");
-    const dockedExtrasMount = useDockedSlotMount(headerDockActive, "topbar-docked-extras");
     const dockedClearFiltersMount = useDockedSlotMount(headerDockActive, "topbar-docked-clear-filters");
     const dockedSaveSearchMount = useDockedSlotMount(headerDockActive, "topbar-docked-save-search");
 
@@ -5137,36 +5136,6 @@ export function JobsContent({
     const displayResumeLabel = (label: string | null, r: ResumeData | null): string =>
         label?.trim() || r?.profile?.name?.trim() || "Pasted text";
 
-    // "Ranked by your résumé · Replace" — one toolbar résumé control.
-    const asOfEl =
-        hasUsableResume && (signedIn || guestResumeInBrowser) ? (
-            <span
-                data-testid="resume-as-of"
-                className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
-            >
-                <span title={displayResumeLabel(resumeSourceLabel, resume)}>Ranked by your résumé</span> ·{" "}
-                <button
-                    type="button"
-                    data-testid="jobs-replace-resume"
-                    title="Replace your résumé and rescore matches"
-                    onClick={() => handleUploadClick()}
-                    className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
-                >
-                    Replace
-                </button>
-                {!signedIn ? (
-                    <>
-                        {" "}·{" "}
-                        <ResumeRemove
-                            onRemove={removeGuestResume}
-                            testIdPrefix="jobs"
-                            className="text-xs font-semibold text-foreground transition-colors hover:text-brand"
-                        />
-                    </>
-                ) : null}
-            </span>
-        ) : null;
-
     const resumeReadText = hasUsableResume && resume ? resumeReadLine(resume) : null;
 
     const showJobsToolbarRow = !headerDockActive;
@@ -5196,9 +5165,16 @@ export function JobsContent({
     // At most one promo band sits above the results header, never between rows (see promo-band.ts).
     // The Chrome tile rides on a list already ranked against the résumé; at rest the résumé band is the one promo.
     const promoBand = pickPromoBand({
+        resume: atRest && frontDoor.band !== null,
         extension: recommendedReady && recommended != null,
     });
-    const frontDoorBandVisible = atRest && frontDoor.band !== null;
+    const resumeBandEl = promoBand === "resume" && (
+        <FrontDoorResumeBand
+            signedIn={Boolean(user)}
+            onUploadClick={handleUploadClick}
+            onSignInClick={() => openAuth("generic", "user")}
+        />
+    );
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5608,7 +5584,6 @@ export function JobsContent({
                                 {savedSearchMountElInToolbar}
                                 {/* Below lg, Sort lives in the Filters sheet (its own Sort group). */}
                                 <span className="hidden lg:contents">{sortEl}</span>
-                                {asOfEl}
                             </div>
                         )}
                     </div>
@@ -5698,7 +5673,7 @@ export function JobsContent({
                 {/* The front door (no job rows until there's a reason):
                     the week's live count, the visitor's last search, and
                     for a résumé on file, the way back to their matches.
-                    Visitors with no résumé get FrontDoorResumeBand below. */}
+                    Visitors with no résumé get the résumé band here, or at the top of the list once rows show. */}
                 {frontDoorAtRest && (
                     <>
                         <FrontDoorWeekCount
@@ -5711,6 +5686,7 @@ export function JobsContent({
                                 onRerun={submitSearch}
                             />
                         </div>
+                        {resumeBandEl && <div className="mx-auto mt-6 w-full max-w-[960px]">{resumeBandEl}</div>}
                         {resumeOnFile === true && !fitActive && !fitResolving && (
                             <FrontDoorMatchesCta onShowMatches={() => void resolveAndApplyFit()} />
                         )}
@@ -5728,11 +5704,6 @@ export function JobsContent({
                 {headerDockActive && dockedSaveSearchMount && savedSearchMountEl &&
                     createPortal(savedSearchMountEl, dockedSaveSearchMount)}
                 {headerDockActive && dockedSortMount && sortEl && createPortal(sortEl, dockedSortMount)}
-                {headerDockActive && dockedExtrasMount &&
-                    createPortal(
-                        asOfEl,
-                        dockedExtrasMount,
-                    )}
 
                 {showJobsHomePending ? (
                     <div className={cn("mt-4", cappedContentClass)}>
@@ -5834,6 +5805,7 @@ export function JobsContent({
                                     results line below it. A résumé-ranked list says its
                                     own on the results line (`listNew`): a count of the
                                     whole board above it would be another list's number. */}
+                                {resumeBandEl}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
                                 {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
                                 {fitActive && resumeReadText && (
@@ -5841,7 +5813,7 @@ export function JobsContent({
                                         data-testid="resume-read-strip"
                                         className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground"
                                     >
-                                        <span>{resumeReadText}</span>
+                                        <span title={displayResumeLabel(resumeSourceLabel, resume)}>{resumeReadText}</span>
                                         <span aria-hidden>·</span>
                                         <Link
                                             href="/resume"
@@ -5849,6 +5821,16 @@ export function JobsContent({
                                         >
                                             Edit
                                         </Link>
+                                        {!signedIn && guestResumeInBrowser && (
+                                            <>
+                                                <span aria-hidden>·</span>
+                                                <ResumeRemove
+                                                    onRemove={removeGuestResume}
+                                                    testIdPrefix="jobs"
+                                                    className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                                />
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
@@ -6393,17 +6375,6 @@ export function JobsContent({
                 </div>
                 )}
                 </>
-                )}
-
-                {/* Closing pitch after the live feed — one mount, same
-                    `frontDoorRegions` band gate as before. Source order is the
-                    first-viewport contract: jobs, then the résumé invite. */}
-                {frontDoorBandVisible && (
-                    <FrontDoorResumeBand
-                        signedIn={Boolean(user)}
-                        onUploadClick={handleUploadClick}
-                        onSignInClick={() => openAuth("generic", "user")}
-                    />
                 )}
             </div>
 

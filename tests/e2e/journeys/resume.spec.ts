@@ -321,9 +321,9 @@ test.describe("signed in (dev-server only)", () => {
     await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });
     await page.goto("/jobs");
 
-    // The list ranks against the saved résumé: it opens on the fit sort, with the résumé in use named in the toolbar.
+    // The list ranks against the saved résumé: it opens on the fit sort, with the résumé in use named in the strip above the list.
     await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
-    await expect(page.getByTestId("resume-as-of")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("resume-read-strip")).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText("Add your résumé", { exact: true })).toHaveCount(0);
   });
 

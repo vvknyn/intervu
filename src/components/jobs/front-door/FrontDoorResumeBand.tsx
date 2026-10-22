@@ -45,7 +45,7 @@ export function FrontDoorResumeBand({
             aria-label="Add your resume"
             // rounded-panel: it sits inside the page gutter, not edge to edge,
             // so its square corners were the one unrounded panel on the page.
-            className="mt-8 w-full rounded-panel bg-brand px-4 py-6 text-brand-foreground sm:px-8"
+            className="mb-3 w-full rounded-panel bg-brand px-4 py-6 text-brand-foreground sm:px-8"
         >
             <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
                 <div>
