@@ -86,6 +86,43 @@ describe("deckListFor ranks fit buckets lower instead of leaving them out", () =
     });
 });
 
+describe("when nothing fits, ranking still lists everything the search found", () => {
+    const WEAK = score(50);
+    // Five closest (Stretch) first, then every role a hard cut would drop: abroad, old, in another language.
+    const mixed = (n: number) => {
+        const jobs: Record<string, { job: PublicJob; score: MatchScore }> = {};
+        for (let i = 0; i < n; i++) {
+            const kind = i < 5 ? "stretch" : i % 3 === 0 ? "abroad" : i % 3 === 1 ? "old" : "german";
+            const s = kind === "abroad" ? score(50, ABROAD) : kind === "german" ? score(50, { language: { posting: ["german"], yours: ["english"] } }) : WEAK;
+            jobs[`r${i}`] = { job: job(`r${i}`, kind === "old" ? 60 : 3), score: s };
+        }
+        return jobs;
+    };
+    it("19 results, 5 closest: 5 ranked, 14 ranked lower, none left out", () => {
+        const set = mixed(19);
+        const r = deckListFor(Object.values(set).map((x) => x.job), (j) => set[j.id]!.score, NOW);
+        assert.equal(r.ranked.length, 5);
+        assert.equal(r.lower.length, 14);
+        assert.equal(r.summary.near, true);
+        assert.equal(rankedLowerTotal(r.summary), 14);
+        assert.equal(hiddenTotal(r.summary), 0);
+        assert.equal(r.summary.listed + rankedLowerTotal(r.summary), 19);
+    });
+    it("fewer results than the cap: all ranked, nothing lower", () => {
+        const set = mixed(3);
+        const r = deckListFor(Object.values(set).map((x) => x.job), (j) => set[j.id]!.score, NOW);
+        assert.equal(r.ranked.length, 3);
+        assert.equal(r.lower.length, 0);
+    });
+    it("the agent's list is unchanged: the closest only, the rest counted as left out", () => {
+        const set = mixed(19);
+        const agent = withRankedLowerLeftOut(deckListFor(Object.values(set).map((x) => x.job), (j) => set[j.id]!.score, NOW));
+        assert.equal(agent.ranked.length, 5);
+        assert.deepEqual(agent.summary.byReason, { abroad: 5, old: 4, language: 5 });
+        assert.equal(agent.summary.rankedLower, undefined);
+    });
+});
+
 const SUMMARY: DeckLeftOutSummary = {
     considered: 290,
     found: 368,
