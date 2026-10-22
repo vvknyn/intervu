@@ -67,7 +67,8 @@ import { familiesNamedBy, RANK_WORDS, resumeDutyTokens, type RoleFamilyId } from
 import type { PlaceRestriction, PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
-export type MatchComponentKey = "relevance" | "seniority" | "location";
+export const MATCH_COMPONENT_KEYS = ["relevance", "seniority", "location"] as const;
+export type MatchComponentKey = (typeof MATCH_COMPONENT_KEYS)[number];
 
 export interface MatchComponent {
     key: MatchComponentKey;

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { needsResumeEntry, needsResumeReplace } from '../../src/lib/jobs/resume-entry';
+import { needsResumeEntry, needsResumeReplace, offersRankByFit } from '../../src/lib/jobs/resume-entry';
 
 describe('needsResumeEntry', () => {
     it('guest, no résumé known — show the entry', () => {
@@ -63,5 +63,24 @@ describe('local-ai guest banner replace entry', () => {
         const banner = page.slice(bannerStart, bannerEnd > bannerStart ? bannerEnd : bannerStart + 900);
         assert.match(banner, /data-testid="local-ai-replace-resume"/);
         assert.match(banner, /handleUploadClick\(\)/);
+    });
+});
+
+describe('offersRankByFit', () => {
+    const cases: Array<[boolean | null, boolean, boolean]> = [
+        [true, false, true],
+        [false, false, true],
+        [null, false, false],
+        [true, true, false],
+        [false, true, false],
+        [null, true, false],
+    ];
+    for (const [resumeOnFile, fitActive, want] of cases) {
+        it(`resumeOnFile=${resumeOnFile} fitActive=${fitActive} -> ${want}`, () => {
+            assert.equal(offersRankByFit({ resumeOnFile, fitActive }), want);
+        });
+    }
+    it('the add-a-résumé invite stays off for someone who has one', () => {
+        assert.equal(needsResumeEntry({ signedIn: true, resumeOnFile: true, fitActive: false }), false);
     });
 });

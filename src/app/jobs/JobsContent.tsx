@@ -173,7 +173,7 @@ import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilise
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { SEARCH_PLACEHOLDER } from "@/lib/jobs/search-copy";
-import { needsResumeEntry, needsResumeReplace } from "@/lib/jobs/resume-entry";
+import { needsResumeEntry, needsResumeReplace, offersRankByFit } from "@/lib/jobs/resume-entry";
 import { isAtRest, showsFrontDoorBand } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
@@ -1950,6 +1950,7 @@ export function JobsContent({
     // than `hasUsableResume` (local-only): the latter told a returning
     // signed-in user with a résumé already on the server to "add" one.
     const showResumeEntry = needsResumeEntry({ signedIn, resumeOnFile, fitActive });
+    const showRankByFit = offersRankByFit({ resumeOnFile, fitActive });
     const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
@@ -4297,6 +4298,10 @@ export function JobsContent({
     // The segmented sort control's third segment: résumé-aware "Best match"
     // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
     // mount sites below for the label/title split on `resumeOnFile`).
+    // "Best match" reads selected only when it is true: fit-ranked, or plain relevance for someone with no
+    // résumé on file. A résumé user on relevance sees it unselected and "Rank with my résumé" offered.
+    const sortsByRelevanceLabel = fitActive || (resumeOnFile !== true && effectiveSort === "relevance");
+
     const chooseBestMatch = () => {
         fitIntentRef.current!.begin();
         if (resumeOnFile === true) {
@@ -4874,7 +4879,7 @@ export function JobsContent({
                     <ToolbarSegment
                         label={sortOptionLabel("relevance", resumeOnFile)}
                         title={resumeOnFile === true ? "Matched by your résumé" : undefined}
-                        pressed={fitActive || (!fitActive && effectiveSort === "relevance")}
+                        pressed={sortsByRelevanceLabel}
                         onClick={chooseBestMatch}
                         pending={fitResolving}
                     />
@@ -5023,8 +5028,8 @@ export function JobsContent({
     // until sign-in state resolves (that list is only sent to signed-out
     // visitors, who get the word), so the toolbar doesn't rewrap under the
     // rows when it appears.
-    const rankByFitPending = initialSearch != null && !showResumeEntry && !fitActive && resumeOnFile === null;
-    const rankByFitEl = showResumeEntry ? (
+    const rankByFitPending = initialSearch != null && !fitActive && resumeOnFile === null;
+    const rankByFitEl = showRankByFit ? (
         <button
             type="button"
             data-testid="jobs-rank-by-fit"
@@ -5204,11 +5209,11 @@ export function JobsContent({
                     className="flex items-center justify-between gap-3 text-sm"
                 >
                     <span>{relevanceLabel}</span>
-                    {(fitActive || (!fitActive && effectiveSort === "relevance")) && (
+                    {sortsByRelevanceLabel && (
                         <Check weight="bold" aria-hidden />
                     )}
                 </DropdownMenuItem>
-                {showResumeEntry && (
+                {showRankByFit && (
                     <DropdownMenuItem
                         data-testid="jobs-sort-fit"
                         onSelect={() => void handleRankByFit()}
@@ -5634,18 +5639,25 @@ export function JobsContent({
                             ),
                     )}
                 >
-                    {/* Chips never truncate (Vivek, 2026-10-22): the active-filter row
-                        wraps whole chips and the toolbar row below scrolls sideways. */}
+                    {/* Chips never truncate (Vivek, 2026-10-22): whole chips, on a row that scrolls sideways below @2xl. */}
                     {/* At rest the strip has no fill, so its controls sit on
                         the column's own edge with the search box above them;
                         the list inset is for the filled band a search gets.
                         Inset at rest, the chips started 16px right of the box
                         and a 320px phone pushed the "?" onto a line alone. */}
+                    {/* Below @2xl the controls, the active chips and "Clear (n)" are ONE
+                        sideways-scrolling row (this wrapper scrolls; its two children
+                        sit side by side); from @2xl they are the wrapped controls row
+                        with the chip row under it. */}
+                    <div
+                        data-testid="jobs-toolbar-rows"
+                        className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto @2xl:block @2xl:overflow-x-clip"
+                    >
                     {showJobsToolbarRow && (
                     <div
                         data-testid="jobs-toolbar-scroller"
                         className={cn(
-                            "no-scrollbar flex w-full min-w-0 max-w-full items-center gap-2 overflow-x-auto [&>*]:shrink-0 @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
+                            "flex shrink-0 items-center gap-2 [&>*]:shrink-0 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:gap-3 @2xl:overflow-x-clip",
                             atRest ? "px-0" : "px-[var(--list-inset)]",
                         )}
                     >
@@ -5704,7 +5716,10 @@ export function JobsContent({
                     {!headerDockActive && unnamedEntries.length > 0 && (
                         <div
                             data-testid="active-filter-row"
-                            className="mt-2 flex w-full min-w-0 max-w-full flex-wrap items-center gap-2 overflow-x-clip border-t border-border pt-2"
+                            className={cn(
+                                "flex shrink-0 items-center gap-2 pr-[var(--list-inset)] [&>*]:shrink-0",
+                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:border-t @2xl:border-border @2xl:pr-0 @2xl:pt-2",
+                            )}
                         >
                             {!headerDockActive && unnamedEntries.map((entry) => {
                                 const label = chipLabelForEntry(entry);
@@ -5726,6 +5741,7 @@ export function JobsContent({
                             {clearFiltersEl}
                         </div>
                     )}
+                    </div>
 
                     {facetsMountSite === "inline" && !headerDockActive ? (
                         <div
