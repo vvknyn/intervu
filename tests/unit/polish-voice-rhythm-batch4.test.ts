@@ -219,10 +219,10 @@ describe("Phase 2 batch 4 — 4/8 rhythm on changed blocks", () => {
         assert.deepEqual(offenders, [], `off-rhythm in batch-4 blocks: ${offenders.join("; ")}`);
     });
 
-    it("tracker stage rail uses 44px targets and scroll snap", () => {
+    it("tracker stage rail is the shared tab primitive", () => {
         const src = readFileSync(join(ROOT, "src/components/tracker/TrackerKanbanBoard.tsx"), "utf8");
         assert.match(src, /tracker-stage-rail/);
-        assert.match(src, /snap-x snap-mandatory/);
-        assert.match(src, /min-h-11/);
+        assert.match(src, /<TabNav/);
+        assert.match(src, /<TabItem/);
     });
 });

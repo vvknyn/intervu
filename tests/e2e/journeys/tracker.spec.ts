@@ -135,3 +135,29 @@ test("/yours?stage=applied (a tracker number on the packs home) shows the Applie
   await expect(board.getByText("Platform Lead")).toBeVisible();
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("on a phone the tracker shows one stage at a time behind Saved / Applied / Interviewing / Offer / Closed tabs", { tag: ["@J-TRACKER-78"] }, async ({ page, diagnostics }) => {
+  const now = new Date().toISOString();
+  const row = (id: string, position: string, status: string) => ({
+    id,
+    user_id: "guest",
+    company_name: "Acme Corp",
+    position,
+    status,
+    created_at: now,
+    updated_at: now,
+  });
+  await page.addInitScript(
+    ([key, rows]) => localStorage.setItem(key as string, JSON.stringify(rows)),
+    [GUEST_PURSUITS_KEY, [row("guest-tab-applied", "Staff Engineer", "applied"), row("guest-tab-interview", "Platform Lead", "interviewing")]] as const,
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/yours");
+
+  const board = page.getByTestId("tracker-kanban");
+  await expect(board.getByRole("region")).toHaveCount(1, { timeout: 30_000 });
+  await page.getByTestId("tracker-stage-rail").getByRole("button", { name: /Applied/ }).click();
+  await expect(board.getByRole("region", { name: "Applied" })).toContainText("Staff Engineer");
+  await expect(board.getByText("Platform Lead")).toHaveCount(0);
+  expect(diagnostics.pageErrors).toEqual([]);
+});

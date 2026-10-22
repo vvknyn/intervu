@@ -31,6 +31,7 @@ import {
 } from "@/lib/pursuits/tracker-voice-copy";
 import {
     DEFAULT_DAILY_APPLY_GOAL,
+    showDailyPlan,
     countAppliedToday,
 } from "@/lib/pursuits/daily-apply-plan";
 import { TrackerKanbanBoard } from "@/components/tracker/TrackerKanbanBoard";
@@ -93,15 +94,13 @@ function AppliedThisWeekBadge({
     appliedToday: number;
     dailyGoal?: number;
 }) {
-    if (count < 1 && appliedToday < 1) return null;
+    const plan = showDailyPlan(appliedToday);
+    if (count < 1 && !plan) return null;
     return (
         <span className="text-xs font-semibold text-live" data-testid="yours-apply-pace">
-            {appliedToday > 0 || count > 0 ? (
-                <>
-                    Today {appliedToday}/{dailyGoal}
-                    {count > 0 ? <> · {count} this week</> : null}
-                </>
-            ) : null}
+            {plan ? <>Today {appliedToday}/{dailyGoal}</> : null}
+            {plan && count > 0 ? " · " : null}
+            {count > 0 ? <>{count} this week</> : null}
         </span>
     );
 }
