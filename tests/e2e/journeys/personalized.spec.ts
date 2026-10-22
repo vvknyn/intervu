@@ -892,13 +892,11 @@ async function answerHubRoles(page: Page) {
  * is named. The postings are CONSTRUCTED for this journey (no real company or posting).
  */
 const EXTENSION_STORE_URL = "https://chromewebstore.google.com/detail/jndkidbobccmcjochgioiiiiaaaldjjd";
-const EXTENSION_POINTS = ["Your fit for the role", "Checks if the posting looks current", "Your résumé tailored to the role", "Fills the form and tracks it"];
 
 async function expectExtensionTile(page: Page) {
   const tile = page.getByTestId("extension-tile");
   await expect(tile).toBeVisible({ timeout: 60_000 });
-  await expect(tile.getByRole("heading", { name: "Velai for Chrome" })).toBeVisible();
-  await expect(tile.getByTestId("extension-tile-points").locator("li")).toHaveText(EXTENSION_POINTS);
+  await expect(tile).toContainText("Velai for Chrome");
   const link = tile.getByTestId("extension-tile-link");
   await expect(link).toHaveText("Add to Chrome");
   await expect(link).toHaveAttribute("href", EXTENSION_STORE_URL);

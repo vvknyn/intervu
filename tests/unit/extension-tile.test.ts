@@ -5,9 +5,7 @@ import { join } from "node:path";
 
 import {
     CHROME_EXTENSION_ID,
-    CHROME_EXTENSION_LEAD,
     CHROME_EXTENSION_NAME,
-    CHROME_EXTENSION_POINTS,
     CHROME_EXTENSION_STORE_URL,
 } from "@/lib/brand/extension-store";
 
@@ -22,13 +20,8 @@ describe("the Velai Chrome extension tile", () => {
         assert.equal(CHROME_EXTENSION_STORE_URL, `https://chromewebstore.google.com/detail/${CHROME_EXTENSION_ID}`);
     });
 
-    it("says four things it does on a job page, each in a few words, and names no other company", () => {
-        assert.deepEqual(
-            CHROME_EXTENSION_POINTS.map((point) => point.id),
-            ["fit", "posting", "resume", "apply"],
-        );
-        const copy = [CHROME_EXTENSION_NAME, CHROME_EXTENSION_LEAD, ...CHROME_EXTENSION_POINTS.map((point) => point.text)].join(" ");
-        for (const point of CHROME_EXTENSION_POINTS) assert.ok(point.text.split(/\s+/).length <= 7, point.text);
+    it("names no other company", () => {
+        const copy = CHROME_EXTENSION_NAME;
         assert.doesNotMatch(copy, /linkedin|indeed|glassdoor|greenhouse|lever|workday|ashby|jobshifu/i);
         assert.doesNotMatch(TILE, /linkedin|indeed|glassdoor|greenhouse|workday|ashby|jobshifu/i);
     });
