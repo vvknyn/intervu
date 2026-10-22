@@ -4,6 +4,7 @@ import { fetchResumeData } from "@/actions/resume";
 import JobsRouteGate from "@/app/jobs/JobsRouteGate";
 import { getServerUser } from "@/lib/auth/server-user";
 import { ENTRY_BUDGET_MS, fitEntryPath, resolveJobsEntry, withinBudget } from "@/lib/jobs/server-entry";
+import { parseJobsUrl } from "@/lib/jobs/url-state";
 import { resumeIsOnFile, resumeIsUsable } from "@/lib/resume/resume-usable";
 
 /**
@@ -34,7 +35,7 @@ export default async function JobsPage({
         resumeOnFile: stored && !stored.error ? resumeIsOnFile(stored) : null,
         // The fit address needs the stated preferences too; without them the client builds it, as before.
         resume: stored && !stored.error ? { data: stored.data, text: stored.text, updatedAt: stored.updatedAt } : null,
-        fitPath: stored?.data && resumeIsUsable(stored.data) && prefs?.data ? fitEntryPath(stored.data, prefs.data) : null,
+        fitPath: stored?.data && resumeIsUsable(stored.data) && prefs?.data ? fitEntryPath(stored.data, prefs.data, parseJobsUrl(search)) : null,
     });
     if (entry.kind === "redirect") redirect(entry.url);
     return <JobsRouteGate initial={entry.initial} />;

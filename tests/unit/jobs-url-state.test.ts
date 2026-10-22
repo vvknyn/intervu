@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-    parseJobsUrl, serializeJobsUrl, DEFAULT_URL_STATE, urlSortToMode,
+    parseJobsUrl, serializeJobsUrl, DEFAULT_URL_STATE, urlSortToMode, modeToUrlSort,
     shouldResetSortOnQueryChange, jobsBoardHref,
 } from "../../src/lib/jobs/url-state";
 
@@ -241,4 +241,12 @@ test("(g) all three location params compose on one URL without colliding — cit
     };
     const url = serializeJobsUrl(s);
     assert.deepEqual(parseJobsUrl(new URLSearchParams(url.slice(1))), s);
+});
+
+test("every in-app sort choice is written as an explicit sort that reads back as the same choice", () => {
+    for (const mode of ["relevance", "newest", "salary_desc"] as const) {
+        const url = serializeJobsUrl({ ...DEFAULT_URL_STATE, sort: modeToUrlSort(mode) });
+        assert.match(url, /sort=/, mode);
+        assert.equal(urlSortToMode(parseJobsUrl(new URLSearchParams(url)).sort!), mode);
+    }
 });

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { fitRankUrlState, keepsTypedQuery, type FitApplication } from '../../src/lib/jobs/for-you/pack-filters';
+import { fitRankUrlState, urlHasOwnIntent, type FitApplication } from '../../src/lib/jobs/for-you/pack-filters';
 import { DEFAULT_URL_STATE } from '../../src/lib/jobs/url-state';
 
 const fit: FitApplication = { q: 'product manager', facets: { country: ['Canada'] } as FitApplication['facets'], postedBucket: '30d', keepUserWindow: false };
@@ -11,7 +11,7 @@ describe('rank by fit keeps what the visitor typed (I3)', () => {
             const base = { ...DEFAULT_URL_STATE, q, facets: { country: ['Germany'] } as FitApplication['facets'], postedBucket: '7d' as const };
             const next = fitRankUrlState(base, fit);
             assert.deepEqual(next, { ...base, sort: 'fit' });
-            assert.ok(keepsTypedQuery(base));
+            assert.ok(urlHasOwnIntent(base));
         });
     }
     it('bare board: the pack query, facets and window apply', () => {
@@ -20,7 +20,21 @@ describe('rank by fit keeps what the visitor typed (I3)', () => {
         assert.equal(next.sort, 'fit');
         assert.deepEqual(next.facets, fit.facets);
         assert.equal(next.postedBucket, '30d');
-        assert.ok(!keepsTypedQuery({ ...DEFAULT_URL_STATE, q: '   ' }));
+        assert.ok(!urlHasOwnIntent(DEFAULT_URL_STATE));
+    });
+    it('any other address with its own intent is ranked as is: nothing from the pack, every param kept', () => {
+        const cases: Partial<typeof DEFAULT_URL_STATE>[] = [
+            { companyDomain: 'harrods.com' },
+            { board: 'greenhouse' as never },
+            { facets: { work_type: ['remote'] } as FitApplication['facets'] },
+            { postedBucket: '7d', postedExplicit: true },
+            { jobId: 'abc' },
+        ];
+        for (const extra of cases) {
+            const base = { ...DEFAULT_URL_STATE, ...extra };
+            assert.ok(urlHasOwnIntent(base), JSON.stringify(extra));
+            assert.deepEqual(fitRankUrlState(base, fit), { ...base, sort: 'fit' }, JSON.stringify(extra));
+        }
     });
 });
 

@@ -12,7 +12,7 @@ import { buildMatchQuery, experienceLevelFacet, mergeFacets, withLeadTitle } fro
 import { contentPhrasesFor } from "@/lib/jobs/for-you/content-phrases";
 import { parseQuotedOrPhrases } from "@/lib/jobs/fit-phrases";
 import { packContentMark, resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
-import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, type JobsUrlState } from "@/lib/jobs/url-state";
+import { DEFAULT_URL_STATE, PACK_POSTED_BUCKET, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { FacetKey, JobSearchParams, PostedBucket } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
 
@@ -127,12 +127,15 @@ export function fitUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlSta
     };
 }
 
-/** Whether the board already carries a search the visitor typed (or a past fit set): fitting then ranks it, never replaces it. */
-export function keepsTypedQuery(base: JobsUrlState): boolean {
-    return base.q.trim() !== "";
+/**
+ * Whether the address already asks for something of its own (a query, a company or board scope, a job, any filter;
+ * anything but a sort): fitting then ranks it as it stands, never replaces or widens it with the résumé's pack.
+ */
+export function urlHasOwnIntent(base: JobsUrlState): boolean {
+    return serializeJobsUrl({ ...base, sort: null }) !== "";
 }
 
-/** Rank by fit from `base`: a typed query and its filters stay, only `sort=fit` is added; a bare board takes the pack (`fitUrlState`). */
+/** Rank by fit from `base`: an address with its own intent stays as is and only gains `sort=fit`; a bare board takes the pack (`fitUrlState`). */
 export function fitRankUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlState {
-    return keepsTypedQuery(base) ? { ...base, sort: "fit" } : fitUrlState(base, fit);
+    return urlHasOwnIntent(base) ? { ...base, sort: "fit" } : fitUrlState(base, fit);
 }

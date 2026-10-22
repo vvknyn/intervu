@@ -302,7 +302,7 @@ import {
     DEFAULT_URL_STATE,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
-    type UrlSort,
+    modeToUrlSort,
 } from "@/lib/jobs/url-state";
 import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
@@ -313,10 +313,11 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, keepsTypedQuery, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
+import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
@@ -404,14 +405,9 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
 
 /* ----------------------------- helpers ----------------------------- */
 
-/** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
 /** A separator of the résumé strip: its own node so truncating text never eats it. */
 function StripDot() {
     return <span aria-hidden className="shrink-0">·</span>;
-}
-
-function modeToUrlSort(mode: JobSortMode): UrlSort {
-    return mode === "salary_desc" ? "salary" : mode;
 }
 
 /**
@@ -4111,8 +4107,8 @@ export function JobsContent({
         // that window were older than 30 days (2026-10-13). A window picked by hand stays theirs.
         const base = buildUrlState();
         const fit = fitApplication(r, agentPrefs, { facets, postedExplicit });
-        if (keepsTypedQuery(base)) {
-            // A search the visitor typed is theirs: fit only ranks it (the résumé terms still score every row).
+        if (urlHasOwnIntent(base)) {
+            // An address with its own intent is theirs: fit only ranks it (the résumé terms still score every row).
             setSortOverride(null);
             setFitActive(true);
             applyUrlState(fitRankUrlState(base, fit), "replace");
@@ -4214,6 +4210,44 @@ export function JobsContent({
         if (!applied) handleUploadClick();
     };
 
+    // Viewer defaults fill what the address leaves out (`viewerDefaults`). The server redirect covers a structured
+    // résumé; this covers the rest: a text-only résumé (only the browser structures it), a read that missed the
+    // server's budget. A sort in the address (`fitActive` or `sortOverride`) is the visitor's own and wins.
+    // Guests are untouched: `signedIn` gates both defaults.
+    const defaultFitTriedRef = useRef(false);
+    const wantsDefaultFit =
+        signedIn &&
+        viewerDefaults({ sort: fitActive || sortOverride ? "set" : null }, { resumeOnFile: resumeOnFile === true, remoteOnly: false }).sort === "fit";
+    useEffect(() => {
+        if (!wantsDefaultFit) {
+            defaultFitTriedRef.current = false;
+            return;
+        }
+        // At rest the effect above owns the first fit; a failed résumé read is not retried until the sort changes.
+        if (atRest || !authReady || defaultFitTriedRef.current) return;
+        defaultFitTriedRef.current = true;
+        void resolveAndApplyFit();
+    }, [wantsDefaultFit, atRest, authReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The saved remote-only preference, as a removable chip. Applied once on arrival when the address names no
+    // work type; removing it keeps it removed for the rest of the visit (a new arrival is a new address).
+    const [remotePref, setRemotePref] = useState<"idle" | "applied" | "dismissed">("idle");
+    const remoteFromPrefs =
+        signedIn &&
+        !atRest &&
+        remotePref === "idle" &&
+        viewerDefaults({ workType: (facets.work_type ?? []).length > 0 ? "set" : null }, { resumeOnFile: false, remoteOnly: agentPrefs?.search.remoteOnly === true }).workType === "remote";
+    useEffect(() => {
+        if (!remoteFromPrefs) return;
+        setRemotePref("applied");
+        applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: ["remote"] } });
+    }, [remoteFromPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+    const dismissRemotePref = () => {
+        setRemotePref("dismissed");
+        const { work_type: _remote, ...rest } = filterState.facets;
+        applyFilterStateWithIntent({ ...filterState, facets: rest });
+    };
+
     const chooseSort = (mode: JobSortMode) => {
         fitIntentRef.current!.begin();
         setFitActive(false);
@@ -4221,23 +4255,12 @@ export function JobsContent({
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
-    // The segmented sort control's third segment: résumé-aware "Best match"
-    // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
-    // mount sites below for the label/title split on `resumeOnFile`).
-    // "Best match" reads selected only when it is true: fit-ranked, or plain relevance for someone with no
-    // résumé on file. A résumé user on relevance sees it unselected and "Rank with my résumé" offered.
-    const sortsByRelevanceLabel = fitActive || (resumeOnFile !== true && effectiveSort === "relevance");
+    // The sort control's relevance segment: "Best match" for someone with a résumé on file, plain "Relevance"
+    // otherwise (see the ToolbarSegment mount sites below). It writes an explicit `sort=relevance`, so the choice
+    // sticks across searches (`viewerDefaults` fills only an absent sort); "Best fit" is its own item.
+    const sortsByRelevanceLabel = !fitActive && effectiveSort === "relevance";
 
-    const chooseBestMatch = () => {
-        fitIntentRef.current!.begin();
-        if (resumeOnFile === true) {
-            void resolveAndApplyFit();
-            return;
-        }
-        setFitActive(false);
-        setSortOverride("relevance");
-        applyUrlState(buildUrlState({ sort: "relevance" }), "replace");
-    };
+    const chooseBestMatch = () => chooseSort("relevance");
 
     const applySavedSearch = (href: string) => {
         // A saved search IS a full /jobs URL-state write — same chokepoint
@@ -5134,6 +5157,16 @@ export function JobsContent({
                         <Check weight="bold" aria-hidden />
                     )}
                 </DropdownMenuItem>
+                {fitActive && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-best-fit"
+                        onSelect={(e) => e.preventDefault()}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Best fit</span>
+                        <Check weight="bold" aria-hidden />
+                    </DropdownMenuItem>
+                )}
                 {showRankByFit && (
                     <DropdownMenuItem
                         data-testid="jobs-sort-fit"
@@ -5589,6 +5622,15 @@ export function JobsContent({
                                 separateRemoteWorkTypeChip={hasSeparateRemoteWorkTypeChip}
                                 onClear={suppressLocationDefault}
                             />
+                        )}
+                        {remotePref === "applied" && (facets.work_type ?? []).some(isRemoteWorkTypeValue) && (
+                            <span
+                                data-testid="remote-pref-chip"
+                                className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs leading-none")}
+                            >
+                                <span>Remote only · from your preferences</span>
+                                <ChipDismiss label="Stop filtering to remote only" onClick={dismissRemotePref} />
+                            </span>
                         )}
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>

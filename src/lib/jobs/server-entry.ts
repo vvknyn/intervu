@@ -13,8 +13,9 @@
  */
 import type { ServerUser } from "@/lib/auth/workos-identity";
 import { RESUME_IMPORTER_PARAM } from "@/lib/auth/post-auth-destination";
-import { DEFAULT_URL_STATE, parseJobsUrl, serializeJobsUrl } from "@/lib/jobs/url-state";
-import { fitApplication, fitUrlState } from "@/lib/jobs/for-you/pack-filters";
+import { DEFAULT_URL_STATE, parseJobsUrl, serializeJobsUrl, type JobsUrlState } from "@/lib/jobs/url-state";
+import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
+import { fitApplication, fitRankUrlState } from "@/lib/jobs/for-you/pack-filters";
 import type { AgentPreferences } from "@/lib/agent/preferences";
 import type { ResumeData } from "@/types/resume";
 
@@ -42,19 +43,17 @@ export interface StoredResume {
 export type JobsEntry = { kind: "redirect"; url: string } | { kind: "render"; initial: JobsInitial | null };
 
 /**
- * Whether the address asks for nothing: no search, job, filter or sort. Mirrors
- * the client's "at rest" (`atRest` and no active filters, sort or submit), read
- * off the parsed address so a campaign tag (`utm_*`) does not count. A résumé
- * importer link is not at rest: the redirect would drop its param.
+ * `/jobs` on the résumé-ranked search of `current` (the address the visitor asked for): a typed query stays and is
+ * only ranked, a bare board takes the résumé's pack (`fitRankUrlState`, the client's `applyFit`, so both land on
+ * one address). A bare `/jobs` is `current` = the default state.
  */
-export function isBareJobsAddress(search: URLSearchParams): boolean {
-    return !search.has(RESUME_IMPORTER_PARAM) && serializeJobsUrl(parseJobsUrl(search)) === "";
-}
-
-/** `/jobs` on the résumé-ranked search: the address the client's auto-fit replaces a bare /jobs with. */
-export function fitEntryPath(resume: ResumeData, agentPrefs: AgentPreferences | null | undefined): string {
-    const fit = fitApplication(resume, agentPrefs, { facets: {}, postedExplicit: false });
-    return `/jobs${serializeJobsUrl(fitUrlState(DEFAULT_URL_STATE, fit))}`;
+export function fitEntryPath(
+    resume: ResumeData,
+    agentPrefs: AgentPreferences | null | undefined,
+    current: JobsUrlState = DEFAULT_URL_STATE,
+): string {
+    const fit = fitApplication(resume, agentPrefs, { facets: current.facets, postedExplicit: current.postedExplicit ?? false });
+    return `/jobs${serializeJobsUrl(fitRankUrlState(current, fit))}`;
 }
 
 export interface JobsEntryInput {
@@ -71,8 +70,11 @@ export interface JobsEntryInput {
 export function resolveJobsEntry(input: JobsEntryInput): JobsEntry {
     const { user, search, resumeOnFile, fitPath, resume } = input;
     if (!user) return { kind: "render", initial: null };
-    // A target that is itself bare would 307 to itself forever; render instead.
-    if (resumeOnFile === true && fitPath && isBareJobsAddress(search) && !isBareJobsAddress(new URLSearchParams(fitPath.split("?")[1] ?? ""))) {
+    // Any address that names no sort opens on the fit list (`viewerDefaults`); one that is not a fit address
+    // (a degenerate target) would 307 to itself forever, so it renders instead.
+    const opensOnFit = (qs: URLSearchParams) =>
+        viewerDefaults({ sort: parseJobsUrl(qs).sort }, { resumeOnFile: true, remoteOnly: false }).sort === "fit";
+    if (resumeOnFile === true && fitPath && !search.has(RESUME_IMPORTER_PARAM) && opensOnFit(search) && !opensOnFit(new URLSearchParams(fitPath.split("?")[1] ?? ""))) {
         return { kind: "redirect", url: fitPath };
     }
     return { kind: "render", initial: { user, resumeOnFile, ...(resumeOnFile === true && resume ? { resume } : {}) } };

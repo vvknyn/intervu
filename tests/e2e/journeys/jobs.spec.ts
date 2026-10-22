@@ -936,10 +936,14 @@ signedInTest("a fit list on the résumé's own query shows an empty box that sea
   await page.goto("/jobs?q=nurse&sort=relevance");
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 60_000 });
   await page.getByTestId("jobs-sort-trigger").click();
-  await page.getByTestId("jobs-sort-relevance").click();
+  await page.getByTestId("jobs-sort-fit").click();
   await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
   await expect(page).toHaveURL(/[?&]q=nurse/);
   await expect(page.getByLabel("Search", { exact: true }).first()).toHaveValue("nurse");
+  // A signed-in résumé viewer needs no click: an address with no sort opens on the fit list, the typed query kept.
+  await page.goto("/jobs?q=nurse");
+  await expect(page).toHaveURL(/[?&]sort=fit/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/[?&]q=nurse/);
   expect(withoutMockSignInHydration(diagnostics.pageErrors)).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
 });

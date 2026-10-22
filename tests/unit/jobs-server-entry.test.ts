@@ -13,11 +13,10 @@ import { mergeFacets } from '../../src/lib/jobs/resume-match';
 import {
     ENTRY_BUDGET_MS,
     fitEntryPath,
-    isBareJobsAddress,
     resolveJobsEntry,
     withinBudget,
 } from '../../src/lib/jobs/server-entry';
-import { serializeJobsUrl, DEFAULT_URL_STATE } from '../../src/lib/jobs/url-state';
+import { serializeJobsUrl, parseJobsUrl, DEFAULT_URL_STATE } from '../../src/lib/jobs/url-state';
 import { jobsHomeHold } from '../../src/lib/auth/jobs-chrome-gates';
 import { structureResumeText } from '../../src/lib/resume/structure-resume-text';
 import type { AgentPreferences } from '../../src/lib/agent/preferences';
@@ -63,8 +62,14 @@ describe('resolveJobsEntry', () => {
         }
     });
 
-    it('signed in with a search, job, filter, sort or importer link: renders, never redirects', () => {
-        for (const qs of ['q=pm', 'job=abc', 'remote=1&work=remote', 'sort=newest', 'resume=1']) {
+    it('any address without a sort redirects (a search, a job, a filter): the fit address is built from it', () => {
+        for (const qs of ['q=pm', 'job=abc', 'work=remote']) {
+            assert.deepEqual(resolveJobsEntry({ user: USER, search: bare(qs), resumeOnFile: true, fitPath: fit }), { kind: 'redirect', url: fit }, qs);
+        }
+    });
+
+    it('an explicit sort of any kind or an importer link renders, never redirects', () => {
+        for (const qs of ['sort=newest', 'q=pm&sort=relevance', 'sort=salary', 'sort=fit', 'resume=1']) {
             const entry = resolveJobsEntry({ user: USER, search: bare(qs), resumeOnFile: true, fitPath: fit });
             assert.deepEqual(entry, { kind: 'render', initial: { user: USER, resumeOnFile: true } }, qs);
         }
@@ -89,13 +94,33 @@ describe('resolveJobsEntry', () => {
     });
 });
 
-describe('isBareJobsAddress', () => {
-    it('is true only when nothing in the address asks for a search', () => {
-        assert.equal(isBareJobsAddress(bare()), true);
-        assert.equal(isBareJobsAddress(bare('utm_campaign=a&ref=b')), true);
-        assert.equal(isBareJobsAddress(bare('q=a')), false);
-        assert.equal(isBareJobsAddress(bare('sort=fit')), false);
-        assert.equal(isBareJobsAddress(bare('posted=30d')), false);
+describe('fitEntryPath from an address that already carries a search', () => {
+    it('keeps the typed query and filters and adds only sort=fit (a typed search is theirs)', () => {
+        for (const qs of ['q=data+engineer', 'q=nurse&work=remote&exp=senior']) {
+            const current = parseJobsUrl(bare(qs));
+            const path = fitEntryPath(PM, NO_PREFS, current);
+            const got = parseJobsUrl(new URLSearchParams(path.split('?')[1]));
+            assert.equal(got.q, current.q, qs);
+            assert.deepEqual(got.facets, current.facets, qs);
+            assert.equal(got.sort, 'fit', qs);
+        }
+    });
+    it('company-scoped, filter-only and posted-window addresses are ranked as is: no pack query or facets', () => {
+        for (const qs of ['company=harrods.com', 'work=remote', 'exp=senior&posted=7d']) {
+            const current = parseJobsUrl(bare(qs));
+            const got = parseJobsUrl(new URLSearchParams(fitEntryPath(PM, NO_PREFS, current).split('?')[1]));
+            assert.deepEqual({ ...got, sort: null }, current, qs);
+            assert.equal(got.sort, 'fit', qs);
+        }
+    });
+    it('a bare address still takes the résumé pack', () => {
+        const got = parseJobsUrl(new URLSearchParams(fitEntryPath(PM, NO_PREFS).split('?')[1]));
+        assert.notEqual(got.q, '');
+        assert.equal(got.postedBucket, '30d');
+    });
+    it('a job link keeps its job', () => {
+        const got = parseJobsUrl(new URLSearchParams(fitEntryPath(PM, NO_PREFS, parseJobsUrl(bare('job=abc'))).split('?')[1]));
+        assert.equal(got.jobId, 'abc');
     });
 });
 
