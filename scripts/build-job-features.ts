@@ -32,7 +32,7 @@ import { config } from "dotenv";
 import pg from "pg";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { extractJobFeatures, type JobFeatures } from "@/lib/telemetry/features";
+import { extractJobFeaturesBatch, REQUIRED_STRING_FIELDS, type JobFeatures } from "@/lib/telemetry/features";
 import { writeHeartbeat } from "@/lib/telemetry/heartbeat";
 import { upsertRows } from "@/lib/pg/upsert";
 import { JOB_FEATURES_COLUMNS } from "@/lib/telemetry/job-features-columns";
@@ -78,6 +78,7 @@ async function main() {
   await db.connect();
 
   let rowsAffected = 0;
+  let skippedDocs = 0;
   try {
     const now = Date.now();
     let offset = 0;
@@ -85,7 +86,8 @@ async function main() {
       const page = await fetchJobsPage(offset, PAGE_SIZE);
       if (page.length === 0) break;
 
-      const features = page.map((job) => extractJobFeatures(job, now));
+      const { features, skipped } = extractJobFeaturesBatch(page, now);
+      skippedDocs += skipped;
       rowsAffected += await upsertRows<JobFeatures>(db, "intervu.job_features", JOB_FEATURES_COLUMNS, ["job_id"], features);
 
       if (page.length < PAGE_SIZE) break;
@@ -93,6 +95,7 @@ async function main() {
     }
 
     await writeHeartbeat(db, JOB_NAME, rowsAffected, true);
+    console.log(`features: skipped ${skippedDocs} docs missing ${REQUIRED_STRING_FIELDS.join("/")}`);
     console.log(`${JOB_NAME}: wrote ${rowsAffected} row(s)`);
   } catch (err) {
     // Report the real count reached before the failure, never a fabricated

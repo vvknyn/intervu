@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { extractJobFeatures } from "../../src/lib/telemetry/features";
+import { extractJobFeatures, extractJobFeaturesBatch } from "../../src/lib/telemetry/features";
 import type { PublicJob } from "../../src/lib/jobs/types";
 
 const NOW = Date.parse("2026-09-03T12:00:00Z");
@@ -241,5 +241,27 @@ describe("extractJobFeatures — repost_count / days_open", () => {
   it("days_open is NULL when first_seen_at is absent, not 0", () => {
     const features = extractJobFeatures(job({ first_seen_at: null }), NOW);
     assert.equal(features.days_open, null);
+  });
+});
+
+describe("extractJobFeaturesBatch — skips incomplete docs instead of crashing", () => {
+  const full = job({ id: "full" });
+
+  it("skips an id-only doc missing source and still extracts the full doc", () => {
+    const { features, skipped } = extractJobFeaturesBatch([{ id: "stub" }, full], NOW);
+    assert.equal(skipped, 1);
+    assert.deepEqual(features.map((f) => f.job_id), ["full"]);
+  });
+
+  it("skips a doc missing a different required field (title)", () => {
+    const { title: _t2, ...withSourceNoTitle } = full;
+    const { features, skipped } = extractJobFeaturesBatch([withSourceNoTitle, full], NOW);
+    assert.equal(skipped, 1);
+    assert.equal(features.length, 1);
+  });
+
+  it("skips a doc whose source is null", () => {
+    const { skipped } = extractJobFeaturesBatch([{ ...full, source: null as unknown as string }], NOW);
+    assert.equal(skipped, 1);
   });
 });

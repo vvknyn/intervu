@@ -15,10 +15,9 @@
  * frontend never needs a credential that would also unlock health scores,
  * forensic traces and AI narratives.
  */
-import { hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
+import { hasSubspaceApiKey, subspaceApiBase } from "@/lib/jobs/subspaceJobs";
 import type { CompanyChangeEvent } from "./types";
 
-const DEFAULT_BASE_URL = "https://www.thesubspace.io/api/v1";
 const FETCH_TIMEOUT_MS = 2500;
 const EVENT_LIMIT = 6;
 
@@ -59,10 +58,6 @@ export function humanizeProjectorHeadline(headline: string): string {
   return headline.replace(/_+/g, " ");
 }
 
-function baseUrl(): string {
-  return (process.env.SUBSPACE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-}
-
 interface CompanyEventsEnvelope {
   data?: {
     domain?: string;
@@ -95,7 +90,7 @@ function isRenderableEvent(e: CompanyChangeEvent): boolean {
 export async function fetchCompanyEvents(domain: string): Promise<CompanyChangeEvent[]> {
   if (!hasSubspaceApiKey()) return [];
 
-  const url = new URL(`${baseUrl()}/companies/${encodeURIComponent(domain)}/events`);
+  const url = new URL(`${subspaceApiBase()}/companies/${encodeURIComponent(domain)}/events`);
   url.searchParams.set("limit", String(EVENT_LIMIT));
 
   try {

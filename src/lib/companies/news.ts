@@ -3,7 +3,7 @@
  *
  * Read-only client for `GET /companies/{domain}/news`. Same auth/base-URL
  * conventions as `src/lib/jobs/subspaceJobs.ts` (x-api-key header,
- * SUBSPACE_API_BASE_URL with a default, SUBSPACE_API_KEY from the server
+ * SUBSPACE_API_BASE_URL (required, no default), SUBSPACE_API_KEY from the server
  * environment only).
  *
  * Unlike the jobs client, this call sits on the company page's render path
@@ -12,15 +12,10 @@
  * empty array rather than throwing. A missing news card is correct; a
  * broken company page is not.
  */
-import { hasSubspaceApiKey } from "@/lib/jobs/subspaceJobs";
+import { hasSubspaceApiKey, subspaceApiBase } from "@/lib/jobs/subspaceJobs";
 import type { CompanyNewsArticle } from "./types";
 
-const DEFAULT_BASE_URL = "https://www.thesubspace.io/api/v1";
 const FETCH_TIMEOUT_MS = 2500;
-
-function baseUrl(): string {
-  return (process.env.SUBSPACE_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
-}
 
 interface CompanyNewsEnvelope {
   data?: {
@@ -119,7 +114,7 @@ export function dedupeNewsArticles(articles: CompanyNewsArticle[]): CompanyNewsA
 export async function fetchCompanyNews(domain: string): Promise<CompanyNewsArticle[]> {
   if (!hasSubspaceApiKey()) return [];
 
-  const url = new URL(`${baseUrl()}/companies/${encodeURIComponent(domain)}/news`);
+  const url = new URL(`${subspaceApiBase()}/companies/${encodeURIComponent(domain)}/news`);
   url.searchParams.set("limit", "5");
 
   try {
