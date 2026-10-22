@@ -23,3 +23,10 @@ test("an info notice is an info toast", () => {
 test("success is ok", () => {
     assert.deepEqual(presentAuthResult({ success: true }, typed), { ok: true });
 });
+
+test("a held-for-code answer opens the code step with its token and address, not a toast", () => {
+    assert.deepEqual(
+        presentAuthResult({ verify: { pendingAuthenticationToken: "pat_1", email: "dave@example.com" } }, typed),
+        { step: "verify", pendingAuthenticationToken: "pat_1", email: "dave@example.com" },
+    );
+});

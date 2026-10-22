@@ -3,23 +3,19 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { verifyEmailCode, type EmailCodeState } from "@/actions/auth-email-code";
+import { EmailCodeFields } from "@/components/auth/email-code-fields";
 import { AuthRaisedPanel, AuthRouteLayout } from "@/components/auth/auth-route-chrome";
 import { BrandLockup } from "@/components/brand/BrandMark";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PageTitle } from "@/components/ui/heading";
-import { InlineSpinner } from "@/components/ui/wait-state";
 import {
     EMAIL_CODE_EXPIRED_BODY,
     EMAIL_CODE_EXPIRED_BUTTON_LABEL,
     EMAIL_CODE_EXPIRED_HEADLINE,
-    EMAIL_CODE_FIELD_LABEL,
     EMAIL_CODE_HEADLINE,
     EMAIL_CODE_RESEND_LABEL,
     EMAIL_CODE_RESEND_PROMPT,
-    EMAIL_CODE_SUBMIT_LABEL,
     emailCodeBody,
 } from "@/lib/auth/email-code-copy";
 
@@ -65,24 +61,7 @@ export function EmailCodeClient({ email, held, restartHref }: { email: string | 
                     </Alert>
                 )}
                 <form action={formAction} className="mt-6 flex flex-col gap-4">
-                    <Field label={EMAIL_CODE_FIELD_LABEL} htmlFor="email-code">
-                        <Input
-                            id="email-code"
-                            name="code"
-                            type="text"
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            autoFocus
-                            required
-                            maxLength={7}
-                            disabled={isPending}
-                            className="text-center font-mono text-lg"
-                        />
-                    </Field>
-                    <Button type="submit" disabled={isPending} className="w-full">
-                        {isPending && <InlineSpinner size={16} className="mr-2" />}
-                        {EMAIL_CODE_SUBMIT_LABEL}
-                    </Button>
+                    <EmailCodeFields isPending={isPending} />
                 </form>
                 <p className="mt-4 text-center text-sm text-muted-foreground">
                     {EMAIL_CODE_RESEND_PROMPT}{" "}
