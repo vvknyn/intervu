@@ -60,12 +60,12 @@ test("explicit UI selections always win and are never overwritten", () => {
     assert.deepEqual(out.places, base.places);
 });
 
-test("posted_within_days buckets: 1d 3d 7d 30d, beyond that is a mention not a filter", () => {
-    const got = [1, 2, 3, 5, 7, 14, 30, 45].map((d) => {
+test("posted_within_days buckets: 1d 3d 7d 30d 90d, beyond that is a mention not a filter", () => {
+    const got = [1, 2, 3, 5, 7, 14, 30, 45, 91].map((d) => {
         const o = applyIntent({}, intent({ posted_within_days: d }));
         return [o.postedBucket ?? null, mentions(o).length];
     });
-    assert.deepEqual(got, [["1d", 0], ["3d", 0], ["3d", 0], ["7d", 0], ["7d", 0], ["30d", 0], ["30d", 0], [null, 1]]);
+    assert.deepEqual(got, [["1d", 0], ["3d", 0], ["3d", 0], ["7d", 0], ["7d", 0], ["30d", 0], ["30d", 0], ["90d", 0], [null, 1]]);
 });
 
 test("min_years buckets", () => {

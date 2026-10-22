@@ -30,6 +30,7 @@ import { isMisfiledCountryName } from "../geo/misfiled-country";
 import { FUNCTION_WORDS } from "../geo/common-words";
 import { SENIORITY_PHRASES } from "./role-title-lane";
 import { parseQuotedOrPhrases } from "./fit-phrases";
+import { applyTypedFilterTokens } from "./query-tokens";
 import { isNeutralLocationFacetValue, LOCATION_FACET_FIELDS } from "./meilisearch";
 
 export {
@@ -626,6 +627,11 @@ export async function applyQueryUnderstanding(
   if (workTypes.length > 0 && !explicitWorkType) {
     next = { ...next, q: residualQ };
   }
+
+  // Salary / posted window / years / employment type / exclusions: consumed
+  // before the place matcher so "150k" or "last 2 weeks" can never be read as
+  // place words.
+  next = applyTypedFilterTokens(next);
 
   const hasExplicitPlaces = (p.places?.length ?? 0) > 0;
   if (vocab && !p.facets?.location_country?.length && !hasExplicitPlaces) {

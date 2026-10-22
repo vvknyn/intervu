@@ -1,22 +1,6 @@
-import type { FacetKey, JobSearchParams, PlaceClause, PostedBucket, YearsExperienceBucket } from "../types";
+import type { FacetKey, JobSearchParams, PlaceClause } from "../types";
+import { POSTED_BUCKETS, YEARS_BUCKETS, YEARS_TOP_BUCKET, bucketFor } from "../query-tokens/buckets";
 import type { JobSearchIntent } from "./schema";
-
-const POSTED_BUCKETS: readonly (readonly [number, PostedBucket])[] = [
-    [1, "1d"],
-    [3, "3d"],
-    [7, "7d"],
-    [30, "30d"],
-];
-const YEARS_BUCKETS: readonly (readonly [number, YearsExperienceBucket])[] = [
-    [2, "0-2"],
-    [5, "3-5"],
-    [10, "6-10"],
-];
-
-/** Smallest bucket whose upper bound covers `n`; `fallback` past the last one. */
-function bucketFor<B>(n: number, table: readonly (readonly [number, B])[], fallback?: B): B | undefined {
-    return table.find(([max]) => n <= max)?.[1] ?? fallback;
-}
 
 const quote = (t: string) => `"${t.replace(/"/g, "")}"`;
 
@@ -62,7 +46,7 @@ export function applyIntent(p: JobSearchParams, intent: JobSearchIntent, places:
     if (named.length && !placeSet && !places.length) mentions.push(named.join(", "));
 
     const yearsExperience =
-        p.yearsExperience ?? (intent.min_years === null ? undefined : bucketFor(intent.min_years, YEARS_BUCKETS, "11+"));
+        p.yearsExperience ?? (intent.min_years === null ? undefined : bucketFor(intent.min_years, YEARS_BUCKETS, YEARS_TOP_BUCKET));
 
     return {
         ...p,
