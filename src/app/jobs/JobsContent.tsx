@@ -4129,6 +4129,13 @@ export function JobsContent({
     // `resumeIsUsable`'s bar exactly.
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
+        // The server's own read of the stored résumé (until this page takes a newer one): no second read before the first search.
+        const seeded = initial?.resume && resumeGenerationRef.current === 0 && resumeOnFile !== false ? storedResumeData(initial.resume.data, initial.resume.text) : undefined;
+        if (seeded && resumeIsUsable(seeded)) {
+            setResume(seeded);
+            setResumeUpdatedAt(initial?.resume?.updatedAt ?? null);
+            return seeded;
+        }
         // A read that started before an upload must not put the old résumé back when it lands.
         const generation = resumeGenerationRef.current;
         const readLocalFallback = (): ResumeData | null => {

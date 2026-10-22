@@ -41,3 +41,34 @@ describe('the search box hides the résumé-derived query (I4)', () => {
         });
     }
 });
+
+import { resolveJobsEntry } from '../../src/lib/jobs/server-entry';
+
+describe('the first frame carries the stored résumé (I5)', () => {
+    const user = { uid: 'u1', email: 'a@b.co' };
+    const bare = new URLSearchParams();
+    const structured = { data: { profile: { name: 'A' } } as never, updatedAt: '2026-10-01' };
+    const textOnly = { text: 'Jane Doe\nSenior PM', updatedAt: null };
+
+    it('structured: redirects to the fit address', () => {
+        assert.deepEqual(resolveJobsEntry({ user, search: bare, resumeOnFile: true, fitPath: '/jobs?q=pm&sort=fit', resume: structured }), { kind: 'redirect', url: '/jobs?q=pm&sort=fit' });
+    });
+    it('structured, on the fit address: renders with the résumé in initial', () => {
+        const e = resolveJobsEntry({ user, search: new URLSearchParams('q=pm&sort=fit'), resumeOnFile: true, fitPath: '/jobs?q=pm&sort=fit', resume: structured });
+        assert.deepEqual(e, { kind: 'render', initial: { user, resumeOnFile: true, resume: structured } });
+    });
+    it('text-only: renders (no redirect) and hands over the text, unstructured', () => {
+        const e = resolveJobsEntry({ user, search: bare, resumeOnFile: true, fitPath: null, resume: textOnly });
+        assert.equal(e.kind, 'render');
+        if (e.kind === 'render') {
+            assert.equal(e.initial?.resume?.text, textOnly.text);
+            assert.equal(e.initial?.resume?.data, undefined);
+        }
+    });
+    it('none or unknown: renders with no résumé', () => {
+        for (const resumeOnFile of [false, null]) {
+            const e = resolveJobsEntry({ user, search: bare, resumeOnFile, fitPath: null, resume: resumeOnFile === false ? {} : null });
+            assert.deepEqual(e, { kind: 'render', initial: { user, resumeOnFile } });
+        }
+    });
+});
