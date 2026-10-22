@@ -43,7 +43,7 @@ function readVisitOnce(): Promise<VisitRead> {
  * `FollowAlertsBell`). It used to be a corner toast that dismissed itself
  * after six seconds, so the one reason to come back was gone before most
  * people read it; now it stays for the whole visit. Its "Email me new roles"
- * link is gone (2026-10-10): the results line's "Weekly job alerts" switch
+ * link is gone (2026-10-10): the results line's "Job alert" switch
  * just below it is the one alerts control.
  *
  * Honesty gate lives in `resolveVisitBannerState`: a visitor with no PRIOR

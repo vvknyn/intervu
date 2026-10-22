@@ -109,7 +109,7 @@ export function McpHandoffActions({ job }: { job: JobHandoffInput }) {
             <button
                 type="button"
                 onClick={handlePrimary}
-                className="ctl-md ctl-button inline-flex items-center justify-center bg-brand px-3.5 text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
+                className="ctl-md ctl-button inline-flex items-center justify-center whitespace-nowrap bg-brand px-3.5 text-brand-foreground hover:bg-brand transition-colors cursor-pointer"
             >
                 Open in your AI
             </button>

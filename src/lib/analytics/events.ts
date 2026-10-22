@@ -222,7 +222,7 @@ export interface EventPayloads {
     filter_count: number;
     has_results: boolean;
   };
-  /** The "Weekly job alerts" switch on the results line was flipped. */
+  /** The "Job alert" switch on the results line was flipped. */
   search_alert_switch_toggled: {
     on: boolean;
     signed_in: boolean;

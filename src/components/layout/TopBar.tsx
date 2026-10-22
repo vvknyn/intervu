@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
-import { MagnifyingGlass, MapPin } from "@phosphor-icons/react";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 import { onAuthChange, signOut, type User } from "@/lib/firebase/client-auth";
 import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
@@ -156,10 +156,6 @@ export function TopBar() {
                                     className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible"
                                 />
                             </div>
-                            <div className="flex h-full w-[min(210px,28%)] shrink-0 items-stretch border-l border-border pr-1">
-                                <MapPin aria-hidden className="ml-3 shrink-0 self-center text-muted-foreground" />
-                                <div data-testid="topbar-docked-location" className="relative flex h-full min-w-0 flex-1 items-stretch overflow-visible" />
-                            </div>
                             {/* Ghost, not filled — brand navy is reserved for
                                 Sign in, the page's own Search CTA, and Upload
                                 resume; this docked stand-in isn't one of the
@@ -245,8 +241,7 @@ export function TopBar() {
             {/* Second row — active filters only. */}
             {docked && (
                 <div data-region="band" className="hidden bg-muted lg:block">
-                    {/* Wrap instead of horizontal scroll — long query chips truncate
-                        with a title tooltip; short facet/location chips stay whole. */}
+                    {/* Wrap instead of horizontal scroll; chips never truncate. */}
                     <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
                         {docked && (
                             <>
@@ -283,10 +278,10 @@ export function TopBar() {
                                                     className={cn(
                                                         chipVariants({ active: true, interactive: true }),
                                                         toolbarControlHeight,
-                                                        "box-border min-w-0 max-w-full items-center gap-2 px-3 lg:px-3",
+                                                        "box-border shrink-0 items-center gap-2 whitespace-nowrap px-3 lg:px-3",
                                                     )}
                                                 >
-                                                    <span className="min-w-0 max-w-[min(100%,18rem)] truncate">{chip.label}</span>
+                                                    <span>{chip.label}</span>
                                                     <ChipDismiss label={`Clear ${chip.label}`} onClick={() => docked.onClearChip(chip.key)} />
                                                 </span>
                                             ))}

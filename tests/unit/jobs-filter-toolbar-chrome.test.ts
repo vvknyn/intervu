@@ -126,7 +126,7 @@ describe("jobs filter toolbar chrome", () => {
             src.indexOf('data-testid="active-filter-chip"'),
             src.indexOf('data-testid="active-filter-chip"') + 500,
         );
-        assert.match(activeChip, /truncate/);
+        assert.doesNotMatch(activeChip, /truncate/); // chips never truncate (U8)
         assert.match(activeChip, /title=\{label\}/);
 
         const toolbarScroller = src.slice(
@@ -135,7 +135,7 @@ describe("jobs filter toolbar chrome", () => {
         );
         assert.match(toolbarScroller, /flex-wrap/);
         assert.match(toolbarScroller, /overflow-x-clip/);
-        assert.doesNotMatch(toolbarScroller, /overflow-x-auto/);
+        assert.match(toolbarScroller, /\boverflow-x-auto/); // narrow column: one scrollable row
         assert.doesNotMatch(toolbarScroller, /flex-nowrap/);
     });
 
@@ -342,7 +342,7 @@ describe("jobs filter toolbar chrome", () => {
 
     it("shouldShowSearchAlertCapture call sites suppress while guest auth gate is visible", () => {
         const page = readFileSync(PAGE, "utf8");
-        const authGatePattern = /authGateVisible:\s*showGuestEngageNudge\s*\|\|\s*showGuestSaveBanner/;
+        const authGatePattern = /authGateVisible:\s*showGuestSaveBanner/;
         const callSites = [...page.matchAll(/shouldShowSearchAlertCapture\(\{[\s\S]*?\}\)/g)];
         // One since 2026-10-10: with results the form opens only from the alerts
         // switch, so only the zero-results capture still decides for itself.

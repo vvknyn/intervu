@@ -57,7 +57,7 @@ test("the visit line carries no email link: the results line's alerts switch is 
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("a guest's Weekly job alerts switch opens the email form under it, and stays on for that search once sent", { tag: ["@J-ALERTS-03", "@J-ALERTS-45"] }, async ({ page, diagnostics }) => {
+test("a guest's Job alert switch opens the email form under it, and stays on for that search once sent", { tag: ["@J-ALERTS-03", "@J-ALERTS-45"] }, async ({ page, diagnostics }) => {
   // Read-only: the alert request is answered in the browser, nothing is sent.
   const requests: string[] = [];
   await page.route("**/api/search-alerts", async (route) => {
@@ -67,13 +67,13 @@ test("a guest's Weekly job alerts switch opens the email form under it, and stay
   await page.goto(VISIT_SEARCH);
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
   const control = page.getByTestId("search-alert-switch");
-  const toggle = control.getByRole("switch", { name: /weekly job alerts/i });
+  const toggle = control.getByRole("switch", { name: /job alert/i });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   // With results the form no longer opens by itself; only the switch opens it.
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
 
   // The words beside the switch flip it too.
-  await control.getByText("Weekly job alerts").click();
+  await control.getByText("Job alert", { exact: true }).click();
   await expect(toggle).toHaveAttribute("aria-checked", "true");
   const form = page.getByTestId("search-alert-capture");
   await expect(form).toBeVisible();
@@ -124,7 +124,7 @@ test("with results, the email form never opens by itself after searches, only fr
   await page.waitForTimeout(2_000);
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
 
-  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /weekly job alerts/i });
+  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /job alert/i });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
   await toggle.click();
   await expect(page.getByTestId("search-alert-capture")).toBeVisible();
@@ -138,7 +138,7 @@ const noticeParamGone = (page: Page, param: string) => expect.poll(() => new URL
 
 // No page-error assertion here: the dev-only signed-in mock itself causes a
 // hydration mismatch in the header (server renders signed out), on staging too.
-test("a signed-in user never gets the guest email-alert form; Save search is the alert", { tag: ["@J-ALERTS-09"] }, async ({ page, baseURL }) => {
+test("a signed-in user never gets the guest email-alert form; the Job alert switch is the alert", { tag: ["@J-ALERTS-09"] }, async ({ page, baseURL }) => {
   test.skip(!isLocal(baseURL), "signed-in /jobs needs the dev-only __INTERVU_E2E_AUTH__ hook, which production builds ignore");
   await page.addInitScript(
     ([key]) => {
@@ -148,7 +148,7 @@ test("a signed-in user never gets the guest email-alert form; Save search is the
     [ONBOARDING_COMPLETED_STORAGE_KEY],
   );
   await page.goto("/jobs?q=engineer");
-  await expect(page.getByTestId("save-search-trigger").first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("search-alert-switch")).toBeVisible({ timeout: 30_000 });
   // The toolbar "Get alerts" opened the guest email form for signed-in users too.
   await expect(page.getByTestId("jobs-create-alert-trigger")).toHaveCount(0);
   await expect(page.getByTestId("result-line-get-alerts")).toHaveCount(0);
@@ -160,7 +160,7 @@ test("a signed-in user never gets the guest email-alert form; Save search is the
   await expect(page.getByTestId("search-alert-capture")).toHaveCount(0);
 });
 
-test("a signed-in person's Save search saves to the account, not to this browser", { tag: ["@J-ALERTS-46"] }, async ({ page, diagnostics }) => {
+test("a signed-in person's Job alert saves to the account, not to this browser", { tag: ["@J-ALERTS-46"] }, async ({ page, diagnostics }) => {
   // Signed in the way production signs in, Save search took the guest path
   // and kept the search in this browser only, where the account's list never
   // showed it (founder report 2026-10-01, same cause as the tracker's "Could
@@ -182,18 +182,16 @@ test("a signed-in person's Save search saves to the account, not to this browser
   // pressed while it loads waits for it: on a phone against prod that wait
   // outran the 5s default (R16 check, 2026-10-01).
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
-  await page.getByTestId("save-search-trigger").first().click();
-  await page.getByTestId("save-search-name").press("Enter");
+  await page.getByTestId("search-alert-switch").getByRole("switch", { name: /job alert/i }).click();
   await expect
     .poll(() => saves, { timeout: 15_000 })
     .toEqual([expect.objectContaining({ href: expect.stringContaining("q=engineer") })]);
-  await expect(page.getByTestId("save-search-name")).toHaveCount(0, { timeout: 15_000 });
   expect(await page.evaluate((key) => localStorage.getItem(key), SAVED_SEARCHES_KEY)).toBeNull();
   expect(diagnostics.pageErrors).toEqual([]);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("a signed-in person's Save search goes out at once while the search is still loading", { tag: ["@J-ALERTS-47"] }, async ({ page, diagnostics }) => {
+test("a signed-in person's Job alert goes out at once while the search is still loading", { tag: ["@J-ALERTS-47"] }, async ({ page, diagnostics }) => {
   // The list search was a Server Action, and Next runs a page's actions one
   // at a time, so a save pressed while a search loaded waited for that search
   // (5s on a phone, 2026-10-01). Here the search answers 12s late; the save
@@ -223,11 +221,9 @@ test("a signed-in person's Save search goes out at once while the search is stil
   await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("job-row")).toHaveCount(0);
-  await page.getByTestId("save-search-trigger").first().click();
   const pressed = Date.now();
-  await page.getByTestId("save-search-name").press("Enter");
-  await expect(page.getByTestId("save-search-name")).toHaveCount(0, { timeout: 6_000 });
-  expect(saves).toHaveLength(1);
+  await page.getByTestId("search-alert-switch").getByRole("switch", { name: /job alert/i }).click();
+  await expect.poll(() => saves.length, { timeout: 6_000 }).toBe(1);
   expect(saves[0] - pressed).toBeLessThan(6_000);
   // The held search still lands afterwards.
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
@@ -235,7 +231,7 @@ test("a signed-in person's Save search goes out at once while the search is stil
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("signed in, the Weekly job alerts switch saves this search to the account, and off deletes it", { tag: ["@J-ALERTS-48"] }, async ({ page, diagnostics }) => {
+test("signed in, the Job alert switch saves this search to the account, and off deletes it", { tag: ["@J-ALERTS-48"] }, async ({ page, diagnostics }) => {
   // The switch is the saved search: on saves it (saved searches feed the
   // weekly digest), off deletes it, with no naming step. Writes are answered
   // in the browser, so nothing reaches an account.
@@ -261,7 +257,7 @@ test("signed in, the Weekly job alerts switch saves this search to the account, 
   await page.goto("/jobs?q=engineer");
   await expect(page.getByTestId("topbar-avatar")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 30_000 });
-  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /weekly job alerts/i });
+  const toggle = page.getByTestId("search-alert-switch").getByRole("switch", { name: /job alert/i });
   await expect(toggle).toHaveAttribute("aria-checked", "false");
 
   await toggle.click();

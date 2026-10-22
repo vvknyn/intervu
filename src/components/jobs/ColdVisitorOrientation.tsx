@@ -53,20 +53,11 @@ export function subscribeColdOrientation(onStoreChange: () => void): () => void 
 export interface ColdVisitorOrientationProps {
     onRankByFit: () => void;
     className?: string;
-    /** A2 (desktop first screen): collapses the two-card welcome panel to one
-     *  line — icon, a single sentence, the Rank-by-fit button, dismiss —
-     *  so it can no longer push the first result row down the page. Only the
-     *  desktop hero mount (jobs/page.tsx, `hidden lg:block`) passes this; the
-     *  mobile mount (`lg:hidden`, after the 3rd result row) keeps the full
-     *  card. Same dismissal state either way — `readColdOrientationDismissed`
-     *  doesn't know or care which shape rendered. */
-    compact?: boolean;
 }
 
 export function ColdVisitorOrientation({
     onRankByFit,
     className,
-    compact,
 }: ColdVisitorOrientationProps) {
     const dismissed = useSyncExternalStore(
         subscribeColdOrientation,
@@ -80,46 +71,11 @@ export function ColdVisitorOrientation({
 
     if (dismissed) return null;
 
-    if (compact) {
-        return (
-            <div
-                data-testid="cold-visitor-orientation"
-                data-compact="true"
-                className={cn(
-                    "flex items-center gap-3 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] px-3 py-2 text-sm text-foreground",
-                    className,
-                )}
-            >
-                <Sparkle size={16} weight="fill" className="shrink-0 text-brand" aria-hidden />
-                <span className="min-w-0 flex-1 truncate">{RANK_SECONDARY_COPY}</span>
-                <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={onRankByFit}
-                    data-testid="orientation-rank-by-fit"
-                    title={RANK_SECONDARY_COPY}
-                    className="shrink-0"
-                >
-                    Rank with my résumé
-                </Button>
-                <button
-                    type="button"
-                    onClick={handleDismiss}
-                    aria-label="Dismiss welcome guide"
-                    className="ctl-md ctl-button shrink-0 inline-flex ctl-square items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                >
-                    <X size={16} weight="bold" aria-hidden />
-                </button>
-            </div>
-        );
-    }
-
     return (
         <div
             data-testid="cold-visitor-orientation"
             className={cn(
-                "relative mb-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 sm:p-5 transition-all",
+                "@container relative mb-4 rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-4 @lg:p-5 transition-all",
                 className,
             )}
         >
@@ -137,7 +93,7 @@ export function ColdVisitorOrientation({
                     <Sparkle size={16} weight="fill" aria-hidden />
                     <span>Welcome to Velai</span>
                 </div>
-                <h2 className="text-base sm:text-xl font-semibold text-foreground">
+                <h2 className="text-base @lg:text-xl font-semibold text-foreground">
                     Two ways to find your next role
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -145,7 +101,7 @@ export function ColdVisitorOrientation({
                 </p>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-3">
                 <div className="flex items-start gap-3 rounded-panel border border-border bg-muted p-3">
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-panel bg-background text-foreground border border-border">
                         <MagnifyingGlass size={16} weight="bold" aria-hidden />
@@ -160,7 +116,7 @@ export function ColdVisitorOrientation({
 
                 {/* Stacked on a phone: beside the button, this tile's text
                     was squeezed to two or three words a line (2026-10-02). */}
-                <div className="flex flex-col gap-3 rounded-panel border border-border bg-muted p-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-3 rounded-panel border border-border bg-muted p-3 @sm:flex-row @sm:items-start @sm:justify-between">
                     <div className="flex items-start gap-3 min-w-0">
                         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-panel bg-background text-foreground border border-border">
                             <Sparkle size={16} weight="bold" aria-hidden />
@@ -176,7 +132,7 @@ export function ColdVisitorOrientation({
                         size="sm"
                         onClick={onRankByFit}
                         data-testid="orientation-rank-by-fit"
-                        className="w-full shrink-0 sm:w-auto"
+                        className="w-full shrink-0 @sm:w-auto"
                     >
                         Rank with my résumé
                     </Button>

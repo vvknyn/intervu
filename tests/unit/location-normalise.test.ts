@@ -154,7 +154,7 @@ function cardLocation(over: Partial<PublicJob>): string | null {
       now: Date.parse("2026-09-28T12:00:00Z"),
     }),
   );
-  return /data-testid="job-location">([^<]*)</.exec(html)?.[1] ?? null;
+  return /data-testid="job-location"[^>]*>([^<]*)</.exec(html)?.[1] ?? null;
 }
 
 test("rendered JobCard shows the normalised label for the QA string and for other dirty shapes", () => {

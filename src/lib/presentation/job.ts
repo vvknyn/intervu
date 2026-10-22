@@ -20,6 +20,7 @@ import {
   locationWithMode,
   LOCATION_UNKNOWN_TEXT,
   salaryText,
+  structuredLocationText,
   titleCaseDisplay,
   type RowMetaSegment,
 } from "@/lib/jobs/presentation";
@@ -41,6 +42,16 @@ export interface PresentedJob {
   salary: string | null;
   /** `null` for `ghost_badge: "unscored"` — no verdict to state. */
   status: StatusVocabularyEntry | null;
+}
+
+/**
+ * The place a result card prints: the resolved geo fields ("Calgary,
+ * Alberta, Canada") ahead of the posting's raw string ("CA-AB-Calgary-Gulf
+ * Canada Square"), which is only used when no field resolved. The raw string
+ * belongs in the card's `title`.
+ */
+export function formatCardPlace(job: PublicJob): string {
+  return locationSummary(structuredLocationText(job) || locationText(job));
 }
 
 export function presentJob(job: PublicJob): PresentedJob {
