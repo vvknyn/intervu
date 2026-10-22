@@ -6,12 +6,11 @@ import { recordFollowFunnelAction } from "@/actions/follow-funnel";
 import { captureEvent } from "@/lib/analytics/events";
 import { followByContactCookieAction, unfollowByContactCookieAction } from "@/actions/email-follow";
 import { Button } from "@/components/ui/button";
-import { FollowEmailStep } from "@/components/companies/FollowEmailStep";
-import { Popover, PopoverContent } from "@/components/ui/popover";
-import { Anchor as PopoverAnchor } from "@radix-ui/react-popover";
+import { AuthPopover } from "@/components/auth/auth-popover";
+import { followPersistValueLine } from "@/lib/follows/persist-copy";
 import { getSignedInUser } from "@/lib/firebase/client-auth";
 import { addGuestFollow, removeGuestFollow } from "@/lib/follows/guest-store";
-import { invalidateFollowsCache, useFollows } from "@/lib/follows/use-follows";
+import { invalidateFollowsCache, syncGuestFollowsToServer, useFollows } from "@/lib/follows/use-follows";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
 
@@ -27,7 +26,7 @@ export function followButtonFollowingLabel(): string {
   return "Unfollow";
 }
 
-export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "follow-by-contact" } | { kind: "open-email-step" };
+export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "follow-by-contact" } | { kind: "sign-in" };
 
 /**
  * Pure: what a signed-out click on Follow must do next. The return type has
@@ -38,11 +37,11 @@ export type GuestFollowClickAction = { kind: "unfollow" } | { kind: "follow-by-c
  * email or logged in???" — the click either reverses an already-real follow,
  * follows through the verified identity this browser already has (the
  * design's "the second follow is one click"; the server writes it and says
- * so), or opens the channel-capture step. It never fakes the follow itself.
+ * so), or opens the sign-in gate (a follow needs an account). It never fakes the follow itself.
  */
 export function decideGuestFollowClick(currentlyFollowing: boolean, contactKnown = false): GuestFollowClickAction {
   if (currentlyFollowing) return { kind: "unfollow" };
-  return contactKnown ? { kind: "follow-by-contact" } : { kind: "open-email-step" };
+  return contactKnown ? { kind: "follow-by-contact" } : { kind: "sign-in" };
 }
 
 /**
@@ -96,10 +95,6 @@ export interface FollowButtonProps {
   /** Fired once a guest's one-click (contact-cookie) follow is actually
    *  written, the mirror of `onGuestUnfollow`. */
   onGuestFollow?: () => void;
-  /** Passed through to the email-capture step's "sign in instead" link.
-   *  Omit to hide that link (e.g. the hot-table pill has no auth popover
-   *  of its own to hand off to). */
-  onSignInInstead?: () => void;
 }
 
 export function FollowButton({
@@ -113,13 +108,12 @@ export function FollowButton({
   idleLabel = "Follow",
   onGuestUnfollow,
   onGuestFollow,
-  onSignInInstead,
 }: FollowButtonProps) {
   const normalizedDomain = domain.trim().toLowerCase();
   const { byDomain, loading, isSignedIn } = useFollows();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const [emailStepOpen, setEmailStepOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const confirmedFollowing = resolveFollowingState({
     accountFollowing: byDomain.has(normalizedDomain),
@@ -131,7 +125,7 @@ export function FollowButton({
   useEffect(() => {
     setOptimistic(null);
     setBusy(false);
-    setEmailStepOpen(false);
+    setAuthOpen(false);
   }, [normalizedDomain]);
 
   useEffect(() => {
@@ -161,9 +155,9 @@ export function FollowButton({
         } finally {
           setBusy(false);
         }
-        // The cookie no longer names anyone (or the call failed): ask for the email instead.
+        // The cookie no longer names anyone (or the call failed): ask them to sign in instead.
         addGuestFollow({ domain: normalizedDomain, slug, displayName });
-        setEmailStepOpen(true);
+        setAuthOpen(true);
         return;
       }
       if (action.kind === "unfollow") {
@@ -185,13 +179,13 @@ export function FollowButton({
         }
         return;
       }
-      // No channel yet. Record the click (funnel entry) and the guest-store
-      // intent — it may still migrate to a real account follow on sign-in
-      // (syncGuestFollowsToServer) — then open the email step right here
-      // instead of pretending the follow already happened.
+      // No account yet. Record the click (funnel entry) and the guest-store
+      // intent — it migrates to a real account follow on sign-in
+      // (syncGuestFollowsToServer) — then open the sign-in gate instead of
+      // pretending the follow already happened.
       void recordFollowFunnelAction("follow_click", normalizedDomain);
       addGuestFollow({ domain: normalizedDomain, slug, displayName });
-      setEmailStepOpen(true);
+      setAuthOpen(true);
       return;
     }
 
@@ -285,27 +279,18 @@ export function FollowButton({
       </Button>
     );
 
-  // `PopoverAnchor` (not `PopoverTrigger`) deliberately — a Trigger toggles
-  // itself on every click, which would pop the email step open for signed-in
-  // clicks and for a guest's unfollow click too. `handleClick` above is the
-  // only thing allowed to decide when this opens.
   return (
-    <Popover open={emailStepOpen} onOpenChange={setEmailStepOpen}>
-      <PopoverAnchor asChild>{buttonNode}</PopoverAnchor>
-      <PopoverContent align="end" className="w-[240px] p-4">
-        <FollowEmailStep
-          companyDomain={normalizedDomain}
-          displayName={displayName}
-          onSignInInstead={
-            onSignInInstead
-              ? () => {
-                  setEmailStepOpen(false);
-                  onSignInInstead();
-                }
-              : undefined
-          }
-        />
-      </PopoverContent>
-    </Popover>
+    <>
+      {buttonNode}
+      <AuthPopover
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+        showTrigger={false}
+        trigger="user"
+        reason="follow"
+        onAuthed={() => void syncGuestFollowsToServer()}
+        valueLine={followPersistValueLine(displayName)}
+      />
+    </>
   );
 }

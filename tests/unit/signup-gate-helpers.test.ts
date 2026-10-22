@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { resolveHiddenCount, type CorpusCount } from "../../src/lib/jobs/corpus-count";
 import { signupGateCopy } from "../../src/lib/auth/auth-gate-copy";
 import { signupGateHrefs } from "../../src/lib/auth/post-auth-destination";
-import { guestSaveGateReached, recordGuestSave } from "../../src/lib/auth/guest-save-gate";
+import { decideSaveAttempt } from "../../src/lib/auth/guest-save-gate";
 import { SIGNUP_GATE_ID_BY_REASON, gateAttemptEventFields } from "../../src/lib/auth/gate-attempt";
 import { FIT_GUEST_PREVIEW_ROWS, splitFitGate } from "../../src/lib/jobs/fit-gate";
 import { resolveReporterKey } from "../../src/lib/jobs/reporter-key";
@@ -69,14 +69,15 @@ function withLocalStorage(run: () => void) {
     }
 }
 
-test("guestSaveGateReached: first save is free, second (any kind) is gated", () => {
-    withLocalStorage(() => {
-        assert.equal(guestSaveGateReached(), false);
-        recordGuestSave();
-        assert.equal(guestSaveGateReached(), true);
-    });
-    // No storage (SSR / blocked): never claims the gate was reached.
-    assert.equal(guestSaveGateReached(), false);
+test("decideSaveAttempt: a guest's save is gated first or later, whatever an old counter holds; signed in saves", () => {
+    for (const stored of [undefined, "0", "1", "5"]) {
+        withLocalStorage(() => {
+            const ls = (globalThis as unknown as { window: { localStorage: Storage } }).window.localStorage;
+            if (stored !== undefined) ls.setItem("intervu.guestSaveCount", stored);
+            assert.equal(decideSaveAttempt(false), "gate");
+        });
+    }
+    assert.equal(decideSaveAttempt(true), "save");
 });
 
 test("gate id: every reason maps, and signup_completed fields carry the last reason's gate", () => {

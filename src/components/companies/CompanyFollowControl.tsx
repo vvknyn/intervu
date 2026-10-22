@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowButton, type FollowButtonProps } from "@/components/companies/FollowButton";
 import { useCompanyFollowChannel } from "@/components/companies/CompanyFollowChannelProvider";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
-import { followEmailVerifiedLine, followPersistValueLine } from "@/lib/follows/persist-copy";
+import { followEmailVerifiedLine } from "@/lib/follows/persist-copy";
 import { useCompanyEmailVerifiedChannel, type CompanyEmailVerifiedChannel } from "@/lib/follows/use-company-email-verified";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { cn } from "@/lib/utils";
@@ -38,7 +37,6 @@ function CompanyFollowControlInner({
 }) {
   const { emailVerified } = channel;
   const [user, setUser] = useState(() => getCurrentUser());
-  const [authOpen, setAuthOpen] = useState(false);
   const guestSyncRef = useRef(false);
   const guestSyncInFlightRef = useRef(false);
 
@@ -80,7 +78,6 @@ function CompanyFollowControlInner({
         idleLabel={idleLabel}
         onGuestFollow={channel.onGuestFollow}
         onGuestUnfollow={channel.onGuestUnfollow}
-        onSignInInstead={() => setAuthOpen(true)}
       />
       {!user && emailVerified && (
         <p
@@ -92,15 +89,6 @@ function CompanyFollowControlInner({
           {followEmailVerifiedLine(displayName)}
         </p>
       )}
-      <AuthPopover
-        open={authOpen}
-        onOpenChange={setAuthOpen}
-        showTrigger={false}
-        trigger="user"
-        reason="follow"
-        onAuthed={() => void syncGuestFollowsToServer()}
-        valueLine={followPersistValueLine(displayName)}
-      />
     </div>
   );
 }

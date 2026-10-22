@@ -70,7 +70,7 @@ describe("signed-out gates go through SignupGate", () => {
 
     it("the gates this PR names all render the primitive with their reason", () => {
         const jobs = read("app/jobs/JobsContent.tsx");
-        for (const reason of ["depth", "fit", "save"]) {
+        for (const reason of ["depth", "fit"]) {
             assert.match(jobs, new RegExp(`<SignupGate[^>]*reason="${reason}"`), `JobsContent lacks SignupGate reason=${reason}`);
         }
         assert.match(read("components/jobs/SavedSearchesPanel.tsx"), /<SignupGate[^>]*reason="alert"/);

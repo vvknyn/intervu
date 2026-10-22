@@ -358,18 +358,6 @@ describe("jobs filter toolbar chrome", () => {
         assert.doesNotMatch(saveTrigger, /\btext-(?:xs|sm)\b|\bfont-semibold\b/);
     });
 
-    it("shouldShowSearchAlertCapture call sites suppress while guest auth gate is visible", () => {
-        const page = readFileSync(PAGE, "utf8");
-        const authGatePattern = /authGateVisible:\s*showGuestSaveBanner/;
-        const callSites = [...page.matchAll(/shouldShowSearchAlertCapture\(\{[\s\S]*?\}\)/g)];
-        // One since 2026-10-10: with results the form opens only from the alerts
-        // switch, so only the zero-results capture still decides for itself.
-        assert.ok(callSites.length >= 1, "expected a shouldShowSearchAlertCapture call site");
-        for (const match of callSites) {
-            assert.match(match[0], authGatePattern, "each call site must pass authGateVisible from guest banners");
-        }
-    });
-
     it("changed files do not touch JobDetail handoff or list-detail motion", () => {
         for (const file of CHANGED) {
             const src = readFileSync(file, "utf8");

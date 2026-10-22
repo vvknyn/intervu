@@ -59,7 +59,7 @@ import { holdPursuitsRead, releasePursuitsRead } from "@/lib/pursuits/read-hold"
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
-import { listGuestPursuits, addGuestPursuit, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
@@ -337,13 +337,7 @@ import {
     type AuthGateReason,
     type AuthGateTrigger,
 } from "@/lib/auth/auth-gate-copy";
-import {
-    getGuestSaveCount,
-    guestSaveGateReached,
-    recordGuestSave,
-    isGuestSaveBannerDismissed,
-    dismissGuestSaveBanner,
-} from "@/lib/auth/guest-save-gate";
+import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 import { PageTitle } from "@/components/ui/heading";
 
@@ -1618,15 +1612,6 @@ export function JobsContent({
             .catch(() => {});
     }, [user?.uid, firstSearchSettled]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
-    // Progressive guest save gating — initialized post-mount (localStorage
-    // is not available during SSR). `guestSaveCount` drives both the banner
-    // (≥ 1) and the gate (≥ 1 → require sign-in on the next save).
-    const [guestSaveCount, setGuestSaveCount] = useState(0);
-    const [guestSaveBannerDismissed, setGuestSaveBannerDismissed] = useState(true);
-    useEffect(() => {
-        setGuestSaveCount(getGuestSaveCount());
-        setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
-    }, []);
     const [searchAlertDismissed, setSearchAlertDismissed] = useState(true);
     const [searchAlertSubmitted, setSearchAlertSubmitted] = useState(true);
     const [searchInteractions, setSearchInteractions] = useState(0);
@@ -3638,17 +3623,6 @@ export function JobsContent({
     // "hideGhosts && ghostHiddenCount > 0" rule the controller specified.
     const ghostRevealCount = resolveGhostReveal(hideGhosts, ghostHiddenCount);
 
-
-    // Guest save upsell banner — shown after the first anonymous save (either
-    // "Go after" or a saved search) until dismissed. Signed-in users never see
-    // it; the `guestSaveCount` and `guestSaveBannerDismissed` states are
-    // seeded from localStorage post-mount so there's no SSR mismatch.
-    const showGuestSaveBanner = !user && guestSaveCount >= 1 && !guestSaveBannerDismissed;
-    const handleDismissGuestSaveBanner = () => {
-        dismissGuestSaveBanner();
-        setGuestSaveBannerDismissed(true);
-    };
-
     // The job whose apply click is currently held open by the AI hand-off
     // prompt. Holding the job rather than a boolean keeps the dialog's content
     // and its "continue" target the same object the click started from.
@@ -3811,27 +3785,13 @@ export function JobsContent({
             onMarkApplied: doMarkApplied,
         });
 
-    // "Save" — signed out writes to the guest store immediately for the FIRST
-    // save; on the second+ guest save, require sign-in so the list isn't
-    // silently lost (progressive gating spec). Guest Apply no longer brick-
-    // walls here (2026-09-10): `handleOpenPosting` opens ATS first, then
-    // `gate({ kind: "apply" })` for tracking only — Save's 2nd-gate stays.
+    // "Save" — a guest's attempt (first or later) opens the sign-in gate and
+    // writes nothing locally. Guest Apply no longer brick-walls here
+    // (2026-09-10): `handleOpenPosting` opens ATS first, then
+    // `gate({ kind: "apply" })` for tracking only.
     const handleGoAfter = (job: PublicJob) => {
-        if (!user) {
-            if (guestSaveGateReached()) {
-                openAuth("save", "user");
-                return;
-            }
-            addGuestPursuit(job);
-            const newCount = recordGuestSave();
-            setGuestSaveCount(newCount);
-            if (!prefersReducedMotion()) hapticTap("success");
-            triggerSavePulse(job.id);
-            toast.success(GUEST_SAVE_TOAST);
-            captureEvent("job_saved", {
-                job_id: job.id,
-                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
-            });
+        if (decideSaveAttempt(!!user) === "gate") {
+            openAuth("save", "user");
             return;
         }
         if (saveInFlightRef.current.has(job.id)) return;
@@ -4516,7 +4476,6 @@ export function JobsContent({
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: false,
-            authGateVisible: showGuestSaveBanner,
         });
     // With results, the email form no longer opens on its own after a
     // couple of searches: the results line's alerts switch opens it
@@ -5900,28 +5859,7 @@ export function JobsContent({
                                     </div>
                                 )}
 
-                                {/* Post-first-save upsell — appears once the anonymous visitor
-                                    has made their first save (Go after or saved search). Calm
-                                    inline style matching the résumé-moment card below. Dismissed
-                                    state is persisted so the banner doesn't reappear on reload.
-                                    Signed-in users never see it (`showGuestSaveBanner` is false
-                                    whenever `user` is truthy). */}
-                                {showGuestSaveBanner && (
-                                    <div data-testid="guest-save-banner" className="mb-3 border-t border-border pt-4 pb-2">
-                                        <SignupGate
-                                            reason="save"
-                                            originSurface="jobs_banner"
-                                            returnTo={serpReturnTo}
-                                            onDismiss={handleDismissGuestSaveBanner}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* The signed-in counterpart of the guest save banner, and its exact
-                                    complement: that one asks an anonymous visitor to sign in,
-                                    this one asks someone who ALREADY did for an address we can
-                                    reach. They can never both show — one requires `!user`, the
-                                    other requires a resolved session. */}
+                                {/* Asks someone signed in for an address we can reach. */}
                                 {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
                                     <AccountEmailPrompt
                                         state={accountEmailState}
