@@ -405,6 +405,11 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
 /* ----------------------------- helpers ----------------------------- */
 
 /** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
+/** A separator of the résumé strip: its own node so truncating text never eats it. */
+function StripDot() {
+    return <span aria-hidden className="shrink-0">·</span>;
+}
+
 function modeToUrlSort(mode: JobSortMode): UrlSort {
     return mode === "salary_desc" ? "salary" : mode;
 }
@@ -5817,9 +5822,12 @@ export function JobsContent({
                                     >
                                         <span className="shrink-0">{RESUME_READ_LABEL}</span>
                                         {resumeReadDetailText && (
-                                            <span data-testid="resume-read-detail" className="min-w-0 truncate">· {resumeReadDetailText}</span>
+                                            <>
+                                                <StripDot />
+                                                <span data-testid="resume-read-detail" title={resumeReadDetailText} className="min-w-0 truncate">{resumeReadDetailText}</span>
+                                            </>
                                         )}
-                                        <span aria-hidden className="shrink-0">·</span>
+                                        <StripDot />
                                         <Link
                                             href="/resume"
                                             className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
@@ -5828,7 +5836,7 @@ export function JobsContent({
                                         </Link>
                                         {!signedIn && guestResumeInBrowser && (
                                             <>
-                                                <span aria-hidden>·</span>
+                                                <StripDot />
                                                 <ResumeRemove
                                                     onRemove={removeGuestResume}
                                                     testIdPrefix="jobs"
