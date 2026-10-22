@@ -331,13 +331,22 @@ describe("jobs filter toolbar chrome", () => {
 
         // One résumé-state strip above the list; the toolbar carries no "Replace" or as-of text.
         assert.doesNotMatch(page, /data-testid="resume-as-of"|data-testid="jobs-replace-resume"/);
-        const strip = page.slice(page.indexOf('data-testid="resume-read-strip"'), page.indexOf('data-testid="resume-read-strip"') + 1100);
+        const strip = page.slice(page.indexOf('data-testid="resume-read-strip"'), page.indexOf('data-testid="resume-read-strip"') + 1700);
         assert.match(strip, /resumeReadDetailText/);
         // One line at any column width: the detail truncates, the action can never orphan onto a second line.
         assert.doesNotMatch(strip, /flex-wrap/);
         assert.match(strip.slice(strip.indexOf('data-testid="resume-read-detail"')), /^[^>]*className="min-w-0 truncate"/);
         assert.match(strip.slice(strip.indexOf('href="/resume"')), /^[^>]*className="shrink-0 whitespace-nowrap /);
         assert.match(strip, /href="\/resume"/);
+        // Truncated detail stays readable on hover: the span's title is the same expression as its text.
+        const detail = strip.slice(strip.indexOf('data-testid="resume-read-detail"'));
+        assert.match(detail, /^[^>]*title=\{resumeReadDetailText\}/);
+        // Separators are their own nodes (label · detail · Edit [· Remove]); the detail text stays bare, so it
+        // truncates without eating the separator before Edit, with and without a detail.
+        assert.match(detail, /^[^>]*>\{resumeReadDetailText\}<\/span>/);
+        assert.doesNotMatch(detail.slice(0, detail.indexOf('</span>')), /·/);
+        assert.equal((strip.match(/<StripDot \/>/g) ?? []).length, 3);
+        assert.match(strip.slice(0, strip.indexOf('href="/resume"')), /<StripDot \/>\s*<Link\s*$/);
         assert.doesNotMatch(page, /update to rescore/);
         assert.doesNotMatch(page, /scored against your résumé of/);
         assert.doesNotMatch(page, /data-testid="jobs-sort-replace-resume"/);
