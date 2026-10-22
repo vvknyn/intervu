@@ -126,3 +126,13 @@ export function fitUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlSta
         ...(fit.keepUserWindow ? {} : { postedBucket: fit.postedBucket, postedExplicit: true }),
     };
 }
+
+/** Whether the board already carries a search the visitor typed (or a past fit set): fitting then ranks it, never replaces it. */
+export function keepsTypedQuery(base: JobsUrlState): boolean {
+    return base.q.trim() !== "";
+}
+
+/** Rank by fit from `base`: a typed query and its filters stay, only `sort=fit` is added; a bare board takes the pack (`fitUrlState`). */
+export function fitRankUrlState(base: JobsUrlState, fit: FitApplication): JobsUrlState {
+    return keepsTypedQuery(base) ? { ...base, sort: "fit" } : fitUrlState(base, fit);
+}

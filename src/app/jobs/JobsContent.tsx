@@ -321,7 +321,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitUrlState, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, keepsTypedQuery, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
@@ -4191,7 +4191,15 @@ export function JobsContent({
         // the server's signed-in redirect so both land on one address). A recommendation uses the pack's own
         // window (30 days, or Settings › Posted within), not the board's 90-day default: ~half of the roles of
         // that window were older than 30 days (2026-10-13). A window picked by hand stays theirs.
+        const base = buildUrlState();
         const fit = fitApplication(r, agentPrefs, { facets, postedExplicit });
+        if (keepsTypedQuery(base)) {
+            // A search the visitor typed is theirs: fit only ranks it (the résumé terms still score every row).
+            setSortOverride(null);
+            setFitActive(true);
+            applyUrlState(fitRankUrlState(base, fit), "replace");
+            return;
+        }
         setFacets(fit.facets);
         if (!fit.keepUserWindow) {
             setPostedBucket(fit.postedBucket);
@@ -4201,7 +4209,7 @@ export function JobsContent({
         setQuery(fit.q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(fitUrlState(buildUrlState(), fit), "replace");
+        applyUrlState(fitUrlState(base, fit), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
