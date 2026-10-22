@@ -122,7 +122,7 @@ describe('when no role from the last 30 days fits, the older roles that fit stan
         assert.equal(formatDeckShowingLine(2, 'older'), '2 roles fit your résumé · all posted over 30 days ago');
         assert.equal(formatDeckShowingLine(1, 'older'), '1 role fits your résumé · all posted over 30 days ago');
         assert.equal(formatDeckShowingLine(2, 'near'), '2 closest roles · each a weaker fit');
-        assert.equal(formatDeckShowingLine(2), '2 roles fit your résumé · best fit first');
+        assert.equal(formatDeckShowingLine(2), '2 roles · ranked by fit');
         assert.match(OLDER_FITS_NOTICE, /No role posted in the last 30 days fits your résumé yet/);
         assert.equal(nearMissSummary(summary).older, undefined);
     });

@@ -36,7 +36,7 @@ import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
 import { listedPastSenior, titlePastSenior } from "./role-level";
 import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
-import { facetFilterClause } from "./unknown-inclusive-facets";
+import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
 import type { FacetDistribution, JobSearchParams, JobSearchResult, JobSuggestions, PlaceClause, PublicJob } from "./types";
 
 export const JOBS_INDEX = "jobs";
@@ -461,6 +461,8 @@ const YEARS_EXPERIENCE_RANGES: Record<NonNullable<JobSearchParams["yearsExperien
 
 export interface BuildFilterOpts {
   skipDomainFilters?: boolean;
+  /** Known values only for the unknown-inclusive filters (facets, salary) — the strict twin; see unknown-inclusive-facets.ts. */
+  knownOnly?: boolean;
 }
 
 /**
@@ -474,7 +476,7 @@ export interface BuildSearchBodyOpts extends BuildFilterOpts {
   companyScoped?: boolean;
   /** Title-only recall lane for seniority+role pair searches. */
   titleScoped?: boolean;
-  /** Expand pass: whole-document retrieval, still `matchingStrategy: "all"`. */
+  /** Expand pass: whole-document retrieval; the caller picks the `matchingStrategy`. */
   wholeDocument?: boolean;
   /** Ask for `_rankingScoreDetails` on every hit — only the relevance-sorted
    *  typed search sets this, for `preferNewerAmongCloseMatches` below, which
@@ -644,7 +646,7 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     const vals = canonicalFacetValues(rawVals);
     if (vals.length === 0) continue;
     // OR within a facet, AND across facets (unknown-inclusive facets add their unknown rows).
-    f.push(facetFilterClause(key, vals));
+    f.push(facetFilterClause(key, vals, opts?.knownOnly));
   }
   if (p.places?.length) {
     // One OR group across every parsed place mention — see
@@ -653,7 +655,7 @@ export function buildFilter(p: JobSearchParams, legacy = false, opts?: BuildFilt
     f.push("(" + p.places.map(renderPlaceClause).join(" OR ") + ")");
   }
   if (p.salaryMin && p.salaryMin > 0) {
-    f.push(`(salary_max >= ${p.salaryMin} OR salary_min >= ${p.salaryMin})`);
+    f.push(salaryMinClause(p.salaryMin, opts?.knownOnly));
   }
   if (p.visaOnly) f.push("visa_sponsorship = true");
   if (p.hideGhosts) f.push('ghost_badge != "likely_ghost"');
@@ -949,7 +951,8 @@ export function buildSearchBody(
     ...(attributesToSearchOn ? { attributesToSearchOn } : {}),
     // Requiring every word is the honest default; `searchMeili` runs one
     // whole-document expand pass (`wholeDocument`) only after a strict/scoped
-    // pass returns zero — never word-dropping (`matchingStrategy: "last"`).
+    // pass returns zero — never word-dropping (`matchingStrategy: "last"`),
+    // except tier 2 of `runTieredRetrieval`, which is weighted below tier 1.
     matchingStrategy,
     filter: buildFilter(p, legacy, opts),
     facets: p.withFacets ? [...REQUESTED_FACET_KEYS] : undefined,
@@ -1141,6 +1144,12 @@ async function applySortIntegrityGuard(
  * hits once the strict pool is exhausted. `total` here IS the whole-document
  * pool size — no separate "expand on zero hits" fallback, no merge step.
  *
+ * When a filter admits un-derived rows (salary floor, work mode, seniority —
+ * unknown-inclusive-facets.ts) two more queries rerun both scopes with those
+ * rows included at `UNKNOWN_TIER_WEIGHT` of the weights above, the first two
+ * being known-only: unknowns rank after knowns across the whole pool, not
+ * within a page, and `total` (the federation union) counts both.
+ *
  * `federation.limit`/`offset`/`facetsByIndex` carry what a per-query
  * `facets`/`limit`/`offset` would under a plain search — federation rejects
  * those per-query (400 `invalid_multi_search_query_facets`), so they're
@@ -1160,13 +1169,27 @@ async function applySortIntegrityGuard(
  * fallback to the old scoped-pass mechanism on failure — a federation error
  * surfaces like any other Meilisearch error.
  */
+/** Weight multiplier for the unknown-inclusive query pair in `runTieredRetrieval`. */
+const UNKNOWN_TIER_WEIGHT = 0.5;
+
 async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSearchResult> {
   // Relevance order only: the details feed `preferNewerAmongCloseMatches`.
   const rankingScoreDetails = resolveEffectiveSort(p) === "relevance";
-  const strictBody = buildSearchBody(p, false, "all", rankingScoreDetails ? { rankingScoreDetails } : {});
-  const wholeBody = buildSearchBody(p, false, "all", { wholeDocument: true, ...(rankingScoreDetails ? { rankingScoreDetails } : {}) });
-  const { limit: _sLimit, offset: _sOffset, facets: _sFacets, ...strictQuery } = strictBody;
-  const { limit: _wLimit, offset: _wOffset, facets: _wFacets, ...wholeQuery } = wholeBody;
+  const details = rankingScoreDetails ? { rankingScoreDetails } : {};
+  const query = (opts: BuildSearchBodyOpts, weight: number, tier: 1 | 2) => {
+    // Tier 2 (whole document) drops trailing words: a partial match ranks below a full one
+    // (tier 1 weight) instead of disappearing. Ruling 2026-10-22, "return all search results
+    // ranked by relevance and fit". Decided here so both the known and unknown pairs agree.
+    const { limit: _l, offset: _o, facets: _f, ...rest } = buildSearchBody(p, false, opts.wholeDocument ? "last" : "all", { ...details, ...opts });
+    return { tier, query: { ...rest, indexUid: JOBS_INDEX, federationOptions: { weight } } };
+  };
+  // Known-value matches lead (tier weights 100 / 1). When a filter admits
+  // un-derived rows (unknown-inclusive-facets.ts), the same two scopes rerun
+  // with those rows included at half weight, so they rank after the known
+  // ones; federation dedupes by id keeping the best-weighted copy.
+  const specs = [query({ knownOnly: true }, 100, 1), query({ wholeDocument: true, knownOnly: true }, 1, 2)];
+  const inclusive = [query({}, UNKNOWN_TIER_WEIGHT * 100, 1), query({ wholeDocument: true }, UNKNOWN_TIER_WEIGHT, 2)];
+  if (JSON.stringify(inclusive[0].query.filter) !== JSON.stringify(specs[0].query.filter)) specs.push(...inclusive);
 
   const federatedBody = {
     federation: {
@@ -1174,10 +1197,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
       offset: p.offset ?? 0,
       ...(p.withFacets ? { facetsByIndex: { [JOBS_INDEX]: [...REQUESTED_FACET_KEYS] } } : {}),
     },
-    queries: [
-      { ...strictQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 100 } },
-      { ...wholeQuery, indexUid: JOBS_INDEX, federationOptions: { weight: 1 } },
-    ],
+    queries: specs.map((s) => s.query),
   };
 
   const [fedRes, tier1Total] = await Promise.all([
@@ -1207,7 +1227,7 @@ async function runTieredRetrieval(h: string, p: JobSearchParams): Promise<JobSea
   const hits = normalizePublicJobs(
     (body.hits ?? []).map(({ _federation, ...hit }) => ({
       ...hit,
-      tier: (_federation?.queriesPosition === 0 ? 1 : 2) as 1 | 2,
+      tier: specs[_federation?.queriesPosition ?? -1]?.tier ?? 2,
     })),
   );
   return {

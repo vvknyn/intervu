@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { signIn, signUp } from '@/actions/auth'
+import { toast } from '@/lib/toast'
+import { VerifyCodeStep } from '@/components/auth/verify-code-step'
+import { presentAuthResult, type AuthPresentation } from './present-auth-result'
 import { captureEvent, type SignupMethod } from '@/lib/analytics/events'
 import { authStartedPayloadFromAttempt } from '@/lib/analytics/auth-event-payload'
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from '@/lib/auth/gate-attempt'
@@ -104,6 +107,8 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const [password, setPassword] = useState('')
     const [showPassword, setShowPassword] = useState(false)
     const [isPending, startTransition] = useTransition()
+    // Set when WorkOS holds a password sign-in for an emailed code; swaps the tabs for the code step.
+    const [verifyStep, setVerifyStep] = useState<{ pendingAuthenticationToken: string; email: string } | null>(null)
     const [authKitPending, setAuthKitPending] = useState<string | null>(null)
     // The answer to the last press, shown at the top of the card and scrolled
     // into view. Rendered under the button it went unseen: on a phone the
@@ -122,6 +127,29 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
     const setMessage = useCallback((text: string | null) => {
         setNotice(text === null ? null : { text, id: ++noticeIdRef.current })
     }, [])
+    // Runs a presented answer: false when the press did not sign the person in
+    // (an inline error, or a toast that sends them on to sign in).
+    const applyAuthPresentation = useCallback((presented: AuthPresentation, onNotSignedIn?: () => void): boolean => {
+        if ("ok" in presented) {
+            setMessage(null)
+            return true
+        }
+        onNotSignedIn?.()
+        if ("step" in presented) {
+            setMessage(null)
+            setVerifyStep({ pendingAuthenticationToken: presented.pendingAuthenticationToken, email: presented.email })
+            return false
+        }
+        if ("inline" in presented) {
+            setMessage(presented.inline)
+            return false
+        }
+        setMessage(null)
+        toast[presented.toast.kind](presented.toast.text)
+        if (presented.switchTab) setActiveTab(presented.switchTab)
+        if (presented.prefill) setUsername(presented.prefill.username)
+        return false
+    }, [setMessage])
     useEffect(() => {
         if (notice) cardTopRef.current?.scrollIntoView({ block: 'nearest' })
     }, [notice])
@@ -146,11 +174,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
             formData.append('username', username)
             formData.append('password', password)
             const result = await signIn(null, formData)
-            if ("error" in result) {
-                setMessage(result.error)
-                return
-            }
-            setMessage(null)
+            if (!applyAuthPresentation(presentAuthResult(result, { username }))) return
             router.refresh()
             revalidateClientSession()
             await syncGuestFollowsToServer()
@@ -195,6 +219,34 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
         window.location.href = `/auth/start${query ? `?${query}` : ""}` // signup-gate-exempt: the login form itself, part of the auth flow
     }
 
+    // The sequence after a username/password account is signed in: straight
+    // from signUp, or after the emailed code (the code step).
+    const finishSignedIn = async (signupCompleted: boolean) => {
+        // `signUp` already authenticates the fresh account and saves the
+        // session server-side — no second client-side sign-in round trip.
+        //
+        // Username/password path only — AuthKit (Google/passkey/magic-auth)
+        // emits via /auth/callback cookie + PostHogProvider after identify;
+        // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
+        // so an abandoned Google redirect + password signup cannot double-fire.
+        clearSignupSignalCookieFromDocument()
+        if (signupCompleted) {
+            captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() }) // signup-once: gated on the server claim (claimSignupEvent)
+        }
+        clearGateAttempt(window.sessionStorage)
+        router.refresh()
+        revalidateClientSession()
+        await syncGuestFollowsToServer()
+        const landed = buildReturnTo(window.location)
+        // On /login the page to return to is its `next`, as for AuthKit above.
+        const returnTarget = validateNextParam(new URLSearchParams(window.location.search).get("next")) ?? landed
+        const destination = resolveAuthKitReturnTo(returnTarget)
+        if (destination && destination !== landed) {
+            router.replace(destination)
+        }
+        if (onSuccess) onSuccess()
+    }
+
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!email || !username || !password) {
@@ -227,40 +279,23 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                 formData.append('password', password)
                 formData.append('turnstileToken', check.token ?? '')
                 const result = await signUp(null, formData)
-                if ("error" in result) {
-                    turnstile.reset()
-                    setMessage(result.error)
-                    return
-                }
-                setMessage(null)
-                // `signUp` already authenticates the fresh account and saves the
-                // session server-side — no second client-side sign-in round trip.
-                //
-                // Username/password path only — AuthKit (Google/passkey/magic-auth)
-                // emits via /auth/callback cookie + PostHogProvider after identify;
-                // see docs/analytics/EVENTS.md. Clear any leftover AuthKit cookie
-                // so an abandoned Google redirect + password signup cannot double-fire.
-                clearSignupSignalCookieFromDocument()
-                if (result.signupCompleted) {
-                    captureEvent('signup_completed', { method: 'username', ...authContinuityPayload() }) // signup-once: gated on the server claim (claimSignupEvent)
-                }
-                clearGateAttempt(window.sessionStorage)
-                router.refresh()
-                revalidateClientSession()
-                await syncGuestFollowsToServer()
-                const landed = buildReturnTo(window.location)
-                // On /login the page to return to is its `next`, as for AuthKit above.
-                const returnTarget = validateNextParam(new URLSearchParams(window.location.search).get("next")) ?? landed
-                const destination = resolveAuthKitReturnTo(returnTarget)
-                if (destination && destination !== landed) {
-                    router.replace(destination)
-                }
-                if (onSuccess) onSuccess()
+                if (!applyAuthPresentation(presentAuthResult(result, { username }), turnstile.reset)) return
+                await finishSignedIn("signupCompleted" in result && result.signupCompleted)
             } catch (err) {
                 turnstile.reset()
                 setMessage(err instanceof Error ? err.message : "Failed to create account") // signup-gate-exempt: the login form itself, part of the auth flow
             }
         })
+    }
+
+    if (verifyStep) {
+        return (
+            <VerifyCodeStep
+                {...verifyStep}
+                onVerified={({ signupCompleted }) => finishSignedIn(signupCompleted)}
+                onBack={() => { setVerifyStep(null); setPassword('') }}
+            />
+        )
     }
 
     if (showForgotPassword) {

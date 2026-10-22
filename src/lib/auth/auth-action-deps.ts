@@ -26,6 +26,9 @@ export interface AuthActionDeps {
   deleteUser(userId: string): Promise<void>;
   getUserByExternalId(externalId: string): Promise<User>;
   authenticateWithPassword(options: { email: string; password: string }): Promise<AuthenticationResponse>;
+  authenticateWithEmailVerification(options: { code: string; pendingAuthenticationToken: string }): Promise<AuthenticationResponse>;
+  /** Emails a fresh verification code to the account with this address. */
+  resendVerificationEmail(email: string): Promise<void>;
   createPasswordReset(options: { email: string }): Promise<{ passwordResetToken: string }>;
   resetPassword(options: { token: string; newPassword: string }): Promise<void>;
   saveSession(authResponse: AuthenticationResponse, url: string): Promise<void>;
@@ -51,6 +54,12 @@ export async function realAuthActionDeps(): Promise<AuthActionDeps> {
     deleteUser: (userId) => userManagement.deleteUser(userId),
     getUserByExternalId: (externalId) => userManagement.getUserByExternalId(externalId),
     authenticateWithPassword: (options) => userManagement.authenticateWithPassword({ clientId, ...options }),
+    authenticateWithEmailVerification: (options) => userManagement.authenticateWithEmailVerification({ clientId, ...options }),
+    resendVerificationEmail: async (email) => {
+      const { data } = await userManagement.listUsers({ email });
+      if (!data[0]) throw new Error("no account for this address");
+      await userManagement.sendVerificationEmail({ userId: data[0].id });
+    },
     createPasswordReset: (options) => userManagement.createPasswordReset(options),
     resetPassword: async (options) => {
       await userManagement.resetPassword(options);

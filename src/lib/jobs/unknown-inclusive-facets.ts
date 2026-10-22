@@ -13,8 +13,16 @@
  */
 import type { FacetKey } from "./types";
 
+/**
+ * Ruling 2026-10-22, "return all search results ranked by relevance and fit":
+ * the same holds for work mode and salary. `knownOnly` builds the strict twin
+ * of every clause here (known matches only) — `runTieredRetrieval` runs it at
+ * full weight beside the inclusive form at a lower one, so unknown rows rank
+ * after known ones instead of being dropped (or interleaved).
+ */
+
 /** facet key -> its "value was never derived" sentinel. Extend here, nowhere else. */
-export const UNKNOWN_INCLUSIVE_FACETS: Partial<Record<FacetKey, string>> = { experience_level: "unknown" };
+export const UNKNOWN_INCLUSIVE_FACETS: Partial<Record<FacetKey, string>> = { experience_level: "unknown", work_type: "unknown" };
 
 /** True when `value` means "not derived" for `key` (absent, empty, or the sentinel). */
 export function isUnknownFacetValue(key: FacetKey, value: string | null | undefined): boolean {
@@ -22,13 +30,21 @@ export function isUnknownFacetValue(key: FacetKey, value: string | null | undefi
   return sentinel !== undefined && (value == null || value === "" || value.toLowerCase() === sentinel);
 }
 
-/** Meilisearch clause for one facet's selected `vals`: OR within the key, plus the unknown rows when the key includes them. */
-export function facetFilterClause(key: FacetKey, vals: readonly string[]): string {
-  const sentinel = UNKNOWN_INCLUSIVE_FACETS[key];
+/** Meilisearch clause for one facet's selected `vals`: OR within the key, plus the unknown rows when the key includes them (unless `knownOnly`). */
+export function facetFilterClause(key: FacetKey, vals: readonly string[], knownOnly = false): string {
+  const sentinel = knownOnly ? undefined : UNKNOWN_INCLUSIVE_FACETS[key];
   const terms = [...new Set(sentinel === undefined ? vals : [...vals, sentinel])].map((v) => `${key} = ${JSON.stringify(v)}`);
   // The field may be a null or an absent attribute on un-derived rows — the sentinel alone would miss both.
   if (sentinel !== undefined) terms.push(`${key} IS NULL`, `${key} NOT EXISTS`);
   return `(${terms.join(" OR ")})`;
+}
+
+/** Meilisearch clause for a salary floor: a posting whose range reaches `min`, plus (unless `knownOnly`) postings that state no salary at all. */
+export function salaryMinClause(min: number, knownOnly = false): string {
+  const known = `salary_max >= ${min} OR salary_min >= ${min}`;
+  if (knownOnly) return `(${known})`;
+  const missing = (f: string) => `(${f} IS NULL OR ${f} NOT EXISTS)`;
+  return `(${known} OR (${missing("salary_max")} AND ${missing("salary_min")}))`;
 }
 
 /** In-memory twin of `facetFilterClause` for a non-empty `vals`; `value` is the row's value for `key`, null when absent. */

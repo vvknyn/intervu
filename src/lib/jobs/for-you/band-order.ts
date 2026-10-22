@@ -110,6 +110,11 @@ export interface DeckLeftOutSummary {
     listed: number;
     /** Roles left out, by the first reason that applies. */
     byReason: Partial<Record<ListLeftOut, number>>;
+    /**
+     * Roles the list holds below the ones that fit, by why they rank lower (`RANKED_LOWER_REASONS`, plus the hard
+     * reasons the person chose to include: `DeckListInclude`). Not in `byReason`: they are listed, last.
+     */
+    rankedLower?: Partial<Record<ListLeftOut, number>>;
     /** The roles left out as "language", by the language the posting is written in (its most used): "french" → 8. */
     languages?: Record<string, number>;
     /** Nothing fit, so `listed` are the closest roles, each a weaker fit (`orderNearMisses`), not roles that fit. */
@@ -236,13 +241,66 @@ export function withListRemovals(
 }
 
 /**
+ * Reasons that only rank a role lower: the roles stay in the list, after the fit bands (Vivek, 2026-10-22: "return all
+ * search results ranked by relevance and fit"). Every other reason is a hard cut the list keeps (old, abroad,
+ * unplaced, language, and the two `listCandidates` removes), unless the person includes it (`DeckListInclude`).
+ */
+export const RANKED_LOWER_REASONS: readonly DeckLeftOut[] = ["level", "requirement", "other-role", "stretch"];
+
+/** Hard cuts a person has chosen to see anyway: those roles join the ranked-lower tail instead of being left out. */
+export interface DeckListInclude {
+    /** Roles outside where they can work (`abroad`, `unplaced`). */
+    abroad?: boolean;
+    /** Roles posted over `PACK_MAX_AGE_DAYS` ago. */
+    older?: boolean;
+}
+
+/**
  * What a pack's deck holds of the roles it weighs, and what it says about the rest. One function for the deck and for the
- * packs hub's counts, so a count on the hub is the deck's: the roles that fit (plus relevant Stretch roles ranked after
- * Strong and Good); when none does, the roles that fit and are older (`orderOlderFits`); failing those the closest weaker
+ * packs hub's counts, so a count on the hub is the deck's: `ranked` is the roles that fit (plus relevant Stretch roles ranked
+ * after Strong and Good); when none does, the roles that fit and are older (`orderOlderFits`); failing those the closest weaker
  * fits (`orderNearMisses`), and failing those the closest older ones (`orderOlderNearMisses`), so a list is never empty
- * while roles were found. `summary` says which, and why the rest were left out.
+ * while roles were found. `lower` is every other role that only ranks lower (`RANKED_LOWER_REASONS`), in the same order,
+ * listed after `ranked`. `summary` says which, and why the rest were left out.
  */
 export function deckListFor(
+    candidates: readonly PublicJob[],
+    getScore: (job: PublicJob) => MatchScore | null | undefined,
+    nowMs: number,
+    include: DeckListInclude = {},
+): { ranked: PublicJob[]; lower: PublicJob[]; summary: DeckLeftOutSummary } {
+    const main = deckMainList(candidates, getScore, nowMs);
+    const listedIds = new Set(main.ranked.map((job) => job.id));
+    const lowerReasons = new Set<DeckLeftOut>([...RANKED_LOWER_REASONS, ...(include.abroad ? ["abroad" as const, "unplaced" as const] : []), ...(include.older ? ["old" as const] : [])]);
+    const lowerReason = (job: PublicJob, score: MatchScore): DeckLeftOut | null => {
+        const reason = deckLeftOut(job, score, nowMs);
+        // An older role the person included still has to pass every other cut (an older role abroad stays out).
+        const rest = reason === "old" ? deckLeftOut(job, score, nowMs, { ignoreAge: true }) : null;
+        return reason != null && lowerReasons.has(reason) && (rest == null || lowerReasons.has(rest)) ? reason : null;
+    };
+    const lower = orderRoles(candidates, getScore, nowMs, (job, score) => !listedIds.has(job.id) && lowerReason(job, score) != null);
+    const byReason = { ...main.summary.byReason };
+    const rankedLower: NonNullable<DeckLeftOutSummary["rankedLower"]> = {};
+    for (const job of lower) {
+        const reason = lowerReason(job, getScore(job)!)!;
+        rankedLower[reason] = (rankedLower[reason] ?? 0) + 1;
+        const left = (byReason[reason] ?? 0) - 1;
+        if (left > 0) byReason[reason] = left;
+        else delete byReason[reason];
+    }
+    return { ranked: main.ranked, lower, summary: { ...main.summary, byReason, ...(lower.length > 0 ? { rankedLower } : {}) } };
+}
+
+/** `deckListFor`'s list as a list that holds only the roles that fit: what it ranks lower counts as left out again (the agent's `for_you`). */
+export function withRankedLowerLeftOut({ ranked, summary }: { ranked: PublicJob[]; summary: DeckLeftOutSummary }): { ranked: PublicJob[]; summary: DeckLeftOutSummary } {
+    const { rankedLower = {}, ...rest } = summary;
+    const byReason = { ...rest.byReason };
+    for (const [reason, n] of Object.entries(rankedLower) as [DeckLeftOut, number][]) byReason[reason] = (byReason[reason] ?? 0) + n;
+    return { ranked, summary: { ...rest, byReason } };
+}
+
+/** The roles a list leads with, before the ranked-lower tail (`deckListFor`'s fit, older, closest and closest-older lists). */
+function deckMainList(
     candidates: readonly PublicJob[],
     getScore: (job: PublicJob) => MatchScore | null | undefined,
     nowMs: number,

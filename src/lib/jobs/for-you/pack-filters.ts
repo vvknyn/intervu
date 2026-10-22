@@ -31,11 +31,10 @@ export function packFilters(resume: ResumeData, signals: CandidateSignals): Jobs
     // Roles they said they want lead the search; the résumé fills the rest (`buildMatchQuery`).
     const { q, facets: derived } = buildMatchQuery(resume, undefined, preferredRoles(signals));
     const facets = { ...derived };
-    // A stated "mid" retrieves Senior too when the résumé shows a long career that led people or work: it widens what
-    // is read, never the level scoring holds them to. Vivek's Settings said mid beside 13 years with lead roles, and the
-    // pack read 32 rows (2026-10-14).
+    // The résumé's level ranks roles (band order, the "level" left-out reason), it never filters them: only a level
+    // the person picks in Filters does (Vivek, 2026-10-22: "return all search results ranked by relevance and fit").
+    // `levels` only decides whether the title search also asks for the lead name below.
     const levels = experienceLevelFacet(signals.seniority.value, resume);
-    if (levels) facets.experience_level = levels;
     const countries = candidateCountries(signals);
     if (countries.length > 0) facets.location_country = countries;
     if (signals.remotePreference.value) facets.work_type = ["remote"];

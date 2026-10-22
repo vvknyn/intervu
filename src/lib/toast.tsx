@@ -16,100 +16,14 @@
  */
 
 import * as React from "react";
+import {
+    subscribe, dismissToast, resolveConfirm, startToastTimer, getToastItems, getConfirmState,
+    type ToastVariant, type ToastItem,
+} from "./toast-store";
+export { toast, confirmToast, type ToastAction, type ConfirmOptions } from "./toast-store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, WarningCircle, Info, X } from "@phosphor-icons/react";
-
-type ToastVariant = "success" | "error" | "info";
-
-/** One button on a toast, such as "Try again". Pressing it also dismisses the toast. */
-export interface ToastAction {
-    label: string;
-    onClick: () => void;
-}
-
-interface ToastItem {
-    id: number;
-    message: string;
-    variant: ToastVariant;
-    duration: number;
-    action?: ToastAction;
-}
-
-export interface ConfirmOptions {
-    title: string;
-    description?: string;
-    confirmLabel?: string;
-    cancelLabel?: string;
-    /** Renders the confirm button in destructive (red) styling. */
-    destructive?: boolean;
-}
-
-interface ConfirmState extends ConfirmOptions {
-    id: number;
-    resolve: (ok: boolean) => void;
-}
-
-// --- Module-level store (so any component or non-React caller can fire) ---
-
-let toastItems: ToastItem[] = [];
-let confirmState: ConfirmState | null = null;
-let seq = 0;
-const listeners = new Set<() => void>();
-
-function emit() {
-    for (const l of listeners) l();
-}
-
-function subscribe(cb: () => void) {
-    listeners.add(cb);
-    return () => {
-        listeners.delete(cb);
-    };
-}
-
-function pushToast(message: string, variant: ToastVariant, duration: number, action?: ToastAction): number {
-    const id = ++seq;
-    toastItems = [...toastItems, { id, message, variant, duration, action }];
-    emit();
-    if (duration > 0 && typeof window !== "undefined") {
-        window.setTimeout(() => dismissToast(id), duration);
-    }
-    return id;
-}
-
-function dismissToast(id: number) {
-    toastItems = toastItems.filter((t) => t.id !== id);
-    emit();
-}
-
-/** Fire a non-blocking toast. */
-export const toast = {
-    success: (message: string, duration = 3500) => pushToast(message, "success", duration),
-    error: (message: string, duration = 5000, action?: ToastAction) => pushToast(message, "error", duration, action),
-    info: (message: string, duration = 3500) => pushToast(message, "info", duration),
-};
-
-/**
- * Styled, promise-based replacement for window.confirm(). Resolves true if the
- * user confirms, false otherwise (cancel / dismiss). If a confirm is already
- * open, the new request resolves false immediately rather than stacking.
- */
-export function confirmToast(opts: ConfirmOptions): Promise<boolean> {
-    if (typeof window === "undefined") return Promise.resolve(false);
-    if (confirmState) return Promise.resolve(false);
-    return new Promise<boolean>((resolve) => {
-        confirmState = { ...opts, id: ++seq, resolve };
-        emit();
-    });
-}
-
-function resolveConfirm(ok: boolean) {
-    const c = confirmState;
-    confirmState = null;
-    emit();
-    c?.resolve(ok);
-}
 
 // --- Rendering ---
 
@@ -138,14 +52,18 @@ const EMPTY_TOASTS: ToastItem[] = [];
 export function Toaster() {
     const items = React.useSyncExternalStore(
         subscribe,
-        () => toastItems,
+        getToastItems,
         () => EMPTY_TOASTS,
     );
     const confirm = React.useSyncExternalStore(
         subscribe,
-        () => confirmState,
+        getConfirmState,
         () => null,
     );
+
+    React.useEffect(() => {
+        for (const t of items) startToastTimer(t.id);
+    }, [items]);
 
     return (
         <>

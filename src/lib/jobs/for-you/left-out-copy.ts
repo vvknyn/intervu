@@ -96,7 +96,8 @@ export function formatRolesAtEmployers(roles: number, employers?: number): strin
 
 /**
  * The list's own count, at the foot of the deck. The deck gives each employer one card (`collapseByEmployer`), so with
- * `employers` fewer than the roles the count says both: "12 roles fit your résumé at 7 employers".
+ * `employers` fewer than the roles the count says both: "12 closest roles at 7 employers · each a weaker fit". A list of roles that
+ * fit says only "12 roles · ranked by fit": its employers are the first row of the disclosure (`disclosureRows`).
  */
 export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit", employers?: number): string | null {
     const n = Math.floor(listed);
@@ -105,7 +106,7 @@ export function formatDeckShowingLine(listed: number, kind: DeckListKind = "fit"
     if (kind === "near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit`;
     if (kind === "older-near") return `${n.toLocaleString()} closest ${n === 1 ? "role" : "roles"}${at} · each a weaker fit, all posted over ${PACK_MAX_AGE_DAYS} days ago`;
     if (kind === "older") return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · all posted over ${PACK_MAX_AGE_DAYS} days ago`;
-    return `${n.toLocaleString()} ${n === 1 ? "role fits" : "roles fit"} your résumé${at} · best fit first`;
+    return `${n.toLocaleString()} ${n === 1 ? "role" : "roles"} · ranked by fit`;
 }
 
 /**
@@ -127,3 +128,61 @@ export const OLDER_FITS_NOTICE = `No role posted in the last ${PACK_MAX_AGE_DAYS
 
 /** Said above the closest older roles, when nothing newer is even close: a weaker fit, posted longer ago, and each card says how old it is. */
 export const OLDER_NEAR_MISS_NOTICE = `None of the roles we found fit your résumé well yet, and nothing posted in the last ${PACK_MAX_AGE_DAYS} days is close. These are the closest, each a weaker fit, posted longer ago, and some may already be filled. Each card says how old it is.`;
+
+/** The roles a list ranks lower, and the roles it leaves out: the two counts the one disclosure line (`formatRankedLine`) gives. */
+export const rankedLowerTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.rankedLower ?? {}).reduce((sum, n) => sum + n, 0);
+export const hiddenTotal = (summary: DeckLeftOutSummary): number => Object.values(summary.byReason).reduce((sum, n) => sum + n, 0);
+
+/** "Showing 236 of 368 · 122 ranked lower · 54 hidden": the roles on the page of those the search found, and the two ways the rest differ. Null when there is nothing to say. */
+export function formatRankedLine(summary: DeckLeftOutSummary | null | undefined): string | null {
+    if (!summary) return null;
+    const lower = rankedLowerTotal(summary);
+    const hidden = hiddenTotal(summary);
+    const of = summary.found ?? summary.considered;
+    const shown = summary.listed + lower;
+    if (lower === 0 && hidden === 0 && shown >= of) return null;
+    return ["Showing " + shown.toLocaleString() + " of " + of.toLocaleString(), lower > 0 ? `${lower.toLocaleString()} ranked lower` : null, hidden > 0 ? `${hidden.toLocaleString()} hidden` : null]
+        .filter(Boolean)
+        .join(" · ");
+}
+
+/** What the disclosure's action does: widen the list to include the roles, open the tracker, or scroll to the ranked-lower divider. */
+export type DisclosureAction = { kind: "include"; reason: ListLeftOut; language?: string } | { kind: "tracker" } | { kind: "jump" };
+
+export interface DisclosureRow {
+    key: string;
+    group: "employers" | "hidden" | "lower";
+    /** Absent for the employers row, which is a sentence. */
+    count?: number;
+    reason: string;
+    action?: DisclosureAction;
+}
+
+/** Hard cuts a person can bring back (`DeckListInclude`), and the one that goes to their tracker. */
+const INCLUDABLE: ReadonlySet<ListLeftOut> = new Set(["old", "abroad", "unplaced"]);
+
+/**
+ * The expanded disclosure, one row per non-zero bucket: the list's employers, then what is hidden (with the action that
+ * brings it back), then what is ranked lower (with a jump to it). `reason` is the same words as the old paragraph
+ * (`REASON_TEXT`); a language is named ("written in German") and carries its own include action.
+ */
+export function disclosureRows(summary: DeckLeftOutSummary, employers?: number): DisclosureRow[] {
+    const rows: DisclosureRow[] = [];
+    const roles = formatRolesAtEmployers(summary.listed, employers);
+    if (roles !== formatRolesAtEmployers(summary.listed)) rows.push({ key: "employers", group: "employers", reason: roles });
+    const hardAction = (reason: ListLeftOut): DisclosureAction | undefined =>
+        INCLUDABLE.has(reason) ? { kind: "include", reason } : reason === "tracked" ? { kind: "tracker" } : undefined;
+    for (const reason of REASON_ORDER) {
+        const n = summary.byReason[reason] ?? 0;
+        if (n <= 0) continue;
+        const written = reason === "language" ? Object.entries(summary.languages ?? {}).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]) : [];
+        for (const [language, count] of written) rows.push({ key: `language-${language}`, group: "hidden", count, reason: `written in ${languageLabel(language)}`, action: { kind: "include", reason, language } });
+        const rest = n - written.reduce((sum, [, count]) => sum + count, 0);
+        if (rest > 0) rows.push({ key: reason, group: "hidden", count: rest, reason: REASON_TEXT[reason], action: reason === "language" ? undefined : hardAction(reason) });
+    }
+    for (const reason of REASON_ORDER) {
+        const n = summary.rankedLower?.[reason] ?? 0;
+        if (n > 0) rows.push({ key: `lower-${reason}`, group: "lower", count: n, reason: REASON_TEXT[reason], action: { kind: "jump" } });
+    }
+    return rows;
+}

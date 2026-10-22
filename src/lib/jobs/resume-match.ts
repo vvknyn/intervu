@@ -568,7 +568,8 @@ const ADJACENCY_INDUSTRIES: ReadonlySet<IndustryId> = new Set(["tech", "business
  * (`closeToOwn`): a Customer Success Manager's search added "Product Manager"
  * and a web developer's "Backend Engineer" (focus group, 2026-10-12).
  * Headlines and roles that aren't job titles (`NOT_A_JOB_TITLE`) are skipped.
- * Seniority widens to mid+senior so adjacent mid-level roles stay visible.
+ * Carries no facets: the résumé's level is a ranking input (`experienceLevelFacet` feeds the lead-title form,
+ * scoring reads the level itself), never a filter on the search.
  * `resumeIsUsable` is defined in terms of this function's output (see
  * resume-usable.ts) precisely so the two can't drift apart again.
  */
@@ -600,10 +601,7 @@ export function buildMatchQuery(
     }
 
     const q = formatQuotedOrQuery(terms);
-    const facets: Partial<Record<FacetKey, string[]>> = {};
-    const levels = experienceLevelFacet(resumeSeniority(resume));
-    if (levels) facets.experience_level = levels;
-    return { q, facets, phrases: terms };
+    return { q, facets: {}, phrases: terms };
 }
 
 /**

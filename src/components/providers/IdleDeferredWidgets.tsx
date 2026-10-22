@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { hasPendingToasts, subscribe as subscribeToasts } from "@/lib/toast-store";
 import { scheduleAfterLoadOrIdle } from "@/lib/perf/schedule-after-load-or-idle";
 
 const LocalAiParamSync = dynamic(
@@ -31,6 +32,13 @@ export function IdleDeferredWidgets() {
     const [ready, setReady] = useState(false);
 
     useEffect(() => scheduleAfterLoadOrIdle(() => setReady(true), { timeout: 7000 }), []);
+    // A toast fired before idle must not wait for it: mount the Toaster now.
+    useEffect(() => {
+        if (hasPendingToasts()) setReady(true);
+        return subscribeToasts(() => {
+            if (hasPendingToasts()) setReady(true);
+        });
+    }, []);
 
     if (!ready) return null;
 

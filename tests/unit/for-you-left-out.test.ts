@@ -152,8 +152,8 @@ describe('what the list says about the roles it left out', () => {
         assert.equal(formatLeftOutLine(null), null);
     });
     it('counts what fits, never the size of the search', () => {
-        assert.equal(formatDeckShowingLine(68), '68 roles fit your résumé · best fit first');
-        assert.equal(formatDeckShowingLine(1), '1 role fits your résumé · best fit first');
+        assert.equal(formatDeckShowingLine(68), '68 roles · ranked by fit');
+        assert.equal(formatDeckShowingLine(1), '1 role · ranked by fit');
         assert.equal(formatDeckShowingLine(0), null);
     });
 });

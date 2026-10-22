@@ -115,10 +115,11 @@ import { ResumePlaceConfirm } from "@/components/jobs/for-you/ResumePlaceConfirm
 import { useVisit } from "@/hooks/use-visit";
 import { listNewSince } from "@/lib/jobs/list-new-since";
 import { EmployerMore, type EmployerMoreRole } from "@/components/jobs/for-you/EmployerMore";
+import { RANKED_LOWER_ANCHOR } from "@/components/jobs/for-you/RankedListDisclosure";
 import { RecommendedListNotes } from "@/components/jobs/for-you/RecommendedListNotes";
-import { LanguagesControl } from "@/components/jobs/LanguagesControl";
+import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesControl";
 import { useLanguageChoice } from "@/hooks/use-language-choice";
-import { formatHubFitLine } from "@/lib/jobs/for-you/left-out-copy";
+import { formatHubFitLine, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
 import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
@@ -931,6 +932,23 @@ function EmptyResults({
                 remaining BrowseSeedRow call sites, both genuine no-results/
                 end-of-list surfaces. */}
             <BrowseSeedRow seeds={seeds} onSubmit={onSubmitSeed} />
+        </div>
+    );
+}
+
+/** The foot of a ranked list that has not ranked the whole search: the button that reads and ranks the next page (it does not scroll on by itself). */
+function RankMore({ count, loading, onClick }: { count: number; loading: boolean; onClick: () => void }) {
+    return (
+        <div className="px-[var(--list-inset)] py-5 text-left">
+            <button
+                type="button"
+                data-testid="rank-more"
+                disabled={loading}
+                onClick={onClick}
+                className="text-xs text-muted-foreground underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
+            >
+                {loading ? "Ranking more roles…" : `Rank ${count.toLocaleString()} more`}
+            </button>
         </div>
     );
 }
@@ -2745,22 +2763,31 @@ export function JobsContent({
     // could take that is none, not the world (an Iceland résumé's list was a million roles from other countries).
     const fitPlaces = useMemo(() => namedPlaces({ ...DEFAULT_URL_STATE, facets }), [facets]);
     const placeDropped = result != null && fitPlaces.length > 0 && locationDropped({ ...DEFAULT_URL_STATE, facets }, result);
+    // Hard cuts the person chose to see anyway (the disclosure's "Include"): those roles join the ranked-lower tail.
+    const [includeAbroad, setIncludeAbroad] = useState(false);
+    const [includeOlder, setIncludeOlder] = useState(false);
     const recommended = useMemo(() => {
         if (!fitActive || !matchScores) return null;
         const read = listCandidates(
             placeDropped ? [] : clusters.map((c) => c.primary),
             listApplied ? (job) => trackedPursuitFor(job, listApplied.index) != null : undefined,
         );
-        const { ranked, summary } = deckListFor(read.candidates, (job) => matchScores.get(job.id) ?? null, nowMs);
-        const keep = new Set(ranked.map((job) => job.id));
-        const held = sortByFit(
-            clusters.filter((c) => keep.has(c.primary.id)),
-            (c) => ({ job: c.primary, score: matchScores.get(c.primary.id) }),
-            { nowMs, seen: (id) => seenBefore?.has(id) ?? false },
-        );
+        const { ranked, lower, summary } = deckListFor(read.candidates, (job) => matchScores.get(job.id) ?? null, nowMs, { abroad: includeAbroad, older: includeOlder });
+        // The roles that fit lead, in the one order; the ones that only rank lower follow in the same order.
+        const inOrder = (jobs: typeof ranked) => {
+            const ids = new Set(jobs.map((job) => job.id));
+            return sortByFit(
+                clusters.filter((c) => ids.has(c.primary.id)),
+                (c) => ({ job: c.primary, score: matchScores.get(c.primary.id) }),
+                { nowMs, seen: (id) => seenBefore?.has(id) ?? false },
+            );
+        };
+        const lowerIds = new Set(lower.map((job) => job.id));
+        const held = [...inOrder(ranked), ...inOrder(lower)];
         const slots = collapseByEmployer(held, (c) => c.primary);
-        return { slots, roles: held.length, summary: withListRemovals(summary, read, result?.total) };
-    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total]);
+        const tailLeadId = slots.find((slot) => lowerIds.has(slot.lead.primary.id))?.lead.primary.id ?? null;
+        return { slots, roles: held.length, tailLeadId, summary: withListRemovals(summary, read, result?.total) };
+    }, [fitActive, matchScores, clusters, placeDropped, listApplied, nowMs, seenBefore, result?.total, includeAbroad, includeOlder]);
     const rankedClusters = useMemo(() => (recommended ? recommended.slots.map((slot) => slot.lead) : clusters), [recommended, clusters]);
     // The other roles of each employer's slot, by the role that leads it, with the fit label each has elsewhere.
     const employerMoreByLead = useMemo(() => {
@@ -2794,7 +2821,7 @@ export function JobsContent({
     const readLanguages = signals?.languages?.value ?? null;
     // The languages postings are read in: a control where roles written in another were left out, and wherever the
     // person has changed them. Saved to the account, so only for a signed-in one.
-    const languagesEl =
+    const languagesControl = (leftOut?: Record<string, number>) =>
         recommendedReady &&
         uid != null &&
         readLanguages &&
@@ -2802,13 +2829,20 @@ export function JobsContent({
             <LanguagesControl
                 languages={readLanguages}
                 resumeDefault={resumeDefaultLanguages(resume)}
-                leftOut={recommended.summary.languages}
+                leftOut={leftOut}
                 onChange={(stored) => void language.choose(stored)}
                 pending={language.pending}
                 testId="list-languages"
                 className="justify-start"
             />
         ) : null;
+    // Where roles were left out for their language the control carries an Include button for each (the empty state
+    // below); the list's disclosure has those buttons in its own rows instead.
+    const languagesEl = languagesControl(recommended?.summary.languages);
+    const languagesPanelEl = languagesControl();
+    const includeLanguage = (code: string) => {
+        if (readLanguages) void language.choose(storedLanguages([...readLanguages, code], resumeDefaultLanguages(resume)));
+    };
     // The résumé-fit gate: a guest's ranked list stops after the free preview and
     // the rest needs an account. Applied at the SOURCE of every ranked surface —
     // the Search list, the For-you deck and keyboard order all read
@@ -3238,6 +3272,9 @@ export function JobsContent({
     // line says how many roles the search found.
     const hasMore =
         !recommended && result?.configured === true && hits.length > 0 && hits.length < total && hits.length < MAX_REACHABLE;
+    // A ranked list does not scroll on by itself; it says how many roles of the search it has not ranked yet and reads
+    // the next page when asked ("Rank 300 more"), so it never ends on a list shorter than the search.
+    const unrankedCount = recommended && !fitGate.gated && !depthGated && result?.configured === true ? Math.min(total, MAX_REACHABLE) - hits.length : 0;
     // A4 — once `hasMore` goes false, WHY it stopped matters: genuinely out
     // of results, or just out of MAX_REACHABLE reach while `totalCount` (the
     // honest, facet-sum-recovered total) is far bigger. See
@@ -3287,7 +3324,9 @@ export function JobsContent({
         const cur = result;
         if (!cur || !cur.configured) return;
         if (cur.hits.length >= cur.total || cur.hits.length >= MAX_REACHABLE) return;
-        const ticket = paginationRef.current!.beginLoadMore(PAGE, cur.hits.length);
+        // A ranked list reads on a whole page at a time ("Rank 300 more"), scored in the browser like the first.
+        const pageSize = fitActiveRef.current ? FOR_YOU_PAGE : PAGE;
+        const ticket = paginationRef.current!.beginLoadMore(pageSize, cur.hits.length);
         if (!ticket) return; // first page active or another load-more owns the generation
         setLoadingMore(true);
         try {
@@ -3305,7 +3344,7 @@ export function JobsContent({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
                 ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
                 ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
-                limit: PAGE,
+                limit: pageSize,
                 offset: ticket.offset,
             });
             if (!paginationRef.current!.completeLoadMore(ticket)) return;
@@ -3315,7 +3354,7 @@ export function JobsContent({
             const outcome = interpretLoadMoreResponse({
                 gated: r.meta?.gated === true,
                 received: r.hits.length,
-                requested: PAGE,
+                requested: pageSize,
             });
             if (outcome === "gated") {
                 // Refused, not searched — `r.hits`/`r.total` are not a real
@@ -3326,7 +3365,7 @@ export function JobsContent({
             }
             // "depth" = which page this load-more just fetched (1-indexed);
             // fired once per genuinely-served page, never for a gated refusal.
-            captureEvent("search_results_paged", { depth: Math.floor(ticket.offset / PAGE) + 1 });
+            captureEvent("search_results_paged", { depth: Math.floor(ticket.offset / pageSize) + 1 });
             setResult((prev) => {
                 if (!prev) return prev;
                 // React may run this updater after another first-page generation
@@ -3520,6 +3559,17 @@ export function JobsContent({
             unmatched: unmatchedPlaceNote(r.unmatchedPlaceMentions, r.unmatchedQueryMentions),
         });
         applyFilterState(next, r.understood.residualQ);
+    };
+
+    // The disclosure's "Include": bring back the roles a bucket left out, as the ranked-lower tail. Older roles also
+    // widen the posted window the search reads (to 90 days) when it is narrower; abroad is a session choice.
+    const includeFromList = (row: DisclosureRow) => {
+        const { reason, language: code } = row.action as Extract<DisclosureAction, { kind: "include" }>;
+        if (code) return includeLanguage(code);
+        if (reason === "old") {
+            setIncludeOlder(true);
+            if (postedBucket && postedBucket !== "90d" && postedBucket !== "older") applyFilterState({ ...filterState, postedBucket: "90d", postedExplicit: true });
+        } else setIncludeAbroad(true);
     };
 
     const applyFilterStateWithIntent = useCallback(
@@ -6220,7 +6270,7 @@ export function JobsContent({
                                             {/* A résumé-ranked list says what it left out and why, in the words the
                                                 daily picks and the MCP tools use (left-out-copy.ts). */}
                                             {recommendedReady && recommended && (
-                                                <RecommendedListNotes summary={recommended.summary} languages={languagesEl} />
+                                                <RecommendedListNotes summary={recommended.summary} languages={languagesPanelEl} employers={recommended.slots.length} onInclude={includeFromList} />
                                             )}
                                             {/* The alerts switch's email form, right under the switch
                                                 that opened it (signed out). */}
@@ -6339,6 +6389,19 @@ export function JobsContent({
                                                       ]
                                                     : []),
                                             ];
+                                            // Where the roles that only rank lower begin.
+                                            if (recommended && cluster.primary.id === recommended.tailLeadId) {
+                                                rows.unshift(
+                                                    <p
+                                                        key="ranked-lower"
+                                                        id={RANKED_LOWER_ANCHOR}
+                                                        data-testid="ranked-lower-divider"
+                                                        className="mt-2 scroll-mt-20 border-t border-border px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
+                                                    >
+                                                        Ranked lower · {rankedLowerTotal(recommended.summary).toLocaleString()}
+                                                    </p>,
+                                                );
+                                            }
                                             // Under `fitActive` the visible order is the
                                             // match-score resort above, not relevance —
                                             // the "titled it vs mentions it" seam text no
@@ -6439,6 +6502,7 @@ export function JobsContent({
                                         it self-guards on `endOfListState`, so nothing actionable
                                         here can ever render while `hasMore` is true (see its own
                                         doc comment, above). */}
+                                    {unrankedCount > 0 && <RankMore count={Math.min(FOR_YOU_PAGE, unrankedCount)} loading={loadingMore} onClick={() => void loadMore()} />}
                                     <ListTail
                                         endOfListState={endOfListState}
                                         totalCount={recommended ? gateTotal : totalCount}

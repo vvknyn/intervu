@@ -18,7 +18,7 @@ import {
 import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
 import { forgetIdentity } from "@/lib/identity/forget";
 import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
-import { friendlyWorkosAuthMessage, workosErrorCodes } from "@/lib/auth/workos-errors";
+import { friendlyWorkosAuthMessage, verifyStepFor, workosErrorCodes, type VerifyStep } from "@/lib/auth/workos-errors";
 import { newPasswordProblem } from "@/lib/auth/password-rules";
 import { SIGNUP_FAILED_MESSAGE, signupRateLimitMessage, signInRateLimitMessage } from "@/lib/auth/auth-refusal-copy";
 import { logServer } from "@/lib/observability/posthog-logs";
@@ -26,6 +26,13 @@ import { resolveWorkosUserId, getWorkosUserManagement } from "@/lib/auth/workos-
 import { provisionAppAccess } from "@/lib/auth/provisioning";
 import { claimSignupEvent } from "@/lib/auth/signup-event";
 import { getSiteUrl } from "@/lib/seo/constants";
+import { normalizeEmailCode } from "@/lib/auth/email-code-pending";
+import {
+    EMAIL_CODE_FORMAT_MESSAGE,
+    EMAIL_CODE_WRONG_MESSAGE,
+    emailCodeRateLimitMessage,
+} from "@/lib/auth/email-code-copy";
+import { allowAuthEmailCodeRequest } from "@/lib/shield/rate-limit";
 import { type AuthActionDeps, realAuthActionDeps } from "@/lib/auth/auth-action-deps";
 
 export async function checkUsernameAvailability(username: string) {
@@ -70,7 +77,7 @@ function logSignupRefused(reason: string, attrs: Record<string, string | number 
 export async function signUpCore(
     deps: Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession">,
     input: { username: string; password: string; email: string },
-): Promise<{ error: string } | { success: true; user: User }> {
+): Promise<{ error: string } | { notice: string; kind: "success" | "info" } | VerifyStep | { success: true; user: User }> {
     const { username, password, email } = input;
 
     let created: User;
@@ -103,19 +110,21 @@ export async function signUpCore(
         await deps.saveSession(authResponse, getSiteUrl());
         return { success: true, user: authResponse.user };
     } catch (error) {
+        const step = verifyStepFor(error, email);
+        if (step) return step;
         console.error("[Auth] Post-signup sign-in failed:", error);
         // The account and its profile both exist — only the automatic
         // sign-in failed. A distinct message from a bad-credentials sign-in
         // failure: this person's password is correct, they just need to
         // submit it once more.
-        return { error: "Account created — please sign in." };
+        return { notice: "Account created — sign in to continue.", kind: "success" };
     }
 }
 
 export async function signUp(
     prevState: any,
     formData: FormData,
-): Promise<{ error: string } | { success: true; signupCompleted: boolean }> {
+): Promise<{ error: string } | { notice: string; kind: "success" | "info" } | VerifyStep | { success: true; signupCompleted: boolean }> {
     const username = formData.get("username") as string;
     const password = formData.get("password") as string;
     const turnstileToken = formData.get("turnstileToken") as string | null;
@@ -194,7 +203,7 @@ export async function signUp(
 
     const deps = await realAuthActionDeps();
     const result = await signUpCore(deps, { username, password, email });
-    if ("error" in result) return result;
+    if (!("success" in result)) return result;
 
     // Deferred, not awaited: welcome email + org membership
     // must never turn a successful signup into an error, and a person
@@ -221,21 +230,21 @@ export async function signUp(
 export async function signInCore(
     deps: Pick<AuthActionDeps, "authenticateWithPassword" | "saveSession">,
     input: { identifier: string; password: string },
-): Promise<{ error: string } | { success: true; user: User }> {
+): Promise<{ error: string } | VerifyStep | { success: true; user: User }> {
     const email = resolveLoginEmail(input.identifier);
     try {
         const authResponse = await deps.authenticateWithPassword({ email, password: input.password });
         await deps.saveSession(authResponse, getSiteUrl());
         return { success: true, user: authResponse.user };
     } catch (error) {
-        return { error: friendlyWorkosAuthMessage(error, "Sign-in failed — try again in a moment.") };
+        return verifyStepFor(error, email) ?? { error: friendlyWorkosAuthMessage(error, "Sign-in failed — try again in a moment.") };
     }
 }
 
 export async function signIn(
     prevState: any,
     formData: FormData,
-): Promise<{ error: string } | { success: true }> {
+): Promise<{ error: string } | VerifyStep | { success: true }> {
     const identifier = formData.get("username") as string;
     const password = formData.get("password") as string;
 
@@ -250,7 +259,7 @@ export async function signIn(
 
     const deps = await realAuthActionDeps();
     const result = await signInCore(deps, { identifier, password });
-    if ("error" in result) return result;
+    if (!("success" in result)) return result;
 
     // Same deferred-provisioning reasoning as `signUp` above — a returning
     // user's sign-in must not wait on, or fail because of, the welcome/
@@ -262,6 +271,80 @@ export async function signIn(
     );
 
     return { success: true };
+}
+
+/**
+ * Redeem the emailed code against the pending token WorkOS handed back
+ * (`VerifyStep`), then save the session as a password sign-in would.
+ * A refused code keeps the step open: WorkOS lets the same token try again.
+ */
+export async function verifyPasswordEmailCodeCore(
+    deps: Pick<AuthActionDeps, "authenticateWithEmailVerification" | "saveSession">,
+    input: { code: unknown; pendingAuthenticationToken: string },
+): Promise<{ error: string } | { success: true; user: User }> {
+    const code = normalizeEmailCode(input.code);
+    if (!code) return { error: EMAIL_CODE_FORMAT_MESSAGE };
+    try {
+        const authResponse = await deps.authenticateWithEmailVerification({
+            code,
+            pendingAuthenticationToken: input.pendingAuthenticationToken,
+        });
+        await deps.saveSession(authResponse, getSiteUrl());
+        return { success: true, user: authResponse.user };
+    } catch (error) {
+        // Why, never the code or token.
+        const e = error as { name?: string; status?: number } | null;
+        logServer("warn", "email code refused", { error_name: e?.name ?? "unknown", error_status: e?.status });
+        return { error: EMAIL_CODE_WRONG_MESSAGE };
+    }
+}
+
+export async function verifyPasswordEmailCode(
+    prevState: any,
+    formData: FormData,
+): Promise<{ error: string } | { success: true; signupCompleted: boolean }> {
+    const pendingAuthenticationToken = formData.get("pendingAuthenticationToken");
+    if (typeof pendingAuthenticationToken !== "string" || !pendingAuthenticationToken) {
+        return { error: EMAIL_CODE_WRONG_MESSAGE };
+    }
+    const ip = await getClientIp();
+    if (!allowAuthEmailCodeRequest(ip)) {
+        return { error: emailCodeRateLimitMessage(allowAuthEmailCodeRequest.retryAfterMs(ip)) };
+    }
+    const deps = await realAuthActionDeps();
+    const result = await verifyPasswordEmailCodeCore(deps, { code: formData.get("code"), pendingAuthenticationToken });
+    if (!("success" in result)) return result;
+
+    after(() =>
+        provisionAppAccess(deps.provisioning, result.user, "password").catch((err) =>
+            console.error("[Auth] post-verify provisioning failed:", err),
+        ),
+    );
+    // A person verifying here is usually finishing a signup; the claim is
+    // one-shot per account, so a returning user verifying reports false.
+    return { success: true, signupCompleted: await claimSignupEvent(result.user) };
+}
+
+export async function resendVerificationCodeCore(
+    deps: Pick<AuthActionDeps, "resendVerificationEmail">,
+    input: { email: string },
+): Promise<{ error: string } | { notice: string; kind: "info" }> {
+    try {
+        await deps.resendVerificationEmail(input.email);
+        return { notice: "We sent a new code. Check your email.", kind: "info" };
+    } catch (error) {
+        const e = error as { name?: string; status?: number } | null;
+        logServer("warn", "verification resend failed", { error_name: e?.name ?? "unknown", error_status: e?.status });
+        return { error: "Couldn't send a new code just now. Try again in a minute." };
+    }
+}
+
+export async function resendVerificationCode(email: string): Promise<{ error: string } | { notice: string; kind: "info" }> {
+    const ip = await getClientIp();
+    if (!allowAuthEmailCodeRequest(ip)) {
+        return { error: emailCodeRateLimitMessage(allowAuthEmailCodeRequest.retryAfterMs(ip)) };
+    }
+    return resendVerificationCodeCore(await realAuthActionDeps(), { email });
 }
 
 /**
