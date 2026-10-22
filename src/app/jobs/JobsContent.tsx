@@ -121,7 +121,7 @@ import { LanguagesControl, storedLanguages } from "@/components/jobs/LanguagesCo
 import { useLanguageChoice } from "@/hooks/use-language-choice";
 import { formatHubFitLine, rankedLowerTotal, type DisclosureAction, type DisclosureRow } from "@/lib/jobs/for-you/left-out-copy";
 import { rowReasonLine } from "@/lib/jobs/for-you/row-reason";
-import { JOBS_SESSION_FRAME_CLASS, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
+import { JOBS_SESSION_FRAME_CLASS, JobsFitHoldShell, JobsSessionLoadingShell } from "@/components/layout/jobs-session-loading";
 import { ResumeRemove } from "@/components/jobs/ResumeInUse";
 import { countResults, formatPlaceList, isThinResults, locationDropped, namedPlaces } from "@/lib/jobs/broaden";
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
@@ -321,7 +321,7 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitUrlState, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { ColdVisitorOrientation } from "@/components/jobs/ColdVisitorOrientation";
@@ -329,16 +329,16 @@ import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
-import { mergeFacets } from "@/lib/jobs/resume-match";
 import { toast } from "@/lib/toast";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
+import type { JobsInitial } from "@/lib/jobs/server-entry";
 import { LandingNotice } from "@/components/layout/LandingNotice";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
 import { storedResumeData } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
-import { isConfirmedSignedIn, isConfirmedSignedOut, resolveJobsResumeOnFile } from "@/lib/auth/jobs-chrome-gates";
+import { isConfirmedSignedIn, isConfirmedSignedOut, jobsHomeHold, resolveJobsResumeOnFile } from "@/lib/auth/jobs-chrome-gates";
 import {
     formatAuthGateValueLine,
     GUEST_SAVE_TOAST,
@@ -1019,8 +1019,11 @@ const LISTED_ROWS = 10;
 export function JobsContent({
     initialSearch = null,
     signedOutOnServer = false,
+    initial = null,
 }: {
     initialSearch?: InitialSearch | null;
+    /** The signed-in visitor's session and résumé presence, read on the server (`/jobs` page.tsx). */
+    initial?: JobsInitial | null;
     /** The middleware found no session for this page load (/jobs/front-door). */
     signedOutOnServer?: boolean;
 } = {}) {
@@ -1587,13 +1590,14 @@ export function JobsContent({
     // When the current first-page request started, for `useListRenderTiming`.
     const searchStartedAtRef = useRef<number | null>(null);
 
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<User | null>(initial?.user ?? null);
     // Session cookie is httpOnly — first paint is "not yet known", not signed
     // out. Holding this false keeps résumé presence on `null` so /jobs does
     // not flash Search chrome for a returning user with a résumé on file.
     // A front door the server rendered for a request with no session starts
-    // signed out, as its HTML does; the session check below still runs.
-    const [authReady, setAuthReady] = useState(signedOutOnServer);
+    // signed out, as its HTML does; the session check below still runs. A signed-in page the
+    // server rendered starts signed in, with the session it read.
+    const [authReady, setAuthReady] = useState(signedOutOnServer || initial != null);
     // The signed-in email nudge: an account whose only address is a minted
     // <username>@intervu.cc can't receive anything we send. Value lives in
     // localStorage and is read post-mount, so it starts at the SUPPRESSED
@@ -1911,7 +1915,7 @@ export function JobsContent({
     // distinct state, not folded into `false`) — called unconditionally,
     // every render, per the Rules of Hooks; combined with `hasUsableResume`
     // below rather than short-circuited into it.
-    const resumeKnownOnServer = useResumePresence(user?.uid ?? null, authReady);
+    const resumeKnownOnServer = useResumePresence(user?.uid ?? null, authReady, initial?.resumeOnFile ?? null);
 
     // A visitor who parsed a résumé as a guest (the fit gate lets them upload and
     // see their top 3 first) and then created the account arrives here with the
@@ -2114,7 +2118,18 @@ export function JobsContent({
         const t = window.setTimeout(() => setPendingExpired(true), JOBS_HOME_PENDING_MAX_MS);
         return () => window.clearTimeout(t);
     }, []);
-    const showJobsHomePending = signedIn && atRest && !searchIntent && resumeOnFile === null && !pendingExpired;
+    // Set once the at-rest auto-fit below has run its course, with a list or without a résumé to rank by.
+    const [autoFitSettled, setAutoFitSettled] = useState(false);
+    const homeHold = jobsHomeHold({
+        signedIn,
+        atRest,
+        searchIntent,
+        resumeOnFile,
+        autoFitEligible: activeEntries.length === 0 && sortOverride === null && !explicitlySubmitted && !fitActive,
+        autoFitSettled,
+        pendingExpired,
+    });
+    const showJobsHomePending = homeHold !== null;
     // The search chrome (masthead, search box, filters) shows unless the page is holding its place for the account.
     const showSearchHome = !showJobsHomePending;
     // The at-rest front door: Search home, nothing typed, filtered or open.
@@ -4171,36 +4186,21 @@ export function JobsContent({
     // `urlSortToBackendSort` (search-payload.ts) for why the backend sort stays relevance, not a
     // literal "fit" value.
     const applyFit = (r: ResumeData) => {
-        // The résumé's pack filters, the same state "Edit filters" opens the board on, so fit-ranking
-        // the board and applying the pack by hand return the same rows. A place the user already
-        // picked is theirs, never replaced by the résumé's.
-        const { q, facets: packFacets, postedBucket: packBucket } = packFilters(r, resolveCandidateSignals(r, agentPrefs));
-        const userPickedLocation = LOCATION_FACET_FIELDS.some((field) => (facets[field] ?? []).length > 0);
-        const derived = { ...packFacets };
-        if (userPickedLocation) for (const field of LOCATION_FACET_FIELDS) delete derived[field];
-        const merged = mergeFacets(facets, derived);
-        // A recommendation uses the pack's own window (30 days, or Settings › Posted within), not the
-        // board's 90-day default: ~half of the roles of that window were older than 30 days (2026-10-13).
-        // A window the person picked by hand on the board stays theirs.
-        const keepUserWindow = postedExplicit;
-        setFacets(merged);
-        if (!keepUserWindow) {
-            setPostedBucket(packBucket);
+        // The pack's filters, the same state "Edit filters" opens the board on (`fitApplication`, shared with
+        // the server's signed-in redirect so both land on one address). A recommendation uses the pack's own
+        // window (30 days, or Settings › Posted within), not the board's 90-day default: ~half of the roles of
+        // that window were older than 30 days (2026-10-13). A window picked by hand stays theirs.
+        const fit = fitApplication(r, agentPrefs, { facets, postedExplicit });
+        setFacets(fit.facets);
+        if (!fit.keepUserWindow) {
+            setPostedBucket(fit.postedBucket);
             setPostedExplicit(true);
         }
-        setQueryDraft(q);
-        setQuery(q);
+        setQueryDraft(fit.q);
+        setQuery(fit.q);
         setSortOverride(null);
         setFitActive(true);
-        applyUrlState(
-            buildUrlState({
-                q,
-                facets: merged,
-                sort: "fit",
-                ...(keepUserWindow ? {} : { postedBucket: packBucket, postedExplicit: true }),
-            }),
-            "replace",
-        );
+        applyUrlState(fitUrlState(buildUrlState(), fit), "replace");
     };
 
     // Resolve a usable résumé and apply fit if one is found — the guarded
@@ -4251,7 +4251,7 @@ export function JobsContent({
     const atRestRef = useRef(atRest);
     atRestRef.current = atRest;
     useEffect(() => {
-        if (!showSearchHome) {
+        if (homeHold === "resume") {
             autoFitAtRestRef.current = false;
             return;
         }
@@ -4272,8 +4272,11 @@ export function JobsContent({
             .then((r) => {
                 if (r && fitIntentRef.current!.isCurrent(token) && atRestRef.current) applyFit(r);
             })
-            .finally(() => setFitResolving(false));
-    }, [showSearchHome, authReady, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
+            .finally(() => {
+                setFitResolving(false);
+                setAutoFitSettled(true);
+            });
+    }, [homeHold, authReady, atRest, fitActive, activeEntries.length, sortOverride, explicitlySubmitted, resumeOnFile]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Sort menu → "Rank by fit" click. A résumé already on hand applies
     // immediately; otherwise queue the résumé importer (via the existing
@@ -5827,7 +5830,7 @@ export function JobsContent({
                 {showJobsHomePending ? (
                     <div className={cn("mt-4", cappedContentClass)}>
                         <div className={cn(JOBS_SESSION_FRAME_CLASS, "state-opacity-in")} data-testid="jobs-home-pending">
-                            <JobsSessionLoadingShell />
+                            {homeHold === "fit" ? <JobsFitHoldShell /> : <JobsSessionLoadingShell />}
                         </div>
                     </div>
                 ) : (

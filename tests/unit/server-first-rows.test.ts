@@ -148,7 +148,7 @@ test("the server-rendered page searches with the list's own first-search params 
 
     const gate = read("src/app/jobs/JobsRouteGate.tsx");
     assert.match(gate, /startEarlyFirstSearch\(initialSearch\.params, \(\) => Promise\.resolve\(initialSearch\.result\)\)/);
-    assert.match(gate, /const renderedOnServer = initialSearch != null \|\| signedOut;/);
+    assert.match(gate, /const renderedOnServer = initialSearch != null \|\| signedOut \|\| initial != null;/);
     assert.match(gate, /if \(!mounted && !renderedOnServer\) return null;/);
 
     const content = read("src/app/jobs/JobsContent.tsx");

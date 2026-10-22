@@ -36,13 +36,21 @@ import { useEffect, useState } from "react";
 // (never résumé bytes/content) — not résumé interpretation, so it's exempt
 // from the server-import ban in tests/unit/local-ai-no-cloud-imports.test.ts.
 import { hasUsableResumeOnFile } from "@/actions/resume";
+import { createResumePresenceCache } from "@/lib/resume/resume-presence-cache";
 
-/** @param uid the signed-in user's id, or null when signed out. */
+/** The one read every subscriber on the page shares (resume-presence-cache.ts). */
+export const resumePresence = createResumePresenceCache(async () => (await hasUsableResumeOnFile()).hasResume);
+
+/**
+ * @param uid the signed-in user's id, or null when signed out.
+ * @param initial the answer the server rendered the page with, if it had one.
+ */
 export function useResumePresence(
     uid: string | null,
     authReady = true,
+    initial: boolean | null = null,
 ): boolean | null {
-    const [present, setPresent] = useState<boolean | null>(null);
+    const [present, setPresent] = useState<boolean | null>(initial);
 
     // Mirrors `usePursuits`' idiom (lib/pursuits/use-pursuits.ts): the read
     // runs via a microtask, never synchronously as the effect's own first
@@ -61,11 +69,17 @@ export function useResumePresence(
                 setPresent(false);
                 return;
             }
+            const kept = resumePresence.peek(uid);
+            if (kept !== null) {
+                setPresent(kept);
+                return;
+            }
             // Don't keep a stale `false` from the pre-auth uid=null tick while
             // this uid's round trip is in flight.
             setPresent(null);
-            hasUsableResumeOnFile()
-                .then(({ hasResume }) => {
+            resumePresence
+                .read(uid)
+                .then((hasResume) => {
                     if (!cancelled) setPresent(hasResume);
                 })
                 .catch(() => {

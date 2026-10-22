@@ -207,6 +207,18 @@ export function revalidateClientSession(): void {
     refreshSession();
 }
 
+/**
+ * Hand over the account the server rendered this page for, so the header and
+ * every other late subscriber replay it at once instead of each waiting on
+ * `/api/auth/session` (a "Sign in" button then the avatar). The live cookie is
+ * still re-checked by `onAuthChange`'s own read. Never after a sign-out.
+ */
+export function seedServerSession(user: ServerUser): void {
+    if (applyingSignOut || isSignedOutMarkerSet()) return;
+    resolvedEpoch = sessionEpoch;
+    resolvedUser = user;
+}
+
 function registerPageshowRevalidation(): void {
     if (pageshowRegistered || typeof window === "undefined") return;
     pageshowRegistered = true;
