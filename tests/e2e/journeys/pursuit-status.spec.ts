@@ -1,7 +1,7 @@
 import type { Download, Locator, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { extractText } from "unpdf";
-import { authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
+import { authGateCopy } from "../../../src/lib/auth/auth-gate-copy";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { expect, test } from "./fixtures";
 import { actionObject, PRODUCTION_SIGN_IN_ACCOUNT, signInLikeProduction } from "./signed-in";
@@ -545,7 +545,7 @@ test("a guest's Open posting on a tracked role's page asks to sign in to apply, 
     await page.getByRole("button", { name: "Open posting" }).click();
     // It used to open a plain "Sign in": the page never passed the gate's reason to its dialog.
     const dialog = page.getByRole("dialog");
-    await expect(dialog.getByText(authGateTitle("apply")!, { exact: true }).and(page.locator(":visible")).first()).toBeVisible({ timeout: 10_000 });
+    await expect(dialog.getByText(authGateCopy("apply").title, { exact: true }).and(page.locator(":visible")).first()).toBeVisible({ timeout: 10_000 });
     expect(popups, "no employer tab opens before sign-in").toBe(0);
     expect(diagnostics.pageErrors).toEqual([]);
 });

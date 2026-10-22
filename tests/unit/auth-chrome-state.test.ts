@@ -131,7 +131,7 @@ test("follow alerts bell requires a confirmed signed-in session", () => {
     assert.match(src, /if \(!isSignedIn\) return null/);
 });
 
-test("connect tab label ignores server résumé presence when signed out", () => {
-    const src = readFileSync(new URL("../../src/components/layout/use-connect-tab-label.ts", import.meta.url), "utf8");
+test("résumé tab label ignores server résumé presence when signed out", () => {
+    const src = readFileSync(new URL("../../src/components/layout/use-resume-tab-label.ts", import.meta.url), "utf8");
     assert.match(src, /signedIn && resumeOnFile === true/);
 });

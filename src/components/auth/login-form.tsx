@@ -41,7 +41,7 @@ interface LoginFormProps {
      * generic heading (`authCardCopy(activeTab).title`) and subcopy
      * (`SIGNUP_SUBCOPY`) — not stacked above them. The brand lockup above
      * stays put either way. Omit for the plain per-tab heading (unchanged
-     * default). Set by AuthPopover from `authGateTitle`/`valueLine` for a
+     * default). Set by AuthPopover from `authGateCopy`/`valueLine` for a
      * reason whose gate is a hard stop before the user can act (e.g. apply).
      */
     headline?: { title: string; body: React.ReactNode };

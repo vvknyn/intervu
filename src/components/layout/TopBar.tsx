@@ -15,11 +15,11 @@ import { Button } from "@/components/ui/button";
 import { CountBadge, SolidBadge } from "@/components/ui/badge";
 import { chipVariants, ChipDismiss } from "@/components/ui/chip";
 import { TabItem, TabNav } from "@/components/ui/tabs";
-import { NAV_TABS } from "@/components/layout/nav-tabs";
-import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
+import { NAV_TABS, RESUME_TAB } from "@/components/layout/nav-tabs";
+import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
 import { useNavBadgeCounts } from "@/components/layout/use-nav-badges";
 import { BrandLockup } from "@/components/brand/BrandMark";
-import { isLeanProductSurface, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
@@ -32,7 +32,6 @@ import { AUTH_CTA_LABEL } from "@/lib/auth/auth-gate-copy";
 export function TopBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
-    const leanSurface = isLeanProductSurface(pathname);
     // `undefined` until `onAuthChange` resolves — NOT `null`, which would
     // claim "signed out" during the server round-trip and flash a Sign-in
     // button at a signed-in user. See lib/auth/chrome-state.ts.
@@ -58,14 +57,9 @@ export function TopBar() {
     const navTabs = NAV_TABS.filter((t) => {
         // Signed out there is no product nav (sign-in / create-account instead).
         if (!user) return false;
-        if (t.href === "/connect") {
-            // Lean jobs/apply surfaces: drop the desktop header MCP link (/connect).
-            // Signed-out public chrome (404, marketing-adjacent routes): no MCP tab.
-            return !leanSurface && authChrome === "authenticated";
-        }
         return true;
     });
-    const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
+    const resumeLabel = useResumeTabLabel(user?.uid ?? null, user !== undefined);
 
     const hideNav = shouldHideSiteChrome(pathname);
     if (hideNav) return null;
@@ -185,7 +179,7 @@ export function TopBar() {
                                         data-tour={tab.tourSelector}
                                         data-nav-current={active ? "true" : undefined}
                                     >
-                                        {tab.href === "/connect" ? "MCP" : tab.label}
+                                        {tab.href === RESUME_TAB.href ? resumeLabel : tab.label}
                                         {count > 0 && <CountBadge count={count} data-testid={`${tab.testId}-badge`} />}
                                     </Link>
                                 </TabItem>

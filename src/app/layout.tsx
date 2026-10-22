@@ -211,7 +211,7 @@ export default function RootLayout({
                   renders it. Siblings can't share state without this. */}
               <SearchDockProvider>
               <TopBar />
-              {/* A new account's one-line welcome strip and its setup sheet;
+              {/* A new account's setup sheet;
                   nothing for anyone else (components/onboarding/). */}
               <OnboardingRoot />
               {/* The one <main> landmark per page (standard-pattern rule) —

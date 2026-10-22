@@ -326,9 +326,9 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(rankBlock, /size=\{jobActionSize\}/);
         assert.doesNotMatch(rankBlock, /\btext-(?:xs|sm)\b|\bfont-semibold\b/);
 
-        const asOfBlock = page.slice(page.indexOf('data-testid="resume-as-of"'), page.indexOf('data-testid="resume-as-of"') + 550);
+        const asOfBlock = page.slice(page.indexOf('data-testid="resume-as-of"'), page.indexOf('data-testid="resume-as-of"') + 750);
         assert.doesNotMatch(asOfBlock, /chipVariants/);
-        assert.match(asOfBlock, /Scoring with/);
+        assert.match(asOfBlock, /Ranked by your résumé/);
         assert.match(asOfBlock, /data-testid="jobs-replace-resume"/);
         assert.match(asOfBlock, /text-xs font-semibold text-foreground/);
         assert.match(asOfBlock, /Replace/);

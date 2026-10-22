@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { onAuthChange, type User } from "@/lib/firebase/client-auth";
-import { MOBILE_ACCOUNT_TAB, NAV_TABS, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
-import { useConnectTabLabel } from "@/components/layout/use-connect-tab-label";
+import { MOBILE_ACCOUNT_TAB, NAV_TABS, RESUME_TAB, mobilePrimaryTabs } from "@/components/layout/nav-tabs";
+import { useResumeTabLabel } from "@/components/layout/use-resume-tab-label";
 import { shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
 import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
@@ -15,7 +15,7 @@ import { cn, CHROME_FOCUS_VISIBLE } from "@/lib/utils";
 // `mobilePrimaryTabs`, never on a tab's name/href, so a future opt-out never
 // needs a second change here.
 /** Native phone primary nav: Jobs | Résumé | Tracker | Account.
- *  Connect/MCP stays off this bar (mobilePrimary:false) — reachable from deck MCP note + /connect. */
+ *  The AI pairing at /connect is reachable from Settings. */
 const MOBILE_TABS = [...mobilePrimaryTabs(NAV_TABS), MOBILE_ACCOUNT_TAB];
 
 /** HIG tab bar in house paint: 48px + the safe-area inset, hit areas
@@ -29,7 +29,7 @@ export function MobileTabBar() {
     const pathname = usePathname();
     const prefetchOnIntent = usePrefetchOnIntent();
     const [user, setUser] = useState<User | null | undefined>(undefined);
-    const connectLabel = useConnectTabLabel(user?.uid ?? null, user !== undefined);
+    const resumeLabel = useResumeTabLabel(user?.uid ?? null, user !== undefined);
 
     useEffect(() => {
         const unsubscribe = onAuthChange((nextUser) => setUser(nextUser));
@@ -50,7 +50,7 @@ export function MobileTabBar() {
             {MOBILE_TABS.map((tab) => {
                 const active = tab.match(pathname);
                 const Icon = tab.icon;
-                const label = tab.href === "/connect" ? connectLabel : tab.shortLabel;
+                const label = tab.href === RESUME_TAB.href ? resumeLabel : tab.shortLabel;
                 return (
                     <Link
                         key={tab.href + tab.label}

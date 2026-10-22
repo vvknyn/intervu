@@ -163,9 +163,6 @@ import { JobsListSplash } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 import {
     applyLocalAiSearchParam,
-    getLocalAiEnabledServerSnapshot,
-    getLocalAiEnabledSnapshot,
-    subscribeLocalAiEnabled,
 } from "@/lib/local-ai/flag";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -173,7 +170,7 @@ import { isRemoteWorkTypeValue, LOCATION_FACET_FIELDS } from "@/lib/jobs/meilise
 import { resolveCorpusCount, resolveHiddenCount, formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { resolveBeyondWindow, formatBeyondWindowText } from "@/lib/jobs/beyond-window";
 import { searchBoxFor } from "@/lib/jobs/search-copy";
-import { needsResumeEntry, needsResumeReplace, offersRankByFit } from "@/lib/jobs/resume-entry";
+import { offersRankByFit, resumeReadLine } from "@/lib/jobs/resume-entry";
 import { frontDoorRegions, isAtRest } from "@/lib/jobs/front-door-state";
 import { hasSearchIntent } from "@/lib/jobs/search-intent";
 import { FrontDoorFieldLinks } from "@/components/jobs/front-door/FrontDoorFieldLinks";
@@ -181,9 +178,7 @@ import { FrontDoorResumeBand } from "@/components/jobs/front-door/FrontDoorResum
 import { ExtensionTile } from "@/components/jobs/ExtensionTile";
 import { pickPromoBand } from "@/lib/jobs/promo-band";
 import { PRIVACY_HEADLINE, PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
-import { SetupPanel } from "@/components/onboarding/SetupPanel";
-import { SETUP_DONE_MESSAGE } from "@/components/onboarding/SetupSheet";
-import { noteResumeOnFile, useOnboarding } from "@/hooks/use-onboarding";
+import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
@@ -717,10 +712,6 @@ const RANKED_PLACE_NOTES_DEADLINE_MS = 1_000;
 /** The longest a signed-in account's unknown résumé holds the front door back (a failed presence read stays unknown). */
 const JOBS_HOME_PENDING_MAX_MS = 6_000;
 
-/** Jobs opened in a session before the résumé is offered (Screen 9). Three is
- *  the point where someone is demonstrably reading rather than glancing. */
-const RESUME_MOMENT_OPENS = 3;
-
 /* ----------------------------- results mode ----------------------------- */
 
 /**
@@ -956,9 +947,7 @@ function RankMore({ count, loading, onClick }: { count: number; loading: boolean
  * sentinel — the class fix (jobs-list-tail): affordances used to sit there
  * unconditionally, after the tail ternary, reachable only once `hasMore`
  * happened to be false, which browse-by-default's broad default result set
- * never is. Same structural anchor `showResumeMoment`'s own comment (above,
- * "the foot of what has actually been READ") already established for the
- * résumé moment, applied to the tail this time instead of the read-foot: an
+ * never is. An
  * affordance placed below infinite scroll must be GATED on the list having
  * genuinely ended, not just positioned there.
  *
@@ -1039,11 +1028,6 @@ export function JobsContent({
     const initialUrlState = useMemo(() => parseJobsUrl(searchParams), []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // R&D: `?localAi=1` enables on-device résumé parse for the session.
-    const localAiGuestEnabled = useSyncExternalStore(
-        subscribeLocalAiEnabled,
-        getLocalAiEnabledSnapshot,
-        getLocalAiEnabledServerSnapshot,
-    );
     useEffect(() => {
         if (searchParams.get("localAi") === "1") applyLocalAiSearchParam("1");
     }, [searchParams]);
@@ -1778,27 +1762,6 @@ export function JobsContent({
         setResumeSourceLabel(stored.sourceLabel ?? null);
     }, [user, resume]);
 
-    // Task 8 résumé upsell card dismissal — read once on mount (no new mount
-    // fetch of the résumé itself; Task 4 removed that). The card's other gate
-    // condition, `resumeIsUsable(resume)`, uses this same local `resume`
-    // state reactively — a successful import sets it and hides the card
-    // without any extra plumbing here.
-    const [upsellDismissed, setUpsellDismissed] = useState(false);
-    useEffect(() => {
-        try {
-            setUpsellDismissed(localStorage.getItem("intervu.jobs.upsell.dismissed") === "1");
-        } catch {
-            /* private mode */
-        }
-    }, []);
-    const dismissUpsell = () => {
-        setUpsellDismissed(true);
-        try {
-            localStorage.setItem("intervu.jobs.upsell.dismissed", "1");
-        } catch {
-            /* private mode */
-        }
-    };
 
     // Which auth value-line reason class to show (apply / generic).
     // Set by the call site that opened the popover; null = no value line.
@@ -1954,14 +1917,10 @@ export function JobsContent({
         resumeKnownOnServer,
     });
 
-    // Single gate behind every résumé invite on this page (band ghost word,
-    // sort menu's fourth item, résumé-moment card) — see `needsResumeEntry`'s
+    // Gate behind the toolbar and Sort résumé entries — see `offersRankByFit`'s
     // own doc comment for why it reads `resumeOnFile` (server-aware) rather
-    // than `hasUsableResume` (local-only): the latter told a returning
-    // signed-in user with a résumé already on the server to "add" one.
-    const showResumeEntry = needsResumeEntry({ signedIn, resumeOnFile, fitActive });
+    // than `hasUsableResume` (local-only).
     const showRankByFit = offersRankByFit({ resumeOnFile, fitActive });
-    const showResumeReplace = needsResumeReplace({ resumeOnFile });
 
     // Single source for "what filters are currently active" — the toolbar
     // pill's count and `emptySearchState` below both read this ONE call
@@ -2098,8 +2057,7 @@ export function JobsContent({
     // /jobs is board-first: the Search home (search box, filters, job rows) is
     // what every visitor lands on, signed in or out. A signed-in account with
     // no résumé used to get a full-page onboarding card here instead; it now
-    // gets the same board, with the résumé band after the feed (or, for a
-    // new account, its setup in place of the band: components/onboarding/).
+    // gets the same board, with the résumé band after the feed.
     // At rest the Search home shows no job rows: a list needs a reason (a
     // résumé, the visitor's own search or filters, or the job they came
     // for). The newest-in-your-country feed that used to fill it was opened
@@ -2545,12 +2503,6 @@ export function JobsContent({
         setSelectedId(id);
     }, []);
 
-    /** Jobs opened this session — the trigger for the Screen 9 résumé moment.
-     *  Deliberately not persisted: the moment is about the reading someone is
-     *  doing right now, and a count carried across visits would fire it at
-     *  someone who just arrived. */
-    const [opensThisSession, setOpensThisSession] = useState(0);
-
     /** Ids whose detail has been opened this session — dims a row's title
      *  from bold to muted on re-scan (see `JobCard`'s `opened` prop).
      *  Deliberately session-only (no persistence, resets on reload): this is
@@ -2631,7 +2583,6 @@ export function JobsContent({
                 ...matchAnalyticsProps(matchScores?.get(id) ?? null),
             });
         }
-        setOpensThisSession((n) => n + 1);
         const alreadyOpened = openedIds.has(id);
         setOpenedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
         if (hit) {
@@ -3688,24 +3639,6 @@ export function JobsContent({
     const ghostRevealCount = resolveGhostReveal(hideGhosts, ghostHiddenCount);
 
 
-    /**
-     * Screen 9's gate — the résumé moment.
-     *
-     * Three opens deep, not dismissed, and not already ranked by fit. It fires
-     * for people who HAVE a résumé too, which is the whole reason this replaced
-     * the old card: with the sort trio gone, "rank by fit" lost its only entry
-     * point, so a returning user with a résumé on file had no way left to ask
-     * for it. Whether we ask for a résumé or offer to use the one on hand is
-     * decided at the call site — same moment, one sentence apart.
-     *
-     * `resumeIsUsable` reads LOCAL state only (no mount fetch), so someone with
-     * a server-side résumé they haven't loaded this session is offered the
-     * upload path. Accepted trade-off, not a bug. `hasUsableResume` itself is
-     * hoisted near `emptySearchState` above — single source, see its comment.
-     */
-    const showResumeMoment =
-        !upsellDismissed && !fitActive && opensThisSession >= RESUME_MOMENT_OPENS && !tourActive;
-
     // Guest save upsell banner — shown after the first anonymous save (either
     // "Go after" or a saved search) until dismissed. Signed-in users never see
     // it; the `guestSaveCount` and `guestSaveBannerDismissed` states are
@@ -4386,12 +4319,6 @@ export function JobsContent({
         removeGuestAppliedResumes();
         window.location.replace("/jobs");
     };
-
-    const showSignInFitLine = !user && needsResumeEntry({
-        signedIn: false,
-        resumeOnFile,
-        fitActive,
-    });
 
     const importerLinkHandledRef = useRef(false);
 
@@ -5210,14 +5137,14 @@ export function JobsContent({
     const displayResumeLabel = (label: string | null, r: ResumeData | null): string =>
         label?.trim() || r?.profile?.name?.trim() || "Pasted text";
 
-    // "Scoring with {filename} · Replace" — one toolbar résumé control.
+    // "Ranked by your résumé · Replace" — one toolbar résumé control.
     const asOfEl =
         hasUsableResume && (signedIn || guestResumeInBrowser) ? (
             <span
                 data-testid="resume-as-of"
                 className="mono-data inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground"
             >
-                Scoring with {displayResumeLabel(resumeSourceLabel, resume)} ·{" "}
+                <span title={displayResumeLabel(resumeSourceLabel, resume)}>Ranked by your résumé</span> ·{" "}
                 <button
                     type="button"
                     data-testid="jobs-replace-resume"
@@ -5239,6 +5166,8 @@ export function JobsContent({
                 ) : null}
             </span>
         ) : null;
+
+    const resumeReadText = hasUsableResume && resume ? resumeReadLine(resume) : null;
 
     const showJobsToolbarRow = !headerDockActive;
     const showJobsToolbarSection =
@@ -5270,11 +5199,6 @@ export function JobsContent({
         extension: recommendedReady && recommended != null,
     });
     const frontDoorBandVisible = atRest && frontDoor.band !== null;
-    // A new account that landed on bare /jobs gets setup as the page itself,
-    // in place of the résumé band (components/onboarding/SetupPanel.tsx).
-    const onboarding = useOnboarding();
-    // Steps aside while the sheet is open over the page (the welcome email's link).
-    const setupPanelVisible = frontDoorAtRest && signedIn && onboarding.strip.show && onboarding.sheet === null;
 
     /**
      * `/jobs` renders one layout, not two: the search line, filter toggle,
@@ -5775,15 +5699,6 @@ export function JobsContent({
                     the week's live count, the visitor's last search, and
                     for a résumé on file, the way back to their matches.
                     Visitors with no résumé get FrontDoorResumeBand below. */}
-                {setupPanelVisible && (
-                    <SetupPanel
-                        onUploadResume={handleUploadClick}
-                        onFinished={() => {
-                            toast.success(SETUP_DONE_MESSAGE);
-                            void resolveAndApplyFit();
-                        }}
-                    />
-                )}
                 {frontDoorAtRest && (
                     <>
                         <FrontDoorWeekCount
@@ -5921,22 +5836,19 @@ export function JobsContent({
                                     whole board above it would be another list's number. */}
                                 {promoBand === "extension" && <ExtensionTile className="mb-3" />}
                                 {!fitActive && <BoardVisitBanner resultCount={hits.length} />}
-                                {localAiGuestEnabled && !user && (
+                                {fitActive && resumeReadText && (
                                     <div
-                                        data-testid="local-ai-guest-banner"
-                                        className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border pt-4 pb-2 text-sm text-muted-foreground"
+                                        data-testid="resume-read-strip"
+                                        className="mb-3 flex flex-wrap items-baseline gap-x-2 text-sm text-muted-foreground"
                                     >
-                                        <span>Local mode: your résumé is read and structured in this browser.</span>
-                                        {showResumeReplace && (
-                                            <button
-                                                type="button"
-                                                data-testid="local-ai-replace-resume"
-                                                onClick={() => handleUploadClick()}
-                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                            >
-                                                Replace résumé
-                                            </button>
-                                        )}
+                                        <span>{resumeReadText}</span>
+                                        <span aria-hidden>·</span>
+                                        <Link
+                                            href="/resume"
+                                            className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
+                                        >
+                                            Edit
+                                        </Link>
                                     </div>
                                 )}
 
@@ -6188,16 +6100,6 @@ export function JobsContent({
                                                             </span>
                                                         </span>
                                                     )}
-                                                    {showSignInFitLine && (
-                                                        <button
-                                                            type="button"
-                                                            data-testid="sign-in-for-fit"
-                                                            onClick={() => openAuth("fit", "user")}
-                                                            className="text-foreground underline underline-offset-2 transition-opacity hover:opacity-70"
-                                                        >
-                                                            {/* signup-gate-exempt: header line that opens the auth dialog */}Sign in to see your fit
-                                                        </button>
-                                                    )}
                                                     {beyondWindow.show && (
                                                         <span className="flex items-center gap-1.5">
                                                             {beyondWindowText}
@@ -6422,28 +6324,6 @@ export function JobsContent({
                                         ever arrives at, so anchoring it there meant it would
                                         never render. The foot of what has actually been READ
                                         is the reachable equivalent. */}
-                                    {showResumeMoment && (
-                                        <div
-                                            data-testid="resume-moment"
-                                            className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-5 text-sm text-muted-foreground"
-                                        >
-                                            <span>Want these ranked against your actual experience?</span>
-                                            <button
-                                                type="button"
-                                                onClick={() => void handleRankByFit()}
-                                                className="text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
-                                            >
-                                                {showResumeEntry ? "drop your résumé" : "use the résumé on file"}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={dismissUpsell}
-                                                className="underline underline-offset-2 transition-colors duration-100 hover:text-foreground"
-                                            >
-                                                no thanks
-                                            </button>
-                                        </div>
-                                    )}
 
                                     {/* Restyled "Show N more ↓" (spec) on the SAME infinite-scroll
                                         mechanism as before: `sentinelRef` still auto-fires on
@@ -6518,7 +6398,7 @@ export function JobsContent({
                 {/* Closing pitch after the live feed — one mount, same
                     `frontDoorRegions` band gate as before. Source order is the
                     first-viewport contract: jobs, then the résumé invite. */}
-                {frontDoorBandVisible && !setupPanelVisible && (
+                {frontDoorBandVisible && (
                     <FrontDoorResumeBand
                         signedIn={Boolean(user)}
                         onUploadClick={handleUploadClick}
@@ -6581,6 +6461,7 @@ export function JobsContent({
                 onClose={() => setImportOpen(false)}
                 onImport={handleImport}
                 confirmLabel="Rank my jobs"
+                rankFirst
                 title={importTitle}
                 description={RESUME_UPLOAD_PROMISE}
                 storageNote={resumeImportStorageNote(Boolean(user))}

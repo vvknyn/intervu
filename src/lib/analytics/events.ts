@@ -277,13 +277,9 @@ export interface EventPayloads {
     surface: "toolbar" | "alert_switch" | "after_sign_in" | "setup";
     signed_in: boolean;
   };
-  /** The new-account welcome strip showed on one of its visit days (1 to 3). */
-  onboarding_strip_shown: {
-    day: number;
-  };
-  /** Setup opened from the strip, the account menu, as /jobs itself, or from the welcome email's link. */
+  /** Setup opened from the account menu or from the welcome email's link. */
   onboarding_setup_opened: {
-    surface: "strip" | "menu" | "jobs_page" | "email";
+    surface: "menu" | "email";
   };
   /** One setup step answered or skipped; `via` says how a done step was answered. */
   onboarding_step_answered: {

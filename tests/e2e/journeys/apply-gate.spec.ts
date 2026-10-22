@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
-import { authCardCopy, authGateTitle } from "../../../src/lib/auth/auth-gate-copy";
+import { authCardCopy, authGateCopy } from "../../../src/lib/auth/auth-gate-copy";
 import { APPLY_BUTTON_LABEL, APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { expect, test } from "./fixtures";
 import { runSearch } from "./search-box";
@@ -12,7 +12,7 @@ import { runSearch } from "./search-box";
  * WorkOS.
  */
 
-const APPLY_TITLE = authGateTitle("apply")!;
+const APPLY_TITLE = authGateCopy("apply").title;
 
 /** Search, then open the first result's own job page. Returns its path. */
 async function openJobPage(page: Page): Promise<string> {

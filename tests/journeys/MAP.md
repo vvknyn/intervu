@@ -109,7 +109,7 @@ Public company pages (/co/<company>) and name-keyed /companies pages: the compan
 
 ### New-account setup
 
-What a new account gets after it signs up: the page it signed in on, a one-line welcome strip, three skippable steps (what you want, where you can work, a weekly email) in a sheet or as /jobs itself, and "Finish setup" in the account menu.
+What a new account gets after it signs up: the page it signed in on, three skippable steps (what you want, where you can work, a weekly email) in a sheet opened from "Finish setup" in the account menu, which carries a count badge.
 
 ### Résumé page and Customize
 

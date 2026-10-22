@@ -952,7 +952,7 @@ test("a guest's Search names the résumé it ranks against, and Remove forgets i
   // For you needs an account, so a guest's résumé opens Search on their top 3.
   await expect(fitGate(page)).toBeVisible({ timeout: 45_000 });
   const inUse = page.getByTestId("resume-as-of");
-  await expect(inUse).toContainText("Scoring with Sam_Rivera_Resume_V4.pdf");
+  await expect(inUse).toContainText("Ranked by your résumé");
 
   // Remove asks once; "Keep it" changes nothing.
   await inUse.getByTestId("jobs-remove-resume").click();

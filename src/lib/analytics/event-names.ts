@@ -58,7 +58,6 @@ export const ANALYTICS_EVENTS = {
 
   saved_search_created: "saved_search_created",
 
-  onboarding_strip_shown: "onboarding_strip_shown",
   onboarding_setup_opened: "onboarding_setup_opened",
   onboarding_step_answered: "onboarding_step_answered",
   onboarding_later: "onboarding_later",
