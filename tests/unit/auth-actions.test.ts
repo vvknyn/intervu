@@ -173,8 +173,22 @@ describe("signUpCore — auto sign-in fails after account and profile both exist
 
         const result = await signUpCore(deps, { username: "dave", password: "hunter22", email: "dave@example.com" });
 
-        assert.deepEqual(result, { error: "Account created — please sign in." });
+        assert.deepEqual(result, { notice: "Account created — sign in to continue.", kind: "success" });
         assert.equal(deletedIds.length, 0, "the account and profile are real — nothing to roll back");
+    });
+});
+
+describe("signUpCore — a genuine failure stays an error", () => {
+    it("a profile-write failure returns { error }, never a notice", async () => {
+        const deps: Pick<AuthActionDeps, "createUser" | "deleteUser" | "createProfile" | "authenticateWithPassword" | "saveSession"> = {
+            createUser: async () => fakeUser(),
+            deleteUser: async () => {},
+            createProfile: async () => { throw new Error("db down"); },
+            authenticateWithPassword: async () => { throw new Error("unreachable"); },
+            saveSession: async () => {},
+        };
+        const result = await signUpCore(deps, { username: "dave", password: "hunter22", email: "dave@example.com" });
+        assert.deepEqual(result, { error: "Profile setup failed. Please try again." });
     });
 });
 
