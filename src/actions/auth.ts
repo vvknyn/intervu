@@ -33,6 +33,7 @@ import {
     emailCodeRateLimitMessage,
 } from "@/lib/auth/email-code-copy";
 import { allowAuthEmailCodeRequest } from "@/lib/shield/rate-limit";
+import { deriveUsername } from "@/lib/auth/derive-username";
 import { type AuthActionDeps, realAuthActionDeps } from "@/lib/auth/auth-action-deps";
 
 export async function checkUsernameAvailability(username: string) {
@@ -125,18 +126,13 @@ export async function signUp(
     prevState: any,
     formData: FormData,
 ): Promise<{ error: string } | { notice: string; kind: "success" | "info" } | VerifyStep | { success: true; signupCompleted: boolean }> {
-    const username = formData.get("username") as string;
     const password = formData.get("password") as string;
     const turnstileToken = formData.get("turnstileToken") as string | null;
 
     // Free, local checks first (no I/O, nothing counted against the visitor):
     // a refusal here costs nothing and says exactly what to change.
-    if (!username || !password) {
-        return { error: "Username and password are required" };
-    }
-
-    if (username.length < 3) {
-        return { error: "Username must be at least 3 characters" };
+    if (!password) {
+        return { error: "Email and password are required" };
     }
 
     const passwordProblem = newPasswordProblem(password);
@@ -185,12 +181,13 @@ export async function signUp(
         return { error: EMAIL_QUALITY_MESSAGES[emailQuality.reason] };
     }
 
-    // Check availability again to be safe (a race against another signup
-    // between the client's earlier check and this submit).
-    const { available } = await checkUsernameAvailability(username);
-    if (!available) {
-        logSignupRefused("username_taken");
-        return { error: "Username is already taken" };
+    // The form no longer asks for a username: derive it from the email.
+    let username: string;
+    try {
+        username = await deriveUsername(email, async (u) => !(await checkUsernameAvailability(u)).available);
+    } catch {
+        logSignupRefused("username_unavailable");
+        return { error: SIGNUP_FAILED_MESSAGE };
     }
 
     // The tight per-IP budget counts only what is about to become a WorkOS
