@@ -122,14 +122,14 @@ describe('how close a posting is to the candidate\'s own role', () => {
     });
 });
 
-describe('senior-aware fit for the real TAM career (13 years, lead and senior roles before 5 as a TAM)', () => {
+describe('senior-aware fit for the real TAM career (11 years, lead and senior roles before 5 as a TAM)', () => {
     it('reads senior, fits mid and senior TAM roles alike as Strong, and says why', () => {
         const mid = score(TAM, canada('Technical Account Manager', 'mid'))!;
         const senior = score(TAM, canada('Senior Technical Account Manager', 'senior'))!;
         assert.equal(matchBand(mid.total), 'strong');
         assert.equal(matchBand(senior.total), 'strong');
-        assert.match(explainMatch(mid), /it's a mid-level role, which fits your experience: 13 years, including lead and senior roles/);
-        assert.match(explainMatch(senior), /it's a senior role, which matches the senior level of your 13 years of experience/);
+        assert.match(explainMatch(mid), /it's a mid-level role, which fits your experience: 11 years, including lead and senior roles/);
+        assert.match(explainMatch(senior), /it's a senior role, which matches the senior level of your 11 years of experience/);
     });
     it('a Senior PM role next to the TAM role is Good at most, never ahead of the TAM roles', () => {
         const pm = score(TAM, canada('Senior Product Manager', 'senior'))!;

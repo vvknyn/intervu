@@ -29,20 +29,11 @@ const MONTHS: Record<string, number> = {
 
 const PRESENT_RE = /^(present|current|now|ongoing|till date|to date)$/i;
 
-/**
- * Full calendar years elapsed between two dates (the "age" calculation — decrement
- * unless the end date's month/day has reached the start date's anniversary). This
- * avoids the off-by-one that an average-ms-per-year division introduces: e.g.
- * dividing by 365.2425 days/year floors an exact 5-year span (2021-01-01 to
- * 2026-01-01 = 1826 days, one leap day short of 5 * 365.2425) down to 4.
- */
-function fullYearsBetween(start: Date, end: Date): number {
-    let years = end.getFullYear() - start.getFullYear();
-    const monthDiff = end.getMonth() - start.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && end.getDate() < start.getDate())) {
-        years--;
-    }
-    return years;
+const monthIndex = (d: Date) => d.getFullYear() * 12 + d.getMonth();
+
+/** Whole calendar months elapsed between two dates (day-of-month aware, like an age calculation). */
+function fullMonthsBetween(start: Date, end: Date): number {
+    return monthIndex(end) - monthIndex(start) - (end.getDate() < start.getDate() ? 1 : 0);
 }
 
 /** Parse a single date token ("Feb 2020", "02/2020", "2020") into a Date (1st of month). Null if unparseable. */
@@ -115,21 +106,31 @@ function parseDateRange(dates: string, now: Date): ParsedRange | null {
 }
 
 /**
- * Compute total years of experience by spanning the earliest parsed start date
- * to the latest parsed end date (or `now` for current/ongoing roles) across all
- * work-history entries. Entries with unparseable or future-only dates are
- * excluded, not guessed at. Returns null when no entry had a usable date —
- * callers should fall back to the model's own estimate only in that case.
+ * Compute total years of experience as the sum of the merged role spans: overlapping
+ * roles count once, gaps between roles do not count, and an ongoing role runs to `now`.
+ * Dates are month-granular ("Dec 2019" parses as Dec 1), so a role starting the month
+ * after another ends is back-to-back, not a gap. Entries with unparseable or
+ * future-only dates are excluded, not guessed at. Returns null when no entry had a
+ * usable date — callers should fall back to the model's own estimate only in that case.
  */
 export function computeYearsOfExperience(experience: ResumeExperience[], now: Date): number | null {
     const ranges = (experience || [])
         .map(exp => parseDateRange(exp?.dates ?? "", now))
-        .filter((r): r is ParsedRange => r !== null);
+        .filter((r): r is ParsedRange => r !== null)
+        .sort((a, b) => a.start.getTime() - b.start.getTime());
 
     if (ranges.length === 0) return null;
 
-    const earliestStart = ranges.reduce((min, r) => (r.start < min ? r.start : min), ranges[0].start);
-    const latestEnd = ranges.reduce((max, r) => (r.end > max ? r.end : max), ranges[0].end);
+    const merged: ParsedRange[] = [{ ...ranges[0] }];
+    for (const r of ranges.slice(1)) {
+        const last = merged[merged.length - 1];
+        if (monthIndex(r.start) <= monthIndex(last.end) + 1) {
+            if (r.end > last.end) last.end = r.end;
+        } else {
+            merged.push({ ...r });
+        }
+    }
 
-    return Math.max(0, fullYearsBetween(earliestStart, latestEnd));
+    const months = merged.reduce((sum, r) => sum + Math.max(0, fullMonthsBetween(r.start, r.end)), 0);
+    return Math.floor(months / 12);
 }
