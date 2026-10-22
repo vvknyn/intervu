@@ -47,6 +47,16 @@ describe('broadenRungs', () => {
         assert.deepEqual(ids(broadenRungs(state({ experience_level: ['mid'] }))), ['any_seniority', 'any_date']);
     });
 
+    it('a salary floor gets an "Any salary" rung that clears only the floor; no floor, no rung', () => {
+        for (const floor of [60_000, 150_000]) {
+            const rung = broadenRungs(state({ location_country: ['Canada'] }, { salaryMin: floor })).find((r) => r.id === 'any_salary')!;
+            assert.equal(rung.label, 'Any salary');
+            assert.equal(rung.next.salaryMin, 0);
+            assert.deepEqual(rung.next.facets.location_country, ['Canada']);
+        }
+        assert.equal(ids(broadenRungs(state({}))).includes('any_salary'), false);
+    });
+
     it('the "any" sentinel is not a restriction', () => {
         assert.deepEqual(ids(broadenRungs(state({ location_country: ['any'] }))), ['any_date']);
     });
@@ -97,6 +107,21 @@ describe('resolveBroadenOptions: counts come from the same search call', () => {
             any_date: 5,
         });
         assert.ok(calls.every((c) => c.limit === 1), 'counting fetches no more than one hit');
+    });
+
+    it('"Any salary" shows its real count: roles under the floor are the delta, unknown-salary roles are already in the total', async () => {
+        const corpus = [
+            ...['h1', 'h2'].map((id) => mkJob(id, { salary_max: 200_000 })),
+            ...['l1', 'l2', 'l3'].map((id) => mkJob(id, { salary_max: 50_000 })),
+            ...['u1', 'u2', 'u3', 'u4'].map((id) => mkJob(id)),
+        ];
+        const { search } = corpusStub(corpus);
+        const floored = state({}, { salaryMin: 100_000, postedBucket: undefined });
+        const total = (await search({ salaryMin: 100_000 } as JobSearchParams)).total;
+        assert.equal(total, 6);
+        const options = await resolveBroadenOptions({ state: floored, total, search });
+        assert.deepEqual(countsById(options), { any_salary: 9 });
+        assert.equal(options[0].label, 'Any salary');
     });
 
     it('an option that adds 0 is hidden', async () => {

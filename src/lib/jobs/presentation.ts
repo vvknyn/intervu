@@ -1258,6 +1258,26 @@ export function stripStreetAddress(raw: string): string {
  *  copy of the literal string. */
 export const LOCATION_UNKNOWN_TEXT = "Location not listed";
 
+/** "City, Region, Country" from the resolved geo fields alone; "" when they
+ *  carry nothing usable. */
+export function structuredLocationText(j: PublicJob): string {
+    // The STRUCTURED fields carry the same accident: the Toolbx doc holds
+    // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
+    // One junk class, one guard — every field goes through it. A multi-
+    // country posting (`location_country` as an array) joins its distinct
+    // values into one string BEFORE hitting that same pipeline, so a
+    // 2-country posting reads "United States, Canada" like any other joined
+    // part rather than needing its own junk-filter pass. Each field also
+    // gets the same street-address strip as `locationText`'s raw branch — a
+    // scraped `location_city` can carry the same house-number/unit noise.
+    const country = Array.from(new Set(toValueArray(j.location_country))).join(", ");
+    const parts = [j.location_city, j.location_state, country]
+        .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
+        .filter(Boolean);
+    const fromFields = normaliseLocation(parts.join(", "));
+    return fromFields ? titleCaseDisplay(fromFields) : "";
+}
+
 export function locationText(j: PublicJob): string {
     if (j.location) {
         const readable = humanizeRawLocation(decodeText(j.location));
@@ -1277,25 +1297,7 @@ export function locationText(j: PublicJob): string {
             return titleCaseDisplay(stripped);
         }
     }
-    // The STRUCTURED fields carry the same accident: the Toolbx doc holds
-    // "[object Object]" in `location_city` too (retrieved live 2026-07-26).
-    // One junk class, one guard — every field goes through it. A multi-
-    // country posting (`location_country` as an array) joins its distinct
-    // values into one string BEFORE hitting that same pipeline, so a
-    // 2-country posting reads "United States, Canada" like any other joined
-    // part rather than needing its own junk-filter pass. Each field also
-    // gets the same street-address strip as the raw branch above — a
-    // scraped `location_city` can carry the same house-number/unit noise.
-    const country = Array.from(new Set(toValueArray(j.location_country))).join(", ");
-    const parts = [j.location_city, j.location_state, country]
-        .map((v) => (v ? stripStreetAddress(humanizeRawLocation(decodeText(v)) ?? "") : ""))
-        .filter(Boolean);
-    const fromFields = normaliseLocation(parts.join(", "));
-    if (fromFields) {
-        return titleCaseDisplay(fromFields);
-    }
-    if (j.work_type === "remote") return "Remote";
-    return LOCATION_UNKNOWN_TEXT;
+    return structuredLocationText(j) || (j.work_type === "remote" ? "Remote" : LOCATION_UNKNOWN_TEXT);
 }
 
 /** How many segments the identity-header location line shows before the

@@ -9,8 +9,6 @@ import { EMPLOYMENT_TYPES, EXPERIENCE_LEVELS, WORK_TYPES } from "@/lib/agent/fac
 import { BOARD_META, type BoardId } from "@/lib/boards/types";
 import { FACETABLE_KEYS, type FacetKey, type PostedBucket, type YearsExperienceBucket } from "@/lib/jobs/types";
 import { classifyCountryValue } from "@/lib/jobs/country-classification";
-import { addLocationValue, type SuggestField } from "@/lib/jobs/location-suggest";
-import { parseWorkTypeTokens } from "@/lib/jobs/query-understanding";
 import { GHOST_META } from "@/lib/jobs/presentation";
 import { SEARCH_DEFAULTS } from "@/lib/jobs/search-defaults";
 import { capitalizeWords } from "@/lib/text-case";
@@ -106,118 +104,6 @@ export const POPULAR_LOCATION_COUNTRIES = [
     "Singapore",
     "Ireland",
 ] as const;
-
-export type LocationSheetDraft = {
-    useDetected: boolean;
-    /**
-     * EVERY place the sheet has chosen, not one.
-     *
-     * This was `country: string | null`, so committing the sheet replaced the
-     * whole `location_country` list with a single value — mobile could never
-     * ask for "Canada and remote", and a phone opening a two-place URL saw
-     * only the first one. The corpus, the URL (`?country=a,b`) and
-     * `resolveLocationFacet` have all carried a LIST from the start; this
-     * field was the last place that collapsed it, and the sheet's own copy
-     * ("Pick one or more") already promised otherwise.
-     */
-    places: string[];
-    /** Text typed into the sheet's search box and not picked from its list.
-     *  Continue commits it as one more place, the way the desktop box
-     *  commits typed text on Enter. */
-    otherText: string;
-    remote: boolean;
-};
-
-/** Applies a location-sheet draft onto filter state — pure, unit-testable. */
-export function applyLocationSheetDraft(
-    draft: LocationSheetDraft,
-    state: FilterState,
-    remoteValue: string | undefined,
-): FilterState {
-    const facets = { ...state.facets };
-    if (draft.useDetected) {
-        // "Use my detected location" means "stop filtering explicitly and let
-        // the server's IP default apply", so it clears the list rather than
-        // adding to it.
-        delete facets.location_country;
-    } else {
-        // Free text commits as one more place, folded-deduped through the same
-        // helper the desktop picker uses — typing "Montreal" when "Montréal"
-        // is already chosen is a no-op, not a second filter for one city.
-        const chosen = draft.otherText.trim()
-            ? addLocationValue(draft.places, draft.otherText)
-            : draft.places;
-        const cleaned = chosen.map((v) => v.trim()).filter(Boolean);
-        if (cleaned.length) facets.location_country = cleaned;
-        else delete facets.location_country;
-    }
-
-    if (remoteValue) {
-        const cur = facets.work_type ?? [];
-        const has = cur.includes(remoteValue);
-        if (draft.remote && !has) facets.work_type = [...cur, remoteValue];
-        else if (!draft.remote && has) {
-            const next = cur.filter((x) => x !== remoteValue);
-            if (next.length) facets.work_type = next;
-            else delete facets.work_type;
-        }
-    }
-
-    return { ...state, facets };
-}
-
-/**
- * Where a committed location value goes. A suggestion keeps the field it was
- * advertised on. Typed text that is only a work mode ("Remote", "Hybrid")
- * names a way of working, not a place, so it goes where the "Remote —
- * anywhere" pick goes and the visitor's own country still applies. As a
- * place it switched that country off for good, and a Canadian's "Remote" led
- * with roles in India and Colombia (focus group, 2026-10-12).
- */
-export function placeFieldFor(value: string, field?: SuggestField): SuggestField | undefined {
-    if (field !== undefined) return field;
-    const mode = parseWorkTypeTokens(value.trim());
-    return mode.workTypes.length > 0 && !/[\p{L}\p{N}]/u.test(mode.residualQ) ? "work_type" : undefined;
-}
-
-/**
- * One picked or typed place added to the filter — the desktop location box
- * and the phone sheet's search both commit through this, so a city picked on
- * either surface is filtered the same way.
- *
- * A suggestion carries the field it was advertised on (`SuggestField`) and is
- * written into THAT field's own bucket, so it is filtered as the exact
- * literal it was counted as (`resolvePickedFacetValue`, query-understanding.ts)
- * instead of being re-resolved as free text through the gazetteer, which is
- * what let a composite value ("US CA San Diego") or an ambiguous bare name
- * ("San Jose") mis-resolve against the wrong field or country. Free-typed text
- * (`field` undefined) and a picked COUNTRY both go to `location_country`.
- *
- * The bare-work-mode suggestion ("Remote — anywhere"), and a typed work mode
- * alone (`placeFieldFor`), target the GLOBAL work_type facet, not a place. Add-only, like places: picking a mode that is
- * already on changes nothing. Returns `state` itself when nothing changed.
- */
-export function addPlaceToFilter(state: FilterState, value: string, field?: SuggestField): FilterState {
-    const trimmed = value.trim();
-    if (!trimmed) return state;
-    const target = placeFieldFor(trimmed, field);
-    if (target === "work_type") {
-        const current = state.facets.work_type ?? [];
-        const next = [...new Set([...current, ...parseWorkTypeTokens(trimmed).workTypes])];
-        if (next.length === current.length) return state;
-        return { ...state, facets: { ...state.facets, work_type: next } };
-    }
-    const targetKey = target ?? "location_country";
-    const current = state.facets[targetKey] ?? [];
-    const next = addLocationValue(current, trimmed);
-    if (next === current) return state;
-    return { ...state, facets: { ...state.facets, [targetKey]: next } };
-}
-
-/** Moved to `lib/jobs/location-label.ts` (pure, no React/DOM) so it's
- *  importable directly from `node:test` — re-exported here since this is
- *  still the file every caller and existing test imports it from. */
-export { LOCATION_TRIGGER_PLACEHOLDER, locationTriggerLabel } from "@/lib/jobs/location-label";
 
 /** Static facet option ladders — always shown in SerpFilters even when the
  *  current result set's distribution is empty (selected values still merge in). */

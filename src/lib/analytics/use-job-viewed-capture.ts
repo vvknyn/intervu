@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { captureEvent, type EventSource } from "@/lib/analytics/events";
 import { matchAnalyticsProps } from "@/lib/analytics/match-props";
-import { recordGuestJobView } from "@/lib/auth/guest-engage-nudge";
 import { scoreJobAgainstResume, type MatchScore } from "@/lib/match/score";
 import type { PublicJob } from "@/lib/jobs/types";
 import type { ResumeData } from "@/types/resume";
@@ -66,7 +65,6 @@ export function useJobViewedCapture({
         company_domain: snap.company_domain,
         source: snap.source,
       });
-      if (!snap.signedIn) recordGuestJobView();
     };
     // Depending on source/signedIn would flush an unscored view on the auth
     // flip; the ref would then drop the scored capture.
@@ -85,6 +83,5 @@ export function useJobViewedCapture({
       source,
       ...matchAnalyticsProps(score),
     });
-    if (!signedIn) recordGuestJobView();
   }, [job, matchPending, matchScore, resume, source, signedIn]);
 }

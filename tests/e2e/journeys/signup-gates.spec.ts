@@ -77,7 +77,8 @@ test("depth-wall doors carry the current search in next=", { tag: ["@J-JOBS-07"]
   await expectDoors(page, "depth", /^\/jobs\?.*q=engineer/);
 });
 
-test("a guest's second saved search meets the save-search gate, not a bare input", { tag: ["@J-JOBS-32"] }, async ({ page }) => {
+// The toolbar's Save search became the results line's Job alert switch (2026-10-22); a guest's toggle opens the email form, so this gate has no entry point left.
+test.fixme("a guest's second saved search meets the save-search gate, not a bare input", { tag: ["@J-JOBS-32"] }, async ({ page }) => {
   // One save already made on this device: the next one needs an account.
   await page.addInitScript(() => localStorage.setItem("intervu.guestSaveCount", "1"));
   await searchFor(page, "engineer");

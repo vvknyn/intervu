@@ -30,7 +30,7 @@ test("beginResumeUpload opens the importer without an auth gate", () => {
     assert.doesNotMatch(begin, /if \(!user\)/);
 });
 
-test("the match teaser uploads directly — there is no separate signed-out upload gate", () => {
-    assert.match(SOURCE, /onMatchTeaserClick=\{handleUploadClick\}/);
+test("there is no per-card match teaser and no separate signed-out upload gate", () => {
+    assert.doesNotMatch(SOURCE, /onMatchTeaserClick|showMatchTeaser/);
     assert.doesNotMatch(SOURCE, /handleFitRankUploadGate/);
 });

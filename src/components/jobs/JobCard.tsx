@@ -30,7 +30,7 @@ import Link from "next/link";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
 import { ContextHelp } from "@/components/ui/context-help";
 import { HiresInWord, hiresNoteOf } from "@/components/jobs/HiresIn";
-import { MatchChip, MatchChipTeaser } from "@/components/jobs/MatchChip";
+import { MatchChip } from "@/components/jobs/MatchChip";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -38,7 +38,7 @@ import { buildFactChips } from "@/components/jobs/job-detail-facts";
 import { classifyPostingFreshness } from "@/lib/jobs/posting-freshness";
 import { rowExceptionMark } from "@/lib/jobs/row-exception";
 import { LOCATION_UNKNOWN_TEXT, postedAgeShort } from "@/lib/jobs/presentation";
-import { presentJob } from "@/lib/presentation";
+import { formatCardPlace, presentJob } from "@/lib/presentation";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { remoteScope, withRemoteScope } from "@/lib/jobs/remote-scope";
@@ -62,8 +62,6 @@ export function JobCard({
     dense = false,
     tourAnchor = false,
     matchScore = null,
-    showMatchTeaser = false,
-    onMatchTeaserClick,
     matchAsOfDate = null,
     reasonLine = null,
     pursuit,
@@ -98,8 +96,6 @@ export function JobCard({
      *  fabricated 0 (Rule 3, match-contract.md). */
     matchScore?: MatchScore | null;
     /** When true and `matchScore` is absent, render a locked fit teaser. */
-    showMatchTeaser?: boolean;
-    onMatchTeaserClick?: () => void;
     /** The résumé's stored update date, pre-formatted (`shortDate(...).toLowerCase()`) — the receipt's "against your résumé of {date}" line. */
     matchAsOfDate?: string | null;
     /** Why a recommended role is listed (`rowReasonLine`): one line under the facts, only on a résumé-ranked list. */
@@ -125,6 +121,7 @@ export function JobCard({
     position?: number;
 }) {
     const presented = presentJob(job);
+    const place = formatCardPlace(job);
     const accessibleName = `${presented.title} at ${presented.company.name}`;
     const exceptionMark = rowExceptionMark(job, now);
     const age = postedAgeShort(derivePostedTs(job), now);
@@ -134,7 +131,7 @@ export function JobCard({
     // chip renders only when it's something OTHER than that (remote is
     // always a known value even when the underlying location is unknown,
     // since `locationText`'s remote branch never surfaces the sentinel).
-    const locationKnown = job.work_type === "remote" || presented.location !== LOCATION_UNKNOWN_TEXT;
+    const locationKnown = job.work_type === "remote" || place !== LOCATION_UNKNOWN_TEXT;
     // Icon-fact grammar (board-redesign.html §rollout stage 1) — same
     // `buildFactChips` chokepoint JobDetail uses, so a card and the pane it
     // opens can never disagree about how a given fact's label reads. `null,
@@ -295,8 +292,8 @@ export function JobCard({
                                 <span>{presented.company.name}</span>
                             ),
                             locationKnown && (
-                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : undefined}>
-                                    {withRemoteScope(presented.location, scope)}
+                                <span data-testid="job-location" title={scope ? `The posting says: “${scope.quote}”` : job.location ?? undefined}>
+                                    {withRemoteScope(place, scope)}
                                 </span>
                             ),
                         ]}
@@ -377,11 +374,7 @@ export function JobCard({
                     )}
                 </span>
                 <AppliedBadge pursuit={appliedPursuit ?? pursuit} />
-                {matchScore ? (
-                    <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />
-                ) : showMatchTeaser && onMatchTeaserClick ? (
-                    <MatchChipTeaser onClick={onMatchTeaserClick} />
-                ) : null}
+                {matchScore && <MatchChip score={matchScore} asOfDate={matchAsOfDate} jobId={job.id} />}
                 {age && (
                     <span
                         data-testid="posted-age"

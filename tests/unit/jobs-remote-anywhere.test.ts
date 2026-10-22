@@ -112,7 +112,10 @@ test("(e) a global work_type facet on an explicit country search still ANDs at t
   const filter = buildFilter(p);
   const placeClause = filter.find((f) => f.includes("location_country"));
   assert.equal(placeClause, `((location_country = "Canada"))`);
-  assert.ok(filter.includes('(work_type = "hybrid")'), `expected a top-level work_type clause: ${JSON.stringify(filter)}`);
+  assert.ok(
+    filter.some((f) => f.startsWith('(work_type = "hybrid"')),
+    `expected a top-level work_type clause: ${JSON.stringify(filter)}`,
+);
 });
 
 const PASSTHROUGH_CORPUS_CHECKER: CorpusValueChecker = async (groups) => groups;

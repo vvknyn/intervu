@@ -91,7 +91,8 @@ function passBase(j: PublicJob, p: JobSearchParams): boolean {
   }
   if (p.salaryMin && p.salaryMin > 0) {
     const s = j.salary_max ?? j.salary_min ?? null;
-    if (s == null || s < p.salaryMin) return false;
+    // Mirrors `salaryMinClause`: a posting that states no salary is kept (ranked lower upstream).
+    if (s != null && s < p.salaryMin) return false;
   }
   if (p.visaOnly && j.visa_sponsorship !== true) return false;
   if (!passPostedBucket(j, p.postedBucket)) return false;

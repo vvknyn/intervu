@@ -13,7 +13,6 @@
  * already used for exactly this kind of "explain a computed value" need
  * elsewhere in JobCard.
  */
-import { Lock } from "@phosphor-icons/react";
 import { ContextHelp } from "@/components/ui/context-help";
 import { cn } from "@/lib/utils";
 import { explainMatch } from "@/lib/match/explain";
@@ -65,30 +64,6 @@ export interface MatchChipProps {
      * (the packs home's Today picks). Both open the same receipt.
      */
     variant?: "chip" | "text";
-}
-
-/** Locked teaser occupying the same footprint as {@link MatchChip}. */
-export function MatchChipTeaser({ onClick, className }: { onClick: () => void; className?: string }) {
-    return (
-        <button
-            type="button"
-            data-testid="match-chip-teaser"
-            aria-label="See how this role fits your experience"
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-            }}
-            className={cn(
-                "mono-data inline-flex items-center gap-1 border border-border bg-chip px-2 ctl-sm ctl-button leading-none text-muted-foreground transition-colors hover:text-foreground",
-                // control-type-allow: pill like the MatchChip badge whose footprint it holds; type still comes from the step
-                "rounded-pill",
-                className,
-            )}
-        >
-            <Lock size={16} weight="bold" aria-hidden />
-            Your fit
-        </button>
-    );
 }
 
 export function MatchChip({ score, asOfDate, className, jobId, testId = "match-chip", variant = "chip" }: MatchChipProps) {
