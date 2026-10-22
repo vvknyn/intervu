@@ -52,7 +52,7 @@ export async function consumeAndFollow(
   q: Queryable,
   rawToken: string,
   follow: { companyDomain: string; displayName: string } | null,
-): Promise<{ redirectPath: string; contactToken: string } | null> {
+): Promise<{ redirectPath: string; contactToken: string; email: string } | null> {
   const consumed = await consumeVerifyToken(q, rawToken);
   if (!consumed) return null;
 
@@ -64,7 +64,7 @@ export async function consumeAndFollow(
     });
   }
 
-  return { redirectPath: consumed.redirectPath, contactToken: consumed.contactToken };
+  return { redirectPath: consumed.redirectPath, contactToken: consumed.contactToken, email: consumed.email };
 }
 
 export async function consumeAndSaveSearchAlert(
@@ -73,6 +73,7 @@ export async function consumeAndSaveSearchAlert(
 ): Promise<{
   redirectPath: string;
   contactToken: string;
+  email: string;
   distinctId: string | null;
   analytics: SearchAlertAnalytics | null;
 } | null> {
@@ -89,6 +90,7 @@ export async function consumeAndSaveSearchAlert(
   return {
     redirectPath: consumed.redirectPath,
     contactToken: consumed.contactToken,
+    email: consumed.email,
     distinctId: consumed.distinctId,
     analytics: consumed.analytics,
   };

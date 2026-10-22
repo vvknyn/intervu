@@ -38,7 +38,7 @@ test.describe('ACCOUNT-RESUME', () => {
         // navigates to /settings itself once the session exists.
         await page.goto('/login');
         await page.getByRole('tab', { name: 'Create account' }).click();
-        await page.locator('#username').fill(username);
+        await page.locator('#email').fill(`${username}@example.com`);
         await page.locator('#password').fill(password);
         await page.getByRole('button', { name: 'Create account' }).click();
         await expect(page).toHaveURL('/jobs', { timeout: 20_000 });

@@ -22,7 +22,10 @@ import { getAdminDb } from "@/lib/firebase/admin";
 import { sendPasswordResetEmail } from "@/lib/email/password-reset";
 
 export interface AuthActionDeps {
-  createUser(options: { email: string; password: string; metadata: Record<string, string> }): Promise<User>;
+  createUser(options: { email: string; password?: string; emailVerified?: boolean; metadata: Record<string, string> }): Promise<User>;
+  findUserByEmail(email: string): Promise<User | null>;
+  createMagicAuth(options: { email: string }): Promise<{ code: string }>;
+  authenticateWithMagicAuth(options: { email: string; code: string }): Promise<AuthenticationResponse>;
   deleteUser(userId: string): Promise<void>;
   getUserByExternalId(externalId: string): Promise<User>;
   authenticateWithPassword(options: { email: string; password: string }): Promise<AuthenticationResponse>;
@@ -51,6 +54,9 @@ export async function realAuthActionDeps(): Promise<AuthActionDeps> {
 
   return {
     createUser: (options) => userManagement.createUser(options),
+    findUserByEmail: async (email) => (await userManagement.listUsers({ email })).data[0] ?? null,
+    createMagicAuth: (options) => userManagement.createMagicAuth(options),
+    authenticateWithMagicAuth: (options) => userManagement.authenticateWithMagicAuth({ clientId, ...options }),
     deleteUser: (userId) => userManagement.deleteUser(userId),
     getUserByExternalId: (externalId) => userManagement.getUserByExternalId(externalId),
     authenticateWithPassword: (options) => userManagement.authenticateWithPassword({ clientId, ...options }),

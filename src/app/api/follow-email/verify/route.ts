@@ -17,6 +17,7 @@ import { getIntervuPg } from "@/lib/pg/pool";
 import { validateNextParam } from "@/lib/auth/product-routes";
 import { consumeAndFollow, setContactCookie } from "@/lib/identity/contact-cookie";
 import { recordFollowFunnelStep } from "@/lib/follows/funnel-log";
+import { establishSessionForVerifiedEmail } from "@/lib/auth/verified-email-session";
 import { relativeRedirect } from "@/lib/http/relative-redirect";
 
 const FAILURE_PATH = "/jobs?followed=0";
@@ -39,6 +40,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     return relativeRedirect(FAILURE_PATH);
   }
 
+  await establishSessionForVerifiedEmail(consumed.email);
   await setContactCookie(consumed.contactToken);
   after(() => recordFollowFunnelStep({ step: "email_verified", companyDomain: domain ?? undefined }));
   const safePath = validateNextParam(consumed.redirectPath) ?? FALLBACK_PATH;

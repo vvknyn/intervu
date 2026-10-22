@@ -37,7 +37,7 @@ describe("consumeAndFollow — success with a follow payload", () => {
       { rows: [] }, // addEmailFollow's INSERT
     ]);
     const result = await consumeAndFollow(q, "a".repeat(64), { companyDomain: "acme.com", displayName: "Acme" });
-    assert.deepEqual(result, { redirectPath: "/co/acme", contactToken: "tok-1" });
+    assert.deepEqual(result, { redirectPath: "/co/acme", contactToken: "tok-1", email: "a@b.co" });
     assert.equal(q.calls.length, 3);
     assert.match(q.calls[2].text, /INSERT INTO intervu\.email_follows/);
     assert.deepEqual(q.calls[2].params, ["id-1", "acme.com", "Acme"]);
@@ -51,7 +51,7 @@ describe("consumeAndFollow — success WITHOUT a follow payload (beyond-primary 
       { rows: [{ id: "id-1", email: "a@b.co", email_verified_at: "2026-08-19T00:00:00Z", contact_token: "tok-1" }] },
     ]);
     const result = await consumeAndFollow(q, "a".repeat(64), null);
-    assert.deepEqual(result, { redirectPath: "/co/acme", contactToken: "tok-1" });
+    assert.deepEqual(result, { redirectPath: "/co/acme", contactToken: "tok-1", email: "a@b.co" });
     assert.equal(q.calls.length, 2, "the primitive is not company-bound — no email_follows write happens");
   });
 });

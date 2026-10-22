@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
 import { getPostHogClient } from "@/lib/analytics/posthog-client";
+import { confirmLinkCreatesAccountLine } from "@/lib/follows/persist-copy";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
 import { cn } from "@/lib/utils";
 
@@ -140,7 +141,7 @@ export function SearchAlertCapture({
     <div data-testid="search-alert-capture" className={cn("max-w-md text-left", !compact && "mt-4")}>
       {!compact && <p className="text-sm">Get new matches by email</p>}
       <p className={cn("text-xs text-muted-foreground", !compact && "mt-1")}>
-        {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."}
+        {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."} {confirmLinkCreatesAccountLine()}
       </p>
       <form onSubmit={handleSubmit} className={cn("flex flex-wrap items-center gap-2", compact ? "mt-2" : "mt-3")}>
         <Input

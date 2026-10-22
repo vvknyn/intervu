@@ -249,7 +249,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!email || !username || !password) {
+        if (!email || !password) {
             setMessage(AUTH_MESSAGES.missingCredentials)
             return
         }
@@ -275,11 +275,10 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
             try {
                 const formData = new FormData()
                 formData.append('email', email)
-                formData.append('username', username)
                 formData.append('password', password)
                 formData.append('turnstileToken', check.token ?? '')
                 const result = await signUp(null, formData)
-                if (!applyAuthPresentation(presentAuthResult(result, { username }), turnstile.reset)) return
+                if (!applyAuthPresentation(presentAuthResult(result, { username: email }), turnstile.reset)) return
                 await finishSignedIn("signupCompleted" in result && result.signupCompleted)
             } catch (err) {
                 turnstile.reset()
@@ -428,7 +427,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     />
                                 </Field>
                             )}
-                            <Field label={activeTab === "login" ? "Email or username" : "Username"} htmlFor="username">
+                            {activeTab === "login" && <Field label="Email or username" htmlFor="username">
                                 <Input
                                     id="username"
                                     type="text"
@@ -441,7 +440,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                     className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                 />
-                            </Field>
+                            </Field>}
                             <Field label="Password" htmlFor="password">
                                 <div className="relative">
                                     <Input

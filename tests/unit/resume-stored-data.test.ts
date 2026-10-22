@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { storedResumeData } from "../../src/lib/resume/stored-resume-data";
+import { storedResumeData, shouldPersistStructured } from "../../src/lib/resume/stored-resume-data";
 import { resumeIsUsable } from "../../src/lib/resume/resume-usable";
 import type { ResumeData } from "../../src/types/resume";
 
@@ -51,5 +51,28 @@ describe("storedResumeData", () => {
         assert.equal(storedResumeData(undefined, undefined), undefined);
         assert.equal(storedResumeData(undefined, "   "), undefined);
         assert.equal(storedResumeData(undefined, 42), undefined);
+    });
+});
+
+describe("shouldPersistStructured", () => {
+    const structured = storedResumeData(undefined, TEXT);
+    const base = { signedIn: true, serverData: undefined, serverText: TEXT, structured };
+
+    it("persists a signed-in, text-only résumé that structured into something usable", () => {
+        assert.equal(shouldPersistStructured(base), true);
+    });
+    it("does not persist when the server already has structured content", () => {
+        assert.equal(shouldPersistStructured({ ...base, serverData: STRUCTURED }), false);
+    });
+    it("does not persist for a guest", () => {
+        assert.equal(shouldPersistStructured({ ...base, signedIn: false }), false);
+    });
+    it("does not persist when the server sent no text", () => {
+        assert.equal(shouldPersistStructured({ ...base, serverText: "  " }), false);
+        assert.equal(shouldPersistStructured({ ...base, serverText: undefined }), false);
+    });
+    it("does not persist when structuring failed or came out unusable", () => {
+        assert.equal(shouldPersistStructured({ ...base, structured: undefined }), false);
+        assert.equal(shouldPersistStructured({ ...base, structured: { ...STRUCTURED, profile: { ...STRUCTURED.profile, profession: "" } } }), false);
     });
 });

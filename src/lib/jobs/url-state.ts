@@ -184,6 +184,11 @@ export function urlSortToMode(s: UrlSort): JobSortMode | "fit" {
     return s === "salary" ? "salary_desc" : s;
 }
 
+/** Reverse of `urlSortToMode`: an in-app sort choice written into the URL, always as an explicit `sort`. */
+export function modeToUrlSort(mode: JobSortMode): UrlSort {
+    return mode === "salary_desc" ? "salary" : mode;
+}
+
 /**
  * A saved search's own filters as `JobSearchParams`, deliberately WITHOUT
  * `postedBucket` — a "posted within Nd of now" window would silently

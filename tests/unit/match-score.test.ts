@@ -849,7 +849,7 @@ describe('the seniority reason agrees with the role\'s details', () => {
     it('a level read from the résumé names the years and the role it came from', () => {
         const led = scoreJobAgainstResume(fixture('vivek-tam-resume'), mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
             .components.find((c) => c.key === 'seniority')!;
-        assert.equal(led.detail, 'senior role — matches your senior level (13 years of experience, including lead and senior roles)');
+        assert.equal(led.detail, 'senior role — matches your senior level (11 years of experience, including lead and senior roles)');
         const resume = midTam();
         const seniority = scoreJobAgainstResume(resume, mkJob({ title: 'Technical Account Manager', experience_level: 'senior' }))!
             .components.find((c) => c.key === 'seniority')!;

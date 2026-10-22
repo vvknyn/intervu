@@ -56,7 +56,7 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(page.getByTestId('follow-company')).toBeVisible();
     });
 
-    test('guest click on Follow never renders Following — it opens the email step instead', async ({ page }) => {
+    test('guest click on Follow never renders Following — it opens the sign-in dialog instead', async ({ page }) => {
         await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
 
         const companyPage = page.getByTestId('company-page');
@@ -77,43 +77,13 @@ test.describe('COMPANY-FOLLOW - Milestone 2 smoke', () => {
         await expect(btn).toHaveAttribute('data-following', 'false');
         await expect(btn).not.toHaveText(/Following/);
 
-        // The email step opened right at the button instead of a fake follow.
-        const emailStep = page.getByTestId('follow-email-step');
-        await expect(emailStep).toBeVisible();
+        // The sign-in dialog opened instead of a fake follow.
+        await expect(page.getByRole('dialog')).toBeVisible();
 
         // The click is still recorded as guest-store intent (may migrate to
         // a real account follow on sign-in) — it just never renders as
         // "Following" off that alone.
         const stored = await page.evaluate((key) => localStorage.getItem(key), GUEST_FOLLOWS_KEY);
         expect(stored).toContain(ELITE_COMPANY_DOMAIN);
-    });
-
-    test('email step: focusable, sign-in link falls back to the auth dialog', async ({ page }) => {
-        await page.goto(`/co/${ELITE_COMPANY_SLUG}`);
-
-        const companyPage = page.getByTestId('company-page');
-        await expect(companyPage.or(page.getByText('Page not found')).first()).toBeVisible({
-            timeout: 30_000,
-        });
-        if (!(await companyPage.isVisible())) {
-            test.skip(true, 'Company page unavailable — allowlist missing in this build');
-        }
-
-        await page.getByTestId('follow-company').click();
-
-        const emailStep = page.getByTestId('follow-email-step');
-        await expect(emailStep).toBeVisible();
-
-        // Focusable, not submitted — live Turnstile means no e2e submission.
-        const emailInput = page.getByTestId('follow-email-input');
-        await emailInput.focus();
-        await expect(emailInput).toBeFocused();
-
-        await page.getByTestId('follow-email-signin').click();
-        await expect(page.getByRole('dialog')).toBeVisible();
-        await expect(emailStep).not.toBeVisible();
-
-        const btn = page.getByTestId('follow-company');
-        await expect(btn).toHaveAttribute('data-following', 'false');
     });
 });

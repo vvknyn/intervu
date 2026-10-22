@@ -41,8 +41,8 @@ function render(props: Partial<React.ComponentProps<typeof FollowButton>> = {}):
 }
 
 describe("decideGuestFollowClick: a signed-out click never fakes the follow", () => {
-  it("not yet following -> opens the email step, never 'start following'", () => {
-    assert.deepEqual(decideGuestFollowClick(false), { kind: "open-email-step" });
+  it("not yet following -> opens the sign-in gate, never 'start following'", () => {
+    assert.deepEqual(decideGuestFollowClick(false), { kind: "sign-in" });
   });
 
   it("already following (a real, verified channel) -> reverses it for real", () => {
@@ -59,7 +59,7 @@ describe("decideGuestFollowClick: a signed-out click never fakes the follow", ()
     // `kind` and confirm "following" isn't one of them. "follow-by-contact"
     // is a server write the button waits on, not a local flag.
     const kinds = [false, true].flatMap((following) => [false, true].map((contact) => decideGuestFollowClick(following, contact).kind));
-    assert.deepEqual(new Set(kinds), new Set(["open-email-step", "unfollow", "follow-by-contact"]));
+    assert.deepEqual(new Set(kinds), new Set(["sign-in", "unfollow", "follow-by-contact"]));
   });
 });
 

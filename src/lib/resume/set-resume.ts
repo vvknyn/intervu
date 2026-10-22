@@ -32,6 +32,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { AGENT } from "@/lib/agent/config";
 import { ALL_SECTIONS, type ResumeData } from "@/types/resume";
+import { hasResumeContent } from "@/lib/resume/has-content";
 import type { ResumeVersionSnapshot } from "@/lib/pursuits/types";
 import { canonicalizeBaseResume, getBaseResumeForUser, type BaseResume } from "@/lib/resume/base-resume";
 import { removeAppliedResumesForUser } from "@/lib/pursuits/applied-resume";
@@ -134,6 +135,21 @@ export function validateResumeData(data: unknown): ResumeDataValidation {
             message: issue.message,
         })),
     };
+}
+
+export type StructuredPersistPlan = { persist: true; data: ResumeData } | { persist: false; reason: "has-structured" | "no-text" | "invalid" };
+
+/**
+ * Whether the server saves a structured copy the browser made from this
+ * account's text-only résumé. The server re-checks what it holds (a copy
+ * saved meanwhile, from a newer upload, is never overwritten) and validates the
+ * submitted shape; it only validates, it never parses.
+ */
+export function planStructuredPersist(stored: { data?: ResumeData; text?: string }, candidate: unknown): StructuredPersistPlan {
+    if (stored.data && hasResumeContent(stored.data)) return { persist: false, reason: "has-structured" };
+    if (!stored.text) return { persist: false, reason: "no-text" };
+    const validation = validateResumeData(candidate);
+    return validation.ok ? { persist: true, data: validation.data } : { persist: false, reason: "invalid" };
 }
 
 /** The one-time baseline snapshot's label — distinguishes it from every

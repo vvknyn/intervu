@@ -88,15 +88,12 @@ test.fixme("a guest's second saved search meets the save-search gate, not a bare
   await expectDoors(page, "alert", /^\/jobs\?.*q=engineer/);
 });
 
-test("a guest's first job save shows the dismissible save gate", { tag: ["@J-JOBS-33"] }, async ({ page }) => {
+test("a guest's first job save opens the sign-in dialog and saves nothing", { tag: ["@J-JOBS-33"] }, async ({ page }) => {
   await searchFor(page, "engineer");
   await page.getByTestId("job-row").first().getByTestId("job-save-trigger").click();
-  const banner = page.getByTestId("guest-save-banner");
-  await expect(banner).toBeVisible();
-  await expect(gate(page, "save")).toBeVisible();
-  await expectDoors(page, "save", /^\/jobs\?.*q=engineer/);
-  await gate(page, "save").getByTestId("signup-gate-dismiss").click();
-  await expect(banner).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByTestId("guest-save-banner")).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem("intervu.guestSaveCount"))).toBeNull();
 });
 
 const SYNTHETIC_RESUME = {
@@ -274,18 +271,12 @@ test("an anonymous Report submit reaches 'Reported ✓' @writes", { tag: ["@J-DE
   await expect(page.getByTestId("report-job-done")).toBeVisible({ timeout: 15_000 });
 });
 
-test("a guest's Follow offers the email step and 'Have an account? Sign in' opens the auth dialog", { tag: ["@J-COMPANY-13"] }, async ({ page }) => {
+test("a guest's Follow opens the sign-in dialog instead of following", { tag: ["@J-COMPANY-13"] }, async ({ page }) => {
   await page.goto("/co/anthropic--com");
   const follow = page.getByTestId("follow-company");
   test.skip(!(await follow.isVisible({ timeout: 30_000 }).catch(() => false)), "company page unavailable in this build");
   await follow.click();
-  const emailStep = page.getByTestId("follow-email-step");
-  await expect(emailStep).toBeVisible();
-  // Focusable, never submitted: a live Turnstile means no e2e submission.
-  await page.getByTestId("follow-email-input").focus();
-  await expect(page.getByTestId("follow-email-input")).toBeFocused();
-  await page.getByTestId("follow-email-signin").click();
   await expect(page.getByRole("dialog")).toBeVisible();
-  await expect(emailStep).not.toBeVisible();
+  await expect(page.getByTestId("follow-email-step")).toHaveCount(0);
   await expect(follow).toHaveAttribute("data-following", "false");
 });

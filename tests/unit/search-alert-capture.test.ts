@@ -80,28 +80,7 @@ describe("shouldShowSearchAlertCapture", () => {
     assert.equal(shouldShowSearchAlertCapture({ ...base, dismissed: false, submitted: true }), false);
   });
 
-  it("hides when auth gate banner is visible", () => {
-    const zeroResults = {
-      signedIn: false,
-      dismissed: false,
-      submitted: false,
-      interactions: 0,
-      hasResults: false,
-      authGateVisible: true,
-    };
-    const withResults = {
-      signedIn: false,
-      dismissed: false,
-      submitted: false,
-      interactions: SHOW_AFTER_INTERACTIONS,
-      hasResults: true,
-      authGateVisible: true,
-    };
-    assert.equal(shouldShowSearchAlertCapture(zeroResults), false);
-    assert.equal(shouldShowSearchAlertCapture(withResults), false);
-  });
-
-  it("shows when authGateVisible is omitted or false", () => {
+  it("shows for a guest who has not dismissed or submitted", () => {
     const zeroResults = {
       signedIn: false,
       dismissed: false,
@@ -110,7 +89,6 @@ describe("shouldShowSearchAlertCapture", () => {
       hasResults: false,
     };
     assert.equal(shouldShowSearchAlertCapture(zeroResults), true);
-    assert.equal(shouldShowSearchAlertCapture({ ...zeroResults, authGateVisible: false }), true);
 
     const withResults = {
       signedIn: false,
@@ -120,7 +98,6 @@ describe("shouldShowSearchAlertCapture", () => {
       hasResults: true,
     };
     assert.equal(shouldShowSearchAlertCapture(withResults), true);
-    assert.equal(shouldShowSearchAlertCapture({ ...withResults, authGateVisible: false }), true);
   });
 });
 

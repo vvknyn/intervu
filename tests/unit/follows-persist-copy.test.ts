@@ -6,6 +6,7 @@ import {
   followEmailPrompt,
   followEmailSentLine,
   followEmailVerifiedLine,
+  confirmLinkCreatesAccountLine,
   followPersistValueLine,
 } from "../../src/lib/follows/persist-copy";
 
@@ -67,4 +68,8 @@ test("the ungated pre-verification prompt never comes back", () => {
   const src = readFileSync(path.join(ROOT, "src/lib/follows/persist-copy.ts"), "utf8");
   assert.ok(!/export function followPersistLine/.test(src), "followPersistLine must stay deleted");
   assert.ok(!/export function followPersistCta/.test(src), "followPersistCta must stay deleted");
+});
+
+test("confirmLinkCreatesAccountLine says the link creates the account", () => {
+  assert.equal(confirmLinkCreatesAccountLine(), "The confirm link also creates your free account.");
 });

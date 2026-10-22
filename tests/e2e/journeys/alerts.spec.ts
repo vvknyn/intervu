@@ -87,6 +87,7 @@ test("a guest's Job alert switch opens the email form under it, and stays on for
   await expect(toggle).toHaveAttribute("aria-checked", "false");
 
   await toggle.click();
+  await expect(page.getByTestId("search-alert-capture")).toContainText("The confirm link also creates your free account.");
   await page.getByTestId("search-alert-email-input").fill("journey@example.com");
   await page.getByTestId("search-alert-submit").click();
   await expect(page.getByTestId("search-alert-capture")).toContainText("Check your inbox to confirm.");

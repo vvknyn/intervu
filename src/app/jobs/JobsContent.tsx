@@ -59,12 +59,12 @@ import { holdPursuitsRead, releasePursuitsRead } from "@/lib/pursuits/read-hold"
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
-import { listGuestPursuits, addGuestPursuit, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
 import { BoardVisitBanner } from "@/components/jobs/BoardVisitBanner";
 import { hasReachedStage, buildJobSnapshot, type Pursuit } from "@/lib/pursuits/types";
 import { withSettleGuard } from "@/lib/jobs/settle-guard";
-import { fetchResumeData } from "@/actions/resume";
+import { fetchResumeData, persistStructuredResume } from "@/actions/resume";
 import { useAdoptGuestResume } from "@/hooks/use-adopt-guest-resume";
 import { trackedIndex, trackedPursuitFor, type TrackedIndex } from "@/lib/pursuits/applied";
 import { LISTING_STATE_CHIP, LISTING_STATE_CHIP_LABEL } from "@/lib/ui/status-tokens";
@@ -302,7 +302,7 @@ import {
     DEFAULT_URL_STATE,
     shouldResetSortOnQueryChange,
     type JobsUrlState,
-    type UrlSort,
+    modeToUrlSort,
 } from "@/lib/jobs/url-state";
 import { hapticTap } from "@/lib/motion/haptic";
 import { MOTION_DURATION_MS, prefersReducedMotion } from "@/lib/motion/interaction-contract";
@@ -313,10 +313,11 @@ import {
 import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/band-order";
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
-import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, keepsTypedQuery, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
+import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
+import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
@@ -327,7 +328,7 @@ import { LandingNotice } from "@/components/layout/LandingNotice";
 import { classifySentinel } from "@/lib/llm/sentinels";
 import type { ResumeData } from "@/types/resume";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
-import { storedResumeData } from "@/lib/resume/stored-resume-data";
+import { storedResumeData, shouldPersistStructured } from "@/lib/resume/stored-resume-data";
 import { useResumePresence } from "@/lib/resume/use-resume-presence";
 import { isConfirmedSignedIn, isConfirmedSignedOut, jobsHomeHold, resolveJobsResumeOnFile } from "@/lib/auth/jobs-chrome-gates";
 import {
@@ -336,13 +337,7 @@ import {
     type AuthGateReason,
     type AuthGateTrigger,
 } from "@/lib/auth/auth-gate-copy";
-import {
-    getGuestSaveCount,
-    guestSaveGateReached,
-    recordGuestSave,
-    isGuestSaveBannerDismissed,
-    dismissGuestSaveBanner,
-} from "@/lib/auth/guest-save-gate";
+import { decideSaveAttempt } from "@/lib/auth/guest-save-gate";
 import { interpretLoadMoreResponse } from "@/lib/jobs/load-more-outcome";
 import { PageTitle } from "@/components/ui/heading";
 
@@ -404,14 +399,9 @@ const getDefaultBrowseActionGuarded = (suppressLocationDefault: boolean): Promis
 
 /* ----------------------------- helpers ----------------------------- */
 
-/** Reverse of `urlSortToMode`, for writing the URL from an in-app sort choice. */
 /** A separator of the résumé strip: its own node so truncating text never eats it. */
 function StripDot() {
     return <span aria-hidden className="shrink-0">·</span>;
-}
-
-function modeToUrlSort(mode: JobSortMode): UrlSort {
-    return mode === "salary_desc" ? "salary" : mode;
 }
 
 /**
@@ -1622,15 +1612,6 @@ export function JobsContent({
             .catch(() => {});
     }, [user?.uid, firstSearchSettled]);
     const [guestTipDismissed, setGuestTipDismissed] = useState(false);
-    // Progressive guest save gating — initialized post-mount (localStorage
-    // is not available during SSR). `guestSaveCount` drives both the banner
-    // (≥ 1) and the gate (≥ 1 → require sign-in on the next save).
-    const [guestSaveCount, setGuestSaveCount] = useState(0);
-    const [guestSaveBannerDismissed, setGuestSaveBannerDismissed] = useState(true);
-    useEffect(() => {
-        setGuestSaveCount(getGuestSaveCount());
-        setGuestSaveBannerDismissed(isGuestSaveBannerDismissed());
-    }, []);
     const [searchAlertDismissed, setSearchAlertDismissed] = useState(true);
     const [searchAlertSubmitted, setSearchAlertSubmitted] = useState(true);
     const [searchInteractions, setSearchInteractions] = useState(0);
@@ -3642,17 +3623,6 @@ export function JobsContent({
     // "hideGhosts && ghostHiddenCount > 0" rule the controller specified.
     const ghostRevealCount = resolveGhostReveal(hideGhosts, ghostHiddenCount);
 
-
-    // Guest save upsell banner — shown after the first anonymous save (either
-    // "Go after" or a saved search) until dismissed. Signed-in users never see
-    // it; the `guestSaveCount` and `guestSaveBannerDismissed` states are
-    // seeded from localStorage post-mount so there's no SSR mismatch.
-    const showGuestSaveBanner = !user && guestSaveCount >= 1 && !guestSaveBannerDismissed;
-    const handleDismissGuestSaveBanner = () => {
-        dismissGuestSaveBanner();
-        setGuestSaveBannerDismissed(true);
-    };
-
     // The job whose apply click is currently held open by the AI hand-off
     // prompt. Holding the job rather than a boolean keeps the dialog's content
     // and its "continue" target the same object the click started from.
@@ -3815,27 +3785,13 @@ export function JobsContent({
             onMarkApplied: doMarkApplied,
         });
 
-    // "Save" — signed out writes to the guest store immediately for the FIRST
-    // save; on the second+ guest save, require sign-in so the list isn't
-    // silently lost (progressive gating spec). Guest Apply no longer brick-
-    // walls here (2026-09-10): `handleOpenPosting` opens ATS first, then
-    // `gate({ kind: "apply" })` for tracking only — Save's 2nd-gate stays.
+    // "Save" — a guest's attempt (first or later) opens the sign-in gate and
+    // writes nothing locally. Guest Apply no longer brick-walls here
+    // (2026-09-10): `handleOpenPosting` opens ATS first, then
+    // `gate({ kind: "apply" })` for tracking only.
     const handleGoAfter = (job: PublicJob) => {
-        if (!user) {
-            if (guestSaveGateReached()) {
-                openAuth("save", "user");
-                return;
-            }
-            addGuestPursuit(job);
-            const newCount = recordGuestSave();
-            setGuestSaveCount(newCount);
-            if (!prefersReducedMotion()) hapticTap("success");
-            triggerSavePulse(job.id);
-            toast.success(GUEST_SAVE_TOAST);
-            captureEvent("job_saved", {
-                job_id: job.id,
-                ...matchAnalyticsProps(matchScores?.get(job.id) ?? null),
-            });
+        if (decideSaveAttempt(!!user) === "gate") {
+            openAuth("save", "user");
             return;
         }
         if (saveInFlightRef.current.has(job.id)) return;
@@ -4026,11 +3982,21 @@ export function JobsContent({
     // state can still be empty for a returning user with one saved — check it
     // first (fast path, no network round-trip), else ask the server. Mirrors
     // `resumeIsUsable`'s bar exactly.
+    const structuredSavedRef = useRef(false);
+    // First in-browser structuring of a text-only résumé: save it once, so the next server render has the fit address.
+    const persistStructuredOnce = (args: Parameters<typeof shouldPersistStructured>[0]) => {
+        if (structuredSavedRef.current || !shouldPersistStructured(args) || !args.structured) return;
+        structuredSavedRef.current = true;
+        void persistStructuredResume(args.structured).catch(() => {
+            structuredSavedRef.current = false;
+        });
+    };
     const resolveUsableResume = async (): Promise<ResumeData | null> => {
         if (resume && resumeIsUsable(resume)) return resume;
         // The server's own read of the stored résumé (until this page takes a newer one): no second read before the first search.
         const seeded = initial?.resume && resumeGenerationRef.current === 0 && resumeOnFile !== false ? storedResumeData(initial.resume.data, initial.resume.text) : undefined;
         if (seeded && resumeIsUsable(seeded)) {
+            persistStructuredOnce({ signedIn: Boolean(user), serverData: initial?.resume?.data, serverText: initial?.resume?.text, structured: seeded });
             setResume(seeded);
             setResumeUpdatedAt(initial?.resume?.updatedAt ?? null);
             return seeded;
@@ -4063,6 +4029,7 @@ export function JobsContent({
             const cloud = fetched ? storedResumeData(fetched.data, fetched.text) : undefined;
             if (resumeGenerationRef.current !== generation) return null;
             if (cloud && resumeIsUsable(cloud)) {
+                persistStructuredOnce({ signedIn: true, serverData: fetched?.data, serverText: fetched?.text, structured: cloud });
                 setResume(cloud);
                 setResumeUpdatedAt(fetched?.updatedAt ?? null);
                 return cloud;
@@ -4100,8 +4067,8 @@ export function JobsContent({
         // that window were older than 30 days (2026-10-13). A window picked by hand stays theirs.
         const base = buildUrlState();
         const fit = fitApplication(r, agentPrefs, { facets, postedExplicit });
-        if (keepsTypedQuery(base)) {
-            // A search the visitor typed is theirs: fit only ranks it (the résumé terms still score every row).
+        if (urlHasOwnIntent(base)) {
+            // An address with its own intent is theirs: fit only ranks it (the résumé terms still score every row).
             setSortOverride(null);
             setFitActive(true);
             applyUrlState(fitRankUrlState(base, fit), "replace");
@@ -4203,6 +4170,44 @@ export function JobsContent({
         if (!applied) handleUploadClick();
     };
 
+    // Viewer defaults fill what the address leaves out (`viewerDefaults`). The server redirect covers a structured
+    // résumé; this covers the rest: a text-only résumé (only the browser structures it), a read that missed the
+    // server's budget. A sort in the address (`fitActive` or `sortOverride`) is the visitor's own and wins.
+    // Guests are untouched: `signedIn` gates both defaults.
+    const defaultFitTriedRef = useRef(false);
+    const wantsDefaultFit =
+        signedIn &&
+        viewerDefaults({ sort: fitActive || sortOverride ? "set" : null }, { resumeOnFile: resumeOnFile === true, remoteOnly: false }).sort === "fit";
+    useEffect(() => {
+        if (!wantsDefaultFit) {
+            defaultFitTriedRef.current = false;
+            return;
+        }
+        // At rest the effect above owns the first fit; a failed résumé read is not retried until the sort changes.
+        if (atRest || !authReady || defaultFitTriedRef.current) return;
+        defaultFitTriedRef.current = true;
+        void resolveAndApplyFit();
+    }, [wantsDefaultFit, atRest, authReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // The saved remote-only preference, as a removable chip. Applied once on arrival when the address names no
+    // work type; removing it keeps it removed for the rest of the visit (a new arrival is a new address).
+    const [remotePref, setRemotePref] = useState<"idle" | "applied" | "dismissed">("idle");
+    const remoteFromPrefs =
+        signedIn &&
+        !atRest &&
+        remotePref === "idle" &&
+        viewerDefaults({ workType: (facets.work_type ?? []).length > 0 ? "set" : null }, { resumeOnFile: false, remoteOnly: agentPrefs?.search.remoteOnly === true }).workType === "remote";
+    useEffect(() => {
+        if (!remoteFromPrefs) return;
+        setRemotePref("applied");
+        applyFilterStateWithIntent({ ...filterState, facets: { ...filterState.facets, work_type: ["remote"] } });
+    }, [remoteFromPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+    const dismissRemotePref = () => {
+        setRemotePref("dismissed");
+        const { work_type: _remote, ...rest } = filterState.facets;
+        applyFilterStateWithIntent({ ...filterState, facets: rest });
+    };
+
     const chooseSort = (mode: JobSortMode) => {
         fitIntentRef.current!.begin();
         setFitActive(false);
@@ -4210,23 +4215,12 @@ export function JobsContent({
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
-    // The segmented sort control's third segment: résumé-aware "Best match"
-    // when one is on file, plain "Relevance" otherwise (see the ToolbarSegment
-    // mount sites below for the label/title split on `resumeOnFile`).
-    // "Best match" reads selected only when it is true: fit-ranked, or plain relevance for someone with no
-    // résumé on file. A résumé user on relevance sees it unselected and "Rank with my résumé" offered.
-    const sortsByRelevanceLabel = fitActive || (resumeOnFile !== true && effectiveSort === "relevance");
+    // The sort control's relevance segment: "Best match" for someone with a résumé on file, plain "Relevance"
+    // otherwise (see the ToolbarSegment mount sites below). It writes an explicit `sort=relevance`, so the choice
+    // sticks across searches (`viewerDefaults` fills only an absent sort); "Best fit" is its own item.
+    const sortsByRelevanceLabel = !fitActive && effectiveSort === "relevance";
 
-    const chooseBestMatch = () => {
-        fitIntentRef.current!.begin();
-        if (resumeOnFile === true) {
-            void resolveAndApplyFit();
-            return;
-        }
-        setFitActive(false);
-        setSortOverride("relevance");
-        applyUrlState(buildUrlState({ sort: "relevance" }), "replace");
-    };
+    const chooseBestMatch = () => chooseSort("relevance");
 
     const applySavedSearch = (href: string) => {
         // A saved search IS a full /jobs URL-state write — same chokepoint
@@ -4482,7 +4476,6 @@ export function JobsContent({
             submitted: searchAlertSubmitted,
             interactions: searchInteractions,
             hasResults: false,
-            authGateVisible: showGuestSaveBanner,
         });
     // With results, the email form no longer opens on its own after a
     // couple of searches: the results line's alerts switch opens it
@@ -5123,6 +5116,16 @@ export function JobsContent({
                         <Check weight="bold" aria-hidden />
                     )}
                 </DropdownMenuItem>
+                {fitActive && (
+                    <DropdownMenuItem
+                        data-testid="jobs-sort-best-fit"
+                        onSelect={(e) => e.preventDefault()}
+                        className="flex items-center justify-between gap-3 text-sm"
+                    >
+                        <span>Best fit</span>
+                        <Check weight="bold" aria-hidden />
+                    </DropdownMenuItem>
+                )}
                 {showRankByFit && (
                     <DropdownMenuItem
                         data-testid="jobs-sort-fit"
@@ -5579,6 +5582,15 @@ export function JobsContent({
                                 onClear={suppressLocationDefault}
                             />
                         )}
+                        {remotePref === "applied" && (facets.work_type ?? []).some(isRemoteWorkTypeValue) && (
+                            <span
+                                data-testid="remote-pref-chip"
+                                className={cn(chipVariants({ active: false, interactive: true }), toolbarControlHeight, "mono-data inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap text-xs leading-none")}
+                            >
+                                <span>Remote only · from your preferences</span>
+                                <ChipDismiss label="Stop filtering to remote only" onClick={dismissRemotePref} />
+                            </span>
+                        )}
                         {!headerDockActive && unnamedEntries.length === 0 && clearFiltersEl}
                         </>
                         )}
@@ -5847,28 +5859,7 @@ export function JobsContent({
                                     </div>
                                 )}
 
-                                {/* Post-first-save upsell — appears once the anonymous visitor
-                                    has made their first save (Go after or saved search). Calm
-                                    inline style matching the résumé-moment card below. Dismissed
-                                    state is persisted so the banner doesn't reappear on reload.
-                                    Signed-in users never see it (`showGuestSaveBanner` is false
-                                    whenever `user` is truthy). */}
-                                {showGuestSaveBanner && (
-                                    <div data-testid="guest-save-banner" className="mb-3 border-t border-border pt-4 pb-2">
-                                        <SignupGate
-                                            reason="save"
-                                            originSurface="jobs_banner"
-                                            returnTo={serpReturnTo}
-                                            onDismiss={handleDismissGuestSaveBanner}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* The signed-in counterpart of the guest save banner, and its exact
-                                    complement: that one asks an anonymous visitor to sign in,
-                                    this one asks someone who ALREADY did for an address we can
-                                    reach. They can never both show — one requires `!user`, the
-                                    other requires a resolved session. */}
+                                {/* Asks someone signed in for an address we can reach. */}
                                 {emailNudgeOpen && accountEmailState && accountEmailState !== "reachable" && (
                                     <AccountEmailPrompt
                                         state={accountEmailState}

@@ -13,3 +13,8 @@ export function followEmailSentLine(): string {
 export function followEmailVerifiedLine(displayName: string): string {
   return `You're watching ${displayName}. We'll email you when something changes.`;
 }
+
+/** Shown on every email-capture form: the confirm link is also the signup. */
+export function confirmLinkCreatesAccountLine(): string {
+  return "The confirm link also creates your free account.";
+}
