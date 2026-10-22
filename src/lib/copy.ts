@@ -183,7 +183,7 @@ export const OUTPUT_PREF_DESCRIPTIONS = {
 // ---------------------------------------------------------------------------
 export const AUTH_MESSAGES = {
     missingCredentials:
-        "We're going to need an email, plus a username and password. Just the basics.",
+        "We're going to need an email and a password. Just the basics.",
 };
 
 // ---------------------------------------------------------------------------

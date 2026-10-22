@@ -62,7 +62,6 @@ async function openSignup(page: Page) {
 
 async function fillSignup(scope: Page | Locator, password: string) {
   await scope.getByLabel("Email").fill(DISPOSABLE_EMAIL);
-  await scope.getByLabel("Username").fill("journeycheck");
   await scope.getByLabel("Password", { exact: true }).fill(password);
 }
 
