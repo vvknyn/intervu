@@ -2,31 +2,19 @@ import Link from "next/link";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /**
- * Instant loading state for a company page.
+ * The company page's wait skeleton, shown as the Suspense fallback of
+ * `app/co/[slug]/page.tsx` while the page's data loads (`getCompanyPageData`
+ * took 2.8-4.4s to first byte on prod, measured 2026-08-24). It is a
+ * SKELETON, not a spinner, and mirrors the page's geometry block for block —
+ * same breadcrumb row (minus the company-name bar), same `main` gutters, same
+ * 56px logo square, same header split — so the swap to real content moves
+ * nothing.
  *
- * `page.tsx` is an async server component and `getCompanyPageData` takes
- * 2.8–4.4s to first byte on prod (measured 2026-08-24 across four slugs). Until
- * now nothing was rendered during that wait: the browser sat on the previous
- * page with no acknowledgement of the click, which reads as a frozen app
- * (Vivek: "the app feels like it is stuck"). Next wraps this file's default
- * export in a Suspense boundary around the route segment, so it paints the
- * moment the link is followed.
- *
- * It is a SKELETON, not a spinner, and it mirrors `page.tsx`'s geometry
- * block for block — same breadcrumb row (minus the company-name bar, so the
- * real link stays outside the wait ladder), same `main` gutters, same 56px logo
- * square, same header split. That is the point: the wait should read as "this
- * page is arriving, and it looks like this", and the swap to real content
- * shouldn't move anything. The same reasoning is already recorded on
- * `CompanyLogo`'s `md` size, which is pinned to the job-card skeleton's slot.
- *
- * Trade-off worth knowing: once a Suspense fallback renders, the response
- * headers are already sent, so an unknown slug can no longer answer 404 — it
- * answers 200 with `noindex` instead (Next's loading.js reference, "Status
- * Codes"). Search engines treat that as a soft 404 and don't index it; the
- * alternative is an existence check in `proxy` ahead of the boundary.
+ * It is NOT a route-level `loading.tsx`: that commits HTTP 200 before the
+ * page can call `notFound()`, so an unknown slug became a soft 404. The page
+ * checks existence first, then streams this.
  */
-export default function Loading() {
+export function CompanyPageSkeleton() {
     return (
         <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
             {/* Real link, not a placeholder: it is the one control a waiting

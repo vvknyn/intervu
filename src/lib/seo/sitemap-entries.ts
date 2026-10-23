@@ -20,24 +20,41 @@ const DEPLOYED_AT = new Date();
  * (`inSitemap`), is indexable and names itself as canonical (tests assert
  * this), and carries a lastmod.
  *
- * FAILURE POSTURE. The company section comes from Meilisearch; when that
- * fails the sitemap is still served, with the static pages, hubs and blog
- * and one error line in the log, never a 5xx. A 500 sitemap is an outage on
- * a file Search Console watches daily, and the pages in it are unchanged by
- * the outage. The cost is that the `/co/` URLs are absent for that response;
- * a crawler keeps URLs it already knows, and the next fetch restores them.
+ * FAILURE POSTURE. The company section comes from Meilisearch. When that
+ * fails, or answers with nothing, the last good set is served again (with one
+ * error line giving its age): 3,000 URLs vanishing and reappearing reads worse
+ * to a crawler than a slightly stale list. Only a process that has never had a
+ * good answer serves the pages without /co/ entries, still never a 5xx.
  */
+export interface CompanyCache {
+  companies: IndexableCompanyDomain[];
+  at: number;
+}
+const LAST_GOOD: { current: CompanyCache | null } = { current: null };
+
 export async function buildSitemapEntries(
   fetchCompanies: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
+  lastGood: { current: CompanyCache | null } = LAST_GOOD,
 ): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
   const at = (path: string) => `${siteUrl}${path}`;
 
   let companies: IndexableCompanyDomain[] = [];
+  let failure: string | null = null;
   try {
     companies = await fetchCompanies();
+    if (companies.length === 0) failure = "company fetch returned nothing";
   } catch (error) {
-    console.error(`sitemap: company fetch failed, serving pages without /co/ entries: ${error instanceof Error ? error.message : String(error)}`);
+    failure = `company fetch failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+  if (!failure) {
+    lastGood.current = { companies, at: Date.now() };
+  } else if (lastGood.current) {
+    const ageMin = Math.round((Date.now() - lastGood.current.at) / 60_000);
+    console.error(`sitemap: ${failure}, serving the last good /co/ set (${ageMin} min old)`);
+    companies = lastGood.current.companies;
+  } else {
+    console.error(`sitemap: ${failure}, no earlier set to serve, listing pages without /co/ entries`);
   }
 
   return [

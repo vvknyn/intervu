@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { after, before, describe, it } from "node:test";
 import { BLOG_PATH } from "@/lib/blog/posts";
+import { BOARD_META, type BoardId } from "@/lib/boards/types";
+import { getBoardDomains } from "@/lib/boards/allowlists";
+import { companyExists } from "@/lib/companies/get-company";
+import type { JobSearchResult } from "@/lib/jobs/types";
 import { buildJobsMetadata } from "@/lib/seo/jobs-metadata";
 import {
   indexabilityFor,
@@ -11,7 +15,7 @@ import {
   robotsMetadataFor,
   SITEMAP_PAGES,
 } from "@/lib/seo/indexability";
-import { buildSitemapEntries } from "@/lib/seo/sitemap-entries";
+import { buildSitemapEntries, type CompanyCache } from "@/lib/seo/sitemap-entries";
 import { buildRobotsRules } from "@/lib/shield/robots-policy";
 
 const prevSite = process.env.NEXT_PUBLIC_SITE_URL;
@@ -95,7 +99,7 @@ describe("sitemap", () => {
   const undated = { domain: "undated.io", openRoleCount: 30, computedAt: null };
 
   it("every URL is indexable, listed by the policy, self-canonical and dated", async () => {
-    const entries = await buildSitemapEntries(async () => [company, undated]);
+    const entries = await buildSitemapEntries(async () => [company, undated], { current: null });
     assert.ok(entries.length > SITEMAP_PAGES.length + 2);
     for (const entry of entries) {
       const path = new URL(entry.url).pathname;
@@ -110,22 +114,39 @@ describe("sitemap", () => {
     assert.equal(entries.find((e) => e.url.endsWith("/co/acme--com"))?.lastModified?.toString(), new Date(company.computedAt).toString());
   });
 
-  it("a company fetch failure serves the pages, drops only /co/, and logs one error", async () => {
-    const logged: unknown[][] = [];
+  async function quietly<T>(run: () => Promise<T>): Promise<{ result: T; logged: string[] }> {
+    const logged: string[] = [];
     const original = console.error;
-    console.error = (...args: unknown[]) => void logged.push(args);
+    console.error = (...args: unknown[]) => void logged.push(String(args[0]));
     try {
-      const entries = await buildSitemapEntries(async () => {
-        throw new Error("meili down");
-      });
-      assert.ok(entries.some((e) => e.url.endsWith("/jobs")));
-      assert.ok(entries.some((e) => e.url.includes("/careers/")));
-      assert.ok(entries.some((e) => e.url.includes("/blog/")));
-      assert.equal(entries.some((e) => e.url.includes("/co/")), false);
-      assert.equal(logged.length, 1);
-      assert.match(String(logged[0][0]), /meili down/);
+      return { result: await run(), logged };
     } finally {
       console.error = original;
+    }
+  }
+  const coUrls = (entries: { url: string }[]) => entries.filter((e) => e.url.includes("/co/")).map((e) => e.url);
+  const down = async () => {
+    throw new Error("meili down");
+  };
+
+  it("a failure before any success serves the pages without /co/ and logs one error", async () => {
+    const { result: entries, logged } = await quietly(() => buildSitemapEntries(down, { current: null }));
+    assert.ok(entries.some((e) => e.url.endsWith("/jobs")));
+    assert.ok(entries.some((e) => e.url.includes("/careers/")));
+    assert.ok(entries.some((e) => e.url.includes("/blog/")));
+    assert.deepEqual(coUrls(entries), []);
+    assert.equal(logged.length, 1);
+    assert.match(logged[0], /meili down/);
+  });
+
+  it("a failure or an empty answer after a success serves the last good /co/ set", async () => {
+    const store: { current: CompanyCache | null } = { current: null };
+    const good = await buildSitemapEntries(async () => [company, undated], store);
+    for (const outage of [down, async () => []]) {
+      const { result: entries, logged } = await quietly(() => buildSitemapEntries(outage, store));
+      assert.deepEqual(coUrls(entries), coUrls(good));
+      assert.equal(logged.length, 1);
+      assert.match(logged[0], /last good .* min old/);
     }
   });
 });
@@ -168,8 +189,33 @@ describe("job page soft-404", () => {
       assert.match(String(await digestOf(() => JobPage({ params: Promise.resolve({ slug }) }))), NOT_FOUND);
     }
   });
+});
 
-  it("the job route has no loading.tsx: a streamed fallback commits 200 before notFound() can set 404", () => {
-    assert.equal(existsSync("src/app/jobs/[slug]/loading.tsx"), false);
+describe("company page soft-404", () => {
+  const NOT_FOUND = /^NEXT_HTTP_ERROR_FALLBACK;404/;
+  const result = (over: Partial<JobSearchResult>): JobSearchResult => ({ hits: [], total: 0, backend: "meilisearch", configured: true, ...over });
+  const searching = (over: Partial<JobSearchResult>) => async () => result(over);
+
+  it("a malformed slug is a real 404 before anything streams", async () => {
+    const { default: CompanyPage } = await import("@/app/co/[slug]/page");
+    for (const slug of ["nodots", "-", ""]) {
+      const digest = await CompanyPage({ params: Promise.resolve({ slug }) }).then(() => "no error", (e: { digest?: string }) => e.digest);
+      assert.match(String(digest), NOT_FOUND, `slug "${slug}"`);
+    }
+  });
+
+  it("existence: unknown slug false, any roles true, a board-listed company true without a search, an outage throws", async () => {
+    assert.equal(await companyExists("ghost--example", searching({ total: 0 })), false);
+    assert.equal(await companyExists("acme--example", searching({ total: 3 })), true);
+    const board = (Object.keys(BOARD_META) as BoardId[]).map((id) => getBoardDomains(id)[0]).find(Boolean)!;
+    assert.equal(await companyExists(board.replace(/\./g, "--"), async () => assert.fail("searched")), true);
+    await assert.rejects(companyExists("acme--example", searching({ unavailable: true, note: "down" })), /down/);
+  });
+
+  it("the skeleton is the Suspense fallback on both routes and neither has a loading.tsx", async () => {
+    for (const route of ["co", "jobs"]) {
+      assert.equal(existsSync(`src/app/${route}/[slug]/loading.tsx`), false);
+      assert.match(readFileSync(`src/app/${route}/[slug]/page.tsx`, "utf8"), new RegExp(`<Suspense fallback=\\{<${route === "co" ? "Company" : "Job"}PageSkeleton />\\}>`));
+    }
   });
 });

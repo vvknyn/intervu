@@ -75,6 +75,22 @@ function ghostFlaggedPct(jobs: PublicJob[]): number | null {
   return Math.round((flagged / jobs.length) * 100);
 }
 
+/**
+ * Whether `/co/[slug]` is a company at all, answered before the page streams
+ * so an unknown or malformed slug is a real 404. The narrowest read there is:
+ * the slug's shape, then a board allowlist hit, then a one-hit roles search
+ * (its `total`, not the hit, so an internal-only first posting cannot hide a
+ * company). A failed search throws, as `getCompanyPageData` does.
+ */
+export async function companyExists(slug: string, search: SearchFn = searchJobs): Promise<boolean> {
+  const domain = decodeSlug(slug);
+  if (!domain) return false;
+  if (getBoardsForDomain(domain).length > 0) return true;
+  const result = await search({ companyDomain: domain, limit: 1, hideGhosts: false });
+  if (isUnavailableJobsResult(result)) throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);
+  return result.total > 0;
+}
+
 export async function getCompanyPageData(
   slug: string,
   search: SearchFn = searchJobs,

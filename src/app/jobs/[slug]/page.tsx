@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -6,6 +6,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 // directive (it exports `generateMetadata`); see openclaw/page.tsx's own
 // comment for why the default `@phosphor-icons/react` entry throws here.
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
+import { JobPageSkeleton } from "@/components/jobs/JobPageSkeleton";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
 import { withDescriptionPlace } from "@/lib/jobs/place-notes";
@@ -108,7 +109,9 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
                 <span aria-hidden>/</span>
                 <span className="truncate text-foreground">{titleCaseDisplay(decodeText(job.title))}</span>
             </nav>
-            <PublicJobDetail job={job} layout="document" />
+            <Suspense fallback={<JobPageSkeleton />}>
+                <PublicJobDetail job={job} layout="document" />
+            </Suspense>
         </div>
     );
 }
