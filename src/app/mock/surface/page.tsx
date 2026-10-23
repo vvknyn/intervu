@@ -3,7 +3,6 @@ import { SurfaceMock } from "@/components/mock/SurfaceMock";
 
 export const metadata: Metadata = {
     title: "Surface mock",
-    robots: { index: false, follow: false },
 };
 
 /** Page-width and page-ground options for /jobs, at true scale, for picking one of each. */

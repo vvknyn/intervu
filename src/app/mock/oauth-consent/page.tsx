@@ -4,7 +4,6 @@ import { consentParamsToQuery, type ConsentParams } from "@/lib/agent/consent";
 
 export const metadata: Metadata = {
     title: "Oauth-consent mock",
-    robots: { index: false, follow: false },
 };
 
 const FIXTURE_PARAMS: ConsentParams = {

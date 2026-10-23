@@ -1,8 +1,8 @@
-import { redirect } from "next/navigation";
+import { permanentRedirect, redirect } from "next/navigation";
 import { validateNextParam } from "@/lib/auth/product-routes";
 
 /**
- * The front door IS the job board (spec Phase 1b): `/` redirects to `/jobs`.
+ * The front door IS the job board (spec Phase 1b): `/` permanently (308) redirects to `/jobs`.
  * Handles the `?signin=1` contract (no in-repo producers currently — this
  * exists for external/legacy links). Redirects to `/login` with `next`
  * validated via `validateNextParam`. Already-authenticated users are
@@ -19,5 +19,5 @@ export default async function HomePage({
         const next = validateNextParam(raw);
         redirect(next ? `/login?next=${encodeURIComponent(next)}` : "/login"); // signup-gate-exempt: server redirect into the auth flow, not a rendered prompt
     }
-    redirect("/jobs");
+    permanentRedirect("/jobs");
 }

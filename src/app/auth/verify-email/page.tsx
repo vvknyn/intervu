@@ -5,9 +5,10 @@ import { EmailCodeClient } from "./email-code-client";
 import { decideCallbackFailureLanding } from "@/lib/auth/callback-guard";
 import { getServerUser } from "@/lib/auth/server-user";
 import { EMAIL_CODE_COOKIE_NAME, emailCodeRestartHref, unsealPendingEmailCode } from "@/lib/auth/email-code-pending";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
-    robots: { index: false, follow: false },
+    ...robotsMetadataFor("/auth/verify-email"),
 };
 
 /**

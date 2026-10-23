@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub, otherCareerHubs } from "@/lib/seo/career-hubs";
 import { SITE_NAME } from "@/lib/seo/constants";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
@@ -23,7 +24,7 @@ export async function generateMetadata({
   if (!hub) return {};
   return {
     description: hub.description,
-    robots: { index: true, follow: true },
+    ...robotsMetadataFor(hub.path),
     ...canonicalMetadata(hub.path, hub.title, hub.description),
   };
 }

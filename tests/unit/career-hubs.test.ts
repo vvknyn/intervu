@@ -58,9 +58,9 @@ describe("career intent hubs", () => {
   });
 
   it("sitemap lists every hub via the shared registry", () => {
-    const sitemapSrc = readFileSync(join(ROOT, "src/app/sitemap.ts"), "utf8");
+    const sitemapSrc = readFileSync(join(ROOT, "src/lib/seo/sitemap-entries.ts"), "utf8");
     assert.match(sitemapSrc, /CAREER_HUBS/);
-    assert.match(sitemapSrc, /careerHubEntries/);
+    assert.match(sitemapSrc, /CAREER_HUBS\.map/);
     assert.match(sitemapSrc, /hub\.path/);
   });
 

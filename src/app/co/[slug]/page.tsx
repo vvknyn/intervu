@@ -1,15 +1,17 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompanyPageBody } from "@/components/company/CompanyPageBody";
+import { CompanyPageSkeleton } from "@/components/company/CompanyPageSkeleton";
 import { getServerUser } from "@/lib/auth/server-user";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
-import { getCompanyPageData } from "@/lib/companies/get-company";
+import { companyExists, getCompanyPageData } from "@/lib/companies/get-company";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { buildBreadcrumbJsonLd, buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 // `cache()` so generateMetadata and the page body share ONE load per request
 // (same pattern as jobs/[slug]/page.tsx): each load is a 200-role search plus
@@ -23,12 +25,24 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const data = await loadCompany(slug);
-  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+  if (!data) return { title: "Company not found", ...robotsMetadataFor(`/co/${slug}`, undefined, { pageIndexable: false, inSitemap: false }) };
   return buildCompanyPageMetadata(data);
 }
 
+// The page awaits ONLY the existence check before its first byte, so an
+// unknown or malformed slug is a real 404; the slow load streams behind the
+// skeleton. (A route-level loading.tsx would commit 200 before notFound().)
 export default async function CompanyPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  if (!(await companyExists(slug))) notFound();
+  return (
+    <Suspense fallback={<CompanyPageSkeleton />}>
+      <CompanyPageContent slug={slug} />
+    </Suspense>
+  );
+}
+
+async function CompanyPageContent({ slug }: { slug: string }) {
   const data = await loadCompany(slug);
   if (!data) notFound();
   // Buffer-only: the roles this visitor is about to see get their links

@@ -70,9 +70,8 @@ const mono = JetBrains_Mono({
 });
 
 const SITE_TITLE = SITE_NAME;
-// Fallback for any route that doesn't set its own `metadata` — `/jobs`
-// (a "use client" page, which can't export metadata of its own) is the
-// main consumer today.
+// Fallback for any route that doesn't set its own `metadata`. `/jobs` sets its
+// own (lib/seo/jobs-metadata.ts), so this is no longer its page-level copy.
 /** Site-wide guest meta strings live in @/lib/seo/constants — see SITE_DESCRIPTION and LANDING_*. */
 
 export const metadata: Metadata = {
@@ -90,10 +89,9 @@ export const metadata: Metadata = {
   category: "Job Search & Careers",
   classification: "Job Search, Employment, Careers, Indeed Alternative, LinkedIn Alternative",
   referrer: "origin-when-cross-origin",
-  // No blanket canonical here — a route without its own metadata (like
-  // `/jobs`, a "use client" page that can't export one) is better served
-  // by no canonical tag than a wrong one pointing at `/`. `/` sets its own
-  // in src/app/page.tsx.
+  // No blanket canonical here — a route without its own metadata is better
+  // served by no canonical tag than a wrong one. Indexable pages name theirs
+  // through lib/seo/indexability.ts (`/` redirects to `/jobs`, which does).
   // No `images` array here — leaving it unset lets Next's file-based
   // convention (opengraph-image.tsx, 1200x630) fill it in, and lets every
   // route with its own generator (jobs/[slug], co/[slug], companies/[slug],

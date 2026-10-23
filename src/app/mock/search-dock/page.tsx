@@ -3,7 +3,6 @@ import { SearchDockMock } from "@/components/mock/SearchDockMock";
 
 export const metadata: Metadata = {
     title: "Search-dock mock",
-    robots: { index: false, follow: false },
 };
 
 /** Scroll-docking the /jobs search into the header, three ways. */

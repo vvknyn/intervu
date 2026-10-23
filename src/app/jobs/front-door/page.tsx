@@ -1,5 +1,9 @@
+import type { Metadata } from "next";
 import { connection } from "next/server";
 import JobsRouteGate from "@/app/jobs/JobsRouteGate";
+import { buildJobsMetadata } from "@/lib/seo/jobs-metadata";
+
+export const metadata: Metadata = buildJobsMetadata();
 
 /**
  * /jobs's signed-out front door rendered on the server. Reached only through

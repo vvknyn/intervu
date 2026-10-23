@@ -23,7 +23,7 @@ describe("competitor-alternative pages", () => {
     assert.ok(hrefs.includes(LINKEDIN_JOBS_ALTERNATIVE.path));
     assert.ok(hrefs.includes(ELUTA_ALTERNATIVE.path));
     assert.ok(!hrefs.includes("/careers/canada-jobs"));
-    const sitemapSrc = readFileSync(join(ROOT, "src/app/sitemap.ts"), "utf8");
+    const sitemapSrc = readFileSync(join(ROOT, "src/lib/seo/indexability.ts"), "utf8");
     assert.ok(sitemapSrc.includes("`/indeed-alternative`") || sitemapSrc.includes("/indeed-alternative"));
     assert.ok(sitemapSrc.includes("/linkedin-jobs-alternative"));
     assert.ok(sitemapSrc.includes("/eluta-alternative"));

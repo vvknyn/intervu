@@ -8,7 +8,6 @@ import type { PublicJob } from "@/lib/jobs/types";
 
 export const metadata: Metadata = {
   title: "Company page mock",
-  robots: { index: false, follow: false },
 };
 
 const DAY = 86_400_000;

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
   title: "Live Application Session",
   description: "Watch your live job application session.",
-  robots: { index: false, follow: false },
+  ...robotsMetadataFor("/watch"),
 };
 
 export default function WatchLayout({ children }: { children: React.ReactNode }) {

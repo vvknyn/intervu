@@ -3,7 +3,7 @@ import { authkit, handleAuthkitHeaders } from "@workos-inc/authkit-nextjs";
 import { isAuthSignOutRequest } from "@/lib/auth/signout-request";
 import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
-import { JOBS_QUERY_HEADER } from "@/lib/seo/jobs-query-header";
+import { robotsHeaderFor } from "@/lib/seo/indexability";
 import { FIRST_ROWS_PATH, shouldServeFirstRows } from "@/lib/jobs/server-first-rows";
 import { FRONT_DOOR_PATH, shouldServeFrontDoor } from "@/lib/jobs/server-front-door";
 import {
@@ -27,12 +27,6 @@ export async function middleware(request: NextRequest) {
     }
 
     const { pathname } = request.nextUrl;
-
-    const jobsHasQuery =
-        pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0;
-    if (jobsHasQuery) {
-        request.headers.set(JOBS_QUERY_HEADER, "1");
-    }
 
     // Sign-out POST must not refresh wos-session — authkit() would re-seal the
     // cookie after AuthKit deletes it, or race the delete on the way out.
@@ -69,18 +63,10 @@ export async function middleware(request: NextRequest) {
         });
     }
 
-    // Google/Search Engine Disallow: unconditionally instruct all search engines
-    // to ignore and drop any individual job pages, ?job= permalinks, or parameterized job queries.
-    const isJobRoute =
-        pathname.startsWith("/jobs/") ||
-        pathname.startsWith("/job/") ||
-        request.nextUrl.searchParams.has("job") ||
-        (pathname === "/jobs" && request.nextUrl.searchParams.toString().length > 0) ||
-        (pathname === "/" && request.nextUrl.searchParams.toString().length > 0);
-
-    if (isJobRoute) {
-        response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive, nosnippet");
-    }
+    // The indexability policy (lib/seo/indexability.ts) decides which URLs
+    // carry noindex: job pages, query variants, private and auth surfaces.
+    const robotsTag = robotsHeaderFor(pathname, request.nextUrl.searchParams);
+    if (robotsTag) response.headers.set("X-Robots-Tag", robotsTag);
 
     // A signed-out visitor opening bare /jobs gets the front door drawn on
     // the server (lib/jobs/server-front-door.ts). Same rewrite, and the same

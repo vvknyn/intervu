@@ -13,6 +13,7 @@ import { fetchCompanySnapshotRoleCount, resolveCompanyIndexability } from "./ind
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
 import { hiringRecordSentence } from "./hiring-record";
 import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
@@ -495,15 +496,15 @@ export async function buildCompanyPageMetadata(
   const title = `Is ${data.name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
   const description = companyMetaDescription(data);
   const snapshotRoleCount = await fetchSnapshotRoleCount(data.domain);
-  const { pageIndexable } = resolveCompanyIndexability({
+  const { pageIndexable, inSitemap } = resolveCompanyIndexability({
     snapshotRoleCount,
     liveRoleCount: data.jobs.length,
   });
-  const indexable = pageIndexable || data.hasTrackRecord === true;
+  const path = companyBoardPath(data.domain);
   return {
     description,
-    ...canonicalMetadata(companyBoardPath(data.domain), title, description),
-    ...(indexable ? {} : { robots: { index: false, follow: true } }),
+    ...canonicalMetadata(path, title, description),
+    ...robotsMetadataFor(path, undefined, { pageIndexable: pageIndexable || data.hasTrackRecord === true, inSitemap }),
   };
 }
 
