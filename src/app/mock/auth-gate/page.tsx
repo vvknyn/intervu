@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthGateMock } from "@/components/mock/AuthGateMock";
 
 export const metadata: Metadata = {
-    title: "Auth-gate mock — Velai",
+    title: "Auth-gate mock",
     robots: { index: false, follow: false },
 };
 

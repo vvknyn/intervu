@@ -501,7 +501,6 @@ export async function buildCompanyPageMetadata(
   });
   const indexable = pageIndexable || data.hasTrackRecord === true;
   return {
-    title,
     description,
     ...canonicalMetadata(companyBoardPath(data.domain), title, description),
     ...(indexable ? {} : { robots: { index: false, follow: true } }),

@@ -12,7 +12,6 @@ const DESCRIPTION =
   "Pair Claude, Gemini CLI, or Cursor with velai's verified job data through an MCP server for job search — ask your AI client to find and track real openings without leaving the chat.";
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonicalMetadata("/connect", TITLE, DESCRIPTION),
 };

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { RelatedJobsMock } from "@/components/mock/RelatedJobsMock";
 
 export const metadata: Metadata = {
-    title: "More like this mock — Velai",
+    title: "More like this mock",
     robots: { index: false, follow: false },
 };
 

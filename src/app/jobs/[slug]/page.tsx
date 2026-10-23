@@ -12,14 +12,12 @@ import { withDescriptionPlace } from "@/lib/jobs/place-notes";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
-import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { SITE_NAME } from "@/lib/seo/constants";
+import { canonicalMetadata, pageTitle } from "@/lib/seo/page-metadata";
 
 /**
- * Server-rendered, indexable job page (spec 2026-08-09-shareable-job-pages).
+ * Server-rendered, shareable job page (spec 2026-08-09-shareable-job-pages); noindex by ruling.
  * Follows `src/app/co/[slug]/page.tsx` as the house pattern for a public
- * dynamic SEO route: async `params`, `notFound()`, `generateMetadata`,
- * JSON-LD injected via a raw `<script>` tag.
+ * dynamic SEO route: async `params`, `notFound()`, `generateMetadata`.
  */
 export const revalidate = 3600;
 
@@ -51,16 +49,15 @@ export async function generateMetadata({
     const company = displayCompanyFor(job);
     const where = locationText(job);
     const jobTitle = titleCaseDisplay(decodeText(job.title));
-    const title = `${jobTitle}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
+    const title = `${jobTitle}${company ? ` at ${company}` : ""}`;
     const description =
         job.company_opened_90d != null && job.company_closed_90d != null && company
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
             : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
     return {
-        title,
         description,
-        ...canonicalMetadata(path, title, description),
+        ...canonicalMetadata(path, pageTitle(title, where), description),
         robots: {
             index: false,
             follow: false,

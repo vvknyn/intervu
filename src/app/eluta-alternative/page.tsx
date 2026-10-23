@@ -12,7 +12,6 @@ import { PageContainer } from "@/components/layout/PageContainer";
 const { title: TITLE, description: DESCRIPTION, path: PATH } = ELUTA_ALTERNATIVE;
 
 export const metadata: Metadata = {
-  title: { absolute: TITLE },
   description: DESCRIPTION,
   ...canonicalMetadata(PATH, TITLE, DESCRIPTION),
 };

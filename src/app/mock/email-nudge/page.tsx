@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EmailNudgeMock } from "@/components/mock/EmailNudgeMock";
 
 export const metadata: Metadata = {
-    title: "Email-nudge mock — Velai",
+    title: "Email-nudge mock",
     robots: { index: false, follow: false },
 };
 

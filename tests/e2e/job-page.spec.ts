@@ -10,12 +10,13 @@ async function firstJobPath(page: Page): Promise<string> {
   return (await link.getAttribute("href")) as string;
 }
 
-test("a job page renders server-side with JobPosting JSON-LD", async ({ page }) => {
+test("a job page renders server-side, noindex, with no JobPosting JSON-LD", async ({ page }) => {
   const path = await firstJobPath(page);
   const res = await page.goto(path);
   expect(res?.status()).toBe(200);
-  const ld = await page.locator('script[type="application/ld+json"]').first().textContent();
-  expect(ld).toContain('"@type":"JobPosting"');
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+  const ld = (await page.locator('script[type="application/ld+json"]').allTextContents()).join("");
+  expect(ld).not.toContain("JobPosting");
   await expect(page.getByTestId("job-page")).toBeVisible();
   await expect(page.locator("h1")).toBeVisible();
 });
