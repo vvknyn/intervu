@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { usePrefetchOnIntent } from "@/components/layout/use-prefetch-on-intent";
 import { FOOTER_EXTRA_TABS } from "@/components/layout/nav-tabs";
 import { isLeanProductSurface, isQuietFooterPath, shouldHideSiteChrome } from "@/components/layout/should-hide-site-chrome";
+import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
@@ -16,8 +17,7 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true;
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
-    { label: "Remote jobs", href: "/careers/remote-jobs" },
-    { label: "Company career pages", href: "/careers/company-career-pages" },
+    ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path })),
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
     { label: "Eluta alternative", href: "/eluta-alternative" },

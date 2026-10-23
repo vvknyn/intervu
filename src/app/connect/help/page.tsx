@@ -6,7 +6,7 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
-  title: "Setup help — velai",
+  title: "Setup help",
   description:
     "Troubleshooting for connecting your AI to velai — the Claude connector (no install) and the OpenClaw local agent (Mac install). Find the exact step that failed and what to do next.",
   robots: { index: false, follow: true },

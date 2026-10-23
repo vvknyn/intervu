@@ -8,7 +8,8 @@ import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import { getCompanyPageData } from "@/lib/companies/get-company";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
-import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { companyBoardPath } from "@/lib/companies/paths";
+import { buildBreadcrumbJsonLd, buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 
 // `cache()` so generateMetadata and the page body share ONE load per request
 // (same pattern as jobs/[slug]/page.tsx): each load is a 200-role search plus
@@ -63,6 +64,11 @@ export default async function CompanyPage({ params }: { params: Promise<{ slug: 
       knowsAbout: data.intelligence?.techStack?.languages,
     }),
     ...(faqJsonLd ? [faqJsonLd] : []),
+    // Mirrors the visible breadcrumb row below.
+    buildBreadcrumbJsonLd([
+      { name: "Find jobs", path: "/jobs" },
+      { name: data.name, path: companyBoardPath(data.domain) },
+    ]),
   ];
 
   return (

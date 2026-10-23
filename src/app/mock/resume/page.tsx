@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { ResumeStatesMockLoader } from "@/components/mock/ResumeStatesMockLoader";
 
 export const metadata: Metadata = {
-    title: "Resume states mock — Velai",
+    title: "Resume states mock",
     robots: { index: false, follow: false },
 };
 

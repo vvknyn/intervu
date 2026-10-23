@@ -73,3 +73,13 @@ test("does not split on hyphens inside words (Toronto-Dominion stays one segment
   const out = presentCompany({ name: "The Toronto-Dominion Bank (Canada)", domain: "td.com" });
   assert.equal(out.name, "The Toronto-Dominion Bank (Canada)");
 });
+
+test("a stored name wins over the domain; the domain label is only the fallback", () => {
+  assert.equal(presentCompany({ name: "CVS Health", domain: "cvshealth.com" }).name, "CVS Health");
+  assert.equal(presentCompany({ name: null, domain: "acme-corp.io" }).name, "Acme Corp");
+});
+
+test("an acronym-suffixed tenant domain keeps its acronym; the result is never empty", () => {
+  assert.equal(presentCompany({ name: "", domain: "sabenzait.zohorecruit.com" }).name, "Sabenza IT");
+  assert.notEqual(presentCompany({ name: undefined, domain: undefined }).name, "");
+});

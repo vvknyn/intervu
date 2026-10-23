@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SurfaceMock } from "@/components/mock/SurfaceMock";
 
 export const metadata: Metadata = {
-    title: "Surface mock — Velai",
+    title: "Surface mock",
     robots: { index: false, follow: false },
 };
 

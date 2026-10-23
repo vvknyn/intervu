@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TrendLink } from "./TrendLink";
 import type { TrendFacetItem } from "@/lib/jobs/market-trends";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { BarRow, TrendSection } from "./TrendSection";
@@ -44,7 +44,7 @@ export function ExperienceSeniorityDistribution({
               })}`;
 
               return (
-                <Link
+                <TrendLink
                   key={type.key}
                   href={href}
                   className="inline-flex items-center gap-1.5 text-xs text-foreground transition-colors hover:text-brand"
@@ -53,7 +53,7 @@ export function ExperienceSeniorityDistribution({
                   <span className="text-xs font-semibold text-muted-foreground tabular-nums">
                     {type.pct}%
                   </span>
-                </Link>
+                </TrendLink>
               );
             })}
           </div>

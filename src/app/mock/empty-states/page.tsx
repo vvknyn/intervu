@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EmptyStatesMock } from "@/components/mock/EmptyStatesMock";
 
 export const metadata: Metadata = {
-    title: "Empty states mock — Velai",
+    title: "Empty states mock",
     robots: { index: false, follow: false },
 };
 

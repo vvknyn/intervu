@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CompletenessMock } from "@/components/mock/CompletenessMock";
 
 export const metadata: Metadata = {
-    title: "Completeness mock — Velai",
+    title: "Completeness mock",
     robots: { index: false, follow: false },
 };
 

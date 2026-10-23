@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { SearchDockMock } from "@/components/mock/SearchDockMock";
 
 export const metadata: Metadata = {
-    title: "Search-dock mock — Velai",
+    title: "Search-dock mock",
     robots: { index: false, follow: false },
 };
 

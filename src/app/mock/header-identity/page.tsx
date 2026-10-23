@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { HeaderIdentityMock } from "@/components/mock/HeaderIdentityMock";
 
 export const metadata: Metadata = {
-    title: "Header identity mock — Velai",
+    title: "Header identity mock",
     robots: { index: false, follow: false },
 };
 

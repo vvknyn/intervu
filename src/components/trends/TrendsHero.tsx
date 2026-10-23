@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TrendLink } from "./TrendLink";
 import { formatCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { cn } from "@/lib/utils";
@@ -78,9 +78,9 @@ export function TrendsHero({
         );
 
         return tile.href ? (
-          <Link key={tile.testId} href={tile.href} className="block">
+          <TrendLink key={tile.testId} href={tile.href} className="block">
             {content}
-          </Link>
+          </TrendLink>
         ) : (
           <div key={tile.testId}>{content}</div>
         );

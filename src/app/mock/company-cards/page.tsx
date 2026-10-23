@@ -4,7 +4,7 @@ import { CompanyIntelLockCard } from "@/components/company/CompanyIntelGate";
 import { companyUnlockStep } from "@/lib/company/unlock-step";
 
 export const metadata: Metadata = {
-  title: "Company unlock-card mock — Velai",
+  title: "Company unlock-card mock",
   robots: { index: false, follow: false },
 };
 

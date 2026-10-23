@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { HistoryMockClient } from "./HistoryMockClient";
 
 export const metadata: Metadata = {
-    title: "History mock — Velai",
+    title: "History mock",
     robots: { index: false, follow: false },
 };
 

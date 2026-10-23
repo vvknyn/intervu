@@ -19,7 +19,6 @@ const TITLE = "Privacy Policy";
 const DESCRIPTION = "How Velai keeps your résumé private: read in your browser, encrypted when saved, and never sold. What we collect, why, and how you control it.";
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonicalMetadata("/privacy", TITLE, DESCRIPTION),
 };

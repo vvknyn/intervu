@@ -18,7 +18,6 @@ const stats = getGhostJobsStats();
 const DESCRIPTION = `We scored ${stats.totalScored.toLocaleString()} job listings from corporate ATS platforms. ${stats.gradePct.DF}% are outright junk, but nearly half are missing the signals you need to decide if they're worth your time.`;
 
 export const metadata: Metadata = {
-  title: HEADLINE,
   description: DESCRIPTION,
   ...canonicalMetadata("/research/ghost-jobs", HEADLINE, DESCRIPTION),
 };

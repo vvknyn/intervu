@@ -14,7 +14,6 @@ const canonical = canonicalMetadata("/blog", TITLE, DESCRIPTION);
 const SITE_PREVIEW_IMAGE = { url: "/opengraph-image", width: 1200, height: 630 };
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonical,
   openGraph: { ...canonical.openGraph, images: [SITE_PREVIEW_IMAGE] },

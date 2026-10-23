@@ -7,7 +7,7 @@ import type { CompanyPageData } from "@/lib/companies/types";
 import type { PublicJob } from "@/lib/jobs/types";
 
 export const metadata: Metadata = {
-  title: "Company page mock — Velai",
+  title: "Company page mock",
   robots: { index: false, follow: false },
 };
 

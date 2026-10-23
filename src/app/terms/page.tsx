@@ -15,7 +15,6 @@ const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonicalMetadata("/terms", TITLE, DESCRIPTION),
 };

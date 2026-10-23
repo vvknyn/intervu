@@ -36,7 +36,6 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const coverUrl = `${getSiteUrl()}${post.cover}`;
   const coverAlt = blogCoverAlt(post);
   return {
-    title,
     description: post.description,
     ...canonical,
     openGraph: {

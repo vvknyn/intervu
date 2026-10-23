@@ -15,13 +15,7 @@ import { IdleDeferredWidgets } from "@/components/providers/IdleDeferredWidgets"
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { getSiteUrl, LANDING_TITLE, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME } from "@/lib/seo/constants";
-import {
-  buildJobSearchFaqJsonLd,
-  buildOrganizationJsonLd,
-  buildWebApplicationJsonLd,
-  buildWebsiteJsonLd,
-  serializeJsonLd,
-} from "@/lib/seo/jsonld";
+import { buildSiteJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 
 /**
  * Three faces, each named for the ROLE it plays rather than the vendor that
@@ -141,16 +135,8 @@ export const metadata: Metadata = {
   },
 };
 
-// Rendered as a single script tag (array of graphs) below — covers site-wide
-// WebSite (SearchAction), Organization (name/url/logo), WebApplication,
-// and high-intent FAQ structured data.
-const faqJsonLd = buildJobSearchFaqJsonLd();
-const rootJsonLd = [
-  buildWebsiteJsonLd(),
-  buildOrganizationJsonLd(),
-  buildWebApplicationJsonLd(),
-  ...(faqJsonLd ? [faqJsonLd] : []),
-];
+// Site identity only (WebSite + Organization); page graphs live on their pages.
+const rootJsonLd = buildSiteJsonLd();
 
 export default function RootLayout({
   children,
@@ -181,9 +167,8 @@ export default function RootLayout({
         className={`${display.variable} ${sans.variable} ${mono.variable} antialiased bg-background text-foreground min-h-screen flex flex-col`}
         suppressHydrationWarning
       >
-        {/* Site-wide WebSite graph (SearchAction, for a sitelinks search box
-            pointed at intervu's own jobs search) + Organization graph (name,
-            url, logo). */}
+        {/* WebSite graph (SearchAction, for a sitelinks search box pointed at
+            our own jobs search) + Organization graph (name, url, logo). */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: serializeJsonLd(rootJsonLd) }}
