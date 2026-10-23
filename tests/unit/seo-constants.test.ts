@@ -1,3 +1,4 @@
+import { LAST_GOOD } from "@/lib/seo/sitemap-entries";
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
@@ -89,6 +90,7 @@ describe("seo/constants — getSiteUrl() env seam", () => {
   // sitemap: the pages, hubs and blog are served, only /co/ is absent, and
   // the failure is logged once (lib/seo/sitemap-entries.ts).
   const servesPagesWithoutCompanies = (reply: () => Response, expected: RegExp) => async () => {
+    LAST_GOOD.current = null; // a process that has never had a good answer; the last-good case is in seo-indexability.test.ts
     process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
     const logged: string[] = [];
     const original = console.error;

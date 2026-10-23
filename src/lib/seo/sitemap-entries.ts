@@ -30,7 +30,8 @@ export interface CompanyCache {
   companies: IndexableCompanyDomain[];
   at: number;
 }
-const LAST_GOOD: { current: CompanyCache | null } = { current: null };
+/** Module state (survives across requests); exported so tests can start a case with none. */
+export const LAST_GOOD: { current: CompanyCache | null } = { current: null };
 
 export async function buildSitemapEntries(
   fetchCompanies: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
