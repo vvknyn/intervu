@@ -57,7 +57,6 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = "Market trends";
   const description = `Live ${GHOST_JOB_TERM} and hiring stats — hiring countries, posting freshness, ${GHOST_JOB_TERM} risk. Snapshot as of ${asOf}.`;
   return {
-    title,
     description,
     ...canonicalMetadata("/trends", title, description),
   };

@@ -6,6 +6,7 @@ import { JOB_SEARCH_FAQ } from "@/lib/faq";
 import { blogPostPath } from "@/lib/blog/posts";
 import { IS_VELAI_LEGIT } from "@/lib/blog/is-velai-legit";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { buildJobSearchFaqJsonLd, buildWebApplicationJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -14,14 +15,17 @@ const TITLE = "About velai";
 const DESCRIPTION = "What velai is, how it works, and where the data comes from.";
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonicalMetadata("/about", TITLE, DESCRIPTION),
 };
 
+// The two graphs describing what this page says: the product and its visible Questions.
+const aboutJsonLd = [buildWebApplicationJsonLd(), buildJobSearchFaqJsonLd()].filter(Boolean);
+
 export default function AboutPage() {
   return (
     <PageContainer measure="reading" data-testid="about-page" className="py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(aboutJsonLd) }} />
       <p className="text-xs font-semibold text-muted-foreground">About velai</p>
       <PageTitle className="mt-3">About velai</PageTitle>
       <p className="mt-1.5 text-base text-muted-foreground">

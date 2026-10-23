@@ -7,7 +7,7 @@ import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
-  title: "Setup help — velai",
+  title: "Setup help",
   description:
     "Troubleshooting for connecting your AI to velai — the Claude connector (no install) and the OpenClaw local agent (Mac install). Find the exact step that failed and what to do next.",
   ...robotsMetadataFor("/connect/help"),

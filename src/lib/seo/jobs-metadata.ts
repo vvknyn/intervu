@@ -25,7 +25,6 @@ export function buildJobsMetadata(query: Record<string, string | string[] | unde
     const search = toURLSearchParams(query);
     const { canonical } = indexabilityFor("/jobs", search);
     return {
-        title: JOBS_TITLE,
         description: JOBS_DESCRIPTION,
         ...canonicalMetadata(canonical ?? "/jobs", JOBS_TITLE, JOBS_DESCRIPTION),
         ...robotsMetadataFor("/jobs", search),

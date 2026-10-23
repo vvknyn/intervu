@@ -502,7 +502,6 @@ export async function buildCompanyPageMetadata(
   });
   const path = companyBoardPath(data.domain);
   return {
-    title,
     description,
     ...canonicalMetadata(path, title, description),
     ...robotsMetadataFor(path, undefined, { pageIndexable: pageIndexable || data.hasTrackRecord === true, inSitemap }),
