@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub } from "@/lib/seo/career-hubs";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle } from "@/components/ui/heading";
@@ -22,7 +23,7 @@ export async function generateMetadata({
   return {
     title: { absolute: hub.title },
     description: hub.description,
-    robots: { index: true, follow: true },
+    ...robotsMetadataFor(hub.path),
     ...canonicalMetadata(hub.path, hub.title, hub.description),
   };
 }

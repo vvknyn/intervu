@@ -11,6 +11,7 @@
  * Single source of truth consumed by both `src/app/robots.ts` and its unit
  * tests.
  */
+import { JOB_PATH_PREFIXES, PRIVATE_PATHS, QUERY_DISALLOW_PATTERNS } from "@/lib/seo/indexability";
 
 /** Mainstream search engines. */
 export const SEARCH_ENGINE_BOTS = ["Googlebot", "Bingbot", "DuckDuckBot", "Applebot"] as const;
@@ -29,11 +30,7 @@ export const AI_ANSWER_ENGINE_BOTS = [
   "meta-externalagent",
 ] as const;
 
-/** Authed/API/private surfaces — never worth crawling regardless of bot.
- *  `/oauth/` covers the MCP OAuth 2.1 AS's authorize/token/consent
- *  endpoints — auth-flow pages carrying state/token query params, never a
- *  marketing surface worth indexing. */
-export const PRIVATE_PATHS = ["/api/", "/admin", "/settings", "/account", "/reset-password", "/oauth/"];
+export { PRIVATE_PATHS };
 
 /**
  * Query-parameterized search-result permutations of the job-search surface
@@ -51,19 +48,12 @@ export const PRIVATE_PATHS = ["/api/", "/admin", "/settings", "/account", "/rese
 export const DEEP_SEARCH_DISALLOW_PATTERN = "/?";
 
 /**
- * Job posting and parameterized search URL disallow patterns.
- * Explicitly instructs all search engines and AI crawlers to never index individual job listings
- * or parameterized query variations.
+ * Job posting and parameterized search URL disallow patterns — the path
+ * classes the indexability policy marks noindex (see lib/seo/indexability.ts,
+ * which also emits the matching noindex meta/header: robots.txt alone hides
+ * a noindex from the crawler).
  */
-export const JOB_DISALLOW_PATTERNS = [
-  "/jobs/",
-  "/job/",
-  "/*?job=*",
-  "/*?*job*",
-  "/*?q=*",
-  "/?*",
-  "/*?*",
-];
+export const JOB_DISALLOW_PATTERNS = [...JOB_PATH_PREFIXES, ...QUERY_DISALLOW_PATTERNS];
 
 export interface RobotsRule {
   userAgent: string | string[];

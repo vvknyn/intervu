@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
   title: "Companies hiring hard",
   description: "Elite companies ranked by roles opened in the last 90 days.",
-  robots: { index: false, follow: true },
+  ...robotsMetadataFor("/companies/hiring"),
   alternates: { canonical: "/jobs" },
 };
 

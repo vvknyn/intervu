@@ -5,9 +5,10 @@ import { AuthRetryClient } from "./auth-retry-client";
 import { AuthRouteLoading } from "@/components/auth/auth-route-chrome";
 import { decideCallbackFailureLanding } from "@/lib/auth/callback-guard";
 import { getServerUser } from "@/lib/auth/server-user";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
-    robots: { index: false, follow: false },
+    ...robotsMetadataFor("/auth/retry"),
 };
 
 /**

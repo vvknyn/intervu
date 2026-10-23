@@ -3,7 +3,6 @@ import { EmptyStatesMock } from "@/components/mock/EmptyStatesMock";
 
 export const metadata: Metadata = {
     title: "Empty states mock — Velai",
-    robots: { index: false, follow: false },
 };
 
 type PageProps = {

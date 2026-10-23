@@ -13,6 +13,7 @@ import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { indexabilityFor } from "@/lib/seo/indexability";
 import { SITE_NAME } from "@/lib/seo/constants";
 
 /**
@@ -57,17 +58,19 @@ export async function generateMetadata({
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
             : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
+    const { index, follow } = indexabilityFor(path);
+
     return {
         title,
         description,
         ...canonicalMetadata(path, title, description),
         robots: {
-            index: false,
-            follow: false,
+            index,
+            follow,
             nocache: true,
             googleBot: {
-                index: false,
-                follow: false,
+                index,
+                follow,
                 noimageindex: true,
                 "max-video-preview": -1,
                 "max-image-preview": "none",

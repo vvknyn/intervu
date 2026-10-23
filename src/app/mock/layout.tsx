@@ -1,4 +1,8 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
+
+export const metadata: Metadata = robotsMetadataFor("/mock");
 
 /**
  * /mock/* are design fixtures (lockup, completeness, auth-gate, …) for

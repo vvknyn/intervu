@@ -9,6 +9,7 @@ import { getCompanyPageData } from "@/lib/companies/get-company";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
 import { buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 // `cache()` so generateMetadata and the page body share ONE load per request
 // (same pattern as jobs/[slug]/page.tsx): each load is a 200-role search plus
@@ -22,7 +23,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const data = await loadCompany(slug);
-  if (!data) return { title: "Company not found", robots: { index: false, follow: false } };
+  if (!data) return { title: "Company not found", ...robotsMetadataFor(`/co/${slug}`, undefined, { pageIndexable: false, inSitemap: false }) };
   return buildCompanyPageMetadata(data);
 }
 

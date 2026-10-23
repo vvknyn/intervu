@@ -4,12 +4,13 @@ import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
   title: "Setup help — velai",
   description:
     "Troubleshooting for connecting your AI to velai — the Claude connector (no install) and the OpenClaw local agent (Mac install). Find the exact step that failed and what to do next.",
-  robots: { index: false, follow: true },
+  ...robotsMetadataFor("/connect/help"),
 };
 
 /** Ordered id + label pairs — the single source for both the on-page table

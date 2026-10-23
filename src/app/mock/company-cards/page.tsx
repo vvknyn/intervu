@@ -5,7 +5,6 @@ import { companyUnlockStep } from "@/lib/company/unlock-step";
 
 export const metadata: Metadata = {
   title: "Company unlock-card mock — Velai",
-  robots: { index: false, follow: false },
 };
 
 /**

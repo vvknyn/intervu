@@ -8,6 +8,7 @@ import { companyBoardPath, companyFromSlug, companyPagePath } from "@/lib/compan
 import { CompanyHeader } from "@/components/company/CompanyHeader";
 import { CompanyRolesList } from "@/components/company/CompanyRolesList";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 /**
@@ -63,7 +64,7 @@ export async function generateMetadata({
   return {
     title,
     description,
-    robots: { index: false, follow: true },
+    ...robotsMetadataFor(`/companies/${slug}`),
     alternates: { canonical },
   };
 }
