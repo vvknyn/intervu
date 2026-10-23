@@ -11,7 +11,6 @@ const TITLE = "Contact";
 const DESCRIPTION = "Reach the velai team — questions, feedback, or a listing to correct.";
 
 export const metadata: Metadata = {
-  title: TITLE,
   description: DESCRIPTION,
   ...canonicalMetadata("/contact", TITLE, DESCRIPTION),
 };

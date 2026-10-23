@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { LockupMock } from "@/components/mock/LockupMock";
 
 export const metadata: Metadata = {
-    title: "Lockup mock — Velai",
-    robots: { index: false, follow: false },
+    title: "Lockup mock",
 };
 
 /** Four header lockup directions at true scale, for picking one. */

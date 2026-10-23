@@ -7,6 +7,7 @@ import {
   careerHubJobsHref,
   getAllCareerHubSlugs,
   getCareerHub,
+  otherCareerHubs,
 } from "@/lib/seo/career-hubs";
 
 const ROOT = join(__dirname, "..", "..");
@@ -30,22 +31,36 @@ describe("career intent hubs", () => {
     assert.equal(CAREER_HUBS.length, expected.length);
   });
 
-  it("each hub has unique copy and at least two related hubs", () => {
+  it("each hub has unique copy", () => {
     const titles = new Set<string>();
     for (const hub of CAREER_HUBS) {
       assert.equal(hub.path, `/careers/${hub.slug}`);
       assert.ok(hub.intro.length >= 2);
-      assert.ok(hub.relatedSlugs.length >= 2);
-      assert.ok(hub.relatedSlugs.every((slug) => getCareerHub(slug)));
+      assert.ok(hub.label.length > 0);
       assert.ok(!titles.has(hub.title));
       titles.add(hub.title);
     }
   });
 
+  it("sibling nav lists every other hub exactly once, never itself", () => {
+    for (const hub of CAREER_HUBS) {
+      const others = otherCareerHubs(hub.slug).map((h) => h.slug);
+      assert.equal(others.length, CAREER_HUBS.length - 1, hub.slug);
+      assert.equal(new Set(others).size, others.length);
+      assert.ok(!others.includes(hub.slug));
+    }
+  });
+
+  it("hub page renders sibling links and a nofollow search link", () => {
+    const pageSrc = readFileSync(join(ROOT, "src/app/careers/[slug]/page.tsx"), "utf8");
+    assert.match(pageSrc, /otherCareerHubs\(hub\.slug\)/);
+    assert.match(pageSrc, /rel="nofollow"[^>]*career-hub-search/);
+  });
+
   it("sitemap lists every hub via the shared registry", () => {
-    const sitemapSrc = readFileSync(join(ROOT, "src/app/sitemap.ts"), "utf8");
+    const sitemapSrc = readFileSync(join(ROOT, "src/lib/seo/sitemap-entries.ts"), "utf8");
     assert.match(sitemapSrc, /CAREER_HUBS/);
-    assert.match(sitemapSrc, /careerHubEntries/);
+    assert.match(sitemapSrc, /CAREER_HUBS\.map/);
     assert.match(sitemapSrc, /hub\.path/);
   });
 

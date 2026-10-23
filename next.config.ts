@@ -145,13 +145,13 @@ const nextConfig: NextConfig = {
       // URL) still means "show me results," so this rule intercepts it
       // first, at the routing layer, and forwards `q` (and any other query
       // params) through to `/jobs` before `/`'s own redirect runs and loses
-      // them. NOT permanent: this is plumbing around page.tsx's redirect,
-      // not a URL shape we're committing to forever.
+      // them. Permanent (308) like page.tsx's own redirect: both are the
+      // same move of the front door to /jobs.
       {
         source: "/",
         has: [{ type: "query", key: "q" }],
         destination: "/jobs",
-        permanent: false,
+        permanent: true,
       },
       // The applications tracker became the pursuit list (jobs-first-bloom
       // PR 2). Query params (e.g. ?view=new) pass through automatically.

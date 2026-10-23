@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { TrendLink } from "./TrendLink";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -147,8 +147,8 @@ export function BarRow({
 
   if (!href) return content;
   return (
-    <Link href={href} className="group block">
+    <TrendLink href={href} className="group block">
       {content}
-    </Link>
+    </TrendLink>
   );
 }

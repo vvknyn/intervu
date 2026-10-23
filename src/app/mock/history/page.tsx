@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { HistoryMockClient } from "./HistoryMockClient";
 
 export const metadata: Metadata = {
-    title: "History mock — Velai",
-    robots: { index: false, follow: false },
+    title: "History mock",
 };
 
 /** Fixture-driven /yours/history preview — filled by default, `?state=empty`

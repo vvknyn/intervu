@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { SearchEmphasisMock } from "@/components/mock/SearchEmphasisMock";
 
 export const metadata: Metadata = {
-    title: "Search-emphasis mock — Velai",
-    robots: { index: false, follow: false },
+    title: "Search-emphasis mock",
 };
 
 /** Shadow-free ways to give the /jobs search box weight, for picking one. */

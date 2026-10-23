@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub } from "@/lib/seo/career-hubs";
+import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub, otherCareerHubs } from "@/lib/seo/career-hubs";
+import { SITE_NAME } from "@/lib/seo/constants";
+import { robotsMetadataFor } from "@/lib/seo/indexability";
+import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle } from "@/components/ui/heading";
@@ -20,9 +23,8 @@ export async function generateMetadata({
   const hub = getCareerHub(slug);
   if (!hub) return {};
   return {
-    title: { absolute: hub.title },
     description: hub.description,
-    robots: { index: true, follow: true },
+    ...robotsMetadataFor(hub.path),
     ...canonicalMetadata(hub.path, hub.title, hub.description),
   };
 }
@@ -32,13 +34,15 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
   const hub = getCareerHub(slug);
   if (!hub) notFound();
 
-  const related = hub.relatedSlugs
-    .map((relatedSlug) => getCareerHub(relatedSlug))
-    .filter((entry): entry is NonNullable<typeof entry> => entry != null);
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    { name: SITE_NAME, path: "/" },
+    { name: hub.label, path: hub.path },
+  ]);
   const jobsHref = careerHubJobsHref(hub);
 
   return (
     <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: serializeJsonLd(breadcrumbJsonLd) }} />
       <p className="text-xs font-semibold text-muted-foreground">Career hub</p>
       <PageTitle className="mt-3">{hub.h1}</PageTitle>
 
@@ -49,12 +53,12 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
       </Prose>
 
       <nav aria-label="Related career topics" className="mt-8 flex flex-wrap gap-x-4 gap-y-2 text-sm">
-        <Link href={jobsHref} data-testid="career-hub-search" className="font-semibold text-brand hover:underline">
+        <Link href={jobsHref} rel="nofollow" data-testid="career-hub-search" className="font-semibold text-brand hover:underline">
           {hub.searchLabel}
         </Link>
-        {related.map((relatedHub) => (
-          <Link key={relatedHub.slug} href={relatedHub.path} className="text-muted-foreground hover:text-foreground">
-            {relatedHub.h1}
+        {otherCareerHubs(hub.slug).map((other) => (
+          <Link key={other.slug} href={other.path} className="text-muted-foreground hover:text-foreground">
+            {other.label}
           </Link>
         ))}
         {hub.alternativePath && (

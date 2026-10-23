@@ -162,7 +162,7 @@ export function rowExceptionMeta(job: GhostChecked, nowMs: number) {
 
 /**
  * Repairs scraped ALL-CAPS / all-lowercase company/location text for public
- * display on the indexable `/jobs/[slug]` page (spec §6.1) — live samples
+ * display on the shared `/jobs/[slug]` page (spec §6.1) — live samples
  * returned `company: "orange"` and `location: "WARSZAWA, POLAND"`, which
  * read as scraped and depress click-through on a page built to be shared.
  * Mixed-case input is left untouched, so deliberate casing ("eBay") survives.

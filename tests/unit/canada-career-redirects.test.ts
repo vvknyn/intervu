@@ -23,7 +23,7 @@ describe("retired Canada career hub redirects", () => {
     for (const retired of REMOVED_CANADA_CAREER_SLUGS) {
       assert.ok(!slugs.has(retired), `registry still contains ${retired}`);
     }
-    const sitemap = readFileSync(join(ROOT, "src/app/sitemap.ts"), "utf8");
+    const sitemap = readFileSync(join(ROOT, "src/lib/seo/sitemap-entries.ts"), "utf8");
     for (const retired of REMOVED_CANADA_CAREER_SLUGS) {
       assert.doesNotMatch(sitemap, new RegExp(retired));
     }

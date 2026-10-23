@@ -23,7 +23,6 @@ export function generateMetadata(): Metadata {
     foundingCheckoutUrl(process.env[FOUNDING_CHECKOUT_URL_ENV], null) !== null,
   );
   return {
-    title: TITLE,
     description,
     ...canonicalMetadata("/pricing", TITLE, description),
   };

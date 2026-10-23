@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { EmptyStatesMock } from "@/components/mock/EmptyStatesMock";
 
 export const metadata: Metadata = {
-    title: "Empty states mock — Velai",
-    robots: { index: false, follow: false },
+    title: "Empty states mock",
 };
 
 type PageProps = {

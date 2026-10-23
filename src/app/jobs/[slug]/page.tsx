@@ -1,4 +1,4 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
@@ -6,20 +6,20 @@ import { notFound, permanentRedirect } from "next/navigation";
 // directive (it exports `generateMetadata`); see openclaw/page.tsx's own
 // comment for why the default `@phosphor-icons/react` entry throws here.
 import { ArrowLeft } from "@phosphor-icons/react/dist/ssr";
+import { JobPageSkeleton } from "@/components/jobs/JobPageSkeleton";
 import { PublicJobDetail } from "@/components/jobs/PublicJobDetail";
 import { getJobById } from "@/lib/jobs/get-job";
 import { withDescriptionPlace } from "@/lib/jobs/place-notes";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { jobPath, parseJobSlug } from "@/lib/jobs/job-slug";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
-import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { SITE_NAME } from "@/lib/seo/constants";
+import { canonicalMetadata, pageTitle } from "@/lib/seo/page-metadata";
+import { indexabilityFor } from "@/lib/seo/indexability";
 
 /**
- * Server-rendered, indexable job page (spec 2026-08-09-shareable-job-pages).
+ * Server-rendered, shareable job page (spec 2026-08-09-shareable-job-pages); noindex by ruling.
  * Follows `src/app/co/[slug]/page.tsx` as the house pattern for a public
- * dynamic SEO route: async `params`, `notFound()`, `generateMetadata`,
- * JSON-LD injected via a raw `<script>` tag.
+ * dynamic SEO route: async `params`, `notFound()`, `generateMetadata`.
  */
 export const revalidate = 3600;
 
@@ -51,23 +51,24 @@ export async function generateMetadata({
     const company = displayCompanyFor(job);
     const where = locationText(job);
     const jobTitle = titleCaseDisplay(decodeText(job.title));
-    const title = `${jobTitle}${company ? ` at ${company}` : ""}${where ? ` — ${where}` : ""} | ${SITE_NAME}`;
+    const title = `${jobTitle}${company ? ` at ${company}` : ""}`;
     const description =
         job.company_opened_90d != null && job.company_closed_90d != null && company
             ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
             : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
+    const { index, follow } = indexabilityFor(path);
+
     return {
-        title,
         description,
-        ...canonicalMetadata(path, title, description),
+        ...canonicalMetadata(path, pageTitle(title, where), description),
         robots: {
-            index: false,
-            follow: false,
+            index,
+            follow,
             nocache: true,
             googleBot: {
-                index: false,
-                follow: false,
+                index,
+                follow,
                 noimageindex: true,
                 "max-video-preview": -1,
                 "max-image-preview": "none",
@@ -105,7 +106,9 @@ export default async function JobPage({ params }: { params: Promise<{ slug: stri
                 <span aria-hidden>/</span>
                 <span className="truncate text-foreground">{titleCaseDisplay(decodeText(job.title))}</span>
             </nav>
-            <PublicJobDetail job={job} layout="document" />
+            <Suspense fallback={<JobPageSkeleton />}>
+                <PublicJobDetail job={job} layout="document" />
+            </Suspense>
         </div>
     );
 }

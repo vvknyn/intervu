@@ -21,7 +21,7 @@ const CONTROL = read("src/components/companies/CompanyFollowControl.tsx");
 const GATE = read("src/components/company/CompanyIntelGate.tsx");
 const CO_PAGE = read("src/app/co/[slug]/page.tsx");
 const CO_PAGE_BODY = read("src/components/company/CompanyPageBody.tsx");
-const CO_LOADING = read("src/app/co/[slug]/loading.tsx");
+const CO_LOADING = read("src/components/company/CompanyPageSkeleton.tsx");
 const ROLE_SEARCH = read("src/components/company/CompanyRoleSearch.tsx");
 
 /** Alignment a component would be asserting about a container it doesn't own. */
@@ -101,8 +101,8 @@ describe("follow control: the parent places it, not the other way round", () => 
 });
 
 describe("company page: the wait is shown, and shaped like the page", () => {
-    it("the route has an instant loading state", () => {
-        assert.match(CO_LOADING, /export default function \w+\(/, "loading.tsx must default-export a component");
+    it("the page streams behind a skeleton", () => {
+        assert.match(CO_LOADING, /export function CompanyPageSkeleton\(/, "the skeleton component must be exported");
         assert.match(CO_LOADING, /<WaitState[\s\S]*skeleton=\{/, "a page-shaped skeleton on the shared wait ladder, not a spinner");
     });
 
@@ -110,7 +110,7 @@ describe("company page: the wait is shown, and shaped like the page", () => {
         // A skeleton whose container differs from the page's makes the content
         // jump on arrival, which is worse than no skeleton at all.
         assert.equal(
-            frameClassName(CO_LOADING, "loading.tsx"),
+            frameClassName(CO_LOADING, "skeleton"),
             frameClassName(CO_PAGE, "page.tsx"),
             "the skeleton's frame must use the page's own gutters and max-width",
         );

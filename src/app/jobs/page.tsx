@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { fetchAgentPreferencesAction } from "@/actions/agent-preferences";
 import { fetchResumeData } from "@/actions/resume";
@@ -5,7 +6,16 @@ import JobsRouteGate from "@/app/jobs/JobsRouteGate";
 import { getServerUser } from "@/lib/auth/server-user";
 import { ENTRY_BUDGET_MS, fitEntryPath, resolveJobsEntry, withinBudget } from "@/lib/jobs/server-entry";
 import { parseJobsUrl } from "@/lib/jobs/url-state";
+import { buildJobsMetadata, toURLSearchParams } from "@/lib/seo/jobs-metadata";
 import { resumeIsOnFile, resumeIsUsable } from "@/lib/resume/resume-usable";
+
+export async function generateMetadata({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+    return buildJobsMetadata(await searchParams);
+}
 
 /**
  * Server entry — the server decides a signed-in visitor's first frame
@@ -22,10 +32,7 @@ export default async function JobsPage({
     const user = await getServerUser();
     if (!user) return <JobsRouteGate />;
 
-    const search = new URLSearchParams();
-    for (const [key, value] of Object.entries(await searchParams)) {
-        for (const one of [value].flat()) if (one != null) search.append(key, one);
-    }
+    const search = toURLSearchParams(await searchParams);
     const reads = await withinBudget(Promise.all([fetchResumeData(), fetchAgentPreferencesAction()]), ENTRY_BUDGET_MS);
     const [stored, prefs] = reads ?? [null, null];
     const entry = resolveJobsEntry({

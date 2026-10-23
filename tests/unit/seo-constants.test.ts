@@ -1,3 +1,4 @@
+import { LAST_GOOD } from "@/lib/seo/sitemap-entries";
 import assert from "node:assert/strict";
 import { describe, it, beforeEach } from "node:test";
 import { getSiteUrl, SITE_NAME } from "@/lib/seo/constants";
@@ -85,29 +86,29 @@ describe("seo/constants — getSiteUrl() env seam", () => {
     assert.equal(result.length - coEntries.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
   });
 
-  it("sitemap.ts FAILS rather than silently publishing an empty /co/ section on a Meilisearch HTTP error", async () => {
-    // A Meilisearch outage must not be reportable to Google as "we removed
-    // those pages". A throw becomes a 5xx, which search engines already
-    // treat as "retry later, keep the last good copy". See sitemap.ts's
-    // failure-posture docblock.
+  // A Meilisearch outage or an unpublished directory must not 5xx the
+  // sitemap: the pages, hubs and blog are served, only /co/ is absent, and
+  // the failure is logged once (lib/seo/sitemap-entries.ts).
+  const servesPagesWithoutCompanies = (reply: () => Response, expected: RegExp) => async () => {
+    LAST_GOOD.current = null; // a process that has never had a good answer; the last-good case is in seo-indexability.test.ts
     process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
-    await assert.rejects(
-      () => withStubbedMeili(() => new Response("boom", { status: 500 }), sitemap),
-      /company_directory search failed/i,
-    );
-  });
+    const logged: string[] = [];
+    const original = console.error;
+    console.error = (message: string) => void logged.push(message);
+    try {
+      const result = await withStubbedMeili(reply, sitemap);
+      assert.equal(result.some((e) => e.url.includes("/co/")), false);
+      assert.equal(result.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
+      assert.equal(logged.length, 1);
+      assert.match(logged[0], expected);
+    } finally {
+      console.error = original;
+    }
+  };
 
-  it("sitemap.ts FAILS when company_directory returns zero hits, rather than reading that as zero indexable companies", async () => {
-    // Distinct failure mode from the HTTP-error case above: a 200 with an
-    // empty first page means the publisher (push-company-directory.mjs)
-    // hasn't run yet, not that the corpus genuinely has no qualifying
-    // company — see fetchIndexableCompanyDomains's docblock.
-    process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
-    await assert.rejects(
-      () => withStubbedMeili(noDomainHasRoles, sitemap),
-      /zero hits on the first page/i,
-    );
-  });
+  it("sitemap.ts still serves the pages, minus /co/, on a Meilisearch HTTP error", servesPagesWithoutCompanies(() => new Response("boom", { status: 500 }), /company_directory search failed/i));
+
+  it("sitemap.ts still serves the pages, minus /co/, when company_directory returns zero hits", servesPagesWithoutCompanies(noDomainHasRoles, /zero hits on the first page/i));
 });
 
 /** Domains the fake `company_directory` reply below publishes. */

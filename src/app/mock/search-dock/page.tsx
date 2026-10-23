@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { SearchDockMock } from "@/components/mock/SearchDockMock";
 
 export const metadata: Metadata = {
-    title: "Search-dock mock — Velai",
-    robots: { index: false, follow: false },
+    title: "Search-dock mock",
 };
 
 /** Scroll-docking the /jobs search into the header, three ways. */

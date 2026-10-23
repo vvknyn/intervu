@@ -1,10 +1,20 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { searchJobsAction } from "@/actions/jobs";
 import type { InitialSearch } from "@/app/jobs/JobsContent";
 import JobsRouteGate from "@/app/jobs/JobsRouteGate";
 import { earlyFirstSearchParams } from "@/lib/jobs/early-first-search";
 import { FIRST_ROWS_SEARCH_BUDGET_MS, formatsNumbersLikeServer, isUsableFirstRows } from "@/lib/jobs/server-first-rows";
+import { buildJobsMetadata, toURLSearchParams } from "@/lib/seo/jobs-metadata";
 import { logServer } from "@/lib/observability/posthog-logs";
+
+export async function generateMetadata({
+    searchParams,
+}: {
+    searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
+    return buildJobsMetadata(await searchParams);
+}
 
 /**
  * /jobs with its first rows rendered on the server, for a phone opening a
@@ -27,10 +37,7 @@ async function firstSearch(query: Record<string, string | string[] | undefined>)
     const h = await headers();
     if (!formatsNumbersLikeServer(h.get("accept-language"))) return null;
 
-    const search = new URLSearchParams();
-    for (const [key, value] of Object.entries(query)) {
-        for (const one of [value].flat()) if (one != null) search.append(key, one);
-    }
+    const search = toURLSearchParams(query);
     // The location default a visitor dismissed lives in their browser; the
     // server searches as for a first visit, and the list searches again
     // with the dismissal if params differ (early-first-search.ts).

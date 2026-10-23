@@ -3,8 +3,7 @@ import { Suspense } from "react";
 import { RelatedJobsMock } from "@/components/mock/RelatedJobsMock";
 
 export const metadata: Metadata = {
-    title: "More like this mock — Velai",
-    robots: { index: false, follow: false },
+    title: "More like this mock",
 };
 
 /** Fixture-driven detail pane with its "More like this" list filled — the
