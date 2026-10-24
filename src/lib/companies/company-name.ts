@@ -244,10 +244,24 @@ function spellsFromWordStarts(label: string, name: string): boolean {
 }
 
 /** A respelling the page title can be trusted for: cased (all lower-case is the domain written out), and not cut mid-phrase. */
-const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019]$/u.test(c);
+const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019?!]$/u.test(c);
 const wordCount = (c: string): number => c.split(/\s+/).length;
+const isLetterWord = (word: string): boolean => /^\p{L}\d?$/u.test(word);
+/** Words of `c` with a run of spaced-out single letters ("A P F", "A E C O M2") counted once: an acronym written out is one word. */
+function acronymAwareWordCount(c: string): number {
+  const words = c.split(/\s+/);
+  return words.filter((word, i) => !(isLetterWord(word) && isLetterWord(words[i - 1] ?? ""))).length;
+}
+/** An acronym written out letter by letter ("A P F  Entreprises"): a spelling of the letters, not of words. */
+const isSpelledOut = (c: string): boolean => acronymAwareWordCount(c) < wordCount(c);
 /** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). */
-const keepsWords = (c: string, display: string): boolean => wordCount(c) >= wordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+const keepsWords = (c: string, display: string): boolean => acronymAwareWordCount(c) >= acronymAwareWordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+/** Does `c` write in lower case a word (2+ letters) that `display` writes in capitals ("Fox" for "FOX")? A banner display is exempt: re-casing it is the point. */
+function lowersAcronym(c: string, display: string): boolean {
+  if (isBanner(display)) return false;
+  const words = c.split(/[^\p{L}\p{N}]+/u);
+  return display.split(/[^\p{L}\p{N}]+/u).some((w) => w.length >= 2 && /^\p{Lu}+$/u.test(w) && words.some((x) => x !== w && x.toUpperCase() === w));
+}
 
 /** The shortest whitespace-word prefix (2+ words) of `name` that already spells `label`: the rest is a tagline. */
 function dropTagline(label: string, name: string): string {
@@ -303,7 +317,8 @@ function respellFirstWord(label: string, display: string, names: readonly string
 /**
  * SP: the company's own spelling of the agreed name `display`. The first of the homepage `candidates`
  * (source order) that differs from `display` only in spaces, casing, punctuation or accents ("Aspen Dental"
- * for "Aspendental", "Air Liquide" for "AIR LIQUIDE") is shown; an all-capitals title is no spelling.
+ * for "Aspendental", "Air Liquide" for "AIR LIQUIDE", "GEICO" for "Geico") is shown: the homepage is the company's own
+ * voice, so an all-capitals title is a spelling. A respelling never writes in lower case a word `display` has in capitals ("Fox" for "FOX").
  * SQ: when `display` is only the host's squashed first label ("Pyramidhc" on pyramidhc.com) and no site
  * name respells it, the shortest 2-5 word site name that spells the label's letters across its words wins
  * ("Pyramid Healthcare"), or the site's cased first word when that is the label ("BNSF"). Otherwise `display` stands.
@@ -318,7 +333,7 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
   const cleaned = spellings.map((c) => displayCompanyName(c));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !lowersAcronym(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
@@ -445,18 +460,32 @@ type NameGroup = {
   extends: number;
 };
 
+/** `spelling` cut after its shortest prefix that spells `key` ("Palo Alto Networks, Inc." -> "Palo Alto Networks"), or `null` when none does. */
+function cutAtKey(spelling: string, key: string): string | null {
+  for (let end = 1; end <= spelling.length; end += 1) if (alnum(spelling.slice(0, end)) === key) return spelling.slice(0, end);
+  return null;
+}
+
 /**
  * Fold a group keyed by another group's key plus a legal form ("ebayinc" onto "ebay") into that root: the rows
- * name the same employer, and the glued form is never shown when a root exists. Only the root's spellings are kept.
+ * name the same employer, and the glued form is never shown when a root exists. Its spellings join the root's with the
+ * legal form cut ("Duke Energy Corp" -> "Duke Energy"), so a flattened root ("Dukeenergy") cannot outvote the
+ * company's own spelling for having absorbed it.
  */
-function foldGluedLegalForms<T extends { count: number }>(groups: Map<string, T>): void {
+function foldGluedLegalForms<T extends { count: number; spellings: Map<string, number> }>(groups: Map<string, T>): void {
   const rootsOf = (key: string) =>
     [...groups.keys()].filter((root) => key.length - root.length >= 3 && key.startsWith(root) && root.length >= 3 && LABEL_LEGAL_SUFFIXES.includes(key.slice(root.length)));
   const glued = new Map([...groups.keys()].map((key) => [key, rootsOf(key)] as const).filter(([, roots]) => roots.length > 0));
   for (const [key, roots] of glued) {
     const root = roots.filter((r) => !glued.has(r)).sort((a, b) => b.length - a.length)[0];
     if (!root) continue;
-    groups.get(root)!.count += groups.get(key)!.count;
+    const target = groups.get(root)!;
+    const folded = groups.get(key)!;
+    target.count += folded.count;
+    for (const [spelling, count] of folded.spellings) {
+      const cut = cutAtKey(spelling, root);
+      if (cut) target.spellings.set(cut, (target.spellings.get(cut) ?? 0) + count);
+    }
     groups.delete(key);
   }
 }
@@ -465,11 +494,30 @@ function foldGluedLegalForms<T extends { count: number }>(groups: Map<string, T>
 const isFlat = (spelling: string): boolean => spelling === spelling.toLowerCase() && !/\s/.test(spelling);
 
 /**
+/** Capital after the first character, in a name that also carries lower case ("CorroHealth", "eBay"; not "IBM"): case someone chose. */
+const hasInteriorCapital = (c: string): boolean => carriesCase(c) && /.\p{Lu}/u.test(c);
+
+/**
+ * Does `spelling` lose something its group-mate `other` keeps: a space it lacks ("Redhat" for "Red Hat"), interior capitals it
+ * lowered ("Corrohealth" for "CorroHealth", "Ebay" for "eBay"), or the words of an acronym it writes out letter by letter
+ * ("A P F" for "APF")? An `other` without interior capitals (all-capitals, flat) has no case to lose.
+ */
+function flattens(spelling: string, other: string): boolean {
+  return (
+    !keepsWords(spelling, other) ||
+    (hasInteriorCapital(other) && !hasInteriorCapital(spelling) && spelling.toLowerCase() === other.toLowerCase()) ||
+    (isSpelledOut(spelling) && !isSpelledOut(other))
+  );
+}
+
+/**
  * The spelling a group of spellings of one name is shown as: the most common that is not flat
  * ("TD SYNNEX" over "tdsynnex") and not an all-capitals banner ("Five Guys" over "FIVE GUYS"), the most common overall when all are; a tie goes to the one carrying case.
+ * A spelling that flattens another of the group never wins over it, whatever the counts.
  */
-function shownSpelling(spellings: ReadonlyMap<string, number>): string {
-  const ranked = [...spellings].sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
+function shownSpelling(group: ReadonlyMap<string, number>): string {
+  const spellings = [...group].filter(([spelling]) => ![...group.keys()].some((other) => flattens(spelling, other)));
+  const ranked = spellings.sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
   const cased = ([spelling]: [string, number]) => !isFlat(spelling);
   return (ranked.find((entry) => cased(entry) && !isBanner(entry[0])) ?? ranked.find(cased) ?? ranked[0]!)[0];
 }

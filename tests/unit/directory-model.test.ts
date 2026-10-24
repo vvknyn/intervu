@@ -132,7 +132,7 @@ describe("buildDirectory — SP: the listed name is the company's own spelling",
       ["aaff.com", 50, { aaff: 5 }, ["AAFF"]],
       ["acme.com", 40, { "Acme Robotics": 5 }],
     ]);
-    assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott Laboratories", "fiveguys.com": "Fiveguys", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
+    assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott Laboratories", "fiveguys.com": "FIVE GUYS", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
     assert.equal(d.companies.find((c) => c.domain === "aspendental.com")?.letter, "A");
   });
 });
