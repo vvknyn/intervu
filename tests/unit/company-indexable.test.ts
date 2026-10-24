@@ -254,12 +254,21 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
-  it("siteNames is site_names when non-empty (any source), else wikidata_names, else absent", () => {
+  it("siteNames is non-empty site_names only (any source); wikidata_names never become siteNames", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
     assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Rocket Lab"], wikidata_names: ["Rocket Lab USA"] })?.siteNames, ["Rocket Lab"]);
-    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: [], wikidata_names: ["Acme Corp"] })?.siteNames, ["Acme Corp"]);
-    assert.ok(!("siteNames" in parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })!));
     assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["HPE"], site_names_source: "wikidata" })?.siteNames, ["HPE"]);
+    const igt = parseCompanyDirectoryHit({ domain: "igt.com", open_role_count: 40, site_names: [], wikidata_names: ["International Game Technology"], row_names: ["IGT"] })!;
+    assert.ok(!("siteNames" in igt));
+    assert.deepEqual(igt.labelSpellings, ["International Game Technology", "IGT"]);
+    const pwc = parseCompanyDirectoryHit({ domain: "pwc.com", open_role_count: 40, wikidata_names: ["PricewaterhouseCoopers"] })!;
+    assert.ok(!("siteNames" in pwc));
+    assert.deepEqual(pwc.labelSpellings, ["PricewaterhouseCoopers"]);
+  });
+
+  it("an igt-shape hit lists as its own name, not the Wikidata expansion", () => {
+    const igt = parseCompanyDirectoryHit({ domain: "igt.com", open_role_count: 40, site_names: [], wikidata_names: ["International Game Technology"], row_names: ["IGT"] })!;
+    assert.equal(siteSpelling("IGT", igt.siteNames, igt.domain, undefined, igt.labelSpellings), "IGT");
   });
 
   it("a site_names entry still wins over a labelSpelling, through the parsed hit", () => {

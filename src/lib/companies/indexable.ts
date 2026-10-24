@@ -158,11 +158,10 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  const wikidataNames = stringsOf(h.wikidata_names) ?? [];
-  // Homepage names own the name when present; Wikidata is the full-name source only when the homepage gave none.
+  // Only homepage `site_names` are names (whatever their source); Wikidata/row names never become one, they only respell a glued label.
   const homepageNames = stringsOf(h.site_names);
-  const siteNames = homepageNames?.length ? homepageNames : wikidataNames.length > 0 ? wikidataNames : homepageNames;
-  const labelSpellings = [...new Set([...wikidataNames, ...(stringsOf(h.row_names) ?? [])])];
+  const siteNames = homepageNames?.length ? homepageNames : null;
+  const labelSpellings = [...new Set([...(stringsOf(h.wikidata_names) ?? []), ...(stringsOf(h.row_names) ?? [])])];
   return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }) };
 }
 
