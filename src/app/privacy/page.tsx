@@ -410,8 +410,8 @@ export default function PrivacyPage() {
           with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
           to your Velai account, whether or not you&apos;re signed in: we no longer tell PostHog who you are, and it
           creates no profile of you. Events recorded up to 23 October 2026 were linked to the account of a
-          signed-in visitor; deleting your account erases those too. Your IP address is removed by our server before an event is forwarded to PostHog, and so are your cookies and the page you came from (the referrer), so none of them is stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
-          the cookies listed above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
+          signed-in visitor; deleting your account erases those too. Your IP address is removed by our server before an event is forwarded to PostHog, and so are your cookies and the page you came from (the referrer), so none of them is stored with the events. Tags in a link address (like utm_source or an ad click id) are not kept either: they are removed in your browser before an event is sent. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          the cookies listed above Velai sets none. The Cloudflare Turnstile check on the Velai forms that show it
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
         </p>
