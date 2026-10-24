@@ -278,6 +278,12 @@ function lowersWord(c: string, display: string): boolean {
   return display.split(WORD_SPLIT_RE).slice(1).some((w) => /^\p{Lu}/u.test(w) && !CONNECTORS.has(w.toLowerCase()) && !written.has(w) && written.has(w.toLowerCase()));
 }
 
+/** Does `c` write without an inner capital (lower then upper letter) a word that `display` writes with one ("Birlasoft" for "BirlaSoft")? Adding inner capitals is fine. */
+function lowersInnerCapital(c: string, display: string): boolean {
+  const written = c.split(WORD_SPLIT_RE);
+  return display.split(WORD_SPLIT_RE).some((w) => /\p{Ll}\p{Lu}/u.test(w) && written.some((x) => x.toLowerCase() === w.toLowerCase() && !/\p{Ll}\p{Lu}/u.test(x)));
+}
+
 /** The shortest whitespace-word prefix (2+ words) of `name` that already spells `label`: the rest is a tagline. */
 function dropTagline(label: string, name: string): string {
   const words = name.split(/\s+/);
@@ -358,7 +364,32 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = []): string {
-  return labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain);
+  return casingRefined(labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain), candidates, domain);
+}
+
+/** English function words that stay lower case inside a title ("State of Arkansas"); a closed grammatical class, not a list of companies. */
+const TITLE_CONNECTORS = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to"]);
+
+/** Words, case and apostrophe style aside: the form two spellings of the same letters share. */
+const sameLetters = (text: string): string => text.trim().replace(/\s+/g, " ").replace(/\u2019/g, "'").toLowerCase();
+
+/**
+ * Same-letters casing, the last step (weaker evidence only refines, never replaces). In order:
+ * (a) a site name segment that is `display` in other case, spacing or apostrophe style is the company's own casing ("Precision for Medicine"; an all-capitals segment is a banner, not a spelling);
+ * (b) else a mechanically Title Cased name of 3+ words lower-cases its capitalized connectors but the first word ("State of Arkansas"; an all-capitals "AS" is a legal-form suffix and stays);
+ * (c) else a Title-cased token of 3+ letters with no vowel (y counts) inside the domain's first label is an acronym ("Msx International" on msxi.com).
+ */
+function casingRefined(display: string, candidates: readonly string[], domain?: string): string {
+  const key = sameLetters(display);
+  // Mechanical casing only: this never chooses between two spellings that both have their letters in the right places ("Dexcom" vs "DexCom"), so a segment that drops an inner capital is not adopted.
+  const own = candidates.flatMap((c) => c.replace(/[®™©℠]/g, "").split("|")).map((segment) => segment.trim().replace(/\s+/g, " ")).find((segment) => segment && !isBanner(segment) && sameLetters(segment) === key && isSoundSpelling(segment) && keepsWords(segment, display) && !lowersAcronym(segment, display) && !lowersWord(segment, display) && !lowersInnerCapital(segment, display));
+  if (own) return own;
+  const words = display.split(/\s+/);
+  if (words.length >= 3 && words.filter((word) => /^\p{L}/u.test(word)).every((word) => /^\p{Lu}/u.test(word))) {
+    return words.map((word, i) => (i > 0 && TITLE_CONNECTORS.has(word.toLowerCase()) && /^\p{Lu}\p{Ll}*$/u.test(word) ? word.toLowerCase() : word)).join(" ");
+  }
+  const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
+  return words.map((word) => (label && /^\p{Lu}\p{Ll}{2,}$/u.test(word) && !/[aeiouy]/i.test(word) && label.includes(word.toLowerCase()) ? word.toUpperCase() : word)).join(" ");
 }
 
 /**
