@@ -642,3 +642,55 @@ describe("dropCountryQualifier — the hiring entity's country is not part of th
     assert.equal(dropCountryQualifier("Acme UK", "acme.co.uk"), "Acme UK");
   });
 });
+
+describe("companies/company-name — name classes (C1-C6)", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+
+  it("C1: ordinals and contractions keep their case; a digit-led brand still capitalises its word", () => {
+    assert.equal(name({ "2ND STREET LABS": 3 }, "2ndstreetlabs.com"), "2nd Street Labs");
+    assert.equal(name({ "JOE'S GARAGE EQUIPMENT": 3 }, "joesgarage.com"), "Joe's Garage Equipment");
+    assert.equal(name({ "23andMe": 3 }, "23andme.com"), "23andMe");
+  });
+
+  it("C2: a short word a row spells in capitals is an acronym everywhere; known acronym words always are", () => {
+    assert.equal(name({ "Qrt Group": 3, "QRT Capital": 1 }, "qrt.com"), "QRT Group");
+    assert.equal(name({ "Hello Ai": 3 }, "helloai.com"), "Hello AI");
+    assert.equal(name({ "Zed Uk": 3 }, "zed.co.uk"), "Zed UK");
+  });
+
+  it("C3: DACH/French legal forms and the Thai public-company form strip; a brand 'Company' and a bare 'Public Company' stay", () => {
+    assert.equal(displayCompanyName("Bosch Sarl"), "Bosch");
+    assert.equal(displayCompanyName("Orange SE"), "Orange");
+    assert.equal(displayCompanyName("Zeta Holding GmbH & Co. KG"), "Zeta Holding");
+    assert.equal(displayCompanyName("Beta Pharma AG & Co. KGaA"), "Beta Pharma");
+    assert.equal(displayCompanyName("Thai Union Public Company Limited"), "Thai Union");
+    assert.equal(displayCompanyName("Acme Public Company"), "Acme Public Company");
+    assert.equal(displayCompanyName("The Boring Company"), "The Boring Company");
+    assert.equal(displayCompanyName("Brown Brothers Harriman & Co."), "Brown Brothers Harriman & Co.");
+  });
+
+  it("C4: a lone ATS account number goes; a number the host spells stays", () => {
+    assert.equal(name({ "Brightpath 3": 4 }, "brightpath.com"), "Brightpath");
+    assert.equal(name({ "Pier 1": 3 }, "pier1.com"), "Pier 1");
+    assert.equal(name({ Point72: 3 }, "point72.com"), "Point72");
+  });
+
+  it("C5: a leading country goes when the rest leads with the host; the ccTLD's own country and a host-spelled word stay", () => {
+    assert.equal(dropCountryQualifier("Germany Hertz Rental", "hertz.at"), "Hertz Rental");
+    assert.equal(dropCountryQualifier("Brazil Natura Cosmetics", "natura.com"), "Natura Cosmetics");
+    assert.equal(dropCountryQualifier("Austria Hertz Rental", "hertz.at"), "Austria Hertz Rental");
+    assert.equal(dropCountryQualifier("UK Erlangen", "uk-erlangen.de"), "UK Erlangen");
+    assert.equal(dropCountryQualifier("US Steelworks", "us-steelworks.com"), "US Steelworks");
+  });
+
+  it("C6: a lone outlier group cannot trigger the stem; all-singleton domains weigh every group equally", () => {
+    assert.equal(name({ "Acme Robotics": 2, "Acme Labs": 1 }, "acme.com"), "Acme Robotics");
+    assert.equal(name({ "Zeta Robotics": 3, "Zeta Staffing": 1, "Zeta Labs": 1 }, "zeta.com"), "Zeta Robotics");
+    assert.equal(name({ "Orbit Energy": 4, "Orbit Foods": 1, "Orbit Labs": 1 }, "orbit.com"), "Orbit Energy");
+    assert.equal(name({ "Nova Bio": 1, "Nova Air": 1, "Nova Tech": 1 }, "nova.com"), "Nova");
+    assert.equal(
+      name({ "Aliaxis Latin American Services": 5, "Aliaxis Iberia SAU (Spain)": 2, "Aliaxis UK Limited (United Kingdom)": 2 }, "aliaxis.it"),
+      "Aliaxis",
+    );
+  });
+});
