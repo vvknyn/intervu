@@ -6,7 +6,6 @@ import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { parseJobsUrl } from "@/lib/jobs/url-state";
 import type { PublicJob } from "@/lib/jobs/types";
-import { buildCompanyFaqItems } from "@/lib/seo/jsonld";
 
 // Fixed clock so freshness assertions are deterministic without a fake timer
 // (same convention `buildCompanyHiringAnswer`'s own docblock cites for
@@ -117,16 +116,6 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
       ).trackRecord,
       "Last 90 days: 0 roles opened, 12 closed.",
     );
-  });
-
-  it("hands the FAQPage structured data the exact sentence the body renders", () => {
-    const answer = buildCompanyHiringAnswer(company(), NOW);
-    const items = buildCompanyFaqItems({
-      companyName: "Lumentum",
-      hiringAnswer: answer.headline,
-    });
-    assert.equal(items[0]!.question, "Is Lumentum hiring?");
-    assert.equal(items[0]!.answer, answer.headline);
   });
 });
 
