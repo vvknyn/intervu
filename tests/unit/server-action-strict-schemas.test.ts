@@ -44,6 +44,29 @@ describe("createApplicationSchema (createApplication)", () => {
   });
 });
 
+describe("optionalHttpUrl / saveSource value rules", () => {
+  const urlOf = (job_url: string) => validate(createApplicationSchema, { ...validCreate, job_url });
+
+  it("reads a schemeless host as https", () => {
+    assert.equal(urlOf(" boards.greenhouse.io/x ").data?.job_url, "https://boards.greenhouse.io/x");
+    assert.equal(urlOf("example.com:8080/a").data?.job_url, "https://example.com:8080/a");
+    assert.equal(urlOf("http://a.com/x").data?.job_url, "http://a.com/x");
+  });
+
+  it("still rejects javascript:, ftp:, spaces; empty stays undefined", () => {
+    for (const bad of ["javascript:alert(1)", "ftp://a.com/x", "a b.com", "notaurl"]) {
+      assert.ok(urlOf(bad).error, bad);
+    }
+    assert.equal(urlOf("").error, undefined);
+    assert.equal(urlOf("  ").data?.job_url, undefined);
+  });
+
+  it("accepts an empty or 1500-character source title and 600k characters of content", () => {
+    assert.equal(validate(saveSourceSchema, { type: "file", title: "t".repeat(1500), content: "x" }).error, undefined);
+    assert.equal(validate(saveSourceSchema, { type: "url", title: "", content: "x".repeat(600_000) }).error, undefined);
+  });
+});
+
 describe("the other actions that spread client input into a doc", () => {
   it("addFavorite refuses user_id and unknown keys, accepts a question", () => {
     assert.ok(validate(addFavoriteSchema, { question_text: "Why us?", user_id: "x" }).error);
