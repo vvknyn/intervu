@@ -430,15 +430,15 @@ describe("resolveSector — health_reviews, then fingerprints, then boards", () 
   });
 
   it("shows a machine token as words, any token and any separator", () => {
-    assert.equal(resolveSector({ health_reviews: "big_tech", fingerprints: null, boards: null }), "Big tech");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: "financial_services", boards: null }), "Financial services");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: null, boards: "ai-infra" }), "Ai infra");
+    assert.equal(resolveSector({ health_reviews: "big_tech", fingerprints: null, boards: null }), "Big Tech");
+    assert.equal(resolveSector({ health_reviews: null, fingerprints: "financial_services", boards: null }), "Financial Services");
+    assert.equal(resolveSector({ health_reviews: null, fingerprints: null, boards: "ai-infra" }), "Ai-Infra");
   });
 
   it("leaves free text unchanged and still skips NON_SECTORS tokens", () => {
     assert.equal(resolveSector({ health_reviews: "Industrial Automation", fingerprints: null, boards: null }), "Industrial Automation");
     assert.equal(resolveSector({ health_reviews: "Fintech", fingerprints: null, boards: null }), "Fintech");
-    assert.equal(resolveSector({ health_reviews: "general", fingerprints: "unknown", boards: "real_estate" }), "Real estate");
+    assert.equal(resolveSector({ health_reviews: "general", fingerprints: "unknown", boards: "real_estate" }), "Real Estate");
   });
 
   it("is null when no source names one", () => {
