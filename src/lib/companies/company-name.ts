@@ -40,7 +40,7 @@
  * tokens, which is the shape "one brand, many qualified entities" makes in
  * any corpus. See that function for the safety argument.
  */
-import { cleanCompany, displayCompanyName, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
+import { cleanCompany, displayCompanyName, isCompanyPlaceholder, TITLE_CASE_SHORT_WORDS_3, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { loadGazetteer } from "@/lib/geo/gazetteer";
 import { ISO3_COUNTRY } from "@/lib/geo/iso3-countries";
@@ -137,13 +137,9 @@ const MIN_BRANDED_SIBLINGS = 2;
 
 /**
  * Capitalize the start of every "word" in a caseless string — after any
- * non-letter, not just `\b` word boundaries. `\b\w` alone leaves a run
- * untouched wherever a digit sits directly against a letter ("23andme",
- * "1password"), because `\d` and `\w` letters are both `\b`-equivalent so no
- * boundary exists between them. Digits themselves are left as-is (there is
- * no case to fix on "2" or "3") — only the run of letters immediately after
- * one now starts a new capitalized "word", same as a space or hyphen already
- * does. All-caps input passes through unchanged: there is no lowercase
+ * separator, not just `\b` word boundaries ("23andme" -> "23Andme"). Two things are NOT starts: an
+ * apostrophe ("ken towery's" is never "Towery'S"), and an ordinal's letters after a digit ("2ndfamily" is never "2Ndfamily").
+ * Digits themselves are left as-is (there is no case to fix on "2" or "3"). All-caps input passes through unchanged: there is no lowercase
  * letter to recase, which is correct — all-caps carries no case information
  * to recover in the first place (see `carriesCase`).
  *
@@ -153,7 +149,7 @@ const MIN_BRANDED_SIBLINGS = 2;
  * rows carries zero casing information, same as a domain label).
  */
 export function capitalizeAfterNonLetter(value: string): string {
-  return value.replace(/(^|[^\p{L}])(\p{Ll})/gu, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
+  return value.replace(/(^|[^\p{L}'\u2019])(?!(?<=\d)(?:st|nd|rd|th))(\p{Ll})/gu, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
 }
 
 /**
@@ -354,10 +350,33 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string): string {
+  return restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates);
+}
+
+/** A trailing legal form the display name strips ("zahneins GmbH"): a site name carrying one is not a spelling of the display name. A trading "Co."/"Company" is part of the brand ("Australian Venue Co."), not a legal tail. */
+const carriesLegalTail = (c: string): boolean => {
+  const stripped = displayCompanyName(c);
+  const tail = c.slice(stripped.length);
+  return stripped !== c && c.startsWith(stripped) && /^[\s,]/.test(tail) && !/^[\s,]+Co(?:mpany)?\.?$/i.test(tail);
+};
+
+/**
+ * A 2-3 letter name that IS the host's label is a code by the rule that reads flat rows ("dhl" -> "DHL", ordinary words
+ * stay words), unless a site name spells it in the same Title case on its own ("Wiz" on wiz.io).
+ */
+function hostAcronym(name: string, domain: string | undefined, candidates: readonly string[]): string {
+  if (!domain || !/^\p{Lu}\p{Ll}{1,2}$/u.test(name) || !hostLabelIsName(domain, name) || candidates.some((c) => c.trim() === name)) return name;
+  return titleCaseDisplay(name.toUpperCase());
+}
+
+function respelledBySite(display: string, candidates: readonly string[], domain?: string, rowSpelling?: string): string {
   // An all-capitals site name no row repeats is re-cased by the rule that re-cases all-capitals rows ("TD SYNNEX" -> "TD Synnex") and competes as any respelling.
   const recased = (c: string): string => (isBanner(c) && c !== rowSpelling ? titleCaseDisplay(c) : c);
   const plain = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  const spellings = plain.map(recased);
+  // The rows glued the legal form on ("Zahneinsgmbh") and a site name shows where it joins ("zahneins GmbH"): cut it.
+  const glued = plain.find((c) => carriesLegalTail(c) && siteKey(c) === siteKey(display));
+  if (glued) display = capitalizeAfterNonLetter(displayCompanyName(glued));
+  const spellings = plain.map((c) => recased(carriesLegalTail(c) ? displayCompanyName(c) : c));
   const cleaned = plain.map((c) => recased(displayCompanyName(c)));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
   const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !swapsSpaceForHyphen(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
@@ -394,18 +413,83 @@ function tldCountry(domain: string): string | null {
 /**
  * The hiring entity's country is not part of the employer's name: "argenx US" on argenx.com, "intermedix
  * Österreich" on intermedix.com. Trailing words that form a country go when the words before them name the
- * host's label and the full name does not ("Air Canada" on aircanada.com keeps its country). A country-scoped
+ * host's label and the full name does not ("Air Canada" on aircanada.com keeps its country); the same goes for
+ * a leading country, when the words after it lead with the host's label. A country-scoped
  * domain keeps its own country ("Alten Switzerland" on alten.ch says which arm it is). The remainder keeps its spelling.
  */
 export function dropCountryQualifier(name: string, domain: string): string {
   if (hostLabelIsName(domain, name)) return name;
   const words = name.split(/\s+/);
+  const host = domainLabels(domain);
+  // The same qualifier in front ("New Zealand Avis Rent A Car" on avis.es): what follows must lead with the host's label, and the full name must not.
+  if (!agreesWithLabels(name, host, true)) {
+    for (let n = 1; n <= Math.min(MAX_COUNTRY_WORDS, words.length - 1); n += 1) {
+      const country = countryOf(words.slice(0, n).join(" "));
+      const remainder = words.slice(n).join(" ").replace(/^[\s,\-–]+/, "");
+      if (country && country !== tldCountry(domain) && agreesWithLabels(remainder, host, true)) return remainder;
+    }
+  }
   for (let n = 1; n <= Math.min(MAX_COUNTRY_WORDS, words.length - 1); n += 1) {
     const country = countryOf(words.slice(-n).join(" "));
     const remainder = words.slice(0, -n).join(" ").replace(/[\s,\-–]+$/, "");
     if (country && country !== tldCountry(domain) && hostLabelIsName(domain, remainder)) return remainder;
   }
   return name;
+}
+
+/** Acronyms no row or site needs to witness: they are never ordinary words. */
+const ACRONYM_WORDS = new Set(["ai", "uk", "usa", "uae"]);
+const WHOLE_WORD_RE = /(?<![\p{L}\p{N}.'\u2019-])\p{L}+(?![\p{L}\p{N}'\u2019-])/gu;
+
+/** Longest word restored to capitals on a witness: a 4-letter capitals word is as often a shouted brand ("OTIS") as an acronym. */
+const MAX_WITNESSED_LETTERS = 3;
+
+/** Lower-case words some independent string spells in 2-3 capitals ("EDP" in "Homepage EDP", "TD" in "TD Bank"); a banner is a shouted sentence, not a spelling, and an ordinary short word ("AIR") is no acronym. */
+function capitalsWitnessed(witnesses: readonly string[]): Set<string> {
+  const seen = new Set<string>();
+  for (const witness of witnesses) {
+    if (isBanner(witness)) continue;
+    for (const [word] of witness.matchAll(WHOLE_WORD_RE)) if (word.length <= MAX_WITNESSED_LETTERS && /^\p{Lu}{2,}$/u.test(word) && !TITLE_CASE_SHORT_WORDS_3.has(word.toLowerCase())) seen.add(word.toLowerCase());
+  }
+  return seen;
+}
+
+/** The word closing "American Veterinary Group (Avg)" when it is the initials of the words before it, else null. */
+function parentheticalInitials(name: string): string | null {
+  const m = /^(.*\S)\s+\((\p{L}{2,5})\)$/u.exec(name);
+  const initials = m?.[1]!.split(/\s+/).filter((w) => !CONNECTORS.has(w.toLowerCase())).map((w) => w[0]!.toLowerCase()).join("");
+  return m && initials === m[2]!.toLowerCase() ? initials : null;
+}
+
+/**
+ * A rows/site spelling that lost its capitals ("Td Direct Investing", "Mondiale Vgl") gets them back from the evidence:
+ * a 2-3 letter Title-case or lower-case word that a witness spells in capitals, the initials a name spells in its
+ * closing parenthesis, or a word that is never a plain word ({@link ACRONYM_WORDS}). Mixed-case words are left alone.
+ */
+export function restoreAcronyms(name: string, witnesses: readonly string[]): string {
+  const seen = capitalsWitnessed(witnesses);
+  const initials = parentheticalInitials(name);
+  return name.replace(WHOLE_WORD_RE, (word) => {
+    const lower = word.toLowerCase();
+    const flat = word === lower || word === lower[0]!.toUpperCase() + lower.slice(1);
+    return flat && word.length >= 2 && word.length <= MAX_ACRONYM_LETTERS && !CONNECTORS.has(lower) && (ACRONYM_WORDS.has(lower) || seen.has(lower) || lower === initials) ? word.toUpperCase() : word;
+  });
+}
+
+/** "Advisacare 2": a lone 1-2 digit number the host does not spell, after a name that leads with the host's label, is an ATS account index ("Point72", "Pier 1" on pier1.com keep theirs). */
+function dropAccountNumber(name: string, domain: string): string {
+  const m = /^(.*\p{L})\s+(\d{1,2})$/u.exec(name);
+  if (!m || hostParts(domain).parts.some((part) => alnum(part).includes(m[2]!))) return name;
+  return agreesWithLabels(m[1]!, domainLabels(domain), true) ? m[1]! : name;
+}
+
+/** Case damage a recaser leaves inside a token: "Domino'S" (a contraction's tail), "I360technologies" (a capitalised flat token with digits). */
+const tidyTokens = (name: string): string =>
+  name.replace(/(?<=\p{Ll}['\u2019])(?:S|T|D|M|Ll|Re|Ve)(?!\p{L})/gu, (tail) => tail.toLowerCase()).replace(/^\p{Lu}(?=\d+\p{Ll}+$)/u, (letter) => letter.toLowerCase());
+
+/** The one repair every shown name passes: token case, acronyms the rows witness, then the ATS account index. */
+function repairName(name: string, domain: string, witnesses: readonly string[]): string {
+  return dropAccountNumber(restoreAcronyms(tidyTokens(name), witnesses), domain);
 }
 
 type Word = { text: string; optional: boolean };
@@ -715,8 +799,9 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     const cased = casedName(best.display);
     // The country sits before a legal form ("argenx US Inc"), so it is judged on the name as displayed.
     const shown = displayCompanyName(cased.value);
-    const value = dropCountryQualifier(shown, domain);
-    return { ...cased, value: value === shown ? cased.value : value, agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: dropCountryQualifier(displayCompanyName(best.display), domain) };
+    const witnesses = jobs.map((job) => cleanCompany(job.company));
+    const value = repairName(dropCountryQualifier(shown, domain), domain, witnesses);
+    return { ...cased, value: value === shown ? cased.value : value, agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: repairName(dropCountryQualifier(displayCompanyName(best.display), domain), domain, witnesses) };
   }
   const value = displayNameFromDomain(domain);
   return { value, source: "domain", agrees: false, share: 0, rowSpelling: value };

@@ -248,7 +248,8 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
         assert.equal(result?.nameSource, "corpus-flat");
     });
 
-    it("lets the name most rows agree on win, so one odd row cannot rename the page", async () => {
+    // 82d4b0da (2026-10-24): the host-spelled stem is the brand when only qualified entities exist.
+    it("lets the brand stem the host spells win over qualified entity names, so one odd row cannot rename the page to its own name", async () => {
         const search = ok({
             hits: [
                 job({ id: "1", company: "Acme Staffing Partners", company_domain: "acme.com" }),
@@ -259,7 +260,8 @@ describe("getCompanyPageData — name repair is a rule, not a lookup table", () 
         });
 
         const result = await getCompanyPageData("acme--com", search);
-        assert.equal(result?.name, "Acme Robotics");
+        assert.equal(result?.name, "Acme");
+        assert.notEqual(result?.name, "Acme Staffing Partners");
     });
 
     it("falls back to a domain label when the corpus name is unusable, and says so", async () => {
