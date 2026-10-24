@@ -3,7 +3,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
-import { getDirectory } from "@/lib/companies/directory-model";
+import { getDirectory, peekCountGeneration } from "@/lib/companies/directory-model";
 import { COMPANY_JOBS_FETCH_LIMIT, companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
@@ -42,6 +42,8 @@ export interface CompanySideReads {
   exhaust: (domain: string) => Promise<CompanyExhaust | null>;
   /** The company directory: the name this company is listed under. */
   directory: typeof getDirectory;
+  /** The built count generation (never awaited): a listed company shows its value. */
+  countGeneration: typeof peekCountGeneration;
   /** A search slower than this is logged. */
   budgetMs: number;
   /** Per-read cap: see {@link SIDE_READ_TIMEOUT_MS}. */
@@ -54,6 +56,7 @@ const SIDE_READS: CompanySideReads = {
   events: fetchCompanyEvents,
   exhaust: getSharedCompanyExhaust,
   directory: getDirectory,
+  countGeneration: peekCountGeneration,
   budgetMs: SEARCH_BUDGET_MS,
   sideTimeoutMs: SIDE_READ_TIMEOUT_MS,
   log: logServer,
@@ -196,7 +199,7 @@ export async function getCompanyPageData(
   if (jobs.length === 0 && boards.length === 0) return null;
 
   const name = resolveCompanyName(jobs, domain);
-  const openCount = companyOpenCount(result);
+  const openCount = reads.countGeneration()?.get(domain) ?? companyOpenCount(result);
   const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
   // The `company_*` aggregates land on documents progressively as the sync
   // re-writes them, so most of a company's hits still carry nothing while some

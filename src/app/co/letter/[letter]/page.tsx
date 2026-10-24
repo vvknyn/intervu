@@ -7,7 +7,7 @@ import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { fetchOpenCounts } from "@/lib/companies/listed-names";
+import { resolveOpenCounts } from "@/lib/companies/directory-model";
 import { openCountLabel } from "@/lib/companies/presentation";
 import { listedCompanies } from "@/lib/seo/sitemap-entries";
 import { PageTitle } from "@/components/ui/heading";
@@ -35,7 +35,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
   const { letter: segment } = await params;
   const group = await loadGroup(segment);
   if (!group) notFound();
-  const counts = await fetchOpenCounts(group.entries.map((c) => c.domain));
+  const counts = await resolveOpenCounts(group.entries.map((c) => c.domain));
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: SITE_NAME, path: "/" },
     { name: "Companies", path: "/co" },

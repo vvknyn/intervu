@@ -16,7 +16,10 @@ export async function register() {
   flags.__velaiWarmUpStarted = true;
   // The company directory takes minutes to build cold; start it now so the first visitors and the sitemap find it built.
   void import("@/lib/companies/directory-model")
-    .then(({ getDirectory }) => getDirectory())
+    .then(async ({ getDirectory, peekCountGeneration }) => {
+      await getDirectory();
+      peekCountGeneration(); // the first count generation starts once the directory it covers is built
+    })
     .catch((error: unknown) => logServer("warn", "company directory boot build failed", { "directory.error": error instanceof Error ? error.message : String(error) }));
   const { warmUp } = await import("@/lib/server-warm-up");
   void warmUp({ port: process.env.PORT ?? "3000", hostname: process.env.HOSTNAME })
