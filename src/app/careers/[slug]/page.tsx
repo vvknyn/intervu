@@ -1,14 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub, otherCareerHubs } from "@/lib/seo/career-hubs";
+import { topHubCompanies, type DirectoryEntry } from "@/lib/companies/directory-index";
+import { companyBoardPath } from "@/lib/companies/paths";
+import { searchJobs } from "@/lib/jobs/search";
+import { careerHubJobsHref, careerHubSearchParams, getAllCareerHubSlugs, getCareerHub, otherCareerHubs, type CareerHub } from "@/lib/seo/career-hubs";
 import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
+
+// Each hub lists live companies, so it is rendered per request, not baked at build time.
+export const dynamic = "force-dynamic";
+
+/** Roles per hub search the company list is read from (the search has no company facet, so
+ *  companies are grouped from this page of hits). */
+const HUB_COMPANY_SAMPLE = 200;
+
+/** Indexable companies with the most roles matching the hub's search; none when either read fails. */
+async function hubCompanies(hub: CareerHub): Promise<DirectoryEntry[]> {
+  try {
+    const [{ hits, unavailable }, indexable] = await Promise.all([
+      searchJobs({ ...careerHubSearchParams(hub), limit: HUB_COMPANY_SAMPLE }),
+      resolveIndexableCompanies(),
+    ]);
+    if (unavailable) {
+      console.error(`career hub ${hub.slug}: job search unavailable, company list omitted`);
+      return [];
+    }
+    return topHubCompanies(hits, indexable);
+  } catch (error) {
+    console.error(`career hub ${hub.slug}: company list omitted: ${error instanceof Error ? error.message : String(error)}`);
+    return [];
+  }
+}
 
 export function generateStaticParams() {
   return getAllCareerHubSlugs().map((slug) => ({ slug }));
@@ -39,6 +68,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
     { name: hub.label, path: hub.path },
   ]);
   const jobsHref = careerHubJobsHref(hub);
+  const companies = await hubCompanies(hub);
 
   return (
     <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
@@ -67,6 +97,21 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
           </Link>
         )}
       </nav>
+
+      {companies.length > 0 && (
+        <section aria-labelledby="hub-companies" className="mt-8" data-testid="career-hub-companies">
+          <SectionTitle id="hub-companies">Companies hiring for {hub.label.toLowerCase()}</SectionTitle>
+          <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2 text-sm">
+            {companies.map(({ domain, name }) => (
+              <li key={domain}>
+                <Link href={companyBoardPath(domain)} className="hover:underline">
+                  {name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </PageContainer>
   );
 }

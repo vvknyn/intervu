@@ -18,6 +18,7 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true;
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
     ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path })),
+    { label: "Companies", href: "/co" },
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
     { label: "Eluta alternative", href: "/eluta-alternative" },
