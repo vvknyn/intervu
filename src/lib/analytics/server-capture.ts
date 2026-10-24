@@ -36,11 +36,7 @@ import type { EventPayloads } from "@/lib/analytics/events";
 import { posthogApiHost } from "@/lib/posthog-options";
 import { getSiteUrl } from "@/lib/seo/constants";
 
-export function postServerCapture(
-  event: string,
-  distinctId: string,
-  properties: Record<string, unknown>,
-): void {
+export function postServerCapture(event: string, properties: Record<string, unknown>): void {
   const apiKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
   if (!apiKey) return;
 
@@ -60,11 +56,19 @@ export function postServerCapture(
     body: JSON.stringify({
       api_key: apiKey,
       event,
-      // $host and $lib are appended last so caller-supplied `properties`
-      // can never override them — see the module doc: dashboards filter on
-      // `$host`, and the browser SDK sets it automatically, but a raw
+      // distinct_id, $process_person_profile, $host and $lib are appended
+      // last so caller-supplied `properties` can never override them. No
+      // caller can name a distinct_id: every event gets a fresh random one
+      // and creates no person, so a server event is never linked to an
+      // account or to any other event. `$host` is stamped because a raw
       // server-side `fetch` carries no request context to derive it from.
-      properties: { ...properties, distinct_id: distinctId, $host: siteHost, $lib: "velai-server" },
+      properties: {
+        ...properties,
+        distinct_id: crypto.randomUUID(),
+        $process_person_profile: false,
+        $host: siteHost,
+        $lib: "velai-server",
+      },
       timestamp: new Date().toISOString(),
     }),
   }).catch(() => {
@@ -73,10 +77,6 @@ export function postServerCapture(
   });
 }
 
-export function captureServerEvent<K extends AnalyticsEventKey>(
-  event: K,
-  distinctId: string,
-  properties: EventPayloads[K],
-): void {
-  postServerCapture(ANALYTICS_EVENTS[event], distinctId, properties as Record<string, unknown>);
+export function captureServerEvent<K extends AnalyticsEventKey>(event: K, properties: EventPayloads[K]): void {
+  postServerCapture(ANALYTICS_EVENTS[event], properties as Record<string, unknown>);
 }

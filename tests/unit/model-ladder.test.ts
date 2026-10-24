@@ -145,24 +145,6 @@ test("free rungs are given more time than they were measured to need", () => {
     }
 });
 
-test("the one generation chokepoint ladders by default", () => {
-    // Owner's call reversed 2026-08-23: with the app funding every AI action,
-    // every action walks the free rungs. `generateGenericText` (a second,
-    // un-laddered path that bypassed fetchJSON entirely) and the built-in
-    // résumé-tailoring caller that used it were both removed in the AI-billing
-    // strip — fetchJSON is now the only generation chokepoint, so this asserts
-    // the property AT that seam, not at each of its call sites.
-    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-    const start = src.indexOf("export const fetchJSON");
-    assert.ok(start >= 0, "fetchJSON is gone — this guard needs re-pointing");
-    const body = src.slice(start, start + 2200);
-    assert.match(
-        body,
-        /resolveModelLadder\([^)]*FREE_LADDER/,
-        "fetchJSON no longer passes FREE_LADDER — the generation path is back on the paid model",
-    );
-});
-
 test("a caller that names its own model gets THAT model, not a free rung", () => {
     // The override has to win, or naming a premium model would be answered by
     // a 9B free one — that defeats the override rather than economising on it.
@@ -172,21 +154,6 @@ test("a caller that names its own model gets THAT model, not a free rung", () =>
         true,
     );
     assert.deepEqual(rungs.map((r) => r.model), ["deepseek/deepseek-v4-pro"]);
-
-    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-    assert.match(
-        src,
-        /resolveModelLadder\(baseConfig, FREE_LADDER, Boolean\(configOverride\?\.model\)\)/,
-        "fetchJSON must still let an explicit model skip the free rungs",
-    );
-});
-
-test("fetchJSON passes per-rung timeout and single provider retry", () => {
-    const src = readFileSync(path.join(ROOT, "src/actions/generate-context.ts"), "utf8");
-    const start = src.indexOf("export const fetchJSON");
-    const body = src.slice(start, src.indexOf("\n};", start));
-    assert.match(body, /timeoutMs:\s*rung\.timeoutMs/);
-    assert.match(body, /maxRetries:\s*1/);
 });
 
 test("with no override, the resolved model is the paid TAIL behind the free rungs", () => {

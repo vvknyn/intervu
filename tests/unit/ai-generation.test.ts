@@ -2,7 +2,6 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   sanitizeLlmFeature,
-  sanitizeDistinctId,
   buildAiGenerationProperties,
   captureAiGeneration,
 } from "../../src/lib/analytics/ai-generation";
@@ -73,20 +72,6 @@ describe("sanitizeLlmFeature", () => {
   });
 });
 
-describe("sanitizeDistinctId", () => {
-  it("returns anonymous for email addresses", () => {
-    assert.equal(sanitizeDistinctId("user@example.com"), "anonymous");
-  });
-
-  it("returns anonymous when id contains whitespace", () => {
-    assert.equal(sanitizeDistinctId("  workos_user_123  "), "anonymous");
-  });
-
-  it("returns trimmed uid when valid", () => {
-    assert.equal(sanitizeDistinctId("workos_user_123"), "workos_user_123");
-  });
-});
-
 describe("buildAiGenerationProperties", () => {
   const baseInput = {
     model: "deepseek/deepseek-v4-flash",
@@ -94,7 +79,6 @@ describe("buildAiGenerationProperties", () => {
     feature: "search_query_parse",
     traceId: "trace-abc-123",
     spanId: "span-def-456",
-    distinctId: "user-uid-1",
     latencySeconds: 1.23456,
     isError: false,
     inputTokens: 100,
@@ -177,7 +161,7 @@ describe("captureAiGeneration", () => {
     global.fetch = ORIGINAL_FETCH;
   });
 
-  it("posts $ai_generation with distinct_id, $host, $lib, and no planted prompt/response text", async () => {
+  it("posts $ai_generation with an anonymous random distinct_id, $host, $lib, and no planted prompt/response text", async () => {
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
@@ -187,7 +171,6 @@ describe("captureAiGeneration", () => {
       feature: "search_query_parse",
       traceId: "trace-1",
       spanId: "span-1",
-      distinctId: "uid-abc",
       latencySeconds: 2.5,
       isError: false,
       inputTokens: 10,
@@ -199,7 +182,8 @@ describe("captureAiGeneration", () => {
     const body = JSON.parse(fake.calls[0].init?.body as string);
     assert.equal(body.api_key, "phc_test");
     assert.equal(body.event, "$ai_generation");
-    assert.equal(body.properties.distinct_id, "uid-abc");
+    assert.match(body.properties.distinct_id, /^[0-9a-f-]{36}$/);
+    assert.equal(body.properties.$process_person_profile, false);
     assert.equal(body.properties.$host, "intervuhq.com");
     assert.equal(body.properties.$lib, "velai-server");
     assert.equal(body.properties.llm_feature, "search_query_parse");
@@ -220,7 +204,6 @@ describe("captureAiGeneration", () => {
       feature: "generic_json",
       traceId: "t",
       spanId: "s",
-      distinctId: "u",
       latencySeconds: 1,
       isError: false,
     });
@@ -241,7 +224,6 @@ describe("captureAiGeneration", () => {
         feature: "generic_json",
         traceId: "t",
         spanId: "s",
-        distinctId: "u",
         latencySeconds: 1,
         isError: false,
       });

@@ -14,7 +14,7 @@
  * back, so the admin "Search demand" view can say what is popular, what finds
  * nothing, and which places and companies need ingesting. It is the ONLY
  * place a search's words are kept: analytics (PostHog, the behavioural
- * ledger) get the search's shape, never its text (`stripSearchTerms`,
+ * ledger) get the search's shape, never its text (`stripUrlQueries`,
  * `captureEvent("search_submitted")`).
  *
  * Pure decision + builder / thin I/O, matching the house pattern

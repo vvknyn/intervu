@@ -46,10 +46,9 @@ test("AI sees only what it needs: contact details come out before the sealed rea
     assert.match(parse, /sealedChat\(\[\{ role: "user", content: readSealedPrompt\(withoutContactDetails\(/);
 });
 
-test("never sold or read by analytics: no words in replays or clicks, résumé searches unlogged", () => {
-    assert.equal(POSTHOG_OPTIONS.session_recording?.maskTextSelector, "*");
-    assert.equal(POSTHOG_OPTIONS.session_recording?.maskAllInputs, true);
-    assert.equal(POSTHOG_OPTIONS.mask_all_text, true);
+test("never sold or read by analytics: no replays or autocapture, résumé searches unlogged", () => {
+    assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
+    assert.equal(POSTHOG_OPTIONS.autocapture, false);
     assert.equal(shouldLogSearch({ q: '"Registered Nurse"', fromResume: true }), false);
 
     const resume = {

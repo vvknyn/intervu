@@ -1,11 +1,9 @@
 
 import { captureAiGeneration } from '@/lib/analytics/ai-generation';
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
-import { GROQ_DEFAULT_MODEL } from './models';
 import { getSiteUrl } from '@/lib/seo/constants';
 import OpenAI from 'openai';
 
-const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -81,7 +79,7 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
 const DEFAULT_MAX_TOKENS = 4000;
 
 /**
- * Shared base for OpenAI-compatible providers (OpenRouter, Groq).
+ * Shared base for OpenAI-compatible providers (OpenRouter).
  * Owns rate-limiting, timeout, retries, and error handling so the
  * concrete providers only declare their base URL / headers / default model.
  */
@@ -119,6 +117,11 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
     protected model: string;
     protected providerName: string;
     protected baseURL: string;
+    /** Extra top-level request-body fields for this provider (passed through by the SDK). */
+    protected requestExtras(): Record<string, unknown> {
+        return {};
+    }
+
     private static lastRequestTime: number = 0;
     private static readonly minRequestInterval: number = 500;
 
@@ -152,7 +155,6 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                 feature: request.analytics?.feature ?? 'unspecified',
                 traceId: request.analytics?.traceId ?? crypto.randomUUID(),
                 spanId: crypto.randomUUID(),
-                distinctId: request.analytics?.distinctId ?? 'anonymous',
                 latencySeconds,
                 isError: capture.isError,
                 errorCode: capture.errorCode,
@@ -199,6 +201,7 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                     model: this.model,
                     max_tokens: DEFAULT_MAX_TOKENS,
                     response_format: request.json ? { type: 'json_object' } : undefined,
+                    ...this.requestExtras(),
                 });
 
                 const completion = await withTimeout(completionPromise, timeoutMs, this.providerName);
@@ -265,11 +268,10 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
             'X-Title': 'Velai',
         });
     }
-}
 
-export class GroqProvider extends OpenAICompatibleProvider {
-    constructor(apiKey: string, model: string = GROQ_DEFAULT_MODEL) {
-        super('Groq', apiKey, model, GROQ_BASE_URL);
+    /** Zero data retention: OpenRouter only routes to ZDR endpoints; a model with none errors rather than retains. */
+    protected requestExtras(): Record<string, unknown> {
+        return { provider: { zdr: true } };
     }
 }
 
@@ -277,9 +279,6 @@ export class ProviderFactory {
     static getProvider(provider: string, apiKey: string, model?: string): LLMProvider {
         if (!apiKey || apiKey.trim() === '') {
             throw new Error('Missing API key. Please check your configuration.');
-        }
-        if (provider === 'groq') {
-            return new GroqProvider(apiKey, model);
         }
         return new OpenRouterProvider(apiKey, model);
     }

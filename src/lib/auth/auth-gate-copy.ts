@@ -40,6 +40,9 @@ export const GUEST_SAVE_TOAST = "Saved — find it in your Tracker";
 export const SIGNUP_SUBCOPY =
     "Get job alerts, saved searches, and an application tracker — on any device.";
 
+/** Shown beside every in-app door to /auth/start?mode=signup: WorkOS's hosted page can't carry it. */
+export const PERSONAL_EMAIL_HINT = "Use a personal email, not your work one.";
+
 /** One gate, one headline and one sentence giving the reason. `titleWithCount` quotes a TRUE count (already formatted, "N" or "N+"). */
 interface AuthGateEntry {
     title: string;

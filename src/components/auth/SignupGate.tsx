@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { buildAuthOpenPayload } from "@/lib/analytics/auth-event-payload";
 import { captureEvent } from "@/lib/analytics/events";
-import { signupGateCopy, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
+import { PERSONAL_EMAIL_HINT, signupGateCopy, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import type { OriginSurface } from "@/lib/auth/gate-attempt";
 import { recordAuthGateOpen } from "@/lib/auth/open-auth-gate";
 import { signupGateHrefs, type SitePath } from "@/lib/auth/post-auth-destination";
@@ -101,6 +101,7 @@ export function SignupGate({
                     </Button>
                 )}
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>
         </section>
     );
 }

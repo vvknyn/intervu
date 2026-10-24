@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { captureServerEvent } from "../../src/lib/analytics/server-capture";
+import { captureServerEvent, postServerCapture } from "../../src/lib/analytics/server-capture";
 
 const ORIGINAL_ENV = {
   key: process.env.NEXT_PUBLIC_POSTHOG_KEY,
@@ -49,11 +49,11 @@ describe("captureServerEvent", () => {
     global.fetch = ORIGINAL_FETCH;
   });
 
-  it("posts search_alert_submitted to PostHog's capture endpoint with distinct_id inside properties", async () => {
+  it("posts search_alert_submitted to PostHog's capture endpoint with a random distinct_id inside properties", async () => {
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
-    captureServerEvent("search_alert_submitted", "distinct-1", {
+    captureServerEvent("search_alert_submitted", {
       surface: "results",
       query_length: 10,
       filter_count: 1,
@@ -66,7 +66,8 @@ describe("captureServerEvent", () => {
     const body = JSON.parse(fake.calls[0].init?.body as string);
     assert.equal(body.api_key, "phc_test");
     assert.equal(body.event, "search_alert_submitted");
-    assert.equal(body.properties.distinct_id, "distinct-1");
+    assert.match(body.properties.distinct_id, /^[0-9a-f-]{36}$/);
+    assert.equal(body.properties.$process_person_profile, false);
     assert.equal(body.properties.surface, "results");
     assert.equal(body.properties.outcome, "accepted");
     assert.equal(body.properties.$host, "intervuhq.com");
@@ -74,11 +75,11 @@ describe("captureServerEvent", () => {
     assert.ok(typeof body.timestamp === "string");
   });
 
-  it("posts search_alert_verified with the round-tripped distinct_id", async () => {
+  it("posts search_alert_verified without a person profile", async () => {
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
-    captureServerEvent("search_alert_verified", "distinct-2", {
+    captureServerEvent("search_alert_verified", {
       surface: "zero_results",
       query_length: 3,
       filter_count: 0,
@@ -88,7 +89,7 @@ describe("captureServerEvent", () => {
     assert.equal(fake.calls.length, 1);
     const body = JSON.parse(fake.calls[0].init?.body as string);
     assert.equal(body.event, "search_alert_verified");
-    assert.equal(body.properties.distinct_id, "distinct-2");
+    assert.equal(body.properties.$process_person_profile, false);
     assert.equal(body.properties.has_results, false);
     assert.equal(body.properties.$host, "intervuhq.com");
     assert.equal(body.properties.$lib, "velai-server");
@@ -99,7 +100,7 @@ describe("captureServerEvent", () => {
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
-    captureServerEvent("search_alert_submitted", "distinct-3", {
+    captureServerEvent("search_alert_submitted", {
       surface: "results",
       query_length: 5,
       filter_count: 2,
@@ -117,7 +118,7 @@ describe("captureServerEvent", () => {
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
-    captureServerEvent("search_alert_submitted", "distinct-4", {
+    captureServerEvent("search_alert_submitted", {
       surface: "results",
       query_length: 1,
       filter_count: 0,
@@ -136,12 +137,31 @@ describe("captureServerEvent", () => {
     assert.equal(body.properties.$lib, "velai-server");
   });
 
+  it("never lets a caller choose the distinct_id: every event gets its own random one", async () => {
+    const fake = new FakeFetch();
+    global.fetch = fake.fetch as typeof fetch;
+    const payload = { surface: "results", query_length: 1, filter_count: 0, has_results: true, outcome: "accepted" } as const;
+
+    // Two different callers each try to hand over an account id; neither survives.
+    captureServerEvent("search_alert_submitted", { ...payload, distinct_id: "workos_user_A" } as never);
+    postServerCapture("mcp_tool_call", { distinct_id: "workos_user_B", uid: "workos_user_B" });
+
+    const [first, second] = fake.calls.map((c) => JSON.parse(c.init?.body as string).properties);
+    for (const props of [first, second]) {
+      assert.match(props.distinct_id, /^[0-9a-f-]{36}$/);
+      assert.equal(props.$process_person_profile, false);
+    }
+    assert.notEqual(first.distinct_id, second.distinct_id);
+    assert.equal(captureServerEvent.length, 2, "the chokepoint takes an event and its properties, never an id");
+    assert.equal(postServerCapture.length, 2);
+  });
+
   it("never fetches when NEXT_PUBLIC_POSTHOG_KEY is unset", async () => {
     setEnv({ host: "https://proxy.example.com/ph", siteUrl: "https://intervuhq.com" });
     const fake = new FakeFetch();
     global.fetch = fake.fetch as typeof fetch;
 
-    captureServerEvent("search_alert_submitted", "distinct-1", {
+    captureServerEvent("search_alert_submitted", {
       surface: "results",
       query_length: 1,
       filter_count: 0,
@@ -158,7 +178,7 @@ describe("captureServerEvent", () => {
     global.fetch = fake.fetch as typeof fetch;
 
     assert.doesNotThrow(() => {
-      captureServerEvent("search_alert_verified", "distinct-1", {
+      captureServerEvent("search_alert_verified", {
         surface: "results",
         query_length: 1,
         filter_count: 0,
@@ -175,7 +195,7 @@ describe("captureServerEvent", () => {
     global.fetch = fake.fetch as typeof fetch;
 
     assert.doesNotThrow(() => {
-      captureServerEvent("search_alert_submitted", "distinct-1", {
+      captureServerEvent("search_alert_submitted", {
         surface: "results",
         query_length: 1,
         filter_count: 0,
