@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { siteSpelling } from "@/lib/companies/company-name";
 import { describe, it } from "node:test";
 import {
   DIRECTORY_POOL_SIZE,
@@ -242,14 +243,20 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("siteNames" in parseCompanyDirectoryHit(hit)!));
   });
 
-  it("concatenates site_names, wikidata_names, row_names in order, deduped; absent fields mean no names", () => {
+  it("keeps site_names in siteNames and puts wikidata_names then row_names, deduped, in labelSpellings; absent when empty", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
-    assert.deepEqual(
-      parseCompanyDirectoryHit({ ...hit, site_names: ["Acme", "Acme Co"], wikidata_names: ["Acme Corp", "Acme"], row_names: ["Acme Corporation", 3] })?.siteNames,
-      ["Acme", "Acme Co", "Acme Corp", "Acme Corporation"],
-    );
-    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })?.siteNames, ["Acme"]);
-    assert.ok(!("siteNames" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
+    const parsed = parseCompanyDirectoryHit({ ...hit, site_names: ["Acme", "Acme Co"], wikidata_names: ["Acme Corp", "Acme"], row_names: ["Acme Corp", "Acme Corporation", 3] });
+    assert.deepEqual(parsed?.siteNames, ["Acme", "Acme Co"]);
+    assert.deepEqual(parsed?.labelSpellings, ["Acme Corp", "Acme", "Acme Corporation"]);
+    const rowsOnly = parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })!;
+    assert.ok(!("siteNames" in rowsOnly));
+    assert.deepEqual(rowsOnly.labelSpellings, ["Acme"]);
+    assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
+  });
+
+  it("a site_names entry still wins over a labelSpelling, through the parsed hit", () => {
+    const parsed = parseCompanyDirectoryHit({ domain: "homedepot.com", open_role_count: 40, site_names: ["Home Depot"], wikidata_names: ["The HomeDepot"], row_names: ["HomeDepot"] })!;
+    assert.equal(siteSpelling("Homedepot", parsed.siteNames, parsed.domain, undefined, parsed.labelSpellings), "Home Depot");
   });
 
   it("reads a missing computed_at as null rather than dropping the hit — computed_at is not a gate field", () => {

@@ -710,3 +710,23 @@ describe("siteSpelling — a one-word brand plus a corporate tail in the domain 
     assert.equal(siteSpelling("Volvogroup", ["Volvo Group"], "volvogroup.com"), "Volvo Group");
   });
 });
+
+describe("siteSpelling — labelSpellings only space or case a glued domain label", () => {
+  const ls = (display: string, domain: string, spellings: string[]) => siteSpelling(display, [], domain, undefined, spellings);
+
+  it("spaces or cases an unwitnessed label", () => {
+    assert.equal(ls("Homedepot", "homedepot.com", ["Home Depot"]), "Home Depot");
+    assert.equal(ls("Usfoods", "usfoods.com", ["US Foods"]), "US Foods");
+    assert.equal(ls("Pacsun", "pacsun.com", ["PacSun"]), "PacSun");
+    assert.equal(ls("Flynnarbysjobs", "flynnarbysjobs.com", ["Flynn Arby's"]), "Flynn Arby's");
+  });
+
+  it("never touches a name that already carries spacing, casing or punctuation, or a different name", () => {
+    assert.equal(ls("NVIDIA", "nvidia.com", ["Nvidia"]), "NVIDIA");
+    assert.equal(ls("Cigna", "cigna.com", ["Connecticut General Life Insurance Company"]), "Cigna");
+    assert.equal(ls("Uvahealth", "uvahealth.org", ["University of Virginia Health System"]), "Uvahealth");
+    assert.equal(ls("Air Methods", "airmethods.com", ["Air Method\u2019s"]), "Air Methods");
+    assert.equal(ls("Carter Lumber", "carterlumber.com", ["CARTER Lumber"]), "Carter Lumber");
+    assert.equal(ls("DICK'S Sporting Goods", "dickssportinggoods.com", ["DICK\u2019S Sporting Goods"]), "DICK'S Sporting Goods");
+  });
+});

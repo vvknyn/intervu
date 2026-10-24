@@ -111,8 +111,10 @@ export interface IndexableCompanyDomain {
    *  carries something `Date.parse` can't read; `sitemap.ts` reads this as
    *  "unknown" and omits `lastModified` rather than stamping today's date. */
   computedAt: string | null;
-  /** The company's name candidates in source order, deduped: homepage `site_names`, then `wikidata_names`, then `row_names` (a spelling its own job descriptions witness). Absent when the doc has none. */
+  /** The company's own homepage name candidates, in source order (`site_names`). Absent when the doc has none. */
   siteNames?: string[];
+  /** `wikidata_names` then `row_names`, deduped: spellings that may only space or case a glued domain label (`labelSpelling`), never rename a name. Absent when empty. */
+  labelSpellings?: string[];
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -141,8 +143,8 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(v)) ? null : v;
 }
 
-/** The `company_directory` string-array fields that carry name candidates, in precedence order (homepage first). */
-const NAME_FIELDS = ["site_names", "wikidata_names", "row_names"] as const;
+/** The string entries of a doc field, or null when it is not an array. */
+const stringsOf = (v: unknown): string[] | null => (Array.isArray(v) ? v.filter((n): n is string => typeof n === "string") : null);
 
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
@@ -156,8 +158,9 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  const names = [...new Set(NAME_FIELDS.flatMap((field) => (Array.isArray(h[field]) ? (h[field] as unknown[]).filter((n): n is string => typeof n === "string") : [])))];
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(names.length > 0 && { siteNames: names }) };
+  const siteNames = stringsOf(h.site_names);
+  const labelSpellings = [...new Set([...(stringsOf(h.wikidata_names) ?? []), ...(stringsOf(h.row_names) ?? [])])];
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own
