@@ -13,8 +13,7 @@ const job = (i: number): PublicJob =>
 const result = (n: number, total = 1234): JobSearchResult => ({ hits: Array.from({ length: n }, (_, i) => job(i)), total, backend: "meilisearch", configured: true });
 const deps = (search: () => Promise<JobSearchResult>) => ({
   search,
-  indexable: async () => [{ domain: "acme.com", openRoleCount: 30, computedAt: null }, { domain: "beta.io", openRoleCount: 40, computedAt: null }],
-  names: async (domains: readonly string[]) => Object.fromEntries(domains.map((d) => [d, d === "acme.com" ? "Acme Systems" : "Beta"])),
+  indexable: async () => [{ domain: "acme.com", openRoleCount: 30, computedAt: null, name: "Acme Systems", letter: "A" }, { domain: "beta.io", openRoleCount: 40, computedAt: null, name: "Beta", letter: "B" }],
 });
 const render = (facts: HubFacts) => renderToStaticMarkup(createElement(HubSections, { facts, label: hub.label, now: Date.now() }));
 const anchors = (html: string) => html.match(/<a [^>]*href="\/jobs\//g)?.length ?? 0;
@@ -35,8 +34,8 @@ describe("career hub facts", () => {
       assert.equal(html, "");
     }
   });
-  it("keeps the count and roles when only the company names fail", async () => {
-    const facts = await loadHubFacts(hub, { ...deps(async () => result(5)), names: async () => { throw new Error("no names"); } });
+  it("keeps the count and roles when only the company set fails", async () => {
+    const facts = await loadHubFacts(hub, { ...deps(async () => result(5)), indexable: async () => { throw new Error("no directory"); } });
     assert.equal(facts.roles.length, 5);
     assert.equal(facts.companies.length, 0);
   });

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { fetchIndexableCompanyDomains, type IndexableCompanyDomain } from "@/lib/companies/indexable";
+import { getDirectory, type DirectoryCompany } from "@/lib/companies/directory-model";
 import { groupCompaniesByLetter, letterPath } from "@/lib/companies/directory-index";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { BLOG_PATH, BLOG_POSTS, blogPostPath } from "@/lib/blog/posts";
@@ -28,21 +28,23 @@ const DEPLOYED_AT = new Date();
  * good answer serves the pages without /co/ entries, still never a 5xx.
  */
 export interface CompanyCache {
-  companies: IndexableCompanyDomain[];
+  companies: DirectoryCompany[];
   at: number;
 }
 /** Module state (survives across requests); exported so tests can start a case with none. */
 export const LAST_GOOD: { current: CompanyCache | null } = { current: null };
+
+const listedCompanies = async (): Promise<DirectoryCompany[]> => (await getDirectory()).companies;
 
 /**
  * THE company set for every surface that lists companies (sitemap, /co index,
  * hub company lists), with the failure posture above.
  */
 export async function resolveIndexableCompanies(
-  fetchCompanies: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
+  fetchCompanies: () => Promise<DirectoryCompany[]> = listedCompanies,
   lastGood: { current: CompanyCache | null } = LAST_GOOD,
-): Promise<IndexableCompanyDomain[]> {
-  let companies: IndexableCompanyDomain[] = [];
+): Promise<DirectoryCompany[]> {
+  let companies: DirectoryCompany[] = [];
   let failure: string | null = null;
   try {
     companies = await fetchCompanies();
@@ -63,7 +65,7 @@ export async function resolveIndexableCompanies(
 }
 
 export async function buildSitemapEntries(
-  fetchCompanies?: () => Promise<IndexableCompanyDomain[]>,
+  fetchCompanies?: () => Promise<DirectoryCompany[]>,
   lastGood?: { current: CompanyCache | null },
 ): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();

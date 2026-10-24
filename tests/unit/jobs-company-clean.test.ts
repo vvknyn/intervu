@@ -187,6 +187,19 @@ test("displayCompanyName strips bare legal forms class-wide, not just the two or
     assert.equal(displayCompanyName("Muster Systeme GmbH"), "Muster Systeme");
 });
 
+// Singapore / Malaysia / Brazil / Netherlands / Spain forms seen in the Oct 2026 directory evidence tails.
+test("displayCompanyName strips the Pte, Sdn Bhd, Ltda, S.R.L., C.V. and S.L. families", () => {
+    assert.equal(displayCompanyName("Orion Freight Pte. Ltd."), "Orion Freight");
+    assert.equal(displayCompanyName("Air Liquide Pte."), "Air Liquide");
+    assert.equal(displayCompanyName("Kopi Trading Sdn. Bhd."), "Kopi Trading");
+    assert.equal(displayCompanyName("Kopi Trading Sdn Bhd"), "Kopi Trading");
+    assert.equal(displayCompanyName("Verde Logistica Ltda."), "Verde Logistica");
+    assert.equal(displayCompanyName("Ayvens Service Center SRL"), "Ayvens Service Center");
+    assert.equal(displayCompanyName("Tulip Markets C.V."), "Tulip Markets");
+    assert.equal(displayCompanyName("Sol Energia S.L."), "Sol Energia");
+    assert.equal(displayCompanyName("Pavo Holdings LLC."), "Pavo Holdings");
+});
+
 // Negatives the growth must not touch.
 test("displayCompanyName negatives survive the widened bare-form vocabulary untouched", () => {
     // A legal-form word that opens the name, not closes it — end-anchored,
@@ -412,8 +425,11 @@ test("negative: 'Group' bare, with no geography anywhere, is left alone (not jus
     assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
 });
 
-test("negative: a trailing geography parenthetical with nothing stacked after it is left for cleanCompany's own rule, not stripped here", () => {
-    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro Inc. (Canada)");
+test("a trailing parenthetical after a legal form is dropped with it; one after a plain name is kept", () => {
+    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro");
+    assert.equal(displayCompanyName("Prudential Services Asia Sdn Bhd (Malaysia)"), "Prudential Services Asia");
+    assert.equal(displayCompanyName("Zenith Freight Pte. Ltd. (Singapore)"), "Zenith Freight");
+    assert.equal(displayCompanyName("Canadian Imperial Bank of Commerce (Canada)"), "Canadian Imperial Bank of Commerce (Canada)");
 });
 
 // Corp-suffix audit, 2026-08-29: bare "Corp"/"Corporation"/"Ltd" moved out of

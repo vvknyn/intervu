@@ -7,9 +7,9 @@ import { buildSitemapEntries } from "@/lib/seo/sitemap-entries";
  * which also states the failure posture. Authed app surfaces, `/login` and
  * `/yours` are not in the policy's sitemap set, so they never appear.
  *
- * `/co/` entries are the `company_directory` domains with at least
- * MIN_SITEMAP_ROLES live roles (top SITEMAP_COMPANY_CAP): see
- * `fetchIndexableCompanyDomains`. `force-dynamic` keeps the route out of
+ * `/co/` entries are the directory model's listed companies (directory-model.ts):
+ * `company_directory` domains with at least MIN_SITEMAP_ROLES live roles that are
+ * real companies under their own names (top SITEMAP_COMPANY_CAP). `force-dynamic` keeps the route out of
  * `next build`, so a Meilisearch error can never fail a build; its fetch
  * carries its own `revalidate`, so requests share one round trip per window.
  */

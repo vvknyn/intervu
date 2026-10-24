@@ -6,7 +6,9 @@ import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { BLOG_POSTS } from "@/lib/blog/posts";
-import { groupCompaniesByLetter } from "@/lib/companies/directory-index";
+import { groupCompaniesByLetter, letterOf } from "@/lib/companies/directory-index";
+import { DIRECTORY_READER, fetchDirectory } from "@/lib/companies/directory-model";
+import { displayNameFromDomain } from "@/lib/companies/company-name";
 import { DIRECTORY_LETTER_PATH } from "@/lib/seo/indexability";
 
 /**
@@ -86,7 +88,7 @@ describe("seo/constants — getSiteUrl() env seam", () => {
     assert.equal(coEntries.length, FAKE_DIRECTORY_DOMAINS.length);
     // One directory page per first letter present among those companies.
     const letterPages = result.filter((e) => e.url.includes(`${DIRECTORY_LETTER_PATH}/`));
-    assert.equal(letterPages.length, groupCompaniesByLetter(FAKE_DIRECTORY_DOMAINS.map((domain) => ({ domain, openRoleCount: 1, computedAt: null }))).length);
+    assert.equal(letterPages.length, groupCompaniesByLetter(FAKE_DIRECTORY_DOMAINS.map((domain) => ({ domain, openRoleCount: 1, computedAt: null, name: displayNameFromDomain(domain), letter: letterOf(displayNameFromDomain(domain)) }))).length);
     // The static, always-indexable pages are unaffected by the directory's contents.
     assert.equal(result.length - coEntries.length - letterPages.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
   });
@@ -155,9 +157,14 @@ async function withStubbedMeili<T>(reply: (body: string) => Response, fn: () => 
   process.env.MEILISEARCH_HOST = "http://meili.test";
   globalThis.fetch = (async (_url: string, init: RequestInit) =>
     reply(String(init.body))) as unknown as typeof fetch;
+  // The real directory read, with each company's roles answered by its own domain-word name (no jobs index here).
+  const realRead = DIRECTORY_READER.read;
+  DIRECTORY_READER.read = async () =>
+    fetchDirectory(undefined, async (domains) => domains.map((domain) => [{ company: displayNameFromDomain(domain), title: "Role", location: "Remote" } as never]));
   try {
     return await fn();
   } finally {
+    DIRECTORY_READER.read = realRead;
     globalThis.fetch = realFetch;
     if (realHost === undefined) delete process.env.MEILISEARCH_HOST;
     else process.env.MEILISEARCH_HOST = realHost;
