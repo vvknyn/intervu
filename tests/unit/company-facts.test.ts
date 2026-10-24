@@ -82,8 +82,8 @@ describe("buildDistribution", () => {
         assert.deepEqual(d?.buckets, [{ value: "Remote", count: 5 }]);
     });
     it("multi-valued mixes keep proper names and humanize only machine tokens", () => {
-        const d = buildDistribution({ "Node.js": 3, react: 2, machine_learning: 1, "ci-cd": 1 }, 7, { multiValued: true });
-        assert.deepEqual(d?.buckets.map((b) => b.value), ["Node.js", "react", "Ci-Cd", "Machine Learning"]);
+        const d = buildDistribution({ "Node.js": 3, react: 2, machine_learning: 1, "react-native": 1 }, 7, { multiValued: true });
+        assert.deepEqual(d?.buckets.map((b) => b.value), ["Node.js", "react", "Machine Learning", "react-native"]);
     });
     it("is null when nothing is stated", () => {
         assert.equal(buildDistribution({ unknown: 4 }, 4), null);

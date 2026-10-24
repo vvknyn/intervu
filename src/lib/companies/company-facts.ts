@@ -11,7 +11,7 @@
 import type { TrackRecord } from "@/lib/companies/aggregates";
 import type { CompanyExhaust, WeeklyCadence } from "@/lib/companies/exhaust";
 import type { OpenCount } from "@/lib/companies/open-count";
-import { isMachineToken } from "@/lib/companies/machine-token";
+import { machineTokenLabel } from "@/lib/companies/machine-token";
 import { typicalPayText } from "@/lib/companies/presentation";
 import { evidencedSkills, prettyEnum } from "@/lib/jobs/presentation";
 import { classifyCountryValue, rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
@@ -107,8 +107,8 @@ export function buildDistribution(
   { multiValued = false, limit = SKILL_LIMIT }: { multiValued?: boolean; limit?: number } = {},
 ): Distribution | null {
   // THE label chokepoint for every mix: raw facet tokens never reach a page. Multi-valued mixes (countries,
-  // skills, tech) are proper names, so only machine tokens are humanized; categorical ones always go through /jobs' `prettyEnum`.
-  const label = multiValued ? (v: string) => (isMachineToken(v) ? prettyEnum(v) : v) : prettyEnum;
+  // skills, tech) are proper names, so only underscore tokens are humanized; categorical ones always go through /jobs' `prettyEnum`.
+  const label = multiValued ? (v: string) => (v.includes("_") ? machineTokenLabel(v) : v) : (v: string) => prettyEnum(machineTokenLabel(v));
   const merged = new Map<string, number>();
   for (const [value, count] of Object.entries(raw ?? {})) {
     if (isStated(value) && count > 0) merged.set(label(value), (merged.get(label(value)) ?? 0) + count);

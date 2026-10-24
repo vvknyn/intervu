@@ -15,8 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
-import { isMachineToken } from "@/lib/companies/machine-token";
-import { prettyEnum } from "@/lib/jobs/presentation";
+import { machineTokenLabel } from "@/lib/companies/machine-token";
 import { INTEGRITY_WINDOW_DAYS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 
@@ -325,7 +324,7 @@ const NON_SECTORS = new Set(["", "general", "unknown"]);
 export function resolveSector(row: Partial<SectorRow> | null): string | null {
   for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards]) {
     const sector = str(candidate)?.trim();
-    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return isMachineToken(sector) ? prettyEnum(sector) : sector;
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
   }
   return null;
 }
