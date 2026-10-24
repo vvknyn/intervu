@@ -62,7 +62,7 @@ Each catalog row belongs to one stage. **Covered**: a tagged spec runs it. **Kno
 | [Settings and account](#settings-and-account) | SETTINGS 01–11, 13–20, 22–34 · NAV 11–13, 20 | 36 | 7 | 29 | 0 | 0 |
 | [AI agents: Connect, OAuth, MCP](#ai-agents-connect-oauth-mcp) | COMPANY 32–34 · CONNECT 01–31 · OAUTH 01–22 | 56 | 12 | 44 | 0 | 0 |
 | [Career hubs, comparison pages, content, SEO](#career-hubs-comparison-pages-content-seo) | CONTENT 01–07, 09–40 · SEO 01–10 | 49 | 17 | 32 | 0 | 0 |
-| [Pricing](#pricing) | PRICING 01–08 | 8 | 4 | 4 | 0 | 0 |
+| [Pricing](#pricing) | PRICING 01–08 · BILLING 01–05 | 13 | 8 | 5 | 0 | 0 |
 | [Header, menus, errors, layout](#header-menus-errors-layout) | MOB 04–08, 19, 22 · NAV 07–09, 14, 22–29, 33–42 · ERR 01–06, 10–15, 17–18 · ADMIN 01–05 · MODAL 02, 05 | 50 | 15 | 35 | 0 | 0 |
 | **All stages** | | **765** | **313** | **452** | **0** | **0** |
 <!-- stage-table:end -->

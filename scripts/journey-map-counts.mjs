@@ -45,7 +45,7 @@ const STAGES = [
   { key: "connect", label: "AI agents: Connect, OAuth, MCP", areas: ["CONNECT", "OAUTH"],
     ids: ["COMPANY:32-34"] }, // the /watch pages, catalogued under COMPANY
   { key: "content", label: "Career hubs, comparison pages, content, SEO", areas: ["CONTENT", "SEO"], ids: [] },
-  { key: "pricing", label: "Pricing", areas: ["PRICING"], ids: [] },
+  { key: "pricing", label: "Pricing", areas: ["PRICING", "BILLING"], ids: [] },
   { key: "shell", label: "Header, menus, errors, layout", areas: ["ERR", "ADMIN"],
     ids: ["NAV:7-9", "NAV:14-16", "NAV:22-29", "NAV:33-42", "MOB:4-8", "MOB:19", "MOB:22", "MODAL:2", "MODAL:5"] },
 ];

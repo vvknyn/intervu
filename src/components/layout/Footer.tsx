@@ -23,7 +23,7 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true;
     { label: "About the checks", href: GHOST_RESEARCH_HREF, lean: true },
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
-    { label: "Pricing", href: "/pricing" },
+    { label: "Pricing", href: "/pricing", lean: true },
     ...SEO_NAV_LINKS,
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
@@ -141,7 +141,7 @@ export function Footer() {
     return <FooterContent />;
 }
 
-/** The `lean` links only (checks, the hubs and Companies, Privacy, Terms) — no blog/pricing/alternatives
+/** The `lean` links only (checks, the hubs and Companies, Pricing, Privacy, Terms) — no blog/alternatives
  *  farm on hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     const prefetchOnIntent = usePrefetchOnIntent();
