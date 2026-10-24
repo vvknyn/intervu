@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { Sheet, SheetContent, SheetHandle, SheetTitle } from "@/components/ui/sheet";
 import { SectionTitle, SubTitle } from "@/components/ui/heading";
-import type { CompanyRoleStat } from "@/lib/companies/presentation";
+import { roleCountLabel, showMoreLabel, type CompanyRoleStat } from "@/lib/companies/presentation";
 import { getCurrentUser, onAuthChange, type User } from "@/lib/firebase/client-auth";
 import { derivePostedTs } from "@/lib/jobs/meilisearch";
 import { decodeText, displayCompanyBrand, locationText, postedAgeShort, prettyEnum, rowExceptionMeta, shortDate, titleCaseDisplay } from "@/lib/jobs/presentation";
@@ -113,22 +113,6 @@ export function roleFitStat(
 export function sortByFit(jobs: PublicJob[], matchScores: ReadonlyMap<string, MatchScore | null> | null): PublicJob[] {
   if (!matchScores) return jobs;
   return sortListByFit(jobs, (job) => ({ job, score: matchScores.get(job.id) }), { nowMs: Date.now() });
-}
-
-/** The "N of M ..." caption beside the "Open roles" heading — truthful about
- *  what's rendered vs. what the query actually matched, in both directions
- *  (identical to the pre-search "N of M shown" copy when there's no query). */
-function roleCountLabel(
-  displayedCount: number,
-  matchedCount: number,
-  hasQuery: boolean,
-  openCountLabel: string,
-): string {
-  if (!hasQuery) return `${displayedCount} of ${openCountLabel} shown`;
-  if (displayedCount === matchedCount) {
-    return `${matchedCount} match${matchedCount === 1 ? "" : "es"}`;
-  }
-  return `${displayedCount} of ${matchedCount} matches shown`;
 }
 
 /**
@@ -294,7 +278,7 @@ export function CompanyRoleSearch({
   const matched = sortByFit(hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs, matchScores);
   // Every matched role is in the server HTML as a real link (crawlers and
   // no-JS readers see all of them); only the rows past the preview are hidden
-  // until "Show all" — a visual collapse, not a smaller list.
+  // until "Show N more roles" — a visual collapse, not a smaller list.
   const [showAll, setShowAll] = useState(false);
   const visibleCount = showAll || hasQuery ? matched.length : Math.min(ROLES_PREVIEW, matched.length);
   const displayed = matched.slice(0, visibleCount);
@@ -378,7 +362,7 @@ export function CompanyRoleSearch({
         {jobs.length > 0 && (
           <span className="text-sm font-normal text-muted-foreground" aria-live="polite">
             {matchScores ? "Best fit first · " : ""}
-            {roleCountLabel(displayed.length, matched.length, hasQuery, openCountLabel)}
+            {roleCountLabel({ displayed: displayed.length, matched: matched.length, hasQuery, openCountLabel, windowSize: searchesPartialWindow ? jobs.length : null })}
           </span>
         )}
       </SectionTitle>
@@ -520,7 +504,7 @@ export function CompanyRoleSearch({
       )}
       {matched.length > visibleCount && (
         <Button type="button" variant="outline" className="mt-4" onClick={() => setShowAll(true)}>
-          Show all {matched.length} roles
+          {showMoreLabel(matched.length - visibleCount)}
         </Button>
       )}
 
