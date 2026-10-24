@@ -265,3 +265,55 @@ describe("siteSpelling — SP: the company's own spelling of the agreed name", (
     assert.equal(siteSpelling("aaff", ["AAFF"]), "AAFF");
   });
 });
+
+describe("siteSpelling — SQ: a display that is only the squashed domain word takes the site's expansion of it", () => {
+  const sq = (display: string, domain: string, names: string[]) => siteSpelling(display, names, domain);
+
+  it("expands the domain word to the shortest anchored multi-word site name", () => {
+    assert.equal(
+      sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare Corporate", "An Integrated Behavioral Healthcare System", "Pyramid Healthcare"]),
+      "Pyramid Healthcare",
+    );
+    assert.equal(sq("Westpharma", "westpharma.com", ["West Pharmaceutical Services"]), "West Pharmaceutical Services");
+    assert.equal(sq("Txtav", "txtav.com", ["Textron Aviation"]), "Textron Aviation");
+  });
+
+  it("never picks a tagline, junk, another company or a bare/longer form of a real word", () => {
+    assert.equal(sq("Toast", "toast.com", ["NHN Cloud"]), "Toast");
+    assert.equal(sq("Marel", "marel.com", ["JBT Marel"]), "Marel");
+    assert.equal(sq("Anthropic", "anthropic.com", ["Home \\ Anthropic"]), "Anthropic");
+    assert.equal(sq("Borgwarner", "borgwarner.com", ["Home"]), "Borgwarner");
+    assert.equal(sq("Staples", "staples.com", ["Staples.com"]), "Staples");
+    assert.equal(sq("Genmab", "genmab.com", ["Welcome to Genmab"]), "Genmab");
+    assert.equal(sq("Yale", "yale.edu", ["Yale University"]), "Yale");
+    assert.equal(sq("Shell", "shell.com", ["Shell Global"]), "Shell");
+    assert.equal(sq("Acme", "acme.com", ["Acme | Widgets Co", "Acme, Widgets Co", "Acme: Widgets Co"]), "Acme");
+  });
+
+  it("respells the domain word as the site's cased first word, only when that word carries casing", () => {
+    assert.equal(sq("Bnsf", "bnsf.com", ["BNSF Railway"]), "BNSF");
+    assert.equal(sq("Mccain", "mccain.com", ["McCain Foods Global Corporate"]), "McCain");
+    assert.equal(sq("Nvent", "nvent.com", ["nVent Electric"]), "nVent");
+    assert.equal(sq("Sendiks", "sendiks.com", ["Sendik's Food Market"]), "Sendik's");
+    assert.equal(sq("Pei", "pei.com", ["PEI + Dataprise"]), "PEI");
+    assert.equal(sq("Mccain", "mccain.com", ["McCain Foods Global Corporate", "McCain Foods Global Corporate Website", "McCain.com"]), "McCain");
+    assert.equal(sq("Omv", "omv.com", ["OMV Aktiengesellschaft", "OMV Home", "OMV.com"]), "OMV");
+    assert.equal(sq("NGC", "ngc.com", ["Ngc Construction"]), "NGC");
+    assert.equal(sq("Iceye", "iceye.com", ["ICEYE Space Systems"]), "Iceye");
+    assert.equal(sq("Yale", "yale.edu", ["Yale University"]), "Yale");
+  });
+
+  it("accepts a typographic apostrophe in an expansion", () => {
+    assert.equal(sq("Archildrens", "archildrens.org", ["Arkansas Children\u2019s"]), "Arkansas Children\u2019s");
+    assert.equal(sq("Acme", "acme.com", ["#1 Acme Widgets Co"]), "Acme");
+  });
+
+  it("leaves a display that is not the domain word alone", () => {
+    assert.equal(sq("Kering Eyewear", "kering.com", ["Kering Eyewear Group"]), "Kering Eyewear");
+  });
+
+  it("lets the same-key respell win over an expansion", () => {
+    assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC"]), "Pyramid HC");
+    assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC Inc"]), "Pyramidhc");
+  });
+});
