@@ -11,6 +11,8 @@ import { Prose } from "@/components/ui/prose";
 import { SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
+import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
+import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
 import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
@@ -381,11 +383,16 @@ export default function PrivacyPage() {
 
         <SectionTitle id="cookies-analytics">Cookies &amp; analytics</SectionTitle>
         <p>
-          We use a session cookie to keep you signed in. It&apos;s httpOnly (invisible to page scripts) and
-          identifies your session — nothing more. The jobs board sets one more tiny cookie the first time you
-          visit: a returning-visitor flag (literally the value 1, with no identifier in it), so the front door
-          can skip the first-visit intro next time.
+          Velai sets the cookies below and no others. None is an advertising or tracking cookie, and none is shared
+          with another company.
         </p>
+        <ul>
+          {COOKIES_DISCLOSED.map((cookie) => (
+            <li key={cookie.name}>
+              <code className="text-xs text-foreground">{cookie.name}</code> — {cookie.purpose} <em>Lasts: {cookie.lifetime}.</em>
+            </li>
+          ))}
+        </ul>
         <p>
           We use PostHog for anonymous product analytics — page views and a short list of named actions, such as
           opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai&apos;s
@@ -403,10 +410,26 @@ export default function PrivacyPage() {
           with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
           to your Velai account, whether or not you&apos;re signed in: we no longer tell PostHog who you are, and it
           creates no profile of you. Events recorded up to 23 October 2026 were linked to the account of a
-          signed-in visitor; deleting your account erases those too. Your IP address is removed by our server before an event is forwarded to PostHog, so it is not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
-          the two cookies above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
+          signed-in visitor; deleting your account erases those too. Your IP address is removed by our server before an event is forwarded to PostHog, and so are your cookies and the page you came from (the referrer), so none of them is stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          the cookies listed above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
+        </p>
+        <p>
+          Separately from product analytics, our servers send error and slow-request logs to PostHog (its logs
+          product, US cloud). Each record is a short fixed sentence plus only these fields, enforced in code before
+          anything leaves our server:{" "}
+          {LOG_ATTR_ALLOW_LIST.map((field, i) => (
+            <span key={field}>
+              {i > 0 ? ", " : ""}
+              <code className="text-xs text-foreground">{field}</code>
+            </span>
+          ))}
+          . These are outcome codes, timings, counts, the route pattern (like{" "}
+          <code className="text-xs text-foreground">/unsubscribe/[token]</code>, never the real address), the error
+          class and a company&apos;s public web domain. They never include your account id, email address, IP
+          address, browser details, the query part of an address, what you searched for, or anything from your
+          résumé, and a value that looks like free text or an address is dropped.
         </p>
         <p>
           There is no session replay: nothing records your screen or your typing, and there is no

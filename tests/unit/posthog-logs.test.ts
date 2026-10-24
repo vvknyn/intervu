@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   DEFAULT_LOGS_ENDPOINT,
   SERVICE_NAME,
@@ -9,6 +11,7 @@ import {
   requestErrorLevel,
   requestErrorRecord,
   resolveLogsConfig,
+  sanitizeLogAttrs,
   takeSlot,
 } from "../../src/lib/observability/posthog-logs";
 
@@ -51,7 +54,7 @@ test("budget: allows the window's quota, drops the rest, reopens next window", (
 });
 
 test("OTLP payload carries service, environment, severity and attributes", () => {
-  const p = buildOtlpPayload({ environment: "production" }, "error", "boom", { a: "b", n: 3, u: undefined }, 1_700_000_000_000);
+  const p = buildOtlpPayload({ environment: "production" }, "error", "boom", { reason: "b", duration_ms: 3, outcome: undefined }, 1_700_000_000_000);
   const rl = p.resourceLogs[0];
   const res = Object.fromEntries(rl.resource.attributes.map((a) => [a.key, a.value]));
   assert.deepEqual(res["service.name"], { stringValue: SERVICE_NAME });
@@ -61,7 +64,7 @@ test("OTLP payload carries service, environment, severity and attributes", () =>
   assert.equal(rec.severityNumber, 17);
   assert.equal(rec.timeUnixNano, "1700000000000000000");
   assert.deepEqual(rec.body, { stringValue: "boom" });
-  assert.deepEqual(rec.attributes.map((a) => a.key), ["a", "n"]);
+  assert.deepEqual(rec.attributes.map((a) => a.key), ["reason", "duration_ms"]);
 });
 
 test("request error record uses the route pattern, never the raw path, and no PII", () => {
@@ -127,4 +130,44 @@ test("logServer is a true no-op when unset: no fetch, no throw", () => {
     if (saved.e === undefined) delete process.env.POSTHOG_LOGS_ENABLED; else process.env.POSTHOG_LOGS_ENABLED = saved.e;
     if (saved.k === undefined) delete process.env.NEXT_PUBLIC_POSTHOG_KEY; else process.env.NEXT_PUBLIC_POSTHOG_KEY = saved.k;
   }
+});
+
+test("exporter drops every non-allow-listed attribute, whoever the caller is", () => {
+  const sent = buildOtlpPayload({ environment: "production" }, "warn", "x", {
+    uid: "user_01HXYZ",
+    user_id: "user_01HXYZ",
+    email: "jane@example.com",
+    ip: "203.0.113.9",
+    "client.address": "203.0.113.9",
+    user_agent: "Mozilla/5.0 (Macintosh)",
+    "url.full": "https://velai.app/jobs?q=nurse",
+    "url.query": "q=nurse",
+    query: "senior nurse",
+    search_text: "senior nurse",
+    resume: "Jane Doe, 10 years at Acme",
+    // allowed keys are kept...
+    reason: "turnstile",
+    duration_ms: 2000,
+    "http.route": "/unsubscribe/[token]",
+  }, 1_700_000_000_000);
+  const keys = sent.resourceLogs[0].scopeLogs[0].logRecords[0].attributes.map((a) => a.key);
+  assert.deepEqual(keys, ["reason", "duration_ms", "http.route"]);
+});
+
+test("exporter drops an allow-listed key whose value is free text, an address or a URL query", () => {
+  const out = sanitizeLogAttrs({
+    reason: "jane@example.com",
+    error_name: "failed for bob",
+    "http.route": "/jobs?q=nurse",
+    "company.domain": "acme.com",
+    error_codes: "invalid_grant,rate_limited",
+    outcome: "refused",
+  });
+  assert.deepEqual(out, { "company.domain": "acme.com", error_codes: "invalid_grant,rate_limited", outcome: "refused" });
+});
+
+test("the privacy page lists the same fields the exporter allows", () => {
+  const page = readFileSync(join(__dirname, "../../src/app/privacy/page.tsx"), "utf8");
+  assert.match(page, /LOG_ATTR_ALLOW_LIST\.map/);
+  assert.match(page, /error and slow-request logs to PostHog/);
 });

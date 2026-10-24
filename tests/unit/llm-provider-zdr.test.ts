@@ -4,7 +4,7 @@ import { ProviderFactory } from "@/lib/llm/providers";
 
 process.env.NEXT_PUBLIC_SITE_URL ??= "https://velai.test";
 
-async function bodyFor(provider: "openrouter" | "groq", model: string): Promise<Record<string, unknown>> {
+async function bodyFor(provider: string, model: string): Promise<Record<string, unknown>> {
     const p = ProviderFactory.getProvider(provider, "k", model) as unknown as {
         client: { chat: { completions: { create: (b: Record<string, unknown>) => Promise<unknown> } } };
         generate: (r: { prompt: string }) => Promise<unknown>;
@@ -24,6 +24,8 @@ test("OpenRouter requests carry provider.zdr=true for any model", async () => {
     }
 });
 
-test("Groq requests do not carry the OpenRouter provider field", async () => {
-    assert.equal("provider" in (await bodyFor("groq", "llama-x")), false);
+test("any other provider name still goes to OpenRouter with ZDR: there is no non-ZDR lane", async () => {
+    for (const name of ["groq", "anything-else"]) {
+        assert.deepEqual((await bodyFor(name, "llama-x")).provider, { zdr: true });
+    }
 });

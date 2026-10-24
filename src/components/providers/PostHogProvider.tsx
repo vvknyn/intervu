@@ -29,7 +29,7 @@ const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const POSTHOG_HOST_OVERRIDE = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
 // intervu has no cookie-consent banner (deliberate — see privacy policy), so
-// persistence is always 'memory'. If a consent banner ever ships, port
+// persistence is always 'sessionStorage' (cookieless; see posthog-options.ts). If a consent banner ever ships, port
 // subspace's consent-aware upgrade path (PostHogProvider.tsx in interview-os)
 // — the localStorage-backed 'cookie-consent-accepted' read + the
 // cookie-consent-accepted/declined listeners that flip persistence to

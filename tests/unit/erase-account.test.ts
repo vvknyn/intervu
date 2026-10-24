@@ -11,6 +11,7 @@ import {
     findStripeCustomerByUid,
     type EraseAccountDeps,
 } from "../../src/lib/account/erase-account";
+import { deleteLegacyFirebaseUser, hasFirebaseCredentials } from "../../src/lib/firebase/admin";
 import { incompleteEraseMessage } from "../../src/lib/account/erase-copy";
 import { PUBLIC_SUPPORT_EMAIL } from "../../src/lib/legal/public-contact";
 
@@ -26,7 +27,7 @@ function recorder(overrides: Partial<EraseAccountDeps> = {}) {
         deletePgRows: async (uid) => (calls.push(`pg:${uid}`), "deleted"),
         deleteTelemetry: async (uid) => (calls.push(`telemetry:${uid}`), "deleted"),
         deleteAnalyticsPerson: async (uid) => (calls.push(`posthog:${uid}`), "deleted"),
-        deleteLegacySignIn: async (uid) => (calls.push(`firebase:${uid}`), true),
+        deleteLegacySignIn: async (uid) => (calls.push(`firebase:${uid}`), "deleted"),
         deleteSignIn: async (uid) => void calls.push(`workos:${uid}`),
         findStripeCustomerByUid: async (uid) => (calls.push(`stripe-find:${uid}`), null),
         eraseIdentityStore: async (uid, email) => (calls.push(`identity:${uid}:${email}`), "deleted"),
@@ -320,5 +321,36 @@ describe("erasePgRows / deletePgUserRows", () => {
     });
     it("is not-configured without a database", async () => {
         assert.equal(await erasePgRows(null, "u1"), "not-configured");
+    });
+});
+
+describe("missing credentials give a status, never a throw", () => {
+    it("deleteLegacyFirebaseUser without Firebase credentials is not-configured", async () => {
+        assert.equal(await deleteLegacyFirebaseUser("u1", false), "not-configured");
+    });
+
+    it("hasFirebaseCredentials accepts the service-account key or the email+key pair, and nothing less", () => {
+        assert.equal(hasFirebaseCredentials({}), false);
+        assert.equal(hasFirebaseCredentials({ FIREBASE_CLIENT_EMAIL: "a@b.iam" }), false);
+        assert.equal(hasFirebaseCredentials({ FIREBASE_PRIVATE_KEY: "k" }), false);
+        assert.equal(hasFirebaseCredentials({ FIREBASE_SERVICE_ACCOUNT_KEY: "  " }), false);
+        assert.equal(hasFirebaseCredentials({ FIREBASE_SERVICE_ACCOUNT_KEY: "{}" }), true);
+        assert.equal(hasFirebaseCredentials({ FIREBASE_CLIENT_EMAIL: "a@b.iam", FIREBASE_PRIVATE_KEY: "k" }), true);
+    });
+
+    it("every credential-dependent dependency answering not-configured is reported by name, and the run completes", async () => {
+        const nc = async () => "not-configured" as const;
+        const { calls, deps } = recorder({
+            deleteStripeCustomer: nc,
+            eraseMirrorStore: nc,
+            deleteAnalyticsPerson: nc,
+            deleteLegacySignIn: nc,
+        });
+        const results = await eraseAccount({ uid: "u9", email: null }, deps);
+        assert.deepEqual(
+            results.filter((r) => r.status === "not-configured").map((r) => r.processor),
+            ["stripe", "mirror-store", "posthog", "firebase-auth"],
+        );
+        assert.ok(calls.includes("workos:u9"));
     });
 });

@@ -12,7 +12,7 @@
  * without one would only error. This is an optimisation, not the guarantee:
  * every OpenRouter request carries provider.zdr=true (providers.ts) and
  * OpenRouter enforces it. So the list is fail-open like the catalog: unreadable
- * => rungs kept. Rungs for any other provider (Groq) are never filtered by it.
+ * => rungs kept. Rungs for any other provider are never filtered by it.
  */
 import type { LadderRung } from "./model-ladder";
 

@@ -11,6 +11,9 @@ import { LoginForm } from "../../src/components/auth/login-form";
 
 const SRC = join(__dirname, "../../src");
 
+/** An email input in any JSX spelling: type="email", type='email', type={"email"}, type={'email'}, type={`email`}. */
+const EMAIL_INPUT = /type=(?:["']email["']|\{\s*["'`]email["'`]\s*\})/g;
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
@@ -26,7 +29,6 @@ const NON_ACCOUNT_EMAIL_INPUTS = [
   "components/auth/ForgotPasswordForm.tsx", // existing account
   "components/resume-builder/EditingPanel.tsx", // résumé contact field, never submitted
   "components/marketing/OpenclawWaitlistForm.tsx",
-  "components/account/AccountEmailPrompt.tsx", // existing account
 ];
 
 describe("personal-email hint on account-creation doors", () => {
@@ -34,13 +36,23 @@ describe("personal-email hint on account-creation doors", () => {
     assert.equal(PERSONAL_EMAIL_HINT, "Use a personal email, not your work one.");
   });
 
-  it("every component with an email input shows the hint unless it is a known non-account form", () => {
+  it("every component with an email input renders the hint at least once per input, unless it is a known non-account form", () => {
+    const emailInputs = (text: string) => (text.match(EMAIL_INPUT) ?? []).length;
+    const hintRenders = (text: string) =>
+      text.split("\n").filter((line) => line.includes("PERSONAL_EMAIL_HINT") && !/^\s*import\b/.test(line)).length;
     const missing = sourceFiles(SRC)
-      .filter((f) => /type=["']email["']/.test(readFileSync(f, "utf8")))
-      .filter((f) => !readFileSync(f, "utf8").includes("PERSONAL_EMAIL_HINT"))
-      .map((f) => f.slice(SRC.length + 1))
-      .filter((f) => !NON_ACCOUNT_EMAIL_INPUTS.includes(f));
-    assert.deepEqual(missing, [], "email door without PERSONAL_EMAIL_HINT (add it, or list it as non-account)");
+      .map((f) => ({ file: f.slice(SRC.length + 1), text: readFileSync(f, "utf8") }))
+      .filter(({ file, text }) => emailInputs(text) > 0 && !NON_ACCOUNT_EMAIL_INPUTS.includes(file))
+      .filter(({ text }) => hintRenders(text) < emailInputs(text))
+      .map(({ file }) => file);
+    assert.deepEqual(missing, [], "email door with fewer PERSONAL_EMAIL_HINT renders than email inputs (add it, or list it as non-account)");
+  });
+
+  it("the input matcher catches every spelling of type email", () => {
+    for (const form of [`type="email"`, `type='email'`, `type={"email"}`, `type={'email'}`, "type={`email`}"]) {
+      assert.equal((form.match(EMAIL_INPUT) ?? []).length, 1, form);
+    }
+    assert.equal((`type="text"`.match(EMAIL_INPUT) ?? []).length, 0);
   });
 
   it("SearchAlertCapture renders the hint in both layouts", () => {

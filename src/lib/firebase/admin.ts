@@ -7,6 +7,13 @@ import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
 let adminApp: App;
 let adminDb: Firestore;
 
+/** True when the Admin SDK has a service account to sign with; without one, `cert()` throws. */
+export function hasFirebaseCredentials(env: Record<string, string | undefined> = process.env): boolean {
+    return Boolean(
+        env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim() || (env.FIREBASE_CLIENT_EMAIL?.trim() && env.FIREBASE_PRIVATE_KEY?.trim()),
+    );
+}
+
 function getAdminApp(): App {
     if (!adminApp) {
         if (getApps().length === 0) {
@@ -67,14 +74,20 @@ export function getFirestoreDb(): Firestore {
  * Deletes the Firebase Authentication record left from before sign-in moved
  * to WorkOS: scripts/migrate-firebase-to-workos.ts copied each account and
  * never removed the original, which still holds the email. The uid is the
- * same one WorkOS keeps as externalId. False when there is none.
+ * same one WorkOS keeps as externalId. "not-found" when there is none;
+ * "not-configured" (never a throw) when there is no Firebase credential to
+ * delete with.
  */
-export async function deleteLegacyFirebaseUser(uid: string): Promise<boolean> {
+export async function deleteLegacyFirebaseUser(
+    uid: string,
+    configured: boolean = hasFirebaseCredentials(),
+): Promise<"deleted" | "not-found" | "not-configured"> {
+    if (!configured) return "not-configured";
     try {
         await getAuth(getAdminApp()).deleteUser(uid);
-        return true;
+        return "deleted";
     } catch (error) {
-        if ((error as { code?: unknown }).code === "auth/user-not-found") return false;
+        if ((error as { code?: unknown }).code === "auth/user-not-found") return "not-found";
         throw error;
     }
 }

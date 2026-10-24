@@ -17,7 +17,8 @@
  * is one place it is configured.
  *
  * Never put PII in `attrs`/`body`: no emails, resume text, tokens, query
- * strings. Error text is not exported at all (a message can embed anything
+ * strings. `attrs` is filtered to LOG_ATTR_ALLOW_LIST at the exporter; `body` is
+ * a fixed sentence written at the call site. Error text is not exported at all (a message can embed anything
  * the user typed); only bounded identifiers are, see `boundedIdentifier`.
  */
 
@@ -85,6 +86,34 @@ export function boundedIdentifier(value: unknown, fallback: string): string {
 
 export type LogAttrs = Readonly<Record<string, string | number | boolean | undefined>>;
 
+/**
+ * The only attribute keys that may leave for PostHog Logs: outcome codes, timings,
+ * counts, route patterns, error classes and a company's public domain. Enforced at
+ * the exporter, so a new caller cannot add a uid, email, IP, user agent, URL query,
+ * search text or résumé by naming it. Listed on /privacy; a test pins the two together.
+ */
+export const LOG_ATTR_ALLOW_LIST: readonly string[] = [
+  "reason", "form", "turnstile_reason", "email_reason",
+  "error_name", "error_status", "error_codes", "error.type", "error.digest",
+  "step", "duration_ms", "had_session", "outcome", "claimed",
+  "http.request.method", "http.route", "next.route_type", "next.router_kind",
+  "search.ms", "search.engine.ms", "search.calls", "budget.ms", "news.ms", "events.ms", "box.ms",
+  "left.off", "company.domain", "process.uptime_s", "warm_up.pages",
+];
+
+/** A string value is code-shaped (no spaces, @, ? or =): free text and addresses cannot pass. */
+const CODE_SHAPED_VALUE = /^[\w$.,:/[\]-]{1,128}$/;
+
+/** Pure: `attrs` reduced to allow-listed keys whose values cannot carry free text. */
+export function sanitizeLogAttrs(attrs: LogAttrs): LogAttrs {
+  return Object.fromEntries(
+    Object.entries(attrs).filter(
+      ([key, value]) =>
+        LOG_ATTR_ALLOW_LIST.includes(key) && (typeof value !== "string" || CODE_SHAPED_VALUE.test(value)),
+    ),
+  );
+}
+
 function otlpValue(value: string | number | boolean) {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
@@ -123,7 +152,7 @@ export function buildOtlpPayload(
                 severityNumber: SEVERITY[level],
                 severityText: level.toUpperCase(),
                 body: { stringValue: body },
-                attributes: otlpAttributes(attrs),
+                attributes: otlpAttributes(sanitizeLogAttrs(attrs)),
               },
             ],
           },

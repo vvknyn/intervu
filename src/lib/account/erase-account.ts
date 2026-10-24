@@ -26,7 +26,7 @@ import { forgetIdentity } from "@/lib/identity/forget";
 import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
 import { deletePgUserRows, runUserDataPlan } from "@/lib/db/user-data";
 import type { Queryable } from "@/lib/pg/pool";
-import { getFirestoreDb, usesPostgresStore } from "@/lib/firebase/admin";
+import { getFirestoreDb, hasFirebaseCredentials, usesPostgresStore } from "@/lib/firebase/admin";
 import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 
 /** What happened at one place Velai put the person's data. */
@@ -93,7 +93,7 @@ export interface EraseAccountDeps {
     /** PostHog person, events and replays for this distinct id. */
     deleteAnalyticsPerson(uid: string): Promise<ProcessorStatus>;
     /** The pre-WorkOS Firebase Authentication record, if one is left. */
-    deleteLegacySignIn(uid: string): Promise<boolean>;
+    deleteLegacySignIn(uid: string): Promise<ProcessorStatus>;
     /** The WorkOS sign-in record. */
     deleteSignIn(uid: string): Promise<void>;
     /** Suppression, then the email-follow identity store, by address and by uid. */
@@ -117,10 +117,10 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
     };
     // Third parties with their own outages: failing to reach one must not
     // leave the account half deleted, so it is reported rather than thrown.
-    const attempt = async (processor: string, run: () => Promise<ProcessorStatus | boolean>, detail = "") => {
+    const attempt = async (processor: string, run: () => Promise<ProcessorStatus>, detail = "") => {
         try {
             const outcome = await run();
-            report(processor, typeof outcome === "boolean" ? (outcome ? "deleted" : "not-found") : outcome, detail);
+            report(processor, outcome, detail);
         } catch (error) {
             report(processor, "failed", `${detail} reason=${reasonOf(error)}`.trim());
         }
@@ -154,7 +154,7 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
     await attempt("mirror-store", () => deps.eraseMirrorStore(input.uid, input.email));
     await attempt("posthog", () => deps.deleteAnalyticsPerson(input.uid));
     await attempt("firebase-auth", () => deps.deleteLegacySignIn(input.uid));
-    await attempt("sign-in", async () => (await deps.deleteSignIn(input.uid), "deleted"));
+    await attempt("sign-in", async () => (await deps.deleteSignIn(input.uid), "deleted" as const));
     await attempt("identity-store", () => deps.eraseIdentityStore(input.uid, input.email));
     return results;
 }
@@ -304,11 +304,7 @@ export async function eraseMirrorStore(
 ): Promise<ProcessorStatus> {
     let mirror: Firestore;
     if (usesPostgresStore()) {
-        const env = process.env;
-        const hasFirebaseCredentials = Boolean(
-            env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim() || (env.FIREBASE_CLIENT_EMAIL?.trim() && env.FIREBASE_PRIVATE_KEY?.trim()),
-        );
-        if (!hasFirebaseCredentials) return "not-configured";
+        if (!hasFirebaseCredentials()) return "not-configured";
         mirror = open.firestore();
     } else if (process.env.DATA_PG_URL?.trim()) mirror = open.postgres();
     else return "not-applicable";

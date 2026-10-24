@@ -1,11 +1,9 @@
 
 import { captureAiGeneration } from '@/lib/analytics/ai-generation';
 import { LLMProvider, LLMRequest, LLMResponse } from './types';
-import { GROQ_DEFAULT_MODEL } from './models';
 import { getSiteUrl } from '@/lib/seo/constants';
 import OpenAI from 'openai';
 
-const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -81,7 +79,7 @@ function categorizeError(error: any, provider: string, model?: string): LLMError
 const DEFAULT_MAX_TOKENS = 4000;
 
 /**
- * Shared base for OpenAI-compatible providers (OpenRouter, Groq).
+ * Shared base for OpenAI-compatible providers (OpenRouter).
  * Owns rate-limiting, timeout, retries, and error handling so the
  * concrete providers only declare their base URL / headers / default model.
  */
@@ -277,19 +275,10 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
     }
 }
 
-export class GroqProvider extends OpenAICompatibleProvider {
-    constructor(apiKey: string, model: string = GROQ_DEFAULT_MODEL) {
-        super('Groq', apiKey, model, GROQ_BASE_URL);
-    }
-}
-
 export class ProviderFactory {
     static getProvider(provider: string, apiKey: string, model?: string): LLMProvider {
         if (!apiKey || apiKey.trim() === '') {
             throw new Error('Missing API key. Please check your configuration.');
-        }
-        if (provider === 'groq') {
-            return new GroqProvider(apiKey, model);
         }
         return new OpenRouterProvider(apiKey, model);
     }
