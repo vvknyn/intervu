@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, displayNameFromDomain, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, dropCountryQualifier, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -376,7 +376,7 @@ describe("companies/company-name — brand stem spelled by the domain", () => {
   it("groups differing only by a legal suffix are one sibling", () => {
     assert.equal(
       name({ "Acme Health India": 2, "Acme Health India Private Limited": 1 }, "acmehealth.com"),
-      "Acme Health India",
+      "Acme Health",
     );
   });
 
@@ -617,5 +617,28 @@ describe("witness guards on the shown name (invented names)", () => {
 
   it("a re-cased banner never swaps a spaced display for a hyphenated twin", () => {
     assert.equal(siteSpelling("Pelmar Services", ["PELMAR-SERVICES"], "pelmarservices.com"), "Pelmar Services");
+  });
+});
+
+describe("dropCountryQualifier — the hiring entity's country is not part of the employer's name", () => {
+  it("drops a trailing country code or endonym when the rest names the host", () => {
+    assert.equal(resolveCompanyName(rows({ "argenx US": 12 }), "argenx.com").value, "argenx");
+    assert.equal(resolveCompanyName(rows({ "intermedix Österreich": 5 }), "intermedix.com").value, "intermedix");
+    assert.equal(resolveCompanyName(rows({ "Nestlé USA": 9 }), "nestle.com").value, "Nestlé");
+    assert.equal(dropCountryQualifier("Acme United Kingdom", "acme.com"), "Acme");
+    assert.equal(dropCountryQualifier("Acme DEU", "acme.com"), "Acme");
+    assert.equal(dropCountryQualifier("Acme Nederland", "acme.fi"), "Acme");
+    assert.equal(resolveCompanyName(rows({ "argenx US Inc": 12 }), "argenx.com").value, "argenx");
+  });
+
+  it("keeps a name the host spells in full, or whose rest is not the host", () => {
+    assert.equal(dropCountryQualifier("Air Canada", "aircanada.com"), "Air Canada");
+    assert.equal(dropCountryQualifier("Booz Allen Hamilton", "boozallen.com"), "Booz Allen Hamilton");
+    assert.equal(dropCountryQualifier("Bank of America", "bankofamerica.com"), "Bank of America");
+    assert.equal(dropCountryQualifier("Deutsche Bank", "db.com"), "Deutsche Bank");
+    assert.equal(dropCountryQualifier("Bank of Georgia", "bog.ge"), "Bank of Georgia");
+    assert.equal(dropCountryQualifier("Acme IT", "acme.com"), "Acme IT");
+    assert.equal(dropCountryQualifier("Acme Switzerland", "acme.ch"), "Acme Switzerland");
+    assert.equal(dropCountryQualifier("Acme UK", "acme.co.uk"), "Acme UK");
   });
 });

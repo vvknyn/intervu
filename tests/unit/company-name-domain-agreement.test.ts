@@ -27,7 +27,7 @@ describe("companies/company-name — a corpus name must agree with the domain", 
 
   it("strips an identifier token or picks the agreeing segment", () => {
     assert.equal(shown("22-3844417 Broadridge Investor Comm Solutions", "broadridge.com"), "Broadridge Investor Comm Solutions");
-    assert.equal(shown("CA10382-CANADA AIR LIQUIDE CANADA", "airliquide.com"), "Air Liquide Canada");
+    assert.equal(shown("CA10382-CANADA AIR LIQUIDE CANADA", "airliquide.com"), "Air Liquide");
     assert.equal(shown("200_Mohegan_Sun Mohegan Tribal Gaming Authority - Mohegan Sun", "mohegansun.com"), "Mohegan Sun");
   });
 
