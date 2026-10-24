@@ -708,7 +708,7 @@ describe('resolveJobsResultsPanel', () => {
 });
 
 describe('buildZeroResultPayload', () => {
-    it('names every active facet and its value for a multi-facet zero-result search — the reported "Software Engineer" + location + posted-date bug shape', () => {
+    it('names every active facet (key only, never its value) for a multi-facet zero-result search — the reported "Software Engineer" + location + posted-date bug shape', () => {
         const state: FilterState = {
             ...PRISTINE_FILTER_STATE,
             facets: { location_country: ['CA'] },
@@ -718,11 +718,8 @@ describe('buildZeroResultPayload', () => {
         assert.equal(payload.query_length, 'Software Engineer'.length);
         assert.equal(payload.filter_count, 2);
         assert.deepEqual(
-            new Set(payload.active_facets.map((f) => `${f.key}=${f.value}`)),
-            new Set([
-                `location_country=${facetValueLabel('location_country', 'CA')}`,
-                `postedBucket=${postedBucketLabel('7d')}`,
-            ]),
+            new Set(payload.active_facets),
+            new Set(['location_country', 'postedBucket']),
         );
     });
 
@@ -733,15 +730,14 @@ describe('buildZeroResultPayload', () => {
             postedBucket: undefined,
         };
         const payload = buildZeroResultPayload(state, 'engineer', {});
-        assert.deepEqual(payload.active_facets, [
-            { key: 'tech_stack', value: facetValueLabel('tech_stack', 'rust') },
-        ]);
+        assert.deepEqual(payload.active_facets, ['tech_stack']);
+        assert.equal(JSON.stringify(payload).includes('rust'), false, 'a facet value never leaves the browser');
     });
 
     it('names a silently-applied default (pristine 90d posted bucket) in active_facets even though filter_count — the pre-existing dashboard contract — still excludes it', () => {
         const payload = buildZeroResultPayload(PRISTINE_FILTER_STATE, 'nurse', {});
         assert.equal(payload.filter_count, 0);
-        assert.deepEqual(payload.active_facets, [{ key: 'postedBucket', value: postedBucketLabel('90d') }]);
+        assert.deepEqual(payload.active_facets, ['postedBucket']);
     });
 
     it('never emits the raw typed query text anywhere in the payload — only its length', () => {

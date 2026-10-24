@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { MIGRATION_MANIFEST } from "@/lib/db/firestore-migration-manifest";
-import { USER_OWNED_COLLECTIONS, userDataPlan } from "@/lib/db/user-data";
+import { PG_USER_KEYED_TABLES, TELEMETRY_USER_TABLE, USER_OWNED_COLLECTIONS, userDataPlan } from "@/lib/db/user-data";
 
 const UID = "TESTuid000000000000000000000";
 const plan = userDataPlan(UID);
@@ -123,5 +123,53 @@ describe("user data sweep", () => {
         assert.match(body, /eraseAccount\(/);
         assert.match(body, /storeEraseDeps\(db\)/);
         assert.match(read("src/lib/account/erase-account.ts"), /runUserDataPlan\(uid, db\)/);
+    });
+});
+
+/** Tables in a .sql file that have a column holding a user id, found by
+ *  reading the schema — not from any list kept in code. */
+function userKeyedTables(file: string): string[] {
+    const sql = read(file).replace(/--.*$/gm, "");
+    const found: string[] = [];
+    for (const m of sql.matchAll(/CREATE TABLE IF NOT EXISTS\s+(?:"?intervu"?\.)?"?(\w+)"?\s*\(([\s\S]*?)\n\);/gi)) {
+        if (/^\s*"?(user_uid|user_id|uid)"?\s/m.test(m[2])) found.push(m[1]);
+    }
+    return found;
+}
+
+describe("erase registry covers every user-keyed table in the schema", () => {
+    const owned = new Set(USER_OWNED_COLLECTIONS.map((c) => c.table));
+    const direct = new Set(PG_USER_KEYED_TABLES.map((t) => t.table));
+
+    it("the schema files really are being parsed", () => {
+        assert.ok(userKeyedTables("deploy/supabase/identity-schema.sql").includes("resume_parse_counters"));
+        assert.ok(userKeyedTables("deploy/db-box/intervu-schema.sql").includes("applications"));
+    });
+
+    it("every docstore table with a user column is a user-owned manifest collection", () => {
+        for (const table of userKeyedTables("deploy/db-box/intervu-schema.sql")) {
+            assert.ok(owned.has(table), `${table} has a user column but the manifest marks it unowned`);
+        }
+    });
+
+    it("every hand-written intervu table with a user column is in PG_USER_KEYED_TABLES", () => {
+        for (const table of userKeyedTables("deploy/supabase/identity-schema.sql")) {
+            assert.ok(direct.has(table), `${table} has a user column but deletePgUserRows would skip it`);
+        }
+    });
+
+    it("every telemetry table with a user column is erased (the ledger via forget_telemetry_user)", () => {
+        for (const file of ["telemetry-schema.sql", "telemetry-derived.sql"]) {
+            for (const table of userKeyedTables(`deploy/db-box/${file}`)) {
+                assert.equal(table, TELEMETRY_USER_TABLE, `${table} in ${file} has no erase path`);
+            }
+        }
+    });
+
+    it("registry entries name a real table and column", () => {
+        const sql = read("deploy/supabase/identity-schema.sql");
+        for (const { table, column } of PG_USER_KEYED_TABLES) {
+            assert.match(sql, new RegExp(`intervu\\.${table}\\s*\\([\\s\\S]*?\\n\\s*${column}\\s`), table);
+        }
     });
 });

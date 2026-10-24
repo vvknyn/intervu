@@ -19,7 +19,20 @@
  */
 import type { Firestore } from "firebase-admin/firestore";
 
+import { getStripe } from "@/lib/billing/stripe-client";
+import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
 import { runUserDataPlan } from "@/lib/db/user-data";
+import { getFirestoreDb, usesPostgresStore } from "@/lib/firebase/admin";
+
+/** What happened at one place Velai put the person's data. */
+export type ProcessorStatus = "deleted" | "not-found" | "not-configured" | "not-applicable" | "failed";
+export interface ProcessorResult {
+    processor: string;
+    status: ProcessorStatus;
+}
+
+/** A processor in one of these states still holds (or may hold) the data. */
+export const isSkipped = (status: ProcessorStatus): boolean => status === "not-configured" || status === "failed";
 
 export interface EraseAccountDeps {
     /** Paths of every user-owned document in the migration manifest. */
@@ -27,17 +40,24 @@ export interface EraseAccountDeps {
     /** Paths of records kept under this email (or reserved by this uid). */
     emailPaths(email: string, uid: string): Promise<string[]>;
     deletePaths(paths: string[]): Promise<void>;
+    /** The Stripe customer id on the profile; read before the profile goes. */
+    stripeCustomerId(uid: string): Promise<string | null>;
+    deleteStripeCustomer(customerId: string): Promise<ProcessorStatus>;
+    /** The same erase against the other doc store (Firestore vs Postgres copy). */
+    eraseMirrorStore(uid: string, email: string | null): Promise<ProcessorStatus>;
+    /** Every uid-keyed table in PG_USER_KEYED_TABLES. */
+    deletePgRows(uid: string): Promise<ProcessorStatus>;
     /** Behavioural-ledger rows stamped with this uid. */
-    deleteTelemetry(uid: string): Promise<unknown>;
+    deleteTelemetry(uid: string): Promise<ProcessorStatus>;
     /** PostHog person, events and replays for this distinct id. */
-    deleteAnalyticsPerson(uid: string): Promise<unknown>;
+    deleteAnalyticsPerson(uid: string): Promise<ProcessorStatus>;
     /** The pre-WorkOS Firebase Authentication record, if one is left. */
-    deleteLegacySignIn(uid: string): Promise<unknown>;
+    deleteLegacySignIn(uid: string): Promise<boolean>;
     /** The WorkOS sign-in record. */
     deleteSignIn(uid: string): Promise<void>;
     /** Suppression, then the email-follow identity store. */
     forgetEmail(email: string): Promise<void>;
-    logError(message: string, error: unknown): void;
+    logError(message: string): void;
 }
 
 export interface EraseAccountInput {
@@ -46,28 +66,42 @@ export interface EraseAccountInput {
     email: string | null;
 }
 
-export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountDeps): Promise<void> {
+export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountDeps): Promise<ProcessorResult[]> {
+    const results: ProcessorResult[] = [];
+    // Stable, greppable tag; a skipped processor is never silent. No secrets:
+    // only the processor name, status and (for Stripe) the customer id.
+    const report = (processor: string, status: ProcessorStatus, detail = "") => {
+        results.push({ processor, status });
+        if (isSkipped(status)) deps.logError(`[erase] processor=${processor} status=${status}${detail ? ` ${detail}` : ""}`);
+    };
+    // Third parties with their own outages: failing to reach one must not
+    // leave the account half deleted, so it is reported rather than thrown.
+    const attempt = async (processor: string, run: () => Promise<ProcessorStatus | boolean>, detail = "") => {
+        try {
+            const outcome = await run();
+            report(processor, typeof outcome === "boolean" ? (outcome ? "deleted" : "not-found") : outcome, detail);
+        } catch (error) {
+            report(processor, "failed", `${detail} reason=${error instanceof Error ? error.message : "unknown"}`.trim());
+        }
+    };
+
+    const customerId = await deps.stripeCustomerId(input.uid);
     const paths = await deps.ownedPaths(input.uid);
     if (input.email) paths.push(...(await deps.emailPaths(input.email, input.uid)));
     await deps.deletePaths([...new Set(paths)]);
 
-    await deps.deleteTelemetry(input.uid);
+    report("pg-rows", await deps.deletePgRows(input.uid));
+    report("telemetry", await deps.deleteTelemetry(input.uid));
 
-    // Third parties with their own outages: failing to reach one must not
-    // leave the account half deleted, so it is logged rather than thrown.
-    try {
-        await deps.deleteAnalyticsPerson(input.uid);
-    } catch (error) {
-        deps.logError("[Auth] PostHog person delete failed", error);
-    }
-    try {
-        await deps.deleteLegacySignIn(input.uid);
-    } catch (error) {
-        deps.logError("[Auth] Firebase sign-in record delete failed", error);
-    }
+    if (customerId) await attempt("stripe", () => deps.deleteStripeCustomer(customerId), `customer=${customerId}`);
+    else report("stripe", "not-applicable");
+    await attempt("mirror-store", () => deps.eraseMirrorStore(input.uid, input.email));
+    await attempt("posthog", () => deps.deleteAnalyticsPerson(input.uid));
+    await attempt("firebase-auth", () => deps.deleteLegacySignIn(input.uid));
 
     await deps.deleteSignIn(input.uid);
     if (input.email) await deps.forgetEmail(input.email);
+    return results;
 }
 
 /** Collections whose records carry the address in an `email` field. */
@@ -94,8 +128,9 @@ export async function emailKeyedPaths(db: Firestore, email: string, uid: string)
     return paths;
 }
 
-export function storeEraseDeps(db: Firestore): Pick<EraseAccountDeps, "ownedPaths" | "emailPaths" | "deletePaths"> {
+export function storeEraseDeps(db: Firestore): Pick<EraseAccountDeps, "ownedPaths" | "emailPaths" | "deletePaths" | "stripeCustomerId"> {
     return {
+        stripeCustomerId: (uid) => readStripeCustomerId(db, uid),
         async ownedPaths(uid) {
             const owned = await runUserDataPlan(uid, db);
             return Object.values(owned).flatMap((docs) => docs.map((d) => d.path));
@@ -117,6 +152,27 @@ type FetchLike = (url: string, init?: { method?: string; headers?: Record<string
     status: number;
     json(): Promise<unknown>;
 }>;
+
+/** The customer id on `profiles/{uid}`; must be read before that doc is deleted. */
+export async function readStripeCustomerId(db: Firestore, uid: string): Promise<string | null> {
+    const id = (await db.collection("profiles").doc(uid).get()).data()?.stripe_customer_id;
+    return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+/** Deletes the Stripe customer (and with it their saved cards and subscriptions). */
+export async function deleteStripeCustomer(
+    customerId: string,
+    stripe: Pick<NonNullable<ReturnType<typeof getStripe>>, "customers"> | null = getStripe(),
+): Promise<ProcessorStatus> {
+    if (!stripe) return "not-configured";
+    try {
+        await stripe.customers.del(customerId);
+        return "deleted";
+    } catch (error) {
+        if ((error as { code?: unknown }).code === "resource_missing") return "not-found";
+        throw error;
+    }
+}
 
 /**
  * Deletes the PostHog person for this distinct id with their events and
@@ -156,5 +212,25 @@ export async function deletePosthogPerson(
         });
         if (!res.ok && res.status !== 404) throw new Error(`PostHog person delete answered ${res.status}`);
     }
+    return "deleted";
+}
+
+/**
+ * The other doc store. Firestore and the sealed Postgres copy are filled by
+ * scripts/firestore-to-postgres.ts (a one-off copy, re-run after the
+ * DATA_STORE flip) and flipping DATA_STORE back is the documented rollback
+ * until Firestore is wiped, so whichever store is not primary still holds a
+ * full copy of the person. Erases from it with the same manifest sweep.
+ * Firestore primary with no DATA_PG_URL means no Postgres copy exists.
+ */
+export async function eraseMirrorStore(uid: string, email: string | null): Promise<ProcessorStatus> {
+    let mirror: Firestore;
+    if (usesPostgresStore()) mirror = getFirestoreDb();
+    else if (process.env.DATA_PG_URL?.trim()) mirror = getPgDocDb() as unknown as Firestore;
+    else return "not-applicable";
+    const store = storeEraseDeps(mirror);
+    const paths = await store.ownedPaths(uid);
+    if (email) paths.push(...(await store.emailPaths(email, uid)));
+    await store.deletePaths([...new Set(paths)]);
     return "deleted";
 }

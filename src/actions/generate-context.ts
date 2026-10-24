@@ -8,7 +8,6 @@ import { resolveModelLadder, runLadder, type LadderRung } from "@/lib/llm/model-
 import { liveRungs } from "@/lib/llm/live-rungs";
 import { FREE_LADDER } from "@/lib/llm/models";
 import { stripProviderPrefix } from "@/lib/llm/strip-provider-prefix";
-import { getServerUser } from "@/lib/auth/server-user";
 
 const getConfig = (override?: Partial<ProviderConfig>) => resolveLLMConfig(override);
 
@@ -110,13 +109,6 @@ export const fetchJSON = async (
     // point) and Groq, handled inside resolveModelLadder by provider check.
     const rungs = await liveRungs(resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model)));
     const traceId = crypto.randomUUID();
-    let distinctId: string | undefined;
-    try {
-        const user = await getServerUser();
-        distinctId = user?.uid;
-    } catch {
-        // Capture sanitizes to anonymous when distinctId is missing.
-    }
 
     // Helper for timeout
     const withTimeout = (promise: Promise<any>, ms: number, label: string) => {
@@ -153,7 +145,6 @@ export const fetchJSON = async (
                     analytics: {
                         feature,
                         traceId,
-                        distinctId: distinctId ?? "anonymous",
                         isFallback: rung.isFallback,
                     },
                 }),
@@ -199,7 +190,6 @@ export const fetchJSON = async (
                             analytics: {
                                 feature,
                                 traceId,
-                                distinctId: distinctId ?? "anonymous",
                                 isFallback: rung.isFallback,
                             },
                         }),

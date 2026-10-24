@@ -27,7 +27,6 @@
 export const FOUNDING_SEAT_PRICE = "$49";
 export const FOUNDING_SEAT_COUNT = 100;
 export const PRO_MONTHLY_PRICE = "$12";
-export const DATA_API_FROM_PRICE = "$49";
 
 /** Server-only env var holding the Stripe Payment Link for a founding seat.
  *  Unset (the default, and the state on every deploy until Vivek creates the
@@ -106,6 +105,6 @@ export function paidCheckoutSessionId(params: {
  */
 export function pricingDescription(foundingAvailable: boolean): string {
   return foundingAvailable
-    ? "Velai is free to use. Pro and a Data API are coming; founding seats are open now at a one-off price."
-    : "Velai is free to use. Pro and a Data API are coming; founding seats open soon at a one-off price, and you can reserve one now.";
+    ? "Velai is free to use. Pro is coming; founding seats are open now at a one-off price."
+    : "Velai is free to use. Pro is coming; founding seats open soon at a one-off price, and you can reserve one now.";
 }

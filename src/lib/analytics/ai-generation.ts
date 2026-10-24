@@ -15,13 +15,6 @@ export function sanitizeLlmFeature(raw: string | undefined): string {
   return slug.length === 0 ? "unspecified" : slug;
 }
 
-export function sanitizeDistinctId(raw: string | undefined): string {
-  if (!raw || raw.length === 0 || raw.length > 128 || /\s|@/.test(raw)) {
-    return "anonymous";
-  }
-  return raw.trim();
-}
-
 function sanitizeTraceId(id: string): string {
   if (TRACE_ID_PATTERN.test(id)) return id;
   return crypto.randomUUID();
@@ -50,7 +43,6 @@ export interface AiGenerationCapture {
   feature: string;
   traceId: string;
   spanId: string;
-  distinctId: string;
   latencySeconds: number;
   isError: boolean;
   /** Stable code only: LLMErrorCode value or "EMPTY_RESPONSE". Never a provider message. */
@@ -116,11 +108,7 @@ export function buildAiGenerationProperties(
 
 export function captureAiGeneration(input: AiGenerationCapture): void {
   try {
-    postServerCapture(
-      "$ai_generation",
-      sanitizeDistinctId(input.distinctId),
-      buildAiGenerationProperties(input),
-    );
+    postServerCapture("$ai_generation", buildAiGenerationProperties(input));
   } catch {
     // Analytics must never throw.
   }

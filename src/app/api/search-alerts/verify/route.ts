@@ -29,11 +29,10 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   // Server-side: this GET redirects before the client that lands on the
   // other end ever gets a chance to capture anything — see src/lib/
-  // analytics/server-capture.ts. `distinctId`/`analytics` are only absent
-  // for a token minted before this round-trip existed; that stale-token
-  // window makes them worth checking rather than assuming present.
-  if (consumed.distinctId && consumed.analytics) {
-    captureServerEvent("search_alert_verified", consumed.distinctId, consumed.analytics);
+  // analytics/server-capture.ts. `analytics` is only absent for a token
+  // minted before this round-trip existed.
+  if (consumed.analytics) {
+    captureServerEvent("search_alert_verified", consumed.analytics);
   }
 
   await establishSessionForVerifiedEmail(consumed.email);

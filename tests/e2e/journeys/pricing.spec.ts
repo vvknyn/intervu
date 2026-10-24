@@ -104,14 +104,11 @@ test("returning from Stripe shows the founding thank-you only with a session id"
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the Data API call to action leads to the contact form", { tag: ["@J-PRICING-05"] }, async ({ page, diagnostics }) => {
+test("pricing offers no data sale or licence", { tag: ["@J-PRICING-05"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
-  const cta = page.getByTestId("pricing-data-api-cta");
-  await expect(cta).toHaveAttribute("href", "/contact?from=/pricing");
-  await cta.click();
-
-  await expect(page).toHaveURL(/\/contact\?from=%2Fpricing$|\/contact\?from=\/pricing$/);
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByTestId("pricing-page")).toBeVisible();
+  await expect(page.getByTestId("pricing-plan-data-api")).toHaveCount(0);
+  await expect(page.getByTestId("pricing-page")).not.toContainText(/Data API|licens/i);
   expect(diagnostics.serverErrors).toEqual([]);
 });

@@ -68,6 +68,7 @@ describe("pricingDescription", () => {
     assert.doesNotMatch(soon, /are open now/);
     assert.match(open, /^Velai is free to use\./);
     assert.match(soon, /^Velai is free to use\./);
+    assert.doesNotMatch(open + soon, /Data API|licens/i);
   });
 });
 

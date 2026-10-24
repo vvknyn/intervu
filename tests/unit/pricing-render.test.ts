@@ -39,7 +39,6 @@ describe("/pricing renders in every prop combination", () => {
           assert.match(html, /data-testid="pricing-page"/);
           assert.match(html, /data-testid="pricing-plan-free"/);
           assert.match(html, /data-testid="pricing-plan-pro"/);
-          assert.match(html, /data-testid="pricing-plan-data-api"/);
         });
       }
     }
@@ -91,8 +90,10 @@ describe("/pricing branches say the right thing", () => {
     assert.doesNotMatch(render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: null }), /You have a founding seat/);
   });
 
-  it("the Data API column links to the contact form from pricing", () => {
-    const html = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
-    assert.match(html, /data-testid="pricing-data-api-cta"[^>]*href="\/contact\?from=\/pricing"/);
+  it("offers no data sale or licence in any prop combination", () => {
+    for (const checkoutUrl of [null, STRIPE]) {
+      const html = render({ signedIn: false, email: null, checkoutUrl, paidSessionId: null });
+      assert.doesNotMatch(html, /Data API|licens|pricing-plan-data-api/i);
+    }
   });
 });

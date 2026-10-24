@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   isPhoneSurveyViewport,
-  maskReplayNetworkRequest,
   stripSearchTerms,
   withoutSearchTerms,
   PHONE_SURVEY_BREAKPOINT,
@@ -28,18 +27,16 @@ test('capture_pageview is the "history_change" mode, not a truthy boolean', () =
   );
 });
 
-test("guests stay unprofiled until identify() runs", () => {
-  assert.equal(POSTHOG_OPTIONS.person_profiles, "identified_only");
+test("analytics are anonymous: no person profile is ever created", () => {
+  assert.equal(POSTHOG_OPTIONS.person_profiles, "never");
 });
 
-test("pageleave and autocapture stay on, and autocapture records no words", () => {
+test("no autocapture, no session replay, no heatmaps; pageleave stays on", () => {
   assert.equal(POSTHOG_OPTIONS.capture_pageleave, true);
-  assert.ok(POSTHOG_OPTIONS.autocapture, "autocapture must stay on");
-  assert.equal(POSTHOG_OPTIONS.mask_all_text, true, "a click must not send the text it landed on ($el_text)");
-  const ignored = typeof POSTHOG_OPTIONS.autocapture === "object" ? POSTHOG_OPTIONS.autocapture.element_attribute_ignorelist : [];
-  for (const name of ["title", "aria-label", "value", "placeholder", "alt"]) {
-    assert.ok(ignored?.includes(name), `autocapture must drop the ${name} attribute`);
-  }
+  assert.equal(POSTHOG_OPTIONS.autocapture, false);
+  assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
+  assert.equal(POSTHOG_OPTIONS.enable_heatmaps, false);
+  assert.equal(POSTHOG_OPTIONS.session_recording, undefined, "no replay masking config is left behind");
 });
 
 test("exception autocapture stays on so client crashes reach Error Tracking", () => {
@@ -159,36 +156,11 @@ test("postHogOptionsForViewport disables surveys only on the phone viewport, and
   }
 });
 
-// Replay records real screens. The masking /privacy promises therefore has to
-// be a value in this repo, not a posthog-js default that can move under us.
-test("session replay masks typed input and every word on the page, and /privacy says so", () => {
-  assert.equal(
-    POSTHOG_OPTIONS.session_recording?.maskAllInputs,
-    true,
-    "Replay is on at the project level; without explicit masking, /privacy's " +
-      "promise that typed input is never captured rests on a library default.",
-  );
-  assert.equal(
-    POSTHOG_OPTIONS.session_recording?.maskTextSelector,
-    "*",
-    "Replays used to show the résumé page and the Customize dialog as written; every text node must be masked.",
-  );
-  const maskAttribute = POSTHOG_OPTIONS.session_recording?.maskAttributeFn;
-  assert.equal(typeof maskAttribute, "function");
-  assert.equal(maskAttribute!("title", "Senior nurse, ICU"), "****** ****** ***");
-  assert.equal(maskAttribute!("class", "row muted"), "row muted");
-
+test("/privacy says there is no session replay and no autocapture", () => {
   const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
-  assert.match(
-    privacy,
-    /session replay is enabled/i,
-    "Replay is on but /privacy no longer discloses it.",
-  );
-  assert.match(
-    privacy,
-    /masked/i,
-    "/privacy no longer states that typed input is masked.",
-  );
+  assert.match(privacy, /There is no session replay/i);
+  assert.match(privacy, /no automatic click capture/i);
+  assert.doesNotMatch(privacy, /session replay is enabled/i);
 });
 
 // Analytics are tied to a signed-in account, so no address they carry keeps
@@ -223,9 +195,4 @@ test("analytics addresses drop the words searched, typed or built from a résum�
   assert.equal(JSON.stringify(sent).includes("accountant"), false, "a clicked search link keeps no search words");
   assert.match(sent?.properties.$elements_chain as string, /href="\/jobs\?view=search"/);
   assert.equal(POSTHOG_OPTIONS.before_send, stripSearchTerms);
-
-  const request = maskReplayNetworkRequest({ name: fit, requestBody: '{"q":"Nurse"}', responseBody: "{}" } as never);
-  assert.equal(request.name, "https://velai.app/jobs?sort=fit&job=abc");
-  assert.equal(request.requestBody, null);
-  assert.equal(request.responseBody, null);
 });

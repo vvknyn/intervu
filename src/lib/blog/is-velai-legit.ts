@@ -13,7 +13,7 @@ const DIR = "/blog/is-velai-legit";
  * - listings from employers' own career pages, none invented, employers don't
  *   pay to be included: /about and /terms; no sponsored listings exist.
  * - prices and the founding-seat refund: `lib/billing/founding-offer.ts`,
- *   /pricing, /terms. The Data API never includes a person: /privacy, /terms.
+ *   /pricing, /terms.
  * - tailoring can't add a number and starts posting words off: `groundDraft`
  *   and `startsOn` (lib/local-ai/tailor-ground.ts, tailor-resume.ts).
  * - AI on Tinfoil's attested server, name and contact out first, search and
@@ -70,7 +70,6 @@ What we may charge for later is already on the [pricing page](/pricing):
 
 - **Pro**, at ${PRO_MONTHLY_PRICE} a month once it opens, for more tailoring and faster alerts. Nothing you use today moves behind it.
 - **Founding seats**: ${FOUNDING_SEAT_PRICE} once for Pro for life, limited to ${FOUNDING_SEAT_COUNT}. A seat is refundable on request, for any reason, until Pro opens.
-- **A Data API** that sells facts about postings and companies, like whether a listing is still live and how long roles stay open. It never includes your résumé, your applications, your account or anything that identifies you.
 
 There are no ads, and nothing about you is sold.
 

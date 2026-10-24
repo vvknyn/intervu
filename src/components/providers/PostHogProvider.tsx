@@ -10,15 +10,13 @@ import {
   posthogApiHost,
   postHogOptionsForViewport,
 } from "@/lib/posthog-options";
-import { identityAction } from "@/lib/posthog-identity";
 import { captureEvent, flushHeldEvents } from "@/lib/analytics/events";
 import { setPostHogClient } from "@/lib/analytics/posthog-client";
 import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from "@/lib/auth/gate-attempt";
 
-// intervu reuses subspace's PostHog project/key — no separate project, no
-// dashboard step. In-project demarcation is the `product` super property
-// (see POSTHOG_PRODUCT) + PostHog's automatic $host, not a different key.
+// Velai has its own PostHog project; the `product` super property
+// (see POSTHOG_PRODUCT) is a label only.
 // Until NEXT_PUBLIC_POSTHOG_KEY is set, this provider no-ops completely (no
 // init call, no network, renders children unwrapped).
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
@@ -56,22 +54,13 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       flushHeldEvents();
     }
 
-    // Tie events to the account once someone is signed in.
-    //
-    // /privacy already promises this ("Events aren't tied to your identity
-    // unless you're signed in"), but nothing ever called identify(), and with
-    // person_profiles: 'identified_only' that meant the project held *zero*
-    // person profiles — no signed-in behaviour could be attributed to an
-    // account, and guest -> signup was unmeasurable.
-    //
-    // onAuthChange is the app's single auth chokepoint, so this is the one
-    // place analytics identity is decided; no callsite knows about PostHog.
-    let identified: string | null = null;
+    // Analytics never learn who is signed in: there is no identify() or
+    // reset(). The uid is read here only to notice the moment a visitor
+    // becomes signed in, so the one-time signup event fires once.
+    let signedInUid: string | null = null;
     return onAuthChange((user) => {
       const uid = user?.uid ?? null;
-      const action = identityAction(identified, uid);
-      if (action === "identify" && uid) {
-        posthog.identify(uid);
+      if (uid && uid !== signedInUid) {
         const method = consumeSignupSignalFromDocumentCookie();
         const attempt = readGateAttempt(window.sessionStorage);
         if (method) {
@@ -81,8 +70,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         // later unrelated account entry cannot inherit fit/save/tailor/resume.
         if (method || attempt) clearGateAttempt(window.sessionStorage);
       }
-      if (action === "reset") posthog.reset();
-      identified = uid;
+      signedInUid = uid;
     });
   }, []);
 

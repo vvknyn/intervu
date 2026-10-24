@@ -1,4 +1,4 @@
-import type { CaptureResult, CapturedNetworkRequest, PostHogConfig } from "posthog-js";
+import type { CaptureResult, PostHogConfig } from "posthog-js";
 
 /**
  * What intervu tells PostHog at init.
@@ -79,32 +79,6 @@ export function posthogApiHost(
 }
 
 /**
- * Attributes whose value is words a person can read (a tooltip, a label, a
- * field's value), so they can hold résumé or account text. Analytics drop them
- * from clicks and replays star them out; `class`, `id`, `style` and `src`
- * stay, so a replay still draws the page.
- */
-export const TEXT_ATTRIBUTES: readonly string[] = [
-  "title",
-  "alt",
-  "placeholder",
-  "value",
-  "label",
-  "content",
-  "aria-label",
-  "aria-description",
-  "aria-valuetext",
-  "aria-placeholder",
-];
-
-/** Replay attribute masking: words in text attributes become stars of the same length, and a link loses its query string (a search link carries what was searched). */
-export function maskReplayAttribute(name: string, value: string, element?: Element): string {
-  if (TEXT_ATTRIBUTES.includes(name)) return value.replace(/\S/g, "*");
-  if (name === "href" && element?.tagName === "A") return value.split(/[?#]/)[0] ?? "";
-  return value;
-}
-
-/**
  * A page or link address without the words searched. Velai keeps a search's
  * text only in its anonymous search log (lib/jobs/search-log.ts); analytics
  * are tied to a signed-in account, so every address they carry loses `q`:
@@ -151,20 +125,10 @@ export function stripSearchTerms(event: CaptureResult | null): CaptureResult | n
   return event;
 }
 
-/**
- * Replay page addresses and network entries pass through here
- * (posthog-js `_maskUrl`): the address loses the words searched, and a
- * request's or response's body is never kept (a search request's body is its
- * query).
- */
-export function maskReplayNetworkRequest(request: CapturedNetworkRequest): CapturedNetworkRequest {
-  return { ...request, name: withoutSearchTerms(request.name), requestBody: null, responseBody: null };
-}
-
 export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
-  // Guests stay unprofiled; a person profile is created only once
-  // PostHogProvider calls identify() on sign-in.
-  person_profiles: "identified_only",
+  // Analytics are anonymous: no person profile is ever created, and nothing
+  // calls identify().
+  person_profiles: "never",
 
   // MUST be the string "history_change", never `true`.
   //
@@ -181,13 +145,15 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
 
   capture_pageleave: true,
 
-  // On, but blind to words: a click records which element it was, never the
-  // text in it (`mask_all_text`, below) or the attributes that carry text
-  // (this list). A click on a résumé line, a fit-reason skill or a tailored
-  // change used to send that text as `$el_text`; /privacy now promises
-  // analytics never hold the words on your screen.
-  autocapture: { element_attribute_ignorelist: [...TEXT_ATTRIBUTES] },
-  mask_all_text: true,
+  // No autocapture: a click would record which element it was, and the
+  // anonymous promise on /privacy is that only named events are sent.
+  autocapture: false,
+
+  // Heatmaps would record click positions: off.
+  enable_heatmaps: false,
+
+  // No session replay, whatever the PostHog project setting says.
+  disable_session_recording: true,
 
   // Uncaught errors and unhandled rejections in the browser -> `$exception`
   // events (PostHog Error Tracking). The project had none, so client crashes
@@ -205,28 +171,6 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // matches nothing and hands the toolbar and every "view in PostHog" link a
   // URL pointing back at us. Naming the real UI host keeps those working.
   ui_host: "https://us.posthog.com",
-
-  // Session replay is enabled at the PostHog project level, so it is already
-  // recording — which means /privacy has to disclose it. The masking that
-  // disclosure promises must be OURS, not posthog-js's default:
-  // @posthog/types documents no `@default` for maskAllInputs (compare
-  // maskAttributeFn right below it, which does), so leaving it unset would
-  // rest a published privacy claim on a third-party value we neither control
-  // nor can test. Setting it here makes "what you type isn't captured" a
-  // decision in this repo.
-  //
-  // Text on the page is masked too (`maskTextSelector: "*"`, PostHog's
-  // documented "mask all text"), with the attributes that carry words: a
-  // replay of the résumé page, the Customize dialog or a fit card used to
-  // show the résumé itself. A replay keeps layout, clicks and scrolling; every
-  // word in it is starred out. The client value wins over the project setting
-  // (posthog-js lazy-loaded-session-recorder, `masking_client_side ?? …`).
-  session_recording: {
-    maskAllInputs: true,
-    maskTextSelector: "*",
-    maskAttributeFn: maskReplayAttribute,
-    maskCapturedNetworkRequestFn: maskReplayNetworkRequest,
-  },
 
   // The last stop before an event leaves the browser: no résumé role titles in any address.
   before_send: stripSearchTerms,

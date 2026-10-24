@@ -9,20 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
-import { getPostHogClient } from "@/lib/analytics/posthog-client";
 import { confirmLinkCreatesAccountLine } from "@/lib/follows/persist-copy";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
 import { cn } from "@/lib/utils";
-
-/** Never throws — a missing/unavailable PostHog distinct id must not block
- *  the alert submission it would otherwise ride along with. */
-function readPosthogDistinctId(): string | null {
-  try {
-    return getPostHogClient()?.get_distinct_id() || null;
-  } catch {
-    return null;
-  }
-}
 
 export interface SearchAlertCaptureProps {
   surface: "zero_results" | "results";
@@ -97,12 +86,6 @@ export function SearchAlertCapture({
           href: searchHref,
           redirectPath: window.location.pathname + window.location.search,
           turnstileToken,
-          // Read defensively: get_distinct_id() is documented as safe once
-          // posthog.init() has run, but that never happens at all when
-          // NEXT_PUBLIC_POSTHOG_KEY is unset — a missing distinct id must
-          // never block the alert submission itself, only the analytics
-          // capture riding along with it.
-          distinctId: readPosthogDistinctId(),
           surface,
           queryLength,
           filterCount,

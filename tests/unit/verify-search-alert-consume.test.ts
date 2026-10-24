@@ -40,7 +40,6 @@ describe("consumeAndSaveSearchAlert — success", () => {
             intent_name: "PM roles",
             intent_href: "/jobs?q=pm",
             intent_search_hash: "hash1",
-            intent_distinct_id: null,
             intent_analytics: null,
           },
         ],
@@ -62,7 +61,6 @@ describe("consumeAndSaveSearchAlert — success", () => {
       redirectPath: "/jobs?q=pm",
       contactToken: "tok-1",
       email: "a@b.co",
-      distinctId: null,
       analytics: null,
     });
     assert.equal(q.calls.length, 3);
@@ -77,7 +75,7 @@ describe("consumeAndSaveSearchAlert — success", () => {
   // that round trip is the only reason `search_alert_verified` can be
   // captured server-side with the same properties `search_alert_submitted`
   // had (there is no live search context on a bare verify GET).
-  it("round-trips distinctId and analytics captured at submit time", async () => {
+  it("round-trips the analytics captured at submit time", async () => {
     const analytics = { surface: "zero_results", query_length: 8, filter_count: 2, has_results: false };
     const q = new FakeQueryable([
       {
@@ -88,7 +86,6 @@ describe("consumeAndSaveSearchAlert — success", () => {
             intent_name: "PM roles",
             intent_href: "/jobs?q=pm",
             intent_search_hash: "hash1",
-            intent_distinct_id: "distinct-1",
             intent_analytics: analytics,
           },
         ],
@@ -101,7 +98,7 @@ describe("consumeAndSaveSearchAlert — success", () => {
       { rows: [] },
     ]);
     const result = await consumeAndSaveSearchAlert(q, "a".repeat(64));
-    assert.equal(result?.distinctId, "distinct-1");
+    assert.equal("distinctId" in (result ?? {}), false, "no analytics id is carried through the verify round trip");
     assert.deepEqual(result?.analytics, analytics);
   });
 });

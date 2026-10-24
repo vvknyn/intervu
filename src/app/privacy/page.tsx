@@ -142,9 +142,8 @@ export default function PrivacyPage() {
           emails you (see <a href="#email">Email</a>).
         </p>
         <p>
-          Our analytics never record your résumé. Session replays mask every word on the page and anything you
-          type, clicks are recorded without the text you clicked, and page addresses lose the role titles that
-          ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
+          Our analytics never record your résumé. There is no session replay and no automatic click capture, and
+          page addresses lose the role titles that ranking by fit puts in them (see <a href="#cookies-analytics">Cookies &amp; analytics</a>).
         </p>
         <p>
           You can delete your résumé from <Link href="/settings">account settings</Link> at any time. That also
@@ -243,10 +242,7 @@ export default function PrivacyPage() {
           which kinds of job postings people actually apply to so we can improve search for everyone. Velai is
           free to use today; if we introduce a paid plan it will be listed on the{" "}
           <Link href="/pricing">pricing page</Link> before anything is charged. We don&apos;t sell any of this to
-          advertisers. Derived signals about postings and companies (whether a listing is still live, how long
-          roles stay open, applicant activity reduced to aggregate statistics) may be licensed to third parties
-          through a Data API; those signals never include your résumé, your applications, your saved jobs, your
-          account details, or anything that identifies you.
+          advertisers. Velai never sells or licenses your data to anyone, even aggregated.
         </p>
 
         <SectionTitle id="ai-processing">AI processing</SectionTitle>
@@ -390,9 +386,9 @@ export default function PrivacyPage() {
           can skip the first-visit intro next time.
         </p>
         <p>
-          We use PostHog for product analytics — page views, clicks, and searches — so we can see what&apos;s
-          working and fix what isn&apos;t. Velai shares one PostHog project with thesubspace.io; we tell events
-          apart with a product tag in the analytics payload, not a separate project. PostHog&apos;s US cloud (
+          We use PostHog for anonymous product analytics — page views and a short list of named actions, such as
+          opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai has
+          its own PostHog project, shared with no other product. PostHog&apos;s US cloud (
           <code className="text-xs text-foreground">us.posthog.com</code>, configured as our analytics UI host) processes the data
           as our processor under their own DPA terms. Browser requests are sent through our own{" "}
           <code className="text-xs text-foreground">/ph</code> proxy path rather than directly to third-party analytics domains.
@@ -401,30 +397,23 @@ export default function PrivacyPage() {
           PostHog runs cookieless on Velai: no analytics cookie is set. What PostHog needs to hold on to lives in
           your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your session, nothing is shared
           with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
-          to your Velai account id unless you&apos;re signed in and we identify your session to PostHog — signed-out
-          visits still send page and interaction events. At the PostHog project level, IP addresses are stored (
-          IP anonymization is off), including for signed-out visitors. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          to your Velai account, whether or not you&apos;re signed in: we never tell PostHog who you are, and it
+          creates no profile of you. Your IP address is discarded and not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
           the two cookies above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
         </p>
         <p>
-          PostHog session replay is enabled. Replays capture the layout of the pages you saw, how you moved through
-          them, console logs, and performance data from the session. Every word on the page, labels and tooltips
-          included, is masked before it leaves your browser, and links lose their search terms: we can see where
-          you clicked and scrolled, not what the page said, so a replay of your résumé shows no résumé.
-          Input masking is on too: anything you type is masked — we can see that you filled in a field, not what
-          you put in it. Replays never keep what a page sent to or got back from our servers. Replays are kept for 30 days
-          in PostHog, then expire under PostHog&apos;s own retention rules. A replay covers a single tab and is
-          tied to your identity only if you&apos;re signed in.
+          There is no session replay: nothing records your screen or your typing, and there is no
+          automatic click capture. Events are sent only for the named actions described above, and none of them
+          carries the words you typed, your résumé, your name or your email address.
         </p>
         <p>
-          Clicks are recorded by which button or link you pressed, never the text in it or in its labels. Every
-          analytics event carries the address of the page it happened on, with the words you searched removed
-          before it leaves your browser.
+          Every analytics event carries the address of the page it happened on, with the words you searched
+          removed before it leaves your browser.
         </p>
         <p>
-          PostHog also powers heatmaps, in-app feedback surveys, and short forms when a search returns no results.
+          PostHog also powers in-app feedback surveys and short forms when a search returns no results.
           Surveys may optionally ask for your email address; we use it only to notify you when matching jobs arrive
           or to follow up on feedback. The field is optional, and every survey works without it. On phone-sized
           viewports we disable automatic survey UI so it does not overlap page content.
@@ -446,7 +435,7 @@ export default function PrivacyPage() {
           We keep your account data for as long as your account is active. Search-activity records —
           which searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep
           only aggregate statistics that no longer identify you. The behavioural analytics ledger described above
-          follows the same 90-day deletion window. PostHog session replays are retained for 30 days in PostHog.
+          follows the same 90-day deletion window.
         </p>
         <p>
           You can delete your account yourself from{" "}
@@ -468,10 +457,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           PostHog data from visits where you were never signed in carries no account id, so it is not linked to
-          you and is not removed. If PostHog can&apos;t be reached when you delete your account, the rest of the
-          deletion still completes, and we do not retry the PostHog request. Session replay recordings in PostHog
-          are kept for 30 days, as described above, then expire under PostHog&apos;s rules.
-          We have not confirmed a fixed retention period for ordinary analytics events or heatmap data in PostHog. Deletion does not
+          you and is not removed. Analytics collected since October 2026 is not linked to any account at all. If
+          PostHog can&apos;t be reached when you delete your account, the rest of the
+          deletion still completes, and we do not retry the PostHog request. Any session replay recordings made
+          before replay was turned off are kept for 30 days, then expire under PostHog&apos;s rules.
+          We have not confirmed a fixed retention period for analytics events in PostHog. Deletion does not
           remove contact-form messages or waitlist entries sent from a different email address than the one you
           sign in with. Anonymous search
           logs and aggregate statistics are unaffected. Suppression entries for your address stay in place so we do

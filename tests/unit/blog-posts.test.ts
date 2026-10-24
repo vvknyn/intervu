@@ -110,6 +110,7 @@ describe("blog posts", () => {
       assert.ok(post.body.includes(fact), fact);
     }
     assert.match(post.body, /refundable on request, for any reason, until Pro opens/);
+    assert.doesNotMatch(post.body, /Data API|licens/i);
     // Discloses that the founder writes under the pen name with a drawn picture, not a fake employee photo.
     assert.ok(post.body.includes(`pen name ${BLOG_AUTHOR.name}`));
     assert.match(post.body, /drawn picture rather than a photo/);

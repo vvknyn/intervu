@@ -4,7 +4,15 @@ import { after } from "next/server";
 import type { User } from "@workos-inc/node";
 import { getServerUser } from "@/lib/auth/server-user";
 import { deleteLegacyFirebaseUser, getAdminDb } from "@/lib/firebase/admin";
-import { deletePosthogPerson, eraseAccount, storeEraseDeps } from "@/lib/account/erase-account";
+import {
+    deletePosthogPerson,
+    deleteStripeCustomer,
+    eraseAccount,
+    eraseMirrorStore,
+    isSkipped,
+    storeEraseDeps,
+} from "@/lib/account/erase-account";
+import { deletePgUserRows } from "@/lib/db/user-data";
 import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
@@ -436,7 +444,7 @@ export async function confirmPasswordResetAction(
  * action reaching for `redirect()`, which would abort a server action's
  * return value instead of handing the caller a `{}`/`{error}` result.
  */
-export async function deleteAccount(): Promise<{ error?: string }> {
+export async function deleteAccount(): Promise<{ error?: string; incomplete?: string[] }> {
     const user = await getServerUser();
 
     if (!user) {
@@ -446,11 +454,23 @@ export async function deleteAccount(): Promise<{ error?: string }> {
     try {
         const db = getAdminDb();
         const telemetryPg = getTelemetryForgetPg();
-        await eraseAccount(
+        const results = await eraseAccount(
             { uid: user.uid, email: user.email && !isMintedLoginEmail(user.email) ? user.email : null },
             {
                 ...storeEraseDeps(db),
-                deleteTelemetry: async (uid) => (telemetryPg ? deleteTelemetryByUserId(telemetryPg, uid) : 0),
+                eraseMirrorStore,
+                deleteStripeCustomer: (customerId) => deleteStripeCustomer(customerId),
+                async deletePgRows(uid) {
+                    const pg = getIntervuPg();
+                    if (!pg) return "not-configured";
+                    await deletePgUserRows(pg, uid);
+                    return "deleted";
+                },
+                async deleteTelemetry(uid) {
+                    if (!telemetryPg) return "not-configured";
+                    await deleteTelemetryByUserId(telemetryPg, uid);
+                    return "deleted";
+                },
                 deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
                 deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
                 async deleteSignIn(uid) {
@@ -464,10 +484,12 @@ export async function deleteAccount(): Promise<{ error?: string }> {
                 // The ledger rows went by uid above; WorkOS no longer knows the
                 // address by now, so forgetIdentity's own lookup would find nobody.
                 forgetEmail: (email) => forgetIdentity(getIntervuPg(), null, email),
-                logError: (message, error) => console.error(message, error),
+                logError: (message) => console.error(message),
             },
         );
-        return {};
+        // A processor we could not reach still holds the person's data: say so.
+        const incomplete = results.filter((r) => isSkipped(r.status)).map((r) => r.processor);
+        return incomplete.length ? { incomplete } : {};
     } catch (error) {
         console.error("[Auth] Delete account error:", error);
         return { error: error instanceof Error ? error.message : "Failed to delete account" };

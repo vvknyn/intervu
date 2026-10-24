@@ -119,6 +119,11 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
     protected model: string;
     protected providerName: string;
     protected baseURL: string;
+    /** Extra top-level request-body fields for this provider (passed through by the SDK). */
+    protected requestExtras(): Record<string, unknown> {
+        return {};
+    }
+
     private static lastRequestTime: number = 0;
     private static readonly minRequestInterval: number = 500;
 
@@ -152,7 +157,6 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                 feature: request.analytics?.feature ?? 'unspecified',
                 traceId: request.analytics?.traceId ?? crypto.randomUUID(),
                 spanId: crypto.randomUUID(),
-                distinctId: request.analytics?.distinctId ?? 'anonymous',
                 latencySeconds,
                 isError: capture.isError,
                 errorCode: capture.errorCode,
@@ -199,6 +203,7 @@ abstract class OpenAICompatibleProvider implements LLMProvider {
                     model: this.model,
                     max_tokens: DEFAULT_MAX_TOKENS,
                     response_format: request.json ? { type: 'json_object' } : undefined,
+                    ...this.requestExtras(),
                 });
 
                 const completion = await withTimeout(completionPromise, timeoutMs, this.providerName);
@@ -264,6 +269,11 @@ export class OpenRouterProvider extends OpenAICompatibleProvider {
             'HTTP-Referer': getSiteUrl(),
             'X-Title': 'Velai',
         });
+    }
+
+    /** Zero data retention: OpenRouter only routes to ZDR endpoints; a model with none errors rather than retains. */
+    protected requestExtras(): Record<string, unknown> {
+        return { provider: { zdr: true } };
     }
 }
 

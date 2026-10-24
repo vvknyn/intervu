@@ -425,6 +425,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         onFocus={(e) => e.currentTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' })}
                                         className="bg-surface-2 shadow-[var(--shadow-bevel-inset)]"
                                     />
+                                    <p className="text-xs text-muted-foreground">Use a personal email, not your work one.</p>
                                 </Field>
                             )}
                             {activeTab === "login" && <Field label="Email or username" htmlFor="username">
