@@ -8,10 +8,9 @@
  *
  * `hosts` / `packages` are the code-side markers the test maps outbound calls
  * to (a host matches itself and its subdomains). They are not rendered.
- * Rows with no hosts and no packages (our servers, Contabo, Cloudflare's edge,
- * Subspace, Tinfoil, websites you point Velai at) are kept by hand: their
- * addresses come from env vars or from what you type, so no literal in src
- * names them and the scan cannot see them.
+ * Rows with no hosts and no packages are kept by hand: their addresses come
+ * from env vars, from what you type, or from software outside src/, so no
+ * literal in src names them and the scan cannot see them.
  */
 export interface Processor {
   name: string;
@@ -67,7 +66,7 @@ export const PROCESSORS: readonly Processor[] = [
   {
     name: "Tinfoil sealed AI",
     receives:
-      "Résumé text with your name, email, phone and links taken out, or only the lines for one job or one question. Encrypted so only the sealed server can read it. Separately, before the first sealed request after a page loads (when a paid account imports a résumé or tailors one to a job), your browser itself contacts Tinfoil's servers (atc, github-proxy and kds-proxy at tinfoil.sh, plus the sealed server's own address) to check the sealed server is genuine, so Tinfoil sees your IP address and browser details.",
+      "Résumé text with your name, email, phone and links taken out, or only the lines for one job or one question. It is encrypted in your browser to the sealed server's own key and passes through our server, which cannot read it. Separately, before the first sealed request after a page loads (when a paid account imports a résumé or tailors one to a job), your browser itself contacts Tinfoil's servers (atc, github-proxy and kds-proxy at tinfoil.sh, plus the sealed server's own address) to check the sealed server is genuine, so Tinfoil sees your IP address and browser details.",
     why: "Résumé AI: reading, tailoring, drafting answers. Runs for paid accounts only.",
     retention: UNCONFIRMED,
     hosts: [],
@@ -90,7 +89,7 @@ export const PROCESSORS: readonly Processor[] = [
     // Logs: src/lib/observability/posthog-logs.ts (sanitizeLogAttrs, redactLogBody, buildOtlpPayload).
     name: "PostHog (US cloud)",
     receives:
-      "Page views and named actions, sent through our own /ph path; your IP address is removed on our server before anything is passed on. Each one carries the address of the page with any text after a ? or # removed, the page you came from, your browser, system and device type, your language and your time zone, and a random code that lasts only for that browser tab. No replay, no click capture, no profile, and no account id while you use Velai. When you delete your account, your account id is sent so your analytics record can be deleted. Also our server logs: a short fixed sentence (any email address, IP address or web-address query in it is replaced by \"[redacted]\" before sending), the time, how serious it is, and a few short technical codes such as which step failed, how long it took, and the web address of the company involved.",
+      "Page views and named actions, sent through our own /ph path; your IP address is removed on our server before anything is passed on. Each one carries the address of the page with any text after a ? or # removed, your browser, system and device type, your language and your time zone, and a random code that lasts only for that browser tab. No replay, no click capture, no profile, and no account id while you use Velai. Our own server also reports some events itself (a job alert sign-up and confirmation, a sign-in step succeeding or failing, each AI request our servers make, each tool call an AI app makes to Velai). Those carry counts and outcomes only (such as how many characters a search had, or how long a call took), never what you typed, your account id or your IP address; each gets its own random code and is linked to no profile. A tool-call event also carries the AI app's name (the first 80 characters of its User-Agent) and a session code that app chooses. When you delete your account, your account id is sent so your analytics record can be deleted. Also our server logs: a short fixed sentence (any email address, IP address or web-address query in it is replaced by \"[redacted]\" before sending), the time, how serious it is, and a few short technical codes such as which step failed, how long it took, and the web address of the company involved.",
     why: "Anonymous product analytics, and error and slow-request logs.",
     retention: UNCONFIRMED,
     hosts: ["posthog.com"],
@@ -107,12 +106,26 @@ export const PROCESSORS: readonly Processor[] = [
     packages: ["stripe"],
   },
   {
+    // Password: auth-action-deps.ts:31 createUser({email, password, metadata:{username}}); resetPassword. Username + "apps"
+    // tag in metadata: auth.ts:96, provisioning.ts:50/105-109; membership in a WorkOS organization (provisioning.ts:104).
+    // Google name/photo: workos-identity.ts:30-32 (firstName, lastName, profilePictureUrl); avatar ignores the photo (user-avatar.tsx).
     name: "WorkOS",
-    receives: "Your email and how you sign in (Google, passkey, email code, or password).",
+    receives:
+      "Your email address. If you make an account with a password, the password too, so WorkOS can check it at sign-in, plus the username you chose and an internal tag marking that you use Velai. If you sign in with Google, the first and last name and the profile picture address Google gives WorkOS. WorkOS also handles passkeys and email sign-in codes. Velai never loads the Google profile picture; it shows your initials instead.",
     why: "Sign-in.",
     retention: "Kept until you delete your account, which deletes the WorkOS record.",
     hosts: ["workos.com"],
     packages: ["@workos-inc/"],
+  },
+  {
+    // The only provider the sign-in screen names: login-form.tsx:361 startAuthKit("GoogleOAuth"); /auth/start forwards it to WorkOS.
+    name: "Google (sign-in)",
+    receives:
+      "If you choose Continue with Google, your browser goes to Google's sign-in page. Google learns that you are signing in to Velai (through WorkOS), and you choose what it shares. It hands WorkOS your email address, name and profile picture address.",
+    why: "Lets you sign in with your Google account.",
+    retention: "Set by Google. We have not confirmed a period.",
+    hosts: [],
+    packages: [],
   },
   {
     name: "Resend",
@@ -123,12 +136,11 @@ export const PROCESSORS: readonly Processor[] = [
     packages: ["resend"],
   },
   {
-    // Mounts of <TurnstileWidget>: ContactForm.tsx:168, login-form.tsx:473, SearchAlertCapture.tsx:141,
-    // OpenclawWaitlistForm.tsx:91. Other forms (forgot password, account email prompt) show no widget.
+    // Mounted by <TurnstileWidget> on some forms only (grep TurnstileWidget); the row names no list, so it cannot go stale.
     // Server check: src/lib/shield/turnstile.ts:106-109 posts the token and remoteip to siteverify.
     name: "Cloudflare Turnstile",
     receives:
-      "What your browser shares to prove you are not a bot, on the Velai forms that show Cloudflare's human check (contact, sign-in and sign-up, job alert sign-up, waitlist). When you submit one, our server also sends Cloudflare your IP address so it can check the result.",
+      "What your browser shares to prove you are not a bot, on the Velai forms that show Cloudflare's human check. When you submit one, our server also sends Cloudflare your IP address so it can check the result.",
     why: "Stop spam.",
     retention: "Set by Cloudflare.",
     hosts: ["challenges.cloudflare.com"],
@@ -158,6 +170,29 @@ export const PROCESSORS: readonly Processor[] = [
       "A website you paste into Velai to read (for example a job page you add as a source) receives that web address and our server's address, not yours. Velai also reads that page again to list up to 20 links on the same site; those pages are fetched only if you pick them. When you click through to a job posting, the posting opens, and right after, your browser makes a quick check that the link still works, so that posting's site receives the link, your IP address and the fact that the request came from velai.app, with no cookies. When you choose to continue a job in Claude or ChatGPT, the new tab opens claude.ai or chatgpt.com with the job's id, title, company and location in the link.",
     why: "Reads the page you point us at, and notes dead job links so they are skipped next time. The Claude and ChatGPT links hand a job to the assistant you connected.",
     retention: "Set by each website. We cannot know it.",
+    hosts: [],
+    packages: [],
+  },
+  {
+    // Optional, openclaw/scripts/viewer/tailnet.mjs:131-156 (install via brew or tailscale.com/install.sh, then `tailscale up`);
+    // /watch/anywhere (src/app/watch/anywhere/page.tsx) tells you to install the app. Claims about encryption and what
+    // Tailscale sees: https://tailscale.com/security ("All traffic is end-to-end encrypted, always"; "Tailscale does not
+    // (and cannot) inspect your traffic"; the coordination server holds public keys and metadata about which nodes connect).
+    name: "Tailscale (optional, for watching from anywhere)",
+    receives:
+      "Only if you choose Watch from anywhere and set up Tailscale on your laptop and phone. You sign in to Tailscale with your own account there. Tailscale says its traffic between your devices is end-to-end encrypted and that it cannot inspect it; what it does see is which of your devices connect to which, and their public IP addresses (https://tailscale.com/security). Velai does not send it anything.",
+    why: "Lets your phone reach the laptop session over mobile data. Not used otherwise.",
+    retention: "Set by Tailscale. We have not confirmed a period.",
+    hosts: [],
+    packages: [],
+  },
+  {
+    // public/install:87,136,142 (nodejs.org, only via ensure_node when npm is missing, Mac only) and :210,261,386 (npm install of openclaw, mcporter, and the skill's packages).
+    name: "Software download sites (optional laptop install command)",
+    receives:
+      "Only if you run Velai's install command on your own computer. It downloads Node.js from nodejs.org when your computer has none, and installs packages from the npm registry. Those sites see your IP address and which software you asked for. No Velai account data is sent to them.",
+    why: "Sets up the helper that runs on your laptop.",
+    retention: "Set by each site. We cannot know it.",
     hosts: [],
     packages: [],
   },
@@ -215,5 +250,7 @@ export const NOT_CONTACTED_HOSTS: Readonly<Record<string, ScopedHost>> = {
   "www.careerplug.com": { files: ["src/components/mock/CompletenessMock.tsx"], reason: "sample apply URL inside mock demo data (src/components/mock/CompletenessMock.tsx:174)." },
   "tracegains.com": { files: ["src/components/mock/CompletenessMock.tsx"], reason: "sample apply URL inside mock demo data (src/components/mock/CompletenessMock.tsx:203)." },
   "www.figma.com": { files: ["src/components/mock/CompletenessMock.tsx"], reason: "sample apply URL inside mock demo data (src/components/mock/CompletenessMock.tsx:261)." },
+  "velai.invalid": { files: ["src/components/ui/user-avatar.tsx"], reason: "src/components/ui/user-avatar.tsx:17: .invalid is a reserved name that never resolves (RFC 2606/6761), used only as a URL-parsing base to check a picture address and never requested." },
+  "tailscale.com": { files: ["src/lib/legal/processors.ts"], reason: "src/lib/legal/processors.ts: the address of Tailscale's security page, quoted in the Tailscale row as the source of its encryption claims; only text, never requested." },
   "127.0.0.1": { files: ["src/app/mock/oauth-consent/page.tsx"], reason: "src/app/mock/oauth-consent/page.tsx:11: a sample redirect address on a mock consent screen." },
 };

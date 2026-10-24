@@ -20,12 +20,19 @@ import { NOT_CONTACTED_HOSTS, NO_PERSONAL_DATA_HOSTS, PROCESSORS, type ScopedHos
  * What the scan CANNOT see (so the rows for these are kept by hand):
  *  - hosts that arrive through env vars (database, Meilisearch, Subspace API,
  *    and overrides such as POSTHOG_API_HOST, POSTHOG_LOGS_ENDPOINT);
- *  - the host of a pasted URL or a fetched redirect; a template/concatenation
- *    with a literal scheme and a computed host is caught and must be listed
- *    in DYNAMIC_HOST_SITES;
- *  - hosts that live outside src/ (openclaw/, extension/, scripts/), or only
- *    in the Caddyfile that really runs in prod (the interview-os repo's);
+ *  - an <img>/<link> whose address is data (a job's logo, a pasted URL, a
+ *    redirect target): no literal names it. The browser-side gate for images
+ *    is the Content-Security-Policy img-src 'self' data: blob: (a separate
+ *    change), not this test;
+ *  - everything outside src/: public/ (the install script, the OCR worker),
+ *    openclaw/ (the laptop helper), extension/, scripts/, and the Caddyfile
+ *    that really runs in prod (the interview-os repo's);
  *  - what a package does at runtime; only its name is checked.
+ * A template/concatenation with a literal scheme and a computed host is
+ * caught: its file must be in DYNAMIC_HOST_SITES with the exact number of
+ * sites reviewed. An import()/require() with a computed argument fails.
+ * Scheme and CSS function names are matched in any letter case, and
+ * image-set() strings are read.
  * It reads every .ts/.tsx/.css under src/ except tests, "use client" files included.
  */
 
@@ -96,17 +103,20 @@ const SRC_FILE = /\.(ts|tsx|css)$/;
 const NODE_BUILTINS = new Set(builtinModules.map((m) => m.replace(/^node:/, "")));
 const DOTTED = "[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+";
 /** A scheme://, with whatever follows it up to a separator (\0 marks a computed part of a template). */
-const SCHEME_HOST = /\b((?:https?|wss?):\/\/)([^\s/?#\\"'`]*)/g;
-const STUN_HOST = new RegExp(`\\b(?:stuns?|turns?):(${DOTTED})`, "g");
+const SCHEME_HOST = /\b((?:https?|wss?):\/\/)([^\s/?#\\"'`]*)/gi;
+const STUN_HOST = new RegExp(`\\b(?:stuns?|turns?):(${DOTTED})`, "gi");
 const PROTOCOL_RELATIVE = new RegExp(`^//(${DOTTED})`);
 const HOST_ONLY = new RegExp(`^(?:[^@]*@)?(${DOTTED})(?::\\d+)?$`);
-/** In CSS: url(//host), url(https://host), @import "//host". */
-const CSS_URL = new RegExp(`(?:url\\(\\s*|@import\\s+(?:url\\(\\s*)?)["']?(?:(?:https?:)?//)(${DOTTED})`, "g");
+/** In CSS (any letter case): url(//host), url(https://host), @import "//host". */
+const CSS_URL = new RegExp(`(?:url\\(\\s*|@import\\s+(?:url\\(\\s*)?)["']?(?:(?:https?:)?//)(${DOTTED})`, "gi");
+/** image-set("//host/a.png" 1x, ...) takes bare strings, no url(). The whole call is read, so every candidate in it counts. */
+const CSS_IMAGE_SET = /image-set\(([^)]*)\)/gi;
+const CSS_ADDRESS = new RegExp(`["']\\s*(?:(?:https?:)?//)(${DOTTED})`, "gi");
 
 export interface Found {
   where: string;
   file: string;
-  kind: "host" | "package" | "dynamic-host";
+  kind: "host" | "package" | "dynamic-host" | "dynamic-import";
   value: string;
 }
 
@@ -166,13 +176,10 @@ export function scanText(file: string, text: string): Found[] {
       addPackage(n, n.moduleReference.expression.text);
     } else if (ts.isImportTypeNode(n) && ts.isLiteralTypeNode(n.argument) && ts.isStringLiteral(n.argument.literal)) {
       addPackage(n, n.argument.literal.text);
-    } else if (
-      ts.isCallExpression(n) &&
-      (n.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(n.expression) && n.expression.text === "require")) &&
-      n.arguments[0] &&
-      (ts.isStringLiteral(n.arguments[0]) || ts.isNoSubstitutionTemplateLiteral(n.arguments[0]))
-    ) {
-      addPackage(n, (n.arguments[0] as ts.StringLiteral).text);
+    } else if (ts.isCallExpression(n) && (n.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(n.expression) && n.expression.text === "require"))) {
+      const arg = n.arguments[0];
+      if (arg && (ts.isStringLiteral(arg) || ts.isNoSubstitutionTemplateLiteral(arg))) addPackage(n, arg.text);
+      else found.push({ where: at(n), file, kind: "dynamic-import", value: arg ? arg.getText(sf) : "" });
     }
     if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) addText(n, n.text);
     else if (ts.isTemplateExpression(n)) addText(n, [n.head.text, ...n.templateSpans.map((s) => s.literal.text)].join("\0"));
@@ -185,12 +192,13 @@ export function scanText(file: string, text: string): Found[] {
 /** Hosts in a stylesheet: url(...) and @import. CSS has one comment form (slash-star), so blanking those first is exact. */
 export function scanCss(file: string, text: string): Found[] {
   const code = text.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, " "));
-  return [...code.matchAll(CSS_URL)].map((m) => ({
-    where: `${file}:${code.slice(0, m.index).split("\n").length}`,
-    file,
-    kind: "host" as const,
-    value: m[1].toLowerCase(),
-  }));
+  const hit = (index: number, host: string) => ({ where: `${file}:${code.slice(0, index).split("\n").length}`, file, kind: "host" as const, value: host.toLowerCase() });
+  const inImageSet = [...code.matchAll(CSS_IMAGE_SET)].flatMap((set) => [...set[1].matchAll(CSS_ADDRESS)].map((m) => hit(set.index, m[1])));
+  const seen = new Set<string>();
+  return [...[...code.matchAll(CSS_URL)].map((m) => hit(m.index, m[1])), ...inImageSet].filter((f) => {
+    const key = `${f.where} ${f.value}`;
+    return !seen.has(key) && !!seen.add(key);
+  });
 }
 
 /** `reverse_proxy https://host` lines: the Caddy edge relays /ph to PostHog. */
@@ -216,16 +224,22 @@ export function unaccountedHosts(found: readonly Found[]): Found[] {
   );
 }
 
-/** Template/concatenation sites with a literal scheme and a computed host: each file needs a reviewed reason here. */
-export const DYNAMIC_HOST_SITES: Readonly<Record<string, string>> = {
-  "src/components/company/CompanySections.tsx": "a link to the company's own website (href=https://domain) that you click; our server and page never request it.",
-  "src/lib/analytics/ai-generation.ts": "a check that a configured address starts with http:// or https://; not a request.",
-  "src/lib/seo/jsonld.ts": "the company url field written into page markup (https://domain); nothing fetches it.",
-  "src/lib/server-warm-up.ts": "our own server calling itself on a loopback address (127.0.0.1 or the host it listens on) after start, at the address it listens on (127.0.0.1 unless HOSTNAME says otherwise).",
+/** Template/concatenation sites with a literal scheme and a computed host: each file needs a reviewed reason here and the number of sites reviewed in it, so a new one in a listed file fails too. */
+export const DYNAMIC_HOST_SITES: Readonly<Record<string, { sites: number; why: string }>> = {
+  "src/components/company/CompanySections.tsx": { sites: 1, why: "a link to the company's own website (href=https://domain) that you click; our server and page never request it." },
+  "src/lib/analytics/ai-generation.ts": { sites: 2, why: "a check that a configured address starts with http:// or https://; not a request." },
+  "src/lib/seo/jsonld.ts": { sites: 1, why: "the company url field written into page markup (https://domain); nothing fetches it." },
+  "src/lib/server-warm-up.ts": { sites: 1, why: "our own server calling itself on a loopback address (127.0.0.1 or the host it listens on) after start, at the address it listens on (127.0.0.1 unless HOSTNAME says otherwise)." },
 };
 
 export function unreviewedDynamicHosts(found: readonly Found[]): Found[] {
-  return found.filter((f) => f.kind === "dynamic-host" && !(f.file in DYNAMIC_HOST_SITES));
+  const sites = found.filter((f) => f.kind === "dynamic-host");
+  return sites.filter((f) => DYNAMIC_HOST_SITES[f.file]?.sites !== sites.filter((o) => o.file === f.file).length);
+}
+
+/** import()/require() calls whose argument is not a string literal: the package they load cannot be classified. */
+export function nonLiteralImports(found: readonly Found[]): Found[] {
+  return found.filter((f) => f.kind === "dynamic-import");
 }
 
 /** Imported packages that are no processor row's package, no no-network dependency, no reviewed undeclared import, and not a node builtin. */
@@ -290,11 +304,16 @@ describe("every outside address and dependency is accounted for on /privacy", ()
 
   it("no computed-host address is unreviewed", () => {
     const bad = unreviewedDynamicHosts(found).map((f) => `${f.where} ${f.value}`);
-    assert.deepEqual(bad, [], `review where the host comes from, then add the file to DYNAMIC_HOST_SITES:\n${bad.join("\n")}`);
-    for (const [file, why] of Object.entries(DYNAMIC_HOST_SITES)) {
+    assert.deepEqual(bad, [], `review where the host comes from, then add the file to DYNAMIC_HOST_SITES (or fix its pinned number of sites):\n${bad.join("\n")}`);
+    for (const [file, { why }] of Object.entries(DYNAMIC_HOST_SITES)) {
       assert.ok(why.trim().length > 10, `${file} needs a reason`);
       assert.ok(found.some((f) => f.kind === "dynamic-host" && f.file === file), `${file} is listed but has no computed-host address any more`);
     }
+  });
+
+  it("no import() or require() takes a computed argument", () => {
+    const bad = nonLiteralImports(found).map((f) => `${f.where} ${f.value}`);
+    assert.deepEqual(bad, [], `a package loaded by a computed name cannot be classified; use a literal specifier:\n${bad.join("\n")}`);
   });
 
   it("every imported package is a node builtin or classified", () => {
@@ -382,6 +401,29 @@ describe("every outside address and dependency is accounted for on /privacy", ()
       assert.deepEqual(bad('const r = require("sneaky-pkg");'), ["sneaky-pkg"]);
       assert.deepEqual(bad('export * from "re-exported";'), ["re-exported"]);
       assert.deepEqual(bad('import("node:fs"); import "fs"; import x from "./local"; import y from "@/lib/z"; import z from "zod/v4";'), []);
+    });
+    it("an upper- or mixed-case scheme is still a scheme", () => {
+      assert.deepEqual(hit("src/f.ts", 'fetch("HTTPS://API.NewVendor.io/x"); const s = "Wss://live.newvendor.io"; const t = "STUN:stun.newvendor.io";'), [
+        "api.newvendor.io",
+        "live.newvendor.io",
+        "stun.newvendor.io",
+      ]);
+    });
+    it("a new computed-host site in a file that is already listed fails (the number of sites is pinned)", () => {
+      const [file, { sites }] = Object.entries(DYNAMIC_HOST_SITES)[0];
+      const site = (n: number) => Array.from({ length: n }, (_, i) => `fetch(\`https://\${h${i}}/x\`);`).join("\n");
+      assert.equal(unreviewedDynamicHosts(scanText(file, site(sites))).length, 0);
+      assert.equal(unreviewedDynamicHosts(scanText(file, site(sites + 1))).length, sites + 1);
+    });
+    it("an import() or require() with a computed argument fails", () => {
+      const bad = (code: string) => nonLiteralImports(scanText("src/f.ts", code)).map((f) => f.value);
+      assert.deepEqual(bad("const m = await import(name);"), ["name"]);
+      assert.deepEqual(bad("const m = require(`pkg-${x}`);"), ["`pkg-${x}`"]);
+      assert.deepEqual(bad('const m = await import("zod"); const r = require("zod");'), []);
+    });
+    it("a host in a stylesheet fails in any letter case and inside image-set()", () => {
+      const css = '.a { background: URL(//cdn.newvendor.io/a.png); }\n@IMPORT "//fonts.newvendor.io/c.css";\n.b { background-image: -webkit-image-set("//img.newvendor.io/a.png" 1x, "https://img2.newvendor.io/b.png" 2x); }\n.c { background: IMAGE-SET(url(//img3.newvendor.io/c.png) 1x); }';
+      assert.deepEqual(unaccountedHosts(scanCss("src/app/x.css", css)).map((f) => f.value).sort(), ["cdn.newvendor.io", "fonts.newvendor.io", "img.newvendor.io", "img2.newvendor.io", "img3.newvendor.io"]);
     });
     it("a host in a stylesheet fails", () => {
       const css = '@import url("https://fonts.newvendor.io/css");\n.a { background: url(//cdn.newvendor.io/a.png); }\n/* url(https://commented.io/x) */\n.b { background: url(data:image/png;base64,AA); }';
