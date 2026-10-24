@@ -99,7 +99,7 @@ export const PROCESSORS: readonly Processor[] = [
     // Account id: src/lib/billing/checkout.ts:36-38 (client_reference_id, metadata), :76 (customer metadata).
     name: "Stripe",
     receives:
-      "Your email and card details, entered on Stripe's checkout page. We also send your Velai account id, as the payment reference and in the notes attached to the payment and to your Stripe customer record. We store only your Stripe customer id and the date your paid time ends.",
+      "Your email and card details, entered on Stripe's checkout page. We also send your Velai account id, as the payment reference and in the notes attached to the payment and to your Stripe customer record. From Stripe we keep your Stripe customer id and the date your paid time ends.",
     why: "Payment for 1 to 12 prepaid months at $12 a month.",
     retention: "Set by Stripe. We have not confirmed a period.",
     hosts: [],

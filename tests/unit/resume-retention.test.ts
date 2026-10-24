@@ -8,6 +8,7 @@ import {
     buildRetentionWarning,
     resumeOps,
     retentionAction,
+    retentionEmailForUid,
     runResumeRetention,
     type RetentionDeps,
 } from "@/lib/retention/resume-retention";
@@ -87,7 +88,7 @@ test("bearerMatches compares the secret exactly", () => {
     assert.equal(bearerMatches("Bearer ", ""), false);
 });
 
-function rig(seed: Record<string, Record<string, unknown>>, over: { email?: string | null; sent?: boolean; mirror?: ReturnType<typeof memoryFirestore> } = {}) {
+function rig(seed: Record<string, Record<string, unknown>>, over: { email?: string | null; sent?: boolean; mirror?: ReturnType<typeof memoryFirestore>; emailFor?: RetentionDeps["emailFor"] } = {}) {
     const primary = memoryFirestore(seed);
     const sentTo: string[] = [];
     const deps: RetentionDeps = {
@@ -97,7 +98,7 @@ function rig(seed: Record<string, Record<string, unknown>>, over: { email?: stri
             await use(over.mirror.db);
             return "ok" as never;
         },
-        emailFor: async () => (over.email === undefined ? "a@example.com" : over.email),
+        emailFor: over.emailFor ?? (async () => (over.email === undefined ? "a@example.com" : over.email)),
         send: async (to) => (sentTo.push(to), { sent: over.sent ?? true }),
     };
     return { primary, deps, sentTo };
@@ -195,4 +196,59 @@ test("batches deletes in groups of at most 500", async () => {
     })(r.primary.db.batch.bind(r.primary.db)) as never;
     assert.equal((await run(r, END + 91 * DAY)).deleted, 1);
     assert.equal([...r.primary.docs.keys()].filter((k) => k.startsWith("tailored_resumes/")).length, 0);
+});
+
+/** The real retention lookup over a fake WorkOS: `getUserByExternalId` / `getUser` behave as given. */
+const workos = (lookup: { byExternalId?: () => Promise<{ id: string }>; user?: () => Promise<{ email?: string | null }> }) =>
+    (uid: string) =>
+        retentionEmailForUid(uid, {
+            getUserByExternalId: lookup.byExternalId ?? (async () => ({ id: "w" })),
+            getUser: lookup.user ?? (async () => ({ email: "a@example.com" })),
+        } as never);
+const outage = () => Promise.reject(Object.assign(new Error("boom"), { name: "GenericServerException", status: 500 }));
+const notFound = () => Promise.reject(Object.assign(new Error("nf"), { name: "NotFoundException", status: 404 }));
+
+test("(a) a lookup error past 90 days with no warning: no delete, no send, counted as an error", async () => {
+    const r = rig({ "profiles/u": profile() }, { emailFor: workos({ user: outage }) });
+    const c = await run(r, END + 91 * DAY);
+    assert.equal(c.errors, 1);
+    assert.equal(c.deleted, 0);
+    assert.equal(r.sentTo.length, 0);
+    assert.ok(r.primary.docs.get("profiles/u")?.resume_data);
+});
+
+test("(b) a lookup error in the warn window leaves no warn stamp", async () => {
+    const r = rig({ "profiles/u": profile() }, { emailFor: workos({ byExternalId: outage }) });
+    const c = await run(r, END + 84 * DAY);
+    assert.equal(c.errors, 1);
+    assert.equal(r.primary.docs.get("profiles/u")?.retention_warned_for, undefined);
+});
+
+test("(c) WorkOS not-found for the account is positively no address: deleted on the mark", async () => {
+    const r = rig({ "profiles/u": profile() }, { emailFor: workos({ byExternalId: notFound, user: notFound }) });
+    const c = await run(r, END + 91 * DAY);
+    assert.equal(c.deleted, 1);
+    assert.equal(c.no_email, 1);
+    assert.equal(c.errors, 0);
+    assert.equal(r.primary.docs.get("profiles/u")?.resume_data, undefined);
+});
+
+test("(d) a minted address cannot receive mail: counts as no address, deleted instead of send_failed forever", async () => {
+    const r = rig({ "profiles/u": profile() }, { emailFor: workos({ user: async () => ({ email: "someone@intervu.cc" }) }) });
+    const c = await run(r, END + 91 * DAY);
+    assert.equal(c.deleted, 1);
+    assert.equal(c.send_failed, 0);
+    assert.equal(r.sentTo.length, 0);
+});
+
+test("(e) access_until moved to the future after the snapshot: no delete", async () => {
+    const r = rig({ "profiles/u": profile({ retention_warned_for: END, retention_warned_at: END + 83 * DAY }) });
+    // The purchase lands while the run is between its snapshot and the delete (the address lookup).
+    r.deps.emailFor = async () => {
+        await r.primary.db.doc("profiles/u").update({ access_until: END + 400 * DAY });
+        return "a@example.com";
+    };
+    const c = await run(r, END + 91 * DAY);
+    assert.equal(c.deleted, 0);
+    assert.ok(r.primary.docs.get("profiles/u")?.resume_data);
 });

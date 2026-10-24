@@ -58,7 +58,16 @@ test("resolveWorkosUserId falls back to the raw uid when no external-id match ex
   // `getUserByExternalId` rejects (NotFoundException) rather than returning
   // null — this is the case where `uid` is already a native WorkOS id.
   const id = await resolveWorkosUserId(async () => {
-    throw new Error("NotFoundException");
+    throw Object.assign(new Error("not found"), { name: "NotFoundException", status: 404 });
   }, "already-a-workos-id");
   assert.equal(id, "already-a-workos-id");
+});
+
+test("resolveWorkosUserId rethrows any failure that is not a not-found", async () => {
+  await assert.rejects(
+    resolveWorkosUserId(async () => {
+      throw Object.assign(new Error("down"), { name: "GenericServerException", status: 500 });
+    }, "uid"),
+    /down/,
+  );
 });
