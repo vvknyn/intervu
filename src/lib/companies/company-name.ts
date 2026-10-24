@@ -306,11 +306,19 @@ function expandSquashedLabel(label: string, names: readonly string[]): string | 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
 const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word !== word[0]!.toUpperCase() + word.slice(1).toLowerCase();
 
+/** The one corporate/careers tail words a domain label may carry after its brand ("trilongroup" = "trilon" + "group"):
+ *  the legal forms of `LEGAL_FORM_TOKENS` that read as words, plus the careers-site and holding-company words. */
+const LABEL_TAIL_WORDS = new Set([
+  ...["inc", "corp", "corporation", "llc", "ltd", "co", "company"].filter((word) => LEGAL_FORM_TOKENS.has(word)),
+  "group", "jobs", "careers", "usa", "global", "holdings", "intl",
+]);
+
 /**
  * The site name that is a proper name inside the label ("Dunkin'" in dunkindonuts, "St. Charles Health" in
  * stcharleshealthcare): its key is a proper prefix of the label, at least 3 letters, it passes the expansion
- * hygiene, and it carries evidence of being a name rather than a page title: 2+ words, or one word with its own
- * casing ("EverTrue", "ATI"; not "Home", "Careers"). The longest key wins.
+ * hygiene, and it carries evidence of being a name rather than a page title: 2+ words, one word with its own
+ * casing ("EverTrue", "ATI"; not "Home", "Careers"), or one word that is the label minus a single `LABEL_TAIL_WORDS`
+ * word ("Trilon" in trilongroup; not "Wells" in wellsfargo, nor a name already ending in a tail: "Bigcorp" in bigcorpgroup is a cut). The longest key wins.
  */
 function prefixBrand(label: string, names: readonly string[]): string | undefined {
   const qualifies = (name: string) => {
@@ -318,7 +326,7 @@ function prefixBrand(label: string, names: readonly string[]): string | undefine
     return (
       key.length >= 3 && key.length < label.length && label.startsWith(key) &&
       wordCount(name) <= EXPANSION_MAX_WORDS && EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) &&
-      !isBanner(name) && isSoundSpelling(name) && (wordCount(name) >= 2 || carriesCasing(name))
+      !isBanner(name) && isSoundSpelling(name) && (wordCount(name) >= 2 || carriesCasing(name) || (LABEL_TAIL_WORDS.has(label.slice(key.length)) && ![...LABEL_TAIL_WORDS].some((tail) => key.endsWith(tail))))
     );
   };
   return names.filter(qualifies).sort((a, b) => siteKey(b).length - siteKey(a).length)[0];
@@ -349,8 +357,20 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * site name keeps its capitals only when the rows' own winning spelling (`rowSpelling`) is that same one (two independent witnesses);
  * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
-export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string): string {
-  return restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates);
+export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = []): string {
+  return labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain);
+}
+
+/**
+ * The last step: an unwitnessed label (one plain-cased letters/digits word whose key is the domain's first label,
+ * "Homedepot") may be spaced or cased by the first of the secondary `labelSpellings` (wikidata/row names) whose key is
+ * that label, or the label minus one `LABEL_TAIL_WORDS` word, and which starts with a letter or digit (".monks" is no name). Any name already carrying spacing, casing or punctuation stands.
+ */
+function labelSpelled(display: string, labelSpellings: readonly string[], domain?: string): string {
+  const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
+  if (!label || !/^\p{Lu}[\p{Ll}\d]*$/u.test(display) || alnum(display) !== label) return display;
+  const keys = new Set([label, ...[...LABEL_TAIL_WORDS].filter((tail) => label.endsWith(tail)).map((tail) => label.slice(0, -tail.length))]);
+  return labelSpellings.find((spelling) => /^[\p{L}\d]/u.test(spelling) && keys.has(siteKey(spelling))) ?? display;
 }
 
 /** A trailing legal form the display name strips ("zahneins GmbH"): a site name carrying one is not a spelling of the display name. A trading "Co."/"Company" is part of the brand ("Australian Venue Co."), not a legal tail. */

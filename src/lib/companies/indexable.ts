@@ -113,6 +113,8 @@ export interface IndexableCompanyDomain {
   computedAt: string | null;
   /** The company's own homepage name candidates, in source order (`site_names`). Absent when the doc has none. */
   siteNames?: string[];
+  /** `wikidata_names` then `row_names`, deduped: spellings that may only space or case a glued domain label (`labelSpelling`), never rename a name. Absent when empty. */
+  labelSpellings?: string[];
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -141,6 +143,9 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(v)) ? null : v;
 }
 
+/** The string entries of a doc field, or null when it is not an array. */
+const stringsOf = (v: unknown): string[] | null => (Array.isArray(v) ? v.filter((n): n is string => typeof n === "string") : null);
+
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
  * Isolated from the fetch so a malformed doc's handling is unit-testable
@@ -153,8 +158,11 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  const siteNames = Array.isArray(h.site_names) ? h.site_names.filter((n): n is string => typeof n === "string") : null;
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }) };
+  // Only homepage `site_names` are names (whatever their source); Wikidata/row names never become one, they only respell a glued label.
+  const homepageNames = stringsOf(h.site_names);
+  const siteNames = homepageNames?.length ? homepageNames : null;
+  const labelSpellings = [...new Set([...(stringsOf(h.wikidata_names) ?? []), ...(stringsOf(h.row_names) ?? [])])];
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own
