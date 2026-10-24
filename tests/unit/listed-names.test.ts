@@ -33,6 +33,45 @@ describe("fetchNameEvidence batch retry", () => {
   });
 });
 
+describe("fetchNameEvidence failure is never partial", () => {
+  const answer = (queries: { params: { companyDomain?: string } }[]) => queries.map((q) => [row(q.params.companyDomain!)]);
+  it("a failure in the LAST chunk rejects the whole read (no rows returned for the chunks that worked)", async () => {
+    const domains = Array.from({ length: 450 }, (_, i) => `d${i}.com`); // 3 chunks
+    const err = mock.method(console, "error", () => {});
+    try {
+      const read = async (queries: Parameters<typeof answer>[0]) => {
+        if (queries.some((q) => q.params.companyDomain === "d449.com")) throw new Error("meili timeout");
+        return answer(queries);
+      };
+      await assert.rejects(fetchNameEvidence(domains, read as never), /meili timeout/);
+    } finally { err.mock.restore(); }
+  });
+  it("stops starting chunks once one has failed, so a dead build does not keep loading Meilisearch", async () => {
+    const domains = Array.from({ length: 150 * 20 }, (_, i) => `d${i}.com`); // 20 chunks, 4 in flight
+    const err = mock.method(console, "error", () => {});
+    const started = new Set<string>();
+    try {
+      const read = async (queries: Parameters<typeof answer>[0]) => {
+        started.add(queries[0]!.params.companyDomain!);
+        if (queries[0]!.params.companyDomain === "d0.com") throw new Error("boom");
+        await new Promise((r) => setTimeout(r, 5));
+        return answer(queries);
+      };
+      await assert.rejects(fetchNameEvidence(domains, read as never), /boom/);
+      await new Promise((r) => setTimeout(r, 50));
+      assert.ok(started.size < 20 * 3, `started ${started.size} batches`);
+    } finally { err.mock.restore(); }
+  });
+  it("reads with a timeout sized to the read (measured 4-9 s per 50-domain batch), not the 8 s search default", async () => {
+    const { EVIDENCE_TIMEOUT_MS } = await import("@/lib/companies/listed-names");
+    const { MEILI_FETCH_TIMEOUT_MS } = await import("@/lib/jobs/meilisearch");
+    let seen: unknown;
+    await fetchNameEvidence(["a.com"], (async (queries: Parameters<typeof answer>[0], timeoutMs?: number) => { seen = timeoutMs; return answer(queries); }) as never);
+    assert.equal(seen, EVIDENCE_TIMEOUT_MS);
+    assert.ok(EVIDENCE_TIMEOUT_MS >= 3 * 9_100 && EVIDENCE_TIMEOUT_MS > MEILI_FETCH_TIMEOUT_MS);
+  });
+});
+
 describe("fetchNameEvidence concurrency", () => {
   it("reads several chunks at once, never more than 4 at a time, and keeps the order of the domains", async () => {
     const domains = Array.from({ length: 1500 }, (_, i) => `d${i}.com`); // 10 chunks of 150, 3 batches each

@@ -173,7 +173,7 @@ interface CompanyDirectorySearchRequest {
  *  bounded retry + config-error logging) rather than a bespoke `fetch` here. */
 async function searchCompanyDirectoryPage(
   request: CompanyDirectorySearchRequest,
-): Promise<{ hits: unknown[] }> {
+): Promise<{ hits: unknown[]; total: number }> {
   const h = host();
   if (!h) throw new Error("MEILISEARCH_HOST not set");
   const res = await meiliFetch(`${h}/indexes/${COMPANY_DIRECTORY_INDEX}/search`, {
@@ -190,8 +190,9 @@ async function searchCompanyDirectoryPage(
     const text = await res.text().catch(() => "");
     throw new Error(`Meilisearch company_directory search failed: ${res.status} ${text.slice(0, 300)}`);
   }
-  const body = (await res.json()) as { hits?: unknown[] };
-  return { hits: body.hits ?? [] };
+  const body = (await res.json()) as { hits?: unknown[]; estimatedTotalHits?: number };
+  if (typeof body.estimatedTotalHits !== "number") throw new Error("Meilisearch company_directory search answered without estimatedTotalHits");
+  return { hits: body.hits ?? [], total: body.estimatedTotalHits };
 }
 
 /**
@@ -201,9 +202,11 @@ async function searchCompanyDirectoryPage(
  * docblock's 2026-08-13 update for why this replaced both the curated
  * "elite" list and the reverted #186 facet walk. Filters server-side on
  * `open_role_count >= MIN_SITEMAP_ROLES` (the pool the directory model
- * lists from) sorted by `open_role_count` descending when Meilisearch accepts it, capped
- * at {@link DIRECTORY_POOL_SIZE}. When sort is unavailable, falls back to
- * paging with the same filter and sorting in memory before slicing.
+ * lists from) sorted by `open_role_count` descending, capped at {@link DIRECTORY_POOL_SIZE}.
+ * When Meilisearch rejects that sort (`invalid_search_sort`: the attribute is not in
+ * `sortableAttributes`, set by the publisher), falls back to paging the whole filtered set and
+ * sorting in memory before slicing. Either way the pool is ranked AND complete: what was read is
+ * checked against the response's own total and a short read throws.
  *
  * THROW POSTURE — deliberately the opposite of `market-stats.ts`'s
  * `fetchMarketStats`, which returns `null` on any failure so `/trends` can
@@ -229,6 +232,7 @@ async function searchCompanyDirectoryPage(
  * `search` is injectable (default-parameter DI, same pattern the reverted
  * #186 used for `multiSearch`) so tests never hit the network.
  */
+const SORT_REJECTED = /invalid_search_sort/;
 const SITEMAP_FILTER = `open_role_count >= ${MIN_SITEMAP_ROLES}`;
 
 function parseCompanyDirectoryPage(hits: unknown[]): { parsed: IndexableCompanyDomain[]; skipped: number } {
@@ -249,6 +253,11 @@ function capSitemapCompanies(companies: IndexableCompanyDomain[]): IndexableComp
     .slice(0, DIRECTORY_POOL_SIZE);
 }
 
+/** A pool is read in full or not at all: `read` docs where the response itself reported `want`. */
+function assertPoolComplete(read: number, want: number): void {
+  if (read !== want) throw new Error(`company_directory pool incomplete: read ${read} of ${want} docs`);
+}
+
 function zeroHitsOnFirstPageError(): Error {
   return new Error(
     "company_directory returned zero hits on the first page — either the publisher " +
@@ -259,24 +268,20 @@ function zeroHitsOnFirstPageError(): Error {
 
 async function fetchSitemapCompaniesSorted(
   search: typeof searchCompanyDirectoryPage,
-): Promise<IndexableCompanyDomain[] | null> {
-  try {
-    const { hits } = await search({
-      sort: ["open_role_count:desc"],
-      filter: SITEMAP_FILTER,
-      limit: DIRECTORY_POOL_SIZE,
-      offset: 0,
-    });
-    if (hits.length === 0) throw zeroHitsOnFirstPageError();
-    const { parsed, skipped } = parseCompanyDirectoryPage(hits);
-    if (skipped > 0) {
-      console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
-    }
-    return parsed;
-  } catch (err) {
-    if (err instanceof Error && err.message.includes("zero hits on the first page")) throw err;
-    return null;
+): Promise<IndexableCompanyDomain[]> {
+  const { hits, total } = await search({
+    sort: ["open_role_count:desc"],
+    filter: SITEMAP_FILTER,
+    limit: DIRECTORY_POOL_SIZE,
+    offset: 0,
+  });
+  if (hits.length === 0) throw zeroHitsOnFirstPageError();
+  assertPoolComplete(hits.length, Math.min(total, DIRECTORY_POOL_SIZE));
+  const { parsed, skipped } = parseCompanyDirectoryPage(hits);
+  if (skipped > 0) {
+    console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
   }
+  return parsed;
 }
 
 async function fetchSitemapCompaniesPaged(
@@ -284,22 +289,27 @@ async function fetchSitemapCompaniesPaged(
 ): Promise<IndexableCompanyDomain[]> {
   const indexable: IndexableCompanyDomain[] = [];
   let skipped = 0;
+  let read = 0;
+  let total = 0;
   for (let offset = 0; ; offset += COMPANY_DIRECTORY_PAGE_SIZE) {
-    const { hits } = await search({
+    const page = await search({
       sort: ["domain:asc"],
       filter: SITEMAP_FILTER,
       limit: COMPANY_DIRECTORY_PAGE_SIZE,
       offset,
     });
-    if (hits.length === 0) {
+    if (offset === 0) total = page.total;
+    if (page.hits.length === 0) {
       if (offset === 0) throw zeroHitsOnFirstPageError();
       break;
     }
-    const page = parseCompanyDirectoryPage(hits);
-    indexable.push(...page.parsed);
-    skipped += page.skipped;
-    if (hits.length < COMPANY_DIRECTORY_PAGE_SIZE) break;
+    const parsedPage = parseCompanyDirectoryPage(page.hits);
+    indexable.push(...parsedPage.parsed);
+    skipped += parsedPage.skipped;
+    read += page.hits.length;
+    if (page.hits.length < COMPANY_DIRECTORY_PAGE_SIZE) break;
   }
+  assertPoolComplete(read, total);
   if (skipped > 0) {
     console.warn(`fetchIndexableCompanyDomains: skipped ${skipped} malformed company_directory hit(s)`);
   }
@@ -312,7 +322,10 @@ export async function fetchIndexableCompanyDomains(
   if (!hasMeilisearch()) {
     throw new Error("MEILISEARCH_HOST is not set — cannot discover which company pages have content.");
   }
-  const sorted = await fetchSitemapCompaniesSorted(search);
-  if (sorted) return sorted;
-  return fetchSitemapCompaniesPaged(search);
+  try {
+    return await fetchSitemapCompaniesSorted(search);
+  } catch (error) {
+    if (!SORT_REJECTED.test(error instanceof Error ? error.message : String(error))) throw error;
+    return fetchSitemapCompaniesPaged(search);
+  }
 }

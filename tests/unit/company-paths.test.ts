@@ -47,6 +47,15 @@ describe("companies/paths", () => {
   });
 });
 
+describe("jobCompanyHref vendor hosts", () => {
+  it("a job on an ATS or vendor host links to the name-keyed page, a real domain to /co", () => {
+    for (const host of ["jobs.lever.co", "acme.wd5.workday.com", "app.ashbyhq.com"]) {
+      assert.equal(jobCompanyHref("Acme & Co", host), "/companies/Acme%20%26%20Co", host);
+    }
+    assert.equal(jobCompanyHref("Acme Corp", "acme.com"), "/co/acme--com");
+  });
+});
+
 describe("jobCompanyHref", () => {
   it("links straight to /co/[slug] when a company_domain is present", () => {
     assert.equal(jobCompanyHref("Acme Corp", "acme.com"), "/co/acme--com");

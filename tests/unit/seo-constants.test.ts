@@ -137,12 +137,13 @@ const isCompanyUrl = (e: { url: string }) => e.url.includes("/co/") && !e.url.in
 function everyDomainHasRoles(): Response {
   return Response.json({
     hits: FAKE_DIRECTORY_DOMAINS.map((domain) => ({ domain, open_role_count: 25 })),
+    estimatedTotalHits: FAKE_DIRECTORY_DOMAINS.length,
   });
 }
 
 /** Same endpoint, empty first page — the "publisher hasn't run yet" case. */
 function noDomainHasRoles(): Response {
-  return Response.json({ hits: [] });
+  return Response.json({ hits: [], estimatedTotalHits: 0 });
 }
 
 /**

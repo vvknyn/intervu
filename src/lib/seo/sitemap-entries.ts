@@ -34,7 +34,8 @@ export interface CompanyCache {
 /** Module state (survives across requests); exported so tests can start a case with none. */
 export const LAST_GOOD: { current: CompanyCache | null } = { current: null };
 
-const listedCompanies = async (): Promise<DirectoryCompany[]> => (await getDirectory()).companies;
+/** The directory's companies as built: a failed build rejects. For pages that must not render around a missing list. */
+export const listedCompanies = async (): Promise<DirectoryCompany[]> => (await getDirectory()).companies;
 
 /**
  * THE company set for every surface that lists companies (sitemap, /co index,
