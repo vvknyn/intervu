@@ -118,12 +118,30 @@ function scrubValue(value: unknown): unknown {
   return value;
 }
 
-/** `before_send`: every address an event carries, person `$set`s and clicked links included, without query string or hash. */
+/**
+ * Properties that say where a visitor came from or which campaign link they
+ * followed. /privacy promises none of it is kept. Dropped by key class, not by
+ * a list of names:
+ * - anything naming a referrer (`$referrer`, `$referring_domain`, `$initial_referrer`, ...);
+ * - `utm_*` tags and the search-engine / search-keyword pair posthog-js reads
+ *   from the referrer (`$search_engine`, `ph_keyword`);
+ * - every `$initial_*` and `$session_entry_*` property. posthog-js builds those
+ *   from the first page address and referrer (`session-props.js`
+ *   generateSessionSourceParams, `event-utils.js` getPersonPropsFromInfo) and
+ *   no config switch turns the session-entry copy off, so this is the only stop
+ *   for them, ad click ids (`gclid`, `fbclid`, ...) included.
+ */
+const ATTRIBUTION_KEY = /referr|^utm_|^\$search_engine$|^ph_keyword$|^\$(initial|session_entry)_/i;
+
+/** `before_send`: every address an event carries, person `$set`s and clicked links included, without query string or hash; and no referrer, campaign tag or click id. */
 export function stripUrlQueries(event: CaptureResult | null): CaptureResult | null {
   if (!event) return event;
   for (const bag of [event.properties, event.$set, event.$set_once]) {
     if (!bag) continue;
-    for (const [key, value] of Object.entries(bag)) bag[key] = scrubValue(value);
+    for (const [key, value] of Object.entries(bag)) {
+      if (ATTRIBUTION_KEY.test(key)) delete bag[key];
+      else bag[key] = scrubValue(value);
+    }
   }
   return event;
 }
@@ -202,7 +220,18 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // URL pointing back at us. Naming the real UI host keeps those working.
   ui_host: "https://us.posthog.com",
 
-  // The last stop before an event leaves the browser: no query string or hash in any address.
+  // Stop posthog-js remembering the referrer and the campaign tags / ad click
+  // ids of the first address (`posthog-core.js` capture(): update_referrer_info
+  // and update_campaign_params run only when these are true, so no $referrer,
+  // $referring_domain, utm_* or click id is registered onto events, and
+  // set_initial_person_info runs only if one of them is true, so no $initial_*).
+  // The session-entry and search-keyword copies have no switch; before_send
+  // below removes them.
+  save_referrer: false,
+  save_campaign_params: false,
+
+  // The last stop before an event leaves the browser: no query string or hash
+  // in any address, and no referrer, campaign tag or click id (stripUrlQueries).
   before_send: stripUrlQueries,
 
   // Cookieless, per-tab, gone when the tab closes.

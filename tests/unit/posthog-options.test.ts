@@ -156,10 +156,9 @@ test("addresses lose query string and hash, whatever the key, and keep path and 
   };
   const sent = stripUrlQueries(event);
   assert.equal(sent?.properties.$current_url, "https://velai.app/login");
-  assert.equal(sent?.properties.$referrer, "https://velai.app/jobs");
-  assert.equal(sent?.properties.$session_entry_url, "https://velai.app/unsubscribe");
-  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs");
-  assert.equal(sent?.$set_once?.$initial_referrer, "https://velai.app/reset-password");
+  assert.equal("$referrer" in (sent?.properties ?? {}), false);
+  assert.equal("$session_entry_url" in (sent?.properties ?? {}), false);
+  assert.deepEqual(sent?.$set_once, {});
   assert.equal(sent?.properties.$title, "Sign in? Yes");
   assert.equal(sent?.properties.count, 3);
   assert.deepEqual(sent?.properties.nested, { return_to: "/jobs" });
@@ -167,4 +166,39 @@ test("addresses lose query string and hash, whatever the key, and keep path and 
   for (const leak of ["accountant", "SECRETTOKEN", "nurse", "abc"]) assert.equal(wire.includes(leak), false, `${leak} survived`);
   assert.match(sent?.properties.$elements_chain as string, /href="\/jobs"/);
   assert.equal(POSTHOG_OPTIONS.before_send, stripUrlQueries);
+});
+
+// Where a visitor came from and which campaign link they followed is not kept
+// (/privacy says so). The shape below is what posthog-js 1.414 really attaches
+// to a $pageview of a visitor who arrived from betalist.com on a tagged link.
+test("before_send drops referrer, campaign tags and ad click ids, by key class", () => {
+  const event = {
+    uuid: "2",
+    event: "$pageview",
+    properties: {
+      $current_url: "https://velai.app/?utm_source=x&gclid=y",
+      $pathname: "/",
+      $referrer: "https://betalist.com/startups/velai",
+      $referring_domain: "betalist.com",
+      $search_engine: "google",
+      ph_keyword: "nurse jobs",
+      utm_source: "betalist",
+      $session_entry_referring_domain: "betalist.com",
+      $session_entry_utm_campaign: "launch",
+      $session_entry_gclid: "abc",
+      $session_entry_fbclid: "def",
+      $session_entry_pathname: "/",
+      $browser: "Chrome",
+    },
+    $set_once: { $initial_referring_domain: "betalist.com", $initial_gclid: "abc" },
+  };
+  const sent = stripUrlQueries(event);
+  assert.deepEqual(sent?.properties, {
+    $current_url: "https://velai.app/",
+    $pathname: "/",
+    $browser: "Chrome",
+  });
+  assert.deepEqual(sent?.$set_once, {});
+  assert.equal(POSTHOG_OPTIONS.save_referrer, false);
+  assert.equal(POSTHOG_OPTIONS.save_campaign_params, false);
 });
