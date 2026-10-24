@@ -14,6 +14,8 @@ export function getAvatarInitials(name?: string, email?: string): string {
     return local ? local.slice(0, 2).toUpperCase() : "";
 }
 
+const PLACEHOLDER_BASE = "https://velai.invalid";
+
 /**
  * A picture is shown only when it is one of our own files (a site path such as
  * "/velai-logo.png"). A sign-in provider's photo address (Google, GitHub...)
@@ -23,7 +25,15 @@ export function getAvatarInitials(name?: string, email?: string): string {
  * <img>, so no caller can reintroduce a remote photo.
  */
 export function localPictureSrc(url?: string): string | undefined {
-    return url && /^\/(?![/\\])/.test(url) ? url : undefined;
+    if (!url) return undefined;
+    // The WHATWG parser is the one browsers use: it drops tabs and newlines and
+    // reads "\\" as "/", so a regex over the raw text can disagree with where
+    // the browser actually goes.
+    try {
+        return new URL(url, PLACEHOLDER_BASE).origin === new URL(PLACEHOLDER_BASE).origin ? url : undefined;
+    } catch {
+        return undefined;
+    }
 }
 
 export interface UserAvatarProps {
