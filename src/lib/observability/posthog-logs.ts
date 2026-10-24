@@ -18,7 +18,8 @@
  *
  * Never put PII in `attrs`/`body`: no emails, resume text, tokens, query
  * strings. `attrs` is filtered to LOG_ATTR_ALLOW_LIST at the exporter; `body` is
- * a fixed sentence written at the call site. Error text is not exported at all (a message can embed anything
+ * a fixed sentence written at the call site, and `redactLogBody` strips any
+ * email, IP address or URL query string that still lands in it. Error text is not exported at all (a message can embed anything
  * the user typed); only bounded identifiers are, see `boundedIdentifier`.
  */
 
@@ -114,6 +115,14 @@ export function sanitizeLogAttrs(attrs: LogAttrs): LogAttrs {
   );
 }
 
+/** An email address, an IPv4 address, an IPv6 address (hex groups with at least two colons), or a URL query string. */
+const BODY_PII = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+|\b\d{1,3}(?:\.\d{1,3}){3}\b|(?<![\w:])[\da-f]{0,4}(?::[\da-f]{0,4}){2,7}(?![\w:])|(?<=https?:\/\/\S*)\?\S*/gi;
+
+/** Pure: `body` with emails, IP addresses and URL query strings replaced by `[redacted]`; fixed text is untouched. */
+export function redactLogBody(body: string): string {
+  return body.replace(BODY_PII, "[redacted]");
+}
+
 function otlpValue(value: string | number | boolean) {
   if (typeof value === "string") return { stringValue: value };
   if (typeof value === "boolean") return { boolValue: value };
@@ -151,7 +160,7 @@ export function buildOtlpPayload(
                 timeUnixNano: `${nowMs}000000`,
                 severityNumber: SEVERITY[level],
                 severityText: level.toUpperCase(),
-                body: { stringValue: body },
+                body: { stringValue: redactLogBody(body) },
                 attributes: otlpAttributes(sanitizeLogAttrs(attrs)),
               },
             ],
