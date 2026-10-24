@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { brandTokens, displayNameFromDomain, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -470,5 +471,85 @@ describe("N4 — all-capitals banners carry no case", () => {
     assert.equal(name({ AAFF: 3 }, "aaff.com").value, "AAFF");
     assert.equal(name({ "DHL Express": 3 }, "dhl.com").value, "DHL Express");
     assert.equal(name({ "McCain Foods": 3 }, "mccain.com").value, "McCain Foods");
+  });
+});
+
+describe("R1 — a folded glued legal form carries its spellings to the root", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+
+  it("a flattened root does not outvote the company's own spelling it absorbed (invented names)", () => {
+    assert.equal(name({ Acmeworks: 6, "Acme Works Corp": 2 }, "acmeworks.com"), "Acme Works");
+    assert.equal(name({ Zetapharma: 3, "Zeta Pharma, Inc.": 9 }, "zetapharma.com"), "Zeta Pharma");
+  });
+
+  it("the folded spelling is cut after the shortest prefix that spells the root", () => {
+    assert.equal(name({ Bolt: 1, "Bolt Foods Ltd": 4, "Bolt Labs Ltd": 4 }, "bolt.com"), "Bolt");
+    assert.equal(name({ Qubit: 2, "Qubit Systems, LLC": 2, "Qubit Labs, LLC": 2, "Qubit Systems": 2 }, "qubit.com"), "Qubit");
+  });
+
+  it("a spelling that lowered the interior case of another never wins, whatever the counts", () => {
+    assert.equal(name({ Novatx: 9, "NovaTX Inc": 2 }, "novatx.com"), "NovaTX");
+    assert.equal(name({ Mediflow: 9, MediFlow: 1 }, "mediflow.com"), "MediFlow");
+  });
+
+  it("an all-capitals spelling has no interior case to lose (banners still lose to a cased spelling, never win by it)", () => {
+    assert.equal(name({ "ACME WIDGETS": 5, "Acme Widgets": 1 }, "acmewidgets.com"), "Acme Widgets");
+    assert.equal(name({ ZIPLY: 5 }, "ziply.com"), "Ziply");
+  });
+
+  it("regression: Duke Energy, CorroHealth (feed-flattened roots)", () => {
+    assert.equal(name({ "Duke Energy Corp": 136, Dukeenergy: 57 }, "duke-energy.com"), "Duke Energy");
+    assert.equal(name({ "CorroHealth Inc": 59, "CorroHealth Infotech Private Limited": 59, Corrohealth: 5 }, "corrohealth.com"), "CorroHealth");
+  });
+});
+
+describe("R2 — a spaced-out acronym is one word and never the shown spelling", () => {
+  it("a respelling may collapse the letter run (invented names)", () => {
+    assert.equal(siteSpelling("X Y Z Labs", ["XYZ labs"], "xyzlabs.com"), "XYZ labs");
+    assert.equal(siteSpelling("Q R Holdings", ["QR Holdings"], "qrholdings.com"), "QR Holdings");
+  });
+
+  it("the letter run never wins its group, however common", () => {
+    const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+    assert.equal(name({ "X Y Z  Labs": 9, "XYZ LABS": 1 }, "xyzlabs.com"), "XYZ Labs");
+    assert.equal(name({ "Q R Holdings": 4, "QR Holdings": 1 }, "qrholdings.com"), "QR Holdings");
+  });
+
+  it("regression: APF entreprises", () => {
+    assert.equal(siteSpelling("A P F Entreprises", ["APF entreprises"], "apf-entreprises.fr"), "APF entreprises");
+  });
+
+  it("a plain extra space is still a space", () => {
+    assert.equal(siteSpelling("Sunlife", ["Sun Life"], "sunlife.com"), "Sun Life");
+    assert.equal(siteSpelling("Sun Life", ["Sunlife"], "sunlife.com"), "Sun Life");
+  });
+});
+
+describe("R3 — a respelling never lowers an acronym", () => {
+  it("keeps a capitalised word of display (invented names)", () => {
+    assert.equal(siteSpelling("ZED", ["Zed Corp"], "zed.com"), "ZED");
+    assert.equal(siteSpelling("QX Systems", ["Qx Systems"], "qxsystems.com"), "QX Systems");
+  });
+
+  it("still re-cases a banner display, where the cased spelling is the point", () => {
+    assert.equal(siteSpelling("ZEDWORKS", ["Zedworks"], "zedworks.com"), "Zedworks");
+    assert.equal(siteSpelling("AIR LIQUIDE", ["Air Liquide"], "airliquide.com"), "Air Liquide");
+  });
+
+  it("still takes a respelling that lowers nothing capitalised", () => {
+    assert.equal(siteSpelling("Naughtone", ["NaughtOne"], "naughtone.com"), "NaughtOne");
+  });
+
+  it("regression: FOX, ARK Systems", () => {
+    assert.equal(siteSpelling("FOX", ["foxcorporation", "Fox Corporation"], "foxcorporation.com"), "FOX");
+    assert.equal(siteSpelling("ARK Systems", ["Ark Systems Inc"], "arksysinc.com"), "ARK Systems");
+  });
+});
+
+describe("R4 — title-casing a banner still lets the legal form strip", () => {
+  it("displayCompanyName strips the legal form after the resolver title-cased the banner (invented names)", () => {
+    const shown = (tally: Record<string, number>, domain: string) => displayCompanyName(resolveCompanyName(rows(tally), domain).value);
+    assert.equal(shown({ "ACME WIDGETS CORP.": 3 }, "acmewidgets.com"), "Acme Widgets");
+    assert.equal(shown({ "ZETA PHARMA INC": 3 }, "zetapharma.com"), "Zeta Pharma");
   });
 });
