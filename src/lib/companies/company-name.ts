@@ -63,6 +63,8 @@ export type CompanyDisplayName = {
   /** The share of the rows that carry a name at all whose name agrees with the domain: how corroborated
    *  the domain's identity is (0 when the label is shown). */
   share: number;
+  /** The rows' own winning spelling, before any re-casing ("SEARCH" where `value` is "Search"): what the rows themselves witness. */
+  rowSpelling: string;
 };
 
 /**
@@ -223,22 +225,25 @@ const DOMAIN_TOKEN_RE = /\.[a-z]{2,}\b/i;
 /**
  * Can `label` be read as pieces taken in order from the start of successive tokens of `name`? Each piece is a
  * subsequence of ONE token that begins with that token's first letter ("pyramidhc" = Pyramid + h,c of Healthcare);
- * the first piece comes from the first token, later tokens may be skipped.
+ * the first piece comes from the first token, middle tokens may be skipped.
+ * Returns how many trailing words (legal forms aside) the best reading leaves unspelled ("Germany" after "JT International": 1), or Infinity when none reads.
  */
-function spellsFromWordStarts(label: string, name: string): boolean {
+function unspelledTrailingWords(label: string, name: string): number {
   const tokens = name.split(/[\s&]+/).map(siteKey).filter(Boolean);
+  while (tokens.length > 1 && LEGAL_FORM_TOKENS.has(tokens.at(-1)!)) tokens.pop();
   const isSubsequence = (token: string, piece: string): boolean => {
     let at = 0;
     for (const ch of token) if (ch === piece[at]) at++;
     return at === piece.length;
   };
-  const consume = (rest: string, from: number, last: number): boolean => {
-    if (!rest) return true;
+  const consume = (rest: string, from: number, last: number): number => {
+    if (!rest) return tokens.length - from;
+    let fewest = Infinity;
     for (let t = from; t < last; t++) {
       if (tokens[t]![0] !== rest[0]) continue;
-      for (let k = rest.length; k >= 1; k--) if (isSubsequence(tokens[t]!, rest.slice(0, k)) && consume(rest.slice(k), t + 1, tokens.length)) return true;
+      for (let k = rest.length; k >= 1; k--) if (isSubsequence(tokens[t]!, rest.slice(0, k))) fewest = Math.min(fewest, consume(rest.slice(k), t + 1, tokens.length));
     }
-    return false;
+    return fewest;
   };
   return consume(label, 0, Math.min(1, tokens.length));
 }
@@ -254,13 +259,22 @@ function acronymAwareWordCount(c: string): number {
 }
 /** An acronym written out letter by letter ("A P F  Entreprises"): a spelling of the letters, not of words. */
 const isSpelledOut = (c: string): boolean => acronymAwareWordCount(c) < wordCount(c);
-/** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). */
-const keepsWords = (c: string, display: string): boolean => acronymAwareWordCount(c) >= acronymAwareWordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+/** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). A hyphen joining capitalised words in `c` ("Renaud-Bray") stands for that space. */
+const keepsWords = (c: string, display: string): boolean => acronymAwareWordCount(c.replace(/(?<=\p{L})-(?=\p{Lu})/gu, " ")) >= acronymAwareWordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
 /** Does `c` write in lower case a word (2+ letters) that `display` writes in capitals ("Fox" for "FOX")? A banner display is exempt: re-casing it is the point. */
 function lowersAcronym(c: string, display: string): boolean {
   if (isBanner(display)) return false;
   const words = c.split(/[^\p{L}\p{N}]+/u);
   return display.split(/[^\p{L}\p{N}]+/u).some((w) => w.length >= 2 && /^\p{Lu}+$/u.test(w) && words.some((x) => x !== w && x.toUpperCase() === w));
+}
+
+const WORD_SPLIT_RE = /[^\p{L}\p{N}'\u2019]+/u;
+/** SMALL_WORDS plus the joiners other languages and title case use ("for", "de", "y"): words a name may write in lower case. */
+const CONNECTORS = new Set([...SMALL_WORDS, "for", "de", "du", "des", "la", "le", "y", "et", "von", "van", "der"]);
+/** Does `c` write in lower case a non-first word that `display` capitalises ("APF entreprises" for "APF Entreprises")? A connector ("and", "of") is exempt. */
+function lowersWord(c: string, display: string): boolean {
+  const written = new Set(c.split(WORD_SPLIT_RE));
+  return display.split(WORD_SPLIT_RE).slice(1).some((w) => /^\p{Lu}/u.test(w) && !CONNECTORS.has(w.toLowerCase()) && !written.has(w) && written.has(w.toLowerCase()));
 }
 
 /** The shortest whitespace-word prefix (2+ words) of `name` that already spells `label`: the rest is a tagline. */
@@ -273,17 +287,19 @@ function dropTagline(label: string, name: string): string {
   return name;
 }
 
-/** The shortest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words. */
+/** The tightest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words, leaving the fewest words unspelled. */
 function expandSquashedLabel(label: string, names: readonly string[]): string | undefined {
   const qualifies = (name: string) => {
     const words = name.split(/\s+/);
     return (
       words.length >= 2 && words.length <= EXPANSION_MAX_WORDS &&
       EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) && !isBanner(name) &&
-      siteKey(words[0]!) !== label && spellsFromWordStarts(label, name)
+      siteKey(words[0]!) !== label && unspelledTrailingWords(label, dropTagline(label, name)) < Infinity
     );
   };
-  return names.filter(qualifies).map((name) => dropTagline(label, name)).filter(isSoundSpelling).sort((a, b) => a.length - b.length)[0];
+  // The tightest reading first: fewest words the label does not spell ("Japan Tobacco International" over "JT International Germany" for jti), then the shortest.
+  const unspelled = (name: string) => unspelledTrailingWords(label, name);
+  return names.filter(qualifies).map((name) => dropTagline(label, name)).filter(isSoundSpelling).sort((a, b) => unspelled(a) - unspelled(b) || a.length - b.length)[0];
 }
 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
@@ -327,13 +343,15 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * prefix of an expansion that already spells the label is the name; the rest is a tagline ("Airbus Helicopters in Canada").
  * (4) A name that is a proper prefix of the label ("Dunkin'" for dunkindonuts) is the last resort, and needs 2+ words or
  * casing of its own. (5) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
- * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no).
+ * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no),
+ * or lower-case a non-connector word `display` capitalises. (6) An all-capitals
+ * site name respells only when the rows' own winning spelling (`rowSpelling`) is that same one: two independent witnesses.
  */
-export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string): string {
+export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string): string {
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
   const cleaned = spellings.map((c) => displayCompanyName(c));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !lowersAcronym(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && (!isBanner(c) || c === rowSpelling) && keepsWords(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
@@ -651,8 +669,9 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     }
   }
 
-  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named };
-  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0 };
+  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: best.display };
+  const value = displayNameFromDomain(domain);
+  return { value, source: "domain", agrees: false, share: 0, rowSpelling: value };
 }
 
 function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"> {
