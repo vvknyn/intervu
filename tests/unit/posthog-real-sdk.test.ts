@@ -1,3 +1,4 @@
+import type { CaptureResult } from "posthog-js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { POSTHOG_OPTIONS } from "../../src/lib/posthog-options";
@@ -58,7 +59,7 @@ test("real posthog-js: referrer, utm tags and click ids never leave before_send"
     advanced_disable_flags: true,
     capture_pageview: false,
     capture_pageleave: false,
-    before_send: (event) => {
+    before_send: (event: CaptureResult | null) => {
       if (event) seen.received.push(JSON.parse(JSON.stringify({ ...event.properties, ...Object.fromEntries(Object.entries(event.$set_once ?? {})) })));
       const out = POSTHOG_OPTIONS.before_send as (e: unknown) => { properties: Record<string, unknown>; $set_once?: Record<string, unknown> } | null;
       const result = out(event);
