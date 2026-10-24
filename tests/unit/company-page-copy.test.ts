@@ -40,21 +40,26 @@ function jobs(n: number): PublicJob[] {
 test("staleShareText: restates the pct as the count it was computed from (the audit's own '9 of the 68 shown' example)", () => {
   // 13% of 68 = 8.84, rounds to 9 — exactly the live number that motivated
   // this rewrite (13% possibly-stale of 68 shown).
-  assert.equal(staleShareText({ ghostFlaggedPct: 13, jobs: jobs(68) }), "9 of the 68 roles tracked here may no longer be live.");
+  assert.equal(staleShareText({ ghostFlaggedPct: 13, jobs: jobs(68), openCount: 68, openCountIsLowerBound: false }), "9 of the 68 roles tracked here may no longer be live.");
 });
 
 test("staleShareText: a SECOND company shape — a smaller window with a different pct rounds independently, not off the first case's numbers", () => {
   // 25% of 12 = 3 exactly, no rounding ambiguity — proves this isn't
   // hardcoded around the 68/9 example above.
-  assert.equal(staleShareText({ ghostFlaggedPct: 25, jobs: jobs(12) }), "3 of the 12 roles tracked here may no longer be live.");
+  assert.equal(staleShareText({ ghostFlaggedPct: 25, jobs: jobs(12), openCount: 12, openCountIsLowerBound: false }), "3 of the 12 roles tracked here may no longer be live.");
+});
+
+test("staleShareText: a window that is only a sample of the open count names no second count (a floor, or more roles than loaded)", () => {
+  assert.equal(staleShareText({ ghostFlaggedPct: 25, jobs: jobs(12), openCount: 40, openCountIsLowerBound: false }), "3 of the newest roles tracked here may no longer be live.");
+  assert.equal(staleShareText({ ghostFlaggedPct: 25, jobs: jobs(12), openCount: 12, openCountIsLowerBound: true }), "3 of the newest roles tracked here may no longer be live.");
 });
 
 test("staleShareText: null pct (no fetched window) renders no sentence, not a fabricated 0", () => {
-  assert.equal(staleShareText({ ghostFlaggedPct: null, jobs: [] }), null);
+  assert.equal(staleShareText({ ghostFlaggedPct: null, jobs: [], openCount: 0, openCountIsLowerBound: false }), null);
 });
 
 test("staleShareText: zero flagged still states the honest zero count, not null", () => {
-  assert.equal(staleShareText({ ghostFlaggedPct: 0, jobs: jobs(5) }), "0 of the 5 roles tracked here may no longer be live.");
+  assert.equal(staleShareText({ ghostFlaggedPct: 0, jobs: jobs(5), openCount: 5, openCountIsLowerBound: false }), "0 of the 5 roles tracked here may no longer be live.");
 });
 
 test("fitPromptTitle counts the roles the résumé would be scored against", () => {

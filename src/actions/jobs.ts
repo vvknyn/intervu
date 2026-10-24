@@ -25,9 +25,9 @@ import {
   type RelatedSeed,
 } from "@/lib/jobs/related-jobs";
 import { relatedCountryIso2 } from "@/lib/jobs/related-country";
-import { resolveOpenCount, type OpenCount } from "@/lib/companies/open-count";
+import type { OpenCount } from "@/lib/companies/open-count";
 import { resolveCorpusCount, resolveLiveCorpusCount, type CorpusCount } from "@/lib/jobs/corpus-count";
-import { COMPANY_JOBS_FETCH_LIMIT } from "@/lib/companies/get-company";
+import { companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { bucketCursorToUtcDay } from "@/lib/jobs/visit-cursor";
 import { getJobById } from "@/lib/jobs/get-job";
@@ -35,7 +35,6 @@ import { withDescriptionPlace, withPlaceRestrictions } from "@/lib/jobs/place-no
 import { SEARCH_JD_READ_DEADLINE_MS, SEARCH_JD_TYPED_READ_DEADLINE_MS, withJdTerms } from "@/lib/jobs/jd-terms";
 import { getAdminDb } from "@/lib/firebase/admin";
 import type { ResumeData } from "@/types/resume";
-import { isInternalPosting } from "@/lib/jobs/presentation";
 import { DEFAULT_URL_STATE, jobSearchParamsFromUrlState, type JobsUrlState } from "@/lib/jobs/url-state";
 import type { JobSearchParams, JobSearchResult, JobsBackendKind, PlaceClause, PublicJob } from "@/lib/jobs/types";
 import {
@@ -243,17 +242,13 @@ async function fetchRelatedExcluding(jobId: string, params: JobSearchParams): Pr
  * still a single logical call.
  */
 async function fetchCompanyWindow(companyDomain: string): Promise<JobSearchResult> {
-  return runSearch({
-    companyDomain,
-    limit: COMPANY_JOBS_FETCH_LIMIT,
-    hideGhosts: false,
-  });
+  return runSearch(companyRolesParams(companyDomain));
 }
 
 async function resolveCompanyOpenCount(companyDomain: string): Promise<OpenCount | null> {
   if (!companyDomain) return null;
   const countResult = await fetchCompanyWindow(companyDomain);
-  return resolveOpenCount(countResult, countResult.hits.length, COMPANY_JOBS_FETCH_LIMIT);
+  return companyOpenCount(countResult);
 }
 
 /**
@@ -288,9 +283,9 @@ export async function getCompanyRailAction(
   if (!allowSearchRequest(ip)) return { openCount: null, aboutLine: null };
 
   const result = await fetchCompanyWindow(companyDomain);
-  const jobs = result.hits.filter((job) => !isInternalPosting(job.title));
+  const jobs = publicRoles(result.hits);
   return {
-    openCount: resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT),
+    openCount: companyOpenCount(result),
     aboutLine: extractCompanyAboutLine(jobs, companyName),
   };
 }

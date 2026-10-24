@@ -3,8 +3,7 @@ import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { getDirectory } from "@/lib/companies/directory-model";
-import { COMPANY_JOBS_FETCH_LIMIT, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
-import { resolveOpenCount } from "@/lib/companies/open-count";
+import { COMPANY_JOBS_FETCH_LIMIT, companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
@@ -196,7 +195,7 @@ export async function getCompanyPageData(
   if (jobs.length === 0 && boards.length === 0) return null;
 
   const name = resolveCompanyName(jobs, domain);
-  const openCount = resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT);
+  const openCount = companyOpenCount(result);
   const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
   // The `company_*` aggregates land on documents progressively as the sync
   // re-writes them, so most of a company's hits still carry nothing while some

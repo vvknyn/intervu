@@ -3,14 +3,20 @@ import { describe, it } from "node:test";
 import { buildDirectory, fetchCompanyInSitemapSet, fetchDirectory, singleFlight, type Directory } from "@/lib/companies/directory-model";
 import { ATS_PORTAL_HOSTNAME_RE } from "@/lib/jobs/presentation";
 import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
+import { companyOpenCount, companyRolesParams, COMPANY_JOBS_FETCH_LIMIT, publicRoles } from "@/lib/companies/company-roles-query";
+import { buildCompanyFacts, buildDistribution } from "@/lib/companies/company-facts";
+import { buildRelatedCompanies } from "@/lib/companies/related-companies";
+import type { EachResult } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** A candidate and its role rows: `names` maps a company string to how many rows carry it. */
 type Spec = [domain: string, roles: number, names: Record<string, number>, siteNames?: string[]];
 const rowsOf = (names: Record<string, number>): PublicJob[] =>
   Object.entries(names).flatMap(([company, n]) => Array.from({ length: n }, (_, i) => ({ company, title: `${company} role ${i}`, location: "Remote" }) as PublicJob));
-const build = (specs: Spec[], cap?: number): Directory =>
-  buildDirectory(specs.map(([domain, openRoleCount, , siteNames]): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null, ...(siteNames && { siteNames }) })), specs.map(([, , names]) => rowsOf(names)), cap);
+const readOf = (hits: PublicJob[]): EachResult => ({ hits, total: hits.length });
+/** The threshold is 1 here: these cases are about names, and a handful of rows stands for a company. */
+const build = (specs: Spec[], cap?: number, minRoles = 1): Directory =>
+  buildDirectory(specs.map(([domain, openRoleCount, , siteNames]): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null, ...(siteNames && { siteNames }) })), specs.map(([, , names]) => readOf(rowsOf(names))), cap, minRoles);
 const listed = (d: Directory) => Object.fromEntries(d.companies.map((c) => [c.domain, c.name]));
 const excluded = (d: Directory, rule: string) => d.excluded.filter((e) => e.rule === rule);
 
@@ -92,7 +98,7 @@ describe("buildDirectory — which domains are listed, under what name and lette
   });
 
   it("L: the letter is that of the name shown, not of the domain", () => {
-    const d = build([["ayvens.com", 50, { "LPSC Ayvens": 5 }], ["eclair.fr", 40, { "Éclair Boulangerie": 5 }], ["3m.com", 30, { "3M": 5 }]]);
+    const d = build([["ayvens.com", 50, { "LPSC Ayvens": 50 }], ["eclair.fr", 40, { "Éclair Boulangerie": 40 }], ["3m.com", 30, { "3M": 30 }]]);
     assert.deepEqual(d.companies.map((c) => [c.name, c.letter]), [["Ayvens", "A"], ["Éclair Boulangerie", "E"], ["3M", "#"]]);
   });
 });
@@ -100,7 +106,7 @@ describe("buildDirectory — which domains are listed, under what name and lette
 describe("fetchDirectory / fetchCompanyInSitemapSet", () => {
   it("reads candidates, then their rows in order, and builds the directory from them", async () => {
     const candidates = [{ domain: "acme.com", openRoleCount: 40, computedAt: null }];
-    const d = await fetchDirectory(async () => candidates, async (domains) => domains.map(() => rowsOf({ "Acme Robotics": 3 })));
+    const d = await fetchDirectory(async () => candidates, async (domains) => domains.map(() => readOf(rowsOf({ "Acme Robotics": 30 }))));
     assert.deepEqual(listed(d), { "acme.com": "Acme Robotics" });
   });
 
@@ -191,5 +197,68 @@ describe("singleFlight — one shared build, stale-while-revalidate", () => {
     const read = singleFlight(async () => { if (builds++ === 0) throw new Error("cold failure"); return "ok"; }, 1000, {}, () => 0);
     await assert.rejects(read(), /cold failure/);
     assert.equal(await read(), "ok");
+  });
+});
+
+/** `n` distinct roles, `dupes` re-posted copies of the first, and `internal` staffing postings. */
+const mixedRows = (company: string, n: number, dupes: number, internal: number): PublicJob[] => [
+  ...rowsOf({ [company]: n }),
+  ...Array.from({ length: dupes }, () => ({ company, title: `${company} role 0`, location: "Remote" }) as PublicJob),
+  ...Array.from({ length: internal }, (_, i) => ({ company, title: `[Internal] ${company} ${i}`, location: "Remote" }) as PublicJob),
+];
+const candidate = (domain: string, openRoleCount: number): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null });
+
+describe("buildDirectory — one open-roles number", () => {
+  it("(a) a listed company's openRoleCount is the deduped count, not the raw tally: duplicates and internal postings are not counted", () => {
+    for (const [domain, company, n, dupes, internal] of [["acme.com", "Acme Robotics", 30, 5, 3], ["beta.com", "Beta Labs", 41, 0, 2]] as const) {
+      const d = buildDirectory([candidate(domain, n + dupes + internal)], [readOf(mixedRows(company, n, dupes, internal))]);
+      assert.equal(d.companies[0]!.openRoleCount, n, domain);
+    }
+  });
+
+  it("(b) raw at the threshold but canonical below it: excluded (T1), and the next candidate fills the place under a cap of 1", () => {
+    const d = buildDirectory(
+      [candidate("thin.com", 28), candidate("next.com", 26)],
+      [readOf(mixedRows("Thin Works", 20, 5, 3)), readOf(mixedRows("Next Works", 26, 0, 0))],
+      1,
+    );
+    assert.deepEqual(d.companies.map((c) => [c.domain, c.openRoleCount]), [["next.com", 26]]);
+    assert.deepEqual(d.excluded, [{ domain: "thin.com", rule: "T1" }]);
+  });
+
+  it("sorts by the canonical number, not the raw one", () => {
+    const d = buildDirectory(
+      [candidate("padded.com", 90), candidate("honest.com", 60)],
+      [readOf(mixedRows("Padded Co", 30, 40, 20)), readOf(mixedRows("Honest Co", 60, 0, 0))],
+    );
+    assert.deepEqual(d.companies.map((c) => c.domain), ["honest.com", "padded.com"]);
+  });
+
+  it("(d) conservation: page facts, directory row, related entry and job-detail rail give one number for one fixture", () => {
+    const result = { ...readOf(mixedRows("Acme Robotics", 33, 6, 4)), total: 43 };
+    const page = buildCompanyFacts({ name: "Acme Robotics", domain: "acme.com", jobs: publicRoles(result.hits), openCount: companyOpenCount(result) }).hiring.openCount;
+    const row = buildDirectory([candidate("acme.com", 43)], [result]).companies[0]!;
+    const related = buildRelatedCompanies(["acme.com"], [row], "other.com")[0]!.openRoleCount;
+    const rail = companyOpenCount(result).value; // getCompanyRailAction / getCompanyOpenCountAction return exactly this call
+    assert.deepEqual([page, row.openRoleCount, related, rail], [33, 33, 33, 33]);
+    assert.equal(companyRolesParams("acme.com").limit, COMPANY_JOBS_FETCH_LIMIT);
+  });
+
+  it("a saturated window reads as the backend's count, as the company page does", () => {
+    const hits = rowsOf({ "Big Co": COMPANY_JOBS_FETCH_LIMIT });
+    assert.equal(buildDirectory([candidate("big.com", 900)], [{ hits, total: 900 }]).companies[0]!.openRoleCount, 900);
+  });
+});
+
+describe("mix shares never exceed 100%", () => {
+  it("(c) facet counts over the raw population keep a denominator at or above every count they divide", () => {
+    const facets = { work_type: { remote: 300, onsite: 100 }, visa_sponsorship: { true: 150, false: 100 } };
+    const facts = buildCompanyFacts({ name: "Acme", domain: "acme.com", jobs: [], openCount: { value: 120, isLowerBound: false }, facetDistribution: facets as never });
+    const wt = facts.mix.workType!;
+    assert.equal(facts.hiring.openCount, 120);
+    for (const b of wt.buckets) assert.ok(b.count / wt.total <= 1, `${b.value} ${b.count}/${wt.total}`);
+    assert.ok(facts.mix.visaSponsorship!.stated <= facts.mix.visaSponsorship!.total);
+    const small = buildDistribution({ remote: 5 }, 200)!;
+    assert.equal(small.total, 200);
   });
 });

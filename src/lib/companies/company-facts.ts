@@ -20,12 +20,11 @@ import { toValueArray, type FacetDistribution, type PublicJob } from "@/lib/jobs
 export interface Distribution {
   /** Highest count first; 'unknown'/blank values are never a bucket. */
   buckets: { value: string; count: number }[];
-  /** Roles that state the attribute (copy says "of N roles that state a work
+  /** Postings that state the attribute — a facet count, not a role count (copy says "of N listings that state a work
    *  mode"). Null for multi-valued facets, where bucket counts overlap and a
    *  per-role count cannot be recovered from a facet. */
   stated: number | null;
-  /** Every role the counts were taken over (all live roles for a facet; the
-   *  fetched window for skills). */
+  /** The population the counts are shares of: at least the open count, and never below a bucket's count. */
   total: number;
 }
 
@@ -120,7 +119,9 @@ export function buildDistribution(
   return {
     buckets: all.slice(0, limit),
     stated: multiValued ? null : all.reduce((sum, b) => sum + b.count, 0),
-    total,
+    // Facet counts are over every matching posting (duplicates and internal ones included), the
+    // open count is not: the denominator never sits below a count it divides, so no share exceeds 100%.
+    total: Math.max(total, all[0]!.count),
   };
 }
 
@@ -236,7 +237,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
       workType: buildDistribution(facets?.work_type, total),
       employmentType: buildDistribution(facets?.employment_type, total),
       experienceLevel: buildDistribution(facets?.experience_level, total),
-      visaSponsorship: stated > 0 ? { sponsors, stated, total } : null,
+      visaSponsorship: stated > 0 ? { sponsors, stated, total: Math.max(total, stated) } : null,
       skills: buildDistribution(skillCounts(jobs), jobs.length, { multiValued: true }),
       tech: buildDistribution(facets?.tech_stack, total, { multiValued: true }),
     },

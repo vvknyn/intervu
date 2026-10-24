@@ -8,7 +8,7 @@ import type { CompanyFaqItem } from "@/lib/companies/company-faq";
 import { PAY_SCOPE, type CompanyFacts, type Distribution } from "@/lib/companies/company-facts";
 import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
-import { listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
+import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
@@ -141,7 +141,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
           {v && (
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground">Visa sponsorship</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{`${formatCount(v.sponsors)} of ${formatCount(v.stated)} roles that state it offer sponsorship.`}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{`${formatCount(v.sponsors)} of ${formatCount(v.stated)} listings that state it offer sponsorship.`}</p>
             </div>
           )}
           {pay && (
@@ -169,7 +169,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
           <div className="min-w-0">
             <h3 className="text-sm font-semibold text-foreground">Tech named</h3>
             <div className="mt-1 break-words text-sm text-muted-foreground">
-              <DotSeparated items={facts.mix.tech.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnRoles(b.count)})</span></span>)} />
+              <DotSeparated items={facts.mix.tech.buckets.map((b) => <span key={b.value}>{b.value} <span className="text-xs">({listedOnPostings(b.count)})</span></span>)} />
             </div>
           </div>
         )}

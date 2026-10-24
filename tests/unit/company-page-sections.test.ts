@@ -53,7 +53,7 @@ describe("buildCompanyFaq", () => {
     const faq = buildCompanyFaq(full());
     assert.equal(faq.length, 5);
     assert.match(faq[0].answer, /1,240 open roles/);
-    assert.match(faq.find((q) => /remote/.test(q.question))!.answer, /300 of 1,240 roles that state a work mode/);
+    assert.match(faq.find((q) => /remote/.test(q.question))!.answer, /300 of 1,240 listings that state a work mode/);
     assert.match(faq.find((q) => /visas/.test(q.question))!.answer, /20 of 100/);
   });
   it("omits questions without data", () => {
