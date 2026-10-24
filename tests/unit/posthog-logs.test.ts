@@ -171,3 +171,15 @@ test("the privacy page lists the same fields the exporter allows", () => {
   assert.match(page, /LOG_ATTR_ALLOW_LIST\.map/);
   assert.match(page, /error and slow-request logs to PostHog/);
 });
+
+test("the log body is redacted at the exporter: emails, IPv4/IPv6 and URL query strings go, fixed text stays", () => {
+  const body = (text: string) =>
+    buildOtlpPayload({ environment: "production" }, "error", text, {}, 1).resourceLogs[0].scopeLogs[0].logRecords[0].body.stringValue;
+  const fixed = "page error on GET /unsubscribe/[token]";
+  assert.equal(body(fixed), fixed);
+  assert.equal(body("failed for a.b+c@mail.example.com"), "failed for [redacted]");
+  assert.equal(body("from 203.0.113.42 refused"), "from [redacted] refused");
+  assert.equal(body("from 2001:db8::8a2e:370:7334 and ::1 refused"), "from [redacted] and [redacted] refused");
+  assert.equal(body("GET https://velai.co/jobs?q=nurse&city=nyc failed"), "GET https://velai.co/jobs[redacted] failed");
+  assert.ok(!body("x 10.0.0.7 y u@v.io z https://a.b/c?token=s3cret").match(/10\.0|@|s3cret/));
+});
