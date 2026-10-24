@@ -136,7 +136,7 @@ describe("public legal & email contact copy guards", () => {
     assert.match(prose, /asks PostHog to delete the person tied to your account id/i);
     assert.match(prose, /never signed in[\s\S]{0,80}not removed/i);
     assert.match(prose, /replay recordings[\s\S]{0,80}30 days/i);
-    assert.match(prose, /not confirmed a fixed[\s\S]{0,120}analytics events or heatmap/i);
+    assert.match(prose, /not confirmed a fixed[\s\S]{0,120}analytics events in PostHog/i);
     assert.doesNotMatch(prose, /follow the PostHog retention described above/i);
     assert.match(prose, /contact-form|connect-waitlist/i);
   });

@@ -75,7 +75,7 @@ const callback = withDirectHitGuard(
             const user = await getServerUser();
             const code = callbackErrorCode(error);
             console.error(callbackFailureLogLine(code, user !== null));
-            captureServerEvent("auth_callback_failed", user?.uid ?? crypto.randomUUID(), { code });
+            captureServerEvent("auth_callback_failed", { code });
             const returnPath = await returnPathFromAuthState(request.nextUrl.searchParams.get("state"));
             const landing = decideCallbackFailureLanding({
                 hasSession: user !== null,

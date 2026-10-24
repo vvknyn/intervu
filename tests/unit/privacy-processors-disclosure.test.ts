@@ -15,7 +15,6 @@ const PROCESSOR_DEFS = [
     { privacyLabel: "PostHog", needles: [/posthog-js/, /POSTHOG_OPTIONS/] },
     { privacyLabel: "Resend", needles: [/from ["']resend["']/] },
     { privacyLabel: "OpenRouter", needles: [/OPENROUTER_API_KEY/, /provider:\s*["']openrouter["']/] },
-    { privacyLabel: "Groq", needles: [/GROQ_API_KEY/, /from ["']groq-sdk["']/] },
     { privacyLabel: "Google Cloud Firestore", needles: [/firebase-admin\/firestore/, /getAdminDb\s*\(/] },
     { privacyLabel: "Cloudflare Turnstile", needles: [/verifyTurnstile\s*\(/, /challenges\.cloudflare\.com/] },
     { privacyLabel: "Meilisearch", needles: [/MEILISEARCH_HOST/, /meilisearch\.ts/] },

@@ -11,8 +11,8 @@
  *
  * Since 2026-08-23 it is no longer résumé-only: with bring-your-own-key gone,
  * the app funds every generation, so every generation walks the rungs. Callers
- * do not opt in — the one surviving chokepoint, `generateGenericJSON` in
- * actions/generate-context.ts, passes `FREE_LADDER` by default.
+ * do not opt in — the one surviving chokepoint, `fetchJSON`,
+ * passes `FREE_LADDER` by default.
  *
  * One property matters more than the saving:
  *
@@ -64,9 +64,8 @@ export const PAID_RUNG_TIMEOUT_MS = 60_000;
  * - **No ladder requested.** Kept as the module's honest zero case: given no
  *   rungs there is nothing to walk. In the app both chokepoints now always
  *   pass `FREE_LADDER`, so this branch is reached only by a direct caller.
- * - **Not OpenRouter.** A user on their own Groq key has an entirely
- *   different model namespace (`openai/gpt-oss-20b`, not
- *   `vendor/model:free`); handing them these slugs would 404 every rung and
+ * - **Not OpenRouter.** Another provider has an entirely different
+ *   model namespace (not `vendor/model:free`); handing them these slugs would 404 every rung and
  *   turn a working generation into a failure. Their own key, their own model.
  * - **An explicit model override.** If a caller named a model, honour it.
  *

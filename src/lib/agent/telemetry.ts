@@ -14,9 +14,8 @@
  * Rides `postServerCapture` (analytics/server-capture.ts) like
  * `$ai_generation` does: fire-and-forget, a no-op without
  * `NEXT_PUBLIC_POSTHOG_KEY`, never throws, so the tool's own result is
- * never delayed or failed by analytics. `distinct_id` is the account uid —
- * the same id `PostHogProvider` identifies the browser session with — so a
- * person's web and MCP activity land on one PostHog person.
+ * never delayed or failed by analytics. The event carries no account: the
+ * capture chokepoint gives every event a random id and no person profile.
  *
  * No tool INPUT or OUTPUT is sent: a search query, a résumé, a company name
  * would all be PII or corpus data in a third-party store. Only the tool
@@ -31,8 +30,6 @@ export type McpToolCallTelemetry = {
     /** Catalog tool name (`search_jobs`, …), or the JSON-RPC method for a
      *  call rejected before a tool was resolved (`tools/list`, `POST`). */
     tool: string;
-    /** Account uid the credential belongs to — the PostHog distinct id. */
-    uid: string;
     durationMs: number;
     isError: boolean;
     /** Bounded error class (`unavailable`, `rate_limited`, `exception`, or
@@ -46,7 +43,7 @@ export type McpToolCallTelemetry = {
 };
 
 export function captureMcpToolCall(call: McpToolCallTelemetry): void {
-    postServerCapture(MCP_TOOL_CALL_EVENT, call.uid, {
+    postServerCapture(MCP_TOOL_CALL_EVENT, {
         $mcp_tool_name: call.tool,
         $mcp_server_name: MCP_SERVER_NAME,
         $mcp_duration_ms: call.durationMs,

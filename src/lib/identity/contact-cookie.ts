@@ -74,7 +74,6 @@ export async function consumeAndSaveSearchAlert(
   redirectPath: string;
   contactToken: string;
   email: string;
-  distinctId: string | null;
   analytics: SearchAlertAnalytics | null;
 } | null> {
   const consumed = await consumeSearchAlertToken(q, rawToken);
@@ -91,7 +90,6 @@ export async function consumeAndSaveSearchAlert(
     redirectPath: consumed.redirectPath,
     contactToken: consumed.contactToken,
     email: consumed.email,
-    distinctId: consumed.distinctId,
     analytics: consumed.analytics,
   };
 }

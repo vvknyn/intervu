@@ -80,11 +80,6 @@ export interface PublicJob {
    * terms from it (`jdTermsOf`, match/jd-match.ts).
    */
   jd_terms?: JdTerms | null;
-  /**
-   * Meaning-level fit (0–1) between the account's saved résumé and this posting, from the embedding
-   * sidecar (match/semantic-fit.ts). Not on the index; absent for guests and when it didn't answer.
-   */
-  semantic_fit?: number | null;
   /** e.g. "full_time" | "contract" | "unknown" */
   employment_type: string;
   /** e.g. "senior" | "mid" | "entry" | "unknown" */

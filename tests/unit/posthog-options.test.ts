@@ -2,14 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  isPhoneSurveyViewport,
-  maskReplayNetworkRequest,
-  stripSearchTerms,
-  withoutSearchTerms,
-  PHONE_SURVEY_BREAKPOINT,
+  stripUrlQueries,
+  withoutQueryAndHash,
   POSTHOG_OPTIONS,
   POSTHOG_PRODUCT,
-  postHogOptionsForViewport,
 } from "../../src/lib/posthog-options";
 
 // The bug this file exists to prevent: a config value that *looks* enabled but
@@ -28,22 +24,16 @@ test('capture_pageview is the "history_change" mode, not a truthy boolean', () =
   );
 });
 
-test("guests stay unprofiled until identify() runs", () => {
-  assert.equal(POSTHOG_OPTIONS.person_profiles, "identified_only");
+test("analytics are anonymous: no person profile is ever created", () => {
+  assert.equal(POSTHOG_OPTIONS.person_profiles, "never");
 });
 
-test("pageleave and autocapture stay on, and autocapture records no words", () => {
+test("no autocapture, no session replay, no heatmaps; pageleave stays on", () => {
   assert.equal(POSTHOG_OPTIONS.capture_pageleave, true);
-  assert.ok(POSTHOG_OPTIONS.autocapture, "autocapture must stay on");
-  assert.equal(POSTHOG_OPTIONS.mask_all_text, true, "a click must not send the text it landed on ($el_text)");
-  const ignored = typeof POSTHOG_OPTIONS.autocapture === "object" ? POSTHOG_OPTIONS.autocapture.element_attribute_ignorelist : [];
-  for (const name of ["title", "aria-label", "value", "placeholder", "alt"]) {
-    assert.ok(ignored?.includes(name), `autocapture must drop the ${name} attribute`);
-  }
-});
-
-test("exception autocapture stays on so client crashes reach Error Tracking", () => {
-  assert.equal(POSTHOG_OPTIONS.capture_exceptions, true);
+  assert.equal(POSTHOG_OPTIONS.autocapture, false);
+  assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
+  assert.equal(POSTHOG_OPTIONS.enable_heatmaps, false);
+  assert.equal(POSTHOG_OPTIONS.session_recording, undefined, "no replay masking config is left behind");
 });
 
 test("events carry the product super-property that separates intervu from subspace", () => {
@@ -98,134 +88,83 @@ test("persistence never outlives the tab", () => {
   );
 });
 
-// Phone survey gate (mobile layout audit, 2026-09-18): the survey widget's
-// shadow-DOM host overlapped row content at 390/360, not at 768 — so surveys
-// must turn off strictly below 768px, matching `disable_surveys`, the
-// posthog-js option that stops the extension mounting at all (verified
-// against the installed package's own types, not assumed from the name).
-
-type StubbableGlobal = { window?: { matchMedia: (query: string) => { matches: boolean } } };
-
-function withStubbedMatchMedia<T>(matches: boolean, fn: () => T): T {
-  const g = globalThis as unknown as StubbableGlobal;
-  const original = g.window;
-  g.window = {
-    matchMedia: (query: string) => {
-      assert.equal(
-        query,
-        PHONE_SURVEY_BREAKPOINT,
-        "must query the documented phone breakpoint, not a different one",
-      );
-      return { matches };
-    },
-  };
-  try {
-    return fn();
-  } finally {
-    g.window = original;
-  }
-}
-
-test("isPhoneSurveyViewport: matches at 767px, not at 768px or 1440px", () => {
-  // matchMedia itself decides whether the query matches at a given width;
-  // these three stub the answer a real 767/768/1440px viewport would give.
-  assert.equal(withStubbedMatchMedia(true, () => isPhoneSurveyViewport()), true, "767px");
-  assert.equal(withStubbedMatchMedia(false, () => isPhoneSurveyViewport()), false, "768px");
-  assert.equal(withStubbedMatchMedia(false, () => isPhoneSurveyViewport()), false, "1440px");
+test("surveys and exception capture are off: both can carry free text or emails", () => {
+  assert.equal(POSTHOG_OPTIONS.disable_surveys, true);
+  assert.equal(POSTHOG_OPTIONS.capture_exceptions, false);
 });
 
-test("isPhoneSurveyViewport is SSR-safe: no window means surveys stay on", () => {
-  const g = globalThis as unknown as StubbableGlobal;
-  const original = g.window;
-  delete g.window;
-  try {
-    assert.equal(isPhoneSurveyViewport(), false);
-  } finally {
-    g.window = original;
-  }
-});
-
-test("postHogOptionsForViewport disables surveys only on the phone viewport, and changes nothing else", () => {
-  const phone = postHogOptionsForViewport(true);
-  const desktop = postHogOptionsForViewport(false);
-  assert.equal(phone.disable_surveys, true);
-  assert.equal(desktop.disable_surveys, false);
-
-  // Same base config either way — this builder adds exactly one field, it
-  // does not fork the options object.
-  for (const key of Object.keys(POSTHOG_OPTIONS) as (keyof typeof POSTHOG_OPTIONS)[]) {
-    assert.deepEqual(phone[key], POSTHOG_OPTIONS[key]);
-    assert.deepEqual(desktop[key], POSTHOG_OPTIONS[key]);
-  }
-});
-
-// Replay records real screens. The masking /privacy promises therefore has to
-// be a value in this repo, not a posthog-js default that can move under us.
-test("session replay masks typed input and every word on the page, and /privacy says so", () => {
-  assert.equal(
-    POSTHOG_OPTIONS.session_recording?.maskAllInputs,
-    true,
-    "Replay is on at the project level; without explicit masking, /privacy's " +
-      "promise that typed input is never captured rests on a library default.",
-  );
-  assert.equal(
-    POSTHOG_OPTIONS.session_recording?.maskTextSelector,
-    "*",
-    "Replays used to show the résumé page and the Customize dialog as written; every text node must be masked.",
-  );
-  const maskAttribute = POSTHOG_OPTIONS.session_recording?.maskAttributeFn;
-  assert.equal(typeof maskAttribute, "function");
-  assert.equal(maskAttribute!("title", "Senior nurse, ICU"), "****** ****** ***");
-  assert.equal(maskAttribute!("class", "row muted"), "row muted");
-
+test("/privacy says there is no session replay and no autocapture", () => {
   const privacy = readFileSync("src/app/privacy/page.tsx", "utf8");
-  assert.match(
-    privacy,
-    /session replay is enabled/i,
-    "Replay is on but /privacy no longer discloses it.",
-  );
-  assert.match(
-    privacy,
-    /masked/i,
-    "/privacy no longer states that typed input is masked.",
-  );
+  assert.match(privacy, /There is no session replay/i);
+  assert.match(privacy, /no automatic click capture/i);
+  assert.doesNotMatch(privacy, /session replay is enabled/i);
 });
 
-// Analytics are tied to a signed-in account, so no address they carry keeps
-// the words searched: typed text, or the résumé's role titles under Rank by
-// fit (`?q=...&sort=fit`). The anonymous search log is the only copy.
-test("analytics addresses drop the words searched, typed or built from a résumé, and keep everything else", () => {
-  const fit = 'https://velai.app/jobs?q=%22Registered+Nurse%22+OR+%22Charge+Nurse%22&sort=fit&job=abc';
-  assert.equal(withoutSearchTerms(fit), "https://velai.app/jobs?sort=fit&job=abc");
-  assert.equal(withoutSearchTerms("https://velai.app/jobs?q=nurse&sort=newest"), "https://velai.app/jobs?sort=newest");
-  assert.equal(withoutSearchTerms("/jobs?q=nurse&country=Canada"), "/jobs?country=Canada");
-  assert.equal(withoutSearchTerms("https://velai.app/jobs?country=Canada"), "https://velai.app/jobs?country=Canada");
-  assert.equal(withoutSearchTerms("q=nurse is not an address"), "q=nurse is not an address");
+test("every capture lane posthog-js can start from remote config is pinned off", () => {
+  // The project is shared with Subspace: a lane left unset follows ITS settings.
+  const pinned: Record<string, unknown> = {
+    autocapture: false,
+    capture_dead_clicks: false,
+    rageclick: false,
+    enable_heatmaps: false,
+    capture_heatmaps: false,
+    capture_performance: false,
+    capture_exceptions: false,
+    disable_surveys: true,
+    disable_session_recording: true,
+    disable_conversations: true,
+    disable_product_tours: true,
+    disable_web_experiments: true,
+    enable_recording_console_log: false,
+    opt_in_site_apps: false,
+    // The lazy bundles (logs, recorder, surveys, dead clicks, vitals) never load.
+    disable_external_dependency_loading: true,
+  };
+  for (const [key, expected] of Object.entries(pinned)) {
+    assert.deepEqual((POSTHOG_OPTIONS as Record<string, unknown>)[key], expected, key);
+  }
+  assert.deepEqual(POSTHOG_OPTIONS.logs, { captureConsoleLogs: false });
+});
+
+// No address an event carries keeps its query string or hash: the words
+// searched, résumé role titles under Rank by fit, a nested copy of either in
+// `next=`, or a bearer token.
+test("addresses lose query string and hash, whatever the key, and keep path and non-address text", () => {
+  assert.equal(withoutQueryAndHash("https://velai.app/jobs?q=%22Registered+Nurse%22&sort=fit&job=abc#top"), "https://velai.app/jobs");
+  assert.equal(withoutQueryAndHash("/jobs?country=Canada"), "/jobs");
+  assert.equal(withoutQueryAndHash("/reset-password?token=abc123"), "/reset-password");
+  assert.equal(withoutQueryAndHash("/co/acme#openings"), "/co/acme");
+  assert.equal(withoutQueryAndHash("https://velai.app/jobs"), "https://velai.app/jobs");
+  assert.equal(withoutQueryAndHash("what is this? #1 job"), "what is this? #1 job");
+  assert.equal(withoutQueryAndHash("q=nurse is not an address"), "q=nurse is not an address");
 
   const event = {
     uuid: "1",
-    event: "$autocapture",
+    event: "$pageview",
     properties: {
-      $current_url: fit,
+      $current_url: "https://velai.app/login?next=%2Fjobs%3Fq%3Dstaff%2Baccountant%26sort%3Dfit",
       $referrer: "https://velai.app/jobs?q=staff+accountant",
-      $pathname: "/jobs",
+      $pathname: "/login",
+      $session_entry_url: "https://velai.app/unsubscribe?token=SECRETTOKEN#x",
+      $title: "Sign in? Yes",
       count: 3,
       $elements_chain: 'a.recent:attr__href="/jobs?q=staff%20accountant&view=search"href="/jobs?q=staff%20accountant&view=search"nth-child="1"',
       $elements: [{ tag_name: "a", attr__href: "/jobs?q=staff+accountant&view=search", href: "/jobs?q=staff+accountant&view=search" }],
+      nested: { return_to: "/jobs?q=nurse" },
     },
-    $set_once: { $initial_current_url: fit },
+    $set_once: { $initial_current_url: "https://velai.app/jobs?q=nurse&sort=fit", $initial_referrer: "https://velai.app/reset-password?token=abc" },
   };
-  const sent = stripSearchTerms(event);
-  assert.equal(sent?.properties.$current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  const sent = stripUrlQueries(event);
+  assert.equal(sent?.properties.$current_url, "https://velai.app/login");
   assert.equal(sent?.properties.$referrer, "https://velai.app/jobs");
-  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(sent?.properties.$session_entry_url, "https://velai.app/unsubscribe");
+  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs");
+  assert.equal(sent?.$set_once?.$initial_referrer, "https://velai.app/reset-password");
+  assert.equal(sent?.properties.$title, "Sign in? Yes");
   assert.equal(sent?.properties.count, 3);
-  assert.equal(JSON.stringify(sent).includes("accountant"), false, "a clicked search link keeps no search words");
-  assert.match(sent?.properties.$elements_chain as string, /href="\/jobs\?view=search"/);
-  assert.equal(POSTHOG_OPTIONS.before_send, stripSearchTerms);
-
-  const request = maskReplayNetworkRequest({ name: fit, requestBody: '{"q":"Nurse"}', responseBody: "{}" } as never);
-  assert.equal(request.name, "https://velai.app/jobs?sort=fit&job=abc");
-  assert.equal(request.requestBody, null);
-  assert.equal(request.responseBody, null);
+  assert.deepEqual(sent?.properties.nested, { return_to: "/jobs" });
+  const wire = JSON.stringify(sent);
+  for (const leak of ["accountant", "SECRETTOKEN", "nurse", "abc"]) assert.equal(wire.includes(leak), false, `${leak} survived`);
+  assert.match(sent?.properties.$elements_chain as string, /href="\/jobs"/);
+  assert.equal(POSTHOG_OPTIONS.before_send, stripUrlQueries);
 });

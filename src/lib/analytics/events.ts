@@ -137,7 +137,8 @@ export interface EventPayloads {
     query_length: number;
     filter_count: number;
     /**
-     * Every active filter's key and human-readable value, generic over
+     * Every active filter's key (never its value: a value can be a typed
+     * place, title or company), generic over
      * `FilterState` — never a per-facet field name enumerated here, so a
      * facet added later is captured by construction (see
      * `buildZeroResultPayload`, lib/jobs/result-state.ts, the pure builder
@@ -148,7 +149,7 @@ export interface EventPayloads {
      * makes an existing signal queryable at the moment a search fails,
      * instead of needing a human to notice a screenshot.
      */
-    active_facets: { key: string; value: string }[];
+    active_facets: string[];
     /** IP-based default location applied to this search (ISO2 country), or
      *  `null` when none was applied — mirrors `defaultedLocation` on the
      *  search response (actions/jobs.ts). Never the typed query text. */
@@ -250,17 +251,16 @@ export interface EventPayloads {
    *  soon" — the denominator for `upgrade_clicked` is only the former. */
   pricing_viewed: { signed_in: boolean; founding_available: boolean };
   /** A priced call to action on /pricing was clicked. `plan` names the
-   *  column: `pro_founding` is the founding-seat button, `data_api` is the
-   *  Data API "tell us your use case" link. `mode` says what the founding
+   *  column: `pro_founding` is the founding-seat button. `mode` says what the founding
    *  button did: `checkout` (leaving for Stripe) or `reserve` (the
    *  email-only reservation shown while the Stripe link is unset). No
    *  amounts — the price is a page constant, not a payload. */
   upgrade_clicked: { plan: UpgradePlan; signed_in: boolean; mode?: "checkout" | "reserve" };
   /** The visitor came back from Stripe with `checkout=success` and a
-   *  well-formed session id (`paidCheckoutSessionId`, lib/billing). The id
-   *  is Stripe's, not PII, and is what joins this event to the Stripe
-   *  dashboard row. Fired once per session id per browser session. */
-  founding_member_paid: { checkout_session_id: string; signed_in: boolean };
+   *  well-formed session id (`paidCheckoutSessionId`, lib/billing). The
+   *  id is not sent: it would join this event to a Stripe customer.
+   *  Fired once per session id per browser session. */
+  founding_member_paid: { signed_in: boolean };
   /** The reservation form on /pricing (shown while the Stripe link is
    *  unset) saved an address. No email in the payload; the row is in
    *  Firestore `founding_waitlist` and counted on /admin. */
@@ -298,7 +298,7 @@ export interface EventPayloads {
   };
 }
 
-export type UpgradePlan = "pro_founding" | "data_api";
+export type UpgradePlan = "pro_founding";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;
@@ -338,8 +338,7 @@ export type LedgerOnlyPayloads = Record<never, never>;
 
 /**
  * Pure: should this call actually reach PostHog? Kept separate from the I/O
- * below — same pure-decision/thin-I/O split posthog-identity.ts uses for
- * identityAction — so the guard is testable without a DOM or a mocked
+ * below — a pure-decision/thin-I/O split — so the guard is testable without a DOM or a mocked
  * posthog-js.
  */
 export function shouldCaptureEvent(hasWindow: boolean, loaded: boolean): boolean {

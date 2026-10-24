@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/toast";
 import { requestAccountEmailAction } from "@/actions/account-email";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
+import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 
 const EMAIL_FIELD_LABEL = "Email for job alerts";
 
@@ -92,6 +93,7 @@ export function AccountEmailPrompt({
                         {submitting ? "Sending…" : "Send again"}
                     </Button>
                 </form>
+                <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>
             </div>
         );
     }
@@ -132,6 +134,7 @@ export function AccountEmailPrompt({
                     </Button>
                 ) : null}
             </form>
+            <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>
         </div>
     );
 }

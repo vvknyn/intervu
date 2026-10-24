@@ -79,19 +79,21 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.match(articleText, /not resume email after you leave/i, "verb resume email unchanged");
   });
 
-  it("PostHog client config uses US UI host and masks replay inputs", () => {
+  it("PostHog client config uses US UI host and records no replay", () => {
     assert.equal(POSTHOG_OPTIONS.ui_host, "https://us.posthog.com");
-    assert.equal(POSTHOG_OPTIONS.session_recording?.maskAllInputs, true);
+    assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
   });
 
-  it("discloses shared PostHog project, US cloud, replay retention, and IP storage", () => {
+  it("discloses the PostHog project shared with Subspace, US cloud, no replay, unlinked events, discarded IP, and no data licensing", () => {
     const prose = privacyArticle();
-    assert.match(prose, /thesubspace\.io/i);
+    assert.match(prose, /same PostHog project as Subspace/i);
+    assert.match(prose, /IP address is removed by our server before an event is forwarded/i);
     assert.match(prose, /us\.posthog\.com/i);
-    assert.match(prose, /session replay is enabled/i);
-    assert.match(prose, /30 days/i);
-    assert.match(prose, /IP addresses are stored/i);
-    assert.match(prose, /Input masking is on/i);
+    assert.match(prose, /There is no session replay/i);
+    assert.match(prose, /not linked\s+to your Velai account/i);
+    assert.match(prose, /never sells or licenses your data to anyone, even aggregated/i);
+    assert.doesNotMatch(prose, /Data API/);
+    assert.doesNotMatch(prose, /IP addresses are stored/i);
   });
 
   it("replaces the stale résumé-to-OpenRouter paragraph and says what account deletion asks PostHog to delete", () => {
@@ -114,8 +116,13 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.doesNotMatch(prose, /makes no call to PostHog to delete data/);
     assert.match(prose, /asks PostHog to delete the person tied to your account id/);
     assert.match(prose, /we do not retry the PostHog request/);
-    assert.match(prose, /Interview-prep search parsing can send the search text you typed to OpenRouter/);
-    assert.match(prose, /Audio transcription can send a recording to Groq/);
+    assert.match(prose, /Reading a typed search with AI is switched off today[\s\S]*go to OpenRouter[\s\S]*never your résumé/);
+    assert.doesNotMatch(prose, /Groq/);
+    assert.doesNotMatch(prose, /since October 2026 is not linked/);
+    assert.match(prose, /older events from signed-in visits were[\s\S]*deleting your account erases them/);
+    for (const stored of [/customer record at Stripe/, /second database/, /identity store by account id/]) {
+      assert.match(prose, stored);
+    }
   });
 
   it("discloses Meilisearch and Subspace only for flows code actually sends", () => {

@@ -862,11 +862,11 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |---|---|---|---|---|---|---|---|
-| J-PRICING-01 | Read the pricing page: Free, Pro and Data API columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-01 | Read the pricing page: Free and Pro columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise the Pro column takes an email-only reservation ("Reserve a founding seat"); the headline, Pro badge and meta description say the same thing as the button | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-04 | Return from Stripe with checkout=success and a session id and see the founding thank-you; a bare checkout=success shows nothing | anon | /pricing?checkout=success&session_id=cs_test_… | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-05 | Follow the Data API call to action to the contact form | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-05 | Pricing offers no data sale or licence | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
 | J-PRICING-07 | Reserve a founding seat with an email while the Stripe link is unset: the confirmation shows, one row lands in `founding_waitlist` (kept on resubmission), one confirmation email goes out, and /admin's Waitlist group counts it | anon | /pricing | signed-out | yes | uncovered | — |
 | J-PRICING-08 | Founding-seat reservation with a malformed email ("name@host", which the browser lets through) says "Enter a full email address, like you@example.com." right under the button and in view, on every press; nothing is written (a refused Turnstile: J-PRICING-11) | anon | /pricing (Stripe link unset) | signed-out | no | covered | email-form-refusals.spec.ts |

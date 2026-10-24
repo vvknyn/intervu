@@ -57,7 +57,6 @@ import { listedPastSenior, resumeManagedPeople, titleLevel, titleManagesPeople, 
 import { jobCountries, titlePlace } from "@/lib/jobs/resume-location";
 import { isUnknownFacetValue } from "@/lib/jobs/unknown-inclusive-facets";
 import { jobTitleMatchesTarget } from "@/lib/jobs/for-you/title-relevance";
-import { SEMANTIC_SHARE } from "@/lib/match/semantic-scale";
 import { contentFamilyLabel, isWorkWord, resumeContentFamilies, type ContentFamily } from "@/lib/match/content-family";
 import { conceptCoverage, jdCoverage, jdFitScore, jdTermsOf, PHRASE_MATCH_WEIGHT, resumeTermSet } from "@/lib/match/jd-match";
 import { languageLabel } from "@/lib/match/posting-language";
@@ -97,7 +96,6 @@ export interface MatchComponent {
      * and the posting's own terms the résumé has / lacks, requirements first.
      */
     /**
-     * `semantic`: the embedding match (0–1) blended into `fit`, when the sidecar answered.
      * `evidence`: how many of the posting's terms the résumé shows that are NOT the words of the
      * posting's own title (`specificEvidence`). `fit` saturates and counts a title echoed in the body
      * ("we are looking for a Product Manager"), so a generic two-line posting reads as full a match as
@@ -107,7 +105,6 @@ export interface MatchComponent {
         fit: number;
         matched: string[];
         missing: string[];
-        semantic?: number;
         evidence?: number;
         evidenceTerms?: string[];
         /**
@@ -563,27 +560,13 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     // The whole posting, when its description (or the terms read from it) is on hand.
     const terms = jdTermsOf(job);
     const jd = terms ? jdCoverage(resume, terms) : null;
-    const semantic = typeof job.semantic_fit === "number" ? job.semantic_fit : null;
-    if (!jd && semantic != null) {
-        // No terms read, but the meaning match is on hand: it stands for the posting.
-        return {
-            key: "relevance",
-            label: "Relevance to this role",
-            detail: `${titleDetail} · ${Math.round(semantic * 100)}% match in meaning with your résumé`,
-            score: semantic,
-            terms: { matched: matched.length, of: jobVocab.size },
-            jd: { fit: semantic, matched: [], missing: [], semantic },
-        };
-    }
     if (!jd) {
         return { key: "relevance", label: "Relevance to this role", detail: titleDetail, score: titleScore, terms: { matched: matched.length, of: jobVocab.size } };
     }
     // The posting's words, or the kinds of work it asks for, whichever the résumé shows more of:
     // a PM résumé that says "backlog grooming" covers a posting's "prioritize the roadmap".
     const concepts = conceptCoverage(resume, terms!);
-    const lexical = Math.max(jdFitScore(jd.coverage, resumeTermSet(resume).size), concepts ? concepts.share * CONCEPT_FIT_SCALE : 0);
-    // The embedding match reads meaning the words miss; it carries half the posting-level fit when on hand.
-    const fit = semantic == null ? lexical : SEMANTIC_SHARE * semantic + (1 - SEMANTIC_SHARE) * lexical;
+    const fit = Math.max(jdFitScore(jd.coverage, resumeTermSet(resume).size), concepts ? concepts.share * CONCEPT_FIT_SCALE : 0);
     const shown = jd.matched.slice(0, 4);
     const specific = specificTerms(jd.matched, job);
     const work = workTerms(specific);
@@ -591,7 +574,7 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
     return {
         key: "relevance",
         label: "Relevance to this role",
-        detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}${semantic != null ? `, reading its meaning as well as its words` : ""}`,
+        detail: `${titleDetail} · ${Math.round(fit * 100)}% of what it asks shows on your résumé${shown.length > 0 ? ` (${shown.join(", ")})` : ""}`,
         score: fit,
         terms: { matched: matched.length, of: jobVocab.size },
         jd: {
@@ -605,7 +588,6 @@ function scoreRelevance(resume: ResumeData, job: PublicJob): MatchComponent | nu
             ...(jd.dutyShare != null
                 ? { dutyFit: jdFitScore(jd.dutyShare, resumeTermSet(resume).size), dutyEvidence: dutyTerms.length, dutyTerms: dutyTerms.slice(0, 4) }
                 : {}),
-            ...(semantic != null ? { semantic } : {}),
         },
     };
 }

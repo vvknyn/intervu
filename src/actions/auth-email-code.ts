@@ -43,7 +43,7 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
     const cookieStore = await cookies();
     const pending = await unsealPendingEmailCode(cookieStore.get(EMAIL_CODE_COOKIE_NAME)?.value);
     if (!pending) {
-        captureServerEvent("auth_email_code_submitted", crypto.randomUUID(), { outcome: "expired" });
+        captureServerEvent("auth_email_code_submitted", { outcome: "expired" });
         return { expired: true };
     }
 
@@ -72,7 +72,7 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
             error_status: e?.status,
             error_codes: [...workosErrorCodes(error), ...(typeof e?.error === "string" ? [e.error] : [])].join(",") || undefined,
         });
-        captureServerEvent("auth_email_code_submitted", crypto.randomUUID(), { outcome: "refused" });
+        captureServerEvent("auth_email_code_submitted", { outcome: "refused" });
         return { error: EMAIL_CODE_WRONG_MESSAGE };
     }
 
@@ -84,7 +84,7 @@ export async function verifyEmailCode(_prev: EmailCodeState, formData: FormData)
     await completeAuthKitSignIn(auth.user, auth.authenticationMethod).catch((err) =>
         console.error("[auth] email-code sign-in follow-up failed:", err),
     );
-    captureServerEvent("auth_email_code_submitted", toServerUser(auth.user).uid, { outcome: "signed_in" });
+    captureServerEvent("auth_email_code_submitted", { outcome: "signed_in" });
     reportAuthStep("email_code", Date.now() - started);
     // Back to the page they started on, as every other sign-in does; bare /jobs when there was none.
     redirect(resolvePostAuthDestination(pending.next));

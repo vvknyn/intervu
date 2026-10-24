@@ -10,9 +10,9 @@ import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { Prose } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { FoundingReserveForm } from "./founding-reserve-form";
+import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 import { captureEvent, type UpgradePlan } from "@/lib/analytics/events";
 import {
-  DATA_API_FROM_PRICE,
   FOUNDING_SEAT_COUNT,
   FOUNDING_SEAT_PRICE,
   PRO_MONTHLY_PRICE,
@@ -53,13 +53,6 @@ const PRO_FEATURES = [
   "A founding badge and a say in what ships next",
 ];
 
-const DATA_API_FEATURES = [
-  "Posting check: send a posting URL, get a verdict with the evidence and dates",
-  "Company hiring stats: open roles, posting rhythm, time to close",
-  "Applicant response by sector and company, aggregated and anonymised",
-  "Keys with quotas, a usage page and documentation",
-];
-
 const FAQ: { question: string; answer: string }[] = [
   {
     question: "Will anything I use today start costing money?",
@@ -82,7 +75,7 @@ const FAQ: { question: string; answer: string }[] = [
   {
     question: "Is my data being sold?",
     answer:
-      "No. The Data API sells derived signals about postings and companies, such as whether a listing is still live and how long roles stay open, aggregated across everyone. It never includes your résumé, your applications, your account or anything that identifies you. The privacy policy has the full list.",
+      "No. Velai does not sell your data, your résumé or anything about you. The privacy policy has the full list.",
   },
 ];
 
@@ -114,7 +107,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
     } catch {
       // Storage unavailable — capture anyway; see PAID_CAPTURE_KEY.
     }
-    captureEvent("founding_member_paid", { checkout_session_id: paidSessionId, signed_in: signedIn });
+    captureEvent("founding_member_paid", { signed_in: signedIn });
   }, [paidSessionId, signedIn]);
 
   const clicked = (plan: UpgradePlan, mode?: "checkout" | "reserve") =>
@@ -125,7 +118,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
       <p className="text-xs font-semibold text-muted-foreground">Pricing</p>
       <PageTitle className="mt-3">Free while you search. Pay only if you want more.</PageTitle>
       <p className="mt-1.5 max-w-prose text-base text-muted-foreground">
-        Everything you use today stays free. Pro and the Data API are on the way, and the first{" "}
+        Everything you use today stays free. Pro is on the way, and the first{" "}
         {FOUNDING_SEAT_COUNT} Pro seats{" "}
         {foundingAvailable
           ? "are open now at a one-off price."
@@ -142,7 +135,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
         </Card>
       ) : null}
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className="mt-8 grid gap-4 md:grid-cols-2">
         <Card data-testid="pricing-plan-free">
           <div>
             <p className="text-sm font-semibold text-foreground">Free</p>
@@ -163,6 +156,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
                 <Link href="/auth/start?mode=signup&next=/jobs">Create free account{/* signup-gate-exempt: the Free plan's own door, not a gate on an action */}</Link>
               </Button>
             )}
+            {!signedIn && <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>}
           </div>
         </Card>
 
@@ -205,33 +199,6 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
             </div>
           </div>
         </Card>
-
-        <Card data-testid="pricing-plan-data-api">
-          <div>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">Data API</p>
-              <Badge>Early access</Badge>
-            </div>
-            <p className="mt-1 text-2xl font-semibold text-foreground">
-              From {DATA_API_FROM_PRICE}
-              <span className="text-sm font-normal text-muted-foreground"> / month</span>
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The truth layer behind Velai, for people building job-search tools and agents.
-            </p>
-          </div>
-          <FeatureList items={DATA_API_FEATURES} />
-          <div className="mt-auto pt-2">
-            <Button asChild variant="outline" className="w-full">
-              <Link data-testid="pricing-data-api-cta" href="/contact?from=/pricing" onClick={() => clicked("data_api")}>
-                Tell us your use case
-              </Link>
-            </Button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              Keys go out to early-access requests first, at a founding rate that stays fixed for a year.
-            </p>
-          </div>
-        </Card>
       </div>
 
       <Prose className="mt-10">
@@ -243,7 +210,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
           </details>
         ))}
         <p className="mt-6 text-sm text-muted-foreground">
-          The founding offer, refunds and what the Data API may and may not include are written into the{" "}
+          The founding offer and refunds are written into the{" "}
           <Link href="/terms">terms</Link> and the <Link href="/privacy">privacy policy</Link>.
         </p>
       </Prose>

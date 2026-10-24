@@ -165,7 +165,7 @@ export function employerElsewhereNote(inPlace: number | undefined, total: number
  * browser or a mocked `posthog-js` — matching this file's own
  * `unmatchedPlaceNote`/`isUnavailableJobsResult` precedent.
  *
- * `active_facets` reads `activeFilterEntries` (FilterPanel.tsx) — the SAME
+ * `active_facets` (facet names only, never their values) reads `activeFilterEntries` (FilterPanel.tsx) — the SAME
  * chokepoint the toolbar chips, the mobile sheet, and this exact zero-result
  * state's own "clear a filter" suggestions already read — with
  * `includeQuietDefaults: true`, so a silently-applied default (today, only
@@ -193,10 +193,7 @@ export function buildZeroResultPayload(
     return {
         query_length: query.trim().length,
         filter_count: activeFilterEntries(filterState).length,
-        active_facets: activeFilterEntries(filterState, { includeQuietDefaults: true }).map((entry) => ({
-            key: entry.key.split(":")[0],
-            value: entry.label,
-        })),
+        active_facets: activeFilterEntries(filterState, { includeQuietDefaults: true }).map((entry) => entry.key.split(":")[0]),
         defaulted_location: location.defaultedLocation ?? null,
     };
 }

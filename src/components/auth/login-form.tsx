@@ -25,7 +25,7 @@ import { revalidateClientSession } from '@/lib/firebase/client-auth'
 import { buildReturnTo } from '@/lib/jobs/pending-actions'
 import { resolveAuthKitReturnTo } from '@/lib/auth/post-auth-destination'
 import { validateNextParam } from '@/lib/auth/product-routes'
-import { authCardCopy, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
+import { authCardCopy, PERSONAL_EMAIL_HINT, SIGNUP_SUBCOPY } from '@/lib/auth/auth-gate-copy'
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from 'next/link'
 import { BrandLockup } from '@/components/brand/BrandMark'
@@ -350,6 +350,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                     the alerts/digest this form is now selling. That path stays
                     above username/password on both tabs rather than below it. */}
                 <div className="grid gap-2 mb-3 sm:mb-4">
+                    {activeTab === "signup" && <p className="text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>}
                     {/* Google now runs through WorkOS rather than Firebase, so
                         every provider issues the same session and the server
                         has one answer to "who is this". `GoogleOAuth` is

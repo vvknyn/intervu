@@ -13,7 +13,7 @@
  */
 import type { PostHog } from "posthog-js";
 
-export type PostHogClient = Pick<PostHog, "capture" | "get_distinct_id" | "__loaded">;
+export type PostHogClient = Pick<PostHog, "capture" | "__loaded">;
 
 let client: PostHogClient | null = null;
 

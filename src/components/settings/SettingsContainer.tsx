@@ -23,6 +23,7 @@ import { LandingNotice } from "@/components/layout/LandingNotice";
 import { FollowedCompaniesSection } from "@/components/settings/FollowedCompaniesSection";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
+import { incompleteEraseMessage } from "@/lib/account/erase-copy";
 
 type AccountTab = "resume" | "prefs" | "account";
 
@@ -66,6 +67,8 @@ export function SettingsContainer() {
     const [deleteConfirmText, setDeleteConfirmText] = useState("");
     const [deleteError, setDeleteError] = useState<string | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    // Set when the account is gone but some processors could not be reached.
+    const [eraseNotice, setEraseNotice] = useState<string | null>(null);
     const isSigningOut = useRef(false);
     const deleteTriggerRef = useRef<HTMLButtonElement>(null);
     const [resetEmail, setResetEmail] = useState("");
@@ -105,14 +108,18 @@ export function SettingsContainer() {
                 setIsDeleting(false);
                 return;
             }
+            if (result.incomplete?.length) {
+                // Say what is left before signing out; the Sign out button finishes the job.
+                setEraseNotice(incompleteEraseMessage(result.incomplete));
+                setIsDeleting(false);
+                return;
+            }
             // The WorkOS user is already gone server-side; this only clears
             // the session cookie still sitting in the browser (same route
             // `handleSignOut` above uses).
             await signOut();
         } catch (e: unknown) {
-            setDeleteError(
-                e instanceof Error ? e.message : SETTINGS_MESSAGES.accountDeleteFailed,
-            );
+            setDeleteError(SETTINGS_MESSAGES.accountDeleteFailed);
             setIsDeleting(false);
         }
     };
@@ -257,6 +264,10 @@ export function SettingsContainer() {
                 <Dialog
                     open={showDeleteDialog}
                     onOpenChange={(open) => {
+                        if (!open && eraseNotice) {
+                            void signOut();
+                            return;
+                        }
                         setShowDeleteDialog(open);
                         if (!open) {
                             setDeleteConfirmText("");
@@ -280,6 +291,15 @@ export function SettingsContainer() {
                                 This will permanently delete your account and all your data. This action cannot be undone.
                             </DialogDescription>
                         </DialogHeader>
+                        {eraseNotice ? (
+                            <>
+                                <p className="py-2 text-sm text-foreground" role="alert">{eraseNotice}</p>
+                                <DialogFooter>
+                                    <Button onClick={() => void signOut()}>Sign out</Button>
+                                </DialogFooter>
+                            </>
+                        ) : (
+                            <>
                         <div className="space-y-3 py-2">
                             <p className="text-sm text-muted-foreground">
                                 Type <span className="font-semibold text-foreground">DELETE</span> to confirm:
@@ -306,6 +326,8 @@ export function SettingsContainer() {
                                 {isDeleting ? "Deleting…" : "Delete Forever"}
                             </Button>
                         </DialogFooter>
+                            </>
+                        )}
                     </DialogContent>
                 </Dialog>
                 <LandingNotice surface="settings" />
