@@ -12,10 +12,10 @@
  * to 263.
  *
  * THE RULE (S2, one only): a page is indexable exactly when its company is in
- * the sitemap set — at least {@link MIN_SITEMAP_ROLES} live roles and within
- * the top {@link SITEMAP_COMPANY_CAP} by live count, as `company_directory`
- * measures it. Nothing else gates it: the page states only the facts it
- * holds, so a member without, say, a stated country is still a full page.
+ * the sitemap set — the directory model's listed companies (directory-model.ts):
+ * at least {@link MIN_SITEMAP_ROLES} live roles as `company_directory` measures
+ * it, a real company under its own name, the top {@link SITEMAP_COMPANY_CAP} by live count.
+ * Nothing else gates it: the page states only the facts it holds, so a member without, say, a stated country is still a full page.
  * Every other company page still renders in full, as `noindex, follow`. The earlier 3-role page floor and the
  * `hasTrackRecord` OR are gone: they let ~10-role pages and pages with only a
  * track record be indexable while the sitemap (25 roles) never listed them.
@@ -69,6 +69,11 @@ export const MIN_SITEMAP_ROLES = 25;
 /** Hard cap on `/co/` URLs submitted — the top employers by live role count
  *  after {@link MIN_SITEMAP_ROLES} filtering. */
 export const SITEMAP_COMPANY_CAP = 3000;
+
+/** Candidates read before the directory's rules exclude any (see directory-model.ts): the cap plus
+ *  room for the exclusions (about 9% of a 3600 pool on Oct 23 data; 3300 was the least that still filled
+ *  the cap), so they do not shrink what is listed. */
+export const DIRECTORY_POOL_SIZE = 3600;
 
 export interface CompanyIndexabilityInput {
   /** The domain is in the set `sitemap.ts` submits (see
@@ -195,9 +200,9 @@ async function searchCompanyDirectoryPage(
  * repo, off-app, admin key) publishes on its own schedule — see the file
  * docblock's 2026-08-13 update for why this replaced both the curated
  * "elite" list and the reverted #186 facet walk. Filters server-side on
- * `open_role_count >= MIN_SITEMAP_ROLES` (the same set page indexability
- * reads via {@link fetchCompanyInSitemapSet}) sorted by `open_role_count` descending when Meilisearch accepts it, capped
- * at {@link SITEMAP_COMPANY_CAP}. When sort is unavailable, falls back to
+ * `open_role_count >= MIN_SITEMAP_ROLES` (the pool the directory model
+ * lists from) sorted by `open_role_count` descending when Meilisearch accepts it, capped
+ * at {@link DIRECTORY_POOL_SIZE}. When sort is unavailable, falls back to
  * paging with the same filter and sorting in memory before slicing.
  *
  * THROW POSTURE — deliberately the opposite of `market-stats.ts`'s
@@ -241,7 +246,7 @@ function capSitemapCompanies(companies: IndexableCompanyDomain[]): IndexableComp
   return companies
     .slice()
     .sort((a, b) => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain))
-    .slice(0, SITEMAP_COMPANY_CAP);
+    .slice(0, DIRECTORY_POOL_SIZE);
 }
 
 function zeroHitsOnFirstPageError(): Error {
@@ -259,7 +264,7 @@ async function fetchSitemapCompaniesSorted(
     const { hits } = await search({
       sort: ["open_role_count:desc"],
       filter: SITEMAP_FILTER,
-      limit: SITEMAP_COMPANY_CAP,
+      limit: DIRECTORY_POOL_SIZE,
       offset: 0,
     });
     if (hits.length === 0) throw zeroHitsOnFirstPageError();
@@ -310,36 +315,4 @@ export async function fetchIndexableCompanyDomains(
   const sorted = await fetchSitemapCompaniesSorted(search);
   if (sorted) return sorted;
   return fetchSitemapCompaniesPaged(search);
-}
-
-/**
- * Whether `domain` is in the set `sitemap.ts` submits — read through
- * {@link fetchIndexableCompanyDomains} itself (its server-side
- * `MIN_SITEMAP_ROLES` filter and top-{@link SITEMAP_COMPANY_CAP} cut, on the
- * same cached `company_directory` request), so the page's robots decision and
- * the sitemap cannot measure the set two ways. Feeds
- * `resolveCompanyIndexability`'s `inSitemapSet`.
- *
- * Fail-soft, unlike `fetchIndexableCompanyDomains` — this runs inline in a
- * page request, not a batch job with a FAILURE POSTURE to defend:
- *
- *   - Meilisearch not configured: `false`, no warning.
- *   - the directory read fails (or is empty): `false` plus ONE `console.warn`
- *     — a page that cannot prove it is in the set is `noindex, follow` for
- *     that render, never claimed indexable.
- *
- * `search` is injectable (same DI as `fetchIndexableCompanyDomains`) so tests
- * never hit the network.
- */
-export async function fetchCompanyInSitemapSet(
-  domain: string,
-  search: typeof searchCompanyDirectoryPage = searchCompanyDirectoryPage,
-): Promise<boolean> {
-  if (!hasMeilisearch()) return false;
-  try {
-    return (await fetchIndexableCompanyDomains(search)).some((c) => c.domain === domain);
-  } catch (err) {
-    console.warn(`fetchCompanyInSitemapSet(${domain}): company_directory read failed`, err);
-    return false;
-  }
 }

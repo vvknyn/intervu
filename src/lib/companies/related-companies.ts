@@ -1,4 +1,6 @@
-import { fetchIndexableCompanyDomains, type IndexableCompanyDomain } from "./indexable";
+import type { IndexableCompanyDomain } from "./indexable";
+import type { DirectoryCompany } from "./directory-model";
+import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
 import type { CompanyFacts } from "./company-facts";
 import { searchJobs } from "@/lib/jobs/search";
 import type { FacetKey, JobSearchParams, JobSearchResult } from "@/lib/jobs/types";
@@ -12,12 +14,12 @@ export const RELATED_LIMIT = 6;
  * only domain / open_role_count / computed_at, so sharing is decided by the
  * caller's facet search, which supplies `candidateDomains`.
  */
-export function buildRelatedCompanies(
+export function buildRelatedCompanies<T extends IndexableCompanyDomain>(
   candidateDomains: Iterable<string>,
-  indexable: readonly IndexableCompanyDomain[],
+  indexable: readonly T[],
   self: string,
   limit = RELATED_LIMIT,
-): IndexableCompanyDomain[] {
+): T[] {
   const candidates = new Set(candidateDomains);
   return indexable
     .filter((c) => c.domain !== self && candidates.has(c.domain))
@@ -37,8 +39,8 @@ export function relatedFacet(facts: CompanyFacts): { key: FacetKey; value: strin
 export async function fetchRelatedCompanies(
   facts: CompanyFacts,
   search: (p: JobSearchParams) => Promise<JobSearchResult> = searchJobs,
-  indexable: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
-): Promise<IndexableCompanyDomain[]> {
+  indexable: () => Promise<DirectoryCompany[]> = resolveIndexableCompanies,
+): Promise<DirectoryCompany[]> {
   const facet = relatedFacet(facts);
   if (!facet) return [];
   try {

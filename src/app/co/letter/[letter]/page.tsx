@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DIRECTORY_DESCRIPTION, groupCompaniesByLetter, letterFromSegment, letterPath, namedEntries } from "@/lib/companies/directory-index";
-import { getListedNames } from "@/lib/companies/listed-names";
+import { DIRECTORY_DESCRIPTION, groupCompaniesByLetter, letterFromSegment, letterPath } from "@/lib/companies/directory-index";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
@@ -34,8 +33,6 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
   const { letter: segment } = await params;
   const group = await loadGroup(segment);
   if (!group) notFound();
-  const entries = namedEntries(group.entries, await getListedNames(group.entries.map((e) => e.domain)));
-
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: SITE_NAME, path: "/" },
     { name: "Companies", path: "/co" },
@@ -48,7 +45,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
       <PageTitle>{heading(group.letter)}</PageTitle>
       <p className="mt-3 text-sm text-muted-foreground">{DIRECTORY_DESCRIPTION}</p>
       <ul className="mt-6 columns-1 gap-8 text-sm sm:columns-2 [&>li]:break-inside-avoid [&>li]:py-0.5 [&_span]:text-muted-foreground">
-        {entries.map(({ domain, name, openRoleCount }) => (
+        {group.entries.map(({ domain, name, openRoleCount }) => (
           <li key={domain}>
             <Link href={companyBoardPath(domain)}>{name}</Link> <span>{openRoleCount} roles</span>
           </li>

@@ -567,7 +567,7 @@ export function humanizeTenantSubdomain(raw: string): string {
     return token.charAt(0).toUpperCase() + token.slice(1);
 }
 
-export const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i;
+export const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable|oraclecloud)\.(com|io|net|co)\b/i;
 const BARE_DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
 
 /**

@@ -2,6 +2,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
+import { getDirectory } from "@/lib/companies/directory-model";
 import { COMPANY_JOBS_FETCH_LIMIT, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
@@ -39,6 +40,8 @@ export interface CompanySideReads {
   news: (domain: string) => Promise<CompanyNewsArticle[]>;
   events: (domain: string) => Promise<CompanyChangeEvent[]>;
   exhaust: (domain: string) => Promise<CompanyExhaust | null>;
+  /** The company directory: the name this company is listed under, and the vendor names never shown. */
+  directory: typeof getDirectory;
   /** A search slower than this is logged. */
   budgetMs: number;
   /** Per-read cap: see {@link SIDE_READ_TIMEOUT_MS}. */
@@ -50,6 +53,7 @@ const SIDE_READS: CompanySideReads = {
   news: fetchCompanyNews,
   events: fetchCompanyEvents,
   exhaust: getSharedCompanyExhaust,
+  directory: getDirectory,
   budgetMs: SEARCH_BUDGET_MS,
   sideTimeoutMs: SIDE_READ_TIMEOUT_MS,
   log: logServer,
@@ -130,19 +134,22 @@ export async function getCompanyPageData(
     news: timed(reads.news(domain).catch((): CompanyNewsArticle[] => []), startedAt),
     events: timed(reads.events(domain).catch((): CompanyChangeEvent[] => []), startedAt),
     box: timed(reads.exhaust(domain).catch(() => null), startedAt),
+    directory: timed(reads.directory().catch(() => null), startedAt),
   };
-  const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise]);
+  const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise, sideReads.directory.promise]);
 
-  const [result, news, changeEvents, exhaust] = await Promise.all([
+  const [result, news, changeEvents, exhaust, directory] = await Promise.all([
     searchRead.promise,
     withTimeout(sideReads.news.promise, reads.sideTimeoutMs, [] as CompanyNewsArticle[]),
     withTimeout(sideReads.events.promise, reads.sideTimeoutMs, [] as CompanyChangeEvent[]),
     withTimeout(sideReads.box.promise, reads.sideTimeoutMs, null as CompanyExhaust | null),
+    withTimeout(sideReads.directory.promise, reads.sideTimeoutMs, null),
   ]);
   const late = [
     news.late && "news",
     changeEvents.late && "events",
     exhaust.late && "box",
+    directory.late && "directory",
   ].filter((name): name is string => !!name);
   if (late.length > 0 || (searchRead.ms() ?? 0) > reads.budgetMs) {
     // Once every read has answered, so the record has all four times.
@@ -154,6 +161,7 @@ export async function getCompanyPageData(
         "news.ms": sideReads.news.ms() ?? undefined,
         "events.ms": sideReads.events.ms() ?? undefined,
         "box.ms": sideReads.box.ms() ?? undefined,
+        "directory.ms": sideReads.directory.ms() ?? undefined,
         // How much of search.ms the search engine itself spent, and in how
         // many requests: the rest is the trip between the boxes.
         "search.engine.ms": result.engineMs,
@@ -187,7 +195,7 @@ export async function getCompanyPageData(
 
   if (jobs.length === 0 && boards.length === 0) return null;
 
-  const name = resolveCompanyName(jobs, domain);
+  const name = resolveCompanyName(jobs, domain, new Set(directory.value?.vendors));
   const openCount = resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT);
   const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
   // The `company_*` aggregates land on documents progressively as the sync
@@ -208,7 +216,8 @@ export async function getCompanyPageData(
   // `.value` other callers (the corpus tally, existing tests) depend on
   // keeping the suffix intact. Reused below for the about-line extraction so
   // both read the same brand token instead of each re-deriving it.
-  const displayName = displayCompanyName(name.value);
+  // A listed company shows the name the directory lists it under, so the page and the listing agree.
+  const displayName = directory.value?.companies.find((c) => c.domain === domain)?.name ?? displayCompanyName(name.value);
 
   return {
     domain,

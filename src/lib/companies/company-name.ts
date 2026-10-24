@@ -57,6 +57,14 @@ export type CompanyNameSource =
 export type CompanyDisplayName = {
   value: string;
   source: CompanyNameSource;
+  /** Did the shown name come from a candidate that names the domain's employer? `false` for a dominant
+   *  non-agreeing name and for the bare domain label. */
+  agrees: boolean;
+  /** The shown name's share of the rows that carry a name at all (0 when none does). */
+  share: number;
+  /** The most-attested cleaned candidate that does NOT agree with the domain, or null: the evidence the
+   *  directory pool tallies to spot a vendor artifact. */
+  stray: string | null;
 };
 
 /**
@@ -163,7 +171,26 @@ const LEADING_IDENTIFIER_RE = /^([A-Za-z]*\d[A-Za-z0-9]*(?:-\d[A-Za-z0-9]*)*)[-_
 /** A TLD this long is a brand ("home.sandvik"), not a registry code (.com, .org, .ca). */
 const BRAND_TLD_MIN_LENGTH = 4;
 
-const alnum = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+/** Diacritics folded away ("Société" -> "Societe"): agreement compares letters, not accents. */
+const fold = (value: string): string => value.normalize("NFD").replace(/\p{M}/gu, "");
+
+const alnum = (value: string): string => fold(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** The legal forms a label may end in ("nrssinc" -> "nrss"): the lexicon `brandTokens` drops, at three
+ *  letters or more so a label's own tail ("co", "sa") is never read as one. */
+const LABEL_LEGAL_SUFFIXES = [...LEGAL_FORM_TOKENS].filter((token) => token.length >= 3);
+
+/** A label and the forms it also answers to: without trailing digits ("cea3" -> "cea"), without a
+ *  trailing legal form ("nrssinc" -> "nrss"), or both. */
+function labelVariants(label: string): string[] {
+  const undigited = label.replace(/\d+$/, "");
+  const forms = [label, undigited.length >= 2 ? undigited : label];
+  for (const base of [label, undigited]) {
+    const suffix = LABEL_LEGAL_SUFFIXES.find((token) => base.endsWith(token) && base.length - token.length >= 3);
+    if (suffix) forms.push(base.slice(0, -suffix.length));
+  }
+  return [...new Set(forms)];
+}
 
 /**
  * The comparison labels of a host, squashed to alphanumerics ("aerospace.circor.com" ->
@@ -176,7 +203,7 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
   const parts = domain.toLowerCase().split(".");
   const tld = parts.pop() ?? "";
   if (parts.length >= 2 && tld.length === 2 && (parts[parts.length - 1] ?? "").length <= 3) parts.pop();
-  return { labels: parts.map(alnum).filter(Boolean), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
+  return { labels: parts.map(alnum).filter(Boolean).flatMap(labelVariants), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
 }
 
 type Word = { text: string; optional: boolean };
@@ -212,20 +239,42 @@ const containsLabel = (squashed: string, label: string): boolean =>
   label.length >= 3 ? squashed.includes(label) : squashed === label;
 
 /** Does `segment` name the employer behind `labels`? Contains a label, starts with a word the label
- *  contains, has initials equal to a label, or composes a label from word prefixes. */
-function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<typeof domainLabels>): boolean {
-  const squashed = alnum(segment);
-  const words = brandTokens(segment);
+ *  contains, has initials equal to a label, or composes a label from word prefixes. `leadOnly` keeps
+ *  only the readings that begin at the segment's first word (no "contains a label somewhere inside"). */
+function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<typeof domainLabels>, leadOnly = false): boolean {
+  const text = fold(segment);
+  const squashes = [alnum(text), ...(text.includes("&") ? [alnum(text.replace(/&/g, " and "))] : [])];
+  const words = brandTokens(text);
   const first = words[0] ?? "";
   const initials = words.map((w) => w[0]).join("");
   const significantInitials = words.filter((w) => !SMALL_WORDS.has(w)).map((w) => w[0]).join("");
-  const composable = wordsOf(segment);
+  const composable = wordsOf(text);
+  const named = (squashed: string, label: string) =>
+    leadOnly ? (label.length >= 3 ? squashed.startsWith(label) : squashed === label) : containsLabel(squashed, label);
   return first === brandTld || labels.some(
     (label) =>
-      containsLabel(squashed, label) ||
+      squashes.some((squashed) => named(squashed, label)) ||
       (first.length >= 3 && label.includes(first)) ||
       (label.length >= 2 && (label === initials || label === significantInitials || composedFromPrefixes(label, composable))),
   );
+}
+
+/** Segments of a compound name: a spaced dash, "dba", "d/b/a" or "at" ("Acme dba Acme Foods"). */
+const SEGMENT_SEPARATOR_RE = /\s+(?:[–—-]|dba|d\/b\/a|at)\s+/i;
+
+/** A word that reads as a code or a franchise prefix rather than a name: all capitals, or carrying a digit. */
+const isCodeWord = (word: string): boolean => /\d/.test(word) || (word === word.toUpperCase() && word !== word.toLowerCase());
+
+/** Leading code words dropped when the name's first word does not itself name the employer but a
+ *  later word does ("LPSC Ayvens" -> "Ayvens", "CANADA AIR LIQUIDE" -> "AIR LIQUIDE"). */
+function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): string {
+  if (agreesWithLabels(name, host, true)) return name;
+  const words = name.split(/\s+/);
+  for (let i = 1; i < words.length && isCodeWord(words[i - 1]!); i++) {
+    const tail = words.slice(i).join(" ");
+    if (agreesWithLabels(tail, host, true)) return tail;
+  }
+  return name;
 }
 
 /**
@@ -235,8 +284,12 @@ function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<type
  * known for certain, so a candidate is shown only if it names the employer the domain belongs to.
  *   1. a leading identifier token goes ("94-1687665 Bank of America" -> "Bank of America") unless the
  *      domain label starts with it ("84 Lumber" on 84lumber.com, "3M" on 3m.com keep theirs);
- *   2. "_" reads as a space; the whole string must agree, and a " - " shortest segment that itself
- *      contains a label then replaces it ("Mohegan Sun Mohegan Tribal Gaming Authority - Mohegan Sun").
+ *      (and is kept whole when stripping it would cost the agreement: "L3Harris Technologies");
+ *   2. "_" reads as a space; the whole string must agree, and the shortest segment (split on " - ",
+ *      " dba ", " d/b/a ", " at ") that itself contains a label then replaces it ("Mohegan Sun Mohegan
+ *      Tribal Gaming Authority - Mohegan Sun");
+ *   3. leading all-capital or digit-bearing words go when a later word starts the agreement
+ *      ("LPSC Ayvens" on ayvens.com).
  */
 export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
   const host = domainLabels(domain);
@@ -244,14 +297,16 @@ export function nameAgreeingWithDomain(candidate: string, domain: string): strin
   const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
   const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
   const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
-  const body = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
-  if (!body || !agreesWithLabels(body, host)) return null;
+  const stripped = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
+  // The unstripped string stands when stripping the identifier would cost the agreement ("L3Harris Technologies").
+  const body = [stripped, spaced].find((text) => text && agreesWithLabels(text, host));
+  if (!body) return null;
   const [shortest] = body
-    .split(/\s+[–—-]\s+/)
+    .split(SEGMENT_SEPARATOR_RE)
     .map((part) => part.trim())
     .filter((part) => labels.some((label) => containsLabel(alnum(part), label)))
     .sort((a, b) => a.length - b.length);
-  return shortest ?? body;
+  return dropLeadingCodes(shortest ?? body, host);
 }
 
 type NameGroup = {
@@ -311,12 +366,22 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * vote still decides, so the name most rows agree on wins and one odd row (an
  * agency, an acquired brand) cannot rename the page. Ties resolve to
  * whichever group was encountered first: deterministic, not meaningful.
+ *
+ * Among agreeing candidates, one whose agreement begins at its first word beats one that only
+ * contains the label further in ("Mohegan Sun" over "Wolf Mohegan Sun"); the vote decides within.
+ * With no agreeing candidate, the top candidate is shown when it holds at least
+ * {@link DOMINANT_NAME_SHARE} of the named rows and is not one of `vendorNames` (lower-case cleaned
+ * names the caller knows to be a feed's artifact); otherwise the bare domain label.
  */
 export function resolveCompanyName(
   jobs: readonly Pick<PublicJob, "company">[],
   domain: string,
+  vendorNames: ReadonlySet<string> = new Set(),
 ): CompanyDisplayName {
-  const groups = new Map<string, NameGroup>();
+  const host = domainLabels(domain);
+  const groups = new Map<string, NameGroup & { lead: boolean }>();
+  const strays = new Map<string, { name: string; count: number }>();
+  let named = 0;
 
   for (const job of jobs) {
     // A row whose raw `company` is an ATS portal hostname or bare domain
@@ -328,9 +393,16 @@ export function resolveCompanyName(
     // here so such rows count for nothing, same as an empty name.
     if (isCompanyPlaceholder(job.company)) continue;
     const cleaned = cleanCompany(job.company);
+    if (!cleaned) continue;
+    named += 1;
     // Only a string that agrees with the domain is evidence about this domain's employer.
-    const name = cleaned && nameAgreeingWithDomain(cleaned, domain);
-    if (!name) continue;
+    const name = nameAgreeingWithDomain(cleaned, domain);
+    if (!name) {
+      const stray = strays.get(cleaned.toLowerCase()) ?? { name: cleaned, count: 0 };
+      stray.count += 1;
+      strays.set(cleaned.toLowerCase(), stray);
+      continue;
+    }
     const key = name.toLowerCase();
     const group = groups.get(key) ?? {
       count: 0,
@@ -338,13 +410,15 @@ export function resolveCompanyName(
       verbatim: name,
       tokens: brandTokens(name),
       extends: 0,
+      lead: agreesWithLabels(name, host, true),
     };
     group.count += 1;
     if (!group.cased && carriesCase(name)) group.cased = name;
     groups.set(key, group);
   }
 
-  const candidates = [...groups.values()];
+  const all = [...groups.values()];
+  const candidates = all.some((g) => g.lead) ? all.filter((g) => g.lead) : all;
   for (const candidate of candidates) {
     candidate.extends = candidates.filter((other) =>
       isStrictTokenPrefix(candidate.tokens, other.tokens),
@@ -358,11 +432,52 @@ export function resolveCompanyName(
     }
   }
 
-  if (!best) return { value: displayNameFromDomain(domain), source: "domain" };
-  if (best.cased) return { value: best.cased, source: "corpus-cased" };
-  // No row among the winning group carried case (`best.cased` is null): the
-  // group is exactly as casing-free as a bare domain label, so it gets the
-  // same recovery — see `capitalizeAfterNonLetter`. `source` stays
+  const topStray = [...strays.values()].reduce<{ name: string; count: number } | null>((top, s) => (!top || s.count > top.count ? s : top), null);
+  const stray = topStray?.name ?? null;
+  const share = (count: number) => (named ? count / named : 0);
+
+  if (best) return { ...casedName(best), agrees: true, share: share(best.count), stray };
+  const dominant = topStray && share(topStray.count) >= DOMINANT_NAME_SHARE && !vendorNames.has(topStray.name.toLowerCase()) ? topStray : null;
+  if (dominant) {
+    return { ...casedName({ cased: carriesCase(dominant.name) ? dominant.name : null, verbatim: dominant.name }), agrees: false, share: share(dominant.count), stray };
+  }
+  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0, stray };
+}
+
+/** Share of the named rows a non-agreeing candidate needs to be shown as the company's name. */
+export const DOMINANT_NAME_SHARE = 0.6;
+
+function casedName(group: Pick<NameGroup, "cased" | "verbatim">): Pick<CompanyDisplayName, "value" | "source"> {
+  if (group.cased) return { value: group.cased, source: "corpus-cased" };
+  // No row among the winning group carried case: the group is exactly as casing-free as a bare
+  // domain label, so it gets the same recovery — see `capitalizeAfterNonLetter`. `source` stays
   // "corpus-flat": this is still the corpus's own string, not a guess.
-  return { value: capitalizeAfterNonLetter(best.verbatim), source: "corpus-flat" };
+  return { value: capitalizeAfterNonLetter(group.verbatim), source: "corpus-flat" };
+}
+
+/** The alphanumeric label that names `domain` itself ("aerospace.circor.com" -> "circor"). */
+export function primaryLabel(domain: string): string {
+  return domainLabels(domain).labels.at(-1) ?? "";
+}
+
+/** Shortest label a name may claim on another domain's behalf. */
+const CLAIM_MIN_LENGTH = 3;
+
+/**
+ * The domain labels a displayed name asserts as its own: any run of its leading WORDS squashed
+ * together ("Palo Alto Networks" -> paloalto, paloaltonetworks; "WPP Media" -> wpp), and the initials
+ * of its significant words ("International Business Machines" -> ibm), each of at least
+ * {@link CLAIM_MIN_LENGTH} characters. A label that starts mid-word ("Graybar" -> "gray") or in a later
+ * word ("Genuine Parts" -> "parts") is not claimed.
+ */
+export function labelsClaimedBy(name: string): Set<string> {
+  const words = fold(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const claimed = new Set<string>();
+  let run = "";
+  for (const word of words) {
+    run += word;
+    claimed.add(run);
+  }
+  claimed.add(words.filter((w) => !SMALL_WORDS.has(w)).map((w) => w[0]).join(""));
+  return new Set([...claimed].filter((label) => label.length >= CLAIM_MIN_LENGTH));
 }
