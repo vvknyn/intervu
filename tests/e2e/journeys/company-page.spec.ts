@@ -260,12 +260,12 @@ for (const path of [COMPANY, "/co/amazon--com"]) {
 }
 
 // A logo whose image fails before the page's code has run (a blocked or
-// unreachable favicon host) used to stay a broken image with its alt text:
+// unreachable logo) used to stay a broken image with its alt text:
 // React's onError only hears failures after hydration.
 test("a logo that fails before the page is interactive shows the letter tile, not a broken image", { tag: ["@J-COMPANY-48"] }, async ({ page }) => {
     let logoFailed = () => {};
     const failed = new Promise<void>((resolve) => (logoFailed = resolve));
-    await page.route(/google\.com\/s2\/favicons/, async (route) => {
+    await page.route(/\/logos\/[^/]+\.png/, async (route) => {
         await route.abort();
         logoFailed();
     });

@@ -1,24 +1,21 @@
+/** Where logos are served from: our own origin, never a third party. */
+const LOGO_PATH_PREFIX = "/logos/";
+
 /**
  * Canonical company-logo URL, keyed off a domain.
  *
- * Single chokepoint for the favicon URL formula: `CompanyLogo`'s `<img>` tag
- * and the `/co/[slug]` Organization JSON-LD both read a company's logo URL
- * from here, so the tile a visitor sees and the URL a crawler indexes can
- * never name two different logo sources for the same domain.
+ * Single chokepoint for the logo URL: `CompanyLogo`'s `<img>` tag and the
+ * `/co/[slug]` Organization JSON-LD both read it from here. It is a
+ * same-origin path ending in `.png` (Cloudflare caches by extension), served
+ * by `app/logos/[file]/route.ts` via `lib/companies/logo-proxy.ts`, so the
+ * visitor's browser never contacts a third party and no third party learns
+ * which companies they view. The proxy passes upstream's HTTP 404 through
+ * for a missing favicon, which `<img>` cannot otherwise tell apart from a
+ * real 16px favicon — `CompanyLogo`'s `onError` then shows the letter tile.
  */
 export function companyLogoUrl(domain: string): string {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+  return `${LOGO_PATH_PREFIX}${encodeURIComponent(domain)}.png`;
 }
-
-/**
- * No-favicon and real-favicon cases can't be told apart from the browser's
- * `<img>` element: Google answers a missing favicon with HTTP 404 plus one
- * fixed 16px glyph, but plenty of real favicons (e.g. cisco.com) are also
- * genuinely 16px and answer HTTP 200 — and Chromium decodes both, so
- * `onLoad`/`naturalWidth` see the same thing either way. The only honest
- * signal is the HTTP status, which `<img>` never exposes; the real fix is a
- * status-aware proxy in front of this URL, not a client-side size guess.
- */
 
 /**
  * Pure: should `CompanyLogo` attempt the favicon `<img>` at all? `false` for
