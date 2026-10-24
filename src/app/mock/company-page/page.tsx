@@ -104,6 +104,7 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
     techStack: section({ groups: ["Analytics", "CMS"], techTier: "mid", totalLiveTechs: 23, totalDeadTechs: 4, hasFramework: true, hasAnalytics: true }, "company_enrichment", "Tech profile"),
     changeHistory: null,
     sector: "Industrial Automation",
+    careersUrl: null,
   };
   return {
     domain: "acme-robotics.example",

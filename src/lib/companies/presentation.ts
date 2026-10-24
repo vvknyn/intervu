@@ -14,11 +14,9 @@ import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
-import { rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
 import { hiringRecordSentence } from "./hiring-record";
-import { isRemoteWorkTypeValue } from "@/lib/jobs/meilisearch";
 import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
-import { toValueArray, type PublicJob } from "@/lib/jobs/types";
+import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { formatCount } from "@/lib/format";
@@ -478,8 +476,7 @@ export function companyMetaDescription(data: CompanyPageData): string {
  * page is still a legitimate path to them.
  *
  * The robots decision is `resolveCompanyIndexability` — the one rule
- * (indexable ⇔ in the sitemap set AND the core facts are present, see
- * indexable.ts) — fed the set membership `sitemap.ts` itself uses.
+ * (indexable ⇔ in the sitemap set, see indexable.ts) — fed the set membership `sitemap.ts` itself uses.
  * `fetchInSitemapSet` is injectable (same DI convention as
  * `fetchCompanyInSitemapSet` itself) so unit tests never hit the network.
  */
@@ -489,132 +486,11 @@ export async function buildCompanyPageMetadata(
 ): Promise<Metadata> {
   const title = `Is ${data.name} hiring? Live verified jobs & ${GHOST_JOB_TERM} risk`;
   const description = companyMetaDescription(data);
-  const indexability = resolveCompanyIndexability({
-    inSitemapSet: await fetchInSitemapSet(data.domain),
-    facts: data.facts,
-  });
+  const indexability = resolveCompanyIndexability({ inSitemapSet: await fetchInSitemapSet(data.domain) });
   const path = companyBoardPath(data.domain);
   return {
     description,
     ...canonicalMetadata(path, title, description),
     ...robotsMetadataFor(path, undefined, indexability),
-  };
-}
-
-/**
- * Raw `location_country` value -> doc count across `jobs`, the same shape
- * `rollupCountryDistribution` normally reads off a live Meilisearch facet
- * response (see /trends' `TopCountriesList` and the /jobs location filter,
- * both fed from a real `facetDistribution`). `/co` has no separate facet
- * call, so this builds the same shape from the page's own fetched `jobs`
- * window instead. A multi-country posting (`location_country` as an array —
- * see `PublicJob`'s own doc) increments each of its values once, the same
- * way a real facet distribution counts a multi-valued attribute. Blank
- * tokens are dropped before counting, not after.
- */
-function countryDistribution(jobs: PublicJob[]): Record<string, number> {
-  const counts: Record<string, number> = {};
-  for (const job of jobs) {
-    for (const raw of toValueArray(job.location_country)) {
-      const trimmed = raw.trim();
-      if (!trimmed) continue;
-      counts[trimmed] = (counts[trimmed] ?? 0) + 1;
-    }
-  }
-  return counts;
-}
-
-/**
- * "hiring in {A}, {B}, {C} +N more" — top 3 hiring countries by role count.
- * Reuses `rollupCountryDistribution` (country-classification.ts), the SAME
- * rollup /trends' "Top Hiring Countries" table and the /jobs location filter
- * already render country names from, so this never invents a second raw-
- * value-to-display-name mapping for the same polluted field (that module's
- * own doc: raw `location_country` carries city/region/remote-sentinel junk
- * alongside real countries). The `UNCLASSIFIED_LABEL` bucket that rollup
- * produces for everything that isn't a recognized country is dropped here —
- * it is exactly that junk, not a hiring geography, so it counts toward
- * neither the shown names nor "+N more". `null` when nothing in `jobs`
- * resolved to a real country (a genuinely fully-remote employer, or a corpus
- * window with no usable location data).
- */
-function hiringGeosClause(jobs: PublicJob[]): string | null {
-  const countries = rollupCountryDistribution(countryDistribution(jobs)).filter(
-    (row) => row.country !== UNCLASSIFIED_LABEL,
-  );
-  if (countries.length === 0) return null;
-  const shown = countries.slice(0, 3).map((row) => row.country);
-  const remaining = countries.length - shown.length;
-  return `hiring in ${shown.join(", ")}${remaining > 0 ? ` +${remaining} more` : ""}`;
-}
-
-/**
- * "5 of 43 roles remote" — read off `deriveWorkModeDistribution`
- * (lib/companies/enrichment.ts), which counts a role as remote by the same
- * `work_type` rule the /jobs Remote filter uses, so the number here is the
- * number that filter returns.
- *
- * A count only when the fetched roles are every open role
- * (`sampleCoversAllRoles`); over a sample it stays a rounded share with
- * "about", and a zero share over a sample is dropped rather than stated as
- * "none". `null` when there's no intelligence to read (no fetched jobs).
- */
-function remoteShareClause(
-  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound" | "intelligence">,
-): string | null {
-  const modes = data.intelligence?.workModes;
-  if (!modes) return null;
-  if (sampleCoversAllRoles(data)) {
-    return `${formatCount(modes.remoteCount)} of ${formatCount(modes.total)} roles remote`;
-  }
-  return modes.remoteCount === 0 ? null : `about ${modes.remotePct}% of roles remote`;
-}
-
-/**
- * The remote fact's link: this company's roles on /jobs with the Remote
- * filter applied. Built from the `work_type` values the fetched roles
- * actually carry (the corpus's own strings, so the facet cannot miss the
- * way a derived `location_country` value did — see `buildCompanyJobsUrl`),
- * on top of that function's scope so the landing count matches the fact.
- */
-function buildRemoteJobsUrl(data: Pick<CompanyPageData, "domain" | "jobs">): string | null {
-  const values = [...new Set(data.jobs.map((j) => j.work_type).filter((v) => v && isRemoteWorkTypeValue(v)))];
-  if (values.length === 0) return null;
-  return `/jobs${serializeJobsUrl({
-    ...DEFAULT_URL_STATE,
-    companyDomain: data.domain,
-    postedBucket: undefined,
-    hideGhosts: false,
-    facets: { location_country: ["any"], work_type: values },
-  })}`;
-}
-
-/** The hero's "derived facts" row: domain, where this employer is hiring,
- *  how many roles are remote. `hiringGeos`/`remoteShare` are `null`
- *  (never a placeholder string) when the underlying clause has nothing
- *  usable behind it — the hero simply omits the ones that are `null`.
- *  `remoteJobsUrl` links the remote fact to the matching /jobs search. */
-export interface CompanyFacts {
-  domain: string;
-  hiringGeos: string | null;
-  remoteShare: string | null;
-  remoteJobsUrl: string | null;
-}
-
-/**
- * The hero's quiet "derived facts" under the hiring-answer sentence: domain,
- * where this employer is hiring, what share of roles are remote. `domain` is
- * the only part guaranteed to ever be there (see `CompanyPageData.domain` /
- * `getCompanyPageData`, which never returns a page with an empty one).
- */
-export function buildCompanyFacts(
-  data: Pick<CompanyPageData, "domain" | "jobs" | "intelligence" | "openCount" | "openCountIsLowerBound">,
-): CompanyFacts {
-  const remoteShare = remoteShareClause(data);
-  return {
-    domain: data.domain,
-    hiringGeos: hiringGeosClause(data.jobs),
-    remoteShare,
-    remoteJobsUrl: remoteShare ? buildRemoteJobsUrl(data) : null,
   };
 }
