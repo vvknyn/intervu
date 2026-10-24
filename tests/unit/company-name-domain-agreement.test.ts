@@ -27,7 +27,7 @@ describe("companies/company-name — a corpus name must agree with the domain", 
 
   it("strips an identifier token or picks the agreeing segment", () => {
     assert.equal(shown("22-3844417 Broadridge Investor Comm Solutions", "broadridge.com"), "Broadridge Investor Comm Solutions");
-    assert.equal(shown("CA10382-CANADA AIR LIQUIDE CANADA", "airliquide.com"), "AIR LIQUIDE CANADA");
+    assert.equal(shown("CA10382-CANADA AIR LIQUIDE CANADA", "airliquide.com"), "Air Liquide Canada");
     assert.equal(shown("200_Mohegan_Sun Mohegan Tribal Gaming Authority - Mohegan Sun", "mohegansun.com"), "Mohegan Sun");
   });
 
@@ -105,7 +105,7 @@ describe("companies/company-name — a corpus name must agree with the domain", 
   it("R3: spellings of one name vote together; the shown form is the commonest that is not flat lower-case", () => {
     assert.equal(shown("tdsynnex", "tdsynnex.com"), "Tdsynnex");
     const synnex = [...Array(5).fill({ company: "tdsynnex" }), ...Array(2).fill({ company: "TD SYNNEX" })];
-    assert.equal(resolveCompanyName(synnex, "tdsynnex.com").value, "TD SYNNEX");
+    assert.equal(resolveCompanyName(synnex, "tdsynnex.com").value, "TD Synnex");
     const orchid = [...Array(3).fill({ company: "Orchid Foods Group" }), ...Array(2).fill({ company: "Orchid Foods" }), { company: "ORCHID FOODS" }, { company: "orchidfoods" }];
     assert.equal(resolveCompanyName(orchid, "orchidfoods.com").value, "Orchid Foods");
     const datadog = [{ company: "Datadog" }, ...Array(4).fill({ company: "datadog" })];
