@@ -8,7 +8,7 @@
  */
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getBaseResumeForUser } from "@/lib/resume/base-resume";
+import { fetchBaseResumeDoc } from "@/lib/resume/base-resume";
 import { refuseUnpaid } from "@/lib/resume/when-paid";
 import { resumeTextOnFile } from "@/lib/pursuits/resume-on-apply";
 import { validate, guestAppliedResumeSchema } from "@/lib/validation";
@@ -17,9 +17,10 @@ import type { AppliedResume, Pursuit } from "@/lib/pursuits/types";
 
 /** The account's résumé as the text a role keeps. Null when there's none or
  *  it can't be read: a failed read never blocks the status write it rides on. */
-export async function accountResumeText(uid: string): Promise<string | null> {
+export async function accountResumeText(uid: string, isPaid?: (uid: string) => Promise<boolean>): Promise<string | null> {
     try {
-        const base = await getBaseResumeForUser(uid);
+        // The paid gate lives in `fetchBaseResumeDoc`: an unpaid account has no résumé to copy.
+        const { base } = await fetchBaseResumeDoc(uid, isPaid);
         if (base.source === "resume_data") return resumeTextOnFile({ resume_data: base.resume_data });
         if (base.source === "resume_text") return resumeTextOnFile({ resume_text: base.resume_text });
         return null;

@@ -105,6 +105,52 @@ export const updateApplicationSchema = z
   })
   .strict();
 
+/** createApplication payload — the legal create fields only. `user_id`, the
+ *  timestamps and `applied_resume` are server-set, so they are unknown keys here. */
+export const createApplicationSchema = z
+  .object({
+    company_name: nonEmptyString(200),
+    position: nonEmptyString(300),
+    job_url: optionalHttpUrl,
+    applied_at: optionalString(64),
+    status: applicationStatus,
+    resume_version_id: optionalString(200),
+    cover_letter: optionalString(50000),
+    note: optionalString(2000),
+  })
+  .strict();
+
+/** addFavorite payload — `user_id` and the timestamps are server-set. */
+export const addFavoriteSchema = z
+  .object({
+    question_text: nonEmptyString(5000),
+    question_category: optionalString(200),
+    company: optionalString(200),
+    position: optionalString(300),
+    round: optionalString(200),
+    notes: optionalString(5000),
+  })
+  .strict();
+
+/** saveSource payload — `id`, `user_id` and `created_at` are server-set. */
+export const saveSourceSchema = z
+  .object({
+    type: z.enum(["text", "url", "file"]),
+    title: nonEmptyString(300),
+    content: nonEmptyString(500000),
+    visibility: z.enum(["private", "public"]).optional(),
+  })
+  .strict();
+
+/** updateAppConfig payload (admin-only action). */
+export const updateAppConfigSchema = z
+  .object({
+    show_donation: z.boolean().optional(),
+    // "" clears the link, so it stays "" rather than normalizing to undefined.
+    donation_url: z.union([z.literal(""), z.string().trim().url("must be a valid URL").max(2048)]).optional(),
+  })
+  .strict();
+
 /** A job snapshot captured at go-after time (spec §3) — carried on the
  *  pursuit so tailor/prep survive the listing expiring out of Meilisearch.
  *  Nullability mirrors `PublicJob`'s own fields. */

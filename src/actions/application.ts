@@ -3,14 +3,14 @@
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { revalidatePath } from "next/cache";
-import { validate, updateApplicationSchema, createManualPursuitSchema } from "@/lib/validation";
+import { validate, createApplicationSchema, updateApplicationSchema, createManualPursuitSchema } from "@/lib/validation";
 import {
     buildManualPursuitSnapshot,
     type JobSnapshot,
     type Pursuit as PursuitType,
     type PursuitStage,
 } from "@/lib/pursuits/types";
-import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
+import { stripUndefinedDeep, upsertPursuitCore } from "@/lib/pursuits/upsert-core";
 import { appliedResumeFor, withoutAppliedResumeText, withoutResumeText } from "@/lib/pursuits/resume-on-apply";
 import { accountResumeText } from "@/lib/pursuits/applied-resume";
 import { hasPaidAccess } from "@/lib/billing/access";
@@ -118,21 +118,27 @@ export async function createApplication(application: CreateApplicationData) {
             return { error: "User not authenticated" };
         }
 
+        // Client-supplied keys are untrusted: only the schema's fields reach the
+        // doc, so a caller can't write `applied_resume`/`resume_versions` (paid,
+        // server-copied) or any other key.
+        const parsed = validate(createApplicationSchema, application);
+        if (!parsed.ok) return { error: parsed.error };
+
         const db = getAdminDb();
         const now = new Date().toISOString();
         // A role tracked as already applied keeps the résumé on file, as one
         // marked Applied later does (`updateApplication`).
         const appliedResume =
-            application.status === "applied"
-                ? appliedResumeFor(null, application.status, await accountResumeText(user.uid), now)
+            parsed.data.status === "applied"
+                ? appliedResumeFor(null, parsed.data.status, await accountResumeText(user.uid), now)
                 : undefined;
-        const docData = {
-            ...application,
+        const docData = stripUndefinedDeep({
+            ...parsed.data,
             ...(appliedResume ? { applied_resume: appliedResume } : {}),
             user_id: user.uid,
             created_at: now,
             updated_at: now,
-        };
+        });
 
         const docRef = await db.collection("applications").add(docData);
         const data = withoutResumeText({ id: docRef.id, ...docData });
