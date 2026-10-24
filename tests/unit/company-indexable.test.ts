@@ -254,6 +254,15 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
+  it("site_names_source wikidata moves site_names to labelSpellings (ahead of the other fields); any other or missing source keeps siteNames", () => {
+    const hit = { domain: "thermofisher.com", open_role_count: 40, site_names: ["Applied Biosystems", "Thermo Fisher Scientific Inc."], wikidata_names: ["Thermo Fisher", "Applied Biosystems"] };
+    const wiki = parseCompanyDirectoryHit({ ...hit, site_names_source: "wikidata" })!;
+    assert.ok(!("siteNames" in wiki));
+    assert.deepEqual(wiki.labelSpellings, ["Applied Biosystems", "Thermo Fisher Scientific Inc.", "Thermo Fisher"]);
+    assert.deepEqual(parseCompanyDirectoryHit(hit)?.siteNames, ["Applied Biosystems", "Thermo Fisher Scientific Inc."]);
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names_source: "homepage" })?.siteNames, ["Applied Biosystems", "Thermo Fisher Scientific Inc."]);
+  });
+
   it("a site_names entry still wins over a labelSpelling, through the parsed hit", () => {
     const parsed = parseCompanyDirectoryHit({ domain: "homedepot.com", open_role_count: 40, site_names: ["Home Depot"], wikidata_names: ["The HomeDepot"], row_names: ["HomeDepot"] })!;
     assert.equal(siteSpelling("Homedepot", parsed.siteNames, parsed.domain, undefined, parsed.labelSpellings), "Home Depot");
