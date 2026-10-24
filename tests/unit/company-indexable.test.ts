@@ -234,6 +234,13 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     );
   });
 
+  it("carries site_names strings in order, ignores non-string entries, and omits the field when absent or not an array", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Acme Co", 7, null, "Acme"] })?.siteNames, ["Acme Co", "Acme"]);
+    assert.equal(parseCompanyDirectoryHit({ ...hit, site_names: "Acme" })?.siteNames, undefined);
+    assert.ok(!("siteNames" in parseCompanyDirectoryHit(hit)!));
+  });
+
   it("reads a missing computed_at as null rather than dropping the hit — computed_at is not a gate field", () => {
     const parsed = parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: 40 });
     assert.ok(parsed);

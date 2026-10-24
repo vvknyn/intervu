@@ -209,6 +209,21 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
   return { labels: parts.map(alnum).filter(Boolean).flatMap(labelVariants), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
 }
 
+/** An all-capitals page title longer than this is a banner ("FIVE GUYS"), not a spelling; shorter is an acronym ("AAFF"). */
+const MAX_ACRONYM_LETTERS = 4;
+
+/**
+ * SP: the company's own spelling of the agreed name `display`. The first of the homepage `candidates`
+ * (source order) that differs from `display` only in spaces, casing, punctuation or accents ("Aspen Dental"
+ * for "Aspendental", "Air Liquide" for "AIR LIQUIDE") is shown; an all-capitals title is no spelling.
+ * Otherwise `display` stands. Never different letters, so the directory letter is unchanged.
+ */
+export function siteSpelling(display: string, candidates: readonly string[] = []): string {
+  const key = (value: string) => alnum(value.replace(/&/g, " and "));
+  const isBanner = (c: string) => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
+  return candidates.find((c) => c !== display && key(c) === key(display) && !isBanner(c)) ?? display;
+}
+
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */
 export function hostLabelIsName(domain: string, name: string): boolean {
   return alnum(hostParts(domain).parts.at(-1) ?? "") === alnum(name);

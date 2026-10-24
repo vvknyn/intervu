@@ -6,11 +6,11 @@ import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** A candidate and its role rows: `names` maps a company string to how many rows carry it. */
-type Spec = [domain: string, roles: number, names: Record<string, number>];
+type Spec = [domain: string, roles: number, names: Record<string, number>, siteNames?: string[]];
 const rowsOf = (names: Record<string, number>): PublicJob[] =>
   Object.entries(names).flatMap(([company, n]) => Array.from({ length: n }, (_, i) => ({ company, title: `${company} role ${i}`, location: "Remote" }) as PublicJob));
 const build = (specs: Spec[], cap?: number): Directory =>
-  buildDirectory(specs.map(([domain, openRoleCount]): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null })), specs.map(([, , names]) => rowsOf(names)), cap);
+  buildDirectory(specs.map(([domain, openRoleCount, , siteNames]): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null, ...(siteNames && { siteNames }) })), specs.map(([, , names]) => rowsOf(names)), cap);
 const listed = (d: Directory) => Object.fromEntries(d.companies.map((c) => [c.domain, c.name]));
 const excluded = (d: Directory, rule: string) => d.excluded.filter((e) => e.rule === rule);
 
@@ -105,6 +105,21 @@ describe("fetchDirectory / fetchCompanyInSitemapSet", () => {
   it("rejects, rather than answering false, when the directory cannot be read: a failed read is not a membership answer", async () => {
     await assert.rejects(fetchCompanyInSitemapSet("acme.com", async () => { throw new Error("meili down"); }), /meili down/);
     await assert.rejects(fetchCompanyInSitemapSet("other.com", async () => { throw new Error("aborted"); }), /aborted/);
+  });
+});
+
+describe("buildDirectory — SP: the listed name is the company's own spelling", () => {
+  it("lists the homepage spelling when it only respells the agreed name; the letter and the page name follow the same value", () => {
+    const d = build([
+      ["aspendental.com", 90, { Aspendental: 5 }, ["Aspen Dental"]],
+      ["airliquide.com", 80, { "AIR LIQUIDE": 5 }, ["Air Liquide"]],
+      ["abbott.com", 70, { "Abbott Laboratories": 5 }, ["Abbott"]],
+      ["fiveguys.com", 60, { Fiveguys: 5 }, ["FIVE GUYS"]],
+      ["aaff.com", 50, { aaff: 5 }, ["AAFF"]],
+      ["acme.com", 40, { "Acme Robotics": 5 }],
+    ]);
+    assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott Laboratories", "fiveguys.com": "Fiveguys", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
+    assert.equal(d.companies.find((c) => c.domain === "aspendental.com")?.letter, "A");
   });
 });
 

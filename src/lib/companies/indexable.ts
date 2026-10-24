@@ -111,6 +111,8 @@ export interface IndexableCompanyDomain {
    *  carries something `Date.parse` can't read; `sitemap.ts` reads this as
    *  "unknown" and omits `lastModified` rather than stamping today's date. */
   computedAt: string | null;
+  /** The company's own homepage name candidates, in source order (`site_names`). Absent when the doc has none. */
+  siteNames?: string[];
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -151,7 +153,8 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at) };
+  const siteNames = Array.isArray(h.site_names) ? h.site_names.filter((n): n is string => typeof n === "string") : null;
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own
