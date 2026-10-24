@@ -142,7 +142,7 @@ const MIN_BRANDED_SIBLINGS = 2;
  * rows carries zero casing information, same as a domain label).
  */
 export function capitalizeAfterNonLetter(value: string): string {
-  return value.replace(/(^|[^a-zA-Z])([a-z])/g, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
+  return value.replace(/(^|[^\p{L}])(\p{Ll})/gu, (_m, boundary: string, letter: string) => boundary + letter.toUpperCase());
 }
 
 /**

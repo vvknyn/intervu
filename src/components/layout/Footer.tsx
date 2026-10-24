@@ -8,6 +8,13 @@ import { isLeanProductSurface, isQuietFooterPath, shouldHideSiteChrome } from "@
 import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { GHOST_RESEARCH_HREF, GHOST_SCREENING_CLAUSE } from "@/lib/marketing-stats";
 
+/** The crawl-path nav: every career hub plus the company directory. `lean`, so EVERY footer
+ *  variant (full, lean, the /jobs inline panels) renders it from this one list. */
+const SEO_NAV_LINKS: { label: string; href: string; lean: true }[] = [
+    ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path, lean: true as const })),
+    { label: "Companies", href: "/co", lean: true },
+];
+
 /** Quiet footer links — Research lives here (not primary nav). `fromCurrentPage`
  *  marks a link whose destination wants to know where the visitor was —
  *  `FooterLinks` appends `?from=<pathname>` for any entry carrying it, keyed
@@ -17,7 +24,7 @@ export const LEGAL_LINKS: { label: string; href: string; fromCurrentPage?: true;
     { label: "Blog", href: "/blog" },
     { label: "About", href: "/about" },
     { label: "Pricing", href: "/pricing" },
-    ...CAREER_HUBS.map((hub) => ({ label: hub.label, href: hub.path })),
+    ...SEO_NAV_LINKS,
     { label: "Indeed alternative", href: "/indeed-alternative" },
     { label: "LinkedIn Jobs alternative", href: "/linkedin-jobs-alternative" },
     { label: "Eluta alternative", href: "/eluta-alternative" },
@@ -134,8 +141,8 @@ export function Footer() {
     return <FooterContent />;
 }
 
-/** The `lean` links only (checks, Privacy, Terms) — keeps legal reachable without the ~17-link farm on
- *  hub/deck/apply lean walks and on `/careers/remote-jobs`. */
+/** The `lean` links only (checks, the hubs and Companies, Privacy, Terms) — no blog/pricing/alternatives
+ *  farm on hub/deck/apply lean walks and on `/careers/remote-jobs`. */
 function LeanFooterContent() {
     const prefetchOnIntent = usePrefetchOnIntent();
     return (
