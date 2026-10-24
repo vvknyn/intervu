@@ -306,11 +306,19 @@ function expandSquashedLabel(label: string, names: readonly string[]): string | 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
 const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word !== word[0]!.toUpperCase() + word.slice(1).toLowerCase();
 
+/** The one corporate/careers tail words a domain label may carry after its brand ("trilongroup" = "trilon" + "group"):
+ *  the legal forms of `LEGAL_FORM_TOKENS` that read as words, plus the careers-site and holding-company words. */
+const LABEL_TAIL_WORDS = new Set([
+  ...["inc", "corp", "corporation", "llc", "ltd", "co", "company"].filter((word) => LEGAL_FORM_TOKENS.has(word)),
+  "group", "jobs", "careers", "usa", "global", "holdings", "intl",
+]);
+
 /**
  * The site name that is a proper name inside the label ("Dunkin'" in dunkindonuts, "St. Charles Health" in
  * stcharleshealthcare): its key is a proper prefix of the label, at least 3 letters, it passes the expansion
- * hygiene, and it carries evidence of being a name rather than a page title: 2+ words, or one word with its own
- * casing ("EverTrue", "ATI"; not "Home", "Careers"). The longest key wins.
+ * hygiene, and it carries evidence of being a name rather than a page title: 2+ words, one word with its own
+ * casing ("EverTrue", "ATI"; not "Home", "Careers"), or one word that is the label minus a single `LABEL_TAIL_WORDS`
+ * word ("Trilon" in trilongroup; not "Wells" in wellsfargo, nor a name already ending in a tail: "Bigcorp" in bigcorpgroup is a cut). The longest key wins.
  */
 function prefixBrand(label: string, names: readonly string[]): string | undefined {
   const qualifies = (name: string) => {
@@ -318,7 +326,7 @@ function prefixBrand(label: string, names: readonly string[]): string | undefine
     return (
       key.length >= 3 && key.length < label.length && label.startsWith(key) &&
       wordCount(name) <= EXPANSION_MAX_WORDS && EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) &&
-      !isBanner(name) && isSoundSpelling(name) && (wordCount(name) >= 2 || carriesCasing(name))
+      !isBanner(name) && isSoundSpelling(name) && (wordCount(name) >= 2 || carriesCasing(name) || (LABEL_TAIL_WORDS.has(label.slice(key.length)) && ![...LABEL_TAIL_WORDS].some((tail) => key.endsWith(tail))))
     );
   };
   return names.filter(qualifies).sort((a, b) => siteKey(b).length - siteKey(a).length)[0];

@@ -690,3 +690,23 @@ describe("companies/company-name — name classes (C1-C6)", () => {
     assert.equal(name({ "Nova Bio": 1, "Nova Air": 1, "Nova Tech": 1 }, "nova.com"), "Nova");
   });
 });
+
+describe("siteSpelling — a one-word brand plus a corporate tail in the domain label", () => {
+  it("accepts a plain one-word name when the label's remainder is one tail word", () => {
+    assert.equal(siteSpelling("Trilongroup", ["Trilon"], "trilongroup.com"), "Trilon");
+    assert.equal(siteSpelling("Speakitjobs", ["Speakit"], "speakitjobs.com"), "Speakit");
+    assert.equal(siteSpelling("Acmeholdings", ["Acme"], "acmeholdings.com"), "Acme");
+    assert.equal(siteSpelling("Oshkoshcorp", ["Oshkosh Corporation"], "oshkoshcorp.com"), "Oshkosh");
+  });
+
+  it("refuses a page word or a remainder that is not a tail word", () => {
+    assert.equal(siteSpelling("Homedepot", ["Home"], "homedepot.com"), "Homedepot");
+    assert.equal(siteSpelling("Wellsfargo", ["Wells"], "wellsfargo.com"), "Wellsfargo");
+  });
+
+  it("expands to a spelling a description witnesses", () => {
+    assert.equal(siteSpelling("Homedepot", ["Home Depot"], "homedepot.com"), "Home Depot");
+    assert.equal(siteSpelling("Levistraussandco", ["Levi Strauss & Co"], "levistraussandco.com"), "Levi Strauss & Co");
+    assert.equal(siteSpelling("Volvogroup", ["Volvo Group"], "volvogroup.com"), "Volvo Group");
+  });
+});

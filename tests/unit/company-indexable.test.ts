@@ -242,6 +242,16 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("siteNames" in parseCompanyDirectoryHit(hit)!));
   });
 
+  it("concatenates site_names, wikidata_names, row_names in order, deduped; absent fields mean no names", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.deepEqual(
+      parseCompanyDirectoryHit({ ...hit, site_names: ["Acme", "Acme Co"], wikidata_names: ["Acme Corp", "Acme"], row_names: ["Acme Corporation", 3] })?.siteNames,
+      ["Acme", "Acme Co", "Acme Corp", "Acme Corporation"],
+    );
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })?.siteNames, ["Acme"]);
+    assert.ok(!("siteNames" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
+  });
+
   it("reads a missing computed_at as null rather than dropping the hit — computed_at is not a gate field", () => {
     const parsed = parseCompanyDirectoryHit({ domain: "acme.com", open_role_count: 40 });
     assert.ok(parsed);

@@ -111,7 +111,7 @@ export interface IndexableCompanyDomain {
    *  carries something `Date.parse` can't read; `sitemap.ts` reads this as
    *  "unknown" and omits `lastModified` rather than stamping today's date. */
   computedAt: string | null;
-  /** The company's own homepage name candidates, in source order (`site_names`). Absent when the doc has none. */
+  /** The company's name candidates in source order, deduped: homepage `site_names`, then `wikidata_names`, then `row_names` (a spelling its own job descriptions witness). Absent when the doc has none. */
   siteNames?: string[];
 }
 
@@ -141,6 +141,9 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(v)) ? null : v;
 }
 
+/** The `company_directory` string-array fields that carry name candidates, in precedence order (homepage first). */
+const NAME_FIELDS = ["site_names", "wikidata_names", "row_names"] as const;
+
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
  * Isolated from the fetch so a malformed doc's handling is unit-testable
@@ -153,8 +156,8 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const domain = typeof h.domain === "string" && h.domain.trim() ? h.domain : null;
   const openRoleCount = num(h.open_role_count);
   if (domain === null || openRoleCount === null) return null;
-  const siteNames = Array.isArray(h.site_names) ? h.site_names.filter((n): n is string => typeof n === "string") : null;
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }) };
+  const names = [...new Set(NAME_FIELDS.flatMap((field) => (Array.isArray(h[field]) ? (h[field] as unknown[]).filter((n): n is string => typeof n === "string") : [])))];
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(names.length > 0 && { siteNames: names }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own
