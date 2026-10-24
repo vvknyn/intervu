@@ -489,3 +489,26 @@ export async function buildCompanyPageMetadata(
     ...robotsMetadataFor(path, undefined, indexability),
   };
 }
+
+/**
+ * The "N of M ..." caption beside the "Open roles" heading. `windowSize` is the loaded role count
+ * when it is only a slice of the employer (`!sampleCoversAllRoles`), else null: a query then only
+ * covered those roles, and the caption says so rather than implying a full search.
+ */
+export function roleCountLabel(a: {
+  displayed: number;
+  matched: number;
+  hasQuery: boolean;
+  openCountLabel: string;
+  windowSize: number | null;
+}): string {
+  if (!a.hasQuery) return `${a.displayed} of ${a.openCountLabel} shown`;
+  if (a.windowSize != null) {
+    return `${a.matched} of the ${a.windowSize} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
+  }
+  if (a.displayed === a.matched) return `${a.matched} match${a.matched === 1 ? "" : "es"}`;
+  return `${a.displayed} of ${a.matched} matches shown`;
+}
+
+/** The expand button names its increment ("Show 186 more roles"), never "all": the list is a window. */
+export const showMoreLabel = (hidden: number): string => `Show ${formatCount(hidden)} more role${hidden === 1 ? "" : "s"}`;
