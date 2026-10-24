@@ -1,7 +1,7 @@
 import type { CompanyFacts } from "./company-facts";
 
 /** Page order. The page maps each id to one component; presence is decided here only. */
-export const SECTION_ORDER = ["identity", "hiringNow", "whereAndHow", "skills", "listingHealth", "filings", "openRoles", "related", "faq"] as const;
+export const SECTION_ORDER = ["identity", "hiringNow", "openRoles", "whereAndHow", "skills", "listingHealth", "filings", "related", "faq"] as const;
 export type SectionId = (typeof SECTION_ORDER)[number];
 
 /** What the facts alone do not say: list sizes the page fetched separately. */

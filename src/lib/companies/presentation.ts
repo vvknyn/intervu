@@ -415,8 +415,8 @@ export function typicalPayText(jobs: PublicJob[]): string | null {
  * company-wide. A figure with nothing behind it is left out, never zero-filled
  * except where zero is the answer (none posted recently).
  *
- * Visa counts say "say they sponsor": `visa_sponsorship` is null on most
- * postings, and null means the posting didn't say, not that it won't.
+ * Pay and visa live in the public pay / visa sections (`CompanyFacts`), so
+ * they are not repeated here.
  */
 export function buildCompanyRoleStats(
   data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
@@ -424,7 +424,6 @@ export function buildCompanyRoleStats(
 ): CompanyRoleStat[] {
   const jobs = data.jobs;
   if (jobs.length === 0 || !sampleCoversAllRoles(data)) return [];
-  const total = formatCount(jobs.length);
   const stats: CompanyRoleStat[] = [];
 
   const windowMs = defaultRecencyWindowMs();
@@ -432,15 +431,6 @@ export function buildCompanyRoleStats(
     const recent = jobs.filter((j) => (j.posted_ts as number) >= nowMs - windowMs).length;
     stats.push({ key: "recent", value: formatCount(recent), label: `new in the last ${Math.round(windowMs / MS_PER_DAY)} days` });
   }
-
-  const withPay = jobs.filter((j) => j.salary_min != null || j.salary_max != null).length;
-  stats.push({ key: "pay", value: `${formatCount(withPay)} of ${total}`, label: "list pay" });
-
-  const typical = typicalPayText(jobs);
-  if (typical) stats.push({ key: "typical-pay", value: typical, label: "typical listed pay" });
-
-  const visa = jobs.filter((j) => j.visa_sponsorship === true).length;
-  if (visa > 0) stats.push({ key: "visa", value: `${formatCount(visa)} of ${total}`, label: "say they sponsor visas" });
 
   return stats;
 }

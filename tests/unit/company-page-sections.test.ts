@@ -19,6 +19,15 @@ const full = (): CompanyFacts =>
 const empty = (): CompanyFacts => buildCompanyFacts({ name: "Zed", domain: "zed.com", jobs: [], openCount: { value: 0, isLowerBound: false } });
 const extras = { roleCount: 1, relatedCount: 2, faqCount: 3 };
 
+describe("SECTION_ORDER", () => {
+  it("puts the open roles right after the hiring facts", () => {
+    assert.deepEqual(
+      [...SECTION_ORDER],
+      ["identity", "hiringNow", "openRoles", "whereAndHow", "skills", "listingHealth", "filings", "related", "faq"],
+    );
+  });
+});
+
 describe("companySections", () => {
   it("a full company states every section, in page order", () => {
     const f = full();
