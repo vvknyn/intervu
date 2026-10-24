@@ -5,11 +5,12 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
 
 // Rulebook (docs/design/rulebook-2026-09/RULEBOOK.md line 15) tertiary shape:
-// a 1px Klein outline on a transparent fill, blue text. `outline`,
+// (calm pass R6) ghost: no outline, no fill, foreground text. A tonal fill is blocked by
+// button-variants.test.ts rule (a) (no grey-filled secondary). `outline`,
 // `secondary` and `quiet` were three separate strings for this one shape
 // (secondary's grey fill and outline/quiet's ink border were the rulebook
 // violations) — one shared constant so they can't drift apart again.
-const TERTIARY_BUTTON_CLASSES = "border border-brand bg-transparent text-brand hover:bg-muted"
+const TERTIARY_BUTTON_CLASSES = "bg-transparent text-foreground hover:bg-muted"
 
 const buttonVariants = cva(
   cn(

@@ -70,10 +70,11 @@ describe("jobs filter toolbar chrome", () => {
 
     // #537 (ba9603bf) replaced the squared 3px brand blade with pill chips;
     // e8aa53a1 moved the count badge onto the shared solid-badge primitive.
-    it("chip is a neutral pill: active is a foreground border, never a brand fill", () => {
+    it("chip is a borderless tonal pill: active is a brand-tint fill with brand text (calm pass R5)", () => {
         const src = readFileSync(CHIP, "utf8");
         assert.match(src, /rounded-pill/);
-        assert.match(src, /true: "border-foreground text-foreground"/);
+        assert.match(src, /true: "bg-live-tint-bg text-brand"/);
+        assert.doesNotMatch(src, /border-border/);
         assert.match(src, /motion-reduce:transition-none/);
         assert.doesNotMatch(src, /rounded-full/);
         assert.doesNotMatch(src, /bg-brand text-brand-foreground/);
@@ -209,7 +210,7 @@ describe("jobs filter toolbar chrome", () => {
             "a docked active-filter chip should render chipVariants({ active: true, ...}) — an already-applied filter is unconditionally active",
         );
         assert.match(src, /<SolidBadge tone="muted"/);
-        assert.match(src, /bg-muted lg:block/);
+        assert.match(src, /data-region="band" className="hidden lg:block"/);
 
         const bandRow = src.slice(
             src.indexOf('data-region="band"'),

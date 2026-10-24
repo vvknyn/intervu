@@ -5,20 +5,19 @@ import { solidBadgeVariants } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 /**
- * Soft-surfaces pill chip (A1). Selected/unselected both carry `text-foreground`
- * — the only difference is border weight (`border-foreground` vs `border-border`),
- * never brand color: brand navy is reserved for the 3 named filled controls
- * elsewhere on the page (header Sign in, Search, résumé Upload), not chips.
+ * Calm-pass chip (R5): a borderless tonal fill (surface-2, muted text) at rest;
+ * a selected/active chip is a brand-tint fill with brand text. No outline in
+ * either state.
  */
 export const chipVariants = cva(
   // A chip carries a label, never code, so it takes the sans — with tabular
   // figures, since chips routinely hold counts that sit in a row and should
   // not jitter as the numbers change.
-  "ctl-md inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill border border-border bg-background px-3 text-sm tabular-nums text-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
+  "ctl-md inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-pill bg-surface-2 px-3 text-sm tabular-nums text-muted-foreground transition-colors motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {
       active: {
-        true: "border-foreground text-foreground",
+        true: "bg-live-tint-bg text-brand",
         false: "",
       },
       /**
@@ -29,7 +28,7 @@ export const chipVariants = cva(
        * is a real control (button/trigger) or embeds one (e.g. ChipDismiss).
        */
       interactive: {
-        true: "hover:bg-muted cursor-pointer",
+        true: "hover:bg-muted hover:text-foreground cursor-pointer",
         false: "",
       },
     },

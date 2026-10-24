@@ -1354,3 +1354,26 @@ test('no user-facing string in src spells the auth verb "log in" — canonical i
             `verb is "sign in" (sentence case) everywhere in user-facing copy.`,
     );
 });
+
+test("calm pass R4: backdrop-filter exists only in the one `material-bar` utility", () => {
+    const walk = (dir: string): string[] =>
+        readdirSync(dir).flatMap((name) => {
+            const full = path.join(dir, name);
+            return statSync(full).isDirectory() ? walk(full) : /\.(css|tsx?|jsx?)$/.test(name) ? [full] : [];
+        });
+    const pattern = /backdrop-(?:filter|blur)/;
+    const offenders = walk(path.join(ROOT, "src"))
+        .filter((f) => f !== path.join(ROOT, "src/app/globals.css"))
+        .filter((f) => pattern.test(readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `backdrop-filter/backdrop-blur outside globals.css: ${offenders.join(", ")}`);
+
+    const css = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "");
+    const uses = [...css.matchAll(/backdrop-filter/g)].length;
+    const util = css.match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    assert.ok(util, "@utility material-bar missing from globals.css");
+    const inUtil = [...util.matchAll(/backdrop-filter/g)].length;
+    // 2 sets + the @supports probe: every occurrence must live inside the utility.
+    assert.equal(uses, inUtil, "backdrop-filter appears in globals.css outside @utility material-bar");
+    assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, "material-bar needs an opaque fallback");
+});

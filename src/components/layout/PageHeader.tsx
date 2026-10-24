@@ -94,8 +94,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "border-b border-border bg-background",
-        sticky && "sticky top-0 z-50",
+        sticky ? "sticky top-0 z-50 material-bar" : "bg-background",
       )}
     >
       <PageContainer>

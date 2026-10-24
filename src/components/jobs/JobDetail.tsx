@@ -21,7 +21,6 @@ import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
 import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, applyButtonLabel, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
-import { FACT_CHIP_ICON } from "@/components/jobs/fact-chip-icons";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
@@ -150,8 +149,8 @@ export function PostingCheckHeader({
  */
 export function JobDetailSkeleton() {
     return (
-        <div className="overflow-hidden border border-border bg-surface" aria-hidden="true">
-            <div className="border-b border-border p-6">
+        <div className="overflow-hidden bg-surface" aria-hidden="true">
+            <div className="p-6">
                 <div className="flex items-start gap-4">
                     <WaitBar className="h-12 w-12 shrink-0" />
                     <div className="min-w-0 flex-1 space-y-2">
@@ -247,7 +246,7 @@ export function JobDetailActionBar({
     return (
         <div
             data-testid="job-detail-action-bar"
-            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 border-t border-border bg-surface px-4", className)}
+            className={cn("sticky bottom-0 z-20 flex h-12 items-center gap-2 material-bar px-4", className)}
         >
             {job.apply_url && (
                 <Button size={jobActionSize} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand transition-colors" onClick={onOpenPosting}>
@@ -325,7 +324,7 @@ export function RelatedJobRow({ job, now, onClick, href, first = false }: { job:
     // remote/hybrid job's work mode can show up.
     const loc = placeWithWorkMode(locationText(job), job.work_type);
     const body = (
-        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border")}>
+        <span className={cn("flex min-w-0 flex-col gap-0.5 py-3", !first && "border-t border-border-subtle")}>
             <span data-testid="related-job-title" className="truncate text-meta font-semibold text-foreground group-hover:text-brand transition-colors">{presentJob(job).title}</span>
             <span className="mono-data truncate text-xs text-muted-foreground">
                 {displayCompanyBrand(job.company, job.company_domain, job.title) || "Unknown company"}
@@ -394,7 +393,7 @@ export function RelatedJobsSection({
 }) {
     if (jobs.length === 0) return null;
     return (
-        <div data-testid="job-detail-related" className="border-t border-border py-6">
+        <div data-testid="job-detail-related" className="py-4">
             <Heading className="mb-2 text-sm font-semibold text-foreground">{relatedJobsHeading(basis, companyBrand)}</Heading>
             {/* -mx-4 undoes the pane's and the page column's 16px inset so
                 each row's hover band runs edge to edge (RelatedJobRow). */}
@@ -882,7 +881,7 @@ export function JobDetail({
                                 pursuit={pursuit}
                                 onGoAfter={onGoAfter}
                                 successPulse={saveSuccessPulse}
-                                className="rounded-ctl border border-border bg-surface"
+                                className="rounded-ctl bg-surface-2"
                             />
                         )}
                         {/* ReportJobButton hardcodes its own trigger content
@@ -913,13 +912,11 @@ export function JobDetail({
             >
                 {/* Facts grid (cards pass, 2026-09-17) — one cell per fact
                     buildFactChips already decided is present, replacing the
-                    old single dotted meta line. Icons reuse the same
-                    FACT_CHIP_ICON map the SERP row's own chips use, so a
-                    fact never gets a second, diverging glyph here. */}
+                    old single dotted meta line. Calm pass R8: facts are
+                    words, no per-fact icon (public job detail reads the same). */}
                 <div className="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 text-sm sm:grid-cols-2">
                     {location && (
                         <div className="flex items-start gap-2 text-foreground">
-                            <FACT_CHIP_ICON.location size={16} weight="bold" className="relative top-0.5 shrink-0 text-muted-foreground" aria-hidden />
                             <span className="inline-flex flex-col">
                                 {locationClamped ? (
                                     <>
@@ -957,13 +954,11 @@ export function JobDetail({
                     )}
                     {workTypeChip && (
                         <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.work_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
                             <span>{workTypeChip.label}</span>
                         </div>
                     )}
                     {(employmentTypeChip || experienceLevelChip) && (
                         <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.employment_type size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
                             {/* One flex item: as the row's own items, the row's
                                 gap-2 landed after the "·" ("Part Time ·   Mid"). */}
                             <span>
@@ -978,7 +973,6 @@ export function JobDetail({
                     )}
                     {(postedChip || firstSeenChip) && (
                         <div className="flex items-center gap-2 text-foreground">
-                            <FACT_CHIP_ICON.posted size={16} weight="bold" className="shrink-0 text-muted-foreground" aria-hidden />
                             <span>
                                 {postedChip && (
                                     <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
@@ -1130,9 +1124,9 @@ export function JobDetail({
                 {/* The ghost-check ledger and description body render for
                     everyone — posting text is public; Apply stays gated. */}
                 {/* Rulebook item d: sections stack on page bg, separated by a
-                    hairline top border + 24px vertical padding — no card/panel
+                    32px of space (no rule) — no card/panel
                     per section. Body copy sits at a max-w-prose reading measure. */}
-                <div className="border-t border-border py-6">
+                <div className="py-4">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {(() => {
                         // The employer's-site-is-slow note — shared by the "body" case
@@ -1233,7 +1227,7 @@ export function JobDetail({
                 </div>
 
                 {visibleTags(job.tags, 16).length > 0 && (
-                    <div className="border-t border-border py-6">
+                    <div className="py-4">
                         {/* Rulebook item c: no bordered tag chips — a sentence-case
                             label plus one flowing secondary line joined by " · ". */}
                         <div className="mb-1 text-sm font-semibold text-foreground">Keywords from the posting</div>
@@ -1247,7 +1241,7 @@ export function JobDetail({
                     content, render on page bg with a hairline top divider
                     instead of a bordered/bg panel. */}
                 {hasCompanyIntel && (
-                    <div className="border-t border-border py-6">
+                    <div className="py-4">
                         <h3 className="text-base font-semibold text-foreground">
                             {companyBrand || "This company"} · hiring record
                         </h3>
@@ -1330,7 +1324,7 @@ export function JobDetail({
                     fill, no border (rulebook item f) — from this call site
                     only, leaving the shared component and its other mount
                     (which isn't a "detail" region) alone. */}
-                <div className="border-t border-border py-6">
+                <div className="py-4">
                     <McpHandoffNote
                         className="border-0 bg-transparent p-0 [&_button.bg-brand]:!border-0 [&_button.bg-brand]:!bg-transparent [&_button.bg-brand]:!px-0 [&_button.bg-brand]:!text-brand [&_button.bg-brand]:hover:!bg-transparent [&_button.bg-brand]:hover:!underline"
                         job={{

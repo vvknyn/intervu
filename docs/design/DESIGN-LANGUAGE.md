@@ -18,6 +18,19 @@ Why this exists: six design passes each remapped the same token names to differe
 there was no current document to arbitrate with and every change drifted. One document, or it
 happens again.
 
+## Decisions (owner, 2026-10-24) — Calm pass
+
+Owner: "the interface should become a little more CALM". Amends the rulebook's "no blur / no glass header" for **chrome bars only**, and adds the `--border-subtle` tier (below `--border`). Pilot: /jobs and job detail; wave 2 sweeps the rest.
+
+- **R1** Space separates; lines don't. No `border-t`/`border-b` between page or rail sections: 32px between sections, 12-16px within. The 12/600 section label carries structure.
+- **R2** A container gets at most one edge; a tonal step (surface vs background) is preferred. Borders stay only on form fields, data-table rows (subtle tier), the résumé/document surface, and focus rings.
+- **R3** List rows use an inset separator at `--border-subtle`, starting at the title x. Hover is a tonal fill.
+- **R4** Glass only where content scrolls under: the sticky top bar, the /jobs filter band, the mobile tab bar, the sticky action bar. One utility, `material-bar` (globals.css): page colour at 75% alpha, `backdrop-filter: blur(16px) saturate(140%)`, opaque `@supports not` fallback, no hairline. `backdrop-filter` appears nowhere else (guarded in design-language.test.ts).
+- **R5** Chips are fills: surface-2 + muted text at rest; selected = brand tint + brand text. Posting-check pills are tint fills, no outline.
+- **R6** One filled primary per region. Secondary actions are ghost (no outline, no fill); green outlines are retired. A tonal surface-2 secondary is NOT adopted: button-variants.test.ts rule (a) still bans grey-filled buttons.
+- **R7** The promo card is a tonal surface panel; green is only the one primary button.
+- **R8** Facts are words: no per-fact icons in the detail meta. Icons stay only on controls.
+
 ## Decisions (owner, 2026-09-26) — Concept A skeuomorphic system
 
 1. **The signed-out Concept A landing (`ConceptALanding.tsx`) is the canonical visual language**

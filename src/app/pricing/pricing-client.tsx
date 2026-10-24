@@ -100,7 +100,7 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
         Searching is free. A paid month covers the parts where Velai keeps or reads your résumé for you.
       </p>
 
-      <Card data-testid="pricing-card" className="mt-8 max-w-xl border-brand">
+      <Card data-testid="pricing-card" className="mt-8 max-w-xl border border-brand">
         <p className="text-2xl font-semibold text-foreground">
           {PRO_MONTHLY_PRICE}
           <span className="text-sm font-normal text-muted-foreground"> / month</span>

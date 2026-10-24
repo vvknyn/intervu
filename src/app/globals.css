@@ -113,7 +113,9 @@
   --tracking-wider: 0em;
   --tracking-widest: 0em;
 
-  /* No blur anywhere (rulebook: no translucent/frosted surfaces). */
+  /* No blur anywhere (rulebook: no translucent/frosted surfaces). The ONE
+     sanctioned exception is the `material-bar` utility below (calm pass R4),
+     which sets backdrop-filter itself; these tokens stay 0. */
   --blur-xs: 0px;
   --blur-sm: 0px;
   --blur-md: 0px;
@@ -186,6 +188,7 @@
      rather than repointing this sitewide one. */
   --danger-text: 218 30 40;
   --border: 45 50 62;
+  --border-subtle: 30 34 46;
   --input: 115 122 135;
   --ring: var(--brand);
 
@@ -355,6 +358,7 @@
   --destructive: 255 59 105;
   --destructive-foreground: 10 10 10;
   --border: 38 44 58;
+  --border-subtle: 26 30 41;
   --input: 245 247 250;
   --ring: var(--brand);
   --chart-1: 45 104 255;
@@ -447,6 +451,7 @@
   --color-destructive-foreground: rgb(var(--destructive-foreground));
   --color-danger-text: rgb(var(--danger-text));
   --color-border: rgb(var(--border));
+  --color-border-subtle: rgb(var(--border-subtle));
   --color-input: rgb(var(--input));
   --color-ring: rgb(var(--ring));
   --color-chart-1: rgb(var(--chart-1));
@@ -733,6 +738,20 @@ body:has([data-shell="bleed"]) {
      only the hit area grows (below). */
   --hit-min: 2.75rem;
 }
+/* Calm pass R4: the single sanctioned glass material. Only chrome that content
+   scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
+   action bar) uses it. Page colour at 75% alpha + blur(16px) saturate(140%),
+   no hairline. design-language.test.ts guards that backdrop-filter appears
+   nowhere else in src/. */
+@utility material-bar {
+  background-color: rgb(var(--background) / 0.75);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--background));
+  }
+}
+
 @utility ctl-sm {
   --ctl-h: var(--control-h-sm);
   --ctl-text: var(--control-text-sm);

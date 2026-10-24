@@ -82,7 +82,7 @@ export function TopBar() {
     return (
         <header
             data-testid="topbar"
-            className="sticky top-0 z-[var(--z-topbar)] shrink-0 border-b border-border bg-card pt-[env(safe-area-inset-top,0px)] transition-colors shadow-[var(--shadow-bevel-highlight)]"
+            className="sticky top-0 z-[var(--z-topbar)] shrink-0 material-bar pt-[env(safe-area-inset-top,0px)] transition-colors"
         >
             {/* `shell-row` (globals.css) owns the width and the gutter, so this
                 bar lines up with whatever the page below it is doing — capped
@@ -244,9 +244,9 @@ export function TopBar() {
 
             {/* Second row — active filters only. */}
             {docked && (
-                <div data-region="band" className="hidden bg-muted lg:block">
+                <div data-region="band" className="hidden lg:block">
                     {/* Wrap instead of horizontal scroll; chips never truncate. */}
-                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip border-t border-border">
+                    <div className="shell-row box-border flex w-full min-w-0 max-w-full min-h-[var(--jobs-filter-row-h)] flex-wrap items-center gap-2 overflow-x-clip">
                         {docked && (
                             <>
                                 <button
