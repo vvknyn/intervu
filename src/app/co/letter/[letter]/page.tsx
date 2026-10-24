@@ -7,6 +7,8 @@ import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { fetchOpenCounts } from "@/lib/companies/listed-names";
+import { openCountLabel } from "@/lib/companies/presentation";
 import { listedCompanies } from "@/lib/seo/sitemap-entries";
 import { PageTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
@@ -33,6 +35,7 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
   const { letter: segment } = await params;
   const group = await loadGroup(segment);
   if (!group) notFound();
+  const counts = await fetchOpenCounts(group.entries.map((c) => c.domain));
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([
     { name: SITE_NAME, path: "/" },
     { name: "Companies", path: "/co" },
@@ -45,11 +48,15 @@ export default async function CompanyLetterPage({ params }: { params: Promise<{ 
       <PageTitle>{heading(group.letter)}</PageTitle>
       <p className="mt-3 text-sm text-muted-foreground">{DIRECTORY_DESCRIPTION}</p>
       <ul className="mt-6 columns-1 gap-8 text-sm sm:columns-2 [&>li]:break-inside-avoid [&>li]:py-0.5 [&_span]:text-muted-foreground">
-        {group.entries.map(({ domain, name, openRoleCount }) => (
-          <li key={domain}>
-            <Link href={companyBoardPath(domain)}>{name}</Link> <span>{openRoleCount} roles</span>
-          </li>
-        ))}
+        {group.entries.map(({ domain, name }) => {
+          const count = counts.get(domain);
+          return (
+            <li key={domain}>
+              <Link href={companyBoardPath(domain)}>{name}</Link>
+              {count && <> <span>{openCountLabel(count)} roles</span></>}
+            </li>
+          );
+        })}
       </ul>
       <p className="mt-8 text-sm">
         <Link href="/co" className="text-brand hover:underline">
