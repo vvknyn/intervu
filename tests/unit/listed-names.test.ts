@@ -12,10 +12,10 @@ describe("resolveListedNames", () => {
       [row("Meta Platforms"), row("Meta Platforms", "Designer"), row("Meta Platforms", "Analyst")],
       [row("PwC", "Auditor", "Leeds"), row("PwC", "Tax", "York")],
     ];
-    const names = await resolveListedNames(["fb.com", "pwc.com"], fetch, new Map());
-    assert.equal(names["fb.com"], "Meta Platforms");
+    const names = await resolveListedNames(["meta.com", "pwc.com"], fetch, new Map());
+    assert.equal(names["meta.com"], "Meta Platforms");
     assert.equal(names["pwc.com"], "PwC");
-    assert.notEqual(names["fb.com"], displayNameFromDomain("fb.com"));
+    assert.notEqual(names["meta.com"], displayNameFromDomain("meta.com"));
   });
   it("falls to the domain label only when the rows carry no name", async () => {
     const names = await resolveListedNames(["zenith.io"], async () => [[]], new Map());
@@ -24,7 +24,7 @@ describe("resolveListedNames", () => {
   it("does not use internal postings or duplicate postings as evidence", async () => {
     const dupes = Array.from({ length: 5 }, () => row("Dupe Name", "Same Role", "Paris"));
     const fetch: EvidenceFetcher = async () => [[...dupes, row("Real Name", "Role A"), row("Real Name", "Role B")]];
-    assert.equal((await resolveListedNames(["x.com"], fetch, new Map()))["x.com"], "Real Name");
+    assert.equal((await resolveListedNames(["realname.com"], fetch, new Map()))["realname.com"], "Real Name");
   });
   it("on a failed read serves last-good names only when they cover every domain; never domain labels", async () => {
     const failing: EvidenceFetcher = async () => { throw new Error("meili down"); };

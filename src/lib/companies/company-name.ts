@@ -153,6 +153,107 @@ export function displayNameFromDomain(domain: string): string {
   return capitalizeAfterNonLetter(label.replace(/-/g, " "));
 }
 
+/** Joiner words that initials skip: "International Business Machines" and "Bank of America" are both IBM-shaped. */
+const SMALL_WORDS = new Set(["of", "and", "the"]);
+
+/** A leading identifier token (one containing a digit) and the separator joining it to the rest:
+ *  "94-1687665 Bank of America", "CA10382-CANADA AIR LIQUIDE", "04D Federal Reserve Bank". */
+const LEADING_IDENTIFIER_RE = /^([A-Za-z]*\d[A-Za-z0-9]*(?:-\d[A-Za-z0-9]*)*)[-_\s]+(?=\S)/;
+
+/** A TLD this long is a brand ("home.sandvik"), not a registry code (.com, .org, .ca). */
+const BRAND_TLD_MIN_LENGTH = 4;
+
+const alnum = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * The comparison labels of a host, squashed to alphanumerics ("aerospace.circor.com" ->
+ * ["aerospace", "circor"]): every label but the TLD. A short second-level label under a country TLD
+ * ("co" in x.co.uk) is structure, not identity, and is dropped. A brand TLD is returned apart: it
+ * names the employer only as the candidate's whole first word ("Sandvik" on home.sandvik), never as
+ * a substring ("Careerplug" on avanta.care).
+ */
+function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
+  const parts = domain.toLowerCase().split(".");
+  const tld = parts.pop() ?? "";
+  if (parts.length >= 2 && tld.length === 2 && (parts[parts.length - 1] ?? "").length <= 3) parts.pop();
+  return { labels: parts.map(alnum).filter(Boolean), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
+}
+
+type Word = { text: string; optional: boolean };
+
+/** Words split on non-alphanumerics and camelCase ("GlobalFoundries" -> Global Foundries). A word of
+ *  three letters or fewer that the source wrote lower-case (of, at, and), or a leading "The", may be skipped. */
+function wordsOf(segment: string): Word[] {
+  return segment
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .split(/[^A-Za-z0-9]+/)
+    .filter(Boolean)
+    .map((raw, i) => ({
+      text: raw.toLowerCase(),
+      optional: (raw.length <= 3 && raw === raw.toLowerCase()) || (i === 0 && raw.toLowerCase() === "the"),
+    }));
+}
+
+/** Is `label` a concatenation of non-empty prefixes of successive `words`? Every required word up to
+ *  the last one used contributes; trailing words may go unused. */
+function composedFromPrefixes(label: string, words: readonly Word[], i = 0): boolean {
+  if (label === "") return true;
+  const word = words[i];
+  if (!word) return false;
+  if (word.optional && composedFromPrefixes(label, words, i + 1)) return true;
+  for (let k = 1; k <= Math.min(word.text.length, label.length); k++) {
+    if (label[k - 1] !== word.text[k - 1]) return false;
+    if (composedFromPrefixes(label.slice(k), words, i + 1)) return true;
+  }
+  return false;
+}
+
+const containsLabel = (squashed: string, label: string): boolean =>
+  label.length >= 3 ? squashed.includes(label) : squashed === label;
+
+/** Does `segment` name the employer behind `labels`? Contains a label, starts with a word the label
+ *  contains, has initials equal to a label, or composes a label from word prefixes. */
+function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<typeof domainLabels>): boolean {
+  const squashed = alnum(segment);
+  const words = brandTokens(segment);
+  const first = words[0] ?? "";
+  const initials = words.map((w) => w[0]).join("");
+  const significantInitials = words.filter((w) => !SMALL_WORDS.has(w)).map((w) => w[0]).join("");
+  const composable = wordsOf(segment);
+  return first === brandTld || labels.some(
+    (label) =>
+      containsLabel(squashed, label) ||
+      (first.length >= 3 && label.includes(first)) ||
+      (label.length >= 2 && (label === initials || label === significantInitials || composedFromPrefixes(label, composable))),
+  );
+}
+
+/**
+ * The corpus string, reduced to the part that agrees with the domain, or `null` when none does.
+ * A corpus `company` string is whatever the feed carried: an ATS vendor on a tenant's rows, another
+ * employer after an acquisition, a registry code glued to the name. The domain is the one fact
+ * known for certain, so a candidate is shown only if it names the employer the domain belongs to.
+ *   1. a leading identifier token goes ("94-1687665 Bank of America" -> "Bank of America") unless the
+ *      domain label starts with it ("84 Lumber" on 84lumber.com, "3M" on 3m.com keep theirs);
+ *   2. "_" reads as a space; the whole string must agree, and a " - " shortest segment that itself
+ *      contains a label then replaces it ("Mohegan Sun Mohegan Tribal Gaming Authority - Mohegan Sun").
+ */
+export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
+  const host = domainLabels(domain);
+  const { labels } = host;
+  const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
+  const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
+  const body = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
+  if (!body || !agreesWithLabels(body, host)) return null;
+  const [shortest] = body
+    .split(/\s+[–—-]\s+/)
+    .map((part) => part.trim())
+    .filter((part) => labels.some((label) => containsLabel(alnum(part), label)))
+    .sort((a, b) => a.length - b.length);
+  return shortest ?? body;
+}
+
 type NameGroup = {
   count: number;
   cased: string | null;
@@ -226,7 +327,9 @@ export function resolveCompanyName(
     // from acme-corp.com) and get labelled `corpus-cased` besides. Skipped
     // here so such rows count for nothing, same as an empty name.
     if (isCompanyPlaceholder(job.company)) continue;
-    const name = cleanCompany(job.company);
+    const cleaned = cleanCompany(job.company);
+    // Only a string that agrees with the domain is evidence about this domain's employer.
+    const name = cleaned && nameAgreeingWithDomain(cleaned, domain);
     if (!name) continue;
     const key = name.toLowerCase();
     const group = groups.get(key) ?? {
