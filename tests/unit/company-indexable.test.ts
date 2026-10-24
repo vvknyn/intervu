@@ -254,6 +254,14 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
+  it("siteNames is site_names when non-empty (any source), else wikidata_names, else absent", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Rocket Lab"], wikidata_names: ["Rocket Lab USA"] })?.siteNames, ["Rocket Lab"]);
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: [], wikidata_names: ["Acme Corp"] })?.siteNames, ["Acme Corp"]);
+    assert.ok(!("siteNames" in parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })!));
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["HPE"], site_names_source: "wikidata" })?.siteNames, ["HPE"]);
+  });
+
   it("a site_names entry still wins over a labelSpelling, through the parsed hit", () => {
     const parsed = parseCompanyDirectoryHit({ domain: "homedepot.com", open_role_count: 40, site_names: ["Home Depot"], wikidata_names: ["The HomeDepot"], row_names: ["HomeDepot"] })!;
     assert.equal(siteSpelling("Homedepot", parsed.siteNames, parsed.domain, undefined, parsed.labelSpellings), "Home Depot");
