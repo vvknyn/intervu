@@ -13,7 +13,7 @@ const SDK_IMPORT = /^(stripe|resend|openai|posthog|@workos-inc\/|firebase|@sentr
 const IMPORT_FROM = /\bfrom\s+["']([^"'.][^"']*)["']|\brequire\(\s*["']([^"'.][^"']*)["']\s*\)/g;
 const ABSOLUTE_URL = /https?:\/\/([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)/g;
 /** Pages and files that only write links into content, not calls. Hosts there are checked only if the file also makes a call. */
-const OUTBOUND_CALL = /\bfetch\(|\bnew\s+(?:OpenAI|Resend|Stripe|WorkOS)\(|\bbaseURL\b|\bsendBeacon\(|\bEventSource\(|\bnew\s+WebSocket\(/;
+const OUTBOUND_CALL = /\bfetch\w*\(|\bnew\s+(?:OpenAI|Resend|Stripe|WorkOS)\(|\bbaseURL\b|\bsendBeacon\(|\bEventSource\(|\bnew\s+WebSocket\(/;
 const CLIENT_ONLY = /^\s*(?:\/\*[\s\S]*?\*\/\s*|\/\/[^\n]*\n\s*)*["']use client["']/;
 
 export interface Found {

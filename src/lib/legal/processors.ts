@@ -121,20 +121,13 @@ export const PROCESSORS: readonly Processor[] = [
     packages: [],
   },
   {
-    // src/lib/companies/logo.ts:10, rendered as an <img> by src/components/jobs/CompanyLogo.tsx:118, so your browser makes the request.
-    name: "Google (company logos)",
+    // Reachable only from deleteAccount (src/actions/auth.ts:460,466): admin.ts:87 getAuth().deleteUser(uid);
+    // erase-account.ts:309 opens Firestore (admin.ts getFirestoreDb) and sweeps it by account id and email.
+    // Both need a Firebase credential (hasFirebaseCredentials). Sign-in and normal use never call Firebase.
+    name: "Google Firebase (old sign-in service and old database)",
     receives:
-      "When a company's logo is shown, your browser asks Google's favicon service for it, so Google sees your IP address, your browser's request headers and the web domain of the company.",
-    why: "Company logos on job and company pages.",
-    retention: "Set by Google. We have not confirmed a period.",
-    hosts: [],
-    packages: [],
-  },
-  {
-    // src/lib/firebase/admin.ts: deleteLegacyFirebaseUser removes the record that still holds the email.
-    name: "Google Firebase Authentication (older accounts only)",
-    receives: "Your email, only if your account was created before sign-in moved to WorkOS and the old record is still there.",
-    why: "Was the sign-in service before WorkOS.",
+      "Nothing during sign-in or normal use. Only when you delete your account, and only while a Firebase credential is configured: your account id, to delete an old sign-in record, and your account id and email address, to find and delete leftover copies of your account data in Firestore.",
+    why: "Clean-up of the service that was our sign-in and database before WorkOS and Postgres.",
     retention: "Deleted when you delete your account.",
     hosts: [],
     packages: ["firebase-admin"],
@@ -146,5 +139,6 @@ export const PROCESSORS: readonly Processor[] = [
  * each; a host not here and not in PROCESSORS fails the privacy test.
  */
 export const NO_PERSONAL_DATA_HOSTS: Readonly<Record<string, string>> = {
+  "www.google.com": "src/lib/companies/logo-proxy.ts:11,38 fetches the favicon server-side; the URL carries only the company domain and no visitor IP, headers or cookies are forwarded.",
   "velai.app": "src/lib/billing/stripe-client.ts:18 sends our own site address to Stripe as the app label; no user data.",
 };
