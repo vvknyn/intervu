@@ -873,6 +873,16 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-PRICING-07 | Signed in, pick a number of months, see the total, press Buy and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
 | J-PRICING-08 | Signed in with paid access, see "Paid until <date>" on the card | signed-in | /pricing | signed-in | no | uncovered | — |
 
+## BILLING
+
+| ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
+|---|---|---|---|---|---|---|---|
+| J-BILLING-01 | Signed out, see a plain "Pricing" link in the header (before Sign in) and follow it to /pricing | anon | /jobs | signed-out | no | covered | plan-visibility.spec.ts |
+| J-BILLING-02 | The footer on /jobs (a lean product page) carries a Pricing link to /pricing | anon | /jobs | signed-out | no | covered | plan-visibility.spec.ts |
+| J-BILLING-03 | Signed in on Settings, see a Plan card above the tabs: Free with "See the paid month", or "Full access through <date>" (marked a gift when no payment extended it) with "Add months"; a failed read says so and never shows Free (runs on a local server only: needs the dev-only sign-in hook) | signed-in | /settings | signed-in | no | covered | plan-visibility.spec.ts |
+| J-BILLING-04 | Signed in with full access ending within 7 days, see the ending notice on any page except /pricing; dismissing it keeps it away for that end date (runs on a local server only) | signed-in | /jobs | signed-in | no | covered | plan-visibility.spec.ts |
+| J-BILLING-05 | Signed in, open the account menu and choose "Plan & pricing" to land on /pricing | signed-in | /jobs, account menu | signed-in | no | uncovered | — |
+
 ## ERR
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |

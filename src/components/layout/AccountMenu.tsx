@@ -103,6 +103,9 @@ export function AccountMenu({ user, active, signingOut, onSignOut }: AccountMenu
                         <Link href="/settings">Account</Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
+                        <Link href="/pricing">Plan &amp; pricing</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
                         <Link href="/research/ghost-jobs">{GHOST_JOB_RESEARCH_TITLE}</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />

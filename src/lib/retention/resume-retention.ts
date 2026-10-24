@@ -10,6 +10,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 
 import { eraseMirrorStore, type ProcessorStatus } from "@/lib/account/erase-account";
 import { accessUntil } from "@/lib/billing/access";
+import { DELETE_AFTER_MS } from "@/lib/retention/delete-after";
 import { runUserDataPlan, type FoundDoc } from "@/lib/db/user-data";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isReachableEmail } from "@/lib/auth/minted-email";
@@ -18,7 +19,7 @@ import { sendEmail } from "@/lib/email/send";
 import { getSiteUrl } from "@/lib/seo/constants";
 
 const DAY_MS = 86_400_000;
-export const DELETE_AFTER_MS = 90 * DAY_MS;
+export { DELETE_AFTER_MS };
 export const WARN_AFTER_MS = 83 * DAY_MS;
 
 export type RetentionAction = "none" | "warn" | "delete" | "anomaly";
