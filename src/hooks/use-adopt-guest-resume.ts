@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { sendIfPaid } from "@/lib/account/paid-status";
 import { hasUsableResumeOnFile, saveResumeData } from "@/actions/resume";
 import { reloadAgentPreferences } from "@/hooks/use-agent-preferences";
 import { captureEvent } from "@/lib/analytics/events";
@@ -31,14 +32,15 @@ export function useAdoptGuestResume(
         if (!stored || !resumeIsUsable(stored.data)) return;
         let cancelled = false;
         void hasUsableResumeOnFile()
-            .then(async ({ hasResume, updatedAt }) => {
-                if (cancelled) return;
+            .then(async ({ hasResume, updatedAt, paywalled }) => {
+                // Saving to the account is the paid month: the copy stays on this device, with no write to retry on every visit.
+                if (cancelled || paywalled) return;
                 if (!shouldAdoptGuestResume({ serverHasResume: hasResume, serverUpdatedAt: updatedAt, localUpdatedAt: stored.updatedAt })) {
                     // The account's copy is newer: this browser's is stale, so it can't stand in for it later.
                     if (hasResume) clearLocalAiResume();
                     return;
                 }
-                const res = await saveResumeData(stored.data, "pdf", 1);
+                const res = await sendIfPaid(() => saveResumeData(stored.data, "pdf", 1));
                 if (cancelled || res.error) return;
                 clearLocalAiResume();
                 void reloadAgentPreferences(uid);

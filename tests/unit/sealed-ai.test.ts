@@ -5,6 +5,7 @@ import { GET } from "../../src/app/api/sealed-ai/status/route";
 import { cappedStream, readCappedBody, sealedAiTarget, SEALED_AI_MAX_REQUEST_BYTES } from "../../src/lib/sealed-ai/server";
 import { resetSealedAiForTests, sealedAiBaseUrl, sealedAiStatus, useSealedAiOrigin, type SealedAiStub } from "../../src/lib/sealed-ai/client";
 import { clearRateLimitStateForTests, SEALED_AI_MAX_REQUESTS } from "../../src/lib/shield/rate-limit";
+import { useSealedAiAccessDeps } from "../../src/lib/sealed-ai/access";
 import { parseResumeLocally, withoutContactDetails } from "../../src/lib/local-ai/parse-resume";
 
 /**
@@ -67,6 +68,7 @@ describe("the pass-through route", () => {
         clearRateLimitStateForTests();
         process.env.TINFOIL_API_KEY = "tk_test_key";
         delete process.env.TINFOIL_MODEL;
+        useSealedAiAccessDeps({ uid: async () => "u-paid", isPaid: async () => true });
         sent = null;
         globalThis.fetch = (async (url: string | URL, init?: RequestInit) => {
             sent = { url: String(url), init: init ?? {} };
@@ -77,12 +79,35 @@ describe("the pass-through route", () => {
     afterEach(() => {
         globalThis.fetch = realFetch;
         delete process.env.TINFOIL_API_KEY;
+        useSealedAiAccessDeps();
     });
 
     it("says whether sealed AI is set up, and its model", async () => {
-        assert.deepEqual(await GET().json(), { enabled: true, model: "llama3-3-70b" });
+        assert.deepEqual(await (await GET()).json(), { enabled: true, model: "llama3-3-70b" });
         delete process.env.TINFOIL_API_KEY;
-        assert.equal((await GET().json()).enabled, false);
+        assert.equal((await (await GET()).json()).enabled, false);
+    });
+
+    it("is on in the status only for a signed-in account with a paid month", async () => {
+        const enabled = async () => (await (await GET()).json()).enabled;
+        useSealedAiAccessDeps({ uid: async () => null });
+        assert.equal(await enabled(), false, "signed out");
+        useSealedAiAccessDeps({ uid: async () => "u-free", isPaid: async () => false });
+        assert.equal(await enabled(), false, "signed in, no paid month");
+        useSealedAiAccessDeps({ uid: async () => "u-paid", isPaid: async (uid) => uid === "u-paid" });
+        assert.equal(await enabled(), true, "paid");
+    });
+
+    it("refuses the pass-through to anyone not signed in (401) or without a paid month (402), and sends nothing", async () => {
+        useSealedAiAccessDeps({ uid: async () => null });
+        assert.equal((await POST(sealedRequest())).status, 401);
+        useSealedAiAccessDeps({ uid: async () => "u-free", isPaid: async () => false });
+        const unpaid = await POST(sealedRequest());
+        assert.equal(unpaid.status, 402);
+        assert.equal((await unpaid.json()).code, "payment_required");
+        assert.equal(sent, null, "nothing reached Tinfoil");
+        useSealedAiAccessDeps({ uid: async () => "u-paid", isPaid: async () => true });
+        assert.equal((await POST(sealedRequest())).status, 200);
     });
 
     it("passes the encrypted body on unchanged, with our key in place of the browser's placeholder", async () => {

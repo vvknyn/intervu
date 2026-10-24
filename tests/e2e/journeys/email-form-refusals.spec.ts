@@ -2,8 +2,8 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
 
 /**
- * Journeys for the one-shot email forms refusing a submit: the founding-seat
- * reservation on /pricing and the OpenClaw waitlist on /connect. Sibling of
+ * Journeys for the one-shot email forms refusing a submit: the OpenClaw
+ * waitlist on /connect. Sibling of
  * signup-refusals.spec.ts: the 2026-10-01 replay showed a refusal nobody saw
  * (rendered below the fold) and a vague "Too many attempts". These forms said
  * the same line; a refusal now says what to do and sits in view under the
@@ -54,19 +54,6 @@ async function expectRefusalUnderButton(page: Page, button: Locator, refusal: Lo
   }
   await expect(page.getByText(/Too many attempts|try again in a few minutes/i)).toHaveCount(0);
 }
-
-test("a malformed email on the founding-seat reservation is refused in plain words, under the button, on every press", { tag: ["@J-PRICING-08"] }, async ({ page, diagnostics }) => {
-  await stubPassingTurnstile(page);
-  await page.goto("/pricing");
-  await expect(page.getByTestId("pricing-founding-cta")).toBeVisible();
-  const email = page.getByTestId("pricing-founding-email");
-  test.skip((await email.count()) === 0, "FOUNDING_MEMBER_CHECKOUT_URL is set here: the button links to Stripe, no reservation form");
-
-  await email.fill(MALFORMED_EMAIL);
-  await expectRefusalUnderButton(page, page.getByTestId("pricing-founding-cta"), page.getByTestId("pricing-founding-error"), INVALID_EMAIL_MESSAGE);
-  await expect(page.getByTestId("pricing-founding-reserved")).toHaveCount(0);
-  expect(diagnostics.serverErrors).toEqual([]);
-});
 
 test("a malformed email on /connect's OpenClaw waitlist is refused in plain words, under Notify me, on every press", { tag: ["@J-CONNECT-19"] }, async ({ page, diagnostics }) => {
   await stubPassingTurnstile(page);

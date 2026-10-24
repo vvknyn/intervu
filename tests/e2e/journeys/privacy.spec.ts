@@ -18,7 +18,7 @@ test("the privacy policy says account deletion also erases records kept under yo
   await expect(heading).toBeVisible();
 
   const article = page.locator("article").first();
-  await expect(article).toContainText("contact-form messages and connect, founding-seat, and credit-pack waitlist entries");
+  await expect(article).toContainText("contact-form messages and connect and other waitlist entries");
   await expect(article).toContainText("behavioural-ledger rows in PostgreSQL stamped with your account id");
   await expect(article).not.toContainText("records stored only by email without an account id");
   await expect(article).toContainText("asks PostHog to delete the person tied to your account id");

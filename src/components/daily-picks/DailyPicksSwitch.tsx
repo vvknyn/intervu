@@ -81,7 +81,7 @@ export function useDailyPicks(enabled: boolean, accountKey: string | null, surfa
 }
 
 /** What the email is, said once beside the switch. */
-export const DAILY_PICKS_DESCRIPTION = "Up to 5 new roles a day that fit your résumé and level, each with why. No email on days with none.";
+export const DAILY_PICKS_DESCRIPTION = "Up to 5 new roles a day that fit your résumé and level, each with why. No email on days with none. Needs a paid month.";
 
 /** While it's on but the saved résumé can't be ranked: nothing goes out until it can. */
 function ResumeNotReady({ className }: { className?: string }) {

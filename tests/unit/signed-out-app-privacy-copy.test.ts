@@ -74,7 +74,7 @@ describe("signed-out app surfaces — no misleading privacy absolutes", () => {
         assert.match(RESUME_UPLOAD_PROMISE, /derived role and skill phrases/i);
         assert.match(RESUME_UPLOAD_PROMISE, /after results return/i);
         assert.doesNotMatch(RESUME_PAGE_SUBCOPY, /Strong, Good, and Stretch/i);
-        assert.doesNotMatch(RESUME_PAGE_SUBCOPY, /For you/i);
+        assert.doesNotMatch(RESUME_PAGE_SUBCOPY, /\bFor you\b/i);
 
         const resumePage = readFileSync(join(ROOT, "src/app/resume/page.tsx"), "utf8");
         assert.ok(resumePage.includes("RESUME_LOCAL_DEVICE_BANNER_LABEL"));

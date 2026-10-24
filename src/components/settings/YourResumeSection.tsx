@@ -9,6 +9,10 @@ import { WaitState } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
+import { isAccountPaid, sendIfPaid } from "@/lib/account/paid-status";
+import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
+import { resumeIsUsable } from "@/lib/resume/resume-usable";
+import { effectiveResumeSummary } from "./effective-resume-summary";
 import { reloadSignedInAgentPreferences } from "@/hooks/use-agent-preferences";
 import { keepExplicitNudges } from "@/lib/jobs/for-you/tuning-store";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
@@ -23,6 +27,7 @@ import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import type { ResumeData } from "@/types/resume";
+import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastKeptOnDevice } from "@/lib/resume/payment-required";
 
 interface YourResumeSectionProps {
     user: User | null;
@@ -120,7 +125,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
                 const res = await fetchResumeSummaryAction();
                 if (cancelled) return;
                 if (!res.error && res.data) {
-                    setSummary(res.data);
+                    setSummary(effectiveResumeSummary(res.data, readLocalAiResume()));
                     setStatus("ready");
                     return;
                 }
@@ -133,9 +138,17 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
         };
     }, [user, retryToken]);
 
-    const handleSaveEditor = async (updatedData: ResumeData) => {
-        const res = await saveResumeData(updatedData, "manual");
-        if (res.error) throw new Error(res.error);
+    // Saving to the account is the paid month: an unpaid account's edit stays on this device, and nothing is sent.
+    const handleSaveEditor = async (updatedData: ResumeData): Promise<string | void> => {
+        const res = await sendIfPaid(() => saveResumeData(updatedData, "manual"));
+        if (isPaymentRequired(res)) {
+            writeLocalAiResume(updatedData);
+            setRetryToken((t) => t + 1);
+            return KEPT_ON_DEVICE_MESSAGE;
+        }
+        if (res.error) throw failureOf({ error: res.error, code: res.code });
+        // The account holds it now; a device copy left over would be stale.
+        clearLocalAiResume();
         setRetryToken((t) => t + 1);
     };
 
@@ -263,6 +276,7 @@ function ResumeSummaryBody({
                 setDeleteError("Couldn't delete your résumé. Try again.");
                 return;
             }
+            clearLocalAiResume();
             setConfirmingDelete(false);
             onDeleted();
         });
@@ -277,7 +291,7 @@ function ResumeSummaryBody({
                 <div className="space-y-1 max-w-sm mx-auto">
                     <h3 className="text-sm font-semibold text-foreground">No resume on file</h3>
                     <p className="text-xs text-muted-foreground">
-                        Edit the standard template in your browser, or upload an existing PDF or Word file. A file is read in your browser and never uploaded.
+                        Edit the standard template in your browser, or upload an existing PDF or Word file. A file is read in your browser; saving it to your account needs a paid month.
                     </p>
                 </div>
                 <div className="flex flex-col items-center gap-2 pt-1">
@@ -385,6 +399,7 @@ function ResumeUploadForm({
     const [text, setText] = useState("");
     const [fileName, setFileName] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [paywalled, setPaywalled] = useState(false);
     const [extracting, setExtracting] = useState(false);
     const [pending, startTransition] = useTransition();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -408,14 +423,32 @@ function ResumeUploadForm({
 
     const handleSave = () => {
         setError(null);
+        setPaywalled(false);
         startTransition(async () => {
             // The label names this upload in Versions & diffs; without one it
             // was filed as "chat upload", the MCP tool's default.
+            // Saving to the account is the paid month: an unpaid account's text is structured here and kept on this device, never sent.
+            if (!(await isAccountPaid())) {
+                const data = resumeDataFromPlainText(text);
+                if (!resumeIsUsable(data)) {
+                    setError("Couldn't find a résumé in that text.");
+                    return;
+                }
+                writeLocalAiResume(data, undefined, fileName ?? "Pasted text");
+                captureEvent("resume_uploaded", { surface: "settings" });
+                keepExplicitNudges();
+                toastKeptOnDevice();
+                onSaved();
+                return;
+            }
             const res = await uploadBaseResumeAction({ text, label: fileName ?? "Pasted text" });
             if (res.error) {
                 setError(res.error);
+                setPaywalled(isPaymentRequired(res));
                 return;
             }
+            // The account holds it now; a device copy left over would be stale.
+            clearLocalAiResume();
             captureEvent("resume_uploaded", { surface: "settings" });
             // The next For you visit reads the new résumé's roles and tuning, not the old one's.
             keepExplicitNudges();
@@ -458,7 +491,19 @@ function ResumeUploadForm({
                 </Button>
                 {fileName && <span className="text-xs text-muted-foreground break-all">{fileName}</span>}
             </div>
-            {error && <p className="text-xs text-danger-text">{error}</p>}
+            {error && (
+                <p className="text-xs text-danger-text">
+                    {error}
+                    {paywalled && (
+                        <>
+                            {" "}
+                            <a href={PRICING_HREF} className="underline underline-offset-2">
+                                See pricing
+                            </a>
+                        </>
+                    )}
+                </p>
+            )}
             <div className="flex flex-col gap-2 sm:flex-row">
                 <Button size="sm" disabled={busy || !text.trim()} onClick={handleSave} className="w-full sm:w-auto">
                     {pending ? "Saving…" : "Save"}

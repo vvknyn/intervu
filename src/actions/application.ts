@@ -11,8 +11,9 @@ import {
     type PursuitStage,
 } from "@/lib/pursuits/types";
 import { upsertPursuitCore } from "@/lib/pursuits/upsert-core";
-import { appliedResumeFor, withoutAppliedResumeText } from "@/lib/pursuits/resume-on-apply";
+import { appliedResumeFor, withoutAppliedResumeText, withoutResumeText } from "@/lib/pursuits/resume-on-apply";
 import { accountResumeText } from "@/lib/pursuits/applied-resume";
+import { hasPaidAccess } from "@/lib/billing/access";
 import type { PublicJob } from "@/lib/jobs/types";
 
 // `Pursuit`/`PursuitStage` (src/lib/pursuits/types.ts) are the single source
@@ -61,8 +62,12 @@ export async function getApplications() {
             .get();
 
         // Every page's header reads this list (the Tracker tab's count), so a
-        // role's résumé copy comes without its text; Download reads it.
-        const applications = snapshot.docs.map((doc) => withoutAppliedResumeText({ id: doc.id, ...doc.data() } as Application));
+        // role's résumé copy comes without its text; Download reads it. Filed
+        // versions keep their text only for an account with paid time, and a
+        // failed paid read answers unpaid: text is never sent on a guess.
+        const paid = await hasPaidAccess(user.uid).catch(() => false);
+        const shape = paid ? withoutAppliedResumeText : withoutResumeText;
+        const applications = snapshot.docs.map((doc) => shape({ id: doc.id, ...doc.data() } as Application));
 
         // Fetch resume version names for applications that have resume_version_id
         const resumeVersionIds = applications
@@ -130,7 +135,7 @@ export async function createApplication(application: CreateApplicationData) {
         };
 
         const docRef = await db.collection("applications").add(docData);
-        const data = withoutAppliedResumeText({ id: docRef.id, ...docData });
+        const data = withoutResumeText({ id: docRef.id, ...docData });
 
         revalidatePath('/yours');
         return { data };
@@ -179,7 +184,7 @@ export async function updateApplication(id: string, updates: UpdateApplicationDa
         await docRef.update(updateData);
 
         const updated = await docRef.get();
-        const data = withoutAppliedResumeText({ id: updated.id, ...updated.data() } as Application);
+        const data = withoutResumeText({ id: updated.id, ...updated.data() } as Application);
 
         revalidatePath('/yours');
         return { data };

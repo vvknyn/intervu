@@ -495,7 +495,6 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-RESUME-21 | Download the résumé as PDF (drawn on the device, in the layout of the uploaded PDF when this browser read it, at its page count) | signed-in | /resume | signed-in | no | uncovered | — |
 | J-RESUME-22 | Open the template editor and hide the page header | signed-in | /resume | signed-in | no | uncovered | — |
 | J-RESUME-23 | @writes Save edits from the template editor | signed-in | /resume (Edit template) | signed-in | yes | uncovered | — |
-| J-RESUME-25 | Return 400 from /api/resume/pdf for an empty body | anon | POST /api/resume/pdf | signed-out | no | uncovered | — |
 | J-RESUME-26 | Render /resume at mobile width; its controls meet the 44px touch hit-area floor (visible height 32px) | anon | /resume (375x667) | signed-out | no | uncovered | — |
 | J-RESUME-27 | Show the error state and retry when the résumé fetch fails | signed-in | /resume (fetchResumeSummaryAction fails) | signed-in | no | uncovered | — |
 | J-RESUME-28 | Import a résumé the quick read leaves short where sealed AI is on: the import card says in plain words "Your name and contact details are taken out before any AI reads it", with Tinfoil's sealed server one tap away on "How" (2026-10-12 focus group: the technical wording lost non-technical people), the quick match opens at once, sealed AI is sent the résumé text without the name or email, an answer it can't use keeps the quick match, and Skip keeps it while sealed AI is still reading | anon | /resume → Upload résumé (sealed AI stand-in) | signed-out | no | covered | resume-wait.spec.ts |
@@ -862,17 +861,14 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |---|---|---|---|---|---|---|---|
-| J-PRICING-01 | Read the pricing page: Free and Pro columns, the founding-seat price and count, and the promise that Free stays free | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-01 | Read the pricing page: one card, $12 a month, bought 1 to 12 months at a time, one payment, no auto-renew, no trial, 14-day refund, what stays free and what a month adds | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-03 | Founding-seat button links out to Stripe checkout when the link is configured, otherwise the Pro column takes an email-only reservation ("Reserve a founding seat"); the headline, Pro badge and meta description say the same thing as the button | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-04 | Return from Stripe with checkout=success and a session id and see the founding thank-you; a bare checkout=success shows nothing | anon | /pricing?checkout=success&session_id=cs_test_… | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-05 | Pricing offers no data sale or licence | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
-| J-PRICING-06 | Signed-in visitor sees "You are on Free" instead of the create-account door | signed-in | /pricing | signed-in | no | uncovered | — |
-| J-PRICING-07 | Reserve a founding seat with an email while the Stripe link is unset: the confirmation shows, one row lands in `founding_waitlist` (kept on resubmission), one confirmation email goes out, and /admin's Waitlist group counts it | anon | /pricing | signed-out | yes | uncovered | — |
-| J-PRICING-08 | Founding-seat reservation with a malformed email ("name@host", which the browser lets through) says "Enter a full email address, like you@example.com." right under the button and in view, on every press; nothing is written (a refused Turnstile: J-PRICING-11) | anon | /pricing (Stripe link unset) | signed-out | no | covered | email-form-refusals.spec.ts |
-| J-PRICING-09 | Signed-out Free column "Create free account" goes to /auth/start?mode=signup&next=/jobs and returns to /jobs, where a new account's setup is the page | anon | /pricing | signed-out | no | uncovered | — |
-| J-PRICING-10 | Open a pricing Questions item and read its answer | anon | /pricing | signed-out | no | uncovered | — |
-| J-PRICING-11 | Founding-seat reservation whose security check is refused (spent or missing token) says what to do, and the next press gets a fresh check | anon | /pricing (Stripe link unset, Turnstile keys set) | signed-out | no | uncovered | — |
+| J-PRICING-03 | The card shows a month picker and "Sign in to buy" when payments are configured, otherwise "Payments open soon" and no button; the meta description matches the card | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-04 | Pricing offers no data sale or licence | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-05 | Open a pricing Questions item and read its answer | anon | /pricing | signed-out | no | uncovered | — |
+| J-PRICING-06 | Signed out, press "Sign in to buy", sign in, and land back on /pricing | anon | /pricing | signed-out | no | uncovered | — |
+| J-PRICING-07 | Signed in, pick a number of months, see the total, press Buy and land on Stripe's hosted checkout | signed-in | /pricing | signed-in | yes | uncovered | — |
+| J-PRICING-08 | Signed in with paid access, see "Paid until <date>" on the card | signed-in | /pricing | signed-in | no | uncovered | — |
 
 ## ERR
 

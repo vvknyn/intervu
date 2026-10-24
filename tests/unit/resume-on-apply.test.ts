@@ -33,6 +33,7 @@ import {
     attachesResumeOnApply,
     resumeTextOnFile,
     withoutAppliedResumeText,
+    withoutResumeText,
 } from "../../src/lib/pursuits/resume-on-apply";
 import {
     addManualGuestPursuit,
@@ -165,6 +166,25 @@ test("the account's tracker list sends the copy's date, not its text", () => {
     assert.deepEqual(listed, { id: "a", applied_resume: { saved_at: NOW } });
     const plain: Pick<Pursuit, "applied_resume"> & { id: string } = { id: "b" };
     assert.equal(withoutAppliedResumeText(plain), plain);
+});
+
+test("an unpaid list / any write reply carries no résumé text: neither the copy's nor a filed version's", () => {
+    const role = {
+        id: "a",
+        applied_resume: { saved_at: NOW, content: SAMPLE_TEXT },
+        resume_versions: [{ label: "v1", saved_at: NOW, content: SAMPLE_TEXT }, { label: "v2", saved_at: NOW, content: "more" }],
+    };
+    assert.deepEqual(withoutResumeText(role), {
+        id: "a",
+        applied_resume: { saved_at: NOW },
+        resume_versions: [{ label: "v1", saved_at: NOW, content: "" }, { label: "v2", saved_at: NOW, content: "" }],
+    });
+    // A role with only versions (no copy) is stripped too, and one with neither is returned as it is.
+    assert.equal(withoutResumeText({ id: "b", resume_versions: [{ label: "x", saved_at: NOW, content: "t" }] }).resume_versions?.[0].content, "");
+    const bare: Pick<Pursuit, "applied_resume" | "resume_versions"> & { id: string } = { id: "c" };
+    assert.equal(withoutResumeText(bare), bare);
+    // The paid list still holds the version text Download needs.
+    assert.equal(withoutAppliedResumeText(role).resume_versions?.[0].content, SAMPLE_TEXT);
 });
 
 test("a status write from the browser can't set the copy itself", () => {

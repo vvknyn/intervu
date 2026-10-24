@@ -20,8 +20,10 @@ import { createServerListCache } from "@/lib/server-list-cache";
 import { getApplications, upsertPursuitForJob, createManualPursuit } from "@/actions/application";
 import { keepGuestAppliedResumeAction } from "@/actions/applications";
 import type { Pursuit } from "@/lib/pursuits/types";
+import { isAccountPaid } from "@/lib/account/paid-status";
+import { isPaymentRequired } from "@/lib/resume/payment-required";
 import { getCurrentUser, onAuthChange } from "@/lib/firebase/client-auth";
-import { listGuestPursuits, clearGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
+import { listGuestPursuits, removeGuestPursuits, subscribeGuestPursuits } from "@/lib/pursuits/guest-store";
 
 const server = createServerListCache(async () => {
     await afterPursuitsReadHold();
@@ -52,6 +54,10 @@ export function invalidatePursuitsCache(): void {
 export async function syncGuestPursuitsToServer(): Promise<boolean> {
     const guests = listGuestPursuits();
     if (guests.length === 0) return true;
+    // A role's résumé copy is résumé text: it goes up only for an account with paid time.
+    const paid = await isAccountPaid();
+    // Rows whose copy the account has not confirmed (unpaid, or refused for payment) keep it on this device.
+    const keepOnDevice = new Set<string>();
     const results = await Promise.all(
         guests.map(async (g) => {
             const res = await (g.job_id
@@ -73,25 +79,30 @@ export async function syncGuestPursuitsToServer(): Promise<boolean> {
                       job_url: g.job_url,
                       note: g.note,
                   }));
-            // Best effort: a copy the account refuses (over the upload cap)
-            // must not hold every guest row in this browser for a retry.
+            // Best effort: a copy the account refuses for any other reason
+            // (over the upload cap) must not hold every guest row in this
+            // browser for a retry. Only a job-linked row waits for payment:
+            // re-syncing it is an idempotent upsert, a manual one would repeat.
             const copy = g.applied_resume;
             if (!res?.error && res?.data?.id && copy?.content) {
-                await keepGuestAppliedResumeAction(res.data.id, { saved_at: copy.saved_at, content: copy.content });
+                const kept = paid ? await keepGuestAppliedResumeAction(res.data.id, { saved_at: copy.saved_at, content: copy.content }) : null;
+                if ((!paid || isPaymentRequired(kept)) && g.job_id) keepOnDevice.add(g.id);
             }
             return res;
         }),
     );
     // Server actions return {error} rather than throwing, so Promise.all never
-    // rejects — clearing unconditionally here would delete the guest's pursuits
-    // on a transient server failure. Only clear once every row actually landed;
-    // a partial failure leaves the store intact and the next load retries
-    // (upserts are idempotent by job_id; manual rows may briefly duplicate on
-    // retry, which beats silent loss).
+    // rejects. Remove only the rows the server confirmed (no error, an id back)
+    // and not waiting on a résumé copy; every other row stays for the next
+    // load's retry (job-linked upserts are idempotent; a manual row may briefly
+    // duplicate, which beats silent loss).
+    const confirmed = new Set<string>();
+    guests.forEach((g, i) => {
+        const r = results[i];
+        if (!r?.error && r?.data?.id && !keepOnDevice.has(g.id)) confirmed.add(g.id);
+    });
+    removeGuestPursuits(confirmed);
     const ok = results.every((r) => !r?.error);
-    if (ok) {
-        clearGuestPursuits();
-    }
     invalidatePursuitsCache();
     return ok;
 }

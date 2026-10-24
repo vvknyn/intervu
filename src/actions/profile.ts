@@ -2,6 +2,7 @@
 
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { hasPaidAccess } from "@/lib/billing/access";
 
 export async function fetchProfile() {
     try {
@@ -19,36 +20,15 @@ export async function fetchProfile() {
         }
 
         const docData = doc.data();
+        const paid = await hasPaidAccess(user.uid);
 
         return {
             data: {
-                resume_text: docData?.resume_text ?? null,
+                resume_text: paid ? (docData?.resume_text ?? null) : null,
                 is_admin: docData?.is_admin ?? false,
             },
         };
     } catch (e: any) {
-        return { error: e.message };
-    }
-}
-
-export async function updateResume(resumeText: string) {
-    try {
-        const user = await getServerUser();
-
-        if (!user) {
-            return { error: "Unauthorized" };
-        }
-
-        console.log("[Profile] Updating resume for:", user.uid);
-
-        const db = getAdminDb();
-        await db.collection("profiles").doc(user.uid).update({
-            resume_text: resumeText,
-        });
-
-        return { success: true };
-    } catch (e: any) {
-        console.error("[Profile] Update Error:", e);
         return { error: e.message };
     }
 }

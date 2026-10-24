@@ -29,6 +29,7 @@ import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { captureEvent } from "@/lib/analytics/events";
 import { resumeImportStorageNote } from "@/lib/jobs/resume-privacy-copy";
+import { isAccountPaid } from "@/lib/account/paid-status";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { companyRowMetaSegments } from "@/lib/presentation";
@@ -188,6 +189,16 @@ export function CompanyRoleSearch({
   // one isn't asked for it in the meantime. Set only in effects: the server
   // render and hydration both show the ask.
   const [resumePending, setResumePending] = useState(false);
+  // Whether an upload here is saved to the account (a paid month) or stays on this device; the prompt says which.
+  const [paid, setPaid] = useState(false);
+  useEffect(() => {
+    if (!user) return setPaid(false);
+    let cancelled = false;
+    void isAccountPaid().then((p) => !cancelled && setPaid(p));
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
   useEffect(() => {
     const showResume = (data: ResumeData, updatedAt: string | null | undefined) => {
       setResume(data);
@@ -330,7 +341,7 @@ export function CompanyRoleSearch({
       {askForFit && (
         <CompanyFitPrompt
           title={fitPromptTitle(jobs.length, searchesPartialWindow)}
-          body={fitPromptBody(Boolean(user))}
+          body={fitPromptBody(Boolean(user) && paid)}
           onAddResume={() => setImportOpen(true)}
         />
       )}

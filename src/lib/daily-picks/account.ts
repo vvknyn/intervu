@@ -7,6 +7,7 @@
  *
  * Plain module, server code only.
  */
+import { hasPaidAccess, paymentRequired } from "@/lib/billing/access";
 import { isReachableEmail } from "@/lib/auth/username-email";
 import { getSuppressionEntries, isSuppressedForKind, unsuppress } from "@/lib/email/suppression";
 import { getDailyPicksState, setDailyPicksOn, type DailyPicksState } from "./state";
@@ -46,9 +47,12 @@ export async function writeDailyPicksSetting(
     uid: string,
     email: string | null | undefined,
     on: boolean,
-): Promise<{ ok: true } | { error: string }> {
+    isPaid: (uid: string) => Promise<boolean> = hasPaidAccess,
+): Promise<{ ok: true } | { error: string; code?: ReturnType<typeof paymentRequired>["code"] }> {
     if (on) {
         if (!isReachableEmail(email)) return { error: NO_ADDRESS_ERROR };
+        // Turning it off is never refused: it stops the email.
+        if (!(await isPaid(uid))) return paymentRequired();
         await unsuppress(email!, "daily_picks");
     }
     await setDailyPicksOn(uid, on);

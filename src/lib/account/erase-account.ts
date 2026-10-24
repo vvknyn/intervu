@@ -218,18 +218,20 @@ export async function readStripeCustomerId(db: Firestore, uid: string): Promise<
 
 /**
  * The customer behind a uid, asked of Stripe: checkout stamps the uid on the
- * subscription metadata (billing/sessions.ts), and the subscription names its
- * customer. Null when billing is off or Stripe has no such subscription.
+ * subscription metadata (billing/sessions.ts) and, for a prepaid buyer with no
+ * subscription, on the customer itself (billing/checkout.ts). A subscription
+ * names its customer, so that answer wins; else the customer stamped directly.
+ * Null when billing is off or Stripe has neither.
  */
 export async function findStripeCustomerByUid(
     uid: string,
-    stripe: Pick<NonNullable<ReturnType<typeof getStripe>>, "subscriptions"> | null = getStripe(),
+    stripe: Pick<NonNullable<ReturnType<typeof getStripe>>, "subscriptions" | "customers"> | null = getStripe(),
 ): Promise<string | null> {
     if (!stripe) return null;
-    const safeUid = validateVelaiUid(uid);
-    if (!safeUid) return null;
-    const found = await stripe.subscriptions.search({ query: `metadata['${VELAI_UID_METADATA_KEY}']:'${safeUid}'`, limit: 1 });
-    return readIdField(found.data[0]?.customer);
+    if (!validateVelaiUid(uid)) return null;
+    const query = `metadata['${VELAI_UID_METADATA_KEY}']:'${uid}'`;
+    const subscription = await stripe.subscriptions.search({ query, limit: 1 });
+    return readIdField(subscription.data[0]?.customer) ?? readIdField((await stripe.customers.search({ query, limit: 1 })).data[0]);
 }
 
 /** Deletes the Stripe customer (and with it their saved cards and subscriptions). */

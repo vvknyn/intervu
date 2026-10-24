@@ -116,10 +116,11 @@ export function ApplyIntentDialog({
             <DialogContent className="rounded-panel p-0 sm:max-w-lg">
                 <div className="shrink-0 px-6 pt-6 pr-12">
                     <DialogHeader className="text-left">
-                        <DialogTitle className="text-title">Tailor your résumé — free, bring your own agent</DialogTitle>
+                        <DialogTitle className="text-title">Tailor your résumé with your own agent</DialogTitle>
                         <DialogDescription className="text-sm leading-relaxed">
                             Connect Claude or ChatGPT over MCP and it can read your résumé, tailor it
-                            for this role, and save the result back to your account.
+                            for this role, and save the result back to your account. Reading and saving
+                            your résumé is part of a paid month; see <Link href="/pricing" className="underline">pricing</Link>.
                         </DialogDescription>
                     </DialogHeader>
                 </div>

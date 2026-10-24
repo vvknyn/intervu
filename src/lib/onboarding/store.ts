@@ -4,6 +4,7 @@
  * only, and so client code never pulls in the Admin SDK.
  */
 import { getAdminDb } from "@/lib/firebase/admin";
+import { hasPaidAccess } from "@/lib/billing/access";
 import { shapeAgentPreferences } from "@/lib/agent/preferences";
 import { ONBOARDING_FIELD } from "@/lib/auth/signup-event";
 import { savedSearchesCollection } from "@/lib/jobs/saved-searches-store";
@@ -55,7 +56,11 @@ export async function readOnboardingView(
     const open = record.state === "open";
 
     const prefs = shapeAgentPreferences(data?.agent_preferences);
-    const resume = data?.resume_data as ResumeData | undefined;
+    // The stored résumé is the paid month's: without it setup reads the device
+    // copy (client side), and a failed paid read answers unpaid.
+    const paid = await hasPaidAccess(uid).catch(() => false);
+    const stored = paid ? data : undefined;
+    const resume = stored?.resume_data as ResumeData | undefined;
     const profile = resume?.profile ? migrateLegacyProfile(resume.profile) : null;
     const [searches, iso2] = open
         ? await Promise.all([savedSearchesCollection(uid).limit(1).get(), connectionIso2().catch(() => null)])
@@ -64,7 +69,7 @@ export async function readOnboardingView(
     return {
         record,
         facts: {
-            resumeOnFile: resumeIsUsable(resume) || Boolean(text(data?.resume_text)),
+            resumeOnFile: resumeIsUsable(resume) || Boolean(text(stored?.resume_text)),
             roles: text(prefs.search.query),
             location: text(prefs.search.location),
             remoteOnly: prefs.search.remoteOnly === true,
@@ -72,7 +77,7 @@ export async function readOnboardingView(
         },
         resumeTitle: text(profile?.profession),
         resumeLocation: text(profile?.location),
-        resumeUpdatedAt: text(data?.resume_last_updated),
+        resumeUpdatedAt: text(stored?.resume_last_updated),
         relocation: text(prefs.answers.relocation),
         connectionCountry: iso2 ? regionDisplayName(iso2) : null,
     };

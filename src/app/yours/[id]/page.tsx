@@ -26,7 +26,6 @@ import { JobDetail } from "@/components/jobs/JobDetail";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
-import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
 import { PursuitNoteField } from "@/components/tracker/PursuitNoteField";
 import { PursuitStatusPicker } from "@/components/tracker/PursuitStatusPicker";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -591,11 +590,6 @@ export default function PursuitDetailPage() {
                         />
                     )}
                 </section>
-
-                {/* The pay-when-you-land moment (strategy decision 7): only once
-                    the pursuit sits in the Offer lane. p-6 matches the cards
-                    around it; the sheet keeps the panel's own p-3.5. */}
-                <LandedPledgeForPursuit pursuit={pursuit} className="p-6" />
 
                 {/* Tailoring and prep moved to MCP 2026-08-02: the quiet handoff
                     note is the one next step for a saved or interviewing role. */}

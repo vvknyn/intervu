@@ -1,5 +1,5 @@
 import type { BlogPost } from "./posts";
-import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
+import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 
 const DIR = "/blog/velai-vs-jobshifu";
 
@@ -23,7 +23,7 @@ const DIR = "/blog/velai-vs-jobshifu";
  *   PDF without ever pressing Submit.
  * - résumé read in the browser, AES-256 encrypted when saved, and AI on
  *   Tinfoil's sealed server with name and contact stripped first (`/privacy`).
- * - prices from `lib/billing/founding-offer.ts`.
+ * - prices from `app/pricing/offer.ts`.
  */
 export const VELAI_VS_JOBSHIFU: BlogPost = {
     slug: "velai-vs-jobshifu",
@@ -77,13 +77,13 @@ If you want an all-in-one AI assistant around your job search, JobShifu builds s
 
 ## Privacy and where your résumé goes
 
-- **Velai** reads your résumé file in your browser and never uploads the file itself. If you aren't signed in, what Velai reads stays in that browser's local storage. If you sign in, it is encrypted with AES-256 in our database. When AI helps read or tailor your résumé, your name and contact details are taken out first, and the request runs on [Tinfoil](https://tinfoil.sh)'s hardware-attested sealed server, encrypted in your browser so our servers can't read it ([privacy policy](/privacy#your-resume)).
+- **Velai** reads your résumé file in your browser and never uploads the file itself. Unless you have a paid month, what Velai reads stays in that browser's local storage. With a paid month you can save it to your account, where it is encrypted with AES-256 in our database. When AI helps read or tailor your résumé, your name and contact details are taken out first, and the request runs on [Tinfoil](https://tinfoil.sh)'s hardware-attested sealed server, encrypted in your browser so our servers can't read it ([privacy policy](/privacy#your-resume)).
 - **JobShifu** stores your master résumé and Vault in a Supabase database with row-level security ([JobShifu's privacy policy](https://jobshifu.com/privacy), read October 12, 2026). To run its Vault matching, tailoring and Shifu assistant, it sends relevant parts of your Vault and the job posting to **Anthropic (Claude)** and **Voyage AI**. Its privacy policy also notes that the résumé file you upload during setup is kept for 30 days so their team can help debug setup issues, and Shifu chat transcripts are kept for 90 days.
 
 ## What each one costs
 
 - **JobShifu** ([pricing page](https://jobshifu.com/pricing), read October 12, 2026) has a free tier with no card required that includes job matches, application tracking, extension autofill (including Workday), 2 tailored résumés a day, 5 AI screener answers a week, 3 cover letters a month, 1 interview prep a month, and a 7-day trial of the full Shifu assistant. Unlimited **Pro** is **$29.99/month** ($74.99/quarter or $239.99/year), or a one-time **$14.99 Week Pass** for 7 days that never auto-renews.
-- **Velai** ([pricing page](/pricing)) is free for everything live today, with no card, no trial clock, and no daily cap on tailoring. Because search and fit labels use no AI, they cost very little to run. When **Pro** opens for heavier tailoring and faster alerts, it will be **${PRO_MONTHLY_PRICE}/month**, or **${FOUNDING_SEAT_PRICE} once** for a lifetime founding seat (limited to ${FOUNDING_SEAT_COUNT}, refundable on request, for any reason, until Pro opens).
+- **Velai** ([pricing page](/pricing)) makes search and fit labels free, with no card and no trial clock, because they use no AI and cost very little to run. Saving your résumé to your account, tailoring and the other AI features need a paid month at **${PRO_MONTHLY_PRICE}/month**, bought 1 to 12 months at a time with one payment, no auto-renew and a 14-day refund.
 
 ## Which one to pick
 

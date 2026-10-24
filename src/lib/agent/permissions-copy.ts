@@ -12,14 +12,14 @@ import type { McpToolName } from "@/lib/agent/mcp-tool-specs";
 export const AGENT_PERMISSIONS: readonly { text: string; tools: readonly McpToolName[] }[] = [
     {
         text: "Search jobs and company records",
-        tools: ["search_jobs", "for_you", "get_job", "get_company", "get_company_timeline", "search_companies"],
+        tools: ["search_jobs", "get_job", "get_company", "get_company_timeline", "search_companies"],
     },
     {
-        text: "Read your résumé, tailor it to a job, draft answers to application questions from it, and replace it (earlier versions stay in your history)",
-        tools: ["get_resume", "tailor_resume", "draft_screening_answer", "set_resume"],
+        text: "Read your résumé, rank jobs by fit against it, tailor it to a job, draft answers to application questions from it, and replace it (earlier versions stay in your history). Needs a paid month",
+        tools: ["get_resume", "for_you", "tailor_resume", "draft_screening_answer", "set_resume"],
     },
     {
-        text: "Read and update your tracker: save jobs, mark them applied, and file tailored résumés",
+        text: "Read and update your tracker: save jobs, mark them applied, and file tailored résumés (filing needs a paid month)",
         tools: ["get_applications", "save_job", "mark_applied", "save_resume_variant", "get_resume_variant"],
     },
     {
@@ -27,7 +27,7 @@ export const AGENT_PERMISSIONS: readonly { text: string; tools: readonly McpTool
         tools: ["get_preferences", "set_preferences"],
     },
     {
-        text: "List today's picks for your résumé, and turn the daily picks email on or off",
+        text: "List today's picks for your résumé, and turn the daily picks email on or off (needs a paid month)",
         tools: ["daily_picks"],
     },
 ];

@@ -150,15 +150,23 @@ describe("eraseIdentityStore", () => {
 });
 
 describe("findStripeCustomerByUid", () => {
-    const stripe = (data: unknown[]) => {
+    const stripe = (data: unknown[], customers: unknown[] = []) => {
         const queries: string[] = [];
-        return { queries, client: { subscriptions: { search: async ({ query }: { query: string }) => (queries.push(query), { data }) } } as never };
+        const search = (rows: unknown[]) => async ({ query }: { query: string }) => (queries.push(query), { data: rows });
+        return { queries, client: { subscriptions: { search: search(data) }, customers: { search: search(customers) } } as never };
     };
     it("returns the customer of the subscription stamped with the uid, string or expanded", async () => {
         const a = stripe([{ customer: "cus_1" }]);
         assert.equal(await findStripeCustomerByUid("u1", a.client), "cus_1");
         assert.ok(a.queries[0].includes("u1"));
         assert.equal(await findStripeCustomerByUid("u1", stripe([{ customer: { id: "cus_2" } }]).client), "cus_2");
+    });
+    it("finds a prepaid buyer's customer (no subscription) by the uid on the customer", async () => {
+        const c = stripe([], [{ id: "cus_prepaid" }]);
+        assert.equal(await findStripeCustomerByUid("u1", c.client), "cus_prepaid");
+        assert.equal(c.queries.length, 2);
+        assert.ok(c.queries.every((q) => q.includes("metadata['velai_uid']:'u1'")));
+        assert.equal(await findStripeCustomerByUid("u1", stripe([{ customer: "cus_sub" }], [{ id: "cus_other" }]).client), "cus_sub");
     });
     it("is null without billing, without a match, and for a uid that is not a plain id", async () => {
         assert.equal(await findStripeCustomerByUid("u1", null), null);
