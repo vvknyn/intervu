@@ -15,4 +15,8 @@ describe("docs/billing.md", () => {
         assert.ok(!/paid_until|granted_until/.test(doc));
         assert.ok(doc.includes("RESUME_RETENTION_CRON_SECRET"));
     });
+    it("takes the price from MONTH_PRICE_USD and never states a dollar amount", () => {
+        assert.ok(doc.includes("MONTH_PRICE_USD"));
+        assert.ok(!/\$\d/.test(doc));
+    });
 });
