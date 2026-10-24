@@ -149,13 +149,20 @@ describe("readPaymentFacts", () => {
     });
 });
 
-describe("F5: only the current offer earns months", () => {
-    it("a cheaper price on the same product grants 0 months; a current-offer price from an older price id still counts", async () => {
+describe("F5: months count by product, not by the price paid", () => {
+    it("a paid session at a different unit_amount on the same product still counts its months", async () => {
         const { stripe } = fakeStripe({
-            sessions: [session("cheap", 100), session("old", 200)],
-            lineItems: { cheap: [{ product: "prod_velai", quantity: 2, unit_amount: 100 }], old: [{ product: "prod_velai", quantity: 1, unit_amount: MONTH_PRICE_USD * 100 }] },
+            sessions: [session("old", 200)],
+            lineItems: { old: [{ product: "prod_velai", quantity: 2, unit_amount: MONTH_PRICE_USD * 100 * 2 }] },
         });
-        assert.deepEqual(await readPaymentFacts(stripe, "cus_1", "prod_velai"), [{ createdMs: 200_000, months: 1 }]);
+        assert.deepEqual(await readPaymentFacts(stripe, "cus_1", "prod_velai"), [{ createdMs: 200_000, months: 2 }]);
+    });
+    it("a line item on another product counts 0", async () => {
+        const { stripe } = fakeStripe({
+            sessions: [session("other", 100)],
+            lineItems: { other: [{ product: "prod_other", quantity: 2 }] },
+        });
+        assert.deepEqual(await readPaymentFacts(stripe, "cus_1", "prod_velai"), []);
     });
 });
 

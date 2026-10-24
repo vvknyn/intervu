@@ -5,7 +5,6 @@
  */
 import type Stripe from "stripe";
 import { readPriceId } from "@/lib/billing/config";
-import { priceMatchesOffer } from "@/lib/billing/checkout";
 import { getStripe } from "@/lib/billing/stripe-client";
 import { readIdField } from "@/lib/billing/events";
 import { readProfile, shapeProfileBilling, writeAccessUntil, type Grant } from "@/lib/billing/profile-store";
@@ -40,7 +39,7 @@ export interface SessionFacts {
     mode: string;
     status: string | null;
     paymentStatus: string;
-    /** Quantity of every line item bought at the Velai product at the current offer. */
+    /** Quantity of every line item bought at the Velai product on the Velai product, at whatever price it was sold. */
     pricedQuantity: number;
     /** What was actually charged (null = unknown) and refunded. */
     charged: number | null;
@@ -60,7 +59,7 @@ export function monthsFromSession(s: SessionFacts): number {
 async function sessionFacts(stripe: Stripe, session: Stripe.Checkout.Session, productId: string): Promise<SessionFacts> {
     const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
     const pricedQuantity = items.data
-        .filter((li) => readIdField(li.price?.product) === productId && !!li.price && priceMatchesOffer(li.price))
+        .filter((li) => readIdField(li.price?.product) === productId)
         .reduce((sum, li) => sum + (li.quantity ?? 0), 0);
     const pi = typeof session.payment_intent === "object" ? session.payment_intent : null;
     const charge = pi && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
@@ -111,6 +110,7 @@ export async function recomputeAccess(uid: string, customerHint: string | null =
     let payments: PaymentFact[] = [];
     if (customerId) {
         if (!stripe) throw new Error("Stripe is not configured");
+        // Months count by product, so a future price must be created on the same Stripe product.
         const price = await stripe.prices.retrieve(readPriceId());
         payments = await readPaymentFacts(stripe, customerId, readIdField(price.product) ?? "");
     }
