@@ -1,8 +1,8 @@
 /**
- * A company page waits for its roles, not for its side reads: news, recent
- * changes and the box database's record (hiring record, posting chart,
- * profile) that are still out when the search answers are left off that
- * render instead of holding the page (the first Amazon visit took 4.3s on
+ * A company page waits for its roles and, for at most `sideTimeoutMs` each, its
+ * side reads: news, recent changes and the box database's record (hiring
+ * record, posting chart, profile). A read still out at its timeout is left off
+ * that render (null fields, logged once) instead of holding the page (the first Amazon visit took 4.3s on
  * release 16, and a cold box read still held release 23's first Amazon visit
  * for a second). A late box read lands in a per-employer cache so the next
  * visit has it.
@@ -69,12 +69,13 @@ function reads(times: { news?: number; events?: number; box?: number }, logged: 
         events: () => after(times.events ?? 0, EVENTS),
         exhaust: () => after(times.box ?? 0, BOX),
         budgetMs: 60,
+        sideTimeoutMs: 100,
         log: (_level, body, attrs) => logged.push({ body, attrs }),
     };
 }
 
-describe("getCompanyPageData — side reads never hold the roles back", () => {
-    it("renders the roles without a box read that is still out when the search answers", async () => {
+describe("getCompanyPageData — side reads are awaited, each up to its own timeout", () => {
+    it("leaves off a box read that is still out at its timeout, and does not wait beyond it", async () => {
         const started = Date.now();
         const data = await getCompanyPageData("acme--com", searchIn(5), reads({ box: 400 }));
         const elapsed = Date.now() - started;
@@ -82,18 +83,25 @@ describe("getCompanyPageData — side reads never hold the roles back", () => {
         assert.ok(data);
         assert.equal(data.jobs.length, 2);
         assert.equal(data.exhaust, null, "the box bands are left off this render");
+        assert.equal(data.facts.identity.sector, null, "its facts are null, not placeholders");
         assert.deepEqual(data.changeEvents, EVENTS, "reads that answered in time are kept");
-        assert.ok(elapsed < 300, `the page waited ${elapsed} ms for a 400 ms read`);
+        assert.ok(elapsed >= 90 && elapsed < 300, `the page waited ${elapsed} ms for a 400 ms read with a 100 ms timeout`);
     });
 
-    it("waits no longer than the search, even for a read inside the old 1 s budget", async () => {
-        const started = Date.now();
-        const data = await getCompanyPageData("acme--com", searchIn(5), reads({ box: 150 }));
-        const elapsed = Date.now() - started;
-
+    it("keeps a read that answers inside its timeout even when the search answered first", async () => {
+        const data = await getCompanyPageData("acme--com", searchIn(5), reads({ box: 60 }));
         assert.ok(data);
-        assert.equal(data.exhaust, null);
-        assert.ok(elapsed < 100, `the page waited ${elapsed} ms for a 150 ms read after a 5 ms search`);
+        assert.equal(data.exhaust, BOX);
+    });
+
+    it("asks the search for facets, so the mix covers every live role and not the 200 fetched", async () => {
+        let seen: JobSearchParams | undefined;
+        const search = (p: JobSearchParams) => {
+            seen = p;
+            return searchIn(0)(p);
+        };
+        await getCompanyPageData("acme--com", search, reads({}));
+        assert.equal(seen?.withFacets, true);
     });
 
     it("leaves off late news and recent changes the same way", async () => {
@@ -111,7 +119,7 @@ describe("getCompanyPageData — side reads never hold the roles back", () => {
     });
 
     it("keeps a slow side read when the search is slower still", async () => {
-        const data = await getCompanyPageData("acme--com", searchIn(200), reads({ box: 120 }));
+        const data = await getCompanyPageData("acme--com", searchIn(200), reads({ box: 80 }));
         assert.ok(data);
         assert.equal(data.exhaust, BOX, "the page was waiting for the search anyway");
     });

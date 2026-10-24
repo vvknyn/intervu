@@ -90,7 +90,7 @@ function makeExhaust(overrides: Partial<CompanyExhaust> = {}): CompanyExhaust {
     profile: null, funding: null, secListing: null, govContracts: null,
     h1bLca: null, warnNotices: null,
     health: null, cadence: null, integrity: null, techStack: null,
-    changeHistory: null,
+    changeHistory: null, sector: null,
     ...overrides,
   };
 }
