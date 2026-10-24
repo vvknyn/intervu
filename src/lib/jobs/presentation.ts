@@ -724,13 +724,19 @@ const COMMA_LEGAL_SUFFIXES = [
  *  `GEO_GATED_TAIL_WORDS` below, gated on the independent geography-bracket
  *  signal instead. One known loss from this widening: a single-token brand
  *  that IS its legal designator ("X Corp", the Twitter entity) now renders
- *  as bare "X" — vanishingly rare in a job corpus. */
+ *  as bare "X" — vanishingly rare in a job corpus.
+ *
+ *  Widened 2026-10-23 with the forms that most often ended a name in the
+ *  company-directory evidence (3600 domains) and were still shown: Pte and
+ *  Sdn Bhd (Singapore, Malaysia), Ltda (Brazil), S.R.L. and S.L. (Italy,
+ *  Romania, Spain), C.V. (Netherlands), a trailing-period "LLC.", K.K. and SA. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
     "Ltd.", "Ltd", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
     "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
     "AG", "AB", "Oy", "ULC", "Corp.", "Corp", "Corporation", "Co.", "Pty", "A/S", "KK",
-    "s.r.o.", "d.o.o.",
+    "s.r.o.", "d.o.o.", "Pte. Ltd.", "Pte Ltd", "Pte.", "Pte", "Sdn. Bhd.", "Sdn Bhd", "Bhd.", "Bhd",
+    "LLC.", "Ltda.", "Ltda", "S.R.L.", "SRL", "S.L.", "Lda", "C.V.", "CV", "K.K.", "SA",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 

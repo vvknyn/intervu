@@ -6,16 +6,14 @@
  *
  * Membership is decided from each candidate's own job rows plus the other candidates:
  *   M1  a host of the ATS-host registry is not a company;
- *   M4  no agreeing name and no dominant name: nothing honest to list it under (aggregators, hosts);
- *   M2  a name that does not agree with its domain but plainly belongs to another candidate's domain
- *       ("Fortive" on a subsidiary's domain) is carried by that other domain;
- *   M3  two domains showing one name: the one with more roles keeps it.
- * A cleaned name that is the top non-agreeing candidate on {@link VENDOR_MIN_DOMAINS} or more
- * candidates is a feed's artifact (a payroll or recruiting vendor), never shown as a company's name.
+ *   R1  the name must agree with the domain: a domain whose rows name no one it carries (a dominant
+ *       name that belongs elsewhere, a vendor's name, no name) is an uncorroborated identity and is
+ *       not listed — a page for it still renders, as `noindex`, under its domain label;
+ *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
+ *       subdomain, then more live roles.
  * Candidates arrive by live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { unstable_cache } from "next/cache";
-import { labelsClaimedBy, primaryLabel, resolveCompanyName } from "@/lib/companies/company-name";
+import { resolveCompanyName } from "@/lib/companies/company-name";
 import { publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -31,25 +29,27 @@ export interface DirectoryCompany extends IndexableCompanyDomain {
 
 export interface Exclusion {
   domain: string;
-  rule: "M1" | "M2" | "M3" | "M4";
-  /** The name the domain would have been shown under, when it had one. */
-  name?: string;
-  /** The domain that carries the company instead (M2, M3). */
+  rule: "M1" | "R1" | "M3";
+  /** The domain that keeps the name instead (M3). */
   owner?: string;
 }
 
 export interface Directory {
   companies: DirectoryCompany[];
-  /** Lower-case cleaned names that are a feed's artifact, not any company's name. */
-  vendors: string[];
   excluded: Exclusion[];
 }
 
-/** Candidates a vendor artifact must be the top non-agreeing name of before it is one. */
-export const VENDOR_MIN_DOMAINS = 3;
-
 /** Names stay put for hours; the directory re-reads at most this often. */
 export const DIRECTORY_REVALIDATE_SECONDS = 6 * 60 * 60;
+
+/** A listable candidate and how much of its rows state the name it is listed under. */
+type Claim = { company: DirectoryCompany; share: number };
+
+const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
+
+/** Who keeps a name two domains show: the higher share of rows carrying it, the apex over a subdomain, the busier. */
+const byClaim = (a: Claim, b: Claim): number =>
+  b.share - a.share || a.company.domain.split(".").length - b.company.domain.split(".").length || byRoles(a.company, b.company);
 
 /**
  * Pure: the directory over `candidates` (most live roles first), `rows` being each one's job rows in
@@ -57,50 +57,23 @@ export const DIRECTORY_REVALIDATE_SECONDS = 6 * 60 * 60;
  */
 export function buildDirectory(candidates: readonly IndexableCompanyDomain[], rows: readonly (readonly PublicJob[])[], cap: number = SITEMAP_COMPANY_CAP): Directory {
   const excluded: Exclusion[] = [];
-  const pool = candidates.flatMap((candidate, i) => {
-    if (!ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return [{ candidate, jobs: rows[i] ?? [] }];
-    excluded.push({ domain: candidate.domain, rule: "M1" });
-    return [];
-  });
-
-  const firstPass = pool.map(({ candidate, jobs }) => resolveCompanyName(jobs, candidate.domain));
-  const strayDomains = new Map<string, number>();
-  for (const { stray } of firstPass) if (stray) strayDomains.set(stray.toLowerCase(), (strayDomains.get(stray.toLowerCase()) ?? 0) + 1);
-  const vendors = new Set([...strayDomains].filter(([, count]) => count >= VENDOR_MIN_DOMAINS).map(([name]) => name));
-
-  const ownerOf = new Map<string, string>();
-  for (const { candidate } of pool) {
-    const label = primaryLabel(candidate.domain);
-    if (label && !ownerOf.has(label)) ownerOf.set(label, candidate.domain);
-  }
-
-  const named: DirectoryCompany[] = [];
-  pool.forEach(({ candidate, jobs }, i) => {
-    const first = firstPass[i]!;
-    const resolved = !first.agrees && first.stray && vendors.has(first.stray.toLowerCase()) ? resolveCompanyName(jobs, candidate.domain, vendors) : first;
-    if (!resolved.agrees && resolved.source === "domain") {
-      excluded.push({ domain: candidate.domain, rule: "M4" });
-      return;
-    }
+  const claims: Claim[] = [];
+  candidates.forEach((candidate, i) => {
+    if (ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return void excluded.push({ domain: candidate.domain, rule: "M1" });
+    const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
+    if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     const name = displayCompanyName(resolved.value);
-    const owner = resolved.agrees ? undefined : [...labelsClaimedBy(name)].map((label) => ownerOf.get(label)).find((domain) => domain && domain !== candidate.domain);
-    if (owner) {
-      excluded.push({ domain: candidate.domain, rule: "M2", name, owner });
-      return;
-    }
-    named.push({ ...candidate, name, letter: letterOf(name) });
+    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, share: resolved.share });
   });
 
   const byName = new Map<string, DirectoryCompany>();
-  for (const company of [...named].sort(byRoles)) {
+  for (const { company } of claims.sort(byClaim)) {
     const kept = byName.get(company.name.toLowerCase());
-    if (kept) excluded.push({ domain: company.domain, rule: "M3", name: company.name, owner: kept.domain });
+    if (kept) excluded.push({ domain: company.domain, rule: "M3", owner: kept.domain });
     else byName.set(company.name.toLowerCase(), company);
   }
-  return { companies: [...byName.values()].sort(byRoles).slice(0, cap), vendors: [...vendors], excluded };
+  return { companies: [...byName.values()].sort(byRoles).slice(0, cap), excluded };
 }
-
-const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
 
 /** Thin I/O: the pool from `company_directory`, each candidate's rows from the jobs index. */
 export async function fetchDirectory(
@@ -112,16 +85,58 @@ export async function fetchDirectory(
   return buildDirectory(candidates, rows.map((jobs) => publicRoles(jobs)));
 }
 
-const readCached = (): Promise<Pick<Directory, "companies" | "vendors">> =>
-  unstable_cache(async () => {
-    const { companies, vendors } = await fetchDirectory();
-    return { companies, vendors };
-  }, ["company-directory"], { revalidate: DIRECTORY_REVALIDATE_SECONDS })();
+/** What a {@link singleFlight} remembers; held by the caller so several bundles of one process can share it. */
+export interface FlightStore<T> {
+  value?: T;
+  builtAt?: number;
+  inflight?: Promise<T>;
+}
 
-/** The read every page uses. Module state so a test (outside Next, where `unstable_cache` cannot run) can swap it. */
-export const DIRECTORY_READER = { read: readCached };
+/**
+ * A read that builds `build()` once at a time: every caller of a cold read shares the one in-flight
+ * build (and sees its failure; the next read builds again), and a value older than `ttlMs` is served
+ * as it is while ONE background refresh runs. A failed refresh keeps the old value and is retried on
+ * the next read.
+ */
+export function singleFlight<T>(build: () => Promise<T>, ttlMs: number, store: FlightStore<T> = {}, now: () => number = Date.now): () => Promise<T> {
+  const start = (): Promise<T> => {
+    store.inflight ??= build().then(
+      (value) => {
+        Object.assign(store, { value, builtAt: now(), inflight: undefined });
+        return value;
+      },
+      (error: unknown) => {
+        store.inflight = undefined;
+        throw error;
+      },
+    );
+    return store.inflight;
+  };
+  return () => {
+    if (store.builtAt === undefined) return store.inflight ?? start();
+    if (!store.inflight && now() - store.builtAt >= ttlMs) {
+      start().catch((error: unknown) => console.warn("directory refresh failed; serving the previous build", error));
+    }
+    return Promise.resolve(store.value as T);
+  };
+}
 
-export const getDirectory = (): Promise<Pick<Directory, "companies" | "vendors">> => DIRECTORY_READER.read();
+type ListedDirectory = Pick<Directory, "companies">;
+
+// On globalThis: the server-start hook is bundled apart from the pages, and its copy of this module must
+// fill the memo the pages read.
+const flights = globalThis as { __velaiDirectoryFlight?: FlightStore<ListedDirectory> };
+
+const readMemo = singleFlight(
+  async (): Promise<ListedDirectory> => ({ companies: (await fetchDirectory()).companies }),
+  DIRECTORY_REVALIDATE_SECONDS * 1000,
+  (flights.__velaiDirectoryFlight ??= {}),
+);
+
+/** The read every page uses. Module state so a test can swap it. */
+export const DIRECTORY_READER = { read: readMemo };
+
+export const getDirectory = (): Promise<ListedDirectory> => DIRECTORY_READER.read();
 
 /**
  * Whether `domain` is listed: the one rule that makes a company page indexable (see indexable.ts).

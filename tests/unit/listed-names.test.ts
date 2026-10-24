@@ -33,6 +33,24 @@ describe("fetchNameEvidence batch retry", () => {
   });
 });
 
+describe("fetchNameEvidence concurrency", () => {
+  it("reads several chunks at once, never more than 4 at a time, and keeps the order of the domains", async () => {
+    const domains = Array.from({ length: 1500 }, (_, i) => `d${i}.com`); // 10 chunks of 150, 3 batches each
+    let live = 0;
+    let peak = 0;
+    const read = async (queries: { params: { companyDomain?: string } }[]) => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 5));
+      live -= 1;
+      return queries.map((q) => [row(q.params.companyDomain!)]);
+    };
+    const rows = await fetchNameEvidence(domains, read as never);
+    assert.deepEqual(rows.map((r) => r[0].company), domains);
+    assert.ok(peak > 3 && peak <= 12, `peak in-flight batches ${peak}`);
+  });
+});
+
 describe("displayNameFromDomain casing", () => {
   it("upper-cases the first letter of each label for any script with case", () => {
     assert.equal(displayNameFromDomain("éclair.fr"), "Éclair");

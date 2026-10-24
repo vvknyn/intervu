@@ -57,14 +57,12 @@ export type CompanyNameSource =
 export type CompanyDisplayName = {
   value: string;
   source: CompanyNameSource;
-  /** Did the shown name come from a candidate that names the domain's employer? `false` for a dominant
-   *  non-agreeing name and for the bare domain label. */
+  /** Did the shown name come from a candidate that names the domain's employer? `false` only for the bare
+   *  domain label: a name the domain does not carry is never shown. */
   agrees: boolean;
-  /** The shown name's share of the rows that carry a name at all (0 when none does). */
+  /** The share of the rows that carry a name at all whose name agrees with the domain: how corroborated
+   *  the domain's identity is (0 when the label is shown). */
   share: number;
-  /** The most-attested cleaned candidate that does NOT agree with the domain, or null: the evidence the
-   *  directory pool tallies to spot a vendor artifact. */
-  stray: string | null;
 };
 
 /**
@@ -311,12 +309,24 @@ export function nameAgreeingWithDomain(candidate: string, domain: string): strin
 
 type NameGroup = {
   count: number;
-  cased: string | null;
-  verbatim: string;
+  /** The spelling shown for the group (see {@link shownSpelling}). */
+  display: string;
   tokens: string[];
   /** How many OTHER groups this one is a strict token-prefix of. */
   extends: number;
 };
+
+/** Written in lower case with no space: a feed's flattening ("tdsynnex"), not a spelling anyone chose. */
+const isFlat = (spelling: string): boolean => spelling === spelling.toLowerCase() && !/\s/.test(spelling);
+
+/**
+ * The spelling a group of spellings of one name is shown as: the most common that is not flat
+ * ("TD SYNNEX" over "tdsynnex"), the most common overall when all are; a tie goes to the one carrying case.
+ */
+function shownSpelling(spellings: ReadonlyMap<string, number>): string {
+  const ranked = [...spellings].sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
+  return (ranked.find(([spelling]) => !isFlat(spelling)) ?? ranked[0]!)[0];
+}
 
 /**
  * The brand among several legal entities, or `null` when the corpus doesn't
@@ -356,9 +366,9 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * Pure: pick the best-supported display name for a company from its own job
  * rows. Candidates are cleaned through `cleanCompany` first (it already
  * strips ATS tenant codes, duplicate parentheticals and domain-shaped
- * placeholders, and decodes URL-escaped text), then tallied under a
- * case-insensitive key — mirroring `dominantCompanyDomain`
- * (company-stats.ts).
+ * placeholders, and decodes URL-escaped text), then only those that agree with the domain
+ * count (see `nameAgreeingWithDomain`). Spellings of one name (case, spacing, punctuation) vote
+ * together, and the group is shown as its commonest spelling that is not flat lower-case.
  *
  * The brand root wins where one exists, because a row-count vote answers the
  * wrong question when a domain holds several legitimate legal entities: it
@@ -369,18 +379,12 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  *
  * Among agreeing candidates, one whose agreement begins at its first word beats one that only
  * contains the label further in ("Mohegan Sun" over "Wolf Mohegan Sun"); the vote decides within.
- * With no agreeing candidate, the top candidate is shown when it holds at least
- * {@link DOMINANT_NAME_SHARE} of the named rows and is not one of `vendorNames` (lower-case cleaned
- * names the caller knows to be a feed's artifact); otherwise the bare domain label.
+ * With no agreeing candidate the answer is the bare domain label: a name the domain does not carry is
+ * not evidence about who the domain is, however many rows state it.
  */
-export function resolveCompanyName(
-  jobs: readonly Pick<PublicJob, "company">[],
-  domain: string,
-  vendorNames: ReadonlySet<string> = new Set(),
-): CompanyDisplayName {
+export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], domain: string): CompanyDisplayName {
   const host = domainLabels(domain);
-  const groups = new Map<string, NameGroup & { lead: boolean }>();
-  const strays = new Map<string, { name: string; count: number }>();
+  const spellings = new Map<string, { count: number; spellings: Map<string, number> }>();
   let named = 0;
 
   for (const job of jobs) {
@@ -397,32 +401,20 @@ export function resolveCompanyName(
     named += 1;
     // Only a string that agrees with the domain is evidence about this domain's employer.
     const name = nameAgreeingWithDomain(cleaned, domain);
-    if (!name) {
-      const stray = strays.get(cleaned.toLowerCase()) ?? { name: cleaned, count: 0 };
-      stray.count += 1;
-      strays.set(cleaned.toLowerCase(), stray);
-      continue;
-    }
-    const key = name.toLowerCase();
-    const group = groups.get(key) ?? {
-      count: 0,
-      cased: null,
-      verbatim: name,
-      tokens: brandTokens(name),
-      extends: 0,
-      lead: agreesWithLabels(name, host, true),
-    };
+    if (!name) continue;
+    const group = spellings.get(alnum(name)) ?? { count: 0, spellings: new Map<string, number>() };
     group.count += 1;
-    if (!group.cased && carriesCase(name)) group.cased = name;
-    groups.set(key, group);
+    group.spellings.set(name, (group.spellings.get(name) ?? 0) + 1);
+    spellings.set(alnum(name), group);
   }
 
-  const all = [...groups.values()];
+  const all = [...spellings.values()].map(({ count, spellings: forms }) => {
+    const display = shownSpelling(forms);
+    return { count, display, tokens: brandTokens(display), extends: 0, lead: agreesWithLabels(display, host, true) };
+  });
   const candidates = all.some((g) => g.lead) ? all.filter((g) => g.lead) : all;
   for (const candidate of candidates) {
-    candidate.extends = candidates.filter((other) =>
-      isStrictTokenPrefix(candidate.tokens, other.tokens),
-    ).length;
+    candidate.extends = candidates.filter((other) => isStrictTokenPrefix(candidate.tokens, other.tokens)).length;
   }
 
   let best: NameGroup | null = pickBrandRoot(candidates);
@@ -432,52 +424,14 @@ export function resolveCompanyName(
     }
   }
 
-  const topStray = [...strays.values()].reduce<{ name: string; count: number } | null>((top, s) => (!top || s.count > top.count ? s : top), null);
-  const stray = topStray?.name ?? null;
-  const share = (count: number) => (named ? count / named : 0);
-
-  if (best) return { ...casedName(best), agrees: true, share: share(best.count), stray };
-  const dominant = topStray && share(topStray.count) >= DOMINANT_NAME_SHARE && !vendorNames.has(topStray.name.toLowerCase()) ? topStray : null;
-  if (dominant) {
-    return { ...casedName({ cased: carriesCase(dominant.name) ? dominant.name : null, verbatim: dominant.name }), agrees: false, share: share(dominant.count), stray };
-  }
-  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0, stray };
+  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named };
+  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0 };
 }
 
-/** Share of the named rows a non-agreeing candidate needs to be shown as the company's name. */
-export const DOMINANT_NAME_SHARE = 0.6;
-
-function casedName(group: Pick<NameGroup, "cased" | "verbatim">): Pick<CompanyDisplayName, "value" | "source"> {
-  if (group.cased) return { value: group.cased, source: "corpus-cased" };
-  // No row among the winning group carried case: the group is exactly as casing-free as a bare
-  // domain label, so it gets the same recovery — see `capitalizeAfterNonLetter`. `source` stays
-  // "corpus-flat": this is still the corpus's own string, not a guess.
-  return { value: capitalizeAfterNonLetter(group.verbatim), source: "corpus-flat" };
-}
-
-/** The alphanumeric label that names `domain` itself ("aerospace.circor.com" -> "circor"). */
-export function primaryLabel(domain: string): string {
-  return domainLabels(domain).labels.at(-1) ?? "";
-}
-
-/** Shortest label a name may claim on another domain's behalf. */
-const CLAIM_MIN_LENGTH = 3;
-
-/**
- * The domain labels a displayed name asserts as its own: any run of its leading WORDS squashed
- * together ("Palo Alto Networks" -> paloalto, paloaltonetworks; "WPP Media" -> wpp), and the initials
- * of its significant words ("International Business Machines" -> ibm), each of at least
- * {@link CLAIM_MIN_LENGTH} characters. A label that starts mid-word ("Graybar" -> "gray") or in a later
- * word ("Genuine Parts" -> "parts") is not claimed.
- */
-export function labelsClaimedBy(name: string): Set<string> {
-  const words = fold(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const claimed = new Set<string>();
-  let run = "";
-  for (const word of words) {
-    run += word;
-    claimed.add(run);
-  }
-  claimed.add(words.filter((w) => !SMALL_WORDS.has(w)).map((w) => w[0]).join(""));
-  return new Set([...claimed].filter((label) => label.length >= CLAIM_MIN_LENGTH));
+function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"> {
+  if (carriesCase(display)) return { value: display, source: "corpus-cased" };
+  // No spelling carried case: the name is exactly as casing-free as a bare domain label, so it gets
+  // the same recovery — see `capitalizeAfterNonLetter`. `source` stays "corpus-flat": this is still
+  // the corpus's own string, not a guess.
+  return { value: capitalizeAfterNonLetter(display), source: "corpus-flat" };
 }

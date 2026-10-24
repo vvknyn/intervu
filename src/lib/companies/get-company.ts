@@ -40,7 +40,7 @@ export interface CompanySideReads {
   news: (domain: string) => Promise<CompanyNewsArticle[]>;
   events: (domain: string) => Promise<CompanyChangeEvent[]>;
   exhaust: (domain: string) => Promise<CompanyExhaust | null>;
-  /** The company directory: the name this company is listed under, and the vendor names never shown. */
+  /** The company directory: the name this company is listed under. */
   directory: typeof getDirectory;
   /** A search slower than this is logged. */
   budgetMs: number;
@@ -195,7 +195,7 @@ export async function getCompanyPageData(
 
   if (jobs.length === 0 && boards.length === 0) return null;
 
-  const name = resolveCompanyName(jobs, domain, new Set(directory.value?.vendors));
+  const name = resolveCompanyName(jobs, domain);
   const openCount = resolveOpenCount(result, jobs.length, COMPANY_JOBS_FETCH_LIMIT);
   const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
   // The `company_*` aggregates land on documents progressively as the sync

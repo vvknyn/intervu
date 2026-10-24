@@ -4,8 +4,9 @@ import { logServer, requestErrorLevel, requestErrorRecord } from "@/lib/observab
 /**
  * Server start. A production server opens one phone search link itself once
  * it listens, so the first visitors after a deploy or a restart get a warm
- * search (lib/server-warm-up.ts). Not awaited: the server listens only after
- * this returns. Dev servers compile on demand and skip it.
+ * search (lib/server-warm-up.ts), and the company directory starts its first
+ * build (lib/companies/directory-model.ts). Neither is awaited: the server
+ * listens only after this returns. Dev servers compile on demand and skip it.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NODE_ENV !== "production") return;
@@ -13,6 +14,10 @@ export async function register() {
   const flags = globalThis as { __velaiWarmUpStarted?: boolean };
   if (flags.__velaiWarmUpStarted) return;
   flags.__velaiWarmUpStarted = true;
+  // The company directory takes minutes to build cold; start it now so the first visitors and the sitemap find it built.
+  void import("@/lib/companies/directory-model")
+    .then(({ getDirectory }) => getDirectory())
+    .catch((error: unknown) => logServer("warn", "company directory boot build failed", { "directory.error": error instanceof Error ? error.message : String(error) }));
   const { warmUp } = await import("@/lib/server-warm-up");
   void warmUp({ port: process.env.PORT ?? "3000", hostname: process.env.HOSTNAME })
     .then(({ rows, pages }) => {

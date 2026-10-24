@@ -71,9 +71,9 @@ export const MIN_SITEMAP_ROLES = 25;
 export const SITEMAP_COMPANY_CAP = 3000;
 
 /** Candidates read before the directory's rules exclude any (see directory-model.ts): the cap plus
- *  room for the exclusions (about 9% of a 3600 pool on Oct 23 data; 3300 was the least that still filled
- *  the cap), so they do not shrink what is listed. */
-export const DIRECTORY_POOL_SIZE = 3600;
+ *  room for the exclusions, so they do not shrink what is listed. On Oct 23 data 3700 candidates leave
+ *  3152 after the exclusions (about 15% go), 152 over the cap to absorb drift between reads; 3650 left 109. */
+export const DIRECTORY_POOL_SIZE = 3700;
 
 export interface CompanyIndexabilityInput {
   /** The domain is in the set `sitemap.ts` submits (see

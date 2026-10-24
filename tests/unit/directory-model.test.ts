@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildDirectory, fetchCompanyInSitemapSet, fetchDirectory, type Directory } from "@/lib/companies/directory-model";
+import { buildDirectory, fetchCompanyInSitemapSet, fetchDirectory, singleFlight, type Directory } from "@/lib/companies/directory-model";
 import { ATS_PORTAL_HOSTNAME_RE } from "@/lib/jobs/presentation";
 import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -28,51 +28,43 @@ describe("buildDirectory — which domains are listed, under what name and lette
     assert.ok(!ATS_PORTAL_HOSTNAME_RE.test("oraclecloudstorage.com"));
   });
 
-  it("V: a name that is the top non-agreeing candidate on 3+ domains is a vendor artifact and is never shown; on 2 it is a name", () => {
-    const three = build([
-      ["alpha.com", 50, { "Feedco Staffing": 4, "Alpha Labs": 1 }],
-      ["beta.com", 50, { "Feedco Staffing": 4, "Beta Works": 1 }],
-      ["gamma.com", 50, { "Feedco Staffing": 5 }],
+  it("R1: a domain is listed only when its name agrees with it; a dominant name the domain does not carry, or no name, is not a company", () => {
+    const d = build([
+      ["gelsight.com", 90, { Hyphenconnect: 9 }],
+      ["collinstrading.com", 80, { "KFC Nederland (CFE)": 5 }],
+      ["aspirant.com", 70, { Wavestone1: 4, Other: 1 }],
+      ["silent.com", 60, {}],
+      ["acme.com", 50, { "Acme Robotics": 5 }],
+      ["ibm.com", 40, { "International Business Machines": 5 }],
+      ["mixedname.com", 30, { "Mixedname Inc": 1, Elsewhere: 4 }],
     ]);
-    assert.deepEqual(three.vendors, ["feedco staffing"]);
-    assert.deepEqual(Object.keys(listed(three)).sort(), ["alpha.com", "beta.com"]);
-    assert.deepEqual(excluded(three, "M4").map((e) => e.domain), ["gamma.com"]);
-    const two = build([
-      ["alpha.com", 50, { "Feedco Staffing": 5 }],
-      ["beta.com", 50, { "Feedco Staffing": 5 }],
-    ]);
-    assert.deepEqual(two.vendors, []);
-    assert.equal(two.companies.length, 1);
+    assert.deepEqual(Object.keys(listed(d)), ["acme.com", "ibm.com", "mixedname.com"]);
+    assert.deepEqual(excluded(d, "R1").map((e) => e.domain), ["gelsight.com", "collinstrading.com", "aspirant.com", "silent.com"]);
   });
 
-  it("M2: a non-agreeing domain showing a name that strongly matches another pool domain's label is excluded; agreeing and unclaimed names stay", () => {
-    const d = build([
-      ["harborline.com", 90, { "Harborline Freight": 5 }],
-      ["zmotors.com", 80, { "Harborline Freight": 5 }],
-      ["paloaltonetworks.com", 70, { "Palo Alto Networks, Inc.": 5 }],
-      ["r1rcm.com", 60, { "R1 RCM Holdco Inc.": 5 }],
-      ["wpp.com", 50, { WPP: 5 }],
-      ["unclaimed.example", 40, { "Orchid Foods": 5 }],
+  it("M3: two domains showing one name keep the higher agreement share, then the apex over a subdomain, then more roles", () => {
+    const bySharing = build([
+      ["northwind.io", 900, { Northwind: 2, "Other Co": 8 }],
+      ["northwind.com", 100, { Northwind: 10 }],
     ]);
-    const m2 = excluded(d, "M2");
-    assert.deepEqual(m2.map((e) => [e.domain, e.owner]), [["zmotors.com", "harborline.com"]]);
-    assert.deepEqual(Object.keys(listed(d)).sort(), ["harborline.com", "paloaltonetworks.com", "r1rcm.com", "unclaimed.example", "wpp.com"]);
-    assert.equal(listed(d)["unclaimed.example"], "Orchid Foods");
-  });
-
-  it("M3: two domains showing the same name keep the one with more roles", () => {
-    const d = build([
+    assert.deepEqual(Object.keys(listed(bySharing)), ["northwind.com"]);
+    assert.deepEqual(excluded(bySharing, "M3").map((e) => [e.domain, e.owner]), [["northwind.io", "northwind.com"]]);
+    const corroborated = build([
+      ["corporate.northwind.com", 900, { "Northwind Corp": 9, "Northwind India (Non-USA)": 1 }],
+      ["northwind.com", 100, { Northwind: 7, "Northwind India (Non-USA)": 3 }],
+    ]);
+    assert.deepEqual(Object.keys(listed(corroborated)), ["northwind.com"]);
+    const byApex = build([
+      ["careers.contoso.com", 900, { Contoso: 5 }],
+      ["contoso.com", 100, { Contoso: 5 }],
+    ]);
+    assert.deepEqual(Object.keys(listed(byApex)), ["contoso.com"]);
+    const byRoles = build([
       ["acme.io", 200, { Acme: 5 }],
       ["acme.com", 900, { Acme: 5 }],
     ]);
-    assert.deepEqual(Object.keys(listed(d)), ["acme.com"]);
-    assert.deepEqual(excluded(d, "M3").map((e) => [e.domain, e.owner]), [["acme.io", "acme.com"]]);
-  });
-
-  it("M4: no agreeing name and no name holding 60% of the rows means not listed", () => {
-    const d = build([["mystery.com", 50, { "One Co": 2, "Two Co": 2, "Three Co": 1 }], ["acme.com", 40, { "Acme Robotics": 5 }]]);
-    assert.deepEqual(Object.keys(listed(d)), ["acme.com"]);
-    assert.deepEqual(excluded(d, "M4").map((e) => e.domain), ["mystery.com"]);
+    assert.deepEqual(Object.keys(listed(byRoles)), ["acme.com"]);
+    assert.deepEqual(excluded(byRoles, "M3").map((e) => [e.domain, e.owner]), [["acme.io", "acme.com"]]);
   });
 
   it("M5: fills to the cap from the candidates after the excluded ones, most roles first", () => {
@@ -99,7 +91,7 @@ describe("fetchDirectory / fetchCompanyInSitemapSet", () => {
   });
 
   it("is true for a listed domain and false for one the directory excluded or does not hold", async () => {
-    const directory = async () => ({ companies: build([["acme.com", 40, { "Acme Robotics": 5 }]]).companies, vendors: [] });
+    const directory = async () => ({ companies: build([["acme.com", 40, { "Acme Robotics": 5 }]]).companies, });
     assert.equal(await fetchCompanyInSitemapSet("acme.com", directory), true);
     assert.equal(await fetchCompanyInSitemapSet("beta.com", directory), false);
   });
@@ -114,5 +106,68 @@ describe("fetchDirectory / fetchCompanyInSitemapSet", () => {
     } finally {
       console.warn = original;
     }
+  });
+});
+
+describe("singleFlight — one shared build, stale-while-revalidate", () => {
+  const clock = (start = 0) => { let t = start; return { now: () => t, advance: (ms: number) => { t += ms; } }; };
+  const gate = () => { let release!: (v: string) => void; let fail!: (e: Error) => void; const promise = new Promise<string>((res, rej) => { release = res; fail = rej; }); return { promise, release, fail }; };
+
+  it("shares one in-flight build between concurrent cold callers, then serves the value until it is stale", async () => {
+    const c = clock();
+    let builds = 0;
+    const g = gate();
+    const read = singleFlight(() => { builds += 1; return g.promise; }, 1000, {}, c.now);
+    const callers = [read(), read(), read()];
+    g.release("v1");
+    assert.deepEqual(await Promise.all(callers), ["v1", "v1", "v1"]);
+    c.advance(999);
+    assert.equal(await read(), "v1");
+    assert.equal(builds, 1);
+  });
+
+  it("serves the old value while one background refresh runs, then the new one", async () => {
+    const c = clock();
+    const results = ["v1", "v2"];
+    const gates = [gate(), gate()];
+    let builds = 0;
+    const read = singleFlight(() => gates[builds++]!.promise.then(() => results[builds - 1]!), 1000, {}, c.now);
+    const first = read();
+    gates[0]!.release("");
+    assert.equal(await first, "v1");
+    c.advance(1001);
+    assert.equal(await read(), "v1");
+    assert.equal(await read(), "v1");
+    assert.equal(builds, 2);
+    gates[1]!.release("");
+    await new Promise((r) => setImmediate(r));
+    assert.equal(await read(), "v2");
+    assert.equal(builds, 2);
+  });
+
+  it("keeps the old value when a refresh fails and tries again on the next read", async () => {
+    const c = clock();
+    const outcomes: (string | Error)[] = ["v1", new Error("meili down"), "v3"];
+    let builds = 0;
+    const warn = console.warn;
+    console.warn = () => {};
+    try {
+      const read = singleFlight(async () => { const o = outcomes[builds++]!; if (o instanceof Error) throw o; return o; }, 1000, {}, c.now);
+      assert.equal(await read(), "v1");
+      c.advance(1001);
+      assert.equal(await read(), "v1");
+      await new Promise((r) => setImmediate(r));
+      assert.equal(await read(), "v1");
+      await new Promise((r) => setImmediate(r));
+      assert.equal(await read(), "v3");
+      assert.equal(builds, 3);
+    } finally { console.warn = warn; }
+  });
+
+  it("throws when the cold build fails, and builds again on the next read", async () => {
+    let builds = 0;
+    const read = singleFlight(async () => { if (builds++ === 0) throw new Error("cold failure"); return "ok"; }, 1000, {}, () => 0);
+    await assert.rejects(read(), /cold failure/);
+    assert.equal(await read(), "ok");
   });
 });

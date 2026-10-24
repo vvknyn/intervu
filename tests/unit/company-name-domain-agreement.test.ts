@@ -5,8 +5,7 @@ import { nameAgreeingWithDomain, resolveCompanyName } from "@/lib/companies/comp
 const shown = (company: string, domain: string): string => resolveCompanyName([{ company }], domain).value;
 
 describe("companies/company-name — a corpus name must agree with the domain", () => {
-  it("falls back to the domain label for a vendor artifact the pool has named (prod evidence)", () => {
-    const vendors = new Set(["careerplug", "2nd shift", "associate"]);
+  it("falls back to the domain label for a name the domain does not carry (prod evidence: vendor artifacts)", () => {
     const rejected: [string, string, string][] = [
       ["americanfamilycare.com", "Careerplug", "Americanfamilycare"],
       ["body20.com", "Careerplug", "Body20"],
@@ -15,17 +14,14 @@ describe("companies/company-name — a corpus name must agree with the domain", 
       // not in the evidence: the same vendor string on another domain
       ["avanta.care", "Careerplug", "Avanta"],
     ];
-    for (const [domain, company, expected] of rejected) assert.equal(resolveCompanyName([{ company }], domain, vendors).value, expected, domain);
+    for (const [domain, company, expected] of rejected) assert.equal(resolveCompanyName([{ company }], domain).value, expected, domain);
   });
 
-  it("shows a non-agreeing name only when it holds 60% of the named rows, and reports that it did not agree", () => {
+  it("never shows a name the domain does not carry, however dominant, and reports that it did not agree", () => {
     const sole = resolveCompanyName([{ company: "Bank of Montreal" }], "airmiles.ca");
-    assert.deepEqual([sole.value, sole.agrees, sole.share], ["Bank of Montreal", false, 1]);
-    const jobs = [...Array(2).fill({ company: "Cornell" }), ...Array(2).fill({ company: "Asml" }), { company: "Other" }];
-    const split = resolveCompanyName(jobs, "breedinginsight.org");
-    assert.deepEqual([split.value, split.source, split.agrees, split.stray], ["Breedinginsight", "domain", false, "Cornell"]);
+    assert.deepEqual([sole.value, sole.source, sole.agrees, sole.share], ["Airmiles", "domain", false, 0]);
     const sixty = resolveCompanyName([...Array(3).fill({ company: "Anduril Industries" }), ...Array(2).fill({ company: "Asml" })], "mighty.com");
-    assert.equal(sixty.value, "Anduril Industries");
+    assert.deepEqual([sixty.value, sixty.agrees], ["Mighty", false]);
     assert.equal(resolveCompanyName([], "empty.com").value, "Empty");
   });
 
@@ -90,10 +86,20 @@ describe("companies/company-name — a corpus name must agree with the domain", 
     assert.equal(shown("Mixed Prefix Ayvens", "ayvens.com"), "Mixed Prefix Ayvens");
   });
 
-  it("N5: reports whether the shown name agreed, and its share", () => {
+  it("reports whether the shown name agreed, and its share of the named rows", () => {
     const agreeing = resolveCompanyName([{ company: "Anduril Industries" }], "anduril.com");
     assert.deepEqual([agreeing.agrees, agreeing.share], [true, 1]);
-    const vendor = resolveCompanyName([...Array(4).fill({ company: "Placeholder Corp" }), { company: "Other" }], "mighty.com", new Set(["placeholder corp"]));
-    assert.deepEqual([vendor.value, vendor.source, vendor.agrees], ["Mighty", "domain", false]);
+    const mixed = resolveCompanyName([...Array(3).fill({ company: "Zephyr Peak" }), { company: "Elsewhere" }], "zephyrpeak.com");
+    assert.deepEqual([mixed.agrees, mixed.share], [true, 0.75]);
+  });
+
+  it("R3: spellings of one name vote together; the shown form is the commonest that is not flat lower-case", () => {
+    assert.equal(shown("tdsynnex", "tdsynnex.com"), "Tdsynnex");
+    const synnex = [...Array(5).fill({ company: "tdsynnex" }), ...Array(2).fill({ company: "TD SYNNEX" })];
+    assert.equal(resolveCompanyName(synnex, "tdsynnex.com").value, "TD SYNNEX");
+    const orchid = [...Array(3).fill({ company: "Orchid Foods Group" }), ...Array(2).fill({ company: "Orchid Foods" }), { company: "ORCHID FOODS" }, { company: "orchidfoods" }];
+    assert.equal(resolveCompanyName(orchid, "orchidfoods.com").value, "Orchid Foods");
+    const datadog = [{ company: "Datadog" }, ...Array(4).fill({ company: "datadog" })];
+    assert.equal(resolveCompanyName(datadog, "datadog.com").value, "Datadog");
   });
 });

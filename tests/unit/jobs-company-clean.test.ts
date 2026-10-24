@@ -187,6 +187,19 @@ test("displayCompanyName strips bare legal forms class-wide, not just the two or
     assert.equal(displayCompanyName("Muster Systeme GmbH"), "Muster Systeme");
 });
 
+// Singapore / Malaysia / Brazil / Netherlands / Spain forms seen in the Oct 2026 directory evidence tails.
+test("displayCompanyName strips the Pte, Sdn Bhd, Ltda, S.R.L., C.V. and S.L. families", () => {
+    assert.equal(displayCompanyName("Orion Freight Pte. Ltd."), "Orion Freight");
+    assert.equal(displayCompanyName("Air Liquide Pte."), "Air Liquide");
+    assert.equal(displayCompanyName("Kopi Trading Sdn. Bhd."), "Kopi Trading");
+    assert.equal(displayCompanyName("Kopi Trading Sdn Bhd"), "Kopi Trading");
+    assert.equal(displayCompanyName("Verde Logistica Ltda."), "Verde Logistica");
+    assert.equal(displayCompanyName("Ayvens Service Center SRL"), "Ayvens Service Center");
+    assert.equal(displayCompanyName("Tulip Markets C.V."), "Tulip Markets");
+    assert.equal(displayCompanyName("Sol Energia S.L."), "Sol Energia");
+    assert.equal(displayCompanyName("Pavo Holdings LLC."), "Pavo Holdings");
+});
+
 // Negatives the growth must not touch.
 test("displayCompanyName negatives survive the widened bare-form vocabulary untouched", () => {
     // A legal-form word that opens the name, not closes it — end-anchored,

@@ -107,7 +107,7 @@ describe("/co pages render", () => {
       co(`${names[i % names.length]}-holdings-${i}.com`, 25 + (i % 500), `${names[i % names.length]} ${i}`));
     const { DIRECTORY_READER } = await import("@/lib/companies/directory-model");
     const readCached = DIRECTORY_READER.read;
-    DIRECTORY_READER.read = async () => ({ companies, vendors: [] });
+    DIRECTORY_READER.read = async () => ({ companies });
     const prevHost = process.env.MEILISEARCH_HOST;
     delete process.env.MEILISEARCH_HOST;
     LAST_GOOD.current = { companies, at: Date.now() };
