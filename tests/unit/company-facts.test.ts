@@ -56,6 +56,7 @@ function input(overrides: Partial<CompanyFactsInput> = {}): CompanyFactsInput {
         domain: "acme.com",
         jobs: [],
         openCount: { value: 0, isLowerBound: false },
+        postingTotal: 0,
         trackRecord: null,
         ghostFlaggedPct: null,
         facetDistribution: undefined,
@@ -115,6 +116,7 @@ describe("buildCompanyFacts", () => {
         const f = buildCompanyFacts(
             input({
                 openCount: { value: 1240, isLowerBound: false },
+                postingTotal: 1240,
                 jobs: [job({ id: "1", posted_at: "2026-10-01T00:00:00Z", posted_ts: Date.parse("2026-10-01T00:00:00Z"), last_observed_alive_at: "2026-10-20T00:00:00Z" })],
                 trackRecord: { opened90d: 40, closed90d: 12 },
                 facetDistribution: {

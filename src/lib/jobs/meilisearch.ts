@@ -2248,14 +2248,14 @@ export async function meiliMultiSearch(
 
 /**
  * One `/multi-search` round trip of full job searches: `buildSearchBody`'s body for each of `queries`
- * (the exact query `searchMeili` would send, optionally retrieving fewer attributes), hits in the
- * order asked. Throws on any failure — a caller must not read a failed batch as "no rows".
+ * (the exact query `searchMeili` would send, optionally retrieving fewer attributes), one result per
+ * query in the order asked: the hits and the count fields a caller needs to resolve an open count. Throws on any failure — a caller must not read a failed batch as "no rows".
  * `timeoutMs` is the per-attempt timeout, for a batch heavier than a search.
  */
 export async function meiliSearchEach(
   queries: { params: JobSearchParams; attributesToRetrieve?: readonly string[] }[],
   timeoutMs?: number,
-): Promise<PublicJob[][]> {
+): Promise<EachResult[]> {
   const h = host();
   if (!h) throw new Error("MEILISEARCH_HOST not set");
   const res = await meiliFetch(`${h}/multi-search`, {
@@ -2274,10 +2274,16 @@ export async function meiliSearchEach(
     const text = await res.text().catch(() => "");
     throw new Error(`Meilisearch multi-search failed: ${res.status} ${text.slice(0, 300)}`);
   }
-  const { results } = (await res.json()) as { results?: { hits?: PublicJob[] }[] };
+  const { results } = (await res.json()) as { results?: (MeiliAggregationResult & { hits?: PublicJob[] })[] };
   if (results?.length !== queries.length) throw new Error(`Meilisearch multi-search answered ${results?.length ?? 0} of ${queries.length} queries`);
-  return results.map((r) => normalizePublicJobs(r.hits ?? []));
+  return results.map((r) => {
+    const hits = normalizePublicJobs(r.hits ?? []);
+    return { hits, total: r.totalHits ?? r.estimatedTotalHits ?? hits.length, facetDistribution: r.facetDistribution as FacetDistribution | undefined };
+  });
 }
+
+/** One query of {@link meiliSearchEach}: the hits plus what `resolveOpenCount` reads of a search result. */
+export type EachResult = Pick<JobSearchResult, "hits" | "total" | "facetDistribution">;
 
 /**
  * Pure: the `q`/`filter`/`attributesToSearchOn` `fetchJobsLastUpdated` sends

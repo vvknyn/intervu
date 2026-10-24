@@ -683,9 +683,7 @@ export function JobDetail({
     // already serves this same query to anonymous visitors with no gate at
     // all, and it's a single cheap query (unlike the 3-query related-jobs
     // list above), so it gets its own always-on fetch here instead. `null`
-    // until this resolves or when the job has no `company_domain` — the
-    // render below falls back to `job.company_open_count` in that window,
-    // same as before this existed.
+    // until this resolves or when the job has no `company_domain`, and then no count renders.
     const [liveOpenCount, setLiveOpenCount] = useState<OpenCount | null>(null);
     useEffect(() => {
         // Below-the-fold: same settle gate as the related-jobs effect above
@@ -699,23 +697,20 @@ export function JobDetail({
                 if (!cancelled) setLiveOpenCount(count);
             })
             .catch(() => {
-                // Presentation only — the render falls back to
-                // `job.company_open_count`, same as before this existed.
+                // Presentation only — a failed read shows no count.
             });
         return () => {
             cancelled = true;
         };
     }, [job.company_domain, descriptionSettled]);
 
-    // Resolve to ONE open-count number the same way the render below reads
-    // it (live figure first, stale field as fallback), then run it through
+    // The live count is the ONLY source: when it is unresolved or failed, no count shows, never the
+    // other producer's `job.company_open_count`. It runs through
     // `shouldSuppressOpenCount` so a company whose live count is honestly 0
     // never renders "0 live roles" on a page that is itself one of that
     // company's live postings — see that function's doc comment for the
     // closed-job carve-out.
-    const resolvedOpenCount =
-        liveOpenCount != null ? liveOpenCount.value : typeof job.company_open_count === "number" ? job.company_open_count : null;
-    const showOpenCount = resolvedOpenCount != null && !shouldSuppressOpenCount(resolvedOpenCount, job.vacancy_status === "closed");
+    const showOpenCount = liveOpenCount != null && !shouldSuppressOpenCount(liveOpenCount.value, job.vacancy_status === "closed");
 
     const trackRecord = jobTrackRecord(job);
     const hasCompanyIntel = showOpenCount || trackRecord != null;
@@ -1265,13 +1260,9 @@ export function JobDetail({
                             <p className="mt-2 max-w-[640px] text-sm leading-snug text-foreground">&ldquo;{aboutLine}&rdquo;</p>
                         )}
                         <div className="mt-3 flex flex-wrap gap-4 sm:gap-6">
-                            {showOpenCount && (
+                            {showOpenCount && liveOpenCount && (
                                 <KpiStat
-                                    value={
-                                        liveOpenCount != null
-                                            ? openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })
-                                            : job.company_open_count!.toLocaleString()
-                                    }
+                                    value={openCountText({ openCount: liveOpenCount.value, openCountIsLowerBound: liveOpenCount.isLowerBound })}
                                     label="Live roles"
                                 />
                             )}

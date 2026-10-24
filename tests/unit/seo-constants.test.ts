@@ -161,7 +161,7 @@ async function withStubbedMeili<T>(reply: (body: string) => Response, fn: () => 
   // The real directory read, with each company's roles answered by its own domain-word name (no jobs index here).
   const realRead = DIRECTORY_READER.read;
   DIRECTORY_READER.read = async () =>
-    fetchDirectory(undefined, async (domains) => domains.map((domain) => [{ company: displayNameFromDomain(domain), title: "Role", location: "Remote" } as never]));
+    fetchDirectory(undefined, async (domains) => domains.map((domain) => ({ hits: Array.from({ length: 30 }, (_, i) => ({ company: displayNameFromDomain(domain), title: `Role ${i}`, location: "Remote" }) as never), total: 30 })));
   try {
     return await fn();
   } finally {

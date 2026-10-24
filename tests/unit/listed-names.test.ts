@@ -8,7 +8,7 @@ const row = (company: string, title = "Engineer", location = "Remote") => ({ com
 
 describe("fetchNameEvidence batch retry", () => {
   const domains = Array.from({ length: 120 }, (_, i) => `d${i}.com`); // 3 batches: 50, 50, 20
-  const answer = (queries: { params: { companyDomain?: string } }[]) => Promise.resolve(queries.map((q) => [row(q.params.companyDomain!)]));
+  const answer = (queries: { params: { companyDomain?: string } }[]) => Promise.resolve(queries.map((q) => ({ hits: [row(q.params.companyDomain!)], total: 1 })));
   it("retries a non-first batch that fails once, resolving every domain", async () => {
     let failed = false;
     const read = mock.fn(async (queries: Parameters<typeof answer>[0]) => {
@@ -16,7 +16,7 @@ describe("fetchNameEvidence batch retry", () => {
       return answer(queries);
     });
     const rows = await fetchNameEvidence(domains, read as never);
-    assert.deepEqual(rows.map((r) => r[0].company), domains);
+    assert.deepEqual(rows.map((r) => r.hits[0].company), domains);
     assert.equal(read.mock.callCount(), 4);
   });
   it("logs the batch index, size and error, then throws, when a batch fails twice", async () => {
@@ -34,7 +34,7 @@ describe("fetchNameEvidence batch retry", () => {
 });
 
 describe("fetchNameEvidence failure is never partial", () => {
-  const answer = (queries: { params: { companyDomain?: string } }[]) => queries.map((q) => [row(q.params.companyDomain!)]);
+  const answer = (queries: { params: { companyDomain?: string } }[]) => queries.map((q) => ({ hits: [row(q.params.companyDomain!)], total: 1 }));
   it("a failure in the LAST chunk rejects the whole read (no rows returned for the chunks that worked)", async () => {
     const domains = Array.from({ length: 450 }, (_, i) => `d${i}.com`); // 3 chunks
     const err = mock.method(console, "error", () => {});
@@ -82,10 +82,10 @@ describe("fetchNameEvidence concurrency", () => {
       peak = Math.max(peak, live);
       await new Promise((r) => setTimeout(r, 5));
       live -= 1;
-      return queries.map((q) => [row(q.params.companyDomain!)]);
+      return queries.map((q) => ({ hits: [row(q.params.companyDomain!)], total: 1 }));
     };
     const rows = await fetchNameEvidence(domains, read as never);
-    assert.deepEqual(rows.map((r) => r[0].company), domains);
+    assert.deepEqual(rows.map((r) => r.hits[0].company), domains);
     assert.ok(peak > 3 && peak <= 12, `peak in-flight batches ${peak}`);
   });
 });

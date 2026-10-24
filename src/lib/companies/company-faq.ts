@@ -44,8 +44,8 @@ export function buildCompanyFaq(facts: CompanyFacts): CompanyFaqItem[] {
             question: `Does ${name} hire remote?`,
             answer:
               remote > 0
-                ? `Yes. ${formatCount(remote)} of ${formatCount(stated)} roles that state a work mode are remote.`
-                : `None of the ${formatCount(stated)} roles that state a work mode are remote.`,
+                ? `Yes. ${formatCount(remote)} of ${formatCount(stated)} listings that state a work mode are remote.`
+                : `None of the ${formatCount(stated)} listings that state a work mode are remote.`,
           };
         })()
       : null,
@@ -54,8 +54,8 @@ export function buildCompanyFaq(facts: CompanyFacts): CompanyFaqItem[] {
           question: `Does ${name} sponsor visas?`,
           answer:
             visaSponsorship.sponsors > 0
-              ? `${formatCount(visaSponsorship.sponsors)} of ${formatCount(visaSponsorship.stated)} roles that state it offer visa sponsorship.`
-              : `None of the ${formatCount(visaSponsorship.stated)} roles that state it offer visa sponsorship.`,
+              ? `${formatCount(visaSponsorship.sponsors)} of ${formatCount(visaSponsorship.stated)} listings that state it offer visa sponsorship.`
+              : `None of the ${formatCount(visaSponsorship.stated)} listings that state it offer visa sponsorship.`,
         }
       : null,
   ];

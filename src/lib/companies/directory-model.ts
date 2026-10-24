@@ -6,20 +6,23 @@
  *
  * Membership is decided from each candidate's own job rows plus the other candidates:
  *   M1  a host of the ATS-host registry is not a company;
+ *   T1  the open-roles number every page shows (`companyOpenCount`: deduped, no internal postings) is
+ *       below the listing threshold — the raw `company_directory` tally only nominates candidates;
  *   R1  the name must agree with the domain: a domain whose rows name no one it carries (a dominant
  *       name that belongs elsewhere, a vendor's name, no name) is an uncorroborated identity and is
  *       not listed — a page for it still renders, as `noindex`, under its domain label;
  *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
  *       subdomain, then more live roles.
- * Candidates arrive by live roles, so exclusions are refilled from the next ones up to the cap.
+ * Each listed company's `openRoleCount` is that same number, so every list, sort and cap reads one value.
+ * Candidates arrive by raw live roles, so exclusions are refilled from the next ones up to the cap.
  */
 import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
-import { publicRoles } from "@/lib/companies/company-roles-query";
+import { companyOpenCount, publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
-import { fetchIndexableCompanyDomains, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
+import { fetchIndexableCompanyDomains, MIN_SITEMAP_ROLES, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
 import { fetchNameEvidence } from "@/lib/companies/listed-names";
 import { ATS_PORTAL_HOSTNAME_RE, displayCompanyName } from "@/lib/jobs/presentation";
-import type { PublicJob } from "@/lib/jobs/types";
+import type { EachResult } from "@/lib/jobs/meilisearch";
 
 /** A listed company, with the name and the letter every surface shows for it. */
 export interface DirectoryCompany extends IndexableCompanyDomain {
@@ -29,7 +32,7 @@ export interface DirectoryCompany extends IndexableCompanyDomain {
 
 export interface Exclusion {
   domain: string;
-  rule: "M1" | "R1" | "M3";
+  rule: "M1" | "T1" | "R1" | "M3";
   /** The domain that keeps the name instead (M3). */
   owner?: string;
 }
@@ -58,16 +61,19 @@ const byClaim = (a: Claim, b: Claim): number =>
   byRoles(a.company, b.company);
 
 /**
- * Pure: the directory over `candidates` (most live roles first), `rows` being each one's job rows in
- * the same order. Lists at most `cap`.
+ * Pure: the directory over `candidates` (most raw live roles first), `reads` being each one's roles
+ * read in the same order. Lists at most `cap`, by open-roles number, those with at least `minRoles`.
  */
-export function buildDirectory(candidates: readonly IndexableCompanyDomain[], rows: readonly (readonly PublicJob[])[], cap: number = SITEMAP_COMPANY_CAP): Directory {
+export function buildDirectory(candidates: readonly IndexableCompanyDomain[], reads: readonly EachResult[], cap: number = SITEMAP_COMPANY_CAP, minRoles: number = MIN_SITEMAP_ROLES): Directory {
   const excluded: Exclusion[] = [];
   const claims: Claim[] = [];
-  candidates.forEach((candidate, i) => {
-    if (ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return void excluded.push({ domain: candidate.domain, rule: "M1" });
-    const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
+  candidates.forEach((raw, i) => {
+    if (ATS_PORTAL_HOSTNAME_RE.test(raw.domain)) return void excluded.push({ domain: raw.domain, rule: "M1" });
+    const read = reads[i] ?? { hits: [], total: 0 };
+    const candidate = { ...raw, openRoleCount: companyOpenCount(read).value };
+    const resolved = resolveCompanyName(publicRoles(read.hits), candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
+    if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
     const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain);
     claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
@@ -84,11 +90,11 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], ro
 /** Thin I/O: the pool from `company_directory`, each candidate's rows from the jobs index. */
 export async function fetchDirectory(
   readCandidates: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
-  readEvidence: (domains: readonly string[]) => Promise<PublicJob[][]> = fetchNameEvidence,
+  readEvidence: (domains: readonly string[]) => Promise<EachResult[]> = fetchNameEvidence,
 ): Promise<Directory> {
   const candidates = await readCandidates();
   const rows = await readEvidence(candidates.map((c) => c.domain));
-  return buildDirectory(candidates, rows.map((jobs) => publicRoles(jobs)));
+  return buildDirectory(candidates, rows);
 }
 
 /** What a {@link singleFlight} remembers; held by the caller so several bundles of one process can share it. */
