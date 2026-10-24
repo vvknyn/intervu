@@ -797,26 +797,56 @@ function isOnlyLegalForm(s: string): boolean {
     });
 }
 
+/** Matching normal form of one word: lowercase, punctuation dropped except
+ *  "/" (so "A/S" never collapses into the ordinary word "as"). */
+function normalizeSuffixToken(w: string): string {
+    return w.toLowerCase().replace(/[^a-z0-9/]/g, "");
+}
+
+/** Each `BARE_LEGAL_SUFFIXES_BY_LENGTH` entry as normalized tokens, split on
+ *  whitespace and "." — "Pte. Ltd." and "Pte Ltd" are the same token list. */
+const BARE_LEGAL_SUFFIX_TOKENS = BARE_LEGAL_SUFFIXES_BY_LENGTH.map((f) =>
+    f.split(/[\s.]+/).map(normalizeSuffixToken).filter(Boolean),
+);
+
+/** Words that are a legal form only directly before another legal form
+ *  ("Pt Ltd" — a misspelt Pvt/Pte; "P.Ltd" — Private). Alone they are brand
+ *  content ("Rapid PT"), so they strip only after a legal form was stripped. */
+const COMPOUND_ONLY_LEGAL_WORDS = new Set(["p", "pt"]);
+
+const GEO_GATED_TAIL_TOKENS = new Set(GEO_GATED_TAIL_WORDS.map(normalizeSuffixToken));
+
 /**
  * Strips ONE trailing bare legal-form phrase from `s`, trying
  * `BARE_LEGAL_SUFFIXES_BY_LENGTH` longest-first so a multi-word form
  * ("Private Ltd.") strips as a whole unit rather than a shorter member of
- * the same family ("Ltd.") leaving a dangling "...Private" behind. A match
+ * the same family ("Ltd.") leaving a dangling "...Private" behind. The
+ * trailing words are compared as normalized tokens (case and punctuation
+ * ignored, "." and whitespace both separate words), so "Plc.", "P.Ltd" and
+ * "Pvt. Ltd" match however a source spaced or punctuated them; an entry that
+ * is a lone `GEO_GATED_TAIL_WORDS` member ("Co.") keeps its period as the
+ * discriminator, so "Acme Co" stays a company literally named that. A match
  * only takes effect when the remainder is real brand content — non-empty
  * and not itself `isOnlyLegalForm` — which is what keeps a name that IS
  * just a legal form (or reduces to one after a strip) coming back
  * untouched, and is the general property that makes growing the vocabulary
- * safe by construction rather than by re-deriving safety per token. The
- * optional leading comma (`,?`) is what makes "with or without a preceding
- * comma" a property of every entry in the list, instead of needing
- * `COMMA_LEGAL_SUFFIXES` duplicated into this one too.
+ * safe by construction rather than by re-deriving safety per token. Any
+ * `COMPOUND_ONLY_LEGAL_WORDS` left dangling before the stripped form go too.
  */
 function stripBareLegalForm(s: string): string {
-    for (const suffix of BARE_LEGAL_SUFFIXES_BY_LENGTH) {
-        const re = new RegExp(`,?\\s+${escapeRegExp(suffix)}$`, "i");
-        if (!re.test(s)) continue;
-        const remainder = s.replace(re, "").trim();
-        if (remainder && !isOnlyLegalForm(remainder)) return remainder;
+    const tokens = [...s.matchAll(/[^\s.]+/g)]
+        .map((m) => ({ norm: normalizeSuffixToken(m[0]), start: m.index }))
+        .filter((t) => t.norm);
+    for (const suffix of BARE_LEGAL_SUFFIX_TOKENS) {
+        const first = tokens.length - suffix.length;
+        if (first < 1 || !suffix.every((w, i) => tokens[first + i].norm === w)) continue;
+        if (suffix.length === 1 && GEO_GATED_TAIL_TOKENS.has(suffix[0]) && !s.trimEnd().endsWith(".")) continue;
+        let keep = first;
+        while (keep > 1 && COMPOUND_ONLY_LEGAL_WORDS.has(tokens[keep - 1].norm)) keep--;
+        for (const end of keep === first ? [first] : [keep, first]) {
+            const remainder = s.slice(0, tokens[end].start).replace(/[,\s]+$/, "");
+            if (remainder && !isOnlyLegalForm(remainder)) return remainder;
+        }
     }
     return s;
 }
