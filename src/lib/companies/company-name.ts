@@ -221,7 +221,8 @@ const MAX_ACRONYM_LETTERS = 4;
 export function siteSpelling(display: string, candidates: readonly string[] = []): string {
   const key = (value: string) => alnum(value.replace(/&/g, " and "));
   const isBanner = (c: string) => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
-  return candidates.find((c) => c !== display && key(c) === key(display) && !isBanner(c)) ?? display;
+  const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
+  return spellings.find((c) => c !== display && key(c) === key(display) && !isBanner(c)) ?? display;
 }
 
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */

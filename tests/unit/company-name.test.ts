@@ -255,6 +255,12 @@ describe("siteSpelling — SP: the company's own spelling of the agreed name", (
     assert.equal(siteSpelling("Acme", ["Acme"]), "Acme");
   });
 
+  it("drops trademark signs from a candidate before comparing and returning it", () => {
+    assert.equal(siteSpelling("Blackrock", ["BlackRock®"]), "BlackRock");
+    assert.equal(siteSpelling("Fiveguys", ["Five Guys ™"]), "Five Guys");
+    assert.equal(siteSpelling("Blackrock", ["Blackrock®"]), "Blackrock");
+  });
+
   it("allows an all-caps acronym of four letters or fewer", () => {
     assert.equal(siteSpelling("aaff", ["AAFF"]), "AAFF");
   });
