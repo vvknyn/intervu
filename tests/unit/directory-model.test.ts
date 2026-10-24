@@ -102,16 +102,9 @@ describe("fetchDirectory / fetchCompanyInSitemapSet", () => {
     assert.equal(await fetchCompanyInSitemapSet("beta.com", directory), false);
   });
 
-  it("is false and warns exactly once, rather than throwing, when the directory cannot be read", async () => {
-    const original = console.warn;
-    const warnings: unknown[][] = [];
-    console.warn = (...args: unknown[]) => void warnings.push(args);
-    try {
-      assert.equal(await fetchCompanyInSitemapSet("acme.com", async () => { throw new Error("meili down"); }), false);
-      assert.equal(warnings.length, 1);
-    } finally {
-      console.warn = original;
-    }
+  it("rejects, rather than answering false, when the directory cannot be read: a failed read is not a membership answer", async () => {
+    await assert.rejects(fetchCompanyInSitemapSet("acme.com", async () => { throw new Error("meili down"); }), /meili down/);
+    await assert.rejects(fetchCompanyInSitemapSet("other.com", async () => { throw new Error("aborted"); }), /aborted/);
   });
 });
 

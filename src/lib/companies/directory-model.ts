@@ -146,15 +146,9 @@ export const getDirectory = (): Promise<ListedDirectory> => DIRECTORY_READER.rea
 
 /**
  * Whether `domain` is listed: the one rule that makes a company page indexable (see indexable.ts).
- * Fail-soft, unlike the sitemap: this runs inline in a page request, so a directory that cannot be
- * read means `false` plus ONE warning — a page that cannot prove it is listed is `noindex, follow`
- * for that render, never claimed indexable.
+ * A directory that cannot be read rejects: a failed read is not a membership answer, so the page
+ * errors rather than render `noindex` as if the company were unlisted.
  */
 export async function fetchCompanyInSitemapSet(domain: string, directory: typeof getDirectory = getDirectory): Promise<boolean> {
-  try {
-    return (await directory()).companies.some((c) => c.domain === domain);
-  } catch (err) {
-    console.warn(`fetchCompanyInSitemapSet(${domain}): directory read failed`, err);
-    return false;
-  }
+  return (await directory()).companies.some((c) => c.domain === domain);
 }

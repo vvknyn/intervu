@@ -75,14 +75,14 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
  *  test can assert on the exact request shape without a network call. Shared
  *  by the sitemap paging walk and the single-doc snapshot lookup, which both
  *  call through the same `searchCompanyDirectoryPage` shape. */
-function fakeSearch(pages: Record<string, unknown>[][]) {
+function fakeSearch(pages: Record<string, unknown>[][], total?: number) {
   const calls: { sort: string[]; filter: string; limit: number; offset: number }[] = [];
   let round = 0;
   const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
     calls.push(request);
     const hits = pages[round] ?? [];
     round += 1;
-    return { hits };
+    return { hits, total: total ?? pages.reduce((n, page) => n + page.length, 0) };
   };
   return { calls, search };
 }
@@ -291,11 +291,11 @@ describe("fetchIndexableCompanyDomains — the company_directory paging walk", (
     const search = async (request: { sort: string[]; filter: string; limit: number; offset: number }) => {
       calls.push(request);
       if (request.sort.includes("open_role_count:desc")) {
-        throw new Error("sort not configured");
+        throw new Error("Meilisearch company_directory search failed: 400 code=invalid_search_sort");
       }
       const hits = round === 0 ? fullPage : [{ domain: "last.com", open_role_count: 26 }];
       round += 1;
-      return { hits };
+      return { hits, total: 1001 };
     };
     const found = await fetchIndexableCompanyDomains(search);
     assert.equal(calls.length, 3);
@@ -319,6 +319,39 @@ describe("fetchIndexableCompanyDomains — the company_directory paging walk", (
       found.map((d) => d.domain),
       ["big.com", "mid.com"],
     );
+  });
+
+  it("a rejected sort pages the WHOLE filtered set and ranks it in memory, even when it exceeds the pool cap", async () => {
+    const total = DIRECTORY_POOL_SIZE + 300;
+    const all = Array.from({ length: total }, (_, i) => ({ domain: `c${String(i).padStart(5, "0")}.com`, open_role_count: 25 + (i % 97) }));
+    const search = async (r: { sort: string[]; limit: number; offset: number }) =>
+      r.sort[0] === "open_role_count:desc"
+        ? Promise.reject(new Error("Meilisearch company_directory search failed: 400 code=invalid_search_sort"))
+        : { hits: all.slice(r.offset, r.offset + r.limit), total };
+    const found = await fetchIndexableCompanyDomains(search);
+    const best = all.map((d) => d.open_role_count).sort((a, b) => b - a).slice(0, DIRECTORY_POOL_SIZE);
+    assert.deepEqual(found.map((d) => d.openRoleCount), best);
+  });
+
+  it("throws, never returns a truncated pool, when the paged walk ends short of the reported total", async () => {
+    const page = Array.from({ length: 1000 }, (_, i) => ({ domain: `c${i}.com`, open_role_count: 30 }));
+    const search = async (r: { sort: string[]; offset: number }) =>
+      r.sort[0] === "open_role_count:desc"
+        ? Promise.reject(new Error("code=invalid_search_sort"))
+        : { hits: r.offset === 0 ? page : [], total: 2500 }; // maxTotalHits-style cut: later pages come back empty
+    await assert.rejects(() => fetchIndexableCompanyDomains(search), /read 1000 of 2500/);
+  });
+
+  it("throws when the ranked read returns fewer docs than min(cap, total)", async () => {
+    const { search } = fakeSearch([[{ domain: "a.com", open_role_count: 40 }]], 5000);
+    await assert.rejects(() => fetchIndexableCompanyDomains(search), /read 1 of 3700/);
+  });
+
+  it("a failure that is not a sort rejection (timeout, 5xx) propagates instead of falling back", async () => {
+    const calls: string[] = [];
+    const search = async (r: { sort: string[] }) => { calls.push(r.sort[0]!); throw new Error("This operation was aborted"); };
+    await assert.rejects(() => fetchIndexableCompanyDomains(search), /aborted/);
+    assert.deepEqual(calls, ["open_role_count:desc"]);
   });
 
   it("throws when the first page comes back with zero hits — directory not published yet", async () => {
@@ -349,7 +382,7 @@ describe("fetchIndexableCompanyDomains — the company_directory paging walk", (
       let called = false;
       const search = async () => {
         called = true;
-        return { hits: [] };
+        return { hits: [], total: 0 };
       };
       await assert.rejects(() => fetchIndexableCompanyDomains(search));
       assert.equal(called, false);
