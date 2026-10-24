@@ -15,6 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
+import { humanizeToken } from "@/lib/companies/machine-token";
 import { INTEGRITY_WINDOW_DAYS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 
@@ -318,21 +319,12 @@ function isoDate(v: unknown): string | null {
  *  a sector, so it must not shadow a real one further down the chain. */
 const NON_SECTORS = new Set(["", "general", "unknown"]);
 
-/** A machine token (lowercase letters/digits joined by "_" or "-", no spaces) is shown as words:
- *  "big_tech" → "Big tech". Free text passes through. No consumer compares the raw value. */
-const MACHINE_TOKEN = /^[a-z0-9]+(?:[_-][a-z0-9]+)+$/;
-function sectorLabel(sector: string): string {
-  if (!MACHINE_TOKEN.test(sector)) return sector;
-  const words = sector.replace(/[_-]+/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
 /** THE sector resolver: health_reviews, then fingerprints, then boards; the
  *  first that names a real sector wins (as a display label), null when none does. */
 export function resolveSector(row: Partial<SectorRow> | null): string | null {
   for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards]) {
     const sector = str(candidate)?.trim();
-    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return sectorLabel(sector);
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return humanizeToken(sector);
   }
   return null;
 }

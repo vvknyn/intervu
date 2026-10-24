@@ -67,7 +67,23 @@ function input(overrides: Partial<CompanyFactsInput> = {}): CompanyFactsInput {
 describe("buildDistribution", () => {
     it("drops unknown/blank values, keeps stated and total honest", () => {
         const d = buildDistribution({ remote: 6, hybrid: 2, unknown: 9, "": 1, Unknown: 1 }, 19);
-        assert.deepEqual(d, { buckets: [{ value: "remote", count: 6 }, { value: "hybrid", count: 2 }], stated: 8, total: 19 });
+        assert.deepEqual(d, { buckets: [{ value: "Remote", count: 6 }, { value: "Hybrid", count: 2 }], stated: 8, total: 19 });
+    });
+    it("humanizes machine tokens in every categorical mix, not just employment type", () => {
+        const emp = buildDistribution({ full_time: 471, part_time: 3, contract: 2 }, 476);
+        assert.deepEqual(emp?.buckets.map((b) => b.value), ["Full time", "Part time", "Contract"]);
+        const mode = buildDistribution({ fully_remote: 5, on_site: 2, hybrid: 1 }, 8);
+        assert.deepEqual(mode?.buckets.map((b) => b.value), ["Fully remote", "On site", "Hybrid"]);
+        const level = buildDistribution({ mid_senior_level: 4, entry: 1, some_new_token: 1 }, 6);
+        assert.deepEqual(level?.buckets.map((b) => b.value), ["Mid senior level", "Entry", "Some new token"]);
+    });
+    it("merges raw values that collapse to one label", () => {
+        const d = buildDistribution({ remote: 3, Remote: 2 }, 5);
+        assert.deepEqual(d?.buckets, [{ value: "Remote", count: 5 }]);
+    });
+    it("multi-valued mixes keep proper names and humanize only snake_case tokens", () => {
+        const d = buildDistribution({ "Node.js": 3, react: 2, machine_learning: 1, "ci-cd": 1 }, 7, { multiValued: true });
+        assert.deepEqual(d?.buckets.map((b) => b.value), ["Node.js", "react", "ci-cd", "Machine learning"]);
     });
     it("is null when nothing is stated", () => {
         assert.equal(buildDistribution({ unknown: 4 }, 4), null);
@@ -113,7 +129,7 @@ describe("buildCompanyFacts", () => {
         assert.equal(f.hiring.opened90d, 40);
         assert.equal(f.hiring.lastPostedAt, "2026-10-01T00:00:00Z");
         assert.equal(f.hiring.lastSeenAliveAt, "2026-10-20T00:00:00Z");
-        assert.deepEqual(f.mix.workType, { buckets: [{ value: "remote", count: 700 }, { value: "hybrid", count: 100 }], stated: 800, total: 1240 });
+        assert.deepEqual(f.mix.workType, { buckets: [{ value: "Remote", count: 700 }, { value: "Hybrid", count: 100 }], stated: 800, total: 1240 });
         assert.deepEqual(f.mix.visaSponsorship, { sponsors: 30, stated: 100, total: 1240 });
         assert.deepEqual(f.mix.countries?.buckets, [{ value: "United States", count: 950 }]);
         assert.equal(f.mix.skills, null, "the unstamped fetched role names no evidenced skill, whatever the facet says");

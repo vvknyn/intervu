@@ -11,6 +11,7 @@
 import type { TrackRecord } from "@/lib/companies/aggregates";
 import type { CompanyExhaust, WeeklyCadence } from "@/lib/companies/exhaust";
 import type { OpenCount } from "@/lib/companies/open-count";
+import { categoryLabel, humanizeToken } from "@/lib/companies/machine-token";
 import { typicalPayText } from "@/lib/companies/presentation";
 import { evidencedSkills } from "@/lib/jobs/presentation";
 import { classifyCountryValue, rollupCountryDistribution, UNCLASSIFIED_LABEL } from "@/lib/jobs/country-classification";
@@ -105,8 +106,14 @@ export function buildDistribution(
   total: number,
   { multiValued = false, limit = SKILL_LIMIT }: { multiValued?: boolean; limit?: number } = {},
 ): Distribution | null {
-  const all = Object.entries(raw ?? {})
-    .filter(([value, count]) => isStated(value) && count > 0)
+  // THE label chokepoint for every mix: raw facet tokens never reach a page. Multi-valued mixes (countries,
+  // skills, tech) are proper names, so only snake_case tokens are humanized; categorical ones are also recased.
+  const label = multiValued ? (v: string) => (v.includes("_") ? humanizeToken(v) : v) : categoryLabel;
+  const merged = new Map<string, number>();
+  for (const [value, count] of Object.entries(raw ?? {})) {
+    if (isStated(value) && count > 0) merged.set(label(value), (merged.get(label(value)) ?? 0) + count);
+  }
+  const all = [...merged]
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
   if (all.length === 0) return null;
