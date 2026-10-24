@@ -40,7 +40,7 @@
  * tokens, which is the shape "one brand, many qualified entities" makes in
  * any corpus. See that function for the safety argument.
  */
-import { cleanCompany, isCompanyPlaceholder } from "@/lib/jobs/presentation";
+import { cleanCompany, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** Provenance of a resolved name — never "we made this up". */
@@ -197,11 +197,21 @@ function labelVariants(label: string): string[] {
  * names the employer only as the candidate's whole first word ("Sandvik" on home.sandvik), never as
  * a substring ("Careerplug" on avanta.care).
  */
-function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
+function hostParts(domain: string): { parts: string[]; tld: string } {
   const parts = domain.toLowerCase().split(".");
   const tld = parts.pop() ?? "";
   if (parts.length >= 2 && tld.length === 2 && (parts[parts.length - 1] ?? "").length <= 3) parts.pop();
+  return { parts, tld };
+}
+
+function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
+  const { parts, tld } = hostParts(domain);
   return { labels: parts.map(alnum).filter(Boolean).flatMap(labelVariants), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
+}
+
+/** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */
+export function hostLabelIsName(domain: string, name: string): boolean {
+  return alnum(hostParts(domain).parts.at(-1) ?? "") === alnum(name);
 }
 
 type Word = { text: string; optional: boolean };
@@ -433,5 +443,7 @@ function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"
   // No spelling carried case: the name is exactly as casing-free as a bare domain label, so it gets
   // the same recovery — see `capitalizeAfterNonLetter`. `source` stays "corpus-flat": this is still
   // the corpus's own string, not a guess.
-  return { value: capitalizeAfterNonLetter(display), source: "corpus-flat" };
+  // A 2-3 letter single token is read as an acronym by `titleCaseDisplay`'s own rule ("dhl" -> "DHL"; ordinary words stay words).
+  const value = /^\p{L}{2,3}$/u.test(display) ? titleCaseDisplay(display.toUpperCase()) : capitalizeAfterNonLetter(display);
+  return { value, source: "corpus-flat" };
 }

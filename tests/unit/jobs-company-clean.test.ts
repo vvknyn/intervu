@@ -425,8 +425,11 @@ test("negative: 'Group' bare, with no geography anywhere, is left alone (not jus
     assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
 });
 
-test("negative: a trailing geography parenthetical with nothing stacked after it is left for cleanCompany's own rule, not stripped here", () => {
-    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro Inc. (Canada)");
+test("a trailing parenthetical after a legal form is dropped with it; one after a plain name is kept", () => {
+    assert.equal(displayCompanyName("Ingram Micro Inc. (Canada)"), "Ingram Micro");
+    assert.equal(displayCompanyName("Prudential Services Asia Sdn Bhd (Malaysia)"), "Prudential Services Asia");
+    assert.equal(displayCompanyName("Zenith Freight Pte. Ltd. (Singapore)"), "Zenith Freight");
+    assert.equal(displayCompanyName("Canadian Imperial Bank of Commerce (Canada)"), "Canadian Imperial Bank of Commerce (Canada)");
 });
 
 // Corp-suffix audit, 2026-08-29: bare "Corp"/"Corporation"/"Ltd" moved out of

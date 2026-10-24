@@ -42,13 +42,19 @@ describe("buildDirectory — which domains are listed, under what name and lette
     assert.deepEqual(excluded(d, "R1").map((e) => e.domain), ["gelsight.com", "collinstrading.com", "aspirant.com", "silent.com"]);
   });
 
-  it("M3: two domains showing one name keep the higher agreement share, then the apex over a subdomain, then more roles", () => {
+  it("M3: two domains showing one name keep, in order: a majority-agreeing one, the one whose host label is the name, the fewer host labels, the busier", () => {
     const bySharing = build([
       ["northwind.io", 900, { Northwind: 2, "Other Co": 8 }],
       ["northwind.com", 100, { Northwind: 10 }],
     ]);
     assert.deepEqual(Object.keys(listed(bySharing)), ["northwind.com"]);
     assert.deepEqual(excluded(bySharing, "M3").map((e) => [e.domain, e.owner]), [["northwind.io", "northwind.com"]]);
+    const byHostLabel = build([
+      ["zenitheyewear.com", 900, { Zenith: 3 }],
+      ["zenith.com", 100, { Zenith: 6, "Other Co": 4 }],
+    ]);
+    assert.deepEqual(Object.keys(listed(byHostLabel)), ["zenith.com"]);
+    assert.deepEqual(excluded(byHostLabel, "M3").map((e) => [e.domain, e.owner]), [["zenitheyewear.com", "zenith.com"]]);
     const corroborated = build([
       ["corporate.northwind.com", 900, { "Northwind Corp": 9, "Northwind India (Non-USA)": 1 }],
       ["northwind.com", 100, { Northwind: 7, "Northwind India (Non-USA)": 3 }],

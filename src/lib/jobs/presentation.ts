@@ -958,10 +958,15 @@ function stripLegalTail(s: string): string {
  * not just how it renders. It composes here instead, where every consumer
  * (this function's own callers, `displayCompanyBrand`) is display-only.
  */
+/** One trailing parenthetical ("(Malaysia)"): chaff once it follows a legal form, which `displayCompanyName` strips. */
+const TRAILING_PAREN_RE = /\s*\([^()]+\)$/;
+
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
-    const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
+    const beforeParen = cleaned.replace(TRAILING_PAREN_RE, "").trim();
+    const unparenthesized = beforeParen && stripBareLegalForm(beforeParen) !== beforeParen ? beforeParen : cleaned;
+    const withoutComma = unparenthesized.replace(COMMA_SUFFIX_RE, "").trim() || unparenthesized;
     return stripLegalTail(withoutComma);
 }
 

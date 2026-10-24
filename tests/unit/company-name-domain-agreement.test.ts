@@ -93,6 +93,15 @@ describe("companies/company-name — a corpus name must agree with the domain", 
     assert.deepEqual([mixed.agrees, mixed.share], [true, 0.75]);
   });
 
+  it("Q2: a flat single-token name of 2-3 letters reads as an acronym unless it is an ordinary word; cased and longer names are untouched", () => {
+    assert.equal(shown("xyz", "xyz.com"), "XYZ");
+    assert.equal(shown("qb", "qb.com"), "QB");
+    assert.equal(shown("sky", "sky.com"), "Sky");
+    assert.equal(shown("zork", "zork.com"), "Zork");
+    assert.equal(shown("Xyz", "xyz.com"), "Xyz");
+    assert.equal(shown("xyz labs", "xyzlabs.com"), "Xyz Labs");
+  });
+
   it("R3: spellings of one name vote together; the shown form is the commonest that is not flat lower-case", () => {
     assert.equal(shown("tdsynnex", "tdsynnex.com"), "Tdsynnex");
     const synnex = [...Array(5).fill({ company: "tdsynnex" }), ...Array(2).fill({ company: "TD SYNNEX" })];

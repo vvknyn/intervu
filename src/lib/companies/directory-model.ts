@@ -13,7 +13,7 @@
  *       subdomain, then more live roles.
  * Candidates arrive by live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { resolveCompanyName } from "@/lib/companies/company-name";
+import { hostLabelIsName, resolveCompanyName } from "@/lib/companies/company-name";
 import { publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -42,14 +42,20 @@ export interface Directory {
 /** Names stay put for hours; the directory re-reads at most this often. */
 export const DIRECTORY_REVALIDATE_SECONDS = 6 * 60 * 60;
 
-/** A listable candidate and how much of its rows state the name it is listed under. */
-type Claim = { company: DirectoryCompany; share: number };
+/** A candidate's `share` of rows is a majority from here up. */
+const MAJORITY_SHARE = 0.5;
+
+/** A listable candidate and how strongly it holds the name it is listed under. */
+type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean };
 
 const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
 
-/** Who keeps a name two domains show: the higher share of rows carrying it, the apex over a subdomain, the busier. */
+/** Who keeps a name two domains show: a majority of rows carrying it, a host label that is the name, fewer host labels, the busier. */
 const byClaim = (a: Claim, b: Claim): number =>
-  b.share - a.share || a.company.domain.split(".").length - b.company.domain.split(".").length || byRoles(a.company, b.company);
+  Number(b.majority) - Number(a.majority) ||
+  Number(b.hostIsName) - Number(a.hostIsName) ||
+  a.company.domain.split(".").length - b.company.domain.split(".").length ||
+  byRoles(a.company, b.company);
 
 /**
  * Pure: the directory over `candidates` (most live roles first), `rows` being each one's job rows in
@@ -63,7 +69,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], ro
     const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     const name = displayCompanyName(resolved.value);
-    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, share: resolved.share });
+    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
 
   const byName = new Map<string, DirectoryCompany>();
