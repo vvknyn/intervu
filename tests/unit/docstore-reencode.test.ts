@@ -13,7 +13,7 @@ import { layoutOf } from "../../src/lib/db/docstore/layout";
 import { createPgDocDb, type PgDocDb } from "../../src/lib/db/docstore/pg-docstore";
 import { allCollections, reencodeCollection } from "../../src/lib/db/docstore/reencode";
 import { deriveDocKeys } from "../../src/lib/db/docstore/seal";
-import { parseReencodeArgs } from "../../scripts/reencode-docstore-collection";
+import { applyRefusal, parseReencodeArgs } from "../../scripts/reencode-docstore-collection";
 
 const URL = process.env.DOCSTORE_TEST_PG_URL;
 const UID = "reencodeUid1";
@@ -72,6 +72,37 @@ describe("re-encode drifted docstore rows", { skip: !URL && "DOCSTORE_TEST_PG_UR
             assert.equal((await db.doc(c.path).get()).exists, false);
         });
     }
+});
+
+describe("re-encode edge cases", { skip: !URL && "DOCSTORE_TEST_PG_URL not set" }, () => {
+    it("counts a row that will not open by label and error name only, and a vanished row as vanished", async () => {
+        const pool = new Pool({ connectionString: URL, max: 2 });
+        try {
+            const db = createPgDocDb(pool, deriveDocKeys("ef".repeat(32)));
+            await pool.query(`DELETE FROM intervu."credit_grants"`);
+            const other = createPgDocDb(pool, deriveDocKeys("01".repeat(32)));
+            const client = await pool.connect();
+            const layout = layoutOf("credit_grants");
+            await other.engine.write(client, layout, "credit_grants/welcome:SECRETUID", { uid: "SECRETUID", granted_at: "x" }, "upsert");
+            client.release();
+            const r = await reencodeCollection(db, "credit_grants", true);
+            assert.equal(r.undecodable.length, 1);
+            assert.equal(r.rewritten, 0);
+            assert.ok(!JSON.stringify(r).includes("SECRETUID") && !JSON.stringify(r).includes("welcome"));
+            assert.match(r.undecodable[0].label, /^[0-9a-f]{8}$/);
+        } finally {
+            await pool.query(`DELETE FROM intervu."credit_grants"`);
+            await pool.end();
+        }
+    });
+});
+
+describe("reencode apply gate", () => {
+    it("refuses --apply unless the store is postgres; dry run is always allowed", () => {
+        assert.match(applyRefusal(true, false) ?? "", /DATA_STORE=postgres/);
+        assert.equal(applyRefusal(true, true), null);
+        assert.equal(applyRefusal(false, false), null);
+    });
 });
 
 describe("reencode args", () => {

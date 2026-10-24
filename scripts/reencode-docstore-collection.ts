@@ -13,8 +13,13 @@
  *   npx esbuild scripts/reencode-docstore-collection.ts --bundle --platform=node --format=cjs \
  *     --external:pg --outfile=reencode-docstore-collection.cjs
  */
+import { usesPostgresStore } from "@/lib/firebase/admin";
 import { allCollections, reencodeCollection } from "@/lib/db/docstore/reencode";
 import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
+
+/** postgresStore writes `doc` and never `sealed`, so under any other store a re-encode could restore a stale sealed copy over a newer doc. */
+export const applyRefusal = (apply: boolean, postgresStore: boolean): string | null =>
+    apply && !postgresStore ? "--apply requires DATA_STORE=postgres" : null;
 
 export type ReencodeArgs = { collections: string[]; apply: boolean } | { error: string };
 
@@ -30,12 +35,21 @@ async function main(): Promise<void> {
         console.error(args.error);
         process.exit(2);
     }
+    const refusal = applyRefusal(args.apply, usesPostgresStore());
+    if (refusal) {
+        console.error(refusal);
+        process.exit(2);
+    }
     const db = getPgDocDb();
+    let undecodable = 0;
     console.log(`mode=${args.apply ? "APPLY" : "dry-run"}`);
     for (const collection of args.collections) {
         const r = await reencodeCollection(db, collection, args.apply);
-        if (r.drifted || args.collections.length === 1) console.log(`${r.collection} scanned=${r.scanned} drifted=${r.drifted} rewritten=${r.rewritten}`);
+        undecodable += r.undecodable.length;
+        for (const u of r.undecodable) console.log(`${r.collection} undecodable path_label=${u.label} error=${u.error}`);
+        if (r.drifted || r.undecodable.length || args.collections.length === 1) console.log(`${r.collection} scanned=${r.scanned} drifted=${r.drifted} rewritten=${r.rewritten} vanished=${r.vanished} undecodable=${r.undecodable.length}`);
     }
+    if (undecodable) process.exit(1);
 }
 
 if (process.argv[1] && /reencode-docstore-collection\.(ts|cjs)$/.test(process.argv[1])) {

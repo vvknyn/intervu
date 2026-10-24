@@ -83,9 +83,10 @@ async function main(): Promise<void> {
             const results = await eraseAccount({ uid, email: null }, deps);
             if (results.some((r) => isSkipped(r.status))) incomplete++;
             console.log(`${uidLabel(uid)} revoked=${revoked} ${results.map((r) => `${r.processor}=${r.status}`).join(" ")}`);
-        } catch {
+        } catch (err) {
             incomplete++;
-            console.log(`${uidLabel(uid)} incomplete=threw`);
+            const code = (err as { code?: unknown } | null)?.code;
+            console.log(`${uidLabel(uid)} incomplete=threw error=${err instanceof Error ? err.name : "unknown"}${code !== undefined ? ` code=${String(code)}` : ""}`);
         }
     }
     console.log(`erased=${uids.length - incomplete} incomplete=${incomplete}`);
