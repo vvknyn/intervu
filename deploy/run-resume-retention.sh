@@ -21,6 +21,9 @@ mkdir -p "$(dirname "$LOG")"
 SECRET="$(sed -n 's/^RESUME_RETENTION_CRON_SECRET=//p' "$ENV_FILE" | head -1 | tr -d '"'"'"'\r')"
 [[ -n "$SECRET" ]] || { log "FAIL RESUME_RETENTION_CRON_SECRET missing from $ENV_FILE"; exit 1; }
 
+# The bearer goes to curl as a config on stdin, never as an -H argument (argv is world-readable in ps).
+bearer_config() { printf 'header = "Authorization: Bearer %s"\n' "$(printf '%s' "$1" | sed 's/[\\"]/\\&/g')"; }
+
 apply=false
 for arg in "$@"; do
     case "$arg" in
@@ -29,10 +32,9 @@ for arg in "$@"; do
     esac
 done
 
-response="$(curl -sS -m 1800 -w '\n%{http_code}' \
+response="$(bearer_config "$SECRET" | curl --config - -sS -m 1800 -w '\n%{http_code}' \
     --post301 --post302 --post303 -L \
     -X POST "$ENDPOINT" \
-    -H "Authorization: Bearer ${SECRET}" \
     -H 'Content-Type: application/json' \
     -d "{\"apply\":${apply}}" 2>&1)"
 status="$(printf '%s' "$response" | tail -1)"

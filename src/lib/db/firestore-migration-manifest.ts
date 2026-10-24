@@ -381,7 +381,9 @@ export const MIGRATION_MANIFEST: readonly CollectionSpec[] = [
     // FROZEN since credits were removed 2026-08-27; kept for the admin count.
     collection: "credit_grants",
     table: "credit_grants",
-    owner: { by: "none", reason: "frozen history whose writer predates this repo's history, so no owner field is known to query by" },
+    // Doc id is the idempotency key (`welcome:<uid>`); the record is
+    // { uid, amount, reason, granted_at } (credit-gate.ts grantCredits, removed with credits).
+    owner: { by: "field", field: "uid" },
     indexed: [{ field: "granted_at", type: "text" }],
   },
   {

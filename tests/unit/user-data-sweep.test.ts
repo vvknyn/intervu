@@ -106,6 +106,16 @@ describe("user data sweep", () => {
         }
     });
 
+    // The five collections an orphan holds rows in must all be user-owned, so
+    // Delete account (and the orphan erase that reuses it) reaches them.
+    it("reaches every collection an orphan account holds rows in", () => {
+        assert.deepEqual(byTable.get("credit_grants"), { kind: "field", collection: "credit_grants", field: "uid", uid: UID });
+        assert.deepEqual(byTable.get("applications"), { kind: "field", collection: "applications", field: "user_id", uid: UID });
+        assert.deepEqual(byTable.get("profiles"), { kind: "docId", collection: "profiles", uid: UID });
+        assert.equal(byTable.get("resume_history")?.kind, "subcollection");
+        assert.equal(byTable.get("agent_credentials")?.kind, "field");
+    });
+
     it("has exactly one deleteAccount implementation", () => {
         const defs = ["src/actions/auth.ts", "src/actions/account.ts"].filter((f) =>
             /export async function deleteAccount\b/.test(read(f))
@@ -121,7 +131,8 @@ describe("user data sweep", () => {
         const src = read("src/actions/auth.ts");
         const body = src.slice(src.indexOf("export async function deleteAccount"));
         assert.match(body, /eraseAccount\(/);
-        assert.match(body, /storeEraseDeps\(db\)/);
+        assert.match(body, /realEraseDeps\(/);
+        assert.match(read("src/lib/account/erase-deps.ts"), /storeEraseDeps\(getAdminDb\(\)\)/);
         assert.match(read("src/lib/account/erase-account.ts"), /runUserDataPlan\(uid, db\)/);
     });
 });

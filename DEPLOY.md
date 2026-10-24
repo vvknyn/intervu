@@ -79,6 +79,8 @@ Firebase, WorkOS, Meilisearch read key, Subspace API, encryption, etc. live in `
 
 `RESUME_RETENTION_CRON_SECRET` (server-only) is the bearer for `POST /api/retention/resumes`; unset, the route answers 503 and no résumé is ever warned about or deleted. `deploy/run-resume-retention.sh` reads it from this env file. It is a dry run unless given `--apply`; the go-live order is in `docs/billing.md`.
 
+`ORPHAN_ACCOUNTS_CRON_SECRET` (server-only) is the bearer for `POST /api/ops/orphan-accounts`, the report-only daily count of profiles with no WorkOS user; unset, the route answers 503. `deploy/run-orphan-accounts.sh` reads it from this env file and logs OK/WARN/FAIL to `~/logs/intervu-orphan-accounts.log`. Erasing them is `scripts/erase-orphan-accounts.ts` (dry run by default).
+
 `LANDED_PLEDGE_CHECKOUT_URL` (server-only, optional) is the Stripe Payment Link behind the pay-it-forward panel the tracker shows on a pursuit in the Offer lane (`src/components/tracker/LandedPledgePanel.tsx`). Create it as a pay-what-you-want link with $99 preset, so the panel's "$99 suggested, any amount" is true, then add it to `intervu.env` and rerun the deploy script; `src/app/yours/layout.tsx` reads it per request. Unset, the panel congratulates and asks how it went, linking to the contact page, and nothing links out.
 
 `NEXT_PUBLIC_*` are required at **docker build** time (inlined into the client bundle). Server secrets are runtime-only via `env_file`.
