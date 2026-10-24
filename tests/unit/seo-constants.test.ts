@@ -6,6 +6,8 @@ import robots from "@/app/robots";
 import sitemap from "@/app/sitemap";
 import { CAREER_HUBS } from "@/lib/seo/career-hubs";
 import { BLOG_POSTS } from "@/lib/blog/posts";
+import { groupCompaniesByLetter } from "@/lib/companies/directory-index";
+import { DIRECTORY_LETTER_PATH } from "@/lib/seo/indexability";
 
 /**
  * `getSiteUrl()` re-reads `process.env.NEXT_PUBLIC_SITE_URL` on every call —
@@ -80,10 +82,13 @@ describe("seo/constants — getSiteUrl() env seam", () => {
   it("sitemap.ts includes a company page for every domain company_directory publishes", async () => {
     process.env.NEXT_PUBLIC_SITE_URL = "https://intervuhq.com";
     const result = await withStubbedMeili(everyDomainHasRoles, sitemap);
-    const coEntries = result.filter((e) => e.url.includes("/co/"));
+    const coEntries = result.filter(isCompanyUrl);
     assert.equal(coEntries.length, FAKE_DIRECTORY_DOMAINS.length);
+    // One directory page per first letter present among those companies.
+    const letterPages = result.filter((e) => e.url.includes(`${DIRECTORY_LETTER_PATH}/`));
+    assert.equal(letterPages.length, groupCompaniesByLetter(FAKE_DIRECTORY_DOMAINS.map((domain) => ({ domain, openRoleCount: 1, computedAt: null }))).length);
     // The static, always-indexable pages are unaffected by the directory's contents.
-    assert.equal(result.length - coEntries.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
+    assert.equal(result.length - coEntries.length - letterPages.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
   });
 
   // A Meilisearch outage or an unpublished directory must not 5xx the
@@ -97,7 +102,7 @@ describe("seo/constants — getSiteUrl() env seam", () => {
     console.error = (message: string) => void logged.push(message);
     try {
       const result = await withStubbedMeili(reply, sitemap);
-      assert.equal(result.some((e) => e.url.includes("/co/")), false);
+      assert.equal(result.some((e) => e.url.includes("/co/")), false); // no company page, no letter page
       assert.equal(result.length, STATIC_SITEMAP_ENTRY_COUNT + CAREER_HUBS.length + BLOG_POSTS.length);
       assert.equal(logged.length, 1);
       assert.match(logged[0], expected);
@@ -119,8 +124,11 @@ const FAKE_DIRECTORY_DOMAINS = ["acme.com", "beta.io", "gamma.dev"];
  *  a count so this file fails loudly if a static entry is added/removed there
  *  without this file being updated to match, rather than the assertion below
  *  quietly passing for the wrong reason. 11 since #464 (49691ace) added
- *  /eluta-alternative; 13 with /blog. */
-const STATIC_SITEMAP_ENTRY_COUNT = 13;
+ *  /eluta-alternative; 13 with /blog; 14 with the /co directory index. */
+const STATIC_SITEMAP_ENTRY_COUNT = 14;
+
+/** A `/co/<slug>` company page (not the directory's per-letter pages). */
+const isCompanyUrl = (e: { url: string }) => e.url.includes("/co/") && !e.url.includes(`${DIRECTORY_LETTER_PATH}/`);
 
 /** `company_directory` `/search` reply publishing every fake domain with
  *  enough open roles to clear the gate. */

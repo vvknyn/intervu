@@ -2,7 +2,7 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
-import { collapseDuplicatePostings } from "@/lib/companies/dedupe-postings";
+import { COMPANY_JOBS_FETCH_LIMIT, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { resolveOpenCount } from "@/lib/companies/open-count";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
@@ -11,7 +11,7 @@ import { getSharedCompanyExhaust } from "@/lib/companies/exhaust-cache";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyChangeEvent, CompanyNewsArticle, CompanyPageData } from "@/lib/companies/types";
-import { displayCompanyName, isInternalPosting } from "@/lib/jobs/presentation";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -19,13 +19,7 @@ import { logServer, type LogAttrs } from "@/lib/observability/posthog-logs";
 
 type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
 
-/**
- * Hit window for the roles list. Named and exported because it is also the
- * saturation threshold `resolveOpenCount` needs — the count must know how
- * big the window was to know whether it filled up. It is NOT the count: that
- * conflation is exactly the bug this replaced.
- */
-export const COMPANY_JOBS_FETCH_LIMIT = 200;
+export { COMPANY_JOBS_FETCH_LIMIT };
 
 /**
  * A company page's roles search slower than this is logged (see
@@ -125,9 +119,7 @@ export async function getCompanyPageData(
   const startedAt = Date.now();
   const searchRead = timed(
     search({
-      companyDomain: domain,
-      limit: COMPANY_JOBS_FETCH_LIMIT,
-      hideGhosts: false,
+      ...companyRolesParams(domain),
       // Distributions (countries, work mode, skills...) over ALL the company's
       // live roles, not just the 200 fetched.
       withFacets: true,
@@ -190,7 +182,7 @@ export async function getCompanyPageData(
   // instead of each re-deriving its own view of it — the seam that used to
   // let the hero KPI (sourced from this array pre-dedup) and the rendered
   // role list (deduped a second time, client-side) disagree.
-  const jobs = collapseDuplicatePostings(result.hits.filter((job) => !isInternalPosting(job.title)));
+  const jobs = publicRoles(result.hits);
   const boards = getBoardsForDomain(domain);
 
   if (jobs.length === 0 && boards.length === 0) return null;
