@@ -13,7 +13,7 @@
  *       subdomain, then more live roles.
  * Candidates arrive by live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { hostLabelIsName, resolveCompanyName } from "@/lib/companies/company-name";
+import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import { publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -68,7 +68,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], ro
     if (ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return void excluded.push({ domain: candidate.domain, rule: "M1" });
     const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
-    const name = displayCompanyName(resolved.value);
+    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames);
     claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
 
