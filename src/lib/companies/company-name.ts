@@ -42,6 +42,9 @@
  */
 import { cleanCompany, displayCompanyName, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { loadGazetteer } from "@/lib/geo/gazetteer";
+import { ISO3_COUNTRY } from "@/lib/geo/iso3-countries";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 
 /** Provenance of a resolved name — never "we made this up". */
 export type CompanyNameSource =
@@ -372,6 +375,39 @@ export function hostLabelIsName(domain: string, name: string): boolean {
   return alnum(hostParts(domain).parts.at(-1) ?? "") === alnum(name);
 }
 
+/** Longest country a trailing qualifier can be ("United Arab Emirates", "South Africa"). */
+const MAX_COUNTRY_WORDS = 3;
+
+/** The canonical country `text` names: English or native name or alias ("US", "Österreich"), or an upper-case ISO3 code ("USA"); else null. */
+function countryOf(text: string): string | null {
+  const { kind, canonical } = classifyCountryValue(text);
+  return kind === "country" ? canonical : text === text.toUpperCase() ? ISO3_COUNTRY[text] ?? null : null;
+}
+
+/** The country whose ccTLD ends `domain` (".uk" is the United Kingdom), else null. */
+function tldCountry(domain: string): string | null {
+  const tld = domain.toLowerCase().split(".").pop() ?? "";
+  const name = tld === "uk" ? "United Kingdom" : loadGazetteer().countriesByIso2.get(tld.toUpperCase())?.name;
+  return name ? countryOf(name) ?? name : null;
+}
+
+/**
+ * The hiring entity's country is not part of the employer's name: "argenx US" on argenx.com, "intermedix
+ * Österreich" on intermedix.com. Trailing words that form a country go when the words before them name the
+ * host's label and the full name does not ("Air Canada" on aircanada.com keeps its country). A country-scoped
+ * domain keeps its own country ("Alten Switzerland" on alten.ch says which arm it is). The remainder keeps its spelling.
+ */
+export function dropCountryQualifier(name: string, domain: string): string {
+  if (hostLabelIsName(domain, name)) return name;
+  const words = name.split(/\s+/);
+  for (let n = 1; n <= Math.min(MAX_COUNTRY_WORDS, words.length - 1); n += 1) {
+    const country = countryOf(words.slice(-n).join(" "));
+    const remainder = words.slice(0, -n).join(" ").replace(/[\s,\-–]+$/, "");
+    if (country && country !== tldCountry(domain) && hostLabelIsName(domain, remainder)) return remainder;
+  }
+  return name;
+}
+
 type Word = { text: string; optional: boolean };
 
 /** Words split on non-alphanumerics and camelCase ("GlobalFoundries" -> Global Foundries). A word of
@@ -675,7 +711,13 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     }
   }
 
-  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: displayCompanyName(best.display) };
+  if (best) {
+    const cased = casedName(best.display);
+    // The country sits before a legal form ("argenx US Inc"), so it is judged on the name as displayed.
+    const shown = displayCompanyName(cased.value);
+    const value = dropCountryQualifier(shown, domain);
+    return { ...cased, value: value === shown ? cased.value : value, agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: dropCountryQualifier(displayCompanyName(best.display), domain) };
+  }
   const value = displayNameFromDomain(domain);
   return { value, source: "domain", agrees: false, share: 0, rowSpelling: value };
 }
