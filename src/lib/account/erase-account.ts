@@ -94,8 +94,8 @@ export interface EraseAccountDeps {
     deleteAnalyticsPerson(uid: string): Promise<ProcessorStatus>;
     /** The pre-WorkOS Firebase Authentication record, if one is left. */
     deleteLegacySignIn(uid: string): Promise<ProcessorStatus>;
-    /** The WorkOS sign-in record. */
-    deleteSignIn(uid: string): Promise<void>;
+    /** The WorkOS sign-in record; "not-found" when WorkOS has none (an orphan, or a retry). */
+    deleteSignIn(uid: string): Promise<ProcessorStatus>;
     /** Suppression, then the email-follow identity store, by address and by uid. */
     eraseIdentityStore(uid: string, email: string | null): Promise<ProcessorStatus>;
     logError(message: string): void;
@@ -154,7 +154,7 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
     await attempt("mirror-store", () => deps.eraseMirrorStore(input.uid, input.email));
     await attempt("posthog", () => deps.deleteAnalyticsPerson(input.uid));
     await attempt("firebase-auth", () => deps.deleteLegacySignIn(input.uid));
-    await attempt("sign-in", async () => (await deps.deleteSignIn(input.uid), "deleted" as const));
+    await attempt("sign-in", () => deps.deleteSignIn(input.uid));
     await attempt("identity-store", () => deps.eraseIdentityStore(input.uid, input.email));
     return results;
 }

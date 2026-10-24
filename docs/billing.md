@@ -29,6 +29,7 @@ Checkout refuses (503) unless `STRIPE_PRICE_ID`'s `unit_amount` equals `MONTH_PR
 | Variable | Purpose |
 | --- | --- |
 | `RESUME_RETENTION_CRON_SECRET` | Bearer for `POST /api/retention/resumes`; unset, the route answers 503. |
+| `ORPHAN_ACCOUNTS_CRON_SECRET` | Bearer for `POST /api/ops/orphan-accounts` (report only); unset, the route answers 503. |
 
 `deploy/run-resume-retention.sh` is a DRY RUN unless given `--apply`. It is not scheduled by the repo; install the daily cron at go-live.
 
