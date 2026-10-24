@@ -8,7 +8,7 @@
 # compose env file. Report only; it deletes nothing. The log line is counts only:
 #   <ts> OK   200 orphans=0 with_creds=0
 #   <ts> WARN 200 orphans=N with_creds=M     (N > 0)
-#   <ts> FAIL <status> ...                   (non-200; exits 1)
+#   <ts> FAIL <status> ...                   (non-200, or profiles 0/missing; exits 1)
 set -uo pipefail
 
 ENV_FILE="${INTERVU_ENV_FILE:-/opt/interview-os/deploy/contabo-web/intervu.env}"
@@ -22,16 +22,24 @@ mkdir -p "$(dirname "$LOG")"
 SECRET="$(sed -n 's/^ORPHAN_ACCOUNTS_CRON_SECRET=//p' "$ENV_FILE" | head -1 | tr -d '"'"'"'\r')"
 [[ -n "$SECRET" ]] || { log "FAIL ORPHAN_ACCOUNTS_CRON_SECRET missing from $ENV_FILE"; exit 1; }
 
-response="$(curl -sS -m 600 -w '\n%{http_code}' \
+# The bearer goes to curl as a config on stdin, never as an -H argument (argv is world-readable in ps).
+bearer_config() { printf 'header = "Authorization: Bearer %s"\n' "$(printf '%s' "$1" | sed 's/[\\"]/\\&/g')"; }
+
+response="$(bearer_config "$SECRET" | curl --config - -sS -m 600 -w '\n%{http_code}' \
     --post301 --post302 --post303 -L \
-    -X POST "$ENDPOINT" \
-    -H "Authorization: Bearer ${SECRET}" 2>&1)"
+    -X POST "$ENDPOINT" 2>&1)"
 status="$(printf '%s' "$response" | tail -1)"
 payload="$(printf '%s' "$response" | sed '$d' | tr -d '\n' | cut -c1-500)"
 
 if [[ "$status" == "200" ]]; then
     orphans="$(printf '%s' "$payload" | sed -n 's/.*"orphans":\([0-9][0-9]*\).*/\1/p')"
     creds="$(printf '%s' "$payload" | sed -n 's/.*"withActiveCredentials":\([0-9][0-9]*\).*/\1/p')"
+    profiles="$(printf '%s' "$payload" | sed -n 's/.*"profiles":\([0-9][0-9]*\).*/\1/p')"
+    # An all-zero scan over no profiles is a broken read, not a clean bill.
+    if [[ -z "$profiles" || "$profiles" == "0" ]]; then
+        log "FAIL $status profiles=${profiles:-missing}: $payload"
+        exit 1
+    fi
     if [[ -n "$orphans" && -n "$creds" ]]; then
         if [[ "$orphans" == "0" ]]; then
             log "OK   $status orphans=$orphans with_creds=$creds"

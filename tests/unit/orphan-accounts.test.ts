@@ -15,6 +15,7 @@ import {
     type OrphanSources,
     type WorkosLookup,
 } from "../../src/lib/account/orphan-accounts";
+import { applyRefusal, parseEraseArgs } from "../../scripts/erase-orphan-accounts";
 import { orphanScanResponse, POST } from "../../src/app/api/ops/orphan-accounts/route";
 
 const notFound = () => Object.assign(new Error("not found"), { name: "NotFoundException", status: 404 });
@@ -55,6 +56,14 @@ describe("assertAllOrphans", () => {
         await assert.rejects(assertAllOrphans(l, ["a", "b-live", "c"]), (e: Error) => e.message.includes(uidLabel("b-live")) && !e.message.includes("b-live"));
         assert.deepEqual(seen, ["a", "b-live"]);
     });
+    it("refuses a uid that is not a plain id before any WorkOS call", async () => {
+        let calls = 0;
+        const counting = lookup(async () => (calls++, Promise.reject(notFound())), gone);
+        for (const bad of ["../users", "a/b", "a b", "a?x=1", "", "x".repeat(129)]) {
+            await assert.rejects(assertAllOrphans(counting, ["ok_1-A", bad]), /not a plain id/, bad);
+        }
+        assert.equal(calls, 6, "only the valid uid ever reached WorkOS");
+    });
     it("aborts on a 500", async () => {
         await assert.rejects(assertAllOrphans(lookup(async () => Promise.reject(status(500)), gone), ["a"]), /aborting, no writes made/);
     });
@@ -92,7 +101,7 @@ describe("revokeActiveCredentials / scanOrphans", () => {
         const dead = await issueCredential(store, { uid: "p2", kind: "manual", ttlMs: null });
         await revokeCredential(store, "p2", dead.credential.id);
         const report = await scanOrphans(sources({ profiles: ["p2", "p3"], owners: ["c1", "p2"], known: ["x"] }), store);
-        assert.deepEqual(report, { orphans: 3, withActiveCredentials: 1 });
+        assert.deepEqual(report, { profiles: 2, workosUsers: 1, orphans: 3, withActiveCredentials: 1 });
     });
     it("the store lists credentials by collection", async () => {
         const store = memoryStore();
@@ -127,14 +136,28 @@ describe("orphan-accounts route", () => {
         assert.equal((await call("Bearer nope")).status, 401);
     });
     it("answers the counts with 200", async () => {
-        const res = await orphanScanResponse(async () => ({ orphans: 2, withActiveCredentials: 1 }));
+        const res = await orphanScanResponse(async () => ({ profiles: 9, workosUsers: 8, orphans: 2, withActiveCredentials: 1 }));
         assert.equal(res.status, 200);
-        assert.deepEqual(await res.json(), { orphans: 2, withActiveCredentials: 1 });
+        assert.deepEqual(await res.json(), { profiles: 9, workosUsers: 8, orphans: 2, withActiveCredentials: 1 });
     });
     it("a failed scan is a 500 and never a zero count", async () => {
         const res = await orphanScanResponse(async () => Promise.reject(new Error("workos down")));
         assert.equal(res.status, 500);
         const body = (await res.json()) as Record<string, unknown>;
         assert.equal("orphans" in body, false);
+    });
+});
+
+describe("erase script guards", () => {
+    it("--apply needs --uids and a positive --expect", () => {
+        assert.ok("error" in parseEraseArgs(["--apply", "--uids=f"]));
+        assert.ok("error" in parseEraseArgs(["--apply", "--uids=f", "--expect=0"]));
+        assert.deepEqual(parseEraseArgs(["--apply", "--uids=f", "--expect=2"]), { apply: true, uidsFile: "f", expect: 2 });
+    });
+    it("refuses a count mismatch and an all-profiles orphan set; allows a proper subset", () => {
+        assert.match(applyRefusal(["a", "b"], 3, 10) ?? "", /--expect=3/);
+        assert.match(applyRefusal(["a", "b"], 2, 2) ?? "", /every profile/);
+        assert.match(applyRefusal([], 1, 5) ?? "", /empty/);
+        assert.equal(applyRefusal(["a", "b"], 2, 10), null);
     });
 });

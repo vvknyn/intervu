@@ -73,9 +73,13 @@ export async function proveOrphan(lookup: WorkosLookup, uid: string): Promise<bo
     return (await isAbsent(() => lookup.getUser(uid))) && (await isAbsent(() => lookup.getUserByExternalId(uid)));
 }
 
-/** Proves every uid, one by one, before any write. Throws on the first uid that is not a proven orphan. */
+/** The WorkOS SDK puts ids into the request path raw, so only plain id characters may reach it. */
+export const SAFE_UID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** Proves every uid, one by one, before any write. Throws on the first uid that is malformed or not a proven orphan. */
 export async function assertAllOrphans(lookup: WorkosLookup, uids: readonly string[]): Promise<void> {
     for (const uid of uids) {
+        if (!SAFE_UID.test(uid)) throw new Error(`aborting, no writes made: ${uidLabel(uid)} is not a plain id`);
         let orphan: boolean;
         try {
             orphan = await proveOrphan(lookup, uid);
@@ -97,13 +101,18 @@ export async function revokeActiveCredentials(store: AgentStore, uid: string): P
 }
 
 export interface OrphanReport {
+    /** What the scan looked at, so a count of zero over an empty read is visible as such. */
+    profiles: number;
+    /** WorkOS ids known (each user's id and external_id), so >= the user count; 0 means the listing was empty. */
+    workosUsers: number;
     orphans: number;
     withActiveCredentials: number;
 }
 
 /** Counts only. Rejects if either read fails: an error is never reported as zero. */
 export async function scanOrphans(sources: OrphanSources, store: AgentStore): Promise<OrphanReport> {
-    const uids = await findOrphanUids(sources);
+    const [profiles, known] = await Promise.all([sources.profileUids(), sources.workosIds()]);
+    const uids = await findOrphanUids({ ...sources, profileUids: async () => profiles, workosIds: async () => known });
     const active = await Promise.all(uids.map(async (uid) => (await activeCredentialsOf(store, uid)).length > 0));
-    return { orphans: uids.length, withActiveCredentials: active.filter(Boolean).length };
+    return { profiles: profiles.length, workosUsers: known.size, orphans: uids.length, withActiveCredentials: active.filter(Boolean).length };
 }

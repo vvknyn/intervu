@@ -5,12 +5,14 @@
  * Dry run unless --apply.
  *
  *   node erase-orphan-accounts.cjs [--out=orphan-uids.txt]              # lists candidates, writes full uids to the file
- *   node erase-orphan-accounts.cjs --apply --uids=orphan-uids.txt       # erases exactly the uids in the file
+ *   node erase-orphan-accounts.cjs --apply --uids=orphan-uids.txt --expect=N   # erases exactly the uids in the file
  *
  * The delete list is never derived at apply time. --apply re-proves EVERY uid
  * on its own (WorkOS GET users/{uid} and GET users/external_id/{uid} must both
  * be 404) and aborts the whole run before any write on a 200 or any other
- * answer. Each uid's active agent credentials are revoked first. Prints counts
+ * answer. --expect=N (the count the dry run printed) must equal the proven
+ * orphans, and the orphans may not be ALL profiles: a wrong WorkOS environment
+ * looks exactly like that. Each uid's active agent credentials are revoked first. Prints counts
  * and uid labels (sha256 hex, 8 chars) only; the uid file is the only place full uids go.
  *
  * Runs inside the Velai container (see grant-access-days.ts for why): bundle,
@@ -26,13 +28,23 @@ import { realEraseDeps } from "@/lib/account/erase-deps";
 import { assertAllOrphans, findOrphanUids, realOrphanSources, revokeActiveCredentials, uidLabel } from "@/lib/account/orphan-accounts";
 import { getAgentStore } from "@/lib/agent/store";
 
-export type EraseArgs = { apply: false; out: string } | { apply: true; uidsFile: string };
+export type EraseArgs = { apply: false; out: string } | { apply: true; uidsFile: string; expect: number };
 
 export function parseEraseArgs(argv: readonly string[]): EraseArgs | { error: string } {
     const value = (name: string) => argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
     if (!argv.includes("--apply")) return { apply: false, out: value("out") || "orphan-uids.txt" };
     const uidsFile = value("uids");
-    return uidsFile ? { apply: true, uidsFile } : { error: "--apply requires --uids=<file> (written by the dry run)" };
+    const expect = Number(value("expect"));
+    if (!uidsFile || !Number.isInteger(expect) || expect < 1) return { error: "--apply requires --uids=<file> and --expect=<N> (both from the dry run)" };
+    return { apply: true, uidsFile, expect };
+}
+
+/** Why an apply must not start, or null. Pure so the guards are testable without WorkOS. */
+export function applyRefusal(uids: readonly string[], expect: number, profileCount: number): string | null {
+    if (!uids.length) return "uid file is empty";
+    if (uids.length !== expect) return `aborting, no writes made: ${uids.length} orphans in the file, --expect=${expect}`;
+    if (uids.length >= profileCount) return "aborting, no writes made: every profile is an orphan, which looks like the wrong WorkOS environment";
+    return null;
 }
 
 /** One uid per line; blanks and duplicates dropped. */
@@ -56,7 +68,9 @@ async function main(): Promise<void> {
     }
 
     const uids = parseUidFile(readFileSync(args.uidsFile, "utf8"));
-    if (!uids.length) throw new Error("uid file is empty");
+    const profileCount = (await realOrphanSources(userManagement, getAgentStore()).profileUids()).length;
+    const refusal = applyRefusal(uids, args.expect, profileCount);
+    if (refusal) throw new Error(refusal);
     await assertAllOrphans(userManagement, uids);
     console.log(`mode=APPLY proven_orphans=${uids.length}`);
 
@@ -64,11 +78,15 @@ async function main(): Promise<void> {
     const deps = realEraseDeps(async () => userManagement);
     let incomplete = 0;
     for (const uid of uids) {
-        const revoked = await revokeActiveCredentials(store, uid);
-        const results = await eraseAccount({ uid, email: null }, deps);
-        const skipped = results.filter((r) => isSkipped(r.status)).map((r) => r.processor);
-        if (skipped.length) incomplete++;
-        console.log(`${uidLabel(uid)} revoked=${revoked} ${results.map((r) => `${r.processor}=${r.status}`).join(" ")}`);
+        try {
+            const revoked = await revokeActiveCredentials(store, uid);
+            const results = await eraseAccount({ uid, email: null }, deps);
+            if (results.some((r) => isSkipped(r.status))) incomplete++;
+            console.log(`${uidLabel(uid)} revoked=${revoked} ${results.map((r) => `${r.processor}=${r.status}`).join(" ")}`);
+        } catch {
+            incomplete++;
+            console.log(`${uidLabel(uid)} incomplete=threw`);
+        }
     }
     console.log(`erased=${uids.length - incomplete} incomplete=${incomplete}`);
     if (incomplete) process.exit(1);
