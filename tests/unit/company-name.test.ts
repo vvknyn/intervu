@@ -290,6 +290,22 @@ describe("siteSpelling — SQ: a display that is only the squashed domain word t
     assert.equal(sq("Acme", "acme.com", ["Acme | Widgets Co", "Acme, Widgets Co", "Acme: Widgets Co"]), "Acme");
   });
 
+  it("respells the domain word as the site's cased first word, only when that word carries casing", () => {
+    assert.equal(sq("Bnsf", "bnsf.com", ["BNSF Railway"]), "BNSF");
+    assert.equal(sq("Mccain", "mccain.com", ["McCain Foods Global Corporate"]), "McCain");
+    assert.equal(sq("Nvent", "nvent.com", ["nVent Electric"]), "nVent");
+    assert.equal(sq("Sendiks", "sendiks.com", ["Sendik's Food Market"]), "Sendik's");
+    assert.equal(sq("Pei", "pei.com", ["PEI + Dataprise"]), "PEI");
+    assert.equal(sq("NGC", "ngc.com", ["Ngc Construction"]), "NGC");
+    assert.equal(sq("Iceye", "iceye.com", ["ICEYE Space Systems"]), "Iceye");
+    assert.equal(sq("Yale", "yale.edu", ["Yale University"]), "Yale");
+  });
+
+  it("accepts a typographic apostrophe in an expansion", () => {
+    assert.equal(sq("Archildrens", "archildrens.org", ["Arkansas Children\u2019s"]), "Arkansas Children\u2019s");
+    assert.equal(sq("Acme", "acme.com", ["#1 Acme Widgets Co"]), "Acme");
+  });
+
   it("leaves a display that is not the domain word alone", () => {
     assert.equal(sq("Kering Eyewear", "kering.com", ["Kering Eyewear Group"]), "Kering Eyewear");
   });
