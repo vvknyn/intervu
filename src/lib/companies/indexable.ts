@@ -11,22 +11,14 @@
  * down the pages which DO have content. This gate takes 442 submitted URLs
  * to 263.
  *
- * The rule is deliberately data-driven and has no company list in it: a page
- * is indexable when it carries content a search result can actually rank on.
- * Two independent sources of that content exist on this page —
- *
- *   1. the open-roles list (title, location, salary, seniority, ghost signal
- *      per role), and
- *   2. the employer track record (`opened90d`/`closed90d`) — the numbers that
- *      make this page something other than a roles list.
- *
- * — so either one alone earns indexation. (2) can only ever UPGRADE a page,
- * never be a precondition: it is structurally absent right now (the Meili
- * documents carry no `company_*` aggregate fields at all, so `hasTrackRecord`
- * is false for every employer today), and requiring it would noindex all 442
- * pages and empty the `/co/` section of the sitemap — the exact
- * "we removed everything" signal this change exists to avoid. Written as an
- * OR, this gate widens on its own the moment that sync lands, no code change.
+ * THE RULE (S2, one only): a page is indexable exactly when its company is in
+ * the sitemap set — at least {@link MIN_SITEMAP_ROLES} live roles and within
+ * the top {@link SITEMAP_COMPANY_CAP} by live count, as `company_directory`
+ * measures it — AND its core facts are present (an open-role count, a last
+ * posted date, at least one stated country). Every other company page still
+ * renders in full, as `noindex, follow`. The earlier 3-role page floor and the
+ * `hasTrackRecord` OR are gone: they let ~10-role pages and pages with only a
+ * track record be indexable while the sitemap (25 roles) never listed them.
  *
  * UPDATE 2026-08-13: `fetchIndexableCompanyDomains` below no longer sources
  * candidates from `getBoardDomains("elite")` (442 curated domains —
@@ -70,95 +62,41 @@
  * the page itself marks `noindex` is a self-contradicting submission.
  */
 import { hasMeilisearch, host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
-import type { CompanyPageData } from "./types";
+import type { CompanyFacts } from "./company-facts";
 
-/**
- * How many live roles a page needs before it stops being thin.
- *
- * Three. Each individual role is already fully represented by its OWN
- * canonical `/jobs/<slug>-<uuid>` page, so a company page wrapping one or two
- * of those links adds nothing original and competes with them for the same
- * query — it starts saying something only its own URL can say (this
- * employer's roles as a SET) once there are several. Measured against the
- * live index 2026-08-11, the cost of 3 over 1 is small and the corpus is
- * nowhere near it: 263 of 442 domains pass at >=3 vs 310 at >=1, against a
- * median of 6 live roles and a mean of 48. The 47 pages that difference
- * covers are one- and two-role pages; they stay reachable and crawlable via
- * `/jobs`, they are just not submitted as destinations.
- */
-export const MIN_INDEXABLE_ROLES = 3;
-
-/** Sitemap-only floor — well above page indexability so `/sitemap.xml` submits
- *  employers with enough roles to rank as a hub, not every page that clears
- *  the thin-content gate. Page robots still use {@link MIN_INDEXABLE_ROLES}. */
+/** Live roles a company needs to be in the sitemap set, and so to be indexable. */
 export const MIN_SITEMAP_ROLES = 25;
 
 /** Hard cap on `/co/` URLs submitted — the top employers by live role count
  *  after {@link MIN_SITEMAP_ROLES} filtering. */
 export const SITEMAP_COMPANY_CAP = 3000;
 
-/**
- * The two counts `resolveCompanyIndexability` needs — one per surface,
- * sampled at different times BY DESIGN rather than by accident:
- *
- *   - `snapshotRoleCount`: the `company_directory` publisher's last measured
- *     `open_role_count` for this domain — what `sitemap.ts` already reads for
- *     every candidate, and what the page path fetches fresh per request via
- *     `fetchCompanySnapshotRoleCount`. `null` means "no directory doc" (not
- *     yet published, or a lookup failure — see that function's fail-soft
- *     doc), never a claimed zero.
- *   - `liveRoleCount`: `jobs.length` at request time — the roles the page is
- *     actually about to render. Never `openCount`, which can claim roles the
- *     page doesn't render (a stale aggregate against an empty hit list).
- */
 export interface CompanyIndexabilityInput {
-  snapshotRoleCount: number | null;
-  liveRoleCount: number;
+  /** The domain is in the set `sitemap.ts` submits (see
+   *  {@link fetchCompanyInSitemapSet}). */
+  inSitemapSet: boolean;
+  /** The core facts: without all three the page is not worth submitting. */
+  facts: Pick<CompanyFacts, "hiring" | "mix">;
 }
 
 export interface CompanyIndexability {
-  /** Should this domain be a `/sitemap.xml` `/co/` entry? Mirrors the
-   *  sitemap's own Meili filter exactly — same threshold, same input. */
+  /** Should this domain be a `/sitemap.xml` `/co/` entry? */
   inSitemap: boolean;
   /** Should THIS request's page render indexable (no `noindex`)? */
   pageIndexable: boolean;
 }
 
-function qualifiesForPage(n: number | null): boolean {
-  return n != null && n >= MIN_INDEXABLE_ROLES;
-}
-
-function qualifiesForSitemap(n: number | null): boolean {
-  return n != null && n >= MIN_SITEMAP_ROLES;
-}
-
 /**
- * THE seam. Both `sitemap.ts` (via `fetchIndexableCompanyDomains`'s Meili
- * filter, built from this same `MIN_INDEXABLE_ROLES`) and `/co/[slug]`'s
- * robots decision (`presentation.ts`'s `buildCompanyPageMetadata`) derive
- * their booleans from this one function instead of running independent
- * threshold checks against independent data sources sampled at independent
- * times — which is what let a company dip below the threshold live while
- * staying sitemap-submitted off a stale snapshot: the recurring GSC
+ * THE seam, and the only indexability rule: indexable ⇔ in the sitemap set
+ * AND `openCount`, `lastPostedAt` and at least one stated country are present.
+ * Both flags are that one boolean, so a page can never be indexable without
+ * being submitted nor submitted while `noindex` — the recurring GSC
  * "Submitted URL marked noindex" class this seam exists to close.
- *
- * `pageIndexable` ORs `liveRoleCount` on top of `snapshotRoleCount`, so a
- * page is indexable exactly when it's AHEAD of the sitemap (a rising company
- * not yet snapshotted — absence from the sitemap is never an error) or
- * BEHIND it by design (a listed company dipping live stays indexable until
- * the next publisher run demotes it). `inSitemap ⇒ pageIndexable` therefore
- * holds for every input by construction, not by two call sites agreeing to
- * keep it that way.
  */
-export function resolveCompanyIndexability({
-  snapshotRoleCount,
-  liveRoleCount,
-}: CompanyIndexabilityInput): CompanyIndexability {
-  const inSitemap = qualifiesForSitemap(snapshotRoleCount);
-  return {
-    inSitemap,
-    pageIndexable: qualifiesForPage(snapshotRoleCount) || qualifiesForPage(liveRoleCount),
-  };
+export function resolveCompanyIndexability({ inSitemapSet, facts }: CompanyIndexabilityInput): CompanyIndexability {
+  const indexable =
+    inSitemapSet && facts.hiring.openCount > 0 && facts.hiring.lastPostedAt != null && facts.mix.countries != null;
+  return { inSitemap: indexable, pageIndexable: indexable };
 }
 
 /** One company the `company_directory` index carries, with the live-role
@@ -219,7 +157,7 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
 
 /** One `company_directory` `/search` request body — pulled out as its own
  *  shape (rather than assembled inline) so a test can assert on exactly what
- *  was sent, e.g. that the `MIN_INDEXABLE_ROLES` filter clause is really in
+ *  was sent, e.g. that the `MIN_SITEMAP_ROLES` filter clause is really in
  *  the request and not just applied conceptually. */
 interface CompanyDirectorySearchRequest {
   sort: string[];
@@ -263,9 +201,8 @@ async function searchCompanyDirectoryPage(
  * repo, off-app, admin key) publishes on its own schedule — see the file
  * docblock's 2026-08-13 update for why this replaced both the curated
  * "elite" list and the reverted #186 facet walk. Filters server-side on
- * `open_role_count >= MIN_SITEMAP_ROLES` (sitemap-only — page indexability
- * still uses {@link MIN_INDEXABLE_ROLES} via {@link resolveCompanyIndexability})
- * sorted by `open_role_count` descending when Meilisearch accepts it, capped
+ * `open_role_count >= MIN_SITEMAP_ROLES` (the same set page indexability
+ * reads via {@link fetchCompanyInSitemapSet}) sorted by `open_role_count` descending when Meilisearch accepts it, capped
  * at {@link SITEMAP_COMPANY_CAP}. When sort is unavailable, falls back to
  * paging with the same filter and sorting in memory before slicing.
  *
@@ -382,43 +319,33 @@ export async function fetchIndexableCompanyDomains(
 }
 
 /**
- * The single `company_directory` doc for one domain — the same snapshot
- * `fetchIndexableCompanyDomains` pages in full for the sitemap, looked up
- * here by the key those docs carry (`domain`) instead of walked. Feeds
- * `resolveCompanyIndexability`'s `snapshotRoleCount` from the page path, so
- * a page's robots decision reads the exact measurement the sitemap did
- * rather than falling back to a live count the snapshot has never seen.
+ * Whether `domain` is in the set `sitemap.ts` submits — read through
+ * {@link fetchIndexableCompanyDomains} itself (its server-side
+ * `MIN_SITEMAP_ROLES` filter and top-{@link SITEMAP_COMPANY_CAP} cut, on the
+ * same cached `company_directory` request), so the page's robots decision and
+ * the sitemap cannot measure the set two ways. Feeds
+ * `resolveCompanyIndexability`'s `inSitemapSet`.
  *
  * Fail-soft, unlike `fetchIndexableCompanyDomains` — this runs inline in a
- * page request, not a batch job with a FAILURE POSTURE to defend, and the
- * caller already has `liveRoleCount` to fall back on:
+ * page request, not a batch job with a FAILURE POSTURE to defend:
  *
- *   - Meilisearch not configured, or the domain has no directory doc: `null`,
- *     no warning — both are "not in the snapshot," which is correct input to
- *     `resolveCompanyIndexability`, not an error.
- *   - the Meilisearch request itself fails: `null` plus ONE `console.warn` —
- *     degrade to a live-only decision rather than 500ing a page render or
- *     fabricating a count.
+ *   - Meilisearch not configured: `false`, no warning.
+ *   - the directory read fails (or is empty): `false` plus ONE `console.warn`
+ *     — a page that cannot prove it is in the set is `noindex, follow` for
+ *     that render, never claimed indexable.
  *
  * `search` is injectable (same DI as `fetchIndexableCompanyDomains`) so tests
  * never hit the network.
  */
-export async function fetchCompanySnapshotRoleCount(
+export async function fetchCompanyInSitemapSet(
   domain: string,
   search: typeof searchCompanyDirectoryPage = searchCompanyDirectoryPage,
-): Promise<number | null> {
-  if (!hasMeilisearch()) return null;
+): Promise<boolean> {
+  if (!hasMeilisearch()) return false;
   try {
-    const { hits } = await search({
-      sort: [],
-      filter: `domain = ${JSON.stringify(domain)}`,
-      limit: 1,
-      offset: 0,
-    });
-    const parsed = hits[0] ? parseCompanyDirectoryHit(hits[0]) : null;
-    return parsed ? parsed.openRoleCount : null;
+    return (await fetchIndexableCompanyDomains(search)).some((c) => c.domain === domain);
   } catch (err) {
-    console.warn(`fetchCompanySnapshotRoleCount(${domain}): company_directory lookup failed`, err);
-    return null;
+    console.warn(`fetchCompanyInSitemapSet(${domain}): company_directory read failed`, err);
+    return false;
   }
 }
