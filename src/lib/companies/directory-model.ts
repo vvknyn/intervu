@@ -68,7 +68,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], ro
     if (ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return void excluded.push({ domain: candidate.domain, rule: "M1" });
     const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
-    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames);
+    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain);
     claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
 

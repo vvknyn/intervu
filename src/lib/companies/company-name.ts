@@ -40,7 +40,7 @@
  * tokens, which is the shape "one brand, many qualified entities" makes in
  * any corpus. See that function for the safety argument.
  */
-import { cleanCompany, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
+import { cleanCompany, displayCompanyName, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** Provenance of a resolved name — never "we made this up". */
@@ -212,17 +212,64 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
 /** An all-capitals page title longer than this is a banner ("FIVE GUYS"), not a spelling; shorter is an acronym ("AAFF"). */
 const MAX_ACRONYM_LETTERS = 4;
 
+const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
+const isBanner = (c: string): boolean => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
+
+/** A site name that can expand a squashed label: 2 to 5 words of letters, digits, spaces and & . ' - only. */
+const EXPANSION_MAX_WORDS = 5;
+const EXPANSION_CHARS_RE = /^[\p{L}\p{N} &.'\u2019-]+$/u;
+const DOMAIN_TOKEN_RE = /\.[a-z]{2,}\b/i;
+
+/** Are all of `label`'s characters in `key`, in order, starting with its first character? */
+function isAnchoredSubsequence(label: string, key: string): boolean {
+  if (!label || label[0] !== key[0]) return false;
+  let at = 0;
+  for (const ch of key) if (ch === label[at]) at++;
+  return at === label.length;
+}
+
+/** The shortest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words. */
+function expandSquashedLabel(label: string, names: readonly string[]): string | undefined {
+  const qualifies = (name: string) => {
+    const words = name.split(/\s+/);
+    return (
+      words.length >= 2 && words.length <= EXPANSION_MAX_WORDS &&
+      EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) && !isBanner(name) &&
+      siteKey(words[0]!) !== label && isAnchoredSubsequence(label, siteKey(name))
+    );
+  };
+  return names.filter(qualifies).sort((a, b) => a.length - b.length)[0];
+}
+
+/** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
+const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word !== word[0]!.toUpperCase() + word.slice(1).toLowerCase();
+
+/** The site name whose first word is the label with its own casing ("BNSF" from "BNSF Railway"). */
+function respellFirstWord(label: string, display: string, names: readonly string[]): string | undefined {
+  return names
+    .map((name) => name.split(/\s+/)[0]!.replace(/[.,:;|]+$/, ""))
+    .find((word) => word !== display && siteKey(word) === label && !isBanner(word) && carriesCasing(word));
+}
+
 /**
  * SP: the company's own spelling of the agreed name `display`. The first of the homepage `candidates`
  * (source order) that differs from `display` only in spaces, casing, punctuation or accents ("Aspen Dental"
  * for "Aspendental", "Air Liquide" for "AIR LIQUIDE") is shown; an all-capitals title is no spelling.
- * Otherwise `display` stands. Never different letters, so the directory letter is unchanged.
+ * SQ: when `display` is only the host's squashed first label ("Pyramidhc" on pyramidhc.com) and no site
+ * name respells it, the shortest 2-5 word site name that spells the label's letters across its words wins
+ * ("Pyramid Healthcare"), or the site's cased first word when that is the label ("BNSF"). Otherwise `display` stands.
  */
-export function siteSpelling(display: string, candidates: readonly string[] = []): string {
-  const key = (value: string) => alnum(value.replace(/&/g, " and "));
-  const isBanner = (c: string) => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
+export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string): string {
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  return spellings.find((c) => c !== display && key(c) === key(display) && !isBanner(c)) ?? display;
+  const respelled = spellings.find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c));
+  if (respelled) return respelled;
+  const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
+  if (!label || siteKey(display) !== label) return display;
+  const cleaned = spellings.map((c) => displayCompanyName(c));
+  const cased = respellFirstWord(label, display, cleaned);
+  if (cased) return cased;
+  if (cleaned.some((c) => siteKey(c) === label)) return display;
+  return expandSquashedLabel(label, cleaned) ?? display;
 }
 
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */

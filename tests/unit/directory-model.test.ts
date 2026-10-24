@@ -15,6 +15,14 @@ const listed = (d: Directory) => Object.fromEntries(d.companies.map((c) => [c.do
 const excluded = (d: Directory, rule: string) => d.excluded.filter((e) => e.rule === rule);
 
 describe("buildDirectory — which domains are listed, under what name and letter", () => {
+  it("SQ: a domain-word name is listed under the site's expansion of it, with its letter; a real name is not expanded", () => {
+    const d = build([
+      ["pyramidhc.com", 5, { Pyramidhc: 5 }, ["An Integrated Behavioral Healthcare System", "Pyramid Healthcare"]],
+      ["yale.edu", 4, { Yale: 4 }, ["Yale University"]],
+    ]);
+    assert.deepEqual(listed(d), { "pyramidhc.com": "Pyramid Healthcare", "yale.edu": "Yale" });
+  });
+
   it("M1: a domain on an ATS or career-portal host is not listed (ashbyhq, greenhouse cdn, oraclecloud), a company domain is", () => {
     const d = build([
       ["app.ashbyhq.com", 90, { Ramp: 5 }],
