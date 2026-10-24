@@ -758,11 +758,11 @@ describe("siteSpelling — same-letters casing: site casing, connectors, vowelle
     assert.equal(siteSpelling("Quill Sparks IN"), "Quill Sparks IN");
   });
   it("(a) never adopts a site segment that drops an inner capital, but may add one", () => {
-    assert.equal(siteSpelling("BirlaSoft", ["Birlasoft"], "birlasoft.com"), "BirlaSoft");
-    assert.equal(siteSpelling("Genesis HealthCare System", ["Genesis Healthcare System"], "genesishcs.org"), "Genesis HealthCare System");
-    assert.equal(siteSpelling("PineCrest Foods", ["Pinecrest Foods"], "pinecrestfoods.com"), "PineCrest Foods");
-    assert.equal(siteSpelling("Aeroguruji", ["AeroGuruJi"], "aeroguruji.com"), "AeroGuruJi");
-    assert.equal(siteSpelling("AEROGURUJI", ["AeroGuruJi"], "aeroguruji.com"), "AeroGuruJi");
+    assert.equal(siteSpelling("BirlaSoft", ["Birlasoft | Home"], "birlasoft.com"), "BirlaSoft");
+    assert.equal(siteSpelling("Genesis HealthCare System", ["Genesis Healthcare System | Home"], "genesishcs.org"), "Genesis HealthCare System");
+    assert.equal(siteSpelling("PineCrest Foods", ["Pinecrest Foods | Home"], "pinecrestfoods.com"), "PineCrest Foods");
+    assert.equal(siteSpelling("Aeroguruji", ["AeroGuruJi | Home"], "aeroguruji.com"), "AeroGuruJi");
+    assert.equal(siteSpelling("AEROGURUJI", ["AeroGuruJi | Home"], "aeroguruji.com"), "AeroGuruJi");
   });
   it("(b) leaves alone: two words, an already lower-case word, and non-connectors", () => {
     assert.equal(siteSpelling("Geeks On"), "Geeks On");

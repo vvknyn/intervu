@@ -381,6 +381,7 @@ const sameLetters = (text: string): string => text.trim().replace(/\s+/g, " ").r
  */
 function casingRefined(display: string, candidates: readonly string[], domain?: string): string {
   const key = sameLetters(display);
+  // Mechanical casing only: this never chooses between two spellings that both have their letters in the right places ("Dexcom" vs "DexCom"), so a segment that drops an inner capital is not adopted.
   const own = candidates.flatMap((c) => c.replace(/[®™©℠]/g, "").split("|")).map((segment) => segment.trim().replace(/\s+/g, " ")).find((segment) => segment && !isBanner(segment) && sameLetters(segment) === key && isSoundSpelling(segment) && keepsWords(segment, display) && !lowersAcronym(segment, display) && !lowersWord(segment, display) && !lowersInnerCapital(segment, display));
   if (own) return own;
   const words = display.split(/\s+/);
@@ -429,7 +430,7 @@ function respelledBySite(display: string, candidates: readonly string[], domain?
   const spellings = plain.map((c) => recased(carriesLegalTail(c) ? displayCompanyName(c) : c));
   const cleaned = plain.map((c) => recased(displayCompanyName(c)));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !swapsSpaceForHyphen(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display) && !lowersInnerCapital(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !swapsSpaceForHyphen(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
