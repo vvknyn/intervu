@@ -10,6 +10,7 @@
  * scope for this PR. Not a second copy of that module's pattern by choice —
  * just where the fence put it.
  */
+import { openCountText, sampleCoversAllRoles } from "@/lib/companies/presentation";
 import type { CompanyPageData } from "@/lib/companies/types";
 
 /**
@@ -35,11 +36,14 @@ import type { CompanyPageData } from "@/lib/companies/types";
  * sentence about zero roles nobody asked for.
  */
 export function staleShareText(
-  data: Pick<CompanyPageData, "ghostFlaggedPct" | "jobs">,
+  data: Pick<CompanyPageData, "ghostFlaggedPct" | "jobs" | "openCount" | "openCountIsLowerBound">,
 ): string | null {
   if (data.ghostFlaggedPct == null || data.jobs.length === 0) return null;
   const count = Math.round((data.ghostFlaggedPct / 100) * data.jobs.length);
-  return `${count} of the ${data.jobs.length} roles tracked here may no longer be live.`;
+  // The denominator is the page's one open-roles number. A window that is only a sample of it states
+  // the flagged count of the loaded roles without naming the window's size as a second count.
+  const tracked = sampleCoversAllRoles(data) ? `the ${openCountText(data)} roles` : "the newest roles";
+  return `${count} of ${tracked} tracked here may no longer be live.`;
 }
 
 /**

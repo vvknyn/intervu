@@ -41,6 +41,7 @@ function factsFor(
     domain: "acme.com",
     jobs,
     openCount: { value: openCount, isLowerBound: false },
+    postingTotal: openCount,
     facetDistribution: country ? { location_country: { "United States": openCount } } : undefined,
   });
 }

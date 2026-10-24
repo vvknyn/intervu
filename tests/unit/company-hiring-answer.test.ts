@@ -61,7 +61,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     jobs: [],
     boards: ["elite"],
     exhaust: null,
-    facts: buildCompanyFacts({ name: "Lumentum", domain: "lumentum.com", jobs: [], openCount: { value: 213, isLowerBound: false } }),
+    facts: buildCompanyFacts({ name: "Lumentum", domain: "lumentum.com", jobs: [], openCount: { value: 213, isLowerBound: false }, postingTotal: 213 }),
     nowMs: NOW,
     ...overrides,
   };

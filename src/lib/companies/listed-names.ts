@@ -1,6 +1,5 @@
 import { companyRolesParams } from "@/lib/companies/company-roles-query";
-import { meiliSearchEach } from "@/lib/jobs/meilisearch";
-import type { PublicJob } from "@/lib/jobs/types";
+import { meiliSearchEach, type EachResult } from "@/lib/jobs/meilisearch";
 
 /** What the name, the internal-posting filter and the title+location dedupe read from a role row (the directory's evidence): a wider payload took 199 s for 3600 domains on the box sequentially; with 4 chunks in flight 4200 domains took 107 s (2026-10-23). */
 const EVIDENCE_ATTRIBUTES = ["company", "title", "location", "location_city", "location_state", "location_country"] as const;
@@ -28,7 +27,7 @@ type BatchReader = typeof meiliSearchEach;
  * fails twice is logged with its index and size — prod masks Server Components errors to a digest —
  * and rethrown, so a failed read is never papered over.
  */
-const readChunk = async (domains: readonly string[], read: BatchReader): Promise<PublicJob[][]> => {
+const readChunk = async (domains: readonly string[], read: BatchReader): Promise<EachResult[]> => {
   const batches: string[][] = [];
   for (let i = 0; i < domains.length; i += BATCH) batches.push(domains.slice(i, i + BATCH));
   const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })), EVIDENCE_TIMEOUT_MS);
@@ -64,8 +63,8 @@ const mapLimit = async <T, R>(items: readonly T[], limit: number, fn: (item: T) 
   return results;
 };
 
-/** Rows per domain, in the order asked: the company page's own roles query, fewer attributes. */
-export const fetchNameEvidence = async (domains: readonly string[], read: BatchReader = meiliSearchEach): Promise<PublicJob[][]> => {
+/** Rows and count fields per domain, in the order asked: the company page's own roles query, fewer attributes. */
+export const fetchNameEvidence = async (domains: readonly string[], read: BatchReader = meiliSearchEach): Promise<EachResult[]> => {
   const chunks: string[][] = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
   return (await mapLimit(chunks, CHUNK_CONCURRENCY, (chunk) => readChunk(chunk, read))).flat();

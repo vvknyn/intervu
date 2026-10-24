@@ -20,12 +20,11 @@ import { toValueArray, type FacetDistribution, type PublicJob } from "@/lib/jobs
 export interface Distribution {
   /** Highest count first; 'unknown'/blank values are never a bucket. */
   buckets: { value: string; count: number }[];
-  /** Roles that state the attribute (copy says "of N roles that state a work
+  /** Postings that state the attribute — a facet count, not a role count (copy says "of N listings that state a work
    *  mode"). Null for multi-valued facets, where bucket counts overlap and a
    *  per-role count cannot be recovered from a facet. */
   stated: number | null;
-  /** Every role the counts were taken over (all live roles for a facet; the
-   *  fetched window for skills). */
+  /** The population the counts are shares of: for a facet, every matching posting the facet counted (see `postingTotal`). */
   total: number;
 }
 
@@ -87,6 +86,9 @@ export interface CompanyFactsInput {
   domain: string;
   jobs: readonly PublicJob[];
   openCount: OpenCount;
+  /** Every posting the facet counts were taken over (duplicates and internal ones included): the
+   *  denominator of every facet share, as opposed to the deduped `openCount`. */
+  postingTotal: number;
   trackRecord?: TrackRecord | null;
   ghostFlaggedPct?: number | null;
   facetDistribution?: FacetDistribution;
@@ -207,6 +209,7 @@ function buildFilings(exhaust: CompanyExhaust | null | undefined): CompanyFacts[
 export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
   const { jobs, openCount, exhaust, facetDistribution: facets } = input;
   const total = openCount.value;
+  const postings = input.postingTotal;
   const { profile, profileSource } = buildProfile(exhaust);
   const visa = facets?.visa_sponsorship;
   const sponsors = visa?.true ?? 0;
@@ -232,13 +235,13 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
       cadence: exhaust?.cadence?.data.weeks ?? null,
     },
     mix: {
-      countries: buildDistribution(countryCounts(facets?.location_country), total, { multiValued: true, limit: COUNTRY_LIMIT }),
-      workType: buildDistribution(facets?.work_type, total),
-      employmentType: buildDistribution(facets?.employment_type, total),
-      experienceLevel: buildDistribution(facets?.experience_level, total),
-      visaSponsorship: stated > 0 ? { sponsors, stated, total } : null,
+      countries: buildDistribution(countryCounts(facets?.location_country), postings, { multiValued: true, limit: COUNTRY_LIMIT }),
+      workType: buildDistribution(facets?.work_type, postings),
+      employmentType: buildDistribution(facets?.employment_type, postings),
+      experienceLevel: buildDistribution(facets?.experience_level, postings),
+      visaSponsorship: stated > 0 ? { sponsors, stated, total: postings } : null,
       skills: buildDistribution(skillCounts(jobs), jobs.length, { multiValued: true }),
-      tech: buildDistribution(facets?.tech_stack, total, { multiValued: true }),
+      tech: buildDistribution(facets?.tech_stack, postings, { multiValued: true }),
     },
     pay: buildPay(jobs),
     health: { ghostFlaggedPct: input.ghostFlaggedPct ?? null, verdict: exhaust?.health?.data.verdict ?? null },
