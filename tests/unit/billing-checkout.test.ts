@@ -25,6 +25,7 @@ describe("buildCheckoutParams", () => {
         assert.equal(p.payment_intent_data?.metadata?.velai_uid, "uid_1");
         assert.equal(p.success_url, "https://velai.app/billing/return?session_id={CHECKOUT_SESSION_ID}");
         assert.equal(p.cancel_url, "https://velai.app/pricing");
+        assert.deepEqual(p.managed_payments, { enabled: false });
     });
 });
 
