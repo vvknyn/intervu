@@ -49,11 +49,19 @@ describe("UserAvatar: picture short-circuits initials", () => {
             "//cdn.example.com/a.png",
             "/\\evil.example/a.png",
             "data:image/png;base64,AAAA",
+            "/\t/evil.example/a.png",
+            "/\n/evil.example/a.png",
+            " //evil.example",
         ]) {
             const html = renderToStaticMarkup(React.createElement(UserAvatar, { name: "Vivek Narayanan", pictureUrl }));
             assert.doesNotMatch(html, /<img/, pictureUrl);
             assert.match(html, />VN</, pictureUrl);
         }
+    });
+
+    it("/%2F/evil.example stays on our own origin (an encoded slash is a path character), so it is shown", () => {
+        const html = renderToStaticMarkup(React.createElement(UserAvatar, { name: "Vivek Narayanan", pictureUrl: "/%2F/evil.example" }));
+        assert.match(html, /<img[^>]*src="\/%2F\/evil\.example"/);
     });
 
     it("no pictureUrl -> renders the initials text, no <img>", () => {
