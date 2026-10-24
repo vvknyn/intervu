@@ -6,12 +6,13 @@ import { planSummary, type PlanSummary } from "@/lib/billing/plan";
 import { readProfileBilling } from "@/lib/billing/profile-store";
 
 /**
- * This account's plan, for the Settings card and the ending-soon notice. A guest is free;
- * a failed read is `{error}`, never "free", so a paid account is not told it has no plan.
+ * This account's plan, for the Settings card and the ending-soon notice. Both mount only for a
+ * signed-in client, so no session here is a mismatch, and a failed read likewise is `{error}`,
+ * never "free": a paid account must not be told it has no plan.
  */
 export async function fetchPlanAction(): Promise<{ plan?: PlanSummary; error?: string }> {
     const user = await getServerUser();
-    if (!user) return { plan: { status: "free" } };
+    if (!user) return { error: "no-session" };
     try {
         const [accessUntil, { grants }] = await Promise.all([getAccessUntil(user.uid), readProfileBilling(user.uid)]);
         return { plan: planSummary({ accessUntil, grants, now: Date.now() }) };

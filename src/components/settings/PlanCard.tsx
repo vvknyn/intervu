@@ -29,7 +29,7 @@ export function PlanCard() {
                         <h2 className="text-base font-semibold leading-snug">
                             {plan.status === "free"
                                 ? "Free"
-                                : `Full access through ${formatPaidUntil(plan.until)}${plan.gift ? " — a gift, you weren't charged." : ""}`}
+                                : `Full access through ${formatPaidUntil(plan.until)}${plan.gift ? " — a gift; you weren't charged for this time." : ""}`}
                         </h2>
                         <p className="mt-1 text-sm text-muted-foreground">{plan.status === "free" ? FREE_LINE : FULL_LINE}</p>
                     </div>

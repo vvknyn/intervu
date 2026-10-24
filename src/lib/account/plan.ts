@@ -1,5 +1,6 @@
 // PARSE_GATE_EXEMPT: fetchPlanAction returns the plan's status and end date, never résumé text.
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { fetchPlanAction } from "@/actions/plan";
 import type { PlanSummary } from "@/lib/billing/plan";
 
@@ -23,8 +24,9 @@ export function createPlanCache(
 
 export const readPlan = createPlanCache(fetchPlanAction);
 
-/** null while loading. */
+/** null while loading. Reads again on each navigation, which the 30 s memo keeps cheap, so a mounted TopBar never holds a pre-purchase end for long. */
 export function usePlan(): PlanResult | null {
+    const pathname = usePathname();
     const [result, setResult] = useState<PlanResult | null>(null);
     useEffect(() => {
         let live = true;
@@ -32,6 +34,6 @@ export function usePlan(): PlanResult | null {
         return () => {
             live = false;
         };
-    }, []);
+    }, [pathname]);
     return result;
 }

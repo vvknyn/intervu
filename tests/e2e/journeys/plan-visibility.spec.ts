@@ -15,7 +15,7 @@ const flight = (value: unknown) => `0:{"a":"$@1","f":"","q":"","i":true,"b":"dev
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Signs in and answers the plan action (found by its guest reply, `{plan:{status:"free"}}`) with `reply`. */
+/** Signs in and answers the plan action (found by its no-session reply, `{error:"no-session"}`) with `reply`. */
 async function signInWithPlan(page: Page, reply: unknown) {
   await page.addInitScript(() => {
     (window as unknown as Record<string, unknown>).__INTERVU_E2E_AUTH__ = { uid: "u1", email: "jane@example.com", displayName: "Jane Doe" };
@@ -27,7 +27,7 @@ async function signInWithPlan(page: Page, reply: unknown) {
       const req = route.request();
       if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
       const res = await route.fetch();
-      if (!(await res.text()).includes('"plan":{"status":"free"}')) return route.fulfill({ response: res });
+      if (!(await res.text()).includes('"error":"no-session"')) return route.fulfill({ response: res });
       return route.fulfill({ response: res, body: flight(reply) });
     },
   );
@@ -54,7 +54,7 @@ test("Settings shows the plan above the tabs: free, a gift, a paid end date, or 
   const until = Date.UTC(2031, 0, 15);
   const cases: { reply: unknown; shows: RegExp; link: string; never?: RegExp }[] = [
     { reply: { plan: { status: "free" } }, shows: /^Free/, link: "See the paid month" },
-    { reply: { plan: { status: "full", until, gift: true, endsSoon: false } }, shows: /Full access through Jan 15, 2031 — a gift, you weren't charged\./, link: "Add months" },
+    { reply: { plan: { status: "full", until, gift: true, endsSoon: false } }, shows: /Full access through Jan 15, 2031 — a gift; you weren't charged for this time\./, link: "Add months" },
     { reply: { plan: { status: "full", until, gift: false, endsSoon: false } }, shows: /Full access through Jan 15, 2031$/, link: "Add months" },
     { reply: { error: "Couldn't load your plan" }, shows: /Couldn't load your plan\./, link: "See pricing", never: /Free/ },
   ];

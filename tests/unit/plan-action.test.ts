@@ -20,3 +20,10 @@ describe("createPlanCache", () => {
         assert.equal(calls, 2);
     });
 });
+
+describe("fetchPlanAction", () => {
+    it("with no session answers an error, never a plan", async () => {
+        const { fetchPlanAction } = await import("../../src/actions/plan");
+        assert.deepEqual(await fetchPlanAction(), { error: "no-session" });
+    });
+});
