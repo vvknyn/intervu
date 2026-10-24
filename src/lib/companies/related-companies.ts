@@ -1,7 +1,6 @@
 import type { IndexableCompanyDomain } from "./indexable";
-import type { DirectoryCompany } from "./directory-model";
+import { resolveOpenCounts, type DirectoryCompany } from "./directory-model";
 import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
-import { fetchOpenCounts } from "./listed-names";
 import type { OpenCount } from "./open-count";
 import type { CompanyFacts } from "./company-facts";
 import { searchJobs } from "@/lib/jobs/search";
@@ -59,7 +58,7 @@ export async function fetchRelatedCompanies(
   facts: CompanyFacts,
   search: (p: JobSearchParams) => Promise<JobSearchResult> = searchJobs,
   indexable: () => Promise<DirectoryCompany[]> = resolveIndexableCompanies,
-  readCounts: typeof fetchOpenCounts = fetchOpenCounts,
+  readCounts: typeof resolveOpenCounts = resolveOpenCounts,
 ): Promise<RelatedCompany[]> {
   const facet = relatedFacet(facts);
   if (!facet) return [];

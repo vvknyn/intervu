@@ -14,15 +14,18 @@
  *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
  *       subdomain, then more live roles.
  * Each listed company's `openRoleCount` is that number as of the memo build (up to 6h old): it ranks,
- * thresholds and caps only, and is never displayed. A displayed count is read fresh with
- * `fetchOpenCounts` (listed-names.ts), the same function-of-the-same-query the company page uses.
+ * thresholds and caps only, and is never displayed. A displayed count of a listed company comes from
+ * ONE count generation (below), rebuilt every 30 min with the company page's own count function, so the
+ * letter rows, the related rows and the company page itself show the same number. A domain no built
+ * generation holds is read fresh with `fetchOpenCounts` (listed-names.ts), the same query the page uses.
  * Candidates arrive by raw live roles, so exclusions are refilled from the next ones up to the cap.
  */
 import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import { companyOpenCount, publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, MIN_SITEMAP_ROLES, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
-import { fetchNameEvidence } from "@/lib/companies/listed-names";
+import { fetchNameEvidence, fetchOpenCounts } from "@/lib/companies/listed-names";
+import type { OpenCount } from "@/lib/companies/open-count";
 import { ATS_PORTAL_HOSTNAME_RE, displayCompanyName } from "@/lib/jobs/presentation";
 import type { EachResult } from "@/lib/jobs/meilisearch";
 
@@ -160,3 +163,57 @@ export const getDirectory = (): Promise<ListedDirectory> => DIRECTORY_READER.rea
 export async function fetchCompanyInSitemapSet(domain: string, directory: typeof getDirectory = getDirectory): Promise<boolean> {
   return (await directory()).companies.some((c) => c.domain === domain);
 }
+
+/**
+ * How long a count generation serves before ONE background rebuild. A build reads every listed domain
+ * (~3000, ~100 s of Meilisearch work on the box), so it cannot run per request; counts drift slowly
+ * (measured: 27 of 3000 differed over ~20 min), so 30 min keeps every surface close to the live number.
+ */
+export const COUNT_GENERATION_TTL_MS = 30 * 60 * 1000;
+
+/** The open-roles number of every listed company, as of one build. */
+export type CountGeneration = ReadonlyMap<string, OpenCount>;
+
+/** Reads the listed domains' counts. A failed read throws, so the previous generation is kept. */
+export const buildCountGeneration = async (directory: typeof getDirectory = getDirectory, readEvidence: typeof fetchNameEvidence = fetchNameEvidence): Promise<CountGeneration> => {
+  const domains = (await directory()).companies.map((c) => c.domain);
+  const results = await readEvidence(domains);
+  return new Map(domains.map((domain, i) => [domain, companyOpenCount(results[i]!)]));
+};
+
+/**
+ * The one chokepoint for a listed company's displayed count. `peek` is the built generation (none on a
+ * cold boot) and starts a build or refresh when one is due; it never waits for one. `resolve` takes a
+ * domain from the generation when it holds it and reads the rest fresh.
+ */
+export function createCountGeneration(build: () => Promise<CountGeneration>, store: FlightStore<CountGeneration> = {}) {
+  const read = singleFlight(build, COUNT_GENERATION_TTL_MS, store);
+  const peek = (): CountGeneration | undefined => {
+    read().catch((error: unknown) => console.warn("open count generation build failed; serving the previous one, if any", error));
+    return store.value;
+  };
+  const resolve = async (domains: readonly string[], fresh: typeof fetchOpenCounts = fetchOpenCounts): Promise<Map<string, OpenCount>> => {
+    const generation = peek();
+    const counts = new Map<string, OpenCount>();
+    const rest: string[] = [];
+    for (const domain of domains) {
+      const held = generation?.get(domain);
+      if (held) counts.set(domain, held);
+      else rest.push(domain);
+    }
+    if (rest.length) for (const [domain, count] of await fresh(rest)) counts.set(domain, count);
+    return counts;
+  };
+  return { peek, resolve };
+}
+
+// On globalThis for the same reason as the directory memo: the boot hook and the pages bundle apart.
+const countFlights = globalThis as { __velaiCountFlight?: FlightStore<CountGeneration> };
+
+const COUNTS = createCountGeneration(() => buildCountGeneration(), (countFlights.__velaiCountFlight ??= {}));
+
+/** The built count generation, if any; starts the first build or a due refresh. */
+export const peekCountGeneration = COUNTS.peek;
+
+/** Counts for listed-company rows: the generation's value where it holds the domain, else a fresh read. */
+export const resolveOpenCounts = COUNTS.resolve;
