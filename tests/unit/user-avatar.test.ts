@@ -42,6 +42,20 @@ describe("UserAvatar: picture short-circuits initials", () => {
         assert.doesNotMatch(html, />VN</);
     });
 
+    it("a remote or protocol-relative picture never reaches an <img> (the IP would leak to the image host)", () => {
+        for (const pictureUrl of [
+            "https://lh3.googleusercontent.com/a/x=s96-c",
+            "http://example.com/a.png",
+            "//cdn.example.com/a.png",
+            "/\\evil.example/a.png",
+            "data:image/png;base64,AAAA",
+        ]) {
+            const html = renderToStaticMarkup(React.createElement(UserAvatar, { name: "Vivek Narayanan", pictureUrl }));
+            assert.doesNotMatch(html, /<img/, pictureUrl);
+            assert.match(html, />VN</, pictureUrl);
+        }
+    });
+
     it("no pictureUrl -> renders the initials text, no <img>", () => {
         const html = renderToStaticMarkup(React.createElement(UserAvatar, { name: "Vivek Narayanan" }));
         assert.doesNotMatch(html, /<img/);
