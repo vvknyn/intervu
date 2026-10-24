@@ -733,3 +733,37 @@ describe("siteSpelling — labelSpellings only space or case a glued domain labe
     assert.equal(ls("DICK'S Sporting Goods", "dickssportinggoods.com", ["DICK\u2019S Sporting Goods"]), "DICK'S Sporting Goods");
   });
 });
+
+describe("siteSpelling — same-letters casing: site casing, connectors, vowelless acronyms", () => {
+  it("(a) takes the site's own casing, matching through case, spacing and apostrophe style", () => {
+    assert.equal(siteSpelling("House Buyers Of America", ["House Buyers of America | House Buyers Of America"], "housebuyersofamerica.com"), "House Buyers of America");
+    assert.equal(siteSpelling("Precision For Medicine", ["Precision for Medicine | Global Clinical Research Organization"], "precisionformedicine.com"), "Precision for Medicine");
+    assert.equal(siteSpelling("Recruitment By Design", ["Recruitment By Design | HOME"], "recruitmentbydesign.com"), "Recruitment By Design");
+    assert.equal(siteSpelling("St Vincent’s Health Australia", ["St Vincent's Health  Australia"], "svha.org.au"), "St Vincent's Health Australia");
+  });
+  it("(a) wins over (b), and an all-capitals site name is no spelling", () => {
+    assert.equal(siteSpelling("Teach For America", ["Teach For America"], "teachforamerica.org"), "Teach For America");
+    assert.equal(siteSpelling("Bank Of America", ["BANK OF AMERICA"], "bankofamerica.com"), "Bank of America");
+  });
+  it("(b) lower-cases connectors of a mechanically Title Cased name of 3+ words, never the first word", () => {
+    assert.equal(siteSpelling("State Of Arkansas", ["Arkansas.gov"], "arkansas.gov"), "State of Arkansas");
+    assert.equal(siteSpelling("Bank Of America"), "Bank of America");
+    assert.equal(siteSpelling("Geeks On Site", [], "geeksonsite.com"), "Geeks on Site");
+    assert.equal(siteSpelling("Memorial Hospital At Gulfport"), "Memorial Hospital at Gulfport");
+    assert.equal(siteSpelling("The Home Depot"), "The Home Depot");
+  });
+  it("(b) leaves alone: two words, an already lower-case word, and non-connectors", () => {
+    assert.equal(siteSpelling("Geeks On"), "Geeks On");
+    assert.equal(siteSpelling("Volunteers of America Los Angeles"), "Volunteers of America Los Angeles");
+    assert.equal(siteSpelling("Los Angeles De Mexico"), "Los Angeles De Mexico");
+    assert.equal(siteSpelling("Keurig Dr Pepper", [], "keurigdrpepper.ca"), "Keurig Dr Pepper");
+    assert.equal(siteSpelling("Acme Ltd", [], "acme.co.uk"), "Acme Ltd");
+    assert.equal(siteSpelling("Lynx Co"), "Lynx Co");
+  });
+  it("(c) upper-cases a vowelless Title-cased token found in the host's first label", () => {
+    assert.equal(siteSpelling("Msx International", [], "msxi.com"), "MSX International");
+    assert.equal(siteSpelling("Vml Commerce", [], "vmlyrcommerce.com"), "VML Commerce");
+    assert.equal(siteSpelling("Bdx", [], "bd.com"), "Bdx");
+    assert.equal(siteSpelling("Tsd Group", [], "hii.com"), "Tsd Group");
+  });
+});

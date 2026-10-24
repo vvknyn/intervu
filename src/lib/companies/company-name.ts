@@ -358,7 +358,31 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = []): string {
-  return labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain);
+  return casingRefined(labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain), candidates, domain);
+}
+
+/** English function words that stay lower case inside a title ("State of Arkansas"); a closed grammatical class, not a list of companies. */
+const TITLE_CONNECTORS = new Set(["a", "an", "and", "as", "at", "by", "for", "in", "of", "on", "or", "the", "to"]);
+
+/** Words, case and apostrophe style aside: the form two spellings of the same letters share. */
+const sameLetters = (text: string): string => text.trim().replace(/\s+/g, " ").replace(/\u2019/g, "'").toLowerCase();
+
+/**
+ * Same-letters casing, the last step (weaker evidence only refines, never replaces). In order:
+ * (a) a site name segment that is `display` in other case, spacing or apostrophe style is the company's own casing ("Precision for Medicine"; an all-capitals segment is a banner, not a spelling);
+ * (b) else a mechanically Title Cased name of 3+ words lower-cases its connectors but the first word ("State of Arkansas");
+ * (c) else a Title-cased token of 3+ letters with no vowel (y counts) inside the domain's first label is an acronym ("Msx International" on msxi.com).
+ */
+function casingRefined(display: string, candidates: readonly string[], domain?: string): string {
+  const key = sameLetters(display);
+  const own = candidates.flatMap((c) => c.replace(/[®™©℠]/g, "").split("|")).map((segment) => segment.trim().replace(/\s+/g, " ")).find((segment) => segment && !isBanner(segment) && sameLetters(segment) === key && isSoundSpelling(segment) && keepsWords(segment, display) && !lowersAcronym(segment, display) && !lowersWord(segment, display));
+  if (own) return own;
+  const words = display.split(/\s+/);
+  if (words.length >= 3 && words.filter((word) => /^\p{L}/u.test(word)).every((word) => /^\p{Lu}/u.test(word))) {
+    return words.map((word, i) => (i > 0 && TITLE_CONNECTORS.has(word.toLowerCase()) ? word.toLowerCase() : word)).join(" ");
+  }
+  const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
+  return words.map((word) => (label && /^\p{Lu}\p{Ll}{2,}$/u.test(word) && !/[aeiouy]/i.test(word) && label.includes(word.toLowerCase()) ? word.toUpperCase() : word)).join(" ");
 }
 
 /**
