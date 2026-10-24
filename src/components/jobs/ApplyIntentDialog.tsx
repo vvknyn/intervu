@@ -23,7 +23,7 @@ import { dismissApplyIntent } from "@/lib/jobs/apply-intent";
 import { decodeText, displayCompanyBrand, locationText, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { toast } from "@/lib/toast";
-import { isHttpApplyUrl } from "@/components/jobs/use-gated-apply";
+import { isHttpApplyUrl } from "@/lib/jobs/http-url";
 import { Button } from "@/components/ui/button";
 
 const CLIENT_LABEL: Record<McpHandoffClient, string> = {

@@ -49,6 +49,7 @@ import {
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "@/components/ui/heading";
+import { openApplyUrl } from "@/components/jobs/use-gated-apply";
 
 // A frozen fixture value, deliberately a literal: this mock exists to render a
 // stable picture, so it must not move when an env var does. Kept on the same
@@ -490,7 +491,7 @@ function MockJobDetail({
 
                 <div className="mt-5 flex flex-wrap items-center gap-2 px-5">
                     {job.apply_url && (
-                        <Button className="gap-2" onClick={() => window.open(job.apply_url, "_blank", "noopener,noreferrer")}>
+                        <Button className="gap-2" onClick={() => openApplyUrl(job.apply_url)}>
                             <ArrowSquareOut size={16} />
                             Apply
                         </Button>

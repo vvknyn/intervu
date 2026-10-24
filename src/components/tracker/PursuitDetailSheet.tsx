@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { httpUrlOrNull } from "@/lib/jobs/http-url";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
 import {
@@ -100,6 +101,7 @@ function PursuitDetailBody({
     // the résumé copied on when it was marked Applied.
     const appliedResume = latestResume ? undefined : pursuit.applied_resume;
     const resumeLabel = latestResume?.label ?? (appliedResume ? APPLIED_RESUME_LABEL : pursuit.resume_version?.version_name);
+    const postingUrl = httpUrlOrNull(pursuit.job_url);
     const days = daysInTracker(pursuit);
     const stale = isStalePursuit(pursuit);
 
@@ -209,9 +211,9 @@ function PursuitDetailBody({
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    {pursuit.job_url && (
+                    {postingUrl && (
                         <Button asChild>
-                            <a href={pursuit.job_url} target="_blank" rel="noopener noreferrer">
+                            <a href={postingUrl} target="_blank" rel="noopener noreferrer">
                                 Open posting
                             </a>
                         </Button>

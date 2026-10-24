@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isHttpApplyUrl, openApplyUrl } from "../../src/components/jobs/use-gated-apply";
+import { openApplyUrl } from "../../src/components/jobs/use-gated-apply";
+import { isHttpApplyUrl } from "../../src/lib/jobs/http-url";
 
 const APPLY_URLS = {
     workday: "https://manulife.wd3.myworkdayjobs.com/en-US/Manulife_Careers/job/Toronto/Role_R123",
