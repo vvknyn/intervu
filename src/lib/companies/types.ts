@@ -1,4 +1,5 @@
 import type { BoardId } from "@/lib/boards/types";
+import type { CompanyFacts } from "@/lib/companies/company-facts";
 import type { CompanyNameSource } from "@/lib/companies/company-name";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -145,6 +146,8 @@ export type CompanyPageData = {
    * inner section fails soft independently — see `lib/companies/exhaust.ts`.
    */
   exhaust: CompanyExhaust | null;
+  /** Every aggregate fact the page states, built once — see `CompanyFacts`. */
+  facts: CompanyFacts;
   /**
    * The clock read at the async I/O boundary (`getCompanyPageData`), not
    * inside the server component's render body — server components must stay

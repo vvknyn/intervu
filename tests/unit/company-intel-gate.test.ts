@@ -221,12 +221,8 @@ describe("/co/[slug]: a non-follower sees exactly one lock card", () => {
     const source = readFileSync(CO_PAGE_BODY, "utf8");
     const gateInstances = source.match(/<CompanyIntelGate\b/g) ?? [];
     const suppressedInstances = source.match(/fallback=\{null\}/g) ?? [];
-    assert.equal(gateInstances.length, 2, "expected exactly two CompanyIntelGate instances on the page");
-    assert.equal(
-      gateInstances.length - suppressedInstances.length,
-      1,
-      "exactly one CompanyIntelGate instance may omit fallback={null} and so render a card for a non-follower",
-    );
+    assert.equal(gateInstances.length, 1, "expected exactly one CompanyIntelGate instance on the page");
+    assert.equal(suppressedInstances.length, 0, "the one gate must be the one that can render a card for a non-follower");
   });
 });
 

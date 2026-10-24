@@ -1,14 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { careerHubJobsHref, getAllCareerHubSlugs, getCareerHub, otherCareerHubs } from "@/lib/seo/career-hubs";
+import { careerHubJobsHref, careerHubSearchParams, getAllCareerHubSlugs, getCareerHub, otherCareerHubs, type CareerHub } from "@/lib/seo/career-hubs";
 import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
+import { loadHubFacts } from "@/lib/seo/hub-facts";
 import { Prose } from "@/components/ui/prose";
 import { PageTitle } from "@/components/ui/heading";
+import { HubSections } from "@/components/seo/HubSections";
 import { PageContainer } from "@/components/layout/PageContainer";
+
+// Each hub states live facts (role count, companies, newest roles), so it is rendered per request, not
+// baked at build time. A failed search omits those sections; the page itself still renders.
+export const dynamic = "force-dynamic";
 
 export function generateStaticParams() {
   return getAllCareerHubSlugs().map((slug) => ({ slug }));
@@ -39,6 +45,7 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
     { name: hub.label, path: hub.path },
   ]);
   const jobsHref = careerHubJobsHref(hub);
+  const facts = await loadHubFacts(hub);
 
   return (
     <PageContainer measure="reading" data-testid={`career-hub-${hub.slug}`} className="py-10">
@@ -67,6 +74,8 @@ export default async function CareerHubPage({ params }: { params: Promise<{ slug
           </Link>
         )}
       </nav>
+
+      <HubSections facts={facts} label={hub.label} now={Date.now()} />
     </PageContainer>
   );
 }

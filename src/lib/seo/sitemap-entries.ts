@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { fetchIndexableCompanyDomains, type IndexableCompanyDomain } from "@/lib/companies/indexable";
+import { groupCompaniesByLetter, letterPath } from "@/lib/companies/directory-index";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { BLOG_PATH, BLOG_POSTS, blogPostPath } from "@/lib/blog/posts";
 import { CAREER_HUBS } from "./career-hubs";
@@ -33,13 +34,14 @@ export interface CompanyCache {
 /** Module state (survives across requests); exported so tests can start a case with none. */
 export const LAST_GOOD: { current: CompanyCache | null } = { current: null };
 
-export async function buildSitemapEntries(
+/**
+ * THE company set for every surface that lists companies (sitemap, /co index,
+ * hub company lists), with the failure posture above.
+ */
+export async function resolveIndexableCompanies(
   fetchCompanies: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
   lastGood: { current: CompanyCache | null } = LAST_GOOD,
-): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = getSiteUrl();
-  const at = (path: string) => `${siteUrl}${path}`;
-
+): Promise<IndexableCompanyDomain[]> {
   let companies: IndexableCompanyDomain[] = [];
   let failure: string | null = null;
   try {
@@ -57,6 +59,16 @@ export async function buildSitemapEntries(
   } else {
     console.error(`sitemap: ${failure}, no earlier set to serve, listing pages without /co/ entries`);
   }
+  return companies;
+}
+
+export async function buildSitemapEntries(
+  fetchCompanies?: () => Promise<IndexableCompanyDomain[]>,
+  lastGood?: { current: CompanyCache | null },
+): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = getSiteUrl();
+  const at = (path: string) => `${siteUrl}${path}`;
+  const companies = await resolveIndexableCompanies(fetchCompanies, lastGood);
 
   return [
     ...SITEMAP_PAGES.map(({ path, changeFrequency, priority }) => ({
@@ -75,6 +87,12 @@ export async function buildSitemapEntries(
       changeFrequency: "monthly" as const,
       priority: 0.5,
       images: Object.keys(post.images).map((src) => at(src)),
+    })),
+    ...groupCompaniesByLetter(companies).map(({ letter }) => ({
+      url: at(letterPath(letter)),
+      lastModified: DEPLOYED_AT,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
     })),
     ...companies.map(({ domain, computedAt }) => ({
       url: at(companyBoardPath(domain)),

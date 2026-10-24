@@ -1,5 +1,5 @@
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
-import type { FacetKey } from "@/lib/jobs/types";
+import type { FacetKey, JobSearchParams } from "@/lib/jobs/types";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 
 /**
@@ -217,12 +217,21 @@ export function getAllCareerHubSlugs(): string[] {
   return CAREER_HUBS.map((hub) => hub.slug);
 }
 
-/** The /jobs search a hub's main link runs: its query and facets, or plain
- *  /jobs for a hub about every field. */
-export function careerHubJobsHref(hub: Pick<CareerHub, "jobsQuery" | "jobsFacets">): string {
+/** A hub's facets as the search takes them (value lists). */
+function hubFacets(hub: Pick<CareerHub, "jobsFacets">): Partial<Record<CareerHubJobsFacetKey, string[]>> {
   const facets: Partial<Record<CareerHubJobsFacetKey, string[]>> = {};
   for (const [key, value] of Object.entries(hub.jobsFacets ?? {}) as [CareerHubJobsFacetKey, string][]) {
     if (value) facets[key] = [value];
   }
-  return `/jobs${serializeJobsUrl({ ...DEFAULT_URL_STATE, q: hub.jobsQuery ?? "", facets })}`;
+  return facets;
+}
+
+/** The search a hub's roles come from: its query and facets (empty = every field). */
+export function careerHubSearchParams(hub: Pick<CareerHub, "jobsQuery" | "jobsFacets">): JobSearchParams {
+  return { q: hub.jobsQuery ?? "", facets: hubFacets(hub) };
+}
+
+/** The /jobs search a hub's main link runs, or plain /jobs for a hub about every field. */
+export function careerHubJobsHref(hub: Pick<CareerHub, "jobsQuery" | "jobsFacets">): string {
+  return `/jobs${serializeJobsUrl({ ...DEFAULT_URL_STATE, q: hub.jobsQuery ?? "", facets: hubFacets(hub) })}`;
 }

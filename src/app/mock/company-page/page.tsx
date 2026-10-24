@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CompanyPageBody } from "@/components/company/CompanyPageBody";
+import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import { buildWeeklyCadence, type CompanyExhaust } from "@/lib/companies/exhaust";
 import { isoWeekStart } from "@/lib/companies/hiring-record";
@@ -102,6 +103,8 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
     ),
     techStack: section({ groups: ["Analytics", "CMS"], techTier: "mid", totalLiveTechs: 23, totalDeadTechs: 4, hasFramework: true, hasAnalytics: true }, "company_enrichment", "Tech profile"),
     changeHistory: null,
+    sector: "Industrial Automation",
+    careersUrl: null,
   };
   return {
     domain: "acme-robotics.example",
@@ -123,6 +126,7 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
       { event_type: "hiring_accelerating", direction: "improving", headline: "New postings rose from 3 to 9 across two 14-day windows", occurred_at: new Date(now - 5 * DAY).toISOString(), confidence: 0.8 },
     ],
     exhaust: withExhaust ? exhaust : null,
+    facts: buildCompanyFacts({ name: "Acme Robotics", domain: "acme-robotics.example", jobs, openCount: { value: jobs.length, isLowerBound: false }, exhaust: withExhaust ? exhaust : null }),
     nowMs: now,
   };
 }
@@ -142,7 +146,7 @@ export default async function CompanyPageMock({
   const data = sample === "1" ? { ...fixed, openCount: 480, openCountIsLowerBound: false } : fixed;
   return (
     <div className="min-h-[calc(100dvh-3.5rem)] bg-background">
-      <CompanyPageBody data={data} signedIn={signedIn === "1"} now={now} />
+      <CompanyPageBody data={data} signedIn={signedIn === "1"} now={now} related={[]} />
     </div>
   );
 }
