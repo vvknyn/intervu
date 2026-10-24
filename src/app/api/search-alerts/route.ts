@@ -20,7 +20,6 @@ const bodySchema = z.object({
   href: nonEmptyString(2048),
   redirectPath: z.string().trim().max(2048).default("/"),
   turnstileToken: z.string().trim().min(1).nullable().optional(),
-  distinctId: z.string().trim().min(1).max(200).nullable().optional(),
   surface: z.enum(["zero_results", "results"]),
   queryLength: z.number().int().min(0),
   filterCount: z.number().int().min(0),
@@ -54,7 +53,6 @@ export async function POST(request: Request): Promise<NextResponse> {
       redirectPath: parsed.data.redirectPath,
       turnstileToken: parsed.data.turnstileToken ?? null,
       requestIp,
-      distinctId: parsed.data.distinctId ?? null,
       analytics: {
         surface: parsed.data.surface,
         query_length: parsed.data.queryLength,
@@ -66,17 +64,14 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   // Server-side: the only place this event can't be dropped by the
   // browser closing/redirecting before a client-side capture would fire —
-  // see src/lib/analytics/server-capture.ts. Skipped (not fabricated) when
-  // the client had no distinct id to send.
-  if (parsed.data.distinctId) {
-    captureServerEvent("search_alert_submitted", parsed.data.distinctId, {
-      surface: parsed.data.surface,
-      query_length: parsed.data.queryLength,
-      filter_count: parsed.data.filterCount,
-      has_results: parsed.data.hasResults,
-      outcome: result.status === "accepted" ? "accepted" : "rejected",
-    });
-  }
+  // see src/lib/analytics/server-capture.ts.
+  captureServerEvent("search_alert_submitted", {
+    surface: parsed.data.surface,
+    query_length: parsed.data.queryLength,
+    filter_count: parsed.data.filterCount,
+    has_results: parsed.data.hasResults,
+    outcome: result.status === "accepted" ? "accepted" : "rejected",
+  });
 
   return NextResponse.json(result, { status: STATUS_CODE[result.status] });
 }

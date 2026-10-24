@@ -15,8 +15,8 @@
  *   matched lines (`tailor-with-engine.ts`), both encrypted in the browser to
  *   Tinfoil's attested server (`lib/sealed-ai/client.ts`); no AI on our
  *   servers reads a résumé.
- * - never-sold: no ad or tracking pixels; analytics mask every word on screen
- *   (`lib/posthog-options.ts`), and searches built from a résumé are not
+ * - never-sold: no ad or tracking pixels; analytics have no autocapture, replay, survey or
+ *   exception capture (`lib/posthog-options.ts`), and searches built from a résumé are not
  *   logged (`shouldLogSearch`).
  *
  * tests/unit/privacy-promises.test.ts checks those code facts and that each

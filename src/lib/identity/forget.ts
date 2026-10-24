@@ -57,9 +57,9 @@ export async function forgetIdentity(
   telemetryQ: Queryable | null,
   email: string,
   deps: ForgetIdentityDeps = defaultDeps,
-): Promise<void> {
+): Promise<boolean> {
   await deps.suppress(email, "all", "unsubscribed");
-  if (q) await deps.deleteIdentity(q, email);
+  const deleted = q ? await deps.deleteIdentity(q, email) : false;
 
   // The ledger's `user_id` can only ever have come from a WorkOS-
   // authenticated session — unrelated to `intervu.identities` above, which
@@ -71,4 +71,5 @@ export async function forgetIdentity(
     const uid = await deps.resolveWorkosUid(email);
     if (uid) await deps.deleteTelemetry(telemetryQ, uid);
   }
+  return deleted;
 }

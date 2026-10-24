@@ -88,7 +88,6 @@ export async function createSearchAlertVerifyToken(
     name: string;
     href: string;
     searchHash: string;
-    distinctId: string | null;
     analytics: SearchAlertAnalytics;
   },
 ): Promise<string> {
@@ -96,8 +95,8 @@ export async function createSearchAlertVerifyToken(
   const tokenHash = createHash("sha256").update(raw).digest();
   await q.query(
     `INSERT INTO intervu.auth_tokens
-       (token_hash, identity_id, purpose, redirect_path, request_ip, intent_name, intent_href, intent_search_hash, intent_distinct_id, intent_analytics, expires_at)
-     VALUES ($1, $2, 'verify_search_alert', $3, $4, $5, $6, $7, $8, $9, now() + interval '30 minutes')`,
+       (token_hash, identity_id, purpose, redirect_path, request_ip, intent_name, intent_href, intent_search_hash, intent_analytics, expires_at)
+     VALUES ($1, $2, 'verify_search_alert', $3, $4, $5, $6, $7, $8, now() + interval '30 minutes')`,
     [
       tokenHash,
       input.identityId,
@@ -106,7 +105,6 @@ export async function createSearchAlertVerifyToken(
       input.name,
       input.href,
       input.searchHash,
-      input.distinctId ?? null,
       JSON.stringify(input.analytics),
     ],
   );
@@ -124,7 +122,6 @@ export async function consumeSearchAlertToken(
   name: string;
   href: string;
   searchHash: string;
-  distinctId: string | null;
   analytics: SearchAlertAnalytics | null;
 } | null> {
   const tokenHash = createHash("sha256").update(rawToken).digest();
@@ -134,13 +131,12 @@ export async function consumeSearchAlertToken(
     intent_name: string | null;
     intent_href: string | null;
     intent_search_hash: string | null;
-    intent_distinct_id: string | null;
     intent_analytics: SearchAlertAnalytics | null;
   }>(
     `UPDATE intervu.auth_tokens
      SET consumed_at = now()
      WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now() AND purpose = 'verify_search_alert'
-     RETURNING identity_id, redirect_path, intent_name, intent_href, intent_search_hash, intent_distinct_id, intent_analytics`,
+     RETURNING identity_id, redirect_path, intent_name, intent_href, intent_search_hash, intent_analytics`,
     [tokenHash],
   );
   const token = tokenRows[0];
@@ -164,7 +160,6 @@ export async function consumeSearchAlertToken(
     name: token.intent_name,
     href: token.intent_href,
     searchHash: token.intent_search_hash,
-    distinctId: token.intent_distinct_id,
     analytics: token.intent_analytics,
   };
 }
@@ -337,6 +332,12 @@ export async function listEmailFollowRecipients(
     entry.follows.push({ domain: row.company_domain, displayName: row.display_name });
   }
   return [...byIdentity.values()];
+}
+
+/** The identity linked to this account's uid (identities.firebase_uid), whatever address it was made under. */
+export async function deleteIdentityByUid(q: Queryable, uid: string): Promise<boolean> {
+  const { rows } = await q.query<{ id: string }>(`DELETE FROM intervu.identities WHERE firebase_uid = $1 RETURNING id`, [uid]);
+  return rows.length > 0;
 }
 
 export async function deleteIdentityByEmail(q: Queryable, email: string): Promise<boolean> {

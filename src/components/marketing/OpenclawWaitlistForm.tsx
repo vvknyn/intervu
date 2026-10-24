@@ -66,7 +66,7 @@ export function OpenclawWaitlistForm({
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
+              placeholder="you@example.com"
               disabled={pending}
               aria-label="Email address"
               className="ctl-lg sm:min-w-0 sm:flex-1"

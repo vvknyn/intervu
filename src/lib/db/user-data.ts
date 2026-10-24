@@ -21,6 +21,7 @@
 import { type Firestore, FieldPath } from "firebase-admin/firestore";
 
 import { getAdminDb } from "@/lib/firebase/admin";
+import type { Queryable } from "@/lib/pg/pool";
 
 import { MIGRATION_MANIFEST, type CollectionSpec } from "./firestore-migration-manifest";
 
@@ -126,4 +127,33 @@ export async function runUserDataPlan(
     const reads = userDataPlan(uid);
     const results = await Promise.all(reads.map((r) => runQuery(db, r.query)));
     return Object.fromEntries(reads.map((r, i) => [r.table, results[i]]));
+}
+
+/**
+ * Hand-written `intervu.*` tables (deploy/supabase/identity-schema.sql) that
+ * carry a uid. They are not docstore mirrors, so the manifest sweep above
+ * cannot see them; this is their half of the same erase registry. The
+ * schema-coverage test (tests/unit/user-data-sweep.test.ts) reads the .sql
+ * files and fails when a table with a user_uid/user_id/uid column is in
+ * neither this list nor the manifest nor TELEMETRY_USER_TABLE.
+ */
+export const PG_USER_KEYED_TABLES: readonly { table: string; column: string }[] = [
+    { table: "resume_parse_counters", column: "user_uid" },
+    { table: "marketing_sends", column: "user_id" },
+];
+
+/** The behavioural ledger is the third registry member: its INSERT-only role
+ *  can only erase through `intervu.forget_telemetry_user` (telemetry/store.ts). */
+export const TELEMETRY_USER_TABLE = "telemetry_events";
+
+/** Deletes this uid's rows from every PG_USER_KEYED_TABLES table; returns the
+ *  real per-table counts from each statement's RETURNING, never an assumed one. */
+export async function deletePgUserRows(q: Queryable, uid: string): Promise<Record<string, number>> {
+    const counts: Record<string, number> = {};
+    for (const { table, column } of PG_USER_KEYED_TABLES) {
+        // table/column come from the constant above, never from input.
+        const { rows } = await q.query(`DELETE FROM intervu.${table} WHERE ${column} = $1 RETURNING 1`, [uid]);
+        counts[table] = rows.length;
+    }
+    return counts;
 }

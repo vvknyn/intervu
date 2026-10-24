@@ -4,8 +4,18 @@ import { after } from "next/server";
 import type { User } from "@workos-inc/node";
 import { getServerUser } from "@/lib/auth/server-user";
 import { deleteLegacyFirebaseUser, getAdminDb } from "@/lib/firebase/admin";
-import { deletePosthogPerson, eraseAccount, storeEraseDeps } from "@/lib/account/erase-account";
-import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
+import {
+    deletePosthogPerson,
+    deleteStripeCustomer,
+    eraseAccount,
+    eraseIdentityStore,
+    findStripeCustomerByUid,
+    erasePgRows,
+    eraseMirrorStore,
+    eraseTelemetry,
+    isSkipped,
+    storeEraseDeps,
+} from "@/lib/account/erase-account";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
@@ -16,7 +26,7 @@ import {
     allowAuthResetRequest,
 } from "@/lib/shield/rate-limit";
 import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
-import { forgetIdentity } from "@/lib/identity/forget";
+import { SETTINGS_MESSAGES } from "@/lib/copy";
 import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 import { friendlyWorkosAuthMessage, verifyStepFor, workosErrorCodes, type VerifyStep } from "@/lib/auth/workos-errors";
 import { newPasswordProblem } from "@/lib/auth/password-rules";
@@ -423,12 +433,9 @@ export async function confirmPasswordResetAction(
  * means any later failure strands the remaining documents for good: the
  * account is gone, so nobody can sign in to retry the sweep.
  *
- * Also sweeps the PG identity store (verified-email-follow's `forgetIdentity`,
- * see `docs/specs/2026-08-19-verified-email-follow-design.md` item 7) when
- * the account's email is a real address rather than the synthetic
- * `<username>@intervu.cc` a password signup mints — a minted address was
- * never entered into the email-follow flow, so there is nothing there to
- * find, and running the lookup anyway would just be wasted PG round trips.
+ * Also sweeps the PG identity store (`eraseIdentityStore`): by the real address
+ * when there is one (suppression included), and always by uid, which is the
+ * only handle a username account has.
  *
  * The WorkOS session cookie itself is cleared client-side, not here: the
  * caller (`SettingsContainer`) hits `/auth/signout` right after this
@@ -436,7 +443,7 @@ export async function confirmPasswordResetAction(
  * action reaching for `redirect()`, which would abort a server action's
  * return value instead of handing the caller a `{}`/`{error}` result.
  */
-export async function deleteAccount(): Promise<{ error?: string }> {
+export async function deleteAccount(): Promise<{ error?: string; incomplete?: string[] }> {
     const user = await getServerUser();
 
     if (!user) {
@@ -446,11 +453,15 @@ export async function deleteAccount(): Promise<{ error?: string }> {
     try {
         const db = getAdminDb();
         const telemetryPg = getTelemetryForgetPg();
-        await eraseAccount(
+        const results = await eraseAccount(
             { uid: user.uid, email: user.email && !isMintedLoginEmail(user.email) ? user.email : null },
             {
                 ...storeEraseDeps(db),
-                deleteTelemetry: async (uid) => (telemetryPg ? deleteTelemetryByUserId(telemetryPg, uid) : 0),
+                eraseMirrorStore,
+                findStripeCustomerByUid: (uid) => findStripeCustomerByUid(uid),
+                deleteStripeCustomer: (customerId) => deleteStripeCustomer(customerId),
+                deletePgRows: (uid) => erasePgRows(getIntervuPg(), uid),
+                deleteTelemetry: (uid) => eraseTelemetry(telemetryPg, uid),
                 deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
                 deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
                 async deleteSignIn(uid) {
@@ -463,13 +474,15 @@ export async function deleteAccount(): Promise<{ error?: string }> {
                 },
                 // The ledger rows went by uid above; WorkOS no longer knows the
                 // address by now, so forgetIdentity's own lookup would find nobody.
-                forgetEmail: (email) => forgetIdentity(getIntervuPg(), null, email),
-                logError: (message, error) => console.error(message, error),
+                eraseIdentityStore: (uid, email) => eraseIdentityStore(getIntervuPg(), uid, email),
+                logError: (message) => console.error(message),
             },
         );
-        return {};
+        // A processor we could not reach still holds the person's data: say so.
+        const incomplete = results.filter((r) => isSkipped(r.status)).map((r) => r.processor);
+        return incomplete.length ? { incomplete } : {};
     } catch (error) {
         console.error("[Auth] Delete account error:", error);
-        return { error: error instanceof Error ? error.message : "Failed to delete account" };
+        return { error: SETTINGS_MESSAGES.accountDeleteFailed };
     }
 }

@@ -1,4 +1,4 @@
-import type { CaptureResult, CapturedNetworkRequest, PostHogConfig } from "posthog-js";
+import type { CaptureResult, PostHogConfig } from "posthog-js";
 
 /**
  * What intervu tells PostHog at init.
@@ -79,92 +79,59 @@ export function posthogApiHost(
 }
 
 /**
- * Attributes whose value is words a person can read (a tooltip, a label, a
- * field's value), so they can hold résumé or account text. Analytics drop them
- * from clicks and replays star them out; `class`, `id`, `style` and `src`
- * stay, so a replay still draws the page.
+ * A page or link address with no query string and no hash. A query can carry
+ * the words searched (`?q=`), the résumé's role titles (`sort=fit`), a nested
+ * copy of either (`/login?next=%2Fjobs%3Fq%3D...`) or a bearer token
+ * (`?token=`), and a hash can carry the same. None of it is needed for
+ * analytics, so every address loses both, whatever the key. Absolute and
+ * site-relative addresses are handled; anything else comes back unchanged.
  */
-export const TEXT_ATTRIBUTES: readonly string[] = [
-  "title",
-  "alt",
-  "placeholder",
-  "value",
-  "label",
-  "content",
-  "aria-label",
-  "aria-description",
-  "aria-valuetext",
-  "aria-placeholder",
-];
-
-/** Replay attribute masking: words in text attributes become stars of the same length, and a link loses its query string (a search link carries what was searched). */
-export function maskReplayAttribute(name: string, value: string, element?: Element): string {
-  if (TEXT_ATTRIBUTES.includes(name)) return value.replace(/\S/g, "*");
-  if (name === "href" && element?.tagName === "A") return value.split(/[?#]/)[0] ?? "";
-  return value;
-}
-
-/**
- * A page or link address without the words searched. Velai keeps a search's
- * text only in its anonymous search log (lib/jobs/search-log.ts); analytics
- * are tied to a signed-in account, so every address they carry loses `q`:
- * what was typed, or the résumé's own role titles under Rank by fit
- * (`sort=fit`). Absolute and site-relative addresses are handled; anything
- * else comes back unchanged.
- */
-export function withoutSearchTerms(value: string): string {
-  if (!value.includes("q=")) return value;
-  const absolute = /^https?:\/\//.test(value);
-  if (!absolute && !value.startsWith("/")) return value;
+export function withoutQueryAndHash(value: string): string {
+  if (!/[?#]/.test(value)) return value;
+  const absolute = /^https?:\/\//i.test(value);
+  if (!absolute && !(value.startsWith("/") && !value.startsWith("//"))) return value;
   try {
     const url = new URL(value, "https://velai.app");
-    if (!url.searchParams.has("q")) return value;
-    url.searchParams.delete("q");
-    return absolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
+    url.search = "";
+    url.hash = "";
+    return absolute ? url.toString() : url.pathname;
   } catch {
     return value;
   }
 }
 
-/** A click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) with each link's address searched-word free. */
-function elementsChainWithoutSearchTerms(chain: string): string {
-  return chain.replace(/(href|attr__href)="([^"]*)"/g, (_match, attr: string, href: string) => `${attr}="${withoutSearchTerms(href)}"`);
+/** A string property: each link inside a click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) cleaned, then the whole value if it is itself an address. */
+function scrubString(value: string): string {
+  const chain = value.includes('href="')
+    ? value.replace(/(href|attr__href)="([^"]*)"/g, (_match, attr: string, href: string) => `${attr}="${withoutQueryAndHash(href)}"`)
+    : value;
+  return withoutQueryAndHash(chain);
 }
 
-/** `before_send`: every address an event carries, person `$set`s and clicked links included, without the words searched. */
-export function stripSearchTerms(event: CaptureResult | null): CaptureResult | null {
+/** Strings anywhere in a property value, arrays (`$elements`) and nested objects included. */
+function scrubValue(value: unknown): unknown {
+  if (typeof value === "string") return scrubString(value);
+  if (Array.isArray(value)) return value.map(scrubValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, scrubValue(inner)]));
+  }
+  return value;
+}
+
+/** `before_send`: every address an event carries, person `$set`s and clicked links included, without query string or hash. */
+export function stripUrlQueries(event: CaptureResult | null): CaptureResult | null {
   if (!event) return event;
   for (const bag of [event.properties, event.$set, event.$set_once]) {
     if (!bag) continue;
-    for (const [key, value] of Object.entries(bag)) {
-      if (key === "$elements_chain" && typeof value === "string") bag[key] = elementsChainWithoutSearchTerms(value);
-      else if (typeof value === "string") bag[key] = withoutSearchTerms(value);
-      else if (key === "$elements" && Array.isArray(value)) {
-        for (const element of value as Record<string, unknown>[]) {
-          for (const attr of ["attr__href", "href"]) {
-            if (typeof element?.[attr] === "string") element[attr] = withoutSearchTerms(element[attr] as string);
-          }
-        }
-      }
-    }
+    for (const [key, value] of Object.entries(bag)) bag[key] = scrubValue(value);
   }
   return event;
 }
 
-/**
- * Replay page addresses and network entries pass through here
- * (posthog-js `_maskUrl`): the address loses the words searched, and a
- * request's or response's body is never kept (a search request's body is its
- * query).
- */
-export function maskReplayNetworkRequest(request: CapturedNetworkRequest): CapturedNetworkRequest {
-  return { ...request, name: withoutSearchTerms(request.name), requestBody: null, responseBody: null };
-}
-
 export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
-  // Guests stay unprofiled; a person profile is created only once
-  // PostHogProvider calls identify() on sign-in.
-  person_profiles: "identified_only",
+  // Analytics are anonymous: no person profile is ever created, and nothing
+  // calls identify().
+  person_profiles: "never",
 
   // MUST be the string "history_change", never `true`.
   //
@@ -181,21 +148,50 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
 
   capture_pageleave: true,
 
-  // On, but blind to words: a click records which element it was, never the
-  // text in it (`mask_all_text`, below) or the attributes that carry text
-  // (this list). A click on a résumé line, a fit-reason skill or a tailored
-  // change used to send that text as `$el_text`; /privacy now promises
-  // analytics never hold the words on your screen.
-  autocapture: { element_attribute_ignorelist: [...TEXT_ATTRIBUTES] },
-  mask_all_text: true,
+  // No autocapture: a click would record which element it was, and the
+  // anonymous promise on /privacy is that only named events are sent.
+  autocapture: false,
 
-  // Uncaught errors and unhandled rejections in the browser -> `$exception`
-  // events (PostHog Error Tracking). The project had none, so client crashes
-  // such as React #418/#419 on /jobs were invisible. `true` captures
-  // unhandled errors and unhandled rejections; console.error capture stays off
-  // (noisy, and console text is where PII leaks). Set locally, so it does not
-  // depend on the project-level Error Tracking toggle (currently unset).
-  capture_exceptions: true,
+  // Every other capture lane posthog-js 1.414 can start, pinned off here
+  // because the PostHog project is SHARED with Subspace and its remote config
+  // can switch lanes on for every Velai browser. Where the remote value
+  // ignores a client `false` (console logs, web vitals, conversations), the
+  // lazy-loaded bundle is blocked outright by disable_external_dependency_loading
+  // below. tests/unit/posthog-options.test.ts pins each key.
+  //
+  // Heatmaps record click positions; rage clicks and dead clicks record the
+  // clicked element's text.
+  enable_heatmaps: false,
+  capture_heatmaps: false,
+  rageclick: false,
+  capture_dead_clicks: false,
+  // Web vitals and network timing; the remote `capturePerformance` can opt in.
+  capture_performance: false,
+  // Console lines can embed anything the page printed.
+  logs: { captureConsoleLogs: false },
+  enable_recording_console_log: false,
+  // Support-chat widget, product tours, web experiments and site apps all
+  // run remotely configured code in the page.
+  disable_conversations: true,
+  disable_product_tours: true,
+  disable_web_experiments: true,
+  opt_in_site_apps: false,
+  // Blocks the lazy bundles (replay recorder, surveys, logs, dead clicks, web
+  // vitals, exceptions, tours, conversations) from loading at all, so no
+  // remote setting can start them. Velai needs none of them: it only calls
+  // capture() and the pageview/pageleave hooks, which live in the main bundle.
+  disable_external_dependency_loading: true,
+
+  // No session replay, whatever the PostHog project setting says.
+  disable_session_recording: true,
+
+  // No exception capture: an error message can embed text the user typed, and
+  // before_send only rewrites addresses.
+  capture_exceptions: false,
+
+  // No surveys on any viewport: a survey response is free text and may be an
+  // email address.
+  disable_surveys: true,
 
   // Needed *because* api_host is now our own origin.
   //
@@ -206,30 +202,8 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // URL pointing back at us. Naming the real UI host keeps those working.
   ui_host: "https://us.posthog.com",
 
-  // Session replay is enabled at the PostHog project level, so it is already
-  // recording — which means /privacy has to disclose it. The masking that
-  // disclosure promises must be OURS, not posthog-js's default:
-  // @posthog/types documents no `@default` for maskAllInputs (compare
-  // maskAttributeFn right below it, which does), so leaving it unset would
-  // rest a published privacy claim on a third-party value we neither control
-  // nor can test. Setting it here makes "what you type isn't captured" a
-  // decision in this repo.
-  //
-  // Text on the page is masked too (`maskTextSelector: "*"`, PostHog's
-  // documented "mask all text"), with the attributes that carry words: a
-  // replay of the résumé page, the Customize dialog or a fit card used to
-  // show the résumé itself. A replay keeps layout, clicks and scrolling; every
-  // word in it is starred out. The client value wins over the project setting
-  // (posthog-js lazy-loaded-session-recorder, `masking_client_side ?? …`).
-  session_recording: {
-    maskAllInputs: true,
-    maskTextSelector: "*",
-    maskAttributeFn: maskReplayAttribute,
-    maskCapturedNetworkRequestFn: maskReplayNetworkRequest,
-  },
-
-  // The last stop before an event leaves the browser: no résumé role titles in any address.
-  before_send: stripSearchTerms,
+  // The last stop before an event leaves the browser: no query string or hash in any address.
+  before_send: stripUrlQueries,
 
   // Cookieless, per-tab, gone when the tab closes.
   //
@@ -252,38 +226,3 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // unique-visitor counts still read high, and that trade stands.
   persistence: "sessionStorage",
 };
-
-/**
- * Below this width, PostHog surveys are turned off entirely (`disable_surveys`
- * — "disable all surveys functionality", @posthog/types posthog-config.d.ts —
- * not `disable_surveys_automatic_display`, which only skips the automatic
- * popover and still lets the extension load). The mobile layout audit found
- * the survey tab's shadow-DOM host overlapping row content at 390/360 and
- * not at 768; hiding it with CSS was rejected because the shadow host still
- * mounts underneath — this stops it mounting at all.
- */
-export const PHONE_SURVEY_BREAKPOINT = "(max-width: 767px)";
-
-/**
- * Pure decision: the init options for a given phone/non-phone viewport.
- * Takes the already-resolved boolean rather than reading `matchMedia`
- * itself, so it needs no DOM to test.
- */
-export function postHogOptionsForViewport(
-  isPhoneViewport: boolean,
-): Partial<PostHogConfig> {
-  return { ...POSTHOG_OPTIONS, disable_surveys: isPhoneViewport };
-}
-
-/**
- * Thin I/O: resolves whether the current viewport is at/under the phone
- * survey breakpoint. SSR-safe — `window`/`matchMedia` don't exist on the
- * server, and the correct default there is "surveys on" (unchanged
- * behaviour) since a server render can't know the eventual viewport.
- */
-export function isPhoneSurveyViewport(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(PHONE_SURVEY_BREAKPOINT).matches;
-}

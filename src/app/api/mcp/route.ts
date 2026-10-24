@@ -127,7 +127,7 @@ function withDeps<K extends McpToolName, In, Out extends object>(
         const finish = (payload: object): McpToolResult => {
             const result = toolResult(payload);
             captureMcpToolCall({
-                tool: name, uid, durationMs: Date.now() - startedAt,
+                tool: name, durationMs: Date.now() - startedAt,
                 isError: result.isError === true, errorType: mcpErrorType(payload), clientName, sessionId,
             });
             return result;
@@ -161,7 +161,7 @@ function withDeps<K extends McpToolName, In, Out extends object>(
             return finish(await run(deps, input));
         } catch (error) {
             captureMcpToolCall({
-                tool: name, uid, durationMs: Date.now() - startedAt,
+                tool: name, durationMs: Date.now() - startedAt,
                 isError: true, errorType: "exception", clientName, sessionId,
             });
             throw error;
@@ -278,7 +278,7 @@ async function handleMcpRequest(request: Request): Promise<Response> {
         // way to see, per account and per client, how often the hourly cap
         // is what an agent hits, rather than learning it from support mail.
         captureMcpToolCall({
-            tool: mcpToolFromLabel(label), uid: credential.uid, durationMs: 0,
+            tool: mcpToolFromLabel(label), durationMs: 0,
             isError: true, errorType: "rate_limited", clientName, sessionId,
         });
         return rateLimitedResponse(rate.retryAfterSec);

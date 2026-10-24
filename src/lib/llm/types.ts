@@ -2,7 +2,6 @@
 export interface LLMAnalyticsContext {
     feature: string;
     traceId: string;
-    distinctId: string;
     isFallback?: boolean;
 }
 

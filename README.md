@@ -93,7 +93,6 @@ and Intervu generates a full prep package:
 |---|---|---|
 | **Shared (default)** | OpenRouter | App-funded, credit-metered. Small free monthly grant per account. |
 | **BYOK** | OpenRouter or Groq | Add your own key in Settings → never charged, never rate-limited. |
-| **Transcription** | Groq (Whisper) | Used for in-app audio transcription. |
 
 Admins get unlimited use of the shared key. Anonymous (signed-out) users cannot use
 the shared key — sign in, or bring your own key.
@@ -108,7 +107,7 @@ the shared key — sign in, or bring your own key.
 | Auth & Data | [Firebase](https://firebase.google.com/) — Auth (session cookies) + Firestore |
 | Styling | [Tailwind CSS 4](https://tailwindcss.com/) (CSS-variable design tokens, dark mode) + Radix UI primitives |
 | Icons | [Phosphor Icons](https://phosphoricons.com/) + [Lucide](https://lucide.dev/) |
-| AI | OpenRouter (via the OpenAI SDK) + [Groq SDK](https://groq.com/) |
+| AI | OpenRouter (via the OpenAI SDK) |
 | Job search | [Meilisearch](https://www.meilisearch.com/) (self-hosted), Subspace jobs API |
 | Code Editor | [Monaco Editor](https://microsoft.github.io/monaco-editor/) |
 | PDF / DOCX | unpdf, mammoth, jspdf, docx |
@@ -157,7 +156,6 @@ FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account",...}
 
 # --- AI ---
 OPENROUTER_API_KEY=sk-or-...   # shared, app-funded model
-GROQ_API_KEY=gsk_...           # audio transcription (Whisper)
 
 # --- Secrets ---
 # Encrypts users' BYOK provider keys at rest. Generate: openssl rand -hex 32
