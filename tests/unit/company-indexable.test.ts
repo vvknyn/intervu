@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { siteSpelling } from "@/lib/companies/company-name";
 import { describe, it } from "node:test";
 import {
   DIRECTORY_POOL_SIZE,
@@ -240,6 +241,39 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Acme Co", 7, null, "Acme"] })?.siteNames, ["Acme Co", "Acme"]);
     assert.equal(parseCompanyDirectoryHit({ ...hit, site_names: "Acme" })?.siteNames, undefined);
     assert.ok(!("siteNames" in parseCompanyDirectoryHit(hit)!));
+  });
+
+  it("keeps site_names in siteNames and puts wikidata_names then row_names, deduped, in labelSpellings; absent when empty", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    const parsed = parseCompanyDirectoryHit({ ...hit, site_names: ["Acme", "Acme Co"], wikidata_names: ["Acme Corp", "Acme"], row_names: ["Acme Corp", "Acme Corporation", 3] });
+    assert.deepEqual(parsed?.siteNames, ["Acme", "Acme Co"]);
+    assert.deepEqual(parsed?.labelSpellings, ["Acme Corp", "Acme", "Acme Corporation"]);
+    const rowsOnly = parseCompanyDirectoryHit({ ...hit, row_names: ["Acme"] })!;
+    assert.ok(!("siteNames" in rowsOnly));
+    assert.deepEqual(rowsOnly.labelSpellings, ["Acme"]);
+    assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
+  });
+
+  it("siteNames is non-empty site_names only (any source); wikidata_names never become siteNames", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Rocket Lab"], wikidata_names: ["Rocket Lab USA"] })?.siteNames, ["Rocket Lab"]);
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["HPE"], site_names_source: "wikidata" })?.siteNames, ["HPE"]);
+    const igt = parseCompanyDirectoryHit({ domain: "igt.com", open_role_count: 40, site_names: [], wikidata_names: ["International Game Technology"], row_names: ["IGT"] })!;
+    assert.ok(!("siteNames" in igt));
+    assert.deepEqual(igt.labelSpellings, ["International Game Technology", "IGT"]);
+    const pwc = parseCompanyDirectoryHit({ domain: "pwc.com", open_role_count: 40, wikidata_names: ["PricewaterhouseCoopers"] })!;
+    assert.ok(!("siteNames" in pwc));
+    assert.deepEqual(pwc.labelSpellings, ["PricewaterhouseCoopers"]);
+  });
+
+  it("an igt-shape hit lists as its own name, not the Wikidata expansion", () => {
+    const igt = parseCompanyDirectoryHit({ domain: "igt.com", open_role_count: 40, site_names: [], wikidata_names: ["International Game Technology"], row_names: ["IGT"] })!;
+    assert.equal(siteSpelling("IGT", igt.siteNames, igt.domain, undefined, igt.labelSpellings), "IGT");
+  });
+
+  it("a site_names entry still wins over a labelSpelling, through the parsed hit", () => {
+    const parsed = parseCompanyDirectoryHit({ domain: "homedepot.com", open_role_count: 40, site_names: ["Home Depot"], wikidata_names: ["The HomeDepot"], row_names: ["HomeDepot"] })!;
+    assert.equal(siteSpelling("Homedepot", parsed.siteNames, parsed.domain, undefined, parsed.labelSpellings), "Home Depot");
   });
 
   it("reads a missing computed_at as null rather than dropping the hit — computed_at is not a gate field", () => {
