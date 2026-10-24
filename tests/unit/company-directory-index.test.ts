@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
-import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
-import { groupCompaniesByLetter, namedEntries, topHubCompanies } from "@/lib/companies/directory-index";
+import { type DirectoryCompany } from "@/lib/companies/directory-model";
+import { groupCompaniesByLetter, letterOf, topHubCompanies } from "@/lib/companies/directory-index";
 import { CAREER_HUBS, careerHubSearchParams } from "@/lib/seo/career-hubs";
 import { LEGAL_LINKS } from "@/components/layout/Footer";
 import { buildSitemapEntries, resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
@@ -14,31 +14,29 @@ after(() => {
   else process.env.NEXT_PUBLIC_SITE_URL = prevSite;
 });
 
-const co = (domain: string, openRoleCount: number): IndexableCompanyDomain => ({ domain, openRoleCount, computedAt: null });
+/** A listed company; the name defaults to the domain word, the letter is the name's. */
+const co = (domain: string, openRoleCount: number, name: string = domain.split(".")[0]!): DirectoryCompany => ({ domain, openRoleCount, computedAt: null, name, letter: letterOf(name) });
 
 describe("groupCompaniesByLetter", () => {
-  it("groups by first letter of the domain label, A to Z then #", () => {
-    const groups = groupCompaniesByLetter([co("zeta.com", 30), co("acme-corp.com", 40), co("apple.com", 90)]);
+  it("groups by the first letter of the listed name, A to Z then #, each group sorted by name", () => {
+    const groups = groupCompaniesByLetter([co("zeta.com", 30), co("apple.com", 90, "Apple"), co("acme-corp.com", 40, "Acme Corp")]);
     assert.deepEqual(groups.map((g) => g.letter), ["A", "Z"]);
-    assert.deepEqual(groups[0].entries, [{ domain: "acme-corp.com", openRoleCount: 40 }, { domain: "apple.com", openRoleCount: 90 }]);
+    assert.deepEqual(groups[0].entries.map((e) => e.name), ["Acme Corp", "Apple"]);
+  });
+  it("files a company under the letter of the name it shows, not of its domain", () => {
+    const groups = groupCompaniesByLetter([co("ayvens.com", 30, "Ayvens"), co("carcare-aaa.com", 30, "AAA Car Care Centers"), co("meemic.com", 30, "ACS Auto Club Services")]);
+    assert.deepEqual(groups.map((g) => [g.letter, g.entries.length]), [["A", 3]]);
+    assert.ok(groups.every((g) => g.entries.every((e) => letterOf(e.name) === g.letter)));
   });
   it("puts digits and non-Latin starts under #, folds accented Latin letters onto their base letter", () => {
-    const groups = groupCompaniesByLetter([co("1password.com", 30), co("éclair.fr", 26), co("東京.jp", 25), co("beta.io", 50)]);
+    const groups = groupCompaniesByLetter([co("1password.com", 30), co("eclair.fr", 26, "Éclair"), co("tokyo.jp", 25, "東京"), co("beta.io", 50)]);
     assert.deepEqual(groups.map((g) => g.letter), ["B", "E", "#"]);
-    assert.deepEqual(groups[2].entries.map((e) => e.domain), ["1password.com", "東京.jp"]);
+    assert.deepEqual(groups[2].entries.map((e) => e.domain), ["1password.com", "tokyo.jp"]);
   });
   it("loses no company", () => {
-    const input = [co("a.com", 25), co("b.com", 26), co("9.com", 27), co("ü.de", 28)];
+    const input = [co("a.com", 25), co("b.com", 26), co("9.com", 27), co("u.de", 28, "Ünal")];
     const out = groupCompaniesByLetter(input).flatMap((g) => g.entries.map((e) => e.domain));
     assert.deepEqual(out.sort(), input.map((c) => c.domain).sort());
-  });
-});
-
-describe("namedEntries", () => {
-  it("shows the given name, sorted by name, and refuses a company with no name read", () => {
-    const entries = [{ domain: "a.com", openRoleCount: 30 }, { domain: "b.com", openRoleCount: 40 }];
-    assert.deepEqual(namedEntries(entries, { "a.com": "Zed Labs", "b.com": "Alpha" }).map((e) => e.name), ["Alpha", "Zed Labs"]);
-    assert.throws(() => namedEntries(entries, { "a.com": "Zed Labs" }), /b\.com/);
   });
 });
 
@@ -106,10 +104,10 @@ describe("/co pages render", () => {
     const { letterPath } = await import("@/lib/companies/directory-index");
     const names = ["acme", "zenith", "1st", "kappa", "bright-path", "eclipse", "global", "omega"];
     const companies = Array.from({ length: SITEMAP_COMPANY_CAP }, (_, i) =>
-      co(`${names[i % names.length]}-holdings-${i}.com`, 25 + (i % 500)));
-    const { NAME_READER, resolveListedNames } = await import("@/lib/companies/listed-names");
-    const readCached = NAME_READER.read;
-    NAME_READER.read = (domains) => resolveListedNames(domains, async (list) => list.map((d) => [{ company: `Name of ${d}`, title: "Role", location: "Remote" } as never]), new Map());
+      co(`${names[i % names.length]}-holdings-${i}.com`, 25 + (i % 500), `${names[i % names.length]} ${i}`));
+    const { DIRECTORY_READER } = await import("@/lib/companies/directory-model");
+    const readCached = DIRECTORY_READER.read;
+    DIRECTORY_READER.read = async () => ({ companies });
     const prevHost = process.env.MEILISEARCH_HOST;
     delete process.env.MEILISEARCH_HOST;
     LAST_GOOD.current = { companies, at: Date.now() };
@@ -133,7 +131,7 @@ describe("/co pages render", () => {
       await assert.rejects(Letter({ params: Promise.resolve({ letter: "q" }) }), (e: { digest?: string }) => /404/.test(String(e.digest)));
     } finally {
       console.error = origErr;
-      NAME_READER.read = readCached;
+      DIRECTORY_READER.read = readCached;
       LAST_GOOD.current = null;
       if (prevHost !== undefined) process.env.MEILISEARCH_HOST = prevHost;
     }

@@ -40,7 +40,7 @@
  * tokens, which is the shape "one brand, many qualified entities" makes in
  * any corpus. See that function for the safety argument.
  */
-import { cleanCompany, isCompanyPlaceholder } from "@/lib/jobs/presentation";
+import { cleanCompany, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** Provenance of a resolved name — never "we made this up". */
@@ -57,6 +57,12 @@ export type CompanyNameSource =
 export type CompanyDisplayName = {
   value: string;
   source: CompanyNameSource;
+  /** Did the shown name come from a candidate that names the domain's employer? `false` only for the bare
+   *  domain label: a name the domain does not carry is never shown. */
+  agrees: boolean;
+  /** The share of the rows that carry a name at all whose name agrees with the domain: how corroborated
+   *  the domain's identity is (0 when the label is shown). */
+  share: number;
 };
 
 /**
@@ -163,7 +169,26 @@ const LEADING_IDENTIFIER_RE = /^([A-Za-z]*\d[A-Za-z0-9]*(?:-\d[A-Za-z0-9]*)*)[-_
 /** A TLD this long is a brand ("home.sandvik"), not a registry code (.com, .org, .ca). */
 const BRAND_TLD_MIN_LENGTH = 4;
 
-const alnum = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+/** Diacritics folded away ("Société" -> "Societe"): agreement compares letters, not accents. */
+const fold = (value: string): string => value.normalize("NFD").replace(/\p{M}/gu, "");
+
+const alnum = (value: string): string => fold(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/** The legal forms a label may end in ("nrssinc" -> "nrss"): the lexicon `brandTokens` drops, at three
+ *  letters or more so a label's own tail ("co", "sa") is never read as one. */
+const LABEL_LEGAL_SUFFIXES = [...LEGAL_FORM_TOKENS].filter((token) => token.length >= 3);
+
+/** A label and the forms it also answers to: without trailing digits ("cea3" -> "cea"), without a
+ *  trailing legal form ("nrssinc" -> "nrss"), or both. */
+function labelVariants(label: string): string[] {
+  const undigited = label.replace(/\d+$/, "");
+  const forms = [label, undigited.length >= 2 ? undigited : label];
+  for (const base of [label, undigited]) {
+    const suffix = LABEL_LEGAL_SUFFIXES.find((token) => base.endsWith(token) && base.length - token.length >= 3);
+    if (suffix) forms.push(base.slice(0, -suffix.length));
+  }
+  return [...new Set(forms)];
+}
 
 /**
  * The comparison labels of a host, squashed to alphanumerics ("aerospace.circor.com" ->
@@ -172,11 +197,21 @@ const alnum = (value: string): string => value.toLowerCase().replace(/[^a-z0-9]/
  * names the employer only as the candidate's whole first word ("Sandvik" on home.sandvik), never as
  * a substring ("Careerplug" on avanta.care).
  */
-function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
+function hostParts(domain: string): { parts: string[]; tld: string } {
   const parts = domain.toLowerCase().split(".");
   const tld = parts.pop() ?? "";
   if (parts.length >= 2 && tld.length === 2 && (parts[parts.length - 1] ?? "").length <= 3) parts.pop();
-  return { labels: parts.map(alnum).filter(Boolean), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
+  return { parts, tld };
+}
+
+function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
+  const { parts, tld } = hostParts(domain);
+  return { labels: parts.map(alnum).filter(Boolean).flatMap(labelVariants), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
+}
+
+/** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */
+export function hostLabelIsName(domain: string, name: string): boolean {
+  return alnum(hostParts(domain).parts.at(-1) ?? "") === alnum(name);
 }
 
 type Word = { text: string; optional: boolean };
@@ -212,20 +247,42 @@ const containsLabel = (squashed: string, label: string): boolean =>
   label.length >= 3 ? squashed.includes(label) : squashed === label;
 
 /** Does `segment` name the employer behind `labels`? Contains a label, starts with a word the label
- *  contains, has initials equal to a label, or composes a label from word prefixes. */
-function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<typeof domainLabels>): boolean {
-  const squashed = alnum(segment);
-  const words = brandTokens(segment);
+ *  contains, has initials equal to a label, or composes a label from word prefixes. `leadOnly` keeps
+ *  only the readings that begin at the segment's first word (no "contains a label somewhere inside"). */
+function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<typeof domainLabels>, leadOnly = false): boolean {
+  const text = fold(segment);
+  const squashes = [alnum(text), ...(text.includes("&") ? [alnum(text.replace(/&/g, " and "))] : [])];
+  const words = brandTokens(text);
   const first = words[0] ?? "";
   const initials = words.map((w) => w[0]).join("");
   const significantInitials = words.filter((w) => !SMALL_WORDS.has(w)).map((w) => w[0]).join("");
-  const composable = wordsOf(segment);
+  const composable = wordsOf(text);
+  const named = (squashed: string, label: string) =>
+    leadOnly ? (label.length >= 3 ? squashed.startsWith(label) : squashed === label) : containsLabel(squashed, label);
   return first === brandTld || labels.some(
     (label) =>
-      containsLabel(squashed, label) ||
+      squashes.some((squashed) => named(squashed, label)) ||
       (first.length >= 3 && label.includes(first)) ||
       (label.length >= 2 && (label === initials || label === significantInitials || composedFromPrefixes(label, composable))),
   );
+}
+
+/** Segments of a compound name: a spaced dash, "dba", "d/b/a" or "at" ("Acme dba Acme Foods"). */
+const SEGMENT_SEPARATOR_RE = /\s+(?:[–—-]|dba|d\/b\/a|at)\s+/i;
+
+/** A word that reads as a code or a franchise prefix rather than a name: all capitals, or carrying a digit. */
+const isCodeWord = (word: string): boolean => /\d/.test(word) || (word === word.toUpperCase() && word !== word.toLowerCase());
+
+/** Leading code words dropped when the name's first word does not itself name the employer but a
+ *  later word does ("LPSC Ayvens" -> "Ayvens", "CANADA AIR LIQUIDE" -> "AIR LIQUIDE"). */
+function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): string {
+  if (agreesWithLabels(name, host, true)) return name;
+  const words = name.split(/\s+/);
+  for (let i = 1; i < words.length && isCodeWord(words[i - 1]!); i++) {
+    const tail = words.slice(i).join(" ");
+    if (agreesWithLabels(tail, host, true)) return tail;
+  }
+  return name;
 }
 
 /**
@@ -235,8 +292,12 @@ function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<type
  * known for certain, so a candidate is shown only if it names the employer the domain belongs to.
  *   1. a leading identifier token goes ("94-1687665 Bank of America" -> "Bank of America") unless the
  *      domain label starts with it ("84 Lumber" on 84lumber.com, "3M" on 3m.com keep theirs);
- *   2. "_" reads as a space; the whole string must agree, and a " - " shortest segment that itself
- *      contains a label then replaces it ("Mohegan Sun Mohegan Tribal Gaming Authority - Mohegan Sun").
+ *      (and is kept whole when stripping it would cost the agreement: "L3Harris Technologies");
+ *   2. "_" reads as a space; the whole string must agree, and the shortest segment (split on " - ",
+ *      " dba ", " d/b/a ", " at ") that itself contains a label then replaces it ("Mohegan Sun Mohegan
+ *      Tribal Gaming Authority - Mohegan Sun");
+ *   3. leading all-capital or digit-bearing words go when a later word starts the agreement
+ *      ("LPSC Ayvens" on ayvens.com).
  */
 export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
   const host = domainLabels(domain);
@@ -244,24 +305,38 @@ export function nameAgreeingWithDomain(candidate: string, domain: string): strin
   const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
   const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
   const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
-  const body = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
-  if (!body || !agreesWithLabels(body, host)) return null;
+  const stripped = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
+  // The unstripped string stands when stripping the identifier would cost the agreement ("L3Harris Technologies").
+  const body = [stripped, spaced].find((text) => text && agreesWithLabels(text, host));
+  if (!body) return null;
   const [shortest] = body
-    .split(/\s+[–—-]\s+/)
+    .split(SEGMENT_SEPARATOR_RE)
     .map((part) => part.trim())
     .filter((part) => labels.some((label) => containsLabel(alnum(part), label)))
     .sort((a, b) => a.length - b.length);
-  return shortest ?? body;
+  return dropLeadingCodes(shortest ?? body, host);
 }
 
 type NameGroup = {
   count: number;
-  cased: string | null;
-  verbatim: string;
+  /** The spelling shown for the group (see {@link shownSpelling}). */
+  display: string;
   tokens: string[];
   /** How many OTHER groups this one is a strict token-prefix of. */
   extends: number;
 };
+
+/** Written in lower case with no space: a feed's flattening ("tdsynnex"), not a spelling anyone chose. */
+const isFlat = (spelling: string): boolean => spelling === spelling.toLowerCase() && !/\s/.test(spelling);
+
+/**
+ * The spelling a group of spellings of one name is shown as: the most common that is not flat
+ * ("TD SYNNEX" over "tdsynnex"), the most common overall when all are; a tie goes to the one carrying case.
+ */
+function shownSpelling(spellings: ReadonlyMap<string, number>): string {
+  const ranked = [...spellings].sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
+  return (ranked.find(([spelling]) => !isFlat(spelling)) ?? ranked[0]!)[0];
+}
 
 /**
  * The brand among several legal entities, or `null` when the corpus doesn't
@@ -301,9 +376,9 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * Pure: pick the best-supported display name for a company from its own job
  * rows. Candidates are cleaned through `cleanCompany` first (it already
  * strips ATS tenant codes, duplicate parentheticals and domain-shaped
- * placeholders, and decodes URL-escaped text), then tallied under a
- * case-insensitive key — mirroring `dominantCompanyDomain`
- * (company-stats.ts).
+ * placeholders, and decodes URL-escaped text), then only those that agree with the domain
+ * count (see `nameAgreeingWithDomain`). Spellings of one name (case, spacing, punctuation) vote
+ * together, and the group is shown as its commonest spelling that is not flat lower-case.
  *
  * The brand root wins where one exists, because a row-count vote answers the
  * wrong question when a domain holds several legitimate legal entities: it
@@ -311,12 +386,16 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * vote still decides, so the name most rows agree on wins and one odd row (an
  * agency, an acquired brand) cannot rename the page. Ties resolve to
  * whichever group was encountered first: deterministic, not meaningful.
+ *
+ * Among agreeing candidates, one whose agreement begins at its first word beats one that only
+ * contains the label further in ("Mohegan Sun" over "Wolf Mohegan Sun"); the vote decides within.
+ * With no agreeing candidate the answer is the bare domain label: a name the domain does not carry is
+ * not evidence about who the domain is, however many rows state it.
  */
-export function resolveCompanyName(
-  jobs: readonly Pick<PublicJob, "company">[],
-  domain: string,
-): CompanyDisplayName {
-  const groups = new Map<string, NameGroup>();
+export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], domain: string): CompanyDisplayName {
+  const host = domainLabels(domain);
+  const spellings = new Map<string, { count: number; spellings: Map<string, number> }>();
+  let named = 0;
 
   for (const job of jobs) {
     // A row whose raw `company` is an ATS portal hostname or bare domain
@@ -328,27 +407,24 @@ export function resolveCompanyName(
     // here so such rows count for nothing, same as an empty name.
     if (isCompanyPlaceholder(job.company)) continue;
     const cleaned = cleanCompany(job.company);
+    if (!cleaned) continue;
+    named += 1;
     // Only a string that agrees with the domain is evidence about this domain's employer.
-    const name = cleaned && nameAgreeingWithDomain(cleaned, domain);
+    const name = nameAgreeingWithDomain(cleaned, domain);
     if (!name) continue;
-    const key = name.toLowerCase();
-    const group = groups.get(key) ?? {
-      count: 0,
-      cased: null,
-      verbatim: name,
-      tokens: brandTokens(name),
-      extends: 0,
-    };
+    const group = spellings.get(alnum(name)) ?? { count: 0, spellings: new Map<string, number>() };
     group.count += 1;
-    if (!group.cased && carriesCase(name)) group.cased = name;
-    groups.set(key, group);
+    group.spellings.set(name, (group.spellings.get(name) ?? 0) + 1);
+    spellings.set(alnum(name), group);
   }
 
-  const candidates = [...groups.values()];
+  const all = [...spellings.values()].map(({ count, spellings: forms }) => {
+    const display = shownSpelling(forms);
+    return { count, display, tokens: brandTokens(display), extends: 0, lead: agreesWithLabels(display, host, true) };
+  });
+  const candidates = all.some((g) => g.lead) ? all.filter((g) => g.lead) : all;
   for (const candidate of candidates) {
-    candidate.extends = candidates.filter((other) =>
-      isStrictTokenPrefix(candidate.tokens, other.tokens),
-    ).length;
+    candidate.extends = candidates.filter((other) => isStrictTokenPrefix(candidate.tokens, other.tokens)).length;
   }
 
   let best: NameGroup | null = pickBrandRoot(candidates);
@@ -358,11 +434,16 @@ export function resolveCompanyName(
     }
   }
 
-  if (!best) return { value: displayNameFromDomain(domain), source: "domain" };
-  if (best.cased) return { value: best.cased, source: "corpus-cased" };
-  // No row among the winning group carried case (`best.cased` is null): the
-  // group is exactly as casing-free as a bare domain label, so it gets the
-  // same recovery — see `capitalizeAfterNonLetter`. `source` stays
-  // "corpus-flat": this is still the corpus's own string, not a guess.
-  return { value: capitalizeAfterNonLetter(best.verbatim), source: "corpus-flat" };
+  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named };
+  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0 };
+}
+
+function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"> {
+  if (carriesCase(display)) return { value: display, source: "corpus-cased" };
+  // No spelling carried case: the name is exactly as casing-free as a bare domain label, so it gets
+  // the same recovery — see `capitalizeAfterNonLetter`. `source` stays "corpus-flat": this is still
+  // the corpus's own string, not a guess.
+  // A 2-3 letter single token is read as an acronym by `titleCaseDisplay`'s own rule ("dhl" -> "DHL"; ordinary words stay words).
+  const value = /^\p{L}{2,3}$/u.test(display) ? titleCaseDisplay(display.toUpperCase()) : capitalizeAfterNonLetter(display);
+  return { value, source: "corpus-flat" };
 }

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DIRECTORY_POOL_SIZE,
   MIN_SITEMAP_ROLES,
-  SITEMAP_COMPANY_CAP,
-  fetchCompanyInSitemapSet,
   fetchIndexableCompanyDomains,
   parseCompanyDirectoryHit,
   resolveCompanyIndexability,
@@ -109,21 +108,8 @@ describe("resolveCompanyIndexability — one rule: indexable ⇔ in the sitemap 
     assert.equal(meta.robots, undefined);
   });
 
-  it("a company just outside the cap is noindex,follow, with the same canonical", async () => {
-    const hits = Array.from({ length: SITEMAP_COMPANY_CAP + 1 }, (_, i) => ({
-      domain: i === SITEMAP_COMPANY_CAP ? "acme.com" : `c${i}.com`,
-      open_role_count: 1000 - Math.floor(i / 10),
-    }));
-    const pages = [hits.slice(0, 1000), hits.slice(1000, 2000), hits.slice(2000, 3000), hits.slice(3000)];
-    let round = 0;
-    const search = async (req: { sort: string[] }) => {
-      if (req.sort[0] === "open_role_count:desc") throw new Error("sort unavailable");
-      return { hits: pages[round++] ?? [] };
-    };
-    const meta = await buildCompanyPageMetadata(
-      company({ jobs: roles(40), facts: factsFor(40) }),
-      (domain) => fetchCompanyInSitemapSet(domain, search),
-    );
+  it("a company outside the listed set is noindex,follow, with the same canonical", async () => {
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(40), facts: factsFor(40) }), async () => false);
     assert.deepEqual(meta.robots, { index: false, follow: true });
     assert.equal(meta.alternates?.canonical, "/co/acme--com");
   });
@@ -132,74 +118,6 @@ describe("resolveCompanyIndexability — one rule: indexable ⇔ in the sitemap 
     for (const inSitemapSet of [true, false]) {
       const r = resolveCompanyIndexability({ inSitemapSet });
       assert.equal(r.inSitemap, r.pageIndexable);
-    }
-  });
-});
-
-describe("fetchCompanyInSitemapSet — membership in the exact set sitemap.ts submits", () => {
-  const hit = (domain: string, open_role_count: number) => ({ domain, open_role_count });
-
-  it("is true for a domain the directory lists at or above MIN_SITEMAP_ROLES, filtering on that floor", async () => {
-    const { search, calls } = fakeSearch([[hit("acme.com", MIN_SITEMAP_ROLES), hit("other.com", 90)]]);
-    assert.equal(await fetchCompanyInSitemapSet("acme.com", search), true);
-    assert.match(calls[0].filter, new RegExp(`open_role_count >= ${MIN_SITEMAP_ROLES}$`));
-  });
-
-  it("is false for a domain the set does not hold (below the floor is filtered out server-side)", async () => {
-    const { search } = fakeSearch([[hit("other.com", 90)]]);
-    assert.equal(await fetchCompanyInSitemapSet("acme.com", search), false);
-  });
-
-  it("is false for a domain past the cap: the lowest-count company of an over-full directory", async () => {
-    const hits = Array.from({ length: SITEMAP_COMPANY_CAP + 1 }, (_, i) =>
-      hit(i === SITEMAP_COMPANY_CAP ? "last.com" : `c${i}.com`, 1000 - Math.floor(i / 10)),
-    );
-    let sorted = true;
-    const pages = [hits.slice(0, 1000), hits.slice(1000, 2000), hits.slice(2000, 3000), hits.slice(3000)];
-    let round = 0;
-    const search = async (req: { sort: string[] }) => {
-      if (sorted && req.sort[0] === "open_role_count:desc") {
-        sorted = false;
-        throw new Error("sort unavailable");
-      }
-      return { hits: pages[round++] ?? [] };
-    };
-    assert.equal(await fetchCompanyInSitemapSet("last.com", search), false);
-    assert.equal(await fetchCompanyInSitemapSet("c0.com", async () => ({ hits: pages[0] })), true);
-  });
-
-  it("is false and warns exactly once, rather than throwing, when the directory read fails", async () => {
-    const originalWarn = console.warn;
-    const warnings: unknown[][] = [];
-    console.warn = (...args: unknown[]) => {
-      warnings.push(args);
-    };
-    try {
-      assert.equal(
-        await fetchCompanyInSitemapSet("acme.com", async () => {
-          throw new Error("meili down");
-        }),
-        false,
-      );
-      assert.equal(warnings.length, 1);
-    } finally {
-      console.warn = originalWarn;
-    }
-  });
-
-  it("is false without calling search when Meilisearch isn't configured", async () => {
-    const original = process.env.MEILISEARCH_HOST;
-    delete process.env.MEILISEARCH_HOST;
-    try {
-      let called = false;
-      const result = await fetchCompanyInSitemapSet("acme.com", async () => {
-        called = true;
-        return { hits: [] };
-      });
-      assert.equal(result, false);
-      assert.equal(called, false);
-    } finally {
-      process.env.MEILISEARCH_HOST = original;
     }
   });
 });
@@ -360,7 +278,7 @@ describe("fetchIndexableCompanyDomains — the company_directory paging walk", (
     assert.equal(calls[0].filter, `open_role_count >= ${MIN_SITEMAP_ROLES}`);
     assert.equal(calls[0].offset, 0);
     assert.deepEqual(calls[0].sort, ["open_role_count:desc"]);
-    assert.equal(calls[0].limit, SITEMAP_COMPANY_CAP);
+    assert.equal(calls[0].limit, DIRECTORY_POOL_SIZE);
   });
 
   it("walks multiple pages when sort fails, then caps by open role count", async () => {

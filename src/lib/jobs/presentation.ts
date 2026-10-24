@@ -567,7 +567,7 @@ export function humanizeTenantSubdomain(raw: string): string {
     return token.charAt(0).toUpperCase() + token.slice(1);
 }
 
-export const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable)\.(com|io|net|co)\b/i;
+export const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable|oraclecloud)\.(com|io|net|co)\b/i;
 const BARE_DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
 
 /**
@@ -724,13 +724,19 @@ const COMMA_LEGAL_SUFFIXES = [
  *  `GEO_GATED_TAIL_WORDS` below, gated on the independent geography-bracket
  *  signal instead. One known loss from this widening: a single-token brand
  *  that IS its legal designator ("X Corp", the Twitter entity) now renders
- *  as bare "X" — vanishingly rare in a job corpus. */
+ *  as bare "X" — vanishingly rare in a job corpus.
+ *
+ *  Widened 2026-10-23 with the forms that most often ended a name in the
+ *  company-directory evidence (3600 domains) and were still shown: Pte and
+ *  Sdn Bhd (Singapore, Malaysia), Ltda (Brazil), S.R.L. and S.L. (Italy,
+ *  Romania, Spain), C.V. (Netherlands), a trailing-period "LLC.", K.K. and SA. */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
     "Ltd.", "Ltd", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
     "GmbH", "PLC", "S.p.A.", "SpA", "S.A.", "S.A.S.", "SAS", "B.V.", "BV", "N.V.", "NV",
     "AG", "AB", "Oy", "ULC", "Corp.", "Corp", "Corporation", "Co.", "Pty", "A/S", "KK",
-    "s.r.o.", "d.o.o.",
+    "s.r.o.", "d.o.o.", "Pte. Ltd.", "Pte Ltd", "Pte.", "Pte", "Sdn. Bhd.", "Sdn Bhd", "Bhd.", "Bhd",
+    "LLC.", "Ltda.", "Ltda", "S.R.L.", "SRL", "S.L.", "Lda", "C.V.", "CV", "K.K.", "SA",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
@@ -952,10 +958,15 @@ function stripLegalTail(s: string): string {
  * not just how it renders. It composes here instead, where every consumer
  * (this function's own callers, `displayCompanyBrand`) is display-only.
  */
+/** One trailing parenthetical ("(Malaysia)"): chaff once it follows a legal form, which `displayCompanyName` strips. */
+const TRAILING_PAREN_RE = /\s*\([^()]+\)$/;
+
 export function displayCompanyName(s: string | null | undefined): string {
     const cleaned = cleanCompany(s);
     if (!cleaned) return cleaned;
-    const withoutComma = cleaned.replace(COMMA_SUFFIX_RE, "").trim() || cleaned;
+    const beforeParen = cleaned.replace(TRAILING_PAREN_RE, "").trim();
+    const unparenthesized = beforeParen && stripBareLegalForm(beforeParen) !== beforeParen ? beforeParen : cleaned;
+    const withoutComma = unparenthesized.replace(COMMA_SUFFIX_RE, "").trim() || unparenthesized;
     return stripLegalTail(withoutComma);
 }
 

@@ -1,38 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import { displayNameFromDomain } from "@/lib/companies/company-name";
-import { fetchNameEvidence, resolveListedNames, type EvidenceFetcher } from "@/lib/companies/listed-names";
+import { fetchNameEvidence } from "@/lib/companies/listed-names";
 import type { PublicJob } from "@/lib/jobs/types";
 
 const row = (company: string, title = "Engineer", location = "Remote") => ({ company, title, location }) as PublicJob;
-
-describe("resolveListedNames", () => {
-  it("shows the name the company page's rows give, not the domain label", async () => {
-    const fetch: EvidenceFetcher = async () => [
-      [row("Meta Platforms"), row("Meta Platforms", "Designer"), row("Meta Platforms", "Analyst")],
-      [row("PwC", "Auditor", "Leeds"), row("PwC", "Tax", "York")],
-    ];
-    const names = await resolveListedNames(["meta.com", "pwc.com"], fetch, new Map());
-    assert.equal(names["meta.com"], "Meta Platforms");
-    assert.equal(names["pwc.com"], "PwC");
-    assert.notEqual(names["meta.com"], displayNameFromDomain("meta.com"));
-  });
-  it("falls to the domain label only when the rows carry no name", async () => {
-    const names = await resolveListedNames(["zenith.io"], async () => [[]], new Map());
-    assert.equal(names["zenith.io"], "Zenith");
-  });
-  it("does not use internal postings or duplicate postings as evidence", async () => {
-    const dupes = Array.from({ length: 5 }, () => row("Dupe Name", "Same Role", "Paris"));
-    const fetch: EvidenceFetcher = async () => [[...dupes, row("Real Name", "Role A"), row("Real Name", "Role B")]];
-    assert.equal((await resolveListedNames(["realname.com"], fetch, new Map()))["realname.com"], "Real Name");
-  });
-  it("on a failed read serves last-good names only when they cover every domain; never domain labels", async () => {
-    const failing: EvidenceFetcher = async () => { throw new Error("meili down"); };
-    const lastGood = new Map([["a.com", "Alpha Inc"]]);
-    assert.deepEqual(await resolveListedNames(["a.com"], failing, lastGood), { "a.com": "Alpha Inc" });
-    await assert.rejects(resolveListedNames(["a.com", "b.com"], failing, lastGood), /meili down/);
-  });
-});
 
 describe("fetchNameEvidence batch retry", () => {
   const domains = Array.from({ length: 120 }, (_, i) => `d${i}.com`); // 3 batches: 50, 50, 20
@@ -58,6 +30,24 @@ describe("fetchNameEvidence batch retry", () => {
       assert.equal(err.mock.callCount(), 1);
       assert.match(String(err.mock.calls[0].arguments[0]), /batch 2 \(20 domains\).*meili 503/);
     } finally { err.mock.restore(); }
+  });
+});
+
+describe("fetchNameEvidence concurrency", () => {
+  it("reads several chunks at once, never more than 4 at a time, and keeps the order of the domains", async () => {
+    const domains = Array.from({ length: 1500 }, (_, i) => `d${i}.com`); // 10 chunks of 150, 3 batches each
+    let live = 0;
+    let peak = 0;
+    const read = async (queries: { params: { companyDomain?: string } }[]) => {
+      live += 1;
+      peak = Math.max(peak, live);
+      await new Promise((r) => setTimeout(r, 5));
+      live -= 1;
+      return queries.map((q) => [row(q.params.companyDomain!)]);
+    };
+    const rows = await fetchNameEvidence(domains, read as never);
+    assert.deepEqual(rows.map((r) => r[0].company), domains);
+    assert.ok(peak > 3 && peak <= 12, `peak in-flight batches ${peak}`);
   });
 });
 

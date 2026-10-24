@@ -9,7 +9,8 @@
  * helper that lives in the page file is a helper no unit test can reach.
  */
 import type { Metadata } from "next";
-import { fetchCompanyInSitemapSet, resolveCompanyIndexability } from "./indexable";
+import { fetchCompanyInSitemapSet } from "./directory-model";
+import { resolveCompanyIndexability } from "./indexable";
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";

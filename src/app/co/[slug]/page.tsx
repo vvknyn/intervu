@@ -8,7 +8,6 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { loadCompany } from "@/lib/companies/load-company";
 import { buildCompanyFaq } from "@/lib/companies/company-faq";
 import { fetchRelatedCompanies } from "@/lib/companies/related-companies";
-import { getListedNames } from "@/lib/companies/listed-names";
 import { companyExists } from "@/lib/companies/get-company";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
 import { buildCompanyPageMetadata } from "@/lib/companies/presentation";
@@ -59,7 +58,7 @@ async function CompanyPageContent({ slug }: { slug: string }) {
 
   // The visible FAQ (inside CompanyPageBody) and this JSON-LD render the same array.
   const faqJsonLd = buildFaqPageJsonLd(buildCompanyFaq(data.facts));
-  const related = await relatedWithNames(data);
+  const related = await fetchRelatedCompanies(data.facts);
   // Same array-of-graphs convention as the root layout's own JSON-LD
   // (app/layout.tsx) — one script tag, not one per graph. Organization is
   // unconditional (domain, hence a logo URL, always exists here); FAQPage
@@ -102,17 +101,4 @@ async function CompanyPageContent({ slug }: { slug: string }) {
       <CompanyPageBody data={data} signedIn={signedIn} now={now} related={related} />
     </div>
   );
-}
-
-/** Related companies with the names their own headings show; a failed read omits the section. */
-async function relatedWithNames(data: NonNullable<Awaited<ReturnType<typeof loadCompany>>>) {
-  const found = await fetchRelatedCompanies(data.facts);
-  if (found.length === 0) return [];
-  try {
-    const names = await getListedNames(found.map((c) => c.domain));
-    return found.flatMap((c) => (names[c.domain] ? [{ domain: c.domain, name: names[c.domain], openRoleCount: c.openRoleCount }] : []));
-  } catch (error) {
-    console.error(`related companies: names unavailable, section omitted: ${error instanceof Error ? error.message : String(error)}`);
-    return [];
-  }
 }

@@ -95,8 +95,8 @@ describe("derived outputs", () => {
 });
 
 describe("sitemap", () => {
-  const company = { domain: "acme.com", openRoleCount: 40, computedAt: "2026-10-20T00:00:00.000Z" };
-  const undated = { domain: "undated.io", openRoleCount: 30, computedAt: null };
+  const company = { domain: "acme.com", openRoleCount: 40, computedAt: "2026-10-20T00:00:00.000Z", name: "Acme", letter: "A" };
+  const undated = { domain: "undated.io", openRoleCount: 30, computedAt: null, name: "Undated", letter: "U" };
 
   it("every URL is indexable, listed by the policy, self-canonical and dated", async () => {
     const entries = await buildSitemapEntries(async () => [company, undated], { current: null });

@@ -1,6 +1,5 @@
-import { HUB_COMPANY_LIMIT, namedEntries, topHubCompanies, type NamedEntry } from "@/lib/companies/directory-index";
-import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
-import { getListedNames } from "@/lib/companies/listed-names";
+import { HUB_COMPANY_LIMIT, topHubCompanies } from "@/lib/companies/directory-index";
+import type { DirectoryCompany } from "@/lib/companies/directory-model";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
 import { careerHubSearchParams, type CareerHub } from "@/lib/seo/career-hubs";
@@ -17,16 +16,15 @@ const HUB_SEARCH_WINDOW = 200;
 export interface HubFacts {
   total: number | null;
   roles: PublicJob[];
-  companies: NamedEntry[];
+  companies: DirectoryCompany[];
 }
 
 interface HubFactsDeps {
   search: (params: JobSearchParams) => Promise<JobSearchResult>;
-  indexable: () => Promise<IndexableCompanyDomain[]>;
-  names: (domains: readonly string[]) => Promise<Record<string, string>>;
+  indexable: () => Promise<DirectoryCompany[]>;
 }
 
-const REAL_DEPS: HubFactsDeps = { search: searchJobs, indexable: resolveIndexableCompanies, names: getListedNames };
+const REAL_DEPS: HubFactsDeps = { search: searchJobs, indexable: resolveIndexableCompanies };
 
 const logOmitted = (hub: CareerHub, what: string, why: unknown) =>
   console.error(`career hub ${hub.slug}: ${what} omitted: ${why instanceof Error ? why.message : String(why)}`);
@@ -43,8 +41,7 @@ export async function loadHubFacts(hub: CareerHub, deps: HubFactsDeps = REAL_DEP
   }
   const facts: HubFacts = { total: result.total, roles: result.hits.slice(0, HUB_ROLE_LIMIT), companies: [] };
   try {
-    const top = topHubCompanies(result.hits, await deps.indexable(), HUB_COMPANY_LIMIT);
-    facts.companies = namedEntries(top, await deps.names(top.map((c) => c.domain)));
+    facts.companies = topHubCompanies(result.hits, await deps.indexable(), HUB_COMPANY_LIMIT);
   } catch (error) {
     logOmitted(hub, "companies", error);
   }
