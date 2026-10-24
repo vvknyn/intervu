@@ -10,6 +10,7 @@ import { PageTitle, SectionTitle } from "@/components/ui/heading";
 import { Prose } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { FoundingReserveForm } from "./founding-reserve-form";
+import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 import { captureEvent, type UpgradePlan } from "@/lib/analytics/events";
 import {
   FOUNDING_SEAT_COUNT,
@@ -155,6 +156,7 @@ export function PricingClient({ signedIn, email, checkoutUrl, paidSessionId }: P
                 <Link href="/auth/start?mode=signup&next=/jobs">Create free account{/* signup-gate-exempt: the Free plan's own door, not a gate on an action */}</Link>
               </Button>
             )}
+            {!signedIn && <p className="mt-2 text-xs text-muted-foreground">{PERSONAL_EMAIL_HINT}</p>}
           </div>
         </Card>
 

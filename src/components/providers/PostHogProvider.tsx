@@ -6,9 +6,8 @@ import { useEffect, useRef } from "react";
 import { onAuthChange } from "@/lib/firebase/client-auth";
 import {
   POSTHOG_PRODUCT,
-  isPhoneSurveyViewport,
   posthogApiHost,
-  postHogOptionsForViewport,
+  POSTHOG_OPTIONS,
 } from "@/lib/posthog-options";
 import { captureEvent, flushHeldEvents } from "@/lib/analytics/events";
 import { setPostHogClient } from "@/lib/analytics/posthog-client";
@@ -44,7 +43,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     if (!started.current) {
       posthog.init(POSTHOG_KEY, {
         api_host: posthogApiHost(window.location.origin, POSTHOG_HOST_OVERRIDE),
-        ...postHogOptionsForViewport(isPhoneSurveyViewport()),
+        ...POSTHOG_OPTIONS,
       });
       posthog.register({ product: POSTHOG_PRODUCT });
       started.current = true;

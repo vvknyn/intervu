@@ -5,6 +5,8 @@ import {
     deletePosthogPerson,
     deleteStripeCustomer,
     eraseAccount,
+    eraseMirrorStore,
+    erasePgRows,
     type EraseAccountDeps,
 } from "../../src/lib/account/erase-account";
 
@@ -99,7 +101,7 @@ describe("eraseAccount", () => {
 
     it("keeps the sign-in record when a store step fails, so the person can retry", async () => {
         const { calls, deps } = recorder({
-            deleteTelemetry: async () => {
+            deletePaths: async () => {
                 throw new Error("db down");
             },
         });
@@ -162,5 +164,68 @@ describe("deletePosthogPerson", () => {
         ]);
         assert.equal(await deletePosthogPerson("u1", env, impl), "not-found");
         assert.ok(seen.every((s) => s.method === "GET"));
+    });
+});
+
+describe("eraseAccount isolation", () => {
+    it("one processor throwing never skips the rest, whichever it is", async () => {
+        for (const broken of ["deletePgRows", "deleteTelemetry", "eraseMirrorStore", "deleteAnalyticsPerson"] as const) {
+            const { calls, deps } = recorder({ [broken]: async () => { throw new Error("blip"); } });
+            const results = await eraseAccount({ uid: "u1", email: "maya@example.com" }, deps);
+            assert.equal(results.filter((r) => r.status === "failed").length, 1, broken);
+            for (const step of ["stripe:cus_1", "firebase:u1", "workos:u1", "forget:maya@example.com"]) assert.ok(calls.includes(step), `${broken}: ${step}`);
+        }
+    });
+});
+
+describe("eraseMirrorStore", () => {
+    const FIREBASE_ENV = ["DATA_STORE", "DATA_PG_URL", "FIREBASE_SERVICE_ACCOUNT_KEY", "FIREBASE_CLIENT_EMAIL", "FIREBASE_PRIVATE_KEY"] as const;
+    async function withEnv<T>(env: Partial<Record<(typeof FIREBASE_ENV)[number], string>>, fn: () => Promise<T>): Promise<T> {
+        const saved = FIREBASE_ENV.map((k) => [k, process.env[k]] as const);
+        for (const k of FIREBASE_ENV) delete process.env[k];
+        Object.assign(process.env, env);
+        try {
+            return await fn();
+        } finally {
+            for (const [k, v] of saved) v === undefined ? delete process.env[k] : (process.env[k] = v);
+        }
+    }
+    const open = () => ({ firestore: () => ({}) as never, postgres: () => ({}) as never });
+    const store = (owned: string[]) => () => ({ ownedPaths: async () => [...owned], emailPaths: async () => [], deletePaths: async () => {}, stripeCustomerId: async () => null });
+
+    it("is not-configured, not failed, when the postgres primary has no Firebase credentials", async () => {
+        await withEnv({ DATA_STORE: "postgres" }, async () => {
+            assert.equal(await eraseMirrorStore("u1", null, open(), store(["a/1"])), "not-configured");
+        });
+    });
+    it("reports deleted for docs removed and not-found for none", async () => {
+        const env = { DATA_STORE: "postgres", FIREBASE_CLIENT_EMAIL: "x", FIREBASE_PRIVATE_KEY: "y" };
+        await withEnv(env, async () => {
+            assert.equal(await eraseMirrorStore("u1", null, open(), store(["a/1"])), "deleted");
+            assert.equal(await eraseMirrorStore("u1", null, open(), store([])), "not-found");
+        });
+    });
+    it("is not-applicable on a firestore primary with no postgres copy", async () => {
+        await withEnv({}, async () => {
+            assert.equal(await eraseMirrorStore("u1", null, open(), store(["a/1"])), "not-applicable");
+        });
+    });
+});
+
+describe("erasePgRows / deletePgUserRows", () => {
+    const pgWith = (rowsPerTable: number[]) => {
+        const seen: string[] = [];
+        let i = 0;
+        return { seen, q: { query: async (sql: string) => (seen.push(sql), { rows: Array.from({ length: rowsPerTable[i++] ?? 0 }, () => ({ "?column?": 1 })) }) } as never };
+    };
+    it("deletes from every uid-keyed table and reports from the real counts", async () => {
+        const { seen, q } = pgWith([0, 2]);
+        assert.equal(await erasePgRows(q, "u1"), "deleted");
+        assert.equal(seen.length, 2);
+        assert.ok(seen.every((sql) => sql.startsWith("DELETE FROM intervu.")));
+        assert.equal(await erasePgRows(pgWith([0, 0]).q, "u1"), "not-found");
+    });
+    it("is not-configured without a database", async () => {
+        assert.equal(await erasePgRows(null, "u1"), "not-configured");
     });
 });

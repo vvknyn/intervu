@@ -8,12 +8,12 @@ import {
     deletePosthogPerson,
     deleteStripeCustomer,
     eraseAccount,
+    erasePgRows,
     eraseMirrorStore,
+    eraseTelemetry,
     isSkipped,
     storeEraseDeps,
 } from "@/lib/account/erase-account";
-import { deletePgUserRows } from "@/lib/db/user-data";
-import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
@@ -460,17 +460,8 @@ export async function deleteAccount(): Promise<{ error?: string; incomplete?: st
                 ...storeEraseDeps(db),
                 eraseMirrorStore,
                 deleteStripeCustomer: (customerId) => deleteStripeCustomer(customerId),
-                async deletePgRows(uid) {
-                    const pg = getIntervuPg();
-                    if (!pg) return "not-configured";
-                    await deletePgUserRows(pg, uid);
-                    return "deleted";
-                },
-                async deleteTelemetry(uid) {
-                    if (!telemetryPg) return "not-configured";
-                    await deleteTelemetryByUserId(telemetryPg, uid);
-                    return "deleted";
-                },
+                deletePgRows: (uid) => erasePgRows(getIntervuPg(), uid),
+                deleteTelemetry: (uid) => eraseTelemetry(telemetryPg, uid),
                 deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
                 deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
                 async deleteSignIn(uid) {

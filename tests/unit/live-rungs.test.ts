@@ -28,8 +28,8 @@ test("liveRungs: fetch failure keeps the ladder and is retried next call", async
         calls++;
         throw new Error("boom");
     };
-    assert.deepEqual(names(await liveRungs(rungs, load, 0, ALL_ZDR)), names(rungs));
-    await liveRungs(rungs, load, 1, ALL_ZDR);
+    assert.deepEqual(names(await liveRungs(rungs, "openrouter", load, 0, ALL_ZDR)), names(rungs));
+    await liveRungs(rungs, "openrouter", load, 1, ALL_ZDR);
     assert.equal(calls, 2);
 });
 
@@ -39,10 +39,10 @@ test("liveRungs: catalog fetched once within the TTL, again after it", async () 
         calls++;
         return new Set(["a/live:free", PAID]);
     };
-    assert.deepEqual(names(await liveRungs(rungs, load, 0, ALL_ZDR)), ["a/live:free", PAID]);
-    await liveRungs(rungs, load, CATALOG_TTL_MS - 1, ALL_ZDR);
+    assert.deepEqual(names(await liveRungs(rungs, "openrouter", load, 0, ALL_ZDR)), ["a/live:free", PAID]);
+    await liveRungs(rungs, "openrouter", load, CATALOG_TTL_MS - 1, ALL_ZDR);
     assert.equal(calls, 1);
-    await liveRungs(rungs, load, CATALOG_TTL_MS + 1, ALL_ZDR);
+    await liveRungs(rungs, "openrouter", load, CATALOG_TTL_MS + 1, ALL_ZDR);
     assert.equal(calls, 2);
 });
 
@@ -51,18 +51,24 @@ test("keepZdrRungs keeps models with a ZDR endpoint and drops the rest", () => {
     assert.deepEqual(names(keepZdrRungs(r, new Set(["m/zdr-1", "o/zdr-2"]))), ["m/zdr-1", "o/zdr-2"]);
 });
 
-test("liveRungs: ZDR list unavailable yields no rungs; it is retried next call", async () => {
+test("liveRungs: ZDR list unavailable keeps the rungs (fail open); it is retried next call", async () => {
     let calls = 0;
     const bad = async () => {
         calls++;
         throw new Error("zdr down");
     };
-    assert.deepEqual(await liveRungs(rungs, async () => new Set(names(rungs)), 0, bad), []);
-    await liveRungs(rungs, async () => new Set(names(rungs)), 1, bad);
+    const catalog = async () => new Set(names(rungs));
+    assert.deepEqual(names(await liveRungs(rungs, "openrouter", catalog, 0, bad)), names(rungs));
+    await liveRungs(rungs, "openrouter", catalog, 1, bad);
     assert.equal(calls, 2);
 });
 
+test("keepZdrRungs: a Groq ladder is never filtered by the OpenRouter list", () => {
+    const groq = resolveModelLadder({ provider: "groq", model: "gemma2-9b-it" }, ["a/free:free"]);
+    assert.deepEqual(names(keepZdrRungs(groq, new Set(["something/else"]), "groq")), ["gemma2-9b-it"]);
+});
+
 test("liveRungs applies catalog and ZDR filters together", async () => {
-    const out = await liveRungs(rungs, async () => new Set(["a/live:free", "c/live:free", PAID]), 0, async () => new Set(["c/live:free", "b/gone:free"]));
+    const out = await liveRungs(rungs, "openrouter", async () => new Set(["a/live:free", "c/live:free", PAID]), 0, async () => new Set(["c/live:free", "b/gone:free"]));
     assert.deepEqual(names(out), ["c/live:free"]);
 });

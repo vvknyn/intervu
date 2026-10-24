@@ -17,7 +17,8 @@
  * is one place it is configured.
  *
  * Never put PII in `attrs`/`body`: no emails, resume text, tokens, query
- * strings. Free-form error text goes through `scrubMessage`.
+ * strings. Error text is not exported at all (a message can embed anything
+ * the user typed); only bounded identifiers are, see `boundedIdentifier`.
  */
 
 export type LogLevel = "info" | "warn" | "error";
@@ -30,7 +31,6 @@ const SEVERITY: Record<LogLevel, number> = { info: 9, warn: 13, error: 17 };
 
 const MAX_LOGS_PER_WINDOW = 60;
 const WINDOW_MS = 60_000;
-const MAX_MESSAGE_CHARS = 300;
 
 type Env = Readonly<Record<string, string | undefined>>;
 
@@ -74,18 +74,13 @@ export function takeSlot(
   return { state: { ...base, used: base.used + 1 }, allowed: true };
 }
 
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-// JWTs and long opaque secrets (API keys, session tokens, hex ids).
-const JWT = /eyJ[\w-]+\.[\w-]+\.[\w-]+/g;
-const OPAQUE = /\b[A-Za-z0-9_-]{32,}\b/g;
-
-/** Pure: strip the PII-shaped substrings error text tends to carry, then cap. */
-export function scrubMessage(message: string): string {
-  return message
-    .replace(EMAIL, "[email]")
-    .replace(JWT, "[token]")
-    .replace(OPAQUE, "[token]")
-    .slice(0, MAX_MESSAGE_CHARS);
+/**
+ * Pure: `value` if it is a short identifier (class name, hash), else `fallback`.
+ * Error fields come from `throw` sites that can put anything in them, so a
+ * field is only exported when its shape cannot carry free text.
+ */
+export function boundedIdentifier(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^[A-Za-z_$][\w$-]{0,63}$/.test(value) ? value : fallback;
 }
 
 export type LogAttrs = Readonly<Record<string, string | number | boolean | undefined>>;
@@ -207,7 +202,7 @@ export function requestErrorRecord(
   request: Readonly<{ method: string }>,
   context: Readonly<RequestErrorContext>,
 ): { body: string; attrs: LogAttrs } {
-  const err = error instanceof Error ? error : undefined;
+  const errorType = error instanceof Error ? boundedIdentifier(error.name, "Error") : typeof error;
   const digest = (error as { digest?: unknown } | null)?.digest;
   return {
     body: `${context.routeType} error on ${request.method} ${context.routePath}`,
@@ -216,9 +211,8 @@ export function requestErrorRecord(
       "http.route": context.routePath,
       "next.route_type": context.routeType,
       "next.router_kind": context.routerKind,
-      "error.type": err?.name ?? typeof error,
-      "error.message": scrubMessage(err?.message ?? String(error)),
-      "error.digest": typeof digest === "string" ? digest : undefined,
+      "error.type": errorType,
+      "error.digest": typeof digest === "string" ? boundedIdentifier(digest, "invalid") : undefined,
     },
   };
 }

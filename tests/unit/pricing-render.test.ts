@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PricingClient } from "../../src/app/pricing/pricing-client";
+import { SignupGate } from "../../src/components/auth/SignupGate";
+import { PERSONAL_EMAIL_HINT } from "../../src/lib/auth/auth-gate-copy";
 
 /**
  * What this protects: /pricing rendering at all.
@@ -53,6 +55,16 @@ describe("/pricing branches say the right thing", () => {
     const inn = render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: null });
     assert.match(inn, /You are on Free/);
     assert.doesNotMatch(inn, /Create free account/);
+  });
+
+  it("every in-app door to sign-up carries the personal-email hint WorkOS's hosted page cannot show", () => {
+    const out = render({ signedIn: false, email: null, checkoutUrl: null, paidSessionId: null });
+    assert.ok(out.includes(PERSONAL_EMAIL_HINT));
+    const inn = render({ signedIn: true, email: null, checkoutUrl: null, paidSessionId: null });
+    assert.ok(!inn.includes(PERSONAL_EMAIL_HINT));
+    const gate = renderToStaticMarkup(React.createElement(SignupGate, { reason: "save", returnTo: "/jobs", originSurface: "jobs" } as never));
+    assert.match(gate, /signup-gate-create/);
+    assert.ok(gate.includes(PERSONAL_EMAIL_HINT));
   });
 
   it("founding button: a Stripe link when configured, an email reservation when not", () => {

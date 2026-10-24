@@ -7,10 +7,12 @@
  * Catalog is fail-open: if it cannot be read the ladder is kept — a failed
  * catalog call must never make the ladder emptier.
  *
- * Rungs are also restricted to models with at least one zero-data-retention
- * endpoint (OpenRouter's public ZDR list), because requests are sent with
- * provider.zdr=true and a model without one would only error. That list is
- * fail-closed: unreadable => no rungs, and the caller's deterministic parse stands.
+ * OpenRouter rungs are also trimmed to models with at least one
+ * zero-data-retention endpoint (OpenRouter's public ZDR list), because a model
+ * without one would only error. This is an optimisation, not the guarantee:
+ * every OpenRouter request carries provider.zdr=true (providers.ts) and
+ * OpenRouter enforces it. So the list is fail-open like the catalog: unreadable
+ * => rungs kept. Rungs for any other provider (Groq) are never filtered by it.
  */
 import type { LadderRung } from "./model-ladder";
 
@@ -64,18 +66,20 @@ const resetters: (() => void)[] = [];
 const liveCatalog = ttlCached<Set<string>>();
 const liveZdr = ttlCached<Set<string>>();
 
-/** Pure: only models with at least one zero-data-retention endpoint survive. An unknown list keeps nothing (fail closed). */
-export function keepZdrRungs(rungs: readonly LadderRung[], zdr: ReadonlySet<string> | null): LadderRung[] {
-    return zdr ? rungs.filter((r) => zdr.has(r.model)) : [];
+/** Pure: on OpenRouter, models without a zero-data-retention endpoint are dropped (they would only error). Other providers and an unknown list keep every rung. */
+export function keepZdrRungs(rungs: readonly LadderRung[], zdr: ReadonlySet<string> | null, provider = "openrouter"): LadderRung[] {
+    if (!zdr || provider !== "openrouter") return [...rungs];
+    return rungs.filter((r) => zdr.has(r.model));
 }
 
 export async function liveRungs(
     rungs: readonly LadderRung[],
+    provider = "openrouter",
     load: () => Promise<Set<string>> = fetchCatalog,
     now: number = Date.now(),
     loadZdr: () => Promise<Set<string>> = fetchZdrModels,
 ): Promise<LadderRung[]> {
-    return keepZdrRungs(dropDeadRungs(rungs, await liveCatalog(load, now)), await liveZdr(loadZdr, now));
+    return keepZdrRungs(dropDeadRungs(rungs, await liveCatalog(load, now)), await liveZdr(loadZdr, now), provider);
 }
 
 /** Test-only. */

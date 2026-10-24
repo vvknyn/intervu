@@ -375,7 +375,9 @@ export default function PrivacyPage() {
           <code className="text-xs text-foreground">props</code> field holds event-specific metadata (for example query length or
           filter counts — not the full text of what you typed). When you&apos;re signed in, our server stamps your
           user id on each row; guests send only session and visitor ids generated in the browser. We use this
-          ledger to improve search quality and to compute aggregate statistics. Rows are deleted after 90 days.
+          ledger to improve search quality and to compute aggregate statistics. The ledger lives on Velai&apos;s own
+          server, so these events are tied to your account id there. They are never sent to a third party, they
+          are deleted after 90 days, and they are deleted with your account.
         </p>
 
         <SectionTitle id="cookies-analytics">Cookies &amp; analytics</SectionTitle>
@@ -387,8 +389,11 @@ export default function PrivacyPage() {
         </p>
         <p>
           We use PostHog for anonymous product analytics — page views and a short list of named actions, such as
-          opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai has
-          its own PostHog project, shared with no other product. PostHog&apos;s US cloud (
+          opening a job or running a search — so we can see what&apos;s working and fix what isn&apos;t. Velai&apos;s
+          events go to the same PostHog project as Subspace (thesubspace.io), the founder&apos;s other product,
+          and are told apart by a product tag. The settings described on this page (no session replay, no
+          automatic click capture, no surveys, no profiles, no IP address) are enforced by Velai&apos;s own code
+          and our server, not by a PostHog project setting, so they hold whatever that project&apos;s settings say. PostHog&apos;s US cloud (
           <code className="text-xs text-foreground">us.posthog.com</code>, configured as our analytics UI host) processes the data
           as our processor under their own DPA terms. Browser requests are sent through our own{" "}
           <code className="text-xs text-foreground">/ph</code> proxy path rather than directly to third-party analytics domains.
@@ -398,7 +403,7 @@ export default function PrivacyPage() {
           your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your session, nothing is shared
           with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
           to your Velai account, whether or not you&apos;re signed in: we never tell PostHog who you are, and it
-          creates no profile of you. Your IP address is discarded and not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          creates no profile of you. Your IP address is removed by our server before an event is forwarded to PostHog, so it is not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
           the two cookies above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
@@ -413,10 +418,8 @@ export default function PrivacyPage() {
           removed before it leaves your browser.
         </p>
         <p>
-          PostHog also powers in-app feedback surveys and short forms when a search returns no results.
-          Surveys may optionally ask for your email address; we use it only to notify you when matching jobs arrive
-          or to follow up on feedback. The field is optional, and every survey works without it. On phone-sized
-          viewports we disable automatic survey UI so it does not overlap page content.
+          PostHog&apos;s survey feature is turned off on Velai, so no survey ever asks for your email address or
+          any free text through PostHog. PostHog also does not collect browser error reports.
         </p>
 
         <SectionTitle>Where data is processed</SectionTitle>
@@ -457,7 +460,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           PostHog data from visits where you were never signed in carries no account id, so it is not linked to
-          you and is not removed. Analytics collected since October 2026 is not linked to any account at all. If
+          you and is not removed. PostHog analytics collected since October 2026 is not linked to any account at all. If
           PostHog can&apos;t be reached when you delete your account, the rest of the
           deletion still completes, and we do not retry the PostHog request. Any session replay recordings made
           before replay was turned off are kept for 30 days, then expire under PostHog&apos;s rules.

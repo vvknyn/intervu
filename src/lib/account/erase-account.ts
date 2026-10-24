@@ -21,14 +21,31 @@ import type { Firestore } from "firebase-admin/firestore";
 
 import { getStripe } from "@/lib/billing/stripe-client";
 import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
-import { runUserDataPlan } from "@/lib/db/user-data";
+import { deletePgUserRows, runUserDataPlan } from "@/lib/db/user-data";
+import type { Queryable } from "@/lib/pg/pool";
 import { getFirestoreDb, usesPostgresStore } from "@/lib/firebase/admin";
+import { deleteTelemetryByUserId } from "@/lib/telemetry/store";
 
 /** What happened at one place Velai put the person's data. */
 export type ProcessorStatus = "deleted" | "not-found" | "not-configured" | "not-applicable" | "failed";
 export interface ProcessorResult {
     processor: string;
     status: ProcessorStatus;
+}
+
+/** What a delete that reports how many rows/docs it removed means. */
+export const statusFromCount = (count: number): ProcessorStatus => (count > 0 ? "deleted" : "not-found");
+
+/** Every uid-keyed Postgres table; "not-configured" when there is no database to reach. */
+export async function erasePgRows(pg: Queryable | null, uid: string): Promise<ProcessorStatus> {
+    if (!pg) return "not-configured";
+    const counts = await deletePgUserRows(pg, uid);
+    return statusFromCount(Object.values(counts).reduce((a, b) => a + b, 0));
+}
+
+/** The behavioural ledger, through its erase function. */
+export async function eraseTelemetry(pg: Queryable | null, uid: string): Promise<ProcessorStatus> {
+    return pg ? statusFromCount(await deleteTelemetryByUserId(pg, uid)) : "not-configured";
 }
 
 /** A processor in one of these states still holds (or may hold) the data. */
@@ -90,8 +107,8 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
     if (input.email) paths.push(...(await deps.emailPaths(input.email, input.uid)));
     await deps.deletePaths([...new Set(paths)]);
 
-    report("pg-rows", await deps.deletePgRows(input.uid));
-    report("telemetry", await deps.deleteTelemetry(input.uid));
+    await attempt("pg-rows", () => deps.deletePgRows(input.uid));
+    await attempt("telemetry", () => deps.deleteTelemetry(input.uid));
 
     if (customerId) await attempt("stripe", () => deps.deleteStripeCustomer(customerId), `customer=${customerId}`);
     else report("stripe", "not-applicable");
@@ -223,14 +240,26 @@ export async function deletePosthogPerson(
  * full copy of the person. Erases from it with the same manifest sweep.
  * Firestore primary with no DATA_PG_URL means no Postgres copy exists.
  */
-export async function eraseMirrorStore(uid: string, email: string | null): Promise<ProcessorStatus> {
+export async function eraseMirrorStore(
+    uid: string,
+    email: string | null,
+    open: { firestore(): Firestore; postgres(): Firestore } = { firestore: getFirestoreDb, postgres: () => getPgDocDb() as unknown as Firestore },
+    storeDeps: typeof storeEraseDeps = storeEraseDeps,
+): Promise<ProcessorStatus> {
     let mirror: Firestore;
-    if (usesPostgresStore()) mirror = getFirestoreDb();
-    else if (process.env.DATA_PG_URL?.trim()) mirror = getPgDocDb() as unknown as Firestore;
+    if (usesPostgresStore()) {
+        const env = process.env;
+        const hasFirebaseCredentials = Boolean(
+            env.FIREBASE_SERVICE_ACCOUNT_KEY?.trim() || (env.FIREBASE_CLIENT_EMAIL?.trim() && env.FIREBASE_PRIVATE_KEY?.trim()),
+        );
+        if (!hasFirebaseCredentials) return "not-configured";
+        mirror = open.firestore();
+    } else if (process.env.DATA_PG_URL?.trim()) mirror = open.postgres();
     else return "not-applicable";
-    const store = storeEraseDeps(mirror);
+    const store = storeDeps(mirror);
     const paths = await store.ownedPaths(uid);
     if (email) paths.push(...(await store.emailPaths(email, uid)));
-    await store.deletePaths([...new Set(paths)]);
-    return "deleted";
+    const unique = [...new Set(paths)];
+    await store.deletePaths(unique);
+    return statusFromCount(unique.length);
 }

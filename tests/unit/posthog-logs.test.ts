@@ -9,7 +9,6 @@ import {
   requestErrorLevel,
   requestErrorRecord,
   resolveLogsConfig,
-  scrubMessage,
   takeSlot,
 } from "../../src/lib/observability/posthog-logs";
 
@@ -51,15 +50,6 @@ test("budget: allows the window's quota, drops the rest, reopens next window", (
   assert.equal(takeSlot(state, 1_000 + 60_000).allowed, true);
 });
 
-test("scrubMessage strips emails, JWTs and long opaque tokens, and caps length", () => {
-  const out = scrubMessage(
-    "dup key (email)=(jane.doe@example.com) jwt eyJhbGciOi.eyJzdWIi.sig123 key sk_live_abcdefghijklmnopqrstuvwxyz0123456789",
-  );
-  assert.doesNotMatch(out, /jane\.doe|example\.com|eyJ|abcdefghijklmnopqrstuvwxyz/);
-  assert.match(out, /\[email\]/);
-  assert.equal(scrubMessage("ab ".repeat(500)).length, 300);
-});
-
 test("OTLP payload carries service, environment, severity and attributes", () => {
   const p = buildOtlpPayload({ environment: "production" }, "error", "boom", { a: "b", n: 3, u: undefined }, 1_700_000_000_000);
   const rl = p.resourceLogs[0];
@@ -88,6 +78,22 @@ test("request error record uses the route pattern, never the raw path, and no PI
   // A different case: a non-Error throw value is still recorded, not fabricated.
   const other = requestErrorRecord("plain string", { method: "GET" }, { routerKind: "App Router", routePath: "/jobs", routeType: "render" });
   assert.equal(other.attrs["error.type"], "string");
+});
+
+test("request error record exports no error text: not the message, not a name or digest that carries text", () => {
+  const route = { routerKind: "App Router", routePath: "/jobs", routeType: "route" };
+  const req = { method: "POST" };
+  const message = requestErrorRecord(new Error("duplicate key (email)=(jane.doe@example.com)"), req, route);
+  assert.doesNotMatch(JSON.stringify(message), /jane|example\.com|duplicate key/);
+  assert.equal(message.attrs["error.type"], "Error");
+  // Another free-text vector: a custom name and a digest the thrower filled with text.
+  const named = Object.assign(new Error("x"), { name: "failed for bob@example.org", digest: "reset token abc for bob@example.org" });
+  const flat = JSON.stringify(requestErrorRecord(named, req, route));
+  assert.doesNotMatch(flat, /bob|example\.org|reset token/);
+  // A class-name-shaped error type and a hash-shaped digest still come through.
+  const ok = requestErrorRecord(Object.assign(new TypeError("t"), { digest: "d123" }), req, route);
+  assert.equal(ok.attrs["error.type"], "TypeError");
+  assert.equal(ok.attrs["error.digest"], "d123");
 });
 
 test("a render the visitor abandoned mid-stream logs under the warn floor; other request errors stay errors", () => {

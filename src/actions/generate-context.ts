@@ -107,7 +107,7 @@ export const fetchJSON = async (
     // for whichever ones remembered to opt in. Two callers still skip them: one
     // that named its own model (the override picks THE model, not a starting
     // point) and Groq, handled inside resolveModelLadder by provider check.
-    const rungs = await liveRungs(resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model)));
+    const rungs = await liveRungs(resolveModelLadder(baseConfig, FREE_LADDER, Boolean(configOverride?.model)), baseConfig.provider);
     const traceId = crypto.randomUUID();
 
     // Helper for timeout

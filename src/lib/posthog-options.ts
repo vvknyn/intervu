@@ -155,13 +155,13 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // No session replay, whatever the PostHog project setting says.
   disable_session_recording: true,
 
-  // Uncaught errors and unhandled rejections in the browser -> `$exception`
-  // events (PostHog Error Tracking). The project had none, so client crashes
-  // such as React #418/#419 on /jobs were invisible. `true` captures
-  // unhandled errors and unhandled rejections; console.error capture stays off
-  // (noisy, and console text is where PII leaks). Set locally, so it does not
-  // depend on the project-level Error Tracking toggle (currently unset).
-  capture_exceptions: true,
+  // No exception capture: an error message can embed text the user typed, and
+  // before_send only rewrites addresses.
+  capture_exceptions: false,
+
+  // No surveys on any viewport: a survey response is free text and may be an
+  // email address.
+  disable_surveys: true,
 
   // Needed *because* api_host is now our own origin.
   //
@@ -196,38 +196,3 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // unique-visitor counts still read high, and that trade stands.
   persistence: "sessionStorage",
 };
-
-/**
- * Below this width, PostHog surveys are turned off entirely (`disable_surveys`
- * — "disable all surveys functionality", @posthog/types posthog-config.d.ts —
- * not `disable_surveys_automatic_display`, which only skips the automatic
- * popover and still lets the extension load). The mobile layout audit found
- * the survey tab's shadow-DOM host overlapping row content at 390/360 and
- * not at 768; hiding it with CSS was rejected because the shadow host still
- * mounts underneath — this stops it mounting at all.
- */
-export const PHONE_SURVEY_BREAKPOINT = "(max-width: 767px)";
-
-/**
- * Pure decision: the init options for a given phone/non-phone viewport.
- * Takes the already-resolved boolean rather than reading `matchMedia`
- * itself, so it needs no DOM to test.
- */
-export function postHogOptionsForViewport(
-  isPhoneViewport: boolean,
-): Partial<PostHogConfig> {
-  return { ...POSTHOG_OPTIONS, disable_surveys: isPhoneViewport };
-}
-
-/**
- * Thin I/O: resolves whether the current viewport is at/under the phone
- * survey breakpoint. SSR-safe — `window`/`matchMedia` don't exist on the
- * server, and the correct default there is "surveys on" (unchanged
- * behaviour) since a server render can't know the eventual viewport.
- */
-export function isPhoneSurveyViewport(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(PHONE_SURVEY_BREAKPOINT).matches;
-}

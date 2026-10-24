@@ -84,13 +84,13 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
   });
 
-  it("discloses own PostHog project, US cloud, no replay, unlinked events, discarded IP, and no data licensing", () => {
+  it("discloses the PostHog project shared with Subspace, US cloud, no replay, unlinked events, discarded IP, and no data licensing", () => {
     const prose = privacyArticle();
-    assert.match(prose, /its own PostHog project/i);
+    assert.match(prose, /same PostHog project as Subspace/i);
+    assert.match(prose, /IP address is removed by our server before an event is forwarded/i);
     assert.match(prose, /us\.posthog\.com/i);
     assert.match(prose, /There is no session replay/i);
     assert.match(prose, /not linked\s+to your Velai account/i);
-    assert.match(prose, /IP address is discarded/i);
     assert.match(prose, /never sells or licenses your data to anyone, even aggregated/i);
     assert.doesNotMatch(prose, /Data API/);
     assert.doesNotMatch(prose, /IP addresses are stored/i);

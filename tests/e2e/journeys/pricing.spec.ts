@@ -14,7 +14,7 @@ import { expect, test } from "./fixtures";
 const FOUNDING_SEAT_PRICE = "$49";
 const FOUNDING_SEAT_COUNT = "100";
 
-test("the pricing page shows three plans and the founding seat", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
+test("the pricing page shows two plans and the founding seat", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
   // Release 5 shipped the page behind a permanent /pricing → / redirect left in
@@ -25,7 +25,6 @@ test("the pricing page shows three plans and the founding seat", { tag: ["@J-PRI
 
   const free = page.getByTestId("pricing-plan-free");
   const pro = page.getByTestId("pricing-plan-pro");
-  const dataApi = page.getByTestId("pricing-plan-data-api");
   await expect(free).toContainText("$0");
   await expect(free).toContainText("Create free account");
   await expect(pro).toContainText(`${FOUNDING_SEAT_PRICE} once`);
@@ -34,7 +33,6 @@ test("the pricing page shows three plans and the founding seat", { tag: ["@J-PRI
   // on request…" in reservation mode (release 9 failed this on prod over the
   // capital R); the promise is the same sentence either way.
   await expect(pro).toContainText(/refundable on request/i);
-  await expect(dataApi).toContainText("Tell us your use case");
 
   // The promise the whole page rests on, in the FAQ.
   await expect(page.getByText("Will anything I use today start costing money?")).toBeVisible();

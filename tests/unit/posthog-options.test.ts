@@ -2,13 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  isPhoneSurveyViewport,
   stripSearchTerms,
   withoutSearchTerms,
-  PHONE_SURVEY_BREAKPOINT,
   POSTHOG_OPTIONS,
   POSTHOG_PRODUCT,
-  postHogOptionsForViewport,
 } from "../../src/lib/posthog-options";
 
 // The bug this file exists to prevent: a config value that *looks* enabled but
@@ -37,10 +34,6 @@ test("no autocapture, no session replay, no heatmaps; pageleave stays on", () =>
   assert.equal(POSTHOG_OPTIONS.disable_session_recording, true);
   assert.equal(POSTHOG_OPTIONS.enable_heatmaps, false);
   assert.equal(POSTHOG_OPTIONS.session_recording, undefined, "no replay masking config is left behind");
-});
-
-test("exception autocapture stays on so client crashes reach Error Tracking", () => {
-  assert.equal(POSTHOG_OPTIONS.capture_exceptions, true);
 });
 
 test("events carry the product super-property that separates intervu from subspace", () => {
@@ -95,65 +88,9 @@ test("persistence never outlives the tab", () => {
   );
 });
 
-// Phone survey gate (mobile layout audit, 2026-09-18): the survey widget's
-// shadow-DOM host overlapped row content at 390/360, not at 768 — so surveys
-// must turn off strictly below 768px, matching `disable_surveys`, the
-// posthog-js option that stops the extension mounting at all (verified
-// against the installed package's own types, not assumed from the name).
-
-type StubbableGlobal = { window?: { matchMedia: (query: string) => { matches: boolean } } };
-
-function withStubbedMatchMedia<T>(matches: boolean, fn: () => T): T {
-  const g = globalThis as unknown as StubbableGlobal;
-  const original = g.window;
-  g.window = {
-    matchMedia: (query: string) => {
-      assert.equal(
-        query,
-        PHONE_SURVEY_BREAKPOINT,
-        "must query the documented phone breakpoint, not a different one",
-      );
-      return { matches };
-    },
-  };
-  try {
-    return fn();
-  } finally {
-    g.window = original;
-  }
-}
-
-test("isPhoneSurveyViewport: matches at 767px, not at 768px or 1440px", () => {
-  // matchMedia itself decides whether the query matches at a given width;
-  // these three stub the answer a real 767/768/1440px viewport would give.
-  assert.equal(withStubbedMatchMedia(true, () => isPhoneSurveyViewport()), true, "767px");
-  assert.equal(withStubbedMatchMedia(false, () => isPhoneSurveyViewport()), false, "768px");
-  assert.equal(withStubbedMatchMedia(false, () => isPhoneSurveyViewport()), false, "1440px");
-});
-
-test("isPhoneSurveyViewport is SSR-safe: no window means surveys stay on", () => {
-  const g = globalThis as unknown as StubbableGlobal;
-  const original = g.window;
-  delete g.window;
-  try {
-    assert.equal(isPhoneSurveyViewport(), false);
-  } finally {
-    g.window = original;
-  }
-});
-
-test("postHogOptionsForViewport disables surveys only on the phone viewport, and changes nothing else", () => {
-  const phone = postHogOptionsForViewport(true);
-  const desktop = postHogOptionsForViewport(false);
-  assert.equal(phone.disable_surveys, true);
-  assert.equal(desktop.disable_surveys, false);
-
-  // Same base config either way — this builder adds exactly one field, it
-  // does not fork the options object.
-  for (const key of Object.keys(POSTHOG_OPTIONS) as (keyof typeof POSTHOG_OPTIONS)[]) {
-    assert.deepEqual(phone[key], POSTHOG_OPTIONS[key]);
-    assert.deepEqual(desktop[key], POSTHOG_OPTIONS[key]);
-  }
+test("surveys and exception capture are off: both can carry free text or emails", () => {
+  assert.equal(POSTHOG_OPTIONS.disable_surveys, true);
+  assert.equal(POSTHOG_OPTIONS.capture_exceptions, false);
 });
 
 test("/privacy says there is no session replay and no autocapture", () => {
