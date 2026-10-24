@@ -199,6 +199,7 @@ describe("resolveCoverageLadder", () => {
         techStack: null,
         changeHistory: null,
         sector: null,
+        careersUrl: null,
       }),
       "thin",
     );
@@ -219,6 +220,7 @@ describe("resolveCoverageLadder", () => {
         techStack: null,
         changeHistory: null,
         sector: null,
+        careersUrl: null,
       }),
       "full",
     );

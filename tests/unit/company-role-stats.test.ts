@@ -68,13 +68,10 @@ describe("buildCompanyRoleStats", () => {
     job({ id: "4", posted_ts: NOW - 60 * DAY }),
   ];
 
-  it("counts recent roles, roles with pay, the typical yearly range and stated visa sponsorship", () => {
+  it("counts recent roles and leaves pay and visa to the public fact sections", () => {
     const s = byKey(stats(roles));
     assert.deepEqual(s.recent, { key: "recent", value: "2", label: "new in the last 30 days" });
-    assert.deepEqual(s.pay, { key: "pay", value: "3 of 4", label: "list pay" });
-    assert.equal(s["typical-pay"].label, "typical listed pay");
-    assert.match(s["typical-pay"].value, /^USD \d+k–\d+k\/yr$/);
-    assert.deepEqual(s.visa, { key: "visa", value: "1 of 4", label: "say they sponsor visas" });
+    assert.deepEqual(Object.keys(s), ["recent"]);
   });
 
   it("says nothing when the fetched roles are only a sample of the company's open roles", () => {
@@ -86,23 +83,6 @@ describe("buildCompanyRoleStats", () => {
   it("drops the recent count when any role's posted date is unknown, instead of shrinking the denominator", () => {
     const s = byKey(stats([...roles, job({ id: "5", posted_ts: null })]));
     assert.equal(s.recent, undefined);
-    assert.equal(s.pay.value, "3 of 5");
-  });
-
-  it("leaves out a typical range built from fewer than three yearly salaries, and never converts hourly pay", () => {
-    const s = byKey(
-      stats([
-        job({ id: "1", ...yearly(100_000, 140_000) }),
-        job({ id: "2", ...yearly(120_000, 160_000) }),
-        job({ id: "3", salary_min: 40, salary_max: 60, salary_currency: "USD", salary_period: "hour" }),
-      ]),
-    );
-    assert.equal(s["typical-pay"], undefined);
-    assert.equal(s.pay.value, "3 of 3");
-  });
-
-  it("omits the visa figure when no posting says it sponsors, since unsaid is not 'no'", () => {
-    assert.equal(byKey(stats([job({ id: "1" }), job({ id: "2", visa_sponsorship: false })])).visa, undefined);
   });
 });
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { fetchResumeData } from "@/actions/resume";
 import { getJobByIdAction } from "@/actions/jobs";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
+import { jobPath } from "@/lib/jobs/job-slug";
 import { CompanyFitPrompt } from "@/components/company/CompanyFitPrompt";
 import { fitPromptBody, fitPromptTitle } from "@/components/company/company-page-copy";
 import { KpiStat } from "@/components/jobs/job-detail-primitives";
@@ -280,12 +281,17 @@ export function CompanyRoleSearch({
   // count, search, and render reads the SAME set. This component trusts that
   // contract rather than re-deriving its own view of it.
   const matched = sortByFit(hasQuery ? jobs.filter((job) => jobMatchesQuery(job, trimmedQuery)) : jobs, matchScores);
-  const displayed = matched.slice(0, ROLES_PREVIEW);
+  // Every matched role is in the server HTML as a real link (crawlers and
+  // no-JS readers see all of them); only the rows past the preview are hidden
+  // until "Show all" — a visual collapse, not a smaller list.
+  const [showAll, setShowAll] = useState(false);
+  const visibleCount = showAll || hasQuery ? matched.length : Math.min(ROLES_PREVIEW, matched.length);
+  const displayed = matched.slice(0, visibleCount);
 
   const detailScrollRef = useRef<HTMLDivElement>(null);
   // The row that opened the sheet, so closing it puts keyboard focus back
   // where the visitor was instead of at the top of the page.
-  const openerRef = useRef<HTMLButtonElement | null>(null);
+  const openerRef = useRef<HTMLAnchorElement | null>(null);
 
   const handleOpenRelated = useCallback(
     async (jobId: string, directJob?: PublicJob) => {
@@ -334,6 +340,28 @@ export function CompanyRoleSearch({
           onAddResume={() => setImportOpen(true)}
         />
       )}
+      {matched.length > 0 && (
+        <div className="mb-8 flex flex-col gap-4 border-y border-border py-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <SubTitle>
+              Explore all open roles at {companyName}
+            </SubTitle>
+            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
+              Screened for{" "}
+              <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
+                postings that aren&apos;t really hiring
+              </Link>
+              , plus freshness and verified salary transparency.
+            </p>
+          </div>
+          <Button asChild variant="brand" className="shrink-0">
+            <Link href={jobsSearchUrl}>
+              View all {openCountLabel} jobs
+            </Link>
+          </Button>
+        </div>
+      )}
+
       <SectionTitle className="mb-4 flex flex-wrap items-baseline justify-between gap-x-3">
         Open roles
         {jobs.length > 0 && (
@@ -416,7 +444,7 @@ export function CompanyRoleSearch({
         // horizontal margin from that ambient padding — `--list-inset`
         // would double it here, not conform to it.
         <ul>
-          {displayed.map((job) => {
+          {matched.map((job, index) => {
             const meta = companyRowMetaSegments(job);
             const level = levelText(job.experience_level);
             // The level follows the pay and comes before the location, the
@@ -430,11 +458,14 @@ export function CompanyRoleSearch({
             const exception = rowExceptionMeta(job, now);
             const matchScore = matchScores?.get(job.id) ?? null;
             return (
-              <li key={job.id}>
-                <button
-                  type="button"
+              <li key={job.id} hidden={index >= visibleCount}>
+                <a
+                  href={jobPath(job)}
                   data-testid="company-role-row"
                   onClick={(e) => {
+                    // A plain click opens the sheet; modified clicks keep the link's own behaviour.
+                    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                    e.preventDefault();
                     openerRef.current = e.currentTarget;
                     setSelectedJob(job);
                   }}
@@ -470,33 +501,16 @@ export function CompanyRoleSearch({
                   <span data-testid="company-role-age" className="mono-data shrink-0 self-start text-xs leading-none text-muted-foreground">
                     {age ?? ""}
                   </span>
-                </button>
+                </a>
               </li>
             );
           })}
         </ul>
       )}
-
-      {displayed.length > 0 && (
-        <div className="mt-8 flex flex-col gap-4 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <SubTitle>
-              Explore all open roles at {companyName}
-            </SubTitle>
-            <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
-              Screened for{" "}
-              <Link href={GHOST_RESEARCH_HREF} className="underline underline-offset-2 hover:text-foreground">
-                postings that aren&apos;t really hiring
-              </Link>
-              , plus freshness and verified salary transparency.
-            </p>
-          </div>
-          <Button asChild variant="brand" className="shrink-0">
-            <Link href={jobsSearchUrl}>
-              View all {openCountLabel} jobs
-            </Link>
-          </Button>
-        </div>
+      {matched.length > visibleCount && (
+        <Button type="button" variant="outline" className="mt-4" onClick={() => setShowAll(true)}>
+          Show all {matched.length} roles
+        </Button>
       )}
 
       <ResumeImportModal

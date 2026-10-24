@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { CompanyFollowControl } from "@/components/companies/CompanyFollowControl";
 import { CompanyFollowChannelProvider } from "@/components/companies/CompanyFollowChannelProvider";
-import { cadenceStripHasContent, CompanyCadenceStrip } from "@/components/company/CompanyCadenceStrip";
 import { CompanyChangeEventTeaser } from "@/components/company/CompanyChangeEventTeaser";
 import { CompanyChangeEvents } from "@/components/company/CompanyChangeEvents";
 import { CompanyExhaustGate, type ExhaustGateTeaser } from "@/components/company/CompanyExhaustGate";
@@ -11,18 +9,17 @@ import { CompanyIntegrityBand } from "@/components/company/CompanyIntegrityBand"
 import { CompanyIntelGate } from "@/components/company/CompanyIntelGate";
 import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
+import { CompanySections, type RelatedCompany } from "@/components/company/CompanySections";
+import { buildCompanyFaq } from "@/lib/companies/company-faq";
+import { companySections } from "@/lib/companies/company-sections";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";
 import { CompanyTechStackBand } from "@/components/company/CompanyTechStackBand";
-import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
-import { DotSeparated } from "@/components/ui/dot-separated";
 import { PageTitle } from "@/components/ui/heading";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyPageData } from "@/lib/companies/types";
 import { companyUnlockStep } from "@/lib/company/unlock-step";
-import { cn } from "@/lib/utils";
 import {
-  buildCompanyFacts,
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
   buildCompanyRoleStats,
@@ -46,12 +43,15 @@ export function CompanyPageBody({
   data,
   signedIn,
   now,
+  related,
 }: {
   data: CompanyPageData;
   /** From `getServerUser()` in the route; decides which gate card shows. */
   signedIn: boolean;
   /** The route's one clock read (see page.tsx). */
   now: number;
+  /** Same-skill or same-country companies from the sitemap set; empty omits the section. */
+  related: RelatedCompany[];
 }) {
   // An anonymous visitor already gets a single combined ask from
   // `CompanyExhaustGate`'s sign-in card below (full record + hiring
@@ -67,39 +67,24 @@ export function CompanyPageBody({
   const jobsSearchUrl = buildCompanyJobsUrl(data);
   const ghostPctIsCompanyWide = sampleCoversAllRoles(data);
   const hiring = buildCompanyHiringAnswer(data, data.nowMs);
-  // Quiet fact row under the hiring answer — domain, hiring geos, remote
-  // share. See `buildCompanyFacts`'s own doc for why each part can be null.
-  const facts = buildCompanyFacts(data);
-  const roleStats = buildCompanyRoleStats(data, data.nowMs);
-  // The rail sits beside the roles only when it has something public to
-  // show. Without the posting chart or a review (no box data for this
-  // employer) it would be an empty 320px column for everyone but followers,
-  // so it stacks under the roles instead, like on a phone.
-  // A hiring record exists when the box database has one
-  // (`exhaust.integrity`, what `hiring.trackRecord` reads first) or the index
-  // aggregates do. Without either, the section would only say it isn't
-  // tracked, so it is left out, like any other band with no data.
-  const hasHiringRecord = !!data.exhaust?.integrity || data.hasTrackRecord;
-  const railBeside =
-    cadenceStripHasContent(data.exhaust?.cadence) || verdictBandHasContent(data.exhaust?.health, data.nowMs);
-  // "9 of the 68 roles tracked here may no longer be live" — see
-  // company-page-copy.ts for why the count is derivable from
-  // `data.ghostFlaggedPct`.
   const staleShare = staleShareText(data);
-
-  // Header chips (Band 1 extension) — each one is a fact from the box-PG
-  // profile row; a missing field just doesn't produce a chip (Rule 2). Never
-  // fed into JSON-LD/meta (Section 6 of the contract): these are UI-only.
-  const profile = data.exhaust?.profile?.data ?? null;
-  const headerChips = profile
-    ? [
-        profile.atsHint,
-        profile.nbEmployees ? `≈${profile.nbEmployees} people` : null,
-        profile.yearFounded ? `est. ${profile.yearFounded}` : null,
-        profile.organizationType,
-        profile.parentCompany ? `part of ${profile.parentCompany}` : null,
-      ].filter((c): c is string => Boolean(c))
-    : [];
+  const faq = buildCompanyFaq(data.facts);
+  const roleStats = buildCompanyRoleStats(data, data.nowMs);
+  const roles = (
+    <CompanyRoleSearch
+      jobs={data.jobs}
+      companyDomain={data.domain}
+      companySlug={data.slug}
+      companyName={data.name}
+      openCountLabel={openCountText(data)}
+      searchesPartialWindow={!ghostPctIsCompanyWide}
+      jobsSearchUrl={jobsSearchUrl}
+      now={now}
+      stats={roleStats}
+    />
+  );
+  const sectionIds = companySections(data.facts, { roleCount: data.jobs.length, relatedCount: related.length, faqCount: faq.length });
+  const sectionCtx = { facts: data.facts, exhaust: data.exhaust, nowMs: data.nowMs, roles, related, faq, staleShare };
 
   // Exhaust PG history, same `CompanyChangeEvent` shape as the projector
   // list. Fallback only — never a second "Recent changes" mount. Projector
@@ -181,38 +166,6 @@ export function CompanyPageBody({
                   )}
                 </span>
               </p>
-              {/* Facts row — domain (a real link), HQ, hiring geos, remote
-                  count, stage, plus the profile's size, founding year and
-                  type — plain " · "-joined text, no icons (rulebook). These
-                  are the one place the page states those profile facts. */}
-              <div className="mt-3 text-sm text-muted-foreground">
-                <DotSeparated
-                  items={[
-                    <a
-                      key="domain"
-                      href={`https://${facts.domain}`}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className="text-brand hover:underline"
-                    >
-                      {facts.domain}
-                    </a>,
-                    // HQ renders at the precision the box actually stored —
-                    // country only, never an invented city (contract rule).
-                    profile?.hqCountry,
-                    facts.hiringGeos,
-                    facts.remoteShare && facts.remoteJobsUrl ? (
-                      <Link key="remote" href={facts.remoteJobsUrl} data-testid="company-remote-share" className="text-brand hover:underline">
-                        {facts.remoteShare}
-                      </Link>
-                    ) : (
-                      facts.remoteShare
-                    ),
-                    data.stage,
-                    ...headerChips,
-                  ]}
-                />
-              </div>
             </div>
           </div>
           <CompanyFollowControl
@@ -226,32 +179,12 @@ export function CompanyPageBody({
           />
         </header>
 
-        {/* Two columns under the header: the stat row and the roles first in
-            the main column, the posting rhythm and the hiring record in a
-            320px rail — one stacked column under `lg`, or when the rail has
-            nothing public (`railBeside`). */}
-        <div className={cn("grid gap-10", railBeside && "lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start")}>
-          <div className="min-w-0">
-            {/* Open roles are the reason a job seeker landed here, so the
-                roles list is the first thing under the header. */}
-            <CompanyRoleSearch
-              jobs={data.jobs}
-              companyDomain={data.domain}
-              companySlug={data.slug}
-              companyName={data.name}
-              openCountLabel={openCountText(data)}
-              searchesPartialWindow={!ghostPctIsCompanyWide}
-              jobsSearchUrl={jobsSearchUrl}
-              now={now}
-              stats={roleStats}
-            />
-
-            {/* Quiet secondary content — hiring changes, tech stack, and
-                news — never ahead of the roles a visitor came here for. */}
-            <div data-testid="company-secondary" className="mt-10 space-y-8">
-              {/* The latest change-event line is the public teaser: shown
-                  while the list is locked, gone once a follower sees the
-                  list it would only repeat. */}
+        {/* One column of public sections, in `companySections` order; the roles
+            list is one of them. Gated actions stay in the secondary block. */}
+        <div className="grid gap-10">
+          <div className="min-w-0 space-y-8">
+            <CompanySections ids={sectionIds} ctx={sectionCtx} />
+            <div data-testid="company-secondary" className="space-y-8">
               <CompanyIntelGate
                 domain={data.domain}
                 slug={data.slug}
@@ -264,55 +197,6 @@ export function CompanyPageBody({
               </CompanyIntelGate>
             </div>
           </div>
-
-          {/* Rail: public evidence first (posting rhythm, the latest hiring
-              review), then the follower-only hiring record and list health.
-              The rail's gate passes a null fallback: a locked visitor already
-              sees the page's one card (see `mainIntelGateFallback`). */}
-          <aside data-testid="company-rail" className="space-y-8 empty:hidden">
-            {data.exhaust && <CompanyCadenceStrip cadence={data.exhaust.cadence} />}
-            {data.exhaust && <CompanyVerdictBand health={data.exhaust.health} nowMs={data.nowMs} />}
-            {(hasHiringRecord || !!staleShare) && (
-              <CompanyIntelGate
-                domain={data.domain}
-                slug={data.slug}
-                displayName={data.name}
-                testId="company-intel-gate-record"
-                fallback={null}
-              >
-                <div className="space-y-8">
-                  {/* Plain-language hiring record, read from the box database
-                      first (`hiring.trackRecord`), with the provenance note
-                      that describes it. The 30-day share (`hiring.freshness`)
-                      is not repeated here: the stat row states it publicly
-                      under the same census gate. */}
-                  {hasHiringRecord && (
-                    <section data-testid="company-hiring-activity" className="border-t border-border pt-6">
-                      <h2 className="text-base font-semibold leading-snug text-foreground">
-                        Hiring record
-                      </h2>
-                      <p className="mt-2 text-sm leading-relaxed text-foreground">{hiring.trackRecord}</p>
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                        Counted from job postings Velai observed, not fundraising data, employee reviews,
-                        or third-party valuations.
-                      </p>
-                    </section>
-                  )}
-
-                  {/* List health — the ghost-flagged share restated as a count
-                      instead of a bare, jargon-labelled percentage tile. */}
-                  {staleShare && (
-                    <section className="border-t border-border pt-6">
-                      <h2 className="text-base font-semibold leading-snug text-foreground">
-                        List health
-                      </h2>
-                      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{staleShare}</p>
-                    </section>
-                  )}
-                </div>
-              </CompanyIntelGate>
-            )}
-          </aside>
         </div>
 
         {/* Band 5 — "On the record": enrichment facts, public per D1. */}

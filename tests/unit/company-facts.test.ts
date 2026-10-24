@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildCompanyFacts, buildDistribution, type CompanyFactsInput } from "@/lib/companies/company-facts";
-import type { CompanyExhaust, ExhaustSection } from "@/lib/companies/exhaust";
+import { resolveCareersUrl, type CompanyExhaust, type ExhaustSection } from "@/lib/companies/exhaust";
 import type { PublicJob } from "@/lib/jobs/types";
 
 function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
@@ -45,7 +45,7 @@ function section<T>(data: T, asOf = "2026-04-25T00:00:00Z"): ExhaustSection<T> {
 function exhaust(overrides: Partial<CompanyExhaust> = {}): CompanyExhaust {
     return {
         profile: null, funding: null, secListing: null, govContracts: null, h1bLca: null, warnNotices: null,
-        health: null, cadence: null, integrity: null, techStack: null, changeHistory: null, sector: null,
+        health: null, cadence: null, integrity: null, techStack: null, changeHistory: null, sector: null, careersUrl: null,
         ...overrides,
     };
 }
@@ -173,5 +173,54 @@ describe("buildCompanyFacts", () => {
     it("sector comes from the box's one resolver", () => {
         assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ sector: "Fintech" }) })).identity.sector, "Fintech");
         assert.equal(buildCompanyFacts(input()).identity.sector, null);
+    });
+});
+
+describe("careers link and filings", () => {
+    it("careersUrl is carried when the box holds one, null otherwise", () => {
+        assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ careersUrl: "https://acme.com/careers" }) })).identity.careersUrl, "https://acme.com/careers");
+        assert.equal(buildCompanyFacts(input()).identity.careersUrl, null);
+    });
+
+    it("resolveCareersUrl keeps http(s) addresses only", () => {
+        assert.equal(resolveCareersUrl({ careers_url: "https://acme.com/jobs" }), "https://acme.com/jobs");
+        assert.equal(resolveCareersUrl({ careers_url: "http://acme.com/jobs" }), "http://acme.com/jobs");
+        for (const bad of ["javascript:alert(1)", "acme.com/jobs", "", "  ", null]) assert.equal(resolveCareersUrl({ careers_url: bad }), null);
+        assert.equal(resolveCareersUrl(null), null);
+    });
+
+    it("every filing is null when no record exists", () => {
+        assert.deepEqual(buildCompanyFacts(input()).filings, { sec: null, h1b: null, warn: null });
+    });
+
+    it("sec takes the 2-year filing count and the newest filing date", () => {
+        const secListing = section({
+            isPublicFiler: true, cik: "1", latest10kDate: "2026-02-01", latest10qDate: "2026-05-01", latest8kDate: "2026-04-01",
+            latestS1Date: null, hasS1: false, hasRestructuring8k: false, hasOfficerChange8k: false, totalFilings2y: 14,
+        });
+        assert.deepEqual(buildCompanyFacts(input({ exhaust: exhaust({ secListing }) })).filings.sec, { count: 14, latestAt: "2026-05-01" });
+    });
+
+    it("a filer with no filing count in two years states no sec fact", () => {
+        const secListing = section({
+            isPublicFiler: true, cik: "1", latest10kDate: null, latest10qDate: null, latest8kDate: null,
+            latestS1Date: null, hasS1: false, hasRestructuring8k: false, hasOfficerChange8k: false, totalFilings2y: null,
+        });
+        assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ secListing }) })).filings.sec, null);
+    });
+
+    it("h1b counts initial plus continuing approvals with its fiscal year, absent at zero", () => {
+        const h = (a: number, b: number) =>
+            section({ fiscalYear: 2025, initialApprovals: a, continuingApprovals: b, initialDenials: 1, continuingDenials: 0, employerCity: null, employerState: null });
+        assert.deepEqual(buildCompanyFacts(input({ exhaust: exhaust({ h1bLca: h(10, 5) }) })).filings.h1b, { count: 15, latestAt: null, fiscalYear: 2025 });
+        assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ h1bLca: h(0, 0) }) })).filings.h1b, null);
+    });
+
+    it("warn takes the notice count and the newest recent notice date", () => {
+        const note = (noticeDate: string | null) => ({ employerName: null, noticeDate, layoffDate: null, employeesAffected: null, location: null });
+        const warnNotices = section({ noticeCount: 3, totalEmployeesAffected: 400, states: ["CA"], recent: [note("2026-01-05"), note("2026-03-09"), note(null)] });
+        assert.deepEqual(buildCompanyFacts(input({ exhaust: exhaust({ warnNotices }) })).filings.warn, { count: 3, latestAt: "2026-03-09" });
+        const none = section({ noticeCount: 0, totalEmployeesAffected: 0, states: [], recent: [] });
+        assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ warnNotices: none }) })).filings.warn, null);
     });
 });

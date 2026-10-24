@@ -72,55 +72,31 @@ describe("/co/[slug]: roles list renders before secondary (intel/hiring-activity
     );
   });
 
-  it("the intelligence grid sits in the secondary wrapper and the hiring record in the rail, both after the roles", () => {
+  it("the intelligence grid sits in the secondary wrapper, after the public sections", () => {
     const source = readFileSync(CO_PAGE_BODY, "utf8");
-    const rolesIndex = source.indexOf("<CompanyRoleSearch");
+    const sectionsIndex = source.indexOf("<CompanySections");
     const secondaryIndex = source.indexOf('data-testid="company-secondary"');
     const intelIndex = source.indexOf("<CompanyIntelligenceGrid");
-    const railIndex = source.indexOf('data-testid="company-rail"');
-    const hiringActivityIndex = source.indexOf('data-testid="company-hiring-activity"');
+    assert.ok(sectionsIndex !== -1 && sectionsIndex < secondaryIndex, "the public sections must come before the gated block");
     assert.ok(secondaryIndex < intelIndex, "CompanyIntelligenceGrid moved ahead of the secondary wrapper");
-    assert.ok(railIndex !== -1 && railIndex < hiringActivityIndex, "the hiring record must live in the rail");
-    assert.ok(rolesIndex < railIndex, "the rail must come after the roles, so phones reach the roles first");
   });
 });
 
-// #421 (d254a782) dropped the fact-row icons: the rulebook says the facts
-// row has no icons, so it is plain DotSeparated text.
-describe("/co/[slug]: hero fact row is plain dot-separated facts, not a joined mono string", () => {
-  it("renders the domain as a real link plus the hiring-geos and remote-share facts via buildCompanyFacts", () => {
+// S2-B: the header's fact row and the gated rail are gone; the facts are public
+// sections (identity, hiringNow, listingHealth ...) rendered from `CompanyFacts`.
+describe("/co/[slug]: facts are public sections, not a header row or a gated rail", () => {
+  it("the header no longer builds its own fact row, and has no rail", () => {
     const source = readFileSync(CO_PAGE_BODY, "utf8");
-    assert.match(source, /buildCompanyFacts\(/, "hero must read the structured facts, not the retired joined-line helper");
-    assert.match(source, /href=\{`https:\/\/\$\{facts\.domain\}`\}/, "domain must render as a real external link");
-    assert.match(source, /<DotSeparated/);
-    assert.match(source, /facts\.hiringGeos/);
-    assert.match(source, /facts\.remoteShare/);
-  });
-
-  it("carries no font-mono utility — the fact row is prose, not a tabular/aligned surface", () => {
-    const source = readFileSync(CO_PAGE_BODY, "utf8");
+    assert.doesNotMatch(source, /buildCompanyFacts\(|facts\.hiringGeos|data-testid="company-rail"/);
     assert.doesNotMatch(source, /(?<![-\w])font-mono(?![-\w])/);
   });
-});
 
-describe("/co/[slug]: the rail — hiring record and list health, gated, no button", () => {
-  it("a second, distinct CompanyIntelGate carries the rail's two named boxes", () => {
+  it("hiring record and list health are public sections, not behind the follow gate", () => {
     const source = readFileSync(CO_PAGE_BODY, "utf8");
-    const secondaryGateIndex = source.indexOf("<CompanyIntelGate", source.indexOf('data-testid="company-secondary"'));
-    const railGateIndex = source.indexOf('testId="company-intel-gate-record"');
-    const recordHeadingIndex = source.indexOf('data-testid="company-hiring-activity"');
-    const listHealthIndex = source.indexOf("List health");
-    assert.ok(railGateIndex !== -1, "rail gate with a distinct testId is missing");
-    assert.ok(secondaryGateIndex < railGateIndex, "the rail gate must be a second, later gate instance");
-    assert.ok(railGateIndex < recordHeadingIndex && railGateIndex < listHealthIndex, "both named boxes must live inside the rail gate");
-  });
-
-  // #554 (d3622138): the rail gate renders nothing when locked (fallback={null})
-  // instead of a CTA-less second card, so the page shows exactly one lock card.
-  it("the rail gate passes fallback={null} — no duplicate lock card beside the header's Follow control", () => {
-    const source = readFileSync(CO_PAGE_BODY, "utf8");
-    const railGate = source.slice(source.indexOf('testId="company-intel-gate-record"'));
-    assert.match(railGate.slice(0, railGate.indexOf(">")), /fallback=\{null\}/);
+    assert.doesNotMatch(source, /company-intel-gate-record/);
+    const sections = readFileSync("src/components/company/CompanySections.tsx", "utf8");
+    assert.match(sections, /listingHealth:/);
+    assert.match(sections, /hiringNow:/);
   });
 });
 

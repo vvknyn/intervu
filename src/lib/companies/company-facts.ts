@@ -28,6 +28,12 @@ export interface Distribution {
   total: number;
 }
 
+/** A public-record count and the date of its newest entry (null when the source carries no date). */
+export interface FilingFact {
+  count: number;
+  latestAt: string | null;
+}
+
 export interface CompanyFacts {
   identity: {
     name: string;
@@ -35,6 +41,8 @@ export interface CompanyFacts {
     sector: string | null;
     /** The ATS hiring.cafe names for the employer; null when it names none. */
     atsProvider: string | null;
+    /** The careers page `company_boards` holds, http(s) only. */
+    careersUrl: string | null;
     profile: {
       tagline: string | null;
       yearFounded: number | null;
@@ -68,6 +76,9 @@ export interface CompanyFacts {
    *  the currency), so pay counts only US-located roles. */
   pay: { typical: string | null; roles: number; scope: typeof PAY_SCOPE } | null;
   health: { ghostFlaggedPct: number | null; verdict: string | null };
+  /** Public-record filings; each null when the record holds none. H-1B is the
+   *  latest fiscal year's approvals, which carries a year, not a date. */
+  filings: { sec: FilingFact | null; h1b: (FilingFact & { fiscalYear: number }) | null; warn: FilingFact | null };
 }
 
 export interface CompanyFactsInput {
@@ -170,6 +181,22 @@ function buildProfile(exhaust: CompanyExhaust | null | undefined) {
     : { profile: null, profileSource: null };
 }
 
+const newestIso = (dates: readonly (string | null | undefined)[]): string | null =>
+  dates.reduce<string | null>((best, d) => (d && !Number.isNaN(Date.parse(d)) && (!best || Date.parse(d) > Date.parse(best)) ? d : best), null);
+
+function buildFilings(exhaust: CompanyExhaust | null | undefined): CompanyFacts["filings"] {
+  const sec = exhaust?.secListing?.data;
+  const h1b = exhaust?.h1bLca?.data;
+  const warn = exhaust?.warnNotices?.data;
+  const secCount = sec?.totalFilings2y ?? 0;
+  const h1bCount = h1b ? h1b.initialApprovals + h1b.continuingApprovals : 0;
+  return {
+    sec: sec && secCount > 0 ? { count: secCount, latestAt: newestIso([sec.latest10kDate, sec.latest10qDate, sec.latest8kDate, sec.latestS1Date]) } : null,
+    h1b: h1b && h1bCount > 0 ? { count: h1bCount, latestAt: null, fiscalYear: h1b.fiscalYear } : null,
+    warn: warn && warn.noticeCount > 0 ? { count: warn.noticeCount, latestAt: newestIso(warn.recent.map((n) => n.noticeDate)) } : null,
+  };
+}
+
 export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
   const { jobs, openCount, exhaust, facetDistribution: facets } = input;
   const total = openCount.value;
@@ -183,6 +210,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
       domain: input.domain,
       sector: exhaust?.sector ?? null,
       atsProvider: exhaust?.profile?.data.atsHint ?? null,
+      careersUrl: exhaust?.careersUrl ?? null,
       profile,
       profileSource,
     },
@@ -207,5 +235,6 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
     },
     pay: buildPay(jobs),
     health: { ghostFlaggedPct: input.ghostFlaggedPct ?? null, verdict: exhaust?.health?.data.verdict ?? null },
+    filings: buildFilings(exhaust),
   };
 }

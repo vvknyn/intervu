@@ -88,43 +88,50 @@ function fakeSearch(pages: Record<string, unknown>[][]) {
   return { calls, search };
 }
 
-describe("resolveCompanyIndexability — one rule: in the sitemap set AND the core facts are present", () => {
-  it("is indexable and in the sitemap together, for a set member with its core facts", () => {
-    assert.deepEqual(resolveCompanyIndexability({ inSitemapSet: true, facts: factsFor(40) }), {
-      inSitemap: true,
-      pageIndexable: true,
-    });
+describe("resolveCompanyIndexability — one rule: indexable ⇔ in the sitemap set", () => {
+  it("is indexable and in the sitemap together for a set member", () => {
+    assert.deepEqual(resolveCompanyIndexability({ inSitemapSet: true }), { inSitemap: true, pageIndexable: true });
   });
 
   it("is neither outside the sitemap set (below MIN_SITEMAP_ROLES or past the cap)", () => {
-    assert.deepEqual(resolveCompanyIndexability({ inSitemapSet: false, facts: factsFor(40) }), {
-      inSitemap: false,
-      pageIndexable: false,
-    });
+    assert.deepEqual(resolveCompanyIndexability({ inSitemapSet: false }), { inSitemap: false, pageIndexable: false });
   });
 
-  it("a set member with no stated country is not indexable", () => {
-    assert.equal(resolveCompanyIndexability({ inSitemapSet: true, facts: factsFor(40, { country: false }) }).pageIndexable, false);
+  it("a set member lacking any stated country is still indexable", async () => {
+    const noCountry = factsFor(40, { country: false });
+    assert.equal(noCountry.mix.countries, null);
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(40), facts: noCountry }), async () => true);
+    assert.equal(meta.robots, undefined);
   });
 
-  it("a set member with no posting date is not indexable", () => {
-    assert.equal(resolveCompanyIndexability({ inSitemapSet: true, facts: factsFor(40, { posted: false }) }).pageIndexable, false);
+  it("a set member with no posting date is still indexable", async () => {
+    const meta = await buildCompanyPageMetadata(company({ jobs: roles(40), facts: factsFor(40, { posted: false }) }), async () => true);
+    assert.equal(meta.robots, undefined);
   });
 
-  it("a set member with no open roles is not indexable", () => {
-    assert.equal(resolveCompanyIndexability({ inSitemapSet: true, facts: factsFor(0) }).pageIndexable, false);
+  it("a company just outside the cap is noindex,follow, with the same canonical", async () => {
+    const hits = Array.from({ length: SITEMAP_COMPANY_CAP + 1 }, (_, i) => ({
+      domain: i === SITEMAP_COMPANY_CAP ? "acme.com" : `c${i}.com`,
+      open_role_count: 1000 - Math.floor(i / 10),
+    }));
+    const pages = [hits.slice(0, 1000), hits.slice(1000, 2000), hits.slice(2000, 3000), hits.slice(3000)];
+    let round = 0;
+    const search = async (req: { sort: string[] }) => {
+      if (req.sort[0] === "open_role_count:desc") throw new Error("sort unavailable");
+      return { hits: pages[round++] ?? [] };
+    };
+    const meta = await buildCompanyPageMetadata(
+      company({ jobs: roles(40), facts: factsFor(40) }),
+      (domain) => fetchCompanyInSitemapSet(domain, search),
+    );
+    assert.deepEqual(meta.robots, { index: false, follow: true });
+    assert.equal(meta.alternates?.canonical, "/co/acme--com");
   });
 
-  it("keeps inSitemap and pageIndexable equal for every input, so the sitemap never lists a noindex page", () => {
+  it("keeps inSitemap and pageIndexable equal, so the sitemap never lists a noindex page", () => {
     for (const inSitemapSet of [true, false]) {
-      for (const country of [true, false]) {
-        for (const posted of [true, false]) {
-          for (const n of [0, 5, MIN_SITEMAP_ROLES]) {
-            const r = resolveCompanyIndexability({ inSitemapSet, facts: factsFor(n, { country, posted }) });
-            assert.equal(r.inSitemap, r.pageIndexable);
-          }
-        }
-      }
+      const r = resolveCompanyIndexability({ inSitemapSet });
+      assert.equal(r.inSitemap, r.pageIndexable);
     }
   });
 });
@@ -231,14 +238,6 @@ describe("/co/[slug] metadata", () => {
     const meta = await buildCompanyPageMetadata(
       company({ jobs: roles(0), openCount: 0, hasTrackRecord: true, opened90d: 5, closed90d: 2, facts: factsFor(0) }),
       inSet(false),
-    );
-    assert.deepEqual(meta.robots, { index: false, follow: true });
-  });
-
-  it("a set member missing a core fact (no stated country) is noindex,follow", async () => {
-    const meta = await buildCompanyPageMetadata(
-      company({ jobs: roles(40), facts: factsFor(40, { country: false }) }),
-      inSet(true),
     );
     assert.deepEqual(meta.robots, { index: false, follow: true });
   });

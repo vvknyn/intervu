@@ -14,9 +14,9 @@
  * THE RULE (S2, one only): a page is indexable exactly when its company is in
  * the sitemap set — at least {@link MIN_SITEMAP_ROLES} live roles and within
  * the top {@link SITEMAP_COMPANY_CAP} by live count, as `company_directory`
- * measures it — AND its core facts are present (an open-role count, a last
- * posted date, at least one stated country). Every other company page still
- * renders in full, as `noindex, follow`. The earlier 3-role page floor and the
+ * measures it. Nothing else gates it: the page states only the facts it
+ * holds, so a member without, say, a stated country is still a full page.
+ * Every other company page still renders in full, as `noindex, follow`. The earlier 3-role page floor and the
  * `hasTrackRecord` OR are gone: they let ~10-role pages and pages with only a
  * track record be indexable while the sitemap (25 roles) never listed them.
  *
@@ -62,7 +62,6 @@
  * the page itself marks `noindex` is a self-contradicting submission.
  */
 import { hasMeilisearch, host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
-import type { CompanyFacts } from "./company-facts";
 
 /** Live roles a company needs to be in the sitemap set, and so to be indexable. */
 export const MIN_SITEMAP_ROLES = 25;
@@ -75,8 +74,6 @@ export interface CompanyIndexabilityInput {
   /** The domain is in the set `sitemap.ts` submits (see
    *  {@link fetchCompanyInSitemapSet}). */
   inSitemapSet: boolean;
-  /** The core facts: without all three the page is not worth submitting. */
-  facts: Pick<CompanyFacts, "hiring" | "mix">;
 }
 
 export interface CompanyIndexability {
@@ -87,16 +84,13 @@ export interface CompanyIndexability {
 }
 
 /**
- * THE seam, and the only indexability rule: indexable ⇔ in the sitemap set
- * AND `openCount`, `lastPostedAt` and at least one stated country are present.
+ * THE seam, and the only indexability rule: indexable ⇔ in the sitemap set.
  * Both flags are that one boolean, so a page can never be indexable without
  * being submitted nor submitted while `noindex` — the recurring GSC
  * "Submitted URL marked noindex" class this seam exists to close.
  */
-export function resolveCompanyIndexability({ inSitemapSet, facts }: CompanyIndexabilityInput): CompanyIndexability {
-  const indexable =
-    inSitemapSet && facts.hiring.openCount > 0 && facts.hiring.lastPostedAt != null && facts.mix.countries != null;
-  return { inSitemap: indexable, pageIndexable: indexable };
+export function resolveCompanyIndexability({ inSitemapSet }: CompanyIndexabilityInput): CompanyIndexability {
+  return { inSitemap: inSitemapSet, pageIndexable: inSitemapSet };
 }
 
 /** One company the `company_directory` index carries, with the live-role
