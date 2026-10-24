@@ -535,3 +535,38 @@ test("displayCompanyBrand does not collapse bilingual duplicates without corrobo
 test("preferBrandSegment does not split Toronto-Dominion on an internal hyphen", () => {
     assert.equal(preferBrandSegment("The Toronto-Dominion Bank (Canada)", "td.com"), "The Toronto-Dominion Bank (Canada)");
 });
+
+// stripBareLegalForm matches the trailing tokens normalised (case, punctuation,
+// "." as a separator), so spelling never decides whether a legal form strips.
+test("displayCompanyName strips a trailing legal form whatever its punctuation or spacing", () => {
+    assert.equal(displayCompanyName("Informa Group Plc."), "Informa Group");
+    assert.equal(displayCompanyName("Opella Healthcare IN P.Ltd"), "Opella Healthcare IN");
+    assert.equal(displayCompanyName("Foo GmbH."), "Foo");
+    assert.equal(displayCompanyName("Acme Pte. Ltd."), "Acme");
+    assert.equal(displayCompanyName("Foo Pvt. Ltd"), "Foo");
+    assert.equal(displayCompanyName("Bar S.A.S"), "Bar");
+});
+
+test("displayCompanyName strips a compound-only word (Pt/P) only when a legal form after it was stripped", () => {
+    assert.equal(displayCompanyName("abbott healthcare pt ltd"), "abbott healthcare");
+    assert.equal(displayCompanyName("Zeta Labs Pt. Ltd."), "Zeta Labs");
+    assert.equal(displayCompanyName("Rapid PT"), "Rapid PT");
+    assert.equal(displayCompanyName("Rapid P"), "Rapid P");
+    assert.equal(displayCompanyName("PT Ltd"), "PT");
+});
+
+test("displayCompanyName keeps bare Co/Company/Group/Holdings and 'AS' unstripped (only the punctuated 'Co.' strips)", () => {
+    assert.equal(displayCompanyName("Acme Co"), "Acme Co");
+    assert.equal(displayCompanyName("Columbia Sportswear Co"), "Columbia Sportswear Co");
+    assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
+    assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
+    assert.equal(displayCompanyName("Frontier AS"), "Frontier AS");
+    });
+
+test("displayCompanyName never strips a legal form that directly follows '&' or 'and' — it is part of the name", () => {
+    assert.equal(displayCompanyName("Smith & Co."), "Smith & Co.");
+    assert.equal(displayCompanyName("Levi Strauss & Co."), "Levi Strauss & Co.");
+    assert.equal(displayCompanyName("Procter & Gamble Co."), "Procter & Gamble");
+    assert.equal(displayCompanyName("Barnes and Noble Inc."), "Barnes and Noble");
+    assert.equal(displayCompanyName("Smith and Co."), "Smith and Co.");
+});
