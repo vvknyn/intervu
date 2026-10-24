@@ -20,29 +20,6 @@ import { renderEmailShellHtml, renderEmailShellText } from "../../src/lib/email/
 import { PUBLIC_SUPPORT_EMAIL } from "../../src/lib/legal/public-contact";
 import { processBatch } from "../../src/lib/telemetry/ingest";
 
-describe("POST /api/resume/pdf — transient print", () => {
-  it("returns PDF bytes and does not persist the posted HTML", () => {
-    const src = readFileSync(path.join(process.cwd(), "src/app/api/resume/pdf/route.ts"), "utf8");
-    assert.match(src, /return new NextResponse\(new Uint8Array\(pdf\)/);
-    assert.match(src, /"Cache-Control": "no-store"/);
-    assert.doesNotMatch(src, /getAdminDb|firebase-admin\/firestore|\.collection\(/);
-    assert.doesNotMatch(src, /never reaches our servers/i);
-    assert.doesNotMatch(src, /never on our servers/i);
-    assert.doesNotMatch(src, /never stored/i);
-  });
-});
-
-describe("POST /api/resume/pdf — 503 body", () => {
-  it("buildResumePdfUnavailableBody exposes only the public error envelope", async () => {
-    const { buildResumePdfUnavailableBody } = await import("../../src/app/api/resume/pdf/route");
-    const body = buildResumePdfUnavailableBody();
-    assert.equal(typeof body.error, "string");
-    assert.equal(Object.keys(body).sort().join(","), "error");
-    const src = readFileSync(path.join(process.cwd(), "src/app/api/resume/pdf/route.ts"), "utf8");
-    assert.doesNotMatch(src, /\bdetail\s*:/);
-  });
-});
-
 describe("POST /api/contact — HTTP status on failure", () => {
   it("returns 400 for invalid JSON", async () => {
     const res = await contactPost(

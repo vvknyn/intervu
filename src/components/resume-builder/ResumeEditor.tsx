@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TabItem, TabNav } from "@/components/ui/tabs";
 import { confirmToast, toast } from "@/lib/toast";
+import { failureOf, toastFailure } from "@/lib/resume/payment-required";
 import { exportToDocx } from "@/lib/export-docx";
 import { downloadBlob } from "@/lib/export-utils";
 import { exportZipResumePdfFromData } from "@/lib/resume/export-zip-pdf";
@@ -18,6 +19,7 @@ import {
     fetchResumeVersionsAction,
     saveNamedResumeVersionAction,
 } from "@/actions/resume-summary";
+import { sendIfPaid } from "@/lib/account/paid-status";
 import type { SavedResumeVersion } from "@/lib/resume/set-resume";
 import {
     FloppyDisk,
@@ -38,7 +40,7 @@ import { cn } from "@/lib/utils";
 
 interface ResumeEditorProps {
     initialData: ResumeData;
-    onSave: (data: ResumeData) => Promise<boolean | void>;
+    onSave: (data: ResumeData) => Promise<boolean | string | void>;
     onClose: () => void;
     className?: string;
 }
@@ -173,13 +175,14 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     const handleSave = async () => {
         setSaving(true);
         try {
-            await onSave(data);
+            const saved = await onSave(data);
             setOriginalBaseline(data);
             setHasUnsavedChanges(false);
-            toast.success("Resume updated and saved");
+            // A string is what the caller says instead: the edit stayed on this device.
+            toast.success(typeof saved === "string" ? saved : "Resume updated and saved");
             void loadVersions();
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed to save resume");
+            toastFailure(e, "Failed to save resume");
         } finally {
             setSaving(false);
         }
@@ -189,16 +192,17 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
         if (!newVersionLabel.trim()) return;
         setSavingVersion(true);
         try {
-            const res = await saveNamedResumeVersionAction({
+            // Saved versions live in the account: an unpaid account sends nothing.
+            const res = await sendIfPaid(() => saveNamedResumeVersionAction({
                 data,
                 label: newVersionLabel.trim(),
-            });
-            if (res.error) throw new Error(res.error);
+            }));
+            if (res.error) throw failureOf({ error: res.error, code: res.code });
             toast.success(`Saved version: "${newVersionLabel.trim()}"`);
             setNewVersionLabel("");
             void loadVersions();
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Failed to save version");
+            toastFailure(e, "Failed to save version");
         } finally {
             setSavingVersion(false);
         }

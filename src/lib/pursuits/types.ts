@@ -148,6 +148,8 @@ export interface Pursuit {
     resume_versions?: ResumeVersionSnapshot[];
     /** The résumé copied onto the role when it was marked Applied. */
     applied_resume?: AppliedResume;
+    /** Device-only: the account row this guest row was already created as, kept while its résumé copy waits on this device. */
+    server_id?: string;
     /** Free-form tracker note (manual add / detail sheet). */
     note?: string;
 }

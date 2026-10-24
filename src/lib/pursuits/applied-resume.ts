@@ -8,16 +8,19 @@
  */
 import { FieldValue } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase/admin";
-import { getBaseResumeForUser } from "@/lib/resume/base-resume";
+import { fetchBaseResumeDoc } from "@/lib/resume/base-resume";
+import { refuseUnpaid } from "@/lib/resume/when-paid";
 import { resumeTextOnFile } from "@/lib/pursuits/resume-on-apply";
 import { validate, guestAppliedResumeSchema } from "@/lib/validation";
+import type { PAYMENT_REQUIRED } from "@/lib/billing/access";
 import type { AppliedResume, Pursuit } from "@/lib/pursuits/types";
 
 /** The account's résumé as the text a role keeps. Null when there's none or
  *  it can't be read: a failed read never blocks the status write it rides on. */
-export async function accountResumeText(uid: string): Promise<string | null> {
+export async function accountResumeText(uid: string, isPaid?: (uid: string) => Promise<boolean>): Promise<string | null> {
     try {
-        const base = await getBaseResumeForUser(uid);
+        // The paid gate lives in `fetchBaseResumeDoc`: an unpaid account has no résumé to copy.
+        const { base } = await fetchBaseResumeDoc(uid, isPaid);
         if (base.source === "resume_data") return resumeTextOnFile({ resume_data: base.resume_data });
         if (base.source === "resume_text") return resumeTextOnFile({ resume_text: base.resume_text });
         return null;
@@ -35,7 +38,9 @@ async function ownPursuit(uid: string, pursuitId: string) {
 }
 
 /** The copy with its text, for Download (the tracker list leaves the text out). */
-export async function readAppliedResume(uid: string, pursuitId: string): Promise<{ data?: AppliedResume; error?: string }> {
+export async function readAppliedResume(uid: string, pursuitId: string): Promise<{ data?: AppliedResume; error?: string; code?: typeof PAYMENT_REQUIRED }> {
+    const refused = await refuseUnpaid(uid);
+    if (refused) return refused;
     const own = await ownPursuit(uid, pursuitId);
     if (!own) return { error: "Pursuit not found" };
     const copy = own.pursuit.applied_resume;
@@ -55,7 +60,9 @@ export async function removeAppliedResume(uid: string, pursuitId: string): Promi
  * (`syncGuestPursuitsToServer`), with the date it was taken. A role the
  * account already has a résumé on keeps that one.
  */
-export async function keepGuestAppliedResume(uid: string, pursuitId: string, input: unknown): Promise<{ error?: string }> {
+export async function keepGuestAppliedResume(uid: string, pursuitId: string, input: unknown): Promise<{ error?: string; code?: typeof PAYMENT_REQUIRED }> {
+    const refused = await refuseUnpaid(uid);
+    if (refused) return refused;
     const parsed = validate(guestAppliedResumeSchema, input);
     if (!parsed.ok) return { error: parsed.error };
     const own = await ownPursuit(uid, pursuitId);

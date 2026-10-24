@@ -42,7 +42,7 @@ Role fit went the same way, 20 of 20 against 16 of 20, with HiringCafe's list in
 
 HiringCafe has said a Talent Agent search costs it about $1, because it compares your search against 20,000+ job descriptions with a language model ([their post](${HIRINGCAFE_COST_POST})).
 
-Velai works differently. The search itself is ordinary search with no AI call, so a search costs us nothing in AI. That's what lets Velai stay free. AI only helps read and tailor your résumé: your name and contact details are taken out first, and it runs on a sealed server that we can't read.
+Velai works differently. The search itself is ordinary search with no AI call, so a search costs us nothing in AI. That's what lets search stay free. AI only helps read and tailor your résumé: your name and contact details are taken out first, and it runs on a sealed server that we can't read.
 
 *Updated October 11, 2026: when this was written, that AI was a small model running in your browser. It now runs on a sealed server instead. [How Velai keeps your résumé private](/privacy#your-resume).*
 

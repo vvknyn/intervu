@@ -61,7 +61,8 @@ export function sealedAiStatus(): Promise<SealedAiStatus> {
     if (stub()) return Promise.resolve({ enabled: true, model: "test" });
     const origin = siteOrigin();
     if (!origin) return Promise.resolve(OFF);
-    statusPromise ??= fetch(`${origin}/api/sealed-ai/status`, { cache: "no-store" })
+    // "include": the extension is a different origin, and the status is per account (signed in + paid month).
+    statusPromise ??= fetch(`${origin}/api/sealed-ai/status`, { cache: "no-store", credentials: "include" })
         .then((res) => (res.ok ? (res.json() as Promise<Partial<SealedAiStatus>>) : OFF))
         .then((body) => ({ enabled: body.enabled === true && typeof body.model === "string" && body.model !== "", model: String(body.model ?? "") }))
         .catch(() => {
@@ -84,6 +85,8 @@ function tinfoilClient(): Promise<TinfoilClient> {
             // A placeholder: the pass-through puts our key in its place.
             bearerToken: "velai",
             baseURL: sealedAiBaseUrl(origin),
+            // The pass-through checks the account; the extension only sends its cookie when asked to.
+            fetchOptions: { credentials: "include" },
         });
         await client.ready();
         return client;

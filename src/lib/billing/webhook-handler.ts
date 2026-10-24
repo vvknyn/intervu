@@ -1,21 +1,15 @@
 /**
- * Injectable Stripe webhook processor — no Firebase imports.
+ * Injectable Stripe webhook processor: verify, route the access events, recompute. No SDK or database imports.
  */
-import {
-    emptyBillingRecord,
-    fallbackUidFromEvent,
-    isHandledBillingEventType,
-    normalizeStripeEvent,
-    readIdField,
-    reduceBillingEvent,
-    type BillingRecord,
-    type NormalizedStripeEvent,
-} from "@/lib/billing/events";
+import { RECOMPUTE_EVENT_TYPES, recomputeTargetFromObject } from "@/lib/billing/events";
 
-export interface BillingWebhookStore {
+export interface WebhookDeps {
     findUidByCustomerId(customerId: string): Promise<string | null>;
-    readBilling(uid: string): Promise<BillingRecord | null>;
-    writeBilling(uid: string, record: BillingRecord): Promise<void>;
+    recompute(uid: string, customerId: string): Promise<unknown>;
+    /** The customer a charge belongs to (disputes name only the charge). */
+    customerIdOfCharge(chargeId: string): Promise<string | null>;
+    /** Counts-only diagnostics: never an id or an email. */
+    log(line: string): void;
 }
 
 export interface HandleStripeWebhookInput {
@@ -23,76 +17,40 @@ export interface HandleStripeWebhookInput {
     signature: string | null;
     webhookSecret: string | undefined;
     constructEvent: (payload: string, signature: string, secret: string) => unknown;
-    store: BillingWebhookStore;
-    nowIso: string;
-}
-
-function customerIdFromEvent(event: NormalizedStripeEvent): string | null {
-    const { object, type } = event;
-    if (type.startsWith("customer.subscription.")) {
-        return readIdField(object.customer);
-    }
-    if (type.startsWith("checkout.session.")) {
-        return readIdField(object.customer);
-    }
-    if (type === "invoice.payment_failed") {
-        return readIdField(object.customer);
-    }
-    return null;
+    deps: WebhookDeps;
 }
 
 export async function handleStripeWebhook(
     input: HandleStripeWebhookInput,
 ): Promise<{ status: number; body: { received?: true; error?: string } }> {
     const secret = input.webhookSecret?.trim();
-    if (!secret) {
-        return { status: 503, body: { error: "not_configured" } };
-    }
+    if (!secret) return { status: 503, body: { error: "not_configured" } };
 
     const signature = input.signature?.trim();
-    if (!signature) {
-        return { status: 400, body: { error: "invalid_signature" } };
-    }
+    if (!signature) return { status: 400, body: { error: "invalid_signature" } };
 
-    let rawEvent: unknown;
+    let event: { type?: unknown; data?: { object?: unknown } };
     try {
-        rawEvent = input.constructEvent(input.payload, signature, secret);
+        event = input.constructEvent(input.payload, signature, secret) as typeof event;
     } catch {
         return { status: 400, body: { error: "invalid_signature" } };
     }
 
-    const event = normalizeStripeEvent(
-        rawEvent as { type: string; created: number; data: { object: unknown } },
-    );
-    if (!event) {
+    const object = event?.data?.object;
+    if (typeof event?.type !== "string" || !RECOMPUTE_EVENT_TYPES.has(event.type) || !object || typeof object !== "object") {
         return { status: 200, body: { received: true } };
     }
 
-    if (!isHandledBillingEventType(event.type)) {
-        return { status: 200, body: { received: true } };
-    }
-
-    const customerId = customerIdFromEvent(event);
-    let uid: string | null = null;
-    if (customerId) {
-        uid = await input.store.findUidByCustomerId(customerId);
-    }
-    if (!uid) {
-        uid = fallbackUidFromEvent(event);
-    }
-
-    if (!uid) {
-        return { status: 200, body: { received: true } };
-    }
-
-    const existing = (await input.store.readBilling(uid)) ?? emptyBillingRecord(input.nowIso);
-    const applied = reduceBillingEvent(existing, event, input.nowIso);
+    const target = recomputeTargetFromObject(event.type, object as Record<string, unknown>);
 
     try {
-        await input.store.writeBilling(uid, applied.record);
+        const customerId = target.customerId ?? (target.chargeId ? await input.deps.customerIdOfCharge(target.chargeId) : null);
+        const uid = customerId ? ((await input.deps.findUidByCustomerId(customerId)) ?? target.fallbackUid) : null;
+        if (customerId && uid) await input.deps.recompute(uid, customerId);
+        else input.deps.log(`[stripe-webhook] unmatched event type=${event.type} customer=${customerId ? "yes" : "no"} uid=${uid ? "yes" : "no"}`);
     } catch {
+        // 500 makes Stripe retry; the recompute is idempotent, so a retry is always safe.
         return { status: 500, body: { error: "processing_failed" } };
     }
-
     return { status: 200, body: { received: true } };
 }

@@ -19,6 +19,7 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
+import { whenPaid } from "@/lib/resume/when-paid";
 import type { ResumeData } from "@/types/resume";
 
 export type BaseResume =
@@ -51,7 +52,16 @@ export function canonicalizeBaseResume(
  *  `getBaseResumeSummaryForUser` (adds `updatedAt` for the Settings card),
  *  so there's exactly one place that reads `profiles/<uid>` for this and one
  *  place that decides the canonical source. */
-async function fetchBaseResumeDoc(uid: string): Promise<{ base: BaseResume; updatedAt: string | null }> {
+export async function fetchBaseResumeDoc(
+    uid: string,
+    isPaid?: (uid: string) => Promise<boolean>,
+): Promise<{ base: BaseResume; updatedAt: string | null }> {
+    // The one server-side reader of the stored résumé for MCP, daily picks, Settings and the applied-role copy:
+    // an account without a paid month has none, whatever is still stored.
+    return whenPaid(uid, () => readBaseResumeDoc(uid), { base: { source: "none" }, updatedAt: null }, isPaid);
+}
+
+async function readBaseResumeDoc(uid: string): Promise<{ base: BaseResume; updatedAt: string | null }> {
     const db = getAdminDb();
     const doc = await db.collection("profiles").doc(uid).get();
     if (!doc.exists) return { base: { source: "none" }, updatedAt: null };

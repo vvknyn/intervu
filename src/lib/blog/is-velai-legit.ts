@@ -1,6 +1,6 @@
 import type { BlogPost } from "./posts";
 import { BLOG_AUTHOR } from "./author";
-import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
+import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 
 const DIR = "/blog/is-velai-legit";
@@ -12,8 +12,7 @@ const DIR = "/blog/is-velai-legit";
  *
  * - listings from employers' own career pages, none invented, employers don't
  *   pay to be included: /about and /terms; no sponsored listings exist.
- * - prices and the founding-seat refund: `lib/billing/founding-offer.ts`,
- *   /pricing, /terms.
+ * - the price and the 14-day refund: `app/pricing/offer.ts`, /pricing, /terms.
  * - tailoring can't add a number and starts posting words off: `groundDraft`
  *   and `startsOn` (lib/local-ai/tailor-ground.ts, tailor-resume.ts).
  * - AI on Tinfoil's attested server, name and contact out first, search and
@@ -41,7 +40,7 @@ export const IS_VELAI_LEGIT: BlogPost = {
         [`${DIR}/privacy-promises.png`]: { width: 1436, height: 584 },
     },
     body: `
-Yes. Velai is a free job search. It lists jobs from employers' own career pages, tells you how well each one fits your résumé and why, and helps you tailor your résumé for the jobs you pick. It never asks you to pay to apply, and it never sends your résumé to an employer.
+Yes. Velai is a job search that is free to use. It lists jobs from employers' own career pages, tells you how well each one fits your résumé and why, and, with a paid month, helps you tailor your résumé for the jobs you pick. It never asks you to pay to apply, and it never sends your résumé to an employer.
 
 You shouldn't have to take our word for that. So this page says what Velai is, who runs it and how it pays for itself, then gives you seven checks you can run yourself in a few minutes.
 
@@ -64,12 +63,9 @@ The founder writes on this blog under the pen name ${BLOG_AUTHOR.name}, with a d
 
 ## How Velai pays for itself
 
-Everything Velai does today is free, AI included, with no card and no trial clock. Search is ordinary search with no AI behind it, so a search costs us very little to run. That is what lets Velai stay free.
+Searching and matching are free, with no card and no trial clock. Search is ordinary search with no AI behind it, so a search costs us very little to run. That is what lets Velai stay free.
 
-What we may charge for later is already on the [pricing page](/pricing):
-
-- **Pro**, at ${PRO_MONTHLY_PRICE} a month once it opens, for more tailoring and faster alerts. Nothing you use today moves behind it.
-- **Founding seats**: ${FOUNDING_SEAT_PRICE} once for Pro for life, limited to ${FOUNDING_SEAT_COUNT}. A seat is refundable on request, for any reason, until Pro opens.
+The parts that cost real money to run are paid, and there is one price, on the [pricing page](/pricing): ${PRO_MONTHLY_PRICE} a month, bought 1 to 12 months at a time. You pay once, it never renews on its own, and it is refundable on request, for any reason, within 14 days. A paid month is what lets us save your résumé on your account and run AI on it; without one, your résumé stays on your device.
 
 There are no ads, and nothing about you is sold.
 
@@ -89,7 +85,7 @@ That AI runs on [Tinfoil](https://tinfoil.sh)'s sealed server. Your browser firs
 
 Search, the fit labels and the job emails use no AI. Strong, Good and Stretch are worked out in your browser by fixed rules.
 
-Your résumé file is read in your browser and never uploaded. If you aren't signed in, what Velai reads from it stays in that browser. If you are, it's encrypted with AES-256 before it's saved. The [privacy policy](/privacy#your-resume) has the details.
+Your résumé file is read in your browser and never uploaded. Unless you have a paid month, what Velai reads from it stays in that browser. With one, it's encrypted with AES-256 before it's saved to your account. The [privacy policy](/privacy#your-resume) has the details.
 
 ![Velai's four privacy promises, as shown on the privacy policy: read in your browser, encrypted when saved, AI sees only what it needs, and never sold.](${DIR}/privacy-promises.png)
 

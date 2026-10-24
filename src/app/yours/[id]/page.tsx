@@ -19,6 +19,7 @@ import { captureEvent } from "@/lib/analytics/events";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { useAuthGate } from "@/components/auth/use-auth-gate";
 import { openApplyUrl, useGatedApply } from "@/components/jobs/use-gated-apply";
+import { httpUrlOrNull } from "@/lib/jobs/http-url";
 import { formatAuthGateValueLine, type AuthGateReason } from "@/lib/auth/auth-gate-copy";
 import { detailFetcher } from "@/lib/jobs/detail-fetch";
 import { displayCompanyName } from "@/lib/jobs/presentation";
@@ -26,7 +27,6 @@ import { JobDetail } from "@/components/jobs/JobDetail";
 import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { formatDescription } from "@/lib/jobs/format-description";
 import { ReceiptShell } from "@/components/jobs/receipt-shell";
-import { LandedPledgeForPursuit } from "@/components/tracker/LandedPledgePanel";
 import { PursuitNoteField } from "@/components/tracker/PursuitNoteField";
 import { PursuitStatusPicker } from "@/components/tracker/PursuitStatusPicker";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
@@ -563,8 +563,8 @@ export default function PursuitDetailPage() {
                             <Button variant="outline" onClick={() => void openDetail(pursuit.job_id!)}>
                                 View posting
                             </Button>
-                        ) : pursuit.job_url ? (
-                            <Button variant="outline" onClick={() => gatedOpenPosting(pursuit.job_url!)} className="gap-2">
+                        ) : httpUrlOrNull(pursuit.job_url) ? (
+                            <Button variant="outline" onClick={() => gatedOpenPosting(httpUrlOrNull(pursuit.job_url)!)} className="gap-2">
                                 <ArrowSquareOut size={16} />
                                 Open posting
                             </Button>
@@ -591,11 +591,6 @@ export default function PursuitDetailPage() {
                         />
                     )}
                 </section>
-
-                {/* The pay-when-you-land moment (strategy decision 7): only once
-                    the pursuit sits in the Offer lane. p-6 matches the cards
-                    around it; the sheet keeps the panel's own p-3.5. */}
-                <LandedPledgeForPursuit pursuit={pursuit} className="p-6" />
 
                 {/* Tailoring and prep moved to MCP 2026-08-02: the quiet handoff
                     note is the one next step for a saved or interviewing role. */}
@@ -648,7 +643,7 @@ export default function PursuitDetailPage() {
                             pursuit={pursuit}
                             onGoAfter={() => {}}
                             onOpenPosting={() => {
-                                const href = pursuit.job_url ?? detail.job?.apply_url;
+                                const href = httpUrlOrNull(pursuit.job_url) ?? httpUrlOrNull(detail.job?.apply_url);
                                 if (href) gatedOpenPosting(href);
                             }}
                             descriptionPending={detail.descriptionPending}
@@ -677,12 +672,12 @@ export default function PursuitDetailPage() {
                                 <p className="text-foreground">We can&apos;t load the live posting right now.</p>
                                 <p className="mt-1 text-muted-foreground">
                                     What you saved is still on this page, and the posting may well still be open —
-                                    {pursuit.job_url ? " open it at the source to check." : " we just can't confirm it from here."}
+                                    {httpUrlOrNull(pursuit.job_url) ? " open it at the source to check." : " we just can't confirm it from here."}
                                 </p>
-                                {pursuit.job_url && (
+                                {httpUrlOrNull(pursuit.job_url) && (
                                     <button
                                         type="button"
-                                        onClick={() => gatedOpenPosting(pursuit.job_url!)}
+                                        onClick={() => gatedOpenPosting(httpUrlOrNull(pursuit.job_url)!)}
                                         className="mt-3 text-sm text-live underline underline-offset-2"
                                     >
                                         Open posting

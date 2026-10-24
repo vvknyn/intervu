@@ -65,7 +65,7 @@ A tailored résumé is always one page. To get there Velai tightens the spacing 
 
 ## Your résumé and your privacy
 
-Velai reads your résumé in your browser, and the fit labels are worked out on your device too. Signed in, your résumé is saved encrypted. When AI helps read or tailor it, your name and contact details are taken out first and it runs on a sealed server that we can't read. [How Velai keeps your résumé private](/privacy#your-resume).
+Velai reads your résumé in your browser, and the fit labels are worked out on your device too. Without a paid month it stays in your browser; with one, it is saved to your account, encrypted. When AI helps read or tailor it, your name and contact details are taken out first and it runs on a sealed server that we can't read. [How Velai keeps your résumé private](/privacy#your-resume).
 
 ## Try it
 

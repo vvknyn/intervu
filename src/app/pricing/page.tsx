@@ -1,63 +1,43 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { PricingClient } from "./pricing-client";
+import { PRICING_DESCRIPTION } from "./offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getServerUser } from "@/lib/auth/server-user";
-import {
-  FOUNDING_CHECKOUT_URL_ENV,
-  foundingCheckoutUrl,
-  paidCheckoutSessionId,
-  pricingDescription,
-} from "@/lib/billing/founding-offer";
+import { getAccessUntil } from "@/lib/billing/access";
+import { isBillingConfigured } from "@/lib/billing/config";
 
 const TITLE = "Pricing";
 
-/**
- * Computed per request rather than a static `metadata` export: the
- * description says whether founding seats are open, and that must follow
- * the same env var as the button. Release 8 made the headline and badge
- * follow it; the static description kept telling search results and link
- * previews "open now" over an inert button.
- */
-export function generateMetadata(): Metadata {
-  const description = pricingDescription(
-    foundingCheckoutUrl(process.env[FOUNDING_CHECKOUT_URL_ENV], null) !== null,
-  );
-  return {
-    description,
-    ...canonicalMetadata("/pricing", TITLE, description),
-  };
-}
+export const metadata: Metadata = {
+  description: PRICING_DESCRIPTION,
+  ...canonicalMetadata("/pricing", TITLE, PRICING_DESCRIPTION),
+};
 
 /**
- * /pricing — the willingness-to-pay test. Three columns (Free, Pro, Data
- * API), one real button: a founding seat sold through a Stripe Payment Link
- * (lib/billing/founding-offer.ts). Nothing here gates a feature — Free is
- * today's product at today's limits, and Pro is a promise with a price on
- * it, which is the point: the page exists to measure who clicks a price
- * before anything is built behind it.
- *
- * Server shell so the checkout URL (a server-only env var, never inlined
- * into the client bundle) and the signed-in identity are resolved here and
- * handed down as props; `PricingClient` owns the analytics and the copy.
- * `searchParams` is the Stripe return (`?checkout=success&session_id=…`),
- * read once here so the client never has to parse the URL itself.
+ * /pricing: one card. Server shell so the billing switch (server-only env)
+ * and the signed-in account's paid-until date are resolved per request and
+ * handed down as props; `PricingClient` owns the picker and the Buy call.
  */
-export default async function PricingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ checkout?: string | string[]; session_id?: string | string[] }>;
-}) {
-  const [user, params] = await Promise.all([getServerUser(), searchParams]);
-  const checkoutUrl = foundingCheckoutUrl(
-    process.env[FOUNDING_CHECKOUT_URL_ENV],
-    user ? { uid: user.uid, email: user.email } : null,
-  );
+export default async function PricingPage() {
+  await connection();
+  const user = await getServerUser();
+  // A failed read must not 500 the page that sells the month: say so, keep buying open.
+  let accessUntil = 0;
+  let paidStatusUnknown = false;
+  if (user) {
+    try {
+      accessUntil = await getAccessUntil(user.uid);
+    } catch {
+      paidStatusUnknown = true;
+    }
+  }
   return (
     <PricingClient
       signedIn={Boolean(user)}
-      email={user?.email ?? null}
-      checkoutUrl={checkoutUrl}
-      paidSessionId={paidCheckoutSessionId(params)}
+      billingConfigured={isBillingConfigured()}
+      paidUntil={accessUntil > Date.now() ? accessUntil : null}
+      paidStatusUnknown={paidStatusUnknown}
     />
   );
 }

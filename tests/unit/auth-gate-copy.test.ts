@@ -39,8 +39,15 @@ test("fit and résumé lines are true before and after an upload and keep the pr
         const { title, line } = authGateCopy(reason);
         assert.doesNotMatch(title, /then upload/i);
         assert.doesNotMatch(line, /We read your résumé/i);
-        assert.match(line, /encrypted/);
+        assert.match(line, /on this device/, `${reason} says where the résumé stays`);
+        assert.doesNotMatch(line, /encrypted|keeps (the|its) structured/i, `${reason} must not promise account storage`);
     }
+});
+
+test("tailor gate says tailoring is paid, not free, and never promises a synced résumé", () => {
+    const { title, line } = authGateCopy("tailor");
+    assert.match(line, /paid month/);
+    assert.doesNotMatch(`${title} ${line}`, /free account|syncs/i);
 });
 
 test("formatAuthGateValueLine prefixes the saved-role line and keeps the reason's line", () => {
@@ -54,7 +61,7 @@ test("formatAuthGateValueLine prefixes the saved-role line and keeps the reason'
 test("résumé-step banner says where the file and the structured résumé are kept", () => {
     assert.equal(
         RESUME_LOCAL_DEVICE_BANNER,
-        "Parsed on this device. The file is read here and never uploaded. The structured result stays in this browser until you sign in, when it is saved to your account encrypted. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.",
+        "Parsed on this device. The file is read here and never uploaded. The structured result stays in this browser. Saving it to your account, encrypted, needs a paid month. To find jobs, our servers send role and skill phrases derived from your résumé to our search index, not your full résumé file, and those searches aren't logged.",
     );
 });
 

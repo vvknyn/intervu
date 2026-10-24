@@ -2,6 +2,7 @@ import type { ResumeVersionSnapshot } from "./types";
 import { exportZipResumePdf } from "@/lib/resume/export-zip-pdf";
 import { roleTermsForJob } from "@/lib/local-ai/tailor-resume";
 import { deriveResumePdfFilename } from "@/lib/resume/pdf-filename";
+import { toastReadNeedsPaidMonth } from "@/lib/resume/payment-required";
 
 export type ResumeDownloadFormat = "pdf" | "md";
 
@@ -31,6 +32,11 @@ export async function downloadResumeVersion(
     pursuit?: { company_name: string; position: string },
     format: ResumeDownloadFormat = "pdf",
 ): Promise<void> {
+    // The list sends a filed version's label and date without its text unless the account has paid time.
+    if (!version.content) {
+        toastReadNeedsPaidMonth();
+        return;
+    }
     const filename = deriveResumePdfFilename({
         company: pursuit?.company_name,
         role: pursuit?.position,
