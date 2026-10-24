@@ -54,7 +54,7 @@ test("the privacy policy opens with Velai's résumé promises and a Your résum�
   await expect(article).toContainText("The file itself is never uploaded to us");
   await expect(article).toContainText("it is encrypted with AES-256 before it is stored");
   await expect(article).toContainText("Those searches are not logged.");
-  await expect(article).toContainText("Every word on the page, labels and tooltips included, is masked before it leaves your browser");
+  await expect(article).toContainText("There is no session replay and no automatic click capture");
   await expect(article).toContainText("No AI model on our servers reads it.");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
