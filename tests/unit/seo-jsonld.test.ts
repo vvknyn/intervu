@@ -120,7 +120,7 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd.url, "https://servicetitan.com");
     // Same URL the CompanyLogo <img> tag renders — not a second, independently
     // invented logo source (see lib/companies/logo.ts).
-    assert.equal(jsonLd.logo, companyLogoUrl("servicetitan.com"));
+    assert.equal(jsonLd.logo, `${ORIGIN}${companyLogoUrl("servicetitan.com")}`);
   });
 
   it("buildCompanyOrganizationJsonLd carries the name through verbatim — it does not re-clean it", () => {

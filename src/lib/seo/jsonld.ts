@@ -246,8 +246,8 @@ export function buildSiteJsonLd(): (WebsiteJsonLd | OrganizationJsonLd)[] {
  * must already be the cleaned display name the page renders (`data.name`,
  * `lib/jobs/presentation.ts`'s `displayCompanyName`), not recomputed here, so
  * the structured data can't drift from the H1. `logo` reuses
- * `companyLogoUrl` — the same favicon URL `CompanyLogo` puts in the `<img>`
- * tag — rather than inventing a second logo source; it's always derivable
+ * `companyLogoUrl` — the same first-party path `CompanyLogo` puts in the
+ * `<img>` tag, made absolute — rather than inventing a second logo source; it's always derivable
  * because `CompanyPageData.domain` is never empty.
  */
 export function buildCompanyOrganizationJsonLd(input: {
@@ -260,7 +260,7 @@ export function buildCompanyOrganizationJsonLd(input: {
     "@type": "Organization",
     name: input.name,
     url: `https://${input.domain}`,
-    logo: companyLogoUrl(input.domain),
+    logo: `${getSiteUrl()}${companyLogoUrl(input.domain)}`,
     ...(input.knowsAbout && input.knowsAbout.length > 0 ? { knowsAbout: input.knowsAbout } : {}),
   };
 }
