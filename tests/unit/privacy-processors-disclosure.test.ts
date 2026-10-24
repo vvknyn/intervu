@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+import { PROCESSORS } from "../../src/lib/legal/processors";
+
 const ROOT = join(__dirname, "../..");
 
 /**
@@ -50,7 +52,8 @@ function privacyProse(): string {
     }
     const src = readFileSync(join(ROOT, "src/app/privacy/page.tsx"), "utf8");
     const article = src.split("<Prose")[1]?.split("</Prose>")[0] ?? src;
-    return article.replace(/\/\/[^\n]*/g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    // The table rows render from PROCESSORS, so their names count as page prose.
+    return PROCESSORS.map((p) => p.name).join("\n") + article.replace(/\/\/[^\n]*/g, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
 }
 
 describe("privacy page processor disclosure matches code", () => {

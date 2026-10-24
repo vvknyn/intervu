@@ -12,6 +12,7 @@ import { SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
 import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
+import { PROCESSORS } from "@/lib/legal/processors";
 import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
 import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
 
@@ -460,60 +461,14 @@ export default function PrivacyPage() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Our servers (app, Postgres database, Meilisearch)</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Everything you give Velai: your account, saved résumé and matches, searches you run.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">To run Velai.</td>
-                <td className="border-b border-border py-2 align-top">Kept until you delete it. Résumés and matches are deleted 90 days after paid time ends. The anonymous search record is deleted after 90 days.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Subspace (thesubspace.io)</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Job identifiers, to fill in descriptions. When you report a listing: the job URL, title, the report category you chose, any notes you add, and your Velai user id as reporter_key. Never your résumé or searches.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Source of the public job listings, and where a report about one goes.</td>
-                <td className="border-b border-border py-2 align-top">We have not confirmed a retention period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Tinfoil sealed AI</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Résumé text with your name, email, phone and links taken out, or only the lines for one job or one question. Encrypted so only the sealed server can read it.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Résumé AI: reading, tailoring, drafting answers. Runs for paid accounts only.</td>
-                <td className="border-b border-border py-2 align-top">We have not confirmed a retention period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">OpenRouter</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Only the words you typed in a job search, no account id. Sent only if the JOBS_LLM_UNDERSTANDING switch is on, with zero data retention requested on each request.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Turn a plain-language search into filters.</td>
-                <td className="border-b border-border py-2 align-top">We have not confirmed a retention period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">PostHog (US cloud)</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Page views and named actions, sent through our own /ph path. Your IP address is removed on our server first. No replay, no click capture, no profile, no account id.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Anonymous product analytics.</td>
-                <td className="border-b border-border py-2 align-top">We have not confirmed a retention period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Stripe</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Your email and card details, entered on Stripe&apos;s checkout page. We store only your Stripe customer id and the date your paid time ends.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Payment for 1 to 12 prepaid months at $12 a month.</td>
-                <td className="border-b border-border py-2 align-top">Set by Stripe. We have not confirmed a period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">WorkOS</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Your email and how you sign in (Google, passkey, email code, or password).</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Sign-in.</td>
-                <td className="border-b border-border py-2 align-top">Kept until you delete your account, which deletes the WorkOS record.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Resend</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Your email address and the message we send you.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Sign-in codes, digests, and other email.</td>
-                <td className="border-b border-border py-2 align-top">We have not confirmed a retention period.</td>
-              </tr>
-              <tr>
-                <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">Cloudflare Turnstile</td>
-                <td className="border-b border-border py-2 pr-3 align-top">What your browser shares to prove you are not a bot, on the contact and sign-up forms.</td>
-                <td className="border-b border-border py-2 pr-3 align-top">Stop spam.</td>
-                <td className="border-b border-border py-2 align-top">Set by Cloudflare.</td>
-              </tr>
+              {PROCESSORS.map((p) => (
+                <tr key={p.name}>
+                  <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">{p.name}</td>
+                  <td className="border-b border-border py-2 pr-3 align-top">{p.receives}</td>
+                  <td className="border-b border-border py-2 pr-3 align-top">{p.why}</td>
+                  <td className="border-b border-border py-2 align-top">{p.retention}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
