@@ -136,6 +136,26 @@ describe("/co pages render", () => {
       if (prevHost !== undefined) process.env.MEILISEARCH_HOST = prevHost;
     }
   });
+  it("a letter page waits for the in-flight build, and a failed build is an error status: never a 404 and never an empty list", async () => {
+    const { DIRECTORY_READER } = await import("@/lib/companies/directory-model");
+    const { default: Letter } = await import("@/app/co/letter/[letter]/page");
+    const { default: Index } = await import("@/app/co/page");
+    const readCached = DIRECTORY_READER.read;
+    const origErr = console.error; console.error = () => {};
+    const notFound = (e: { digest?: string }) => /404/.test(String(e.digest));
+    try {
+      DIRECTORY_READER.read = () => new Promise((resolve) => setTimeout(() => resolve({ companies: [co("acme.com", 40, "Acme")] }), 20));
+      const html = (await import("react-dom/server")).renderToStaticMarkup(await Letter({ params: Promise.resolve({ letter: "a" }) }));
+      assert.match(html, /href="\/co\/acme--com"/);
+      DIRECTORY_READER.read = async () => { throw new Error("evidence batch failed"); };
+      for (const page of [() => Letter({ params: Promise.resolve({ letter: "a" }) }), () => Letter({ params: Promise.resolve({ letter: "s" }) }), () => Index()]) {
+        await assert.rejects(page(), (e: Error & { digest?: string }) => /evidence batch failed/.test(e.message) && !notFound(e));
+      }
+    } finally {
+      console.error = origErr;
+      DIRECTORY_READER.read = readCached;
+    }
+  });
   it("the sitemap lists /co and one page per letter group; policy lists those pages too", async () => {
     const set = [co("acme.com", 40), co("1password.com", 30)];
     const urls = (await buildSitemapEntries(async () => set, { current: null })).map((e) => new URL(e.url).pathname);

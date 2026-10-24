@@ -151,6 +151,12 @@ describe("dominantCompanyDomain", () => {
     assert.equal(domain, null);
   });
 
+  it("never picks an ATS or vendor host, even with the most rows", () => {
+    const rows = (d: string, n: number) => Array.from({ length: n }, () => job({ company_domain: d }));
+    assert.equal(dominantCompanyDomain([...rows("jobs.lever.co", 5), ...rows("acme.com", 1)]), "acme.com");
+    assert.equal(dominantCompanyDomain(rows("acme.wd5.workday.com", 3)), null);
+  });
+
   it("returns the domain from a single hit", () => {
     const domain = dominantCompanyDomain([job({ company_domain: "solo.io" })]);
     assert.equal(domain, "solo.io");

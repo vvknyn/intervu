@@ -7,7 +7,7 @@ import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
+import { listedCompanies } from "@/lib/seo/sitemap-entries";
 import { PageTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 /** The group a URL segment names, or null when no listed company starts with it. */
 async function loadGroup(segment: string) {
-  const groups = groupCompaniesByLetter(await resolveIndexableCompanies());
+  const groups = groupCompaniesByLetter(await listedCompanies());
   return groups.find(({ letter }) => letter === letterFromSegment(segment)) ?? null;
 }
 

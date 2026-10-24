@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, displayNameFromDomain, resolveCompanyName } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -235,5 +235,33 @@ describe("companies/company-name — brand vs legal entity", () => {
     const resolved = resolveCompanyName(rows({ Datadog: 1, datadog: 4 }), "datadog.com");
     assert.equal(resolved.value, "Datadog");
     assert.equal(resolved.source, "corpus-cased");
+  });
+});
+
+describe("siteSpelling — SP: the company's own spelling of the agreed name", () => {
+  it("shows the first candidate that only respells the name", () => {
+    assert.equal(siteSpelling("Aspendental", ["Aspen Dental"]), "Aspen Dental");
+    assert.equal(siteSpelling("AIR LIQUIDE", ["Air Liquide"]), "Air Liquide");
+    assert.equal(siteSpelling("Johnson and Johnson", ["Johnson & Johnson"]), "Johnson & Johnson");
+    assert.equal(siteSpelling("Societe Generale", ["Société Générale"]), "Société Générale");
+    assert.equal(siteSpelling("Fooco", ["Home", "Foo Co", "FOO-CO"]), "Foo Co");
+  });
+
+  it("never shows different letters, an all-caps banner, or anything when there are no candidates", () => {
+    assert.equal(siteSpelling("Abbott Laboratories", ["Abbott"]), "Abbott Laboratories");
+    assert.equal(siteSpelling("Fiveguys", ["FIVE GUYS"]), "Fiveguys");
+    assert.equal(siteSpelling("Fiveguys", []), "Fiveguys");
+    assert.equal(siteSpelling("Fiveguys"), "Fiveguys");
+    assert.equal(siteSpelling("Acme", ["Acme"]), "Acme");
+  });
+
+  it("drops trademark signs from a candidate before comparing and returning it", () => {
+    assert.equal(siteSpelling("Blackrock", ["BlackRock®"]), "BlackRock");
+    assert.equal(siteSpelling("Fiveguys", ["Five Guys ™"]), "Five Guys");
+    assert.equal(siteSpelling("Blackrock", ["Blackrock®"]), "Blackrock");
+  });
+
+  it("allows an all-caps acronym of four letters or fewer", () => {
+    assert.equal(siteSpelling("aaff", ["AAFF"]), "AAFF");
   });
 });

@@ -5,7 +5,7 @@ import { SITE_NAME } from "@/lib/seo/constants";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { buildBreadcrumbJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { resolveIndexableCompanies } from "@/lib/seo/sitemap-entries";
+import { listedCompanies } from "@/lib/seo/sitemap-entries";
 import { PageTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 export default async function CompanyDirectoryPage() {
-  const groups = groupCompaniesByLetter(await resolveIndexableCompanies());
+  const groups = groupCompaniesByLetter(await listedCompanies());
   if (groups.length === 0) throw new Error("/co: no companies to list");
 
   const breadcrumbJsonLd = buildBreadcrumbJsonLd([

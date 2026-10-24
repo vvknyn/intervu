@@ -14,6 +14,13 @@ const CHUNK = 150;
 /** Chunks read at the same time; more than this and Meilisearch starts timing out again. */
 const CHUNK_CONCURRENCY = 4;
 
+/**
+ * Per-attempt timeout of a batch read. Measured on the box 2026-10-24: a 50-domain batch (about 4,400 rows)
+ * takes 3.8-5.4 s alone and 6.2-9.1 s with 12 in flight, past the 8 s search default, so a cold build
+ * aborted batch after batch. Three times the worst measured, so a loaded box still finishes.
+ */
+export const EVIDENCE_TIMEOUT_MS = 30_000;
+
 type BatchReader = typeof meiliSearchEach;
 
 /**
@@ -24,7 +31,7 @@ type BatchReader = typeof meiliSearchEach;
 const readChunk = async (domains: readonly string[], read: BatchReader): Promise<PublicJob[][]> => {
   const batches: string[][] = [];
   for (let i = 0; i < domains.length; i += BATCH) batches.push(domains.slice(i, i + BATCH));
-  const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })));
+  const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })), EVIDENCE_TIMEOUT_MS);
   const rows = await Promise.all(
     batches.map((batch, index) =>
       readBatch(batch)
@@ -38,12 +45,20 @@ const readChunk = async (domains: readonly string[], read: BatchReader): Promise
   return rows.flat();
 };
 
-/** `fn` over `items` with at most `limit` running at once; results in the order of `items`, the first failure rejects. */
+/** `fn` over `items` with at most `limit` running at once; results in the order of `items`. The first failure rejects and no further item is started. */
 const mapLimit = async <T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> => {
   const results: R[] = new Array(items.length);
   let next = 0;
+  let failed = false;
   const worker = async () => {
-    for (let i = next++; i < items.length; i = next++) results[i] = await fn(items[i]!);
+    for (let i = next++; !failed && i < items.length; i = next++) {
+      try {
+        results[i] = await fn(items[i]!);
+      } catch (error) {
+        failed = true;
+        throw error;
+      }
+    }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
   return results;

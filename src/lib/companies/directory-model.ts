@@ -13,7 +13,7 @@
  *       subdomain, then more live roles.
  * Candidates arrive by live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { hostLabelIsName, resolveCompanyName } from "@/lib/companies/company-name";
+import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import { publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -68,7 +68,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], ro
     if (ATS_PORTAL_HOSTNAME_RE.test(candidate.domain)) return void excluded.push({ domain: candidate.domain, rule: "M1" });
     const resolved = resolveCompanyName(rows[i] ?? [], candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
-    const name = displayCompanyName(resolved.value);
+    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames);
     claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
 
@@ -146,15 +146,9 @@ export const getDirectory = (): Promise<ListedDirectory> => DIRECTORY_READER.rea
 
 /**
  * Whether `domain` is listed: the one rule that makes a company page indexable (see indexable.ts).
- * Fail-soft, unlike the sitemap: this runs inline in a page request, so a directory that cannot be
- * read means `false` plus ONE warning — a page that cannot prove it is listed is `noindex, follow`
- * for that render, never claimed indexable.
+ * A directory that cannot be read rejects: a failed read is not a membership answer, so the page
+ * errors rather than render `noindex` as if the company were unlisted.
  */
 export async function fetchCompanyInSitemapSet(domain: string, directory: typeof getDirectory = getDirectory): Promise<boolean> {
-  try {
-    return (await directory()).companies.some((c) => c.domain === domain);
-  } catch (err) {
-    console.warn(`fetchCompanyInSitemapSet(${domain}): directory read failed`, err);
-    return false;
-  }
+  return (await directory()).companies.some((c) => c.domain === domain);
 }

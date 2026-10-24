@@ -368,9 +368,9 @@ export function isRetryableMeiliFailure(status: number): boolean {
   return status >= 500;
 }
 
-async function meiliFetchOnce(url: string, init: RequestInit): Promise<Response> {
+async function meiliFetchOnce(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), MEILI_FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } finally {
@@ -417,26 +417,26 @@ async function logMeiliConfigError(url: string, res: Response): Promise<void> {
  * call `fetch` directly for one of these, and never add a bespoke timeout/
  * retry at an individual call site (see writing-lean-code rule 3: class-wide
  * fix at the chokepoint, not per-instance). Adds a per-attempt
- * AbortController timeout plus ONE bounded retry on the failure classes a
+ * AbortController timeout (`timeoutMs`, default {@link MEILI_FETCH_TIMEOUT_MS}; a caller whose read is measured slower passes its own) plus ONE bounded retry on the failure classes a
  * retry can plausibly fix (network-level throw, or 5xx per
  * `isRetryableMeiliFailure`) — never on 4xx. Deliberately scoped to the read
  * path: the ingestion/admin functions below (pipeline-box sync worker, admin
  * key, bulk PUT/DELETE) run on their own schedule outside any web app
  * request and are out of scope for a client-request-time resilience fix.
  */
-export async function meiliFetch(url: string, init: RequestInit): Promise<Response> {
+export async function meiliFetch(url: string, init: RequestInit, timeoutMs: number = MEILI_FETCH_TIMEOUT_MS): Promise<Response> {
   try {
-    const res = await meiliFetchOnce(url, init);
+    const res = await meiliFetchOnce(url, init, timeoutMs);
     if (res.ok) return res;
     if (!isRetryableMeiliFailure(res.status)) {
       await logMeiliConfigError(url, res);
       return res;
     }
     await new Promise((r) => setTimeout(r, MEILI_RETRY_BACKOFF_MS));
-    return meiliFetchOnce(url, init);
+    return meiliFetchOnce(url, init, timeoutMs);
   } catch {
     await new Promise((r) => setTimeout(r, MEILI_RETRY_BACKOFF_MS));
-    return meiliFetchOnce(url, init);
+    return meiliFetchOnce(url, init, timeoutMs);
   }
 }
 
@@ -2250,9 +2250,11 @@ export async function meiliMultiSearch(
  * One `/multi-search` round trip of full job searches: `buildSearchBody`'s body for each of `queries`
  * (the exact query `searchMeili` would send, optionally retrieving fewer attributes), hits in the
  * order asked. Throws on any failure — a caller must not read a failed batch as "no rows".
+ * `timeoutMs` is the per-attempt timeout, for a batch heavier than a search.
  */
 export async function meiliSearchEach(
   queries: { params: JobSearchParams; attributesToRetrieve?: readonly string[] }[],
+  timeoutMs?: number,
 ): Promise<PublicJob[][]> {
   const h = host();
   if (!h) throw new Error("MEILISEARCH_HOST not set");
@@ -2267,7 +2269,7 @@ export async function meiliSearchEach(
         ...(attributesToRetrieve ? { attributesToRetrieve } : {}),
       })),
     }),
-  });
+  }, timeoutMs);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Meilisearch multi-search failed: ${res.status} ${text.slice(0, 300)}`);
