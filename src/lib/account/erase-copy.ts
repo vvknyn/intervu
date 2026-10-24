@@ -8,6 +8,9 @@ const PROCESSOR_LABELS: Record<string, string> = {
     "mirror-store": "a backup copy of your account data",
     posthog: "your analytics data at PostHog",
     "firebase-auth": "an old sign-in record",
+    "primary-store": "some of your saved account data",
+    "sign-in": "your sign-in record",
+    "identity-store": "your email alert records",
 };
 
 /** What the person is told when deleteAccount returns a non-empty `incomplete`. */

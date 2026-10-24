@@ -11,8 +11,8 @@
  *
  * Since 2026-08-23 it is no longer résumé-only: with bring-your-own-key gone,
  * the app funds every generation, so every generation walks the rungs. Callers
- * do not opt in — the one surviving chokepoint, `generateGenericJSON` in
- * actions/generate-context.ts, passes `FREE_LADDER` by default.
+ * do not opt in — the one surviving chokepoint, `fetchJSON`,
+ * passes `FREE_LADDER` by default.
  *
  * One property matters more than the saving:
  *

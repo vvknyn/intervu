@@ -270,11 +270,10 @@ export default function PrivacyPage() {
           not your full résumé.
         </p>
         <p>
-          Interview-prep search parsing can send the search text you typed to OpenRouter. Audio transcription can
-          send a recording to Groq. Those requests are not your résumé, and no AI model on our servers reads your
-          résumé.
+          Reading a typed search with AI is switched off today. If we turn it on, the words you typed in the search
+          box go to OpenRouter, only to models set not to keep what they are sent, and never your résumé. No audio
+          is sent anywhere.
         </p>
-
         <SectionTitle>Connected AI clients</SectionTitle>
         <p>
           If you pair an AI client with Velai from the <Link href="/connect">connect page</Link> (Claude,
@@ -402,8 +401,9 @@ export default function PrivacyPage() {
           PostHog runs cookieless on Velai: no analytics cookie is set. What PostHog needs to hold on to lives in
           your browser&apos;s per-tab storage, so a reload doesn&apos;t restart your session, nothing is shared
           with your other tabs, and all of it is discarded when you close the tab. PostHog events are not linked
-          to your Velai account, whether or not you&apos;re signed in: we never tell PostHog who you are, and it
-          creates no profile of you. Your IP address is removed by our server before an event is forwarded to PostHog, so it is not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
+          to your Velai account, whether or not you&apos;re signed in: we no longer tell PostHog who you are, and it
+          creates no profile of you. Events recorded up to 23 October 2026 were linked to the account of a
+          signed-in visitor; deleting your account erases those too. Your IP address is removed by our server before an event is forwarded to PostHog, so it is not stored with the events. We don&apos;t run ad trackers or any third-party tracking pixels, and beyond
           the two cookies above Velai sets none. The Cloudflare Turnstile check on our contact and sign-up forms
           runs in its own frame and may use its own storage under Cloudflare&apos;s terms to tell humans from
           bots.
@@ -414,8 +414,7 @@ export default function PrivacyPage() {
           carries the words you typed, your résumé, your name or your email address.
         </p>
         <p>
-          Every analytics event carries the address of the page it happened on, with the words you searched
-          removed before it leaves your browser.
+          Every analytics event carries the address of the page it happened on, with its query string and anything after a # removed before it leaves your browser, so neither the words you searched nor a sign-in link&apos;s token travels with it.
         </p>
         <p>
           PostHog&apos;s survey feature is turned off on Velai, so no survey ever asks for your email address or
@@ -453,16 +452,20 @@ export default function PrivacyPage() {
           keyed to your account). When your sign-in email is a real address, not a synthetic username-only address,
           it also removes contact-form messages and connect, founding-seat, and credit-pack waitlist entries stored
           under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id,
-          asks PostHog to delete the person tied to your account id along with that person&apos;s analytics events
+          deletes your customer record at Stripe (with the saved cards and subscriptions on it), erases the
+          copy of your account data held in our second database (Firestore or PostgreSQL, whichever is not the
+          primary), asks PostHog to delete the person tied to your account id along with that person&apos;s analytics events
           and session recordings, deletes any sign-in record left in Google&apos;s Firebase Authentication from
-          before we moved sign-in to WorkOS, then deletes your WorkOS sign-in record. For a real address it then runs our identity-forget path: global email
-          suppression for that address and deletion from our PostgreSQL identity store.
+          before we moved sign-in to WorkOS, then deletes your WorkOS sign-in record. Every step is attempted even if another fails, and if one could not be
+          completed we tell you which before you leave, so you can ask us to finish it by hand. Last, our
+          identity-forget path removes your row from our PostgreSQL identity store by account id, and for a real
+          address also by that address, with global email suppression for it.
         </p>
         <p>
           PostHog data from visits where you were never signed in carries no account id, so it is not linked to
-          you and is not removed. PostHog analytics collected since October 2026 is not linked to any account at all. If
+          you and is not removed. Events sent after 23 October 2026 are no longer linked to any account; older events from signed-in visits were, and deleting your account erases them. If
           PostHog can&apos;t be reached when you delete your account, the rest of the
-          deletion still completes, and we do not retry the PostHog request. Any session replay recordings made
+          deletion still completes and we tell you, and we do not retry the PostHog request. Any session replay recordings made
           before replay was turned off are kept for 30 days, then expire under PostHog&apos;s rules.
           We have not confirmed a fixed retention period for analytics events in PostHog. Deletion does not
           remove contact-form messages or waitlist entries sent from a different email address than the one you

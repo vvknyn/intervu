@@ -334,6 +334,12 @@ export async function listEmailFollowRecipients(
   return [...byIdentity.values()];
 }
 
+/** The identity linked to this account's uid (identities.firebase_uid), whatever address it was made under. */
+export async function deleteIdentityByUid(q: Queryable, uid: string): Promise<boolean> {
+  const { rows } = await q.query<{ id: string }>(`DELETE FROM intervu.identities WHERE firebase_uid = $1 RETURNING id`, [uid]);
+  return rows.length > 0;
+}
+
 export async function deleteIdentityByEmail(q: Queryable, email: string): Promise<boolean> {
   const normalized = normalizeEmail(email);
   const { rows } = await q.query<{ id: string }>(

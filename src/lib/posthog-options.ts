@@ -79,48 +79,51 @@ export function posthogApiHost(
 }
 
 /**
- * A page or link address without the words searched. Velai keeps a search's
- * text only in its anonymous search log (lib/jobs/search-log.ts); analytics
- * are tied to a signed-in account, so every address they carry loses `q`:
- * what was typed, or the résumé's own role titles under Rank by fit
- * (`sort=fit`). Absolute and site-relative addresses are handled; anything
- * else comes back unchanged.
+ * A page or link address with no query string and no hash. A query can carry
+ * the words searched (`?q=`), the résumé's role titles (`sort=fit`), a nested
+ * copy of either (`/login?next=%2Fjobs%3Fq%3D...`) or a bearer token
+ * (`?token=`), and a hash can carry the same. None of it is needed for
+ * analytics, so every address loses both, whatever the key. Absolute and
+ * site-relative addresses are handled; anything else comes back unchanged.
  */
-export function withoutSearchTerms(value: string): string {
-  if (!value.includes("q=")) return value;
-  const absolute = /^https?:\/\//.test(value);
-  if (!absolute && !value.startsWith("/")) return value;
+export function withoutQueryAndHash(value: string): string {
+  if (!/[?#]/.test(value)) return value;
+  const absolute = /^https?:\/\//i.test(value);
+  if (!absolute && !(value.startsWith("/") && !value.startsWith("//"))) return value;
   try {
     const url = new URL(value, "https://velai.app");
-    if (!url.searchParams.has("q")) return value;
-    url.searchParams.delete("q");
-    return absolute ? url.toString() : `${url.pathname}${url.search}${url.hash}`;
+    url.search = "";
+    url.hash = "";
+    return absolute ? url.toString() : url.pathname;
   } catch {
     return value;
   }
 }
 
-/** A click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) with each link's address searched-word free. */
-function elementsChainWithoutSearchTerms(chain: string): string {
-  return chain.replace(/(href|attr__href)="([^"]*)"/g, (_match, attr: string, href: string) => `${attr}="${withoutSearchTerms(href)}"`);
+/** A string property: each link inside a click's `$elements_chain` (`a:href="/jobs?q=nurse"...`) cleaned, then the whole value if it is itself an address. */
+function scrubString(value: string): string {
+  const chain = value.includes('href="')
+    ? value.replace(/(href|attr__href)="([^"]*)"/g, (_match, attr: string, href: string) => `${attr}="${withoutQueryAndHash(href)}"`)
+    : value;
+  return withoutQueryAndHash(chain);
 }
 
-/** `before_send`: every address an event carries, person `$set`s and clicked links included, without the words searched. */
-export function stripSearchTerms(event: CaptureResult | null): CaptureResult | null {
+/** Strings anywhere in a property value, arrays (`$elements`) and nested objects included. */
+function scrubValue(value: unknown): unknown {
+  if (typeof value === "string") return scrubString(value);
+  if (Array.isArray(value)) return value.map(scrubValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, scrubValue(inner)]));
+  }
+  return value;
+}
+
+/** `before_send`: every address an event carries, person `$set`s and clicked links included, without query string or hash. */
+export function stripUrlQueries(event: CaptureResult | null): CaptureResult | null {
   if (!event) return event;
   for (const bag of [event.properties, event.$set, event.$set_once]) {
     if (!bag) continue;
-    for (const [key, value] of Object.entries(bag)) {
-      if (key === "$elements_chain" && typeof value === "string") bag[key] = elementsChainWithoutSearchTerms(value);
-      else if (typeof value === "string") bag[key] = withoutSearchTerms(value);
-      else if (key === "$elements" && Array.isArray(value)) {
-        for (const element of value as Record<string, unknown>[]) {
-          for (const attr of ["attr__href", "href"]) {
-            if (typeof element?.[attr] === "string") element[attr] = withoutSearchTerms(element[attr] as string);
-          }
-        }
-      }
-    }
+    for (const [key, value] of Object.entries(bag)) bag[key] = scrubValue(value);
   }
   return event;
 }
@@ -149,8 +152,35 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // anonymous promise on /privacy is that only named events are sent.
   autocapture: false,
 
-  // Heatmaps would record click positions: off.
+  // Every other capture lane posthog-js 1.414 can start, pinned off here
+  // because the PostHog project is SHARED with Subspace and its remote config
+  // can switch lanes on for every Velai browser. Where the remote value
+  // ignores a client `false` (console logs, web vitals, conversations), the
+  // lazy-loaded bundle is blocked outright by disable_external_dependency_loading
+  // below. tests/unit/posthog-options.test.ts pins each key.
+  //
+  // Heatmaps record click positions; rage clicks and dead clicks record the
+  // clicked element's text.
   enable_heatmaps: false,
+  capture_heatmaps: false,
+  rageclick: false,
+  capture_dead_clicks: false,
+  // Web vitals and network timing; the remote `capturePerformance` can opt in.
+  capture_performance: false,
+  // Console lines can embed anything the page printed.
+  logs: { captureConsoleLogs: false },
+  enable_recording_console_log: false,
+  // Support-chat widget, product tours, web experiments and site apps all
+  // run remotely configured code in the page.
+  disable_conversations: true,
+  disable_product_tours: true,
+  disable_web_experiments: true,
+  opt_in_site_apps: false,
+  // Blocks the lazy bundles (replay recorder, surveys, logs, dead clicks, web
+  // vitals, exceptions, tours, conversations) from loading at all, so no
+  // remote setting can start them. Velai needs none of them: it only calls
+  // capture() and the pageview/pageleave hooks, which live in the main bundle.
+  disable_external_dependency_loading: true,
 
   // No session replay, whatever the PostHog project setting says.
   disable_session_recording: true,
@@ -172,8 +202,8 @@ export const POSTHOG_OPTIONS: Partial<PostHogConfig> = {
   // URL pointing back at us. Naming the real UI host keeps those working.
   ui_host: "https://us.posthog.com",
 
-  // The last stop before an event leaves the browser: no résumé role titles in any address.
-  before_send: stripSearchTerms,
+  // The last stop before an event leaves the browser: no query string or hash in any address.
+  before_send: stripUrlQueries,
 
   // Cookieless, per-tab, gone when the tab closes.
   //

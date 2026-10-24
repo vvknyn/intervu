@@ -30,7 +30,7 @@ export const AVAILABLE_MODELS = {
  * argument for laddering résumé parsing applies to all of them, and opting
  * each caller in one at a time is how a call site gets forgotten. It is now
  * the default inside `fetchJSON`, the one surviving chokepoint every caller
- * of `generateGenericJSON` (actions/generate-context.ts) routes through — so
+ * of the LLM layer routes through — so
  * a new caller is covered by construction rather than by remembering to pass
  * an argument.
  *

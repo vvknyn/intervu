@@ -81,7 +81,7 @@ test("the privacy policy says searches are kept in an anonymous record, apart fr
   await expect(article).toContainText("We keep an anonymous record of the searches people run");
   await expect(article).toContainText("It holds no account id, IP address or browser id");
   await expect(article).toContainText("deleted after 90 days");
-  await expect(article).toContainText("with the words you searched removed before it leaves your browser");
+  await expect(article).toContainText("query string and anything after a # removed before it leaves your browser");
   await expect(article).not.toContainText("including the text of what you typed");
   await expect(article).not.toContainText("build a profile of your search activity");
   expect(diagnostics.pageErrors).toEqual([]);

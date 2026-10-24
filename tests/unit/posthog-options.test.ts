@@ -2,8 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  stripSearchTerms,
-  withoutSearchTerms,
+  stripUrlQueries,
+  withoutQueryAndHash,
   POSTHOG_OPTIONS,
   POSTHOG_PRODUCT,
 } from "../../src/lib/posthog-options";
@@ -100,36 +100,71 @@ test("/privacy says there is no session replay and no autocapture", () => {
   assert.doesNotMatch(privacy, /session replay is enabled/i);
 });
 
-// Analytics are tied to a signed-in account, so no address they carry keeps
-// the words searched: typed text, or the résumé's role titles under Rank by
-// fit (`?q=...&sort=fit`). The anonymous search log is the only copy.
-test("analytics addresses drop the words searched, typed or built from a résumé, and keep everything else", () => {
-  const fit = 'https://velai.app/jobs?q=%22Registered+Nurse%22+OR+%22Charge+Nurse%22&sort=fit&job=abc';
-  assert.equal(withoutSearchTerms(fit), "https://velai.app/jobs?sort=fit&job=abc");
-  assert.equal(withoutSearchTerms("https://velai.app/jobs?q=nurse&sort=newest"), "https://velai.app/jobs?sort=newest");
-  assert.equal(withoutSearchTerms("/jobs?q=nurse&country=Canada"), "/jobs?country=Canada");
-  assert.equal(withoutSearchTerms("https://velai.app/jobs?country=Canada"), "https://velai.app/jobs?country=Canada");
-  assert.equal(withoutSearchTerms("q=nurse is not an address"), "q=nurse is not an address");
+test("every capture lane posthog-js can start from remote config is pinned off", () => {
+  // The project is shared with Subspace: a lane left unset follows ITS settings.
+  const pinned: Record<string, unknown> = {
+    autocapture: false,
+    capture_dead_clicks: false,
+    rageclick: false,
+    enable_heatmaps: false,
+    capture_heatmaps: false,
+    capture_performance: false,
+    capture_exceptions: false,
+    disable_surveys: true,
+    disable_session_recording: true,
+    disable_conversations: true,
+    disable_product_tours: true,
+    disable_web_experiments: true,
+    enable_recording_console_log: false,
+    opt_in_site_apps: false,
+    // The lazy bundles (logs, recorder, surveys, dead clicks, vitals) never load.
+    disable_external_dependency_loading: true,
+  };
+  for (const [key, expected] of Object.entries(pinned)) {
+    assert.deepEqual((POSTHOG_OPTIONS as Record<string, unknown>)[key], expected, key);
+  }
+  assert.deepEqual(POSTHOG_OPTIONS.logs, { captureConsoleLogs: false });
+});
+
+// No address an event carries keeps its query string or hash: the words
+// searched, résumé role titles under Rank by fit, a nested copy of either in
+// `next=`, or a bearer token.
+test("addresses lose query string and hash, whatever the key, and keep path and non-address text", () => {
+  assert.equal(withoutQueryAndHash("https://velai.app/jobs?q=%22Registered+Nurse%22&sort=fit&job=abc#top"), "https://velai.app/jobs");
+  assert.equal(withoutQueryAndHash("/jobs?country=Canada"), "/jobs");
+  assert.equal(withoutQueryAndHash("/reset-password?token=abc123"), "/reset-password");
+  assert.equal(withoutQueryAndHash("/co/acme#openings"), "/co/acme");
+  assert.equal(withoutQueryAndHash("https://velai.app/jobs"), "https://velai.app/jobs");
+  assert.equal(withoutQueryAndHash("what is this? #1 job"), "what is this? #1 job");
+  assert.equal(withoutQueryAndHash("q=nurse is not an address"), "q=nurse is not an address");
 
   const event = {
     uuid: "1",
-    event: "$autocapture",
+    event: "$pageview",
     properties: {
-      $current_url: fit,
+      $current_url: "https://velai.app/login?next=%2Fjobs%3Fq%3Dstaff%2Baccountant%26sort%3Dfit",
       $referrer: "https://velai.app/jobs?q=staff+accountant",
-      $pathname: "/jobs",
+      $pathname: "/login",
+      $session_entry_url: "https://velai.app/unsubscribe?token=SECRETTOKEN#x",
+      $title: "Sign in? Yes",
       count: 3,
       $elements_chain: 'a.recent:attr__href="/jobs?q=staff%20accountant&view=search"href="/jobs?q=staff%20accountant&view=search"nth-child="1"',
       $elements: [{ tag_name: "a", attr__href: "/jobs?q=staff+accountant&view=search", href: "/jobs?q=staff+accountant&view=search" }],
+      nested: { return_to: "/jobs?q=nurse" },
     },
-    $set_once: { $initial_current_url: fit },
+    $set_once: { $initial_current_url: "https://velai.app/jobs?q=nurse&sort=fit", $initial_referrer: "https://velai.app/reset-password?token=abc" },
   };
-  const sent = stripSearchTerms(event);
-  assert.equal(sent?.properties.$current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  const sent = stripUrlQueries(event);
+  assert.equal(sent?.properties.$current_url, "https://velai.app/login");
   assert.equal(sent?.properties.$referrer, "https://velai.app/jobs");
-  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs?sort=fit&job=abc");
+  assert.equal(sent?.properties.$session_entry_url, "https://velai.app/unsubscribe");
+  assert.equal(sent?.$set_once?.$initial_current_url, "https://velai.app/jobs");
+  assert.equal(sent?.$set_once?.$initial_referrer, "https://velai.app/reset-password");
+  assert.equal(sent?.properties.$title, "Sign in? Yes");
   assert.equal(sent?.properties.count, 3);
-  assert.equal(JSON.stringify(sent).includes("accountant"), false, "a clicked search link keeps no search words");
-  assert.match(sent?.properties.$elements_chain as string, /href="\/jobs\?view=search"/);
-  assert.equal(POSTHOG_OPTIONS.before_send, stripSearchTerms);
+  assert.deepEqual(sent?.properties.nested, { return_to: "/jobs" });
+  const wire = JSON.stringify(sent);
+  for (const leak of ["accountant", "SECRETTOKEN", "nurse", "abc"]) assert.equal(wire.includes(leak), false, `${leak} survived`);
+  assert.match(sent?.properties.$elements_chain as string, /href="\/jobs"/);
+  assert.equal(POSTHOG_OPTIONS.before_send, stripUrlQueries);
 });

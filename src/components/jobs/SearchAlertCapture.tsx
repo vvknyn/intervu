@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TurnstileWidget } from "@/components/ui/turnstile-widget";
 import { captureEvent } from "@/lib/analytics/events";
+import { PERSONAL_EMAIL_HINT } from "@/lib/auth/auth-gate-copy";
 import { confirmLinkCreatesAccountLine } from "@/lib/follows/persist-copy";
 import { markSearchAlertSubmitted } from "@/lib/jobs/search-alert-capture";
 import { cn } from "@/lib/utils";
@@ -124,7 +125,7 @@ export function SearchAlertCapture({
     <div data-testid="search-alert-capture" className={cn("max-w-md text-left", !compact && "mt-4")}>
       {!compact && <p className="text-sm">Get new matches by email</p>}
       <p className={cn("text-xs text-muted-foreground", !compact && "mt-1")}>
-        {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."} {confirmLinkCreatesAccountLine()}
+        {compact ? "Unsubscribe anytime." : "Weekly. Unsubscribe anytime."} {confirmLinkCreatesAccountLine()} {PERSONAL_EMAIL_HINT}
       </p>
       <form onSubmit={handleSubmit} className={cn("flex flex-wrap items-center gap-2", compact ? "mt-2" : "mt-3")}>
         <Input
@@ -133,7 +134,7 @@ export function SearchAlertCapture({
           autoComplete="email"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@company.com"
+          placeholder="you@example.com"
           data-testid="search-alert-email-input"
           className="ctl-md w-full max-w-[260px] text-base"
         />

@@ -19,7 +19,10 @@
  */
 import type { Firestore } from "firebase-admin/firestore";
 
+import { readIdField, validateVelaiUid, VELAI_UID_METADATA_KEY } from "@/lib/billing/events";
 import { getStripe } from "@/lib/billing/stripe-client";
+import { deleteIdentityByUid } from "@/lib/identity/store";
+import { forgetIdentity } from "@/lib/identity/forget";
 import { getPgDocDb } from "@/lib/db/docstore/pg-docstore";
 import { deletePgUserRows, runUserDataPlan } from "@/lib/db/user-data";
 import type { Queryable } from "@/lib/pg/pool";
@@ -48,6 +51,25 @@ export async function eraseTelemetry(pg: Queryable | null, uid: string): Promise
     return pg ? statusFromCount(await deleteTelemetryByUserId(pg, uid)) : "not-configured";
 }
 
+/**
+ * The email-follow identity store: suppression plus the row by address
+ * (forgetIdentity), and the row linked by uid, which survives under an
+ * old or different address and is the only handle a username account has.
+ */
+export async function eraseIdentityStore(
+    pg: Queryable | null,
+    uid: string,
+    email: string | null,
+    forget: typeof forgetIdentity = forgetIdentity,
+    deleteByUid: typeof deleteIdentityByUid = deleteIdentityByUid,
+): Promise<ProcessorStatus> {
+    // Suppression runs whether or not there is a store to delete from.
+    const byEmail = email ? await forget(pg, null, email) : false;
+    if (!pg) return "not-configured";
+    const byUid = await deleteByUid(pg, uid);
+    return statusFromCount(Number(byEmail) + Number(byUid));
+}
+
 /** A processor in one of these states still holds (or may hold) the data. */
 export const isSkipped = (status: ProcessorStatus): boolean => status === "not-configured" || status === "failed";
 
@@ -59,6 +81,8 @@ export interface EraseAccountDeps {
     deletePaths(paths: string[]): Promise<void>;
     /** The Stripe customer id on the profile; read before the profile goes. */
     stripeCustomerId(uid: string): Promise<string | null>;
+    /** The customer id found at Stripe itself, for when the profile no longer has (or cannot give) one. */
+    findStripeCustomerByUid(uid: string): Promise<string | null>;
     deleteStripeCustomer(customerId: string): Promise<ProcessorStatus>;
     /** The same erase against the other doc store (Firestore vs Postgres copy). */
     eraseMirrorStore(uid: string, email: string | null): Promise<ProcessorStatus>;
@@ -72,8 +96,8 @@ export interface EraseAccountDeps {
     deleteLegacySignIn(uid: string): Promise<boolean>;
     /** The WorkOS sign-in record. */
     deleteSignIn(uid: string): Promise<void>;
-    /** Suppression, then the email-follow identity store. */
-    forgetEmail(email: string): Promise<void>;
+    /** Suppression, then the email-follow identity store, by address and by uid. */
+    eraseIdentityStore(uid: string, email: string | null): Promise<ProcessorStatus>;
     logError(message: string): void;
 }
 
@@ -98,28 +122,44 @@ export async function eraseAccount(input: EraseAccountInput, deps: EraseAccountD
             const outcome = await run();
             report(processor, typeof outcome === "boolean" ? (outcome ? "deleted" : "not-found") : outcome, detail);
         } catch (error) {
-            report(processor, "failed", `${detail} reason=${error instanceof Error ? error.message : "unknown"}`.trim());
+            report(processor, "failed", `${detail} reason=${reasonOf(error)}`.trim());
         }
     };
 
-    const customerId = await deps.stripeCustomerId(input.uid);
-    const paths = await deps.ownedPaths(input.uid);
-    if (input.email) paths.push(...(await deps.emailPaths(input.email, input.uid)));
-    await deps.deletePaths([...new Set(paths)]);
+    // Read before any delete: the profile that holds the id goes with the
+    // primary store. Profile first, then Stripe itself, so a retry after a
+    // partial erase (profile already gone) still finds the customer.
+    let customerId: string | null = null;
+    let stripeLookupError: unknown = null;
+    try {
+        customerId = await deps.stripeCustomerId(input.uid).catch(() => null);
+        customerId ??= await deps.findStripeCustomerByUid(input.uid);
+    } catch (error) {
+        stripeLookupError = error;
+    }
 
+    await attempt("primary-store", async () => {
+        const paths = await deps.ownedPaths(input.uid);
+        if (input.email) paths.push(...(await deps.emailPaths(input.email, input.uid)));
+        const unique = [...new Set(paths)];
+        await deps.deletePaths(unique);
+        return statusFromCount(unique.length);
+    });
     await attempt("pg-rows", () => deps.deletePgRows(input.uid));
     await attempt("telemetry", () => deps.deleteTelemetry(input.uid));
 
-    if (customerId) await attempt("stripe", () => deps.deleteStripeCustomer(customerId), `customer=${customerId}`);
+    if (stripeLookupError) report("stripe", "failed", `lookup reason=${reasonOf(stripeLookupError)}`);
+    else if (customerId) await attempt("stripe", () => deps.deleteStripeCustomer(customerId), `customer=${customerId}`);
     else report("stripe", "not-applicable");
     await attempt("mirror-store", () => deps.eraseMirrorStore(input.uid, input.email));
     await attempt("posthog", () => deps.deleteAnalyticsPerson(input.uid));
     await attempt("firebase-auth", () => deps.deleteLegacySignIn(input.uid));
-
-    await deps.deleteSignIn(input.uid);
-    if (input.email) await deps.forgetEmail(input.email);
+    await attempt("sign-in", async () => (await deps.deleteSignIn(input.uid), "deleted"));
+    await attempt("identity-store", () => deps.eraseIdentityStore(input.uid, input.email));
     return results;
 }
+
+const reasonOf = (error: unknown) => (error instanceof Error ? error.message : "unknown");
 
 /** Collections whose records carry the address in an `email` field. */
 export const EMAIL_FIELD_COLLECTIONS = ["contact_messages", "connect_waitlist", "founding_waitlist", "waitlist"] as const;
@@ -174,6 +214,22 @@ type FetchLike = (url: string, init?: { method?: string; headers?: Record<string
 export async function readStripeCustomerId(db: Firestore, uid: string): Promise<string | null> {
     const id = (await db.collection("profiles").doc(uid).get()).data()?.stripe_customer_id;
     return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+/**
+ * The customer behind a uid, asked of Stripe: checkout stamps the uid on the
+ * subscription metadata (billing/sessions.ts), and the subscription names its
+ * customer. Null when billing is off or Stripe has no such subscription.
+ */
+export async function findStripeCustomerByUid(
+    uid: string,
+    stripe: Pick<NonNullable<ReturnType<typeof getStripe>>, "subscriptions"> | null = getStripe(),
+): Promise<string | null> {
+    if (!stripe) return null;
+    const safeUid = validateVelaiUid(uid);
+    if (!safeUid) return null;
+    const found = await stripe.subscriptions.search({ query: `metadata['${VELAI_UID_METADATA_KEY}']:'${safeUid}'`, limit: 1 });
+    return readIdField(found.data[0]?.customer);
 }
 
 /** Deletes the Stripe customer (and with it their saved cards and subscriptions). */

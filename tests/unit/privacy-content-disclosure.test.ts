@@ -116,8 +116,13 @@ describe("privacy article — owner-confirmed analytics & processors", () => {
     assert.doesNotMatch(prose, /makes no call to PostHog to delete data/);
     assert.match(prose, /asks PostHog to delete the person tied to your account id/);
     assert.match(prose, /we do not retry the PostHog request/);
-    assert.match(prose, /Interview-prep search parsing can send the search text you typed to OpenRouter/);
-    assert.match(prose, /Audio transcription can send a recording to Groq/);
+    assert.match(prose, /Reading a typed search with AI is switched off today[\s\S]*go to OpenRouter[\s\S]*never your résumé/);
+    assert.doesNotMatch(prose, /Groq/);
+    assert.doesNotMatch(prose, /since October 2026 is not linked/);
+    assert.match(prose, /older events from signed-in visits were[\s\S]*deleting your account erases them/);
+    for (const stored of [/customer record at Stripe/, /second database/, /identity store by account id/]) {
+      assert.match(prose, stored);
+    }
   });
 
   it("discloses Meilisearch and Subspace only for flows code actually sends", () => {

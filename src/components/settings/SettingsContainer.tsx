@@ -119,9 +119,7 @@ export function SettingsContainer() {
             // `handleSignOut` above uses).
             await signOut();
         } catch (e: unknown) {
-            setDeleteError(
-                e instanceof Error ? e.message : SETTINGS_MESSAGES.accountDeleteFailed,
-            );
+            setDeleteError(SETTINGS_MESSAGES.accountDeleteFailed);
             setIsDeleting(false);
         }
     };

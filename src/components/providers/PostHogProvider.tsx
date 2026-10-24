@@ -14,8 +14,10 @@ import { setPostHogClient } from "@/lib/analytics/posthog-client";
 import { consumeSignupSignalFromDocumentCookie } from "@/lib/auth/authkit-signup-signal";
 import { clearGateAttempt, gateAttemptEventFields, readGateAttempt } from "@/lib/auth/gate-attempt";
 
-// Velai has its own PostHog project; the `product` super property
-// (see POSTHOG_PRODUCT) is a label only.
+// Velai shares one PostHog project with Subspace; the `product` super property
+// (see POSTHOG_PRODUCT) is what tells their events apart, and the project's
+// remote settings reach Velai too, which is why POSTHOG_OPTIONS pins every
+// capture lane off.
 // Until NEXT_PUBLIC_POSTHOG_KEY is set, this provider no-ops completely (no
 // init call, no network, renders children unwrapped).
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;

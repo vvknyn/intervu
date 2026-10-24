@@ -163,7 +163,7 @@ export const SETTINGS_MESSAGES = {
     dataExported: "Data exported! Your interview prep, portable and free.",
     dataExportFailed: "Export hit a snag. Give it another shot.",
     accountDeleteFailed:
-        "Couldn't delete your account. That's... actually a good thing?",
+        "We couldn't delete your account. Try again, or email support and we will do it by hand.",
 };
 
 // ---------------------------------------------------------------------------
