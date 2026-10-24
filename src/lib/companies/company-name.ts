@@ -266,8 +266,10 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || siteKey(display) !== label) return display;
   const cleaned = spellings.map((c) => displayCompanyName(c));
+  const cased = respellFirstWord(label, display, cleaned);
+  if (cased) return cased;
   if (cleaned.some((c) => siteKey(c) === label)) return display;
-  return respellFirstWord(label, display, cleaned) ?? expandSquashedLabel(label, cleaned) ?? display;
+  return expandSquashedLabel(label, cleaned) ?? display;
 }
 
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */

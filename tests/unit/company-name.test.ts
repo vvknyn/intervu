@@ -296,6 +296,8 @@ describe("siteSpelling — SQ: a display that is only the squashed domain word t
     assert.equal(sq("Nvent", "nvent.com", ["nVent Electric"]), "nVent");
     assert.equal(sq("Sendiks", "sendiks.com", ["Sendik's Food Market"]), "Sendik's");
     assert.equal(sq("Pei", "pei.com", ["PEI + Dataprise"]), "PEI");
+    assert.equal(sq("Mccain", "mccain.com", ["McCain Foods Global Corporate", "McCain Foods Global Corporate Website", "McCain.com"]), "McCain");
+    assert.equal(sq("Omv", "omv.com", ["OMV Aktiengesellschaft", "OMV Home", "OMV.com"]), "OMV");
     assert.equal(sq("NGC", "ngc.com", ["Ngc Construction"]), "NGC");
     assert.equal(sq("Iceye", "iceye.com", ["ICEYE Space Systems"]), "Iceye");
     assert.equal(sq("Yale", "yale.edu", ["Yale University"]), "Yale");
