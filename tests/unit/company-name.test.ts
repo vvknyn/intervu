@@ -316,4 +316,32 @@ describe("siteSpelling — SQ: a display that is only the squashed domain word t
     assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC"]), "Pyramid HC");
     assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC Inc"]), "Pyramidhc");
   });
+
+  it("1. runs only for a one-word display (a spaced display is already spelled)", () => {
+    assert.equal(sq("Accendra Health", "accendrahealth.com", ["Accendra Health Home Page"]), "Accendra Health");
+    assert.equal(sq("Blue Harbor", "blueharbor.com", ["Blue Harbor Home Page"]), "Blue Harbor");
+  });
+
+  it("2. spells the label from word starts, not letters scattered through the phrase", () => {
+    assert.equal(sq("Sienna", "siennaliving.com", ["Sienna Senior Living"]), "Sienna");
+    assert.equal(sq("Siennaliving", "siennaliving.com", ["Sienna Senior Living"]), "Sienna Senior Living");
+    assert.equal(sq("Pyebarkerfs", "pyebarkerfs.com", ["Pye-Barker Fire & Safety"]), "Pye-Barker Fire & Safety");
+    assert.equal(sq("Imc", "imc.com", ["Institute of Management Consultants Australia"]), "Institute of Management Consultants Australia");
+    // the old whole-name character subsequence accepted this (a,p from Apple; u,m,e from mid-word of Lumber)
+    assert.equal(sq("Apume", "apume.com", ["Apple Lumber Co"]), "Apume");
+  });
+
+  it("3. drops a tagline after the shortest word prefix that spells the label", () => {
+    assert.equal(sq("Airbushelicopters", "airbushelicopters.com", ["Airbus Helicopters in Canada"]), "Airbus Helicopters");
+    assert.equal(sq("Lakeshorebakery", "lakeshorebakery.com", ["Lakeshore Bakery Fresh Daily"]), "Lakeshore Bakery");
+  });
+
+  it("4. rejects respellings that are lower-case, cut off, or drop a space without a case join", () => {
+    assert.equal(sq("Acme Widgets", "acmewidgets.com", ["Acme Widgets -"]), "Acme Widgets");
+    assert.equal(sq("Sun Life", "sunlife.com", ["Sunlife"]), "Sun Life");
+    assert.equal(sq("Third Bridge", "thirdbridge.com", ["Thirdbridge"]), "Third Bridge");
+    assert.equal(sq("Lincolnfinancial", "lincolnfinancial.com", ["lincolnfinancial"]), "Lincolnfinancial");
+    assert.equal(sq("Naught One", "naughtone.com", ["NaughtOne"]), "NaughtOne");
+    assert.equal(sq("Acmeco", "acmeco.com", ["Acme Co -"]), "Acmeco");
+  });
 });
