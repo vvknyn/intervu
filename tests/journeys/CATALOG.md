@@ -858,6 +858,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-NAV-40 | The follow-alerts bell's footer link reads "Manage companies you follow" and opens Settings › Account at the list, not the Elite startups board (dev-server only: signed-in mock) | signed-in | /jobs, open `topbar-follow-alerts` | signed-in | no | covered | settings.spec.ts |
 | J-NAV-41 | On a 375px, 360px or 320px phone the /jobs toolbar (Filters, the posted chip, the "?") strands no control on a line of its own: the posted chip shows just "Past 3 months", and its accessible name still reads "Posted · Past 3 months" | anon | onboarding-completed flag + /jobs, /jobs?q=engineer at 375, 360 and 320 wide | signed-out | no | covered | page-scale.spec.ts |
 | J-NAV-42 | The header logo is the paper tile the Chrome extension and the favicon show (not the bare navy brackets, which all but vanished on the charcoal bar), 32px, with transparent corners so no white square shows around it, at 1440 and 390 | anon | /jobs, /about | signed-out | no | covered | header-logo.spec.ts |
+| J-NAV-43 | The header avatar never loads a sign-in provider's profile photo: a remote photo (https, protocol-relative, or a tab-split path the browser reads as another host) shows initials with no image and no request to that host, while a Velai-hosted picture still shows (dev-server only: signed-in mock) | signed-in | /privacy | signed-in | no | covered | avatar-privacy.spec.ts |
 
 ## PRICING
 
