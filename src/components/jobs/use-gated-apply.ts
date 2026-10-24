@@ -1,17 +1,7 @@
 "use client";
 
+import { isHttpApplyUrl } from "@/lib/jobs/http-url";
 import { resolveApplyClickDecision } from "@/lib/jobs/pending-actions";
-
-/** True when `url` is safe to hand off as a real navigation target. */
-export function isHttpApplyUrl(url: string): boolean {
-    if (!url) return false;
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-        return false;
-    }
-}
 
 /**
  * Shared Apply-click handler: signed-in users open the employer apply URL

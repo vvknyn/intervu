@@ -134,10 +134,9 @@ export function clearRateLimitStateForTests(): void {
 export const allowSearchRequest = createIpRateLimiter(RATE_LIMIT_WINDOW_MS, RATE_LIMIT_MAX_REQUESTS);
 
 /**
- * Per-IP limits for the two one-shot email forms: the /connect and /openclaw
- * waitlist (`joinConnectWaitlist`) and the founding-seat reservation on
- * /pricing (`reserveFoundingSeat`). Each form has its own stores, never
- * `allowSearchRequest`'s above, so unrelated counters don't share a meaning.
+ * Per-IP limits for the one-shot /connect and /openclaw waitlist email form
+ * (`joinConnectWaitlist`). It has its own stores, never `allowSearchRequest`'s
+ * above, so unrelated counters don't share a meaning.
  *
  * Split the way `signUp`'s budget is (below): until 2026-10-03 each form had
  * one 5-per-600s limit counted on every submit before Turnstile, so a person
@@ -160,12 +159,6 @@ export const allowConnectWaitlistSubmit = createIpRateLimiter(EMAIL_FORM_SUBMIT_
 
 /** The waitlist's write budget (after Turnstile). */
 export const allowConnectWaitlistRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
-
-/** The founding-seat reservation's flood guard (before Turnstile). */
-export const allowFoundingReserveSubmit = createIpRateLimiter(EMAIL_FORM_SUBMIT_WINDOW_MS, EMAIL_FORM_SUBMIT_MAX_REQUESTS);
-
-/** The founding-seat reservation's write budget (after Turnstile): the waitlist's size, its own store. */
-export const allowFoundingReserveRequest = createIpRateLimiter(CONNECT_WAITLIST_WINDOW_MS, CONNECT_WAITLIST_MAX_REQUESTS);
 
 /**
  * Per-IP sliding-window rate limit for the jobs typeahead chokepoint

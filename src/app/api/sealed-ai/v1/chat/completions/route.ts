@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { paymentRequired } from "@/lib/billing/access";
+import { sealedAiAccess } from "@/lib/sealed-ai/access";
 import { resolveClientIpFromHeaders } from "@/lib/shield/client-ip";
 import { allowSealedAiRequest, allowSealedAiServerRequest, SEALED_AI_WINDOW_MS } from "@/lib/shield/rate-limit";
 import {
@@ -39,6 +41,11 @@ export async function POST(request: Request): Promise<Response> {
             { status: 429, headers: { ...headers, "Retry-After": String(Math.min(retryAfter, SEALED_AI_WINDOW_MS / 1_000)) } },
         );
     }
+
+    // Sealed AI is the paid month: the body is encrypted, so the account is all there is to check.
+    const access = await sealedAiAccess();
+    if (access === "signed-out") return NextResponse.json({ error: "Sign in to use sealed AI" }, { status: 401, headers });
+    if (access === "unpaid") return NextResponse.json(paymentRequired(), { status: 402, headers });
 
     const encapsulatedKey = request.headers.get("ehbp-encapsulated-key") ?? "";
     const target = sealedAiTarget(request.headers.get("x-tinfoil-enclave-url"));

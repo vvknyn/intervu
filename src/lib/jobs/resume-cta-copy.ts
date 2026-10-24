@@ -12,7 +12,7 @@ export { FRONT_DOOR_RESUME_CARD_SUBCOPY, FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_I
  */
 
 export const RESUME_UPLOAD_SIGNIN_LINE =
-    "Sign in to sync your résumé and tracker across devices.";
+    "Sign in to keep your tracker on every device. Saving your résumé to your account is a paid month.";
 
 /** Jobs tabs helper — directly under ForYouToggle when Search is active. */
 export const JOBS_TAB_HELPER =
@@ -42,7 +42,7 @@ export const FOR_YOU_UPLOAD_PDF_EMPTY = "Upload résumé to create a tailored PD
 export const CUSTOMIZE_READY_HEADER = "Your résumé is ready. Customize for this role.";
 
 /** Signed-out sync line inside customize panel. */
-export const SIGN_IN_TO_SYNC_LABEL = "Sign in to sync this version.";
+export const SIGN_IN_TO_SYNC_LABEL = "Sign in to save this version. Saving needs a paid month.";
 
 /** Job detail action when no résumé yet. A button label, so no full stop. */
 export const UPLOAD_TO_CUSTOMIZE_LABEL = "Upload résumé to customize";

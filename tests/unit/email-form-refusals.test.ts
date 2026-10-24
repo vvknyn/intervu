@@ -6,23 +6,19 @@ import { EMAIL_FORM_INVALID_MESSAGE, emailFormRateLimitMessage } from "../../src
 import {
   allowConnectWaitlistRequest,
   allowConnectWaitlistSubmit,
-  allowFoundingReserveRequest,
-  allowFoundingReserveSubmit,
   clearRateLimitStateForTests,
   CONNECT_WAITLIST_MAX_REQUESTS,
   EMAIL_FORM_SUBMIT_MAX_REQUESTS,
 } from "../../src/lib/shield/rate-limit";
 
 /**
- * The founding-seat reservation (/pricing) and the OpenClaw waitlist (/connect,
- * /openclaw) used to answer a per-IP refusal with "Too many attempts — try
+ * The OpenClaw waitlist (/connect, /openclaw) used to answer a per-IP refusal with "Too many attempts — try
  * again in a few minutes.", counted on every submit before Turnstile: the
  * pattern that refused a real signup on 2026-10-01 (lib/shield/rate-limit.ts).
  */
 
 const ROOT = join(__dirname, "..", "..");
 const ACTIONS = [
-  { file: "founding-seat.ts", submit: "allowFoundingReserveSubmit(ip)", write: "allowFoundingReserveRequest(ip)" },
   { file: "connect-waitlist.ts", submit: "allowConnectWaitlistSubmit(ip)", write: "allowConnectWaitlistRequest(ip)" },
 ];
 
@@ -67,7 +63,6 @@ test("each form's flood guard and write budget are separate stores, and the guar
   clearRateLimitStateForTests();
   const now = 1_000_000;
   for (const [submit, write] of [
-    [allowFoundingReserveSubmit, allowFoundingReserveRequest],
     [allowConnectWaitlistSubmit, allowConnectWaitlistRequest],
   ] as const) {
     for (let i = 0; i < EMAIL_FORM_SUBMIT_MAX_REQUESTS; i++) assert.equal(submit("9.9.9.9", now), true);

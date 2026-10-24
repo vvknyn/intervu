@@ -44,7 +44,7 @@ export const PRIVACY_PROMISES: readonly PrivacyPromise[] = [
     {
         id: "encrypted",
         title: "Encrypted when saved",
-        detail: "Signed in, your résumé is encrypted with AES-256 before it's stored. Not signed in, it stays in this browser.",
+        detail: "With a paid month, your résumé is encrypted with AES-256 before it's stored. Without one, it stays in this browser.",
         href: `/privacy#${PRIVACY_RESUME_SECTION_ID}`,
     },
     {

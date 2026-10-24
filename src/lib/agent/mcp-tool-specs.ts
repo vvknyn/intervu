@@ -204,6 +204,9 @@ export const searchCompaniesInput = z.object({
     limit: z.number().int().min(1).max(AGENT.COMPANY_SEARCH_LIMIT).optional(),
 });
 
+/** Opens the description of every tool the server gates on a paid month (the `needsPaid` handlers in app/api/mcp/route.ts; tests/unit/mcp-paid-descriptions.test.ts keeps the two in step). */
+export const PAID_MONTH_NOTE = "Needs a paid month.";
+
 /**
  * The one record-budget sentence. Every tool description below that counts
  * against `DAILY_RECORD_BUDGET` (search_jobs, get_job, get_company's
@@ -295,6 +298,7 @@ export const MCP_TOOL_SPECS = {
     for_you: {
         title: "Jobs ranked by fit",
         description:
+            PAID_MONTH_NOTE + " " +
             "Jobs ranked by fit against your stored résumé, with the reasons why — the same ranking " +
             "rule behind the site's jobs list when a résumé is on file. It finds roles by what the posting asks for, not only by " +
             "title (the search behind it looks for the postings that mention the duties and the tools your résumé lists " +
@@ -353,6 +357,7 @@ export const MCP_TOOL_SPECS = {
     daily_picks: {
         title: "Today's picks and the daily picks email",
         description:
+            PAID_MONTH_NOTE + " " +
             "Today's picks for your stored résumé: up to 5 employers, each with its best role posted this week (a posting an employer re-dated that velai first saw over 30 days ago is not one) in your own line of work, " +
             "at your level, where you can work, Strong or Good — never a Stretch role, never one above your " +
             "level (a Staff, Principal or Director role counts as above it unless your résumé shows one), never one " +
@@ -405,6 +410,7 @@ export const MCP_TOOL_SPECS = {
     get_resume: {
         title: "Get your base resume",
         description:
+            PAID_MONTH_NOTE + " " +
             "Get YOUR OWN base resume on file at velai — never another user's. Returns the structured " +
             "resume from velai's resume builder when present, else the plain-text resume, else an " +
             "explicit \"none\" state (source field tells you which). Never a fabricated placeholder.",
@@ -413,6 +419,7 @@ export const MCP_TOOL_SPECS = {
     tailor_resume: {
         title: "Tailor your resume to a job",
         description:
+            PAID_MONTH_NOTE + " " +
             "Tailor YOUR OWN structured resume on file to one job (job_id), the way the site's \"Customize " +
             "résumé\" does: lines reworded in the posting's own words where the resume already says the same " +
             "thing, the lines using its words first, and the skills it names first. Nothing is invented: no " +
@@ -429,6 +436,7 @@ export const MCP_TOOL_SPECS = {
     draft_screening_answer: {
         title: "Draft an answer to an application question",
         description:
+            PAID_MONTH_NOTE + " " +
             "Draft YOUR OWN answer to one free-text question an application form asks (\"Why are you interested in this " +
             "role?\", \"Describe your experience with X\"), for one job (job_id), from the resume on file — the way the " +
             "Velai Chrome extension's \"Draft an answer\" does. Velai leaves some questions to the person: work " +
@@ -445,6 +453,7 @@ export const MCP_TOOL_SPECS = {
     save_resume_variant: {
         title: "Save a tailored resume variant",
         description:
+            PAID_MONTH_NOTE + " " +
             "File a tailored resume against one of YOUR OWN pursuits (identified by job_id) — never " +
             "another user's. Creates the pursuit at stage \"interested\" if it doesn't exist yet, so " +
             "preparing a resume never marks the job as applied. Appends an immutable snapshot; " +
@@ -458,6 +467,7 @@ export const MCP_TOOL_SPECS = {
     get_resume_variant: {
         title: "Get your filed resume variants",
         description:
+            PAID_MONTH_NOTE + " " +
             "Get the resume variants YOU'VE filed against one of your own pursuits (job_id), latest " +
             "first, plus applied_resume when the role took a copy of the resume on file as it was marked " +
             "applied (what the site's \"Resume used\" shows). Returns an empty list when none are on file — " +
@@ -467,6 +477,7 @@ export const MCP_TOOL_SPECS = {
     set_resume: {
         title: "Set your base resume",
         description:
+            PAID_MONTH_NOTE + " " +
             "Replace YOUR OWN base resume on file at velai — never another user's — effective " +
             "immediately everywhere it's used, and keeps every prior version in resume history. Always " +
             "pass resume_text (the raw extracted content, verbatim). Format it into velai's structured " +

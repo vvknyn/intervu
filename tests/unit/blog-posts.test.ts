@@ -13,7 +13,7 @@ import {
   getBlogPost,
   renderBlogPost,
 } from "@/lib/blog/posts";
-import { FOUNDING_SEAT_COUNT, FOUNDING_SEAT_PRICE, PRO_MONTHLY_PRICE } from "@/lib/billing/founding-offer";
+import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 import { PUBLIC_SUPPORT_EMAIL } from "@/lib/legal/public-contact";
 import { APPLY_BUTTON_LABEL, APPLY_SIGNED_OUT_LABEL } from "@/components/jobs/job-detail-facts";
 
@@ -106,10 +106,11 @@ describe("blog posts", () => {
     // Checks a reader runs must name the button they will actually see.
     assert.ok(post.body.includes(`**${APPLY_BUTTON_LABEL}**`));
     assert.ok(post.body.includes(`**${APPLY_SIGNED_OUT_LABEL}**`), "a signed-out reader sees this label first");
-    for (const fact of [PRO_MONTHLY_PRICE, FOUNDING_SEAT_PRICE, String(FOUNDING_SEAT_COUNT), PUBLIC_SUPPORT_EMAIL]) {
+    for (const fact of [PRO_MONTHLY_PRICE, PUBLIC_SUPPORT_EMAIL]) {
       assert.ok(post.body.includes(fact), fact);
     }
-    assert.match(post.body, /refundable on request, for any reason, until Pro opens/);
+    assert.match(post.body, /refundable on request, for any reason, within 14 days/);
+    assert.doesNotMatch(post.body, /founding|Pro for life/i);
     assert.doesNotMatch(post.body, /Data API|licens/i);
     // Discloses that the founder writes under the pen name with a drawn picture, not a fake employee photo.
     assert.ok(post.body.includes(`pen name ${BLOG_AUTHOR.name}`));
@@ -123,7 +124,7 @@ describe("blog posts", () => {
   it("the Velai-vs-JobShifu post quotes Velai's live prices, links JobShifu's public pages, and names where JobShifu goes further", () => {
     const post = getBlogPost("velai-vs-jobshifu");
     assert.ok(post);
-    for (const fact of [PRO_MONTHLY_PRICE, FOUNDING_SEAT_PRICE, String(FOUNDING_SEAT_COUNT)]) {
+    for (const fact of [PRO_MONTHLY_PRICE]) {
       assert.ok(post.body.includes(fact), fact);
     }
     assert.ok(post.body.includes("**Fill from your résumé**"));

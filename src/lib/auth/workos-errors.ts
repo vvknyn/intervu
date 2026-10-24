@@ -85,6 +85,12 @@ export function verifyStepFor(err: unknown, email: string): VerifyStep | null {
   return challenge ? { verify: { ...challenge, email } } : null;
 }
 
+/** True for the SDK's NotFoundException (HTTP 404): WorkOS answered, and has no such record. */
+export function isWorkosNotFound(err: unknown): boolean {
+  const e = err as { name?: string; status?: number } | null;
+  return e?.name === "NotFoundException" || e?.status === 404;
+}
+
 export function friendlyWorkosAuthMessage(err: unknown, fallback: string): string {
   const name = (err as { name?: string } | null)?.name;
   const status = (err as { status?: number } | null)?.status;

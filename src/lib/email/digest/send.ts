@@ -5,7 +5,8 @@
  * run is a real code path, not a separate reimplementation that could
  * silently drift from what actually gets sent.
  */
-import { getWorkosUserManagement, resolveWorkosUserId } from "@/lib/auth/workos-runtime";
+import { getWorkosUserManagement, resolveWorkosUserId, type WorkosUserManagement } from "@/lib/auth/workos-runtime";
+import { isWorkosNotFound } from "@/lib/auth/workos-errors";
 import { getSiteUrl } from "@/lib/seo/constants";
 import { isMintedLoginEmail } from "@/lib/auth/username-email";
 import { signUnsubscribeToken } from "../unsubscribe-token";
@@ -27,20 +28,38 @@ export interface DigestPreview {
 export type DigestPreviewResult = DigestPreview | { skipped: DigestSkipReason };
 
 /**
- * WorkOS's email for a digest-eligible uid, or null when the account has
- * none. Shared by `previewDigestForUser` and the route's PG-lane dedupe set
+ * WorkOS's email for a uid: the address, null when WorkOS says there is no
+ * such account (or the record has no email), and a THROW on any other
+ * failure. The lower-level lookup both wrappers below share, so the WorkOS
+ * calls exist once.
+ */
+export async function workosEmailForUid(
+  uid: string,
+  injected?: Pick<WorkosUserManagement, "getUserByExternalId" | "getUser">,
+): Promise<string | null> {
+  try {
+    const userManagement = injected ?? (await getWorkosUserManagement());
+    const userId = await resolveWorkosUserId(
+      (externalId) => userManagement.getUserByExternalId(externalId),
+      uid,
+    );
+    return (await userManagement.getUser(userId)).email ?? null;
+  } catch (err) {
+    if (isWorkosNotFound(err)) return null;
+    throw err;
+  }
+}
+
+/**
+ * The digest's view: the email for a digest-eligible uid, or null when the
+ * account has none or the lookup failed (a missed digest retries tomorrow).
+ * Shared by `previewDigestForUser` and the route's PG-lane dedupe set
  * (`sendEmailFollowDigests`'s `excludeEmails`) — one lookup, so the two
  * lanes can't drift on how "this account's email" is defined.
  */
 export async function digestEmailForUid(uid: string): Promise<string | null> {
   try {
-    const userManagement = await getWorkosUserManagement();
-    const userId = await resolveWorkosUserId(
-      (externalId) => userManagement.getUserByExternalId(externalId),
-      uid,
-    );
-    const user = await userManagement.getUser(userId);
-    return user.email ?? null;
+    return await workosEmailForUid(uid);
   } catch {
     return null;
   }

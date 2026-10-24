@@ -42,7 +42,8 @@ test("inline Search button takes the control corner from the Button face, not it
     const pageSrc = readFileSync(join(__dirname, "../../src/app/jobs/JobsContent.tsx"), "utf8");
     const searchButtonBlock =
         pageSrc.match(
-            /onClick=\{\(\) => submitSearch\(queryDraft\)\}[\s\S]*?<\/Button>/,
+            // The button is the form's submit (no onClick since 2cee7fa3), found by its label.
+            /<Button(?:(?!<\/Button>)[\s\S])*?aria-label="Search"[\s\S]*?<\/Button>/,
         )?.[0] ?? "";
     assert.ok(searchButtonBlock.length > 0, "inline Search button block not found");
     // Was rounded-pill; since 2026-09-29 a button's corner (and type) come from
@@ -61,7 +62,7 @@ test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
         // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
-        "Upload one résumé to see your top 3 matches and why. It stays in this browser; a free account unlocks every match, customize, and tailored PDFs.",
+        "Upload one résumé to see your top 3 matches and why. It stays in this browser. A free account unlocks every match; a paid month adds your résumé saved to your account and read back on any device, sealed-AI help importing it, sealed-AI tailoring for each job, sealed-AI answers to screening questions, your résumé in the Chrome extension, résumé tools for your AI agent and the daily-picks email.",
     );
 });
 
@@ -72,7 +73,7 @@ test("for-you download and empty-state copy match contract", () => {
 
 test("customize panel copy matches contract", () => {
     assert.equal(CUSTOMIZE_READY_HEADER, "Your résumé is ready. Customize for this role.");
-    assert.equal(SIGN_IN_TO_SYNC_LABEL, "Sign in to sync this version.");
+    assert.equal(SIGN_IN_TO_SYNC_LABEL, "Sign in to save this version. Saving needs a paid month.");
     assert.equal(UPLOAD_TO_CUSTOMIZE_LABEL, "Upload résumé to customize");
 });
 

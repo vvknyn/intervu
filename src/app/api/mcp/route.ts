@@ -32,6 +32,7 @@ import { getCompanyPageData } from "@/lib/companies/get-company";
 import { getCompanyExhaust } from "@/lib/companies/exhaust";
 import { searchCompanies } from "@/lib/companies/company-search";
 import { MCP_TOOL_SPECS, type McpToolName } from "@/lib/agent/mcp-tool-specs";
+import { paywallRefusal } from "@/lib/agent/paywall";
 import { captureMcpToolCall, mcpClientName, mcpErrorType, mcpToolFromLabel } from "@/lib/agent/telemetry";
 
 /**
@@ -114,7 +115,7 @@ type CatalogHandler<K extends McpToolName> = ToolCallback<(typeof MCP_TOOL_SPECS
 function withDeps<K extends McpToolName, In, Out extends object>(
     name: K,
     run: (deps: ToolDeps, input: In) => Promise<Out>,
-    opts?: { companyRead?: boolean },
+    opts?: { companyRead?: boolean; needsPaid?: boolean },
 ): ((input: In, ctx: ServerContext) => Promise<McpToolResult>) & { readonly __tool?: K } {
     return async (input: In, ctx: ServerContext) => {
         const extra = ctx.http?.authInfo?.extra;
@@ -132,6 +133,9 @@ function withDeps<K extends McpToolName, In, Out extends object>(
             });
             return result;
         };
+        // Paid tier — the stored résumé and AI over it; matched by the `needsPaid` option, like `companyRead` below.
+        const refused = await paywallRefusal(opts?.needsPaid, uid);
+        if (refused) return finish(refused);
         // D6 — checked BEFORE the tool runs, matched by the `companyRead`
         // tool option rather than an enumerated tool-name list, so any
         // future company-reading tool inherits this budget by construction.
@@ -182,17 +186,17 @@ function withDeps<K extends McpToolName, In, Out extends object>(
  */
 const handlers: { [K in McpToolName]: CatalogHandler<K> } = {
     search_jobs: withDeps("search_jobs", toolSearchJobs),
-    for_you: withDeps("for_you", toolForYou),
-    daily_picks: withDeps("daily_picks", toolDailyPicks),
+    for_you: withDeps("for_you", toolForYou, { needsPaid: true }),
+    daily_picks: withDeps("daily_picks", toolDailyPicks, { needsPaid: true }),
     get_job: withDeps("get_job", toolGetJob),
     save_job: withDeps("save_job", toolSaveJob),
     mark_applied: withDeps("mark_applied", toolMarkApplied),
-    get_resume: withDeps("get_resume", toolGetResume),
-    save_resume_variant: withDeps("save_resume_variant", toolSaveResumeVariant),
-    get_resume_variant: withDeps("get_resume_variant", toolGetResumeVariant),
-    tailor_resume: withDeps("tailor_resume", toolTailorResume),
-    draft_screening_answer: withDeps("draft_screening_answer", toolDraftScreeningAnswer),
-    set_resume: withDeps("set_resume", toolSetResume),
+    get_resume: withDeps("get_resume", toolGetResume, { needsPaid: true }),
+    save_resume_variant: withDeps("save_resume_variant", toolSaveResumeVariant, { needsPaid: true }),
+    get_resume_variant: withDeps("get_resume_variant", toolGetResumeVariant, { needsPaid: true }),
+    tailor_resume: withDeps("tailor_resume", toolTailorResume, { needsPaid: true }),
+    draft_screening_answer: withDeps("draft_screening_answer", toolDraftScreeningAnswer, { needsPaid: true }),
+    set_resume: withDeps("set_resume", toolSetResume, { needsPaid: true }),
     get_applications: withDeps("get_applications", toolGetApplications),
     get_preferences: withDeps("get_preferences", toolGetPreferences),
     set_preferences: withDeps("set_preferences", toolSetPreferences),

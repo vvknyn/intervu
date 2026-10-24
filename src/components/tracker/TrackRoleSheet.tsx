@@ -12,6 +12,7 @@ import { InlineSpinner } from "@/components/ui/wait-state";
 import type { PursuitStage } from "@/lib/pursuits/types";
 import { TRACKER_STATUS_OPTIONS, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
+import { APPLICATION_FIELD_MAX } from "@/lib/validation";
 
 export interface TrackRoleDraft {
     company: string;
@@ -75,15 +76,15 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                 <SheetBody className="space-y-3 px-4 py-4 pb-7">
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Company</Label>
-                        <Input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={TRACKER_FIELD_CLASS} />
+                        <Input value={company} maxLength={APPLICATION_FIELD_MAX.company} onChange={(e) => setCompany(e.target.value)} placeholder="Acme" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Role</Label>
-                        <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={TRACKER_FIELD_CLASS} />
+                        <Input value={position} maxLength={APPLICATION_FIELD_MAX.position} onChange={(e) => setPosition(e.target.value)} placeholder="Staff Software Engineer" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Job URL</Label>
-                        <Input value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={TRACKER_FIELD_CLASS} />
+                        <Input value={jobUrl} maxLength={APPLICATION_FIELD_MAX.url} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://boards.greenhouse.io/…" className={TRACKER_FIELD_CLASS} />
                     </div>
                     <div>
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Status</Label>
@@ -104,6 +105,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
                         <Label className="mb-1.5 block text-xs text-muted-foreground">Note (optional)</Label>
                         <Textarea
                             value={note}
+                            maxLength={APPLICATION_FIELD_MAX.note}
                             onChange={(e) => setNote(e.target.value)}
                             rows={2}
                             placeholder="Recruiter name, referral…"

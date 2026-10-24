@@ -9,6 +9,8 @@ import { resumeIsOnFile } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
 import { planStructuredPersist } from "@/lib/resume/set-resume";
+import { refuseUnpaid } from "@/lib/resume/when-paid";
+import { hasPaidAccess, type PAYMENT_REQUIRED } from "@/lib/billing/access";
 
 /**
  * Presence-only signal for a returning visit: does this user have a usable
@@ -17,8 +19,10 @@ import { planStructuredPersist } from "@/lib/resume/set-resume";
  * `resumeIsOnFile` bar rather than a second usability check — the client
  * gets a boolean, never the document.
  */
-export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null }> {
-    const { data, text, updatedAt } = await fetchResumeData();
+export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null; paywalled?: true }> {
+    const { data, text, updatedAt, paywalled } = await fetchResumeData();
+    // No paid month: none on file, so clients take their on-device branch (and know not to try saving).
+    if (paywalled) return { hasResume: false, paywalled };
     const hasResume = resumeIsOnFile({ data, text });
     // A text-only résumé counts as on file without reading it here: the
     // browser structures it (`storedResumeData`), never this server.
@@ -41,6 +45,8 @@ export async function fetchResumeData(): Promise<{
     confidence?: number;
     updatedAt?: string | null;
     error?: string;
+    /** No paid month on the account: nothing is read, so the browser's own copy stands in, as for a guest. */
+    paywalled?: true;
 }> {
     try {
         const user = await getServerUser();
@@ -48,6 +54,10 @@ export async function fetchResumeData(): Promise<{
         if (!user) {
             return { error: "Unauthorized" };
         }
+
+        // The one stored-résumé read for the web: presence (`hasUsableResumeOnFile`), /jobs seeding,
+        // the extension and every client lookup come through here, so an unpaid account reads as "none".
+        if (!(await hasPaidAccess(user.uid))) return { data: undefined, paywalled: true };
 
         const db = getAdminDb();
         const doc = await db.collection("profiles").doc(user.uid).get();
@@ -131,13 +141,16 @@ export async function saveResumeData(
     resumeData: ResumeData,
     importSource?: 'pdf' | 'docx' | 'text' | 'manual',
     confidence?: number
-): Promise<{ error?: string; textOnly?: boolean }> {
+): Promise<{ error?: string; code?: typeof PAYMENT_REQUIRED; textOnly?: boolean }> {
     try {
         const user = await getServerUser();
 
         if (!user) {
             return { error: "Unauthorized" };
         }
+
+        const refused = await refuseUnpaid(user.uid);
+        if (refused) return refused;
 
         console.log("[Resume] Saving resume data for:", user.uid);
 

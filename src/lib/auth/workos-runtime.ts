@@ -9,6 +9,7 @@
  * call time instead.
  */
 import type { User, WorkOS } from "@workos-inc/node";
+import { isWorkosNotFound } from "./workos-errors";
 import { hasApp, APP_INTERVU } from "./workos-apps";
 import { toServerUser } from "./workos-identity";
 
@@ -63,8 +64,9 @@ export function requireWorkosClientId(): string {
  *
  * Tries the external-id lookup first and falls back to treating `uid` as a
  * raw WorkOS id when that lookup finds nothing — `getUserByExternalId`
- * rejects (typically `NotFoundException`) rather than returning null, so the
- * fallback is a catch, not a null-check. A genuinely wrong id still fails
+ * rejects with `NotFoundException` rather than returning null, so the
+ * fallback is a catch on that class only. Any other failure (outage, rate
+ * limit, bad key) rethrows: it says nothing about which id is right. A genuinely wrong id still fails
  * safely: the caller's own WorkOS call (`deleteUser`/`updateUser`) then
  * throws `NotFoundException` rather than silently acting on nothing.
  */
@@ -75,8 +77,9 @@ export async function resolveWorkosUserId(
   try {
     const user = await getByExternalId(uid);
     return user.id;
-  } catch {
-    return uid;
+  } catch (err) {
+    if (isWorkosNotFound(err)) return uid;
+    throw err;
   }
 }
 

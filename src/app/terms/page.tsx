@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE, REFUND_DAYS } from "@/app/pricing/offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
 import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
@@ -63,22 +64,22 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        <SectionTitle>Pricing and the founding offer</SectionTitle>
+        <SectionTitle>Pricing and refunds</SectionTitle>
         <p>
-          Everything on velai today is free at the limits shown in the product, including AI features. We may
-          offer a paid plan (&quot;Pro&quot;) in future. What it includes and costs will be on the{" "}
-          <Link href="/pricing">pricing page</Link> before anything is charged, and nothing you use today moves
-          behind a paywall without notice on that page and an update to these terms.
+          Searching jobs, matching them against a résumé kept on your own device, and the application tracker are
+          free. A paid month costs {PRO_MONTHLY_PRICE} and covers the features where Velai&apos;s servers or AI handle your résumé:
+          saving it to your account, AI help importing it, tailoring, screening-question answers, the Chrome
+          extension&apos;s résumé, agent tools and the daily-picks email. The current list is on the{" "}
+          <Link href="/pricing">pricing page</Link>.
         </p>
         <p>
-          A founding seat is a one-off payment, made through our payment provider, that entitles the account it was
-          bought for to Pro for as long as we offer Pro, from the day Pro opens. It is limited in number, tied to
-          one account, and not transferable. Until Pro opens you may request a full refund at any time, for any
-          reason, by contacting us from the email address you paid with. Payment processing is handled by our
-          payment provider under its own terms; we do not see or store your card details. Reserving a seat before
-          checkout opens is free and creates no obligation on either side: it records your place and the address we
-          send the checkout link to first. The pay-it-forward contribution the tracker offers when a role reaches an
-          offer is voluntary, one-off and buys nothing; it is processed by the same payment provider.
+          You buy {MIN_MONTHS} to {MAX_MONTHS} months at a time with a single payment, made through our payment provider. Each month adds
+          30 days of access to the account it was bought for. It never renews on its own and there is no trial. You
+          may request a full refund within {REFUND_DAYS} days of paying, for any reason, by contacting us from the email
+          address you paid with. Payment processing is handled by our payment provider under its own terms; we do
+          not see or store your card details. When paid access ends, the free features keep working, and a résumé
+          saved to your account is kept for a limited time before it is deleted, as described in the{" "}
+          <Link href="/privacy">Privacy Policy</Link>.
         </p>
 
         <SectionTitle>Employers</SectionTitle>

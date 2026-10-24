@@ -90,7 +90,7 @@ export function dismissToast(id: number) {
 export const toast = {
     success: (message: string, duration = 3500) => pushToast(message, "success", duration),
     error: (message: string, duration = 5000, action?: ToastAction) => pushToast(message, "error", duration, action),
-    info: (message: string, duration = 3500) => pushToast(message, "info", duration),
+    info: (message: string, duration = 3500, action?: ToastAction) => pushToast(message, "info", duration, action),
 };
 
 /**

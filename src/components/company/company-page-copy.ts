@@ -61,8 +61,8 @@ export function fitPromptTitle(loadedCount: number, partialWindow: boolean): str
 
 /** The prompt's line under the question: what adding a résumé does here,
  *  and where it is kept (`resumeImportStorageNote` says the same in the
- *  importer). A guest's résumé is read and scored in this browser only. */
-export function fitPromptBody(signedIn: boolean): string {
+ *  importer). Only an account with paid time has it saved; every other résumé, a signed-in one's too, stays on this device. */
+export function fitPromptBody(savedToAccount: boolean): string {
   const what = "Add your résumé to see how well each role here fits you, and why.";
-  return signedIn ? `${what} It's saved to your account, encrypted.` : `${what} It stays in this browser.`;
+  return savedToAccount ? `${what} It's saved to your account, encrypted.` : `${what} It stays in this browser.`;
 }

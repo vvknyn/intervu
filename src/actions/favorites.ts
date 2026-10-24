@@ -2,6 +2,8 @@
 
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { validate, addFavoriteSchema } from "@/lib/validation";
+import { stripUndefinedDeep } from "@/lib/pursuits/upsert-core";
 
 export interface FavoriteQuestion {
     id: string;
@@ -59,6 +61,9 @@ export async function addFavorite(input: CreateFavoriteInput) {
         return { data: null, error: "Unauthorized" };
     }
 
+    const parsed = validate(addFavoriteSchema, input);
+    if (!parsed.ok) return { data: null, error: parsed.error };
+
     try {
         const db = getAdminDb();
 
@@ -66,7 +71,7 @@ export async function addFavorite(input: CreateFavoriteInput) {
         const existingSnapshot = await db
             .collection("favorite_questions")
             .where("user_id", "==", user.uid)
-            .where("question_text", "==", input.question_text)
+            .where("question_text", "==", parsed.data.question_text)
             .limit(1)
             .get();
 
@@ -75,12 +80,12 @@ export async function addFavorite(input: CreateFavoriteInput) {
         }
 
         const now = new Date().toISOString();
-        const docData = {
+        const docData = stripUndefinedDeep({
             user_id: user.uid,
-            ...input,
+            ...parsed.data,
             created_at: now,
             updated_at: now,
-        };
+        });
 
         const docRef = await db.collection("favorite_questions").add(docData);
         const data = { id: docRef.id, ...docData } as FavoriteQuestion;
