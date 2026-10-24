@@ -63,7 +63,7 @@ export type CompanyDisplayName = {
   /** The share of the rows that carry a name at all whose name agrees with the domain: how corroborated
    *  the domain's identity is (0 when the label is shown). */
   share: number;
-  /** The rows' own winning spelling, before any re-casing ("SEARCH" where `value` is "Search"): what the rows themselves witness. */
+  /** The rows' own winning spelling, legal form cut, before any re-casing ("SEARCH" where `value` is "Search"): what the rows themselves witness. */
   rowSpelling: string;
 };
 
@@ -226,18 +226,17 @@ const DOMAIN_TOKEN_RE = /\.[a-z]{2,}\b/i;
  * Can `label` be read as pieces taken in order from the start of successive tokens of `name`? Each piece is a
  * subsequence of ONE token that begins with that token's first letter ("pyramidhc" = Pyramid + h,c of Healthcare);
  * the first piece comes from the first token, middle tokens may be skipped.
- * Returns how many trailing words (legal forms aside) the best reading leaves unspelled ("Germany" after "JT International": 1), or Infinity when none reads.
+ * Returns how many trailing words (legal forms aside, which may still spell a letter: "Company" for the C of jasarapmc) the best reading leaves unspelled ("Germany" after "JT International": 1), or Infinity when none reads.
  */
 function unspelledTrailingWords(label: string, name: string): number {
   const tokens = name.split(/[\s&]+/).map(siteKey).filter(Boolean);
-  while (tokens.length > 1 && LEGAL_FORM_TOKENS.has(tokens.at(-1)!)) tokens.pop();
   const isSubsequence = (token: string, piece: string): boolean => {
     let at = 0;
     for (const ch of token) if (ch === piece[at]) at++;
     return at === piece.length;
   };
   const consume = (rest: string, from: number, last: number): number => {
-    if (!rest) return tokens.length - from;
+    if (!rest) return tokens.slice(from).filter((token) => !LEGAL_FORM_TOKENS.has(token)).length;
     let fewest = Infinity;
     for (let t = from; t < last; t++) {
       if (tokens[t]![0] !== rest[0]) continue;
@@ -268,9 +267,12 @@ function lowersAcronym(c: string, display: string): boolean {
   return display.split(/[^\p{L}\p{N}]+/u).some((w) => w.length >= 2 && /^\p{Lu}+$/u.test(w) && words.some((x) => x !== w && x.toUpperCase() === w));
 }
 
+const HYPHEN_JOIN_RE = /\p{L}-\p{Lu}/u;
 const WORD_SPLIT_RE = /[^\p{L}\p{N}'\u2019]+/u;
 /** SMALL_WORDS plus the joiners other languages and title case use ("for", "de", "y"): words a name may write in lower case. */
 const CONNECTORS = new Set([...SMALL_WORDS, "for", "de", "du", "des", "la", "le", "y", "et", "von", "van", "der"]);
+/** Does `c` swap a space of `display` for a hyphen ("Pearce-Services" for "Pearce Services")? A hyphen the name did not have is not the site's to add. */
+const swapsSpaceForHyphen = (c: string, display: string): boolean => /\s/.test(display) && HYPHEN_JOIN_RE.test(c) && !HYPHEN_JOIN_RE.test(display);
 /** Does `c` write in lower case a non-first word that `display` capitalises ("APF entreprises" for "APF Entreprises")? A connector ("and", "of") is exempt. */
 function lowersWord(c: string, display: string): boolean {
   const written = new Set(c.split(WORD_SPLIT_RE));
@@ -345,13 +347,17 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * casing of its own. (5) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
  * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no),
  * or lower-case a non-connector word `display` capitalises. (6) An all-capitals
- * site name respells only when the rows' own winning spelling (`rowSpelling`) is that same one: two independent witnesses.
+ * site name keeps its capitals only when the rows' own winning spelling (`rowSpelling`) is that same one (two independent witnesses);
+ * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string): string {
-  const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  const cleaned = spellings.map((c) => displayCompanyName(c));
+  // An all-capitals site name no row repeats is re-cased by the rule that re-cases all-capitals rows ("TD SYNNEX" -> "TD Synnex") and competes as any respelling.
+  const recased = (c: string): string => (isBanner(c) && c !== rowSpelling ? titleCaseDisplay(c) : c);
+  const plain = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
+  const spellings = plain.map(recased);
+  const cleaned = plain.map((c) => recased(displayCompanyName(c)));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && (!isBanner(c) || c === rowSpelling) && keepsWords(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !swapsSpaceForHyphen(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
@@ -669,7 +675,7 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     }
   }
 
-  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: best.display };
+  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: displayCompanyName(best.display) };
   const value = displayNameFromDomain(domain);
   return { value, source: "domain", agrees: false, share: 0, rowSpelling: value };
 }

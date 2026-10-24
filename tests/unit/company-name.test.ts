@@ -406,12 +406,12 @@ describe("siteSpelling — N1: a proper name that prefixes the squashed label", 
     assert.equal(sq("Circlecareservices", "circlecareservices.com", ["Circle", "Circle Care", "CircleCare"]), "Circle Care");
   });
 
-  it("rejects a single plain word, a banner, a too-short key, a cut phrase and a domain-like title", () => {
+  it("rejects a single plain word, a too-short key, a cut phrase and a domain-like title", () => {
     assert.equal(sq("Homedepot", "homedepot.com", ["Home"]), "Homedepot");
     assert.equal(sq("Careersource", "careersource.com", ["Careers"]), "Careersource");
     assert.equal(sq("Agilitihealth", "agilitihealth.com", ["Agiliti"]), "Agilitihealth");
     assert.equal(sq("Bigcorpgroup", "bigcorpgroup.com", ["Bigcorp"]), "Bigcorpgroup");
-    assert.equal(sq("Fiveguysburgers", "fiveguysburgers.com", ["FIVE GUYS"]), "Fiveguysburgers");
+    assert.equal(sq("Fiveguysburgers", "fiveguysburgers.com", ["FIVE GUYS"]), "Five Guys");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["AW"]), "Acmewidgets");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme Widgets -"]), "Acmewidgets");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme.com Site"]), "Acmewidgets");
@@ -603,5 +603,19 @@ describe("witness guards on the shown name (invented names)", () => {
     assert.equal(siteSpelling("Bretlm", ["Bret Lumen", "Bret Lumen Germany"], "bretlm.com"), "Bret Lumen");
     assert.equal(siteSpelling("Bretlm", ["Bret Lumen Germany"], "bretlm.com"), "Bret Lumen Germany");
     assert.equal(siteSpelling("Tavrix", ["Tavrix Hold Co", "Tavrix Holdings"], "tavrix.com"), "Tavrix");
+  });
+  it("a banner site name with no row witness is re-cased by the row re-caser, then competes normally", () => {
+    assert.equal(siteSpelling("Zentrovasolar", ["ZENTROVA SOLAR"], "zentrovasolar.com"), "Zentrova Solar");
+    assert.equal(siteSpelling("Qorvantaz", ["QORVANTA Z"], "qorvantaz.com"), "Qorvanta Z");
+    assert.equal(siteSpelling("Zentrova", ["ZENTROVA"], "zentrova.com", "ZENTROVA"), "ZENTROVA");
+  });
+
+  it("a glued label whose acronym tail ends in a legal-form word still expands (the legal word spells a letter)", () => {
+    assert.equal(siteSpelling("Zorvaxpmc", ["Zorvax Program Management Company"], "zorvaxpmc.com"), "Zorvax Program Management Company");
+    assert.equal(siteSpelling("Quillmtg", ["Quill Management Group"], "quillmtg.com"), "Quill Management Group");
+  });
+
+  it("a re-cased banner never swaps a spaced display for a hyphenated twin", () => {
+    assert.equal(siteSpelling("Pelmar Services", ["PELMAR-SERVICES"], "pelmarservices.com"), "Pelmar Services");
   });
 });
