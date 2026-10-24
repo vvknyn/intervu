@@ -259,6 +259,8 @@ function recaseToken(
     w: string,
     opts: { isConnector: boolean; isAllUpper: boolean; followedByDot: boolean },
 ): string {
+    // An ordinal ("2ND", "21ST") keeps a lower-case suffix.
+    if (/^\d+(?:ST|ND|RD|TH)$/.test(w)) return w.toLowerCase();
     // A token carrying a digit ("310T") is a code, not a word — casing
     // rules don't apply, so it passes through exactly as scraped.
     if (/\d/.test(w)) return w;
@@ -731,7 +733,10 @@ const COMMA_LEGAL_SUFFIXES = [
  *  Widened 2026-10-23 with the forms that most often ended a name in the
  *  company-directory evidence (3600 domains) and were still shown: Pte and
  *  Sdn Bhd (Singapore, Malaysia), Ltda (Brazil), S.R.L. and S.L. (Italy,
- *  Romania, Spain), C.V. (Netherlands), a trailing-period "LLC.", K.K. and SA. */
+ *  Romania, Spain), C.V. (Netherlands), a trailing-period "LLC.", K.K. and SA.
+ *
+ *  Widened 2026-10-24 with the forms the live directory still showed: SE, Sarl, KG, KGaA, OG, the
+ *  "GmbH & Co. KG" partnership shapes and "Public Company Limited" (all end-anchored, remainder-guarded). */
 const BARE_LEGAL_SUFFIXES = [
     "Private Limited", "Private Ltd.", "Pvt. Ltd.", "Pvt Ltd", "Pty Ltd", "Pty. Ltd.",
     "Ltd.", "Ltd", "Limited", "L.L.C.", "LLC", "LLP", "LP", "Inc.", "Inc", "Incorporated",
@@ -739,6 +744,9 @@ const BARE_LEGAL_SUFFIXES = [
     "AG", "AB", "Oy", "ULC", "Corp.", "Corp", "Corporation", "Co.", "Pty", "A/S", "KK",
     "s.r.o.", "d.o.o.", "Pte. Ltd.", "Pte Ltd", "Pte.", "Pte", "Sdn. Bhd.", "Sdn Bhd", "Bhd.", "Bhd",
     "LLC.", "Ltda.", "Ltda", "S.R.L.", "SRL", "S.L.", "Lda", "C.V.", "CV", "K.K.", "SA",
+    // German-speaking and French forms, and the Thai "Public Company Limited" (its "Limited" strips first);
+    // the compound partnerships are whole phrases so the "Co." after "&" is never mistaken for the name.
+    "GmbH & Co. KG", "AG & Co. KGaA", "AG & Co. KG", "KGaA", "KG", "OG", "SE", "Sarl", "Public Company Limited",
 ];
 const BARE_LEGAL_SUFFIXES_BY_LENGTH = [...BARE_LEGAL_SUFFIXES].sort((a, b) => b.length - a.length);
 
