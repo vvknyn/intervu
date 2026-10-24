@@ -13,7 +13,9 @@
  *       not listed — a page for it still renders, as `noindex`, under its domain label;
  *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
  *       subdomain, then more live roles.
- * Each listed company's `openRoleCount` is that same number, so every list, sort and cap reads one value.
+ * Each listed company's `openRoleCount` is that number as of the memo build (up to 6h old): it ranks,
+ * thresholds and caps only, and is never displayed. A displayed count is read fresh with
+ * `fetchOpenCounts` (listed-names.ts), the same function-of-the-same-query the company page uses.
  * Candidates arrive by raw live roles, so exclusions are refilled from the next ones up to the cap.
  */
 import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
