@@ -244,7 +244,7 @@ function spellsFromWordStarts(label: string, name: string): boolean {
 }
 
 /** A respelling the page title can be trusted for: cased (all lower-case is the domain written out), and not cut mid-phrase. */
-const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019]$/u.test(c);
+const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019?!]$/u.test(c);
 const wordCount = (c: string): number => c.split(/\s+/).length;
 const isLetterWord = (word: string): boolean => /^\p{L}\d?$/u.test(word);
 /** Words of `c` with a run of spaced-out single letters ("A P F", "A E C O M2") counted once: an acronym written out is one word. */
@@ -333,7 +333,7 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
   const cleaned = spellings.map((c) => displayCompanyName(c));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display) && !lowersAcronym(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !lowersAcronym(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;

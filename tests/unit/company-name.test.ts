@@ -248,9 +248,9 @@ describe("siteSpelling — SP: the company's own spelling of the agreed name", (
     assert.equal(siteSpelling("Fooco", ["Home", "Foo Co", "FOO-CO"]), "Foo Co");
   });
 
-  it("never shows different letters, an all-caps banner, or anything when there are no candidates", () => {
+  it("never shows different letters, or anything when there are no candidates", () => {
     assert.equal(siteSpelling("Abbott Laboratories", ["Abbott"]), "Abbott Laboratories");
-    assert.equal(siteSpelling("Fiveguys", ["FIVE GUYS"]), "Fiveguys");
+    assert.equal(siteSpelling("Fiveguys", ["FIVE GUYS"]), "FIVE GUYS"); // the homepage's own all-caps name is a spelling
     assert.equal(siteSpelling("Fiveguys", []), "Fiveguys");
     assert.equal(siteSpelling("Fiveguys"), "Fiveguys");
     assert.equal(siteSpelling("Acme", ["Acme"]), "Acme");
@@ -551,5 +551,21 @@ describe("R4 — title-casing a banner still lets the legal form strip", () => {
     const shown = (tally: Record<string, number>, domain: string) => displayCompanyName(resolveCompanyName(rows(tally), domain).value);
     assert.equal(shown({ "ACME WIDGETS CORP.": 3 }, "acmewidgets.com"), "Acme Widgets");
     assert.equal(shown({ "ZETA PHARMA INC": 3 }, "zetapharma.com"), "Zeta Pharma");
+  });
+});
+
+describe("R2/ruling — the homepage's all-caps name is a spelling; a trailing ? or ! is clean", () => {
+  it("an all-caps site name respells a title-cased banner display (invented names)", () => {
+    assert.equal(siteSpelling("Zenbotix", ["ZENBOTIX"], "zenbotix.com"), "ZENBOTIX");
+    assert.equal(siteSpelling("Vorta Labs", ["VORTA LABS"], "vortalabs.com"), "VORTA LABS");
+  });
+
+  it("rows that shout with no all-caps site name stay title-cased", () => {
+    assert.equal(siteSpelling("Zenbotix", ["Home"], "zenbotix.com"), "Zenbotix");
+  });
+
+  it("names ending in ? or ! are sound spellings (invented names)", () => {
+    assert.equal(siteSpelling("Wowza Foods", ["WOWZA Foods!"], "wowzafoods.com"), "WOWZA Foods!");
+    assert.equal(siteSpelling("Whatsup Co", ["WhatsUp Co?"], "whatsupco.com"), "WhatsUp Co?");
   });
 });
