@@ -4,7 +4,7 @@ import { buildDirectory, fetchCompanyInSitemapSet, fetchDirectory, singleFlight,
 import { ATS_PORTAL_HOSTNAME_RE } from "@/lib/jobs/presentation";
 import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
 import { companyOpenCount, companyRolesParams, COMPANY_JOBS_FETCH_LIMIT, publicRoles } from "@/lib/companies/company-roles-query";
-import { buildCompanyFacts, buildDistribution } from "@/lib/companies/company-facts";
+import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { buildRelatedCompanies } from "@/lib/companies/related-companies";
 import type { EachResult } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
@@ -236,7 +236,7 @@ describe("buildDirectory — one open-roles number", () => {
 
   it("(d) conservation: page facts, directory row, related entry and job-detail rail give one number for one fixture", () => {
     const result = { ...readOf(mixedRows("Acme Robotics", 33, 6, 4)), total: 43 };
-    const page = buildCompanyFacts({ name: "Acme Robotics", domain: "acme.com", jobs: publicRoles(result.hits), openCount: companyOpenCount(result) }).hiring.openCount;
+    const page = buildCompanyFacts({ name: "Acme Robotics", domain: "acme.com", jobs: publicRoles(result.hits), openCount: companyOpenCount(result), postingTotal: result.total }).hiring.openCount;
     const row = buildDirectory([candidate("acme.com", 43)], [result]).companies[0]!;
     const related = buildRelatedCompanies(["acme.com"], [row], "other.com")[0]!.openRoleCount;
     const rail = companyOpenCount(result).value; // getCompanyRailAction / getCompanyOpenCountAction return exactly this call
@@ -250,15 +250,20 @@ describe("buildDirectory — one open-roles number", () => {
   });
 });
 
-describe("mix shares never exceed 100%", () => {
-  it("(c) facet counts over the raw population keep a denominator at or above every count they divide", () => {
-    const facets = { work_type: { remote: 300, onsite: 100 }, visa_sponsorship: { true: 150, false: 100 } };
-    const facts = buildCompanyFacts({ name: "Acme", domain: "acme.com", jobs: [], openCount: { value: 120, isLowerBound: false }, facetDistribution: facets as never });
-    const wt = facts.mix.workType!;
-    assert.equal(facts.hiring.openCount, 120);
-    for (const b of wt.buckets) assert.ok(b.count / wt.total <= 1, `${b.value} ${b.count}/${wt.total}`);
-    assert.ok(facts.mix.visaSponsorship!.stated <= facts.mix.visaSponsorship!.total);
-    const small = buildDistribution({ remote: 5 }, 200)!;
-    assert.equal(small.total, 200);
+describe("mix shares divide by the posting population the facets counted", () => {
+  const facts = (openCount: number, postingTotal: number, facetDistribution: Record<string, Record<string, number>>) =>
+    buildCompanyFacts({ name: "Acme", domain: "acme.com", jobs: [], openCount: { value: openCount, isLowerBound: false }, postingTotal, facetDistribution: facetDistribution as never });
+  const share = (d: { buckets: { value: string; count: number }[]; total: number }, value: string) => d.buckets.find((b) => b.value === value)!.count / d.total;
+
+  it("30 deduped roles over 60 raw postings, 45 full-time: 75%, not 100%; the headline stays the deduped 30", () => {
+    const f = facts(30, 60, { employment_type: { full_time: 45, part_time: 15 } });
+    assert.equal(f.hiring.openCount, 30);
+    assert.equal(share(f.mix.employmentType!, "Full Time"), 0.75);
+  });
+
+  it("a top bucket below the open count is a share of the postings, not of the open count (visa too)", () => {
+    const f = facts(100, 160, { work_type: { remote: 40, onsite: 20 }, visa_sponsorship: { true: 10, false: 30 } });
+    assert.equal(share(f.mix.workType!, "Remote"), 40 / 160);
+    assert.deepEqual(f.mix.visaSponsorship, { sponsors: 10, stated: 40, total: 160 });
   });
 });

@@ -126,7 +126,7 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
       { event_type: "hiring_accelerating", direction: "improving", headline: "New postings rose from 3 to 9 across two 14-day windows", occurred_at: new Date(now - 5 * DAY).toISOString(), confidence: 0.8 },
     ],
     exhaust: withExhaust ? exhaust : null,
-    facts: buildCompanyFacts({ name: "Acme Robotics", domain: "acme-robotics.example", jobs, openCount: { value: jobs.length, isLowerBound: false }, exhaust: withExhaust ? exhaust : null }),
+    facts: buildCompanyFacts({ name: "Acme Robotics", domain: "acme-robotics.example", jobs, openCount: { value: jobs.length, isLowerBound: false }, postingTotal: jobs.length, exhaust: withExhaust ? exhaust : null }),
     nowMs: now,
   };
 }

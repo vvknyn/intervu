@@ -1,3 +1,4 @@
+import { resolveCorpusCount } from "@/lib/jobs/corpus-count";
 import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/lib/boards/slug";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
@@ -244,6 +245,7 @@ export async function getCompanyPageData(
       domain,
       jobs,
       openCount,
+      postingTotal: resolveCorpusCount(result).value,
       trackRecord,
       ghostFlaggedPct: ghostPct,
       facetDistribution: result.facetDistribution,

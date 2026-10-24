@@ -12,11 +12,11 @@ const job = (id: string): PublicJob =>
 
 const full = (): CompanyFacts =>
   buildCompanyFacts({
-    name: "Acme", domain: "acme.com", jobs: [job("1")], openCount: { value: 1240, isLowerBound: false },
+    name: "Acme", domain: "acme.com", jobs: [job("1")], openCount: { value: 1240, isLowerBound: false }, postingTotal: 1240,
     trackRecord: { opened90d: 5, closed90d: 2 } as never, ghostFlaggedPct: 4,
     facetDistribution: { location_country: { "United States": 900, Canada: 100 }, work_type: { remote: 300, onsite: 940 }, visa_sponsorship: { true: 20, false: 80 }, tech_stack: { React: 312 } },
   });
-const empty = (): CompanyFacts => buildCompanyFacts({ name: "Zed", domain: "zed.com", jobs: [], openCount: { value: 0, isLowerBound: false } });
+const empty = (): CompanyFacts => buildCompanyFacts({ name: "Zed", domain: "zed.com", jobs: [], openCount: { value: 0, isLowerBound: false }, postingTotal: 0 });
 const extras = { roleCount: 1, relatedCount: 2, faqCount: 3 };
 
 describe("SECTION_ORDER", () => {
