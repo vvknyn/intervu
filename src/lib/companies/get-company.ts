@@ -12,7 +12,7 @@ import { getSharedCompanyExhaust } from "@/lib/companies/exhaust-cache";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyChangeEvent, CompanyNewsArticle, CompanyPageData } from "@/lib/companies/types";
-import { displayCompanyName } from "@/lib/jobs/presentation";
+import { displayCompanyName, isCompanyDomain } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -88,11 +88,11 @@ function ghostFlaggedPct(jobs: PublicJob[]): number | null {
  * so an unknown or malformed slug is a real 404. The narrowest read there is:
  * the slug's shape, then a board allowlist hit, then a one-hit roles search
  * (its `total`, not the hit, so an internal-only first posting cannot hide a
- * company). A failed search throws, as `getCompanyPageData` does.
+ * company). An ATS or vendor host (the directory's M1 rule) is no company. A failed search throws, as `getCompanyPageData` does.
  */
 export async function companyExists(slug: string, search: SearchFn = searchJobs): Promise<boolean> {
   const domain = decodeSlug(slug);
-  if (!domain) return false;
+  if (!domain || !isCompanyDomain(domain)) return false;
   if (getBoardsForDomain(domain).length > 0) return true;
   const result = await search({ companyDomain: domain, limit: 1, hideGhosts: false });
   if (isUnavailableJobsResult(result)) throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);

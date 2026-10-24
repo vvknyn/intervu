@@ -15,6 +15,7 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
+import { machineTokenLabel } from "@/lib/companies/machine-token";
 import { INTEGRITY_WINDOW_DAYS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 
@@ -319,11 +320,11 @@ function isoDate(v: unknown): string | null {
 const NON_SECTORS = new Set(["", "general", "unknown"]);
 
 /** THE sector resolver: health_reviews, then fingerprints, then boards; the
- *  first that names a real sector wins, null when none does. */
+ *  first that names a real sector wins (as a display label), null when none does. */
 export function resolveSector(row: Partial<SectorRow> | null): string | null {
   for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards]) {
     const sector = str(candidate)?.trim();
-    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return sector;
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
   }
   return null;
 }

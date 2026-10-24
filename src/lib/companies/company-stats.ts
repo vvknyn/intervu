@@ -29,7 +29,7 @@ import {
   type FreshnessBucket,
 } from "@/lib/jobs/posting-age-buckets";
 import { firstNonNull } from "@/lib/companies/aggregates";
-import { decodeText, displayCompanyBrand } from "@/lib/jobs/presentation";
+import { decodeText, displayCompanyBrand, isCompanyDomain } from "@/lib/jobs/presentation";
 import { isBuildPhase } from "@/lib/next-phase";
 import { hasMeilisearch, searchMeili } from "@/lib/jobs/meilisearch";
 import type { GhostBadge, PublicJob } from "@/lib/jobs/types";
@@ -150,7 +150,7 @@ export function dominantCompanyDomain(jobs: PublicJob[]): string | null {
   const tally = new Map<string, number>();
   for (const job of jobs) {
     const domain = job.company_domain?.trim().toLowerCase();
-    if (!domain) continue;
+    if (!domain || !isCompanyDomain(domain)) continue;
     tally.set(domain, (tally.get(domain) ?? 0) + 1);
   }
   let best: string | null = null;

@@ -204,6 +204,16 @@ describe("company page soft-404", () => {
     }
   });
 
+  it("an ATS or vendor host (the directory's M1 predicate) is a 404 and is never searched; a real company domain with no listing is not", async () => {
+    for (const slug of ["app--ashbyhq--com", "recruiting--cdn--greenhouse--io", "acme--wd5--workday--com", "jobs--lever--co"]) {
+      assert.equal(await companyExists(slug, async () => assert.fail("searched")), false, slug);
+    }
+    assert.equal(await companyExists("acme--example", searching({ total: 3 })), true);
+    const { default: CompanyPage } = await import("@/app/co/[slug]/page");
+    const digest = await CompanyPage({ params: Promise.resolve({ slug: "app--ashbyhq--com" }) }).then(() => "no error", (e: { digest?: string }) => e.digest);
+    assert.match(String(digest), NOT_FOUND);
+  });
+
   it("existence: unknown slug false, any roles true, a board-listed company true without a search, an outage throws", async () => {
     assert.equal(await companyExists("ghost--example", searching({ total: 0 })), false);
     assert.equal(await companyExists("acme--example", searching({ total: 3 })), true);

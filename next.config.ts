@@ -43,6 +43,16 @@ export const CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join("; ");
 
+/**
+ * ENFORCED policy, images only: the browser refuses any image that is not our
+ * own origin, an inline data: image or a blob: URL, whatever the code asks for.
+ * Closes the remote-image class (a tracking pixel or a third-party avatar is a
+ * request to someone else that carries the visitor's IP and, absent a
+ * Referrer-Policy, the page they were on). The wider report-only policy above
+ * is untouched; both headers apply, so the image rule is the stricter of the two.
+ */
+export const ENFORCED_IMAGE_POLICY = "img-src 'self' data: blob:";
+
 const SECURITY_HEADERS = [
   {
     // Force HTTPS for 2 years incl. subdomains; eligible for the HSTS preload list.
@@ -59,6 +69,7 @@ const SECURITY_HEADERS = [
   },
   // Report-Only for now — see CONTENT_SECURITY_POLICY note above.
   { key: "Content-Security-Policy-Report-Only", value: CONTENT_SECURITY_POLICY },
+  { key: "Content-Security-Policy", value: ENFORCED_IMAGE_POLICY },
 ];
 
 const nextConfig: NextConfig = {
