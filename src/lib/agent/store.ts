@@ -30,6 +30,8 @@ export interface AgentStore {
         field: string,
         value: unknown
     ): Promise<Array<Record<string, unknown> & { id: string }>>;
+    /** Every document in the collection (ops scans such as the orphan-account check; not for request paths). */
+    list(col: string): Promise<Array<Record<string, unknown> & { id: string }>>;
     /**
      * Atomic single-use claim: if the doc is missing or `doc[field]` is
      * already truthy, returns null; otherwise stamps `doc[field] = Date.now()`
@@ -105,6 +107,9 @@ export function memoryStore(): AgentStore {
             }
             return results;
         },
+        async list(col) {
+            return [...collection(col)].map(([id, doc]) => ({ ...structuredClone(doc), id }));
+        },
         async claim(col, id, field) {
             assertNoDottedKeys([field], "claim field");
             // No `await` between the read and the write below: this function
@@ -144,6 +149,10 @@ export function firestoreStore(): AgentStore {
         },
         async findByField(col, field, value) {
             const snap = await (await db()).collection(col).where(field, "==", value).get();
+            return snap.docs.map((d) => ({ ...(d.data() as Record<string, unknown>), id: d.id }));
+        },
+        async list(col) {
+            const snap = await (await db()).collection(col).get();
             return snap.docs.map((d) => ({ ...(d.data() as Record<string, unknown>), id: d.id }));
         },
         async claim(col, id, field) {
@@ -238,6 +247,11 @@ export function postgresStore(pg: Queryable): AgentStore {
                 ? { text: `SELECT path, doc FROM ${tableRef(spec)} WHERE "${columnNameFor(indexed)}" = $1`, params: [value] }
                 : { text: `SELECT path, doc FROM ${tableRef(spec)} WHERE doc->>$2 = $1`, params: [value, field] };
             const { rows } = await pg.query<{ path: string; doc: Record<string, unknown> }>(text, params);
+            return rows.map((r) => ({ ...r.doc, id: idFromPath(r.path, col) }));
+        },
+        async list(col) {
+            const spec = specFor(col);
+            const { rows } = await pg.query<{ path: string; doc: Record<string, unknown> }>(`SELECT path, doc FROM ${tableRef(spec)}`);
             return rows.map((r) => ({ ...r.doc, id: idFromPath(r.path, col) }));
         },
         async claim(col, id, field) {
@@ -340,6 +354,7 @@ export function getAgentStore(): AgentStore {
         update: async (col, id, patch) => storeFor(col).update(col, id, patch),
         remove: async (col, id) => storeFor(col).remove(col, id),
         findByField: async (col, field, value) => storeFor(col).findByField(col, field, value),
+        list: async (col) => storeFor(col).list(col),
         claim: async (col, id, field) => storeFor(col).claim(col, id, field),
     };
 }

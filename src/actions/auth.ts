@@ -3,19 +3,9 @@
 import { after } from "next/server";
 import type { User } from "@workos-inc/node";
 import { getServerUser } from "@/lib/auth/server-user";
-import { deleteLegacyFirebaseUser, getAdminDb } from "@/lib/firebase/admin";
-import {
-    deletePosthogPerson,
-    deleteStripeCustomer,
-    eraseAccount,
-    eraseIdentityStore,
-    findStripeCustomerByUid,
-    erasePgRows,
-    eraseMirrorStore,
-    eraseTelemetry,
-    isSkipped,
-    storeEraseDeps,
-} from "@/lib/account/erase-account";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { eraseAccount, isSkipped } from "@/lib/account/erase-account";
+import { realEraseDeps } from "@/lib/account/erase-deps";
 import { isMintedLoginEmail, validateSignupEmail, resolveLoginEmail } from "@/lib/auth/username-email";
 import { assessSignupEmail, realEmailQualityDeps, emailDomain, EMAIL_QUALITY_MESSAGES } from "@/lib/auth/email-quality";
 import { getClientIp } from "@/lib/shield/client-ip";
@@ -27,12 +17,11 @@ import {
 } from "@/lib/shield/rate-limit";
 import { turnstileRejectMessage, verifyTurnstile } from "@/lib/shield/turnstile";
 import { SETTINGS_MESSAGES } from "@/lib/copy";
-import { getIntervuPg, getTelemetryForgetPg } from "@/lib/pg/pool";
 import { friendlyWorkosAuthMessage, verifyStepFor, workosErrorCodes, type VerifyStep } from "@/lib/auth/workos-errors";
 import { newPasswordProblem } from "@/lib/auth/password-rules";
 import { SIGNUP_FAILED_MESSAGE, signupRateLimitMessage, signInRateLimitMessage } from "@/lib/auth/auth-refusal-copy";
 import { logServer } from "@/lib/observability/posthog-logs";
-import { resolveWorkosUserId, getWorkosUserManagement } from "@/lib/auth/workos-runtime";
+import { getWorkosUserManagement } from "@/lib/auth/workos-runtime";
 import { provisionAppAccess } from "@/lib/auth/provisioning";
 import { claimSignupEvent } from "@/lib/auth/signup-event";
 import { getSiteUrl } from "@/lib/seo/constants";
@@ -451,32 +440,9 @@ export async function deleteAccount(): Promise<{ error?: string; incomplete?: st
     }
 
     try {
-        const db = getAdminDb();
-        const telemetryPg = getTelemetryForgetPg();
         const results = await eraseAccount(
             { uid: user.uid, email: user.email && !isMintedLoginEmail(user.email) ? user.email : null },
-            {
-                ...storeEraseDeps(db),
-                eraseMirrorStore,
-                findStripeCustomerByUid: (uid) => findStripeCustomerByUid(uid),
-                deleteStripeCustomer: (customerId) => deleteStripeCustomer(customerId),
-                deletePgRows: (uid) => erasePgRows(getIntervuPg(), uid),
-                deleteTelemetry: (uid) => eraseTelemetry(telemetryPg, uid),
-                deleteAnalyticsPerson: (uid) => deletePosthogPerson(uid),
-                deleteLegacySignIn: (uid) => deleteLegacyFirebaseUser(uid),
-                async deleteSignIn(uid) {
-                    const userManagement = await getWorkosUserManagement();
-                    const workosUserId = await resolveWorkosUserId(
-                        (externalId) => userManagement.getUserByExternalId(externalId),
-                        uid,
-                    );
-                    await userManagement.deleteUser(workosUserId);
-                },
-                // The ledger rows went by uid above; WorkOS no longer knows the
-                // address by now, so forgetIdentity's own lookup would find nobody.
-                eraseIdentityStore: (uid, email) => eraseIdentityStore(getIntervuPg(), uid, email),
-                logError: (message) => console.error(message),
-            },
+            realEraseDeps(getWorkosUserManagement),
         );
         // A processor we could not reach still holds the person's data: say so.
         const incomplete = results.filter((r) => isSkipped(r.status)).map((r) => r.processor);
