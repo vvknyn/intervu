@@ -141,7 +141,7 @@ export function TopBar() {
                             }}
                             data-testid="topbar-docked-search"
                             data-tour="jobs-search"
-                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
+                            className="ctl-md hidden min-w-0 flex-1 box-border items-stretch overflow-visible rounded-pill p-0.5 pl-0 border border-border bg-card text-left transition-colors focus-within:border-foreground hover:border-foreground lg:flex"
                         >
                             <div className="flex h-full min-w-0 flex-1 items-stretch gap-2 pl-3">
                                 <MagnifyingGlass className="shrink-0 self-center text-foreground" />
@@ -155,9 +155,10 @@ export function TopBar() {
                                 resume; this docked stand-in isn't one of the
                                 three. */}
                             <button
+                                // control-type-allow: concentric corner — the button sits p-0.5 inside the pill, so its radius is the pill's (outer − inset)
                                 type="submit"
                                 data-testid="search-submit"
-                                className="ctl-button box-border flex shrink-0 items-center justify-center whitespace-nowrap px-4 leading-none text-foreground transition-colors hover:bg-muted"
+                                className="ctl-button box-border flex shrink-0 items-center justify-center whitespace-nowrap rounded-pill px-4 leading-none text-foreground transition-colors hover:bg-muted"
                             >
                                 Search
                             </button>
