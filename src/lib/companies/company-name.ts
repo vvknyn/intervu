@@ -450,8 +450,10 @@ function shownSpelling(spellings: ReadonlyMap<string, number>): string {
  *
  * Three properties make it safe:
  *   - The winner is a string the corpus ASSERTED as a whole company name. The
- *     resolver never emits a stem it derived, so "Alpha Systems Inc" +
- *     "Alpha Networks LLC" (no bare "Alpha" row) produces no new name.
+ *     resolver never emits a stem it derived on the corpus alone, so "Alpha
+ *     Systems Inc" + "Alpha Networks LLC" (no bare "Alpha" row) produces no new
+ *     name. The one exception is `hostSpelledStem`, where the domain is the
+ *     second witness.
  *   - The legal-form strip only ever touches the comparison key, so an
  *     employer whose real name ends in one ("Levi Strauss & Co.") still
  *     displays in full — it is simply also able to be recognised as the root
@@ -472,6 +474,33 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
 }
 
 /**
+ * The brand a domain spells when the corpus names only its qualified entities, or `null`. Where no bare
+ * root row exists, a leading token run whose key equals one of the host's labels ("Aliaxis" on aliaxis.it)
+ * and that at least `MIN_BRANDED_SIBLINGS` groups with DISTINCT qualifiers share is the brand: the siblings
+ * are one witness, the domain the second. Groups differing only by a legal suffix share a qualifier
+ * (`brandTokens` drops it), so they count once. The run is spelled as the siblings' own leading words.
+ */
+function hostSpelledStem(groups: readonly NameGroup[], labels: readonly string[]): string | null {
+  const stems = new Map<string, { run: number; qualifiers: Set<string>; spellings: Map<string, number> }>();
+  for (const { display, tokens, count } of groups) {
+    for (let run = 1; run < tokens.length; run += 1) {
+      const key = tokens.slice(0, run).join("");
+      if (!labels.includes(key)) continue;
+      const stem = stems.get(key) ?? { run, qualifiers: new Set<string>(), spellings: new Map<string, number>() };
+      const end = [...display.matchAll(/[a-z0-9]+/gi)][run - 1]!;
+      const spelling = display.slice(0, end.index + end[0].length);
+      stem.qualifiers.add(tokens.slice(run).join(" "));
+      stem.spellings.set(spelling, (stem.spellings.get(spelling) ?? 0) + count);
+      stems.set(key, stem);
+    }
+  }
+  const [stem] = [...stems.values()]
+    .filter((s) => s.qualifiers.size >= MIN_BRANDED_SIBLINGS)
+    .sort((a, b) => a.run - b.run || b.qualifiers.size - a.qualifiers.size);
+  return stem ? shownSpelling(stem.spellings) : null;
+}
+
+/**
  * Pure: pick the best-supported display name for a company from its own job
  * rows. Candidates are cleaned through `cleanCompany` first (it already
  * strips ATS tenant codes, duplicate parentheticals and domain-shaped
@@ -484,7 +513,8 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * finds the busiest subsidiary, not the employer. Where no root exists the
  * vote still decides, so the name most rows agree on wins and one odd row (an
  * agency, an acquired brand) cannot rename the page. Ties resolve to
- * whichever group was encountered first: deterministic, not meaningful.
+ * whichever group was encountered first: deterministic, not meaningful. Before that vote, a name the
+ * domain itself spells and several distinct entities lead with wins (`hostSpelledStem`).
  *
  * Among agreeing candidates, one whose agreement begins at its first word beats one that only
  * contains the label further in ("Mohegan Sun" over "Wolf Mohegan Sun"); the vote decides within.
@@ -527,6 +557,8 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
   }
 
   let best: NameGroup | null = pickBrandRoot(candidates);
+  const stem = best ? null : hostSpelledStem(candidates, host.labels);
+  if (stem) best = { count: 0, display: stem, tokens: brandTokens(stem), extends: 0 };
   if (!best) {
     for (const group of candidates) {
       if (!best || group.count > best.count) best = group;
