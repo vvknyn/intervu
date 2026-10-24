@@ -128,12 +128,20 @@ describe("buildDirectory — SP: the listed name is the company's own spelling",
       ["aspendental.com", 90, { Aspendental: 5 }, ["Aspen Dental"]],
       ["airliquide.com", 80, { "AIR LIQUIDE": 5 }, ["Air Liquide"]],
       ["abbott.com", 70, { "Abbott Laboratories": 5 }, ["Abbott"]],
-      ["fiveguys.com", 60, { Fiveguys: 5 }, ["FIVE GUYS"]],
+      ["fiveguys.com", 60, { "FIVE GUYS": 5 }, ["FIVE GUYS"]], // rows and site both shout: two witnesses
       ["aaff.com", 50, { aaff: 5 }, ["AAFF"]],
       ["acme.com", 40, { "Acme Robotics": 5 }],
     ]);
     assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott Laboratories", "fiveguys.com": "FIVE GUYS", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
     assert.equal(d.companies.find((c) => c.domain === "aspendental.com")?.letter, "A");
+  });
+
+  it("a lone all-caps site name does not turn a cased name into capitals; rows that carry the capitals keep them", () => {
+    const d = build([
+      ["zentrova.com", 90, { Zentrova: 5 }, ["ZENTROVA"]],
+      ["qorvanta.com", 80, { QORVANTA: 5 }, ["QORVANTA"]],
+    ]);
+    assert.deepEqual(listed(d), { "zentrova.com": "Zentrova", "qorvanta.com": "QORVANTA" });
   });
 });
 

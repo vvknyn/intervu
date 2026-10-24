@@ -76,7 +76,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], re
     const resolved = resolveCompanyName(publicRoles(read.hits), candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
-    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain);
+    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling);
     claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
   });
 
