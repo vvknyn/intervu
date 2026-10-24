@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildCompanyHiringAnswer, buildCompanyJobsUrl, hasCompanyKpiContent } from "@/lib/companies/presentation";
+import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { CompanyPageData } from "@/lib/companies/types";
 import { parseJobsUrl } from "@/lib/jobs/url-state";
@@ -61,6 +62,7 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     jobs: [],
     boards: ["elite"],
     exhaust: null,
+    facts: buildCompanyFacts({ name: "Lumentum", domain: "lumentum.com", jobs: [], openCount: { value: 213, isLowerBound: false } }),
     nowMs: NOW,
     ...overrides,
   };
