@@ -38,6 +38,8 @@ export function buildCheckoutParams(input: BuildCheckoutInput): Stripe.Checkout.
         payment_intent_data: { metadata: { [VELAI_UID_METADATA_KEY]: uid } },
         success_url: `${origin}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${origin}/pricing`,
+        // The account defaults to Stripe as merchant of record; Velai is the seller here, and turning MoR on is a separate paid decision.
+        managed_payments: { enabled: false },
     };
 }
 
