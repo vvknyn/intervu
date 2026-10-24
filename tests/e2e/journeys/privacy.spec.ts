@@ -54,7 +54,7 @@ test("the privacy policy opens with Velai's résumé promises and a Your résum�
   await expect(article).toContainText("The file itself is never uploaded to us");
   await expect(article).toContainText("it is encrypted with AES-256 before it is stored");
   await expect(article).toContainText("Those searches are not logged.");
-  await expect(article).toContainText("Every word on the page, labels and tooltips included, is masked before it leaves your browser");
+  await expect(article).toContainText("There is no session replay and no automatic click capture");
   await expect(article).toContainText("No AI model on our servers reads it.");
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
@@ -82,6 +82,10 @@ test("the privacy policy says searches are kept in an anonymous record, apart fr
   await expect(article).toContainText("It holds no account id, IP address or browser id");
   await expect(article).toContainText("deleted after 90 days");
   await expect(article).toContainText("query string and anything after a # removed before it leaves your browser");
+  // Where you came from and the tags on the link you followed are not kept either.
+  await expect(article).toContainText("the page you came from (the referrer), so none of them is stored with the events");
+  await expect(article).toContainText("Tags in a link address (like utm_source or an ad click id) are not kept either");
+  await expect(article).toContainText("The Cloudflare Turnstile check on the Velai forms that show it");
   await expect(article).not.toContainText("including the text of what you typed");
   await expect(article).not.toContainText("build a profile of your search activity");
   expect(diagnostics.pageErrors).toEqual([]);

@@ -14,6 +14,28 @@ export function getAvatarInitials(name?: string, email?: string): string {
     return local ? local.slice(0, 2).toUpperCase() : "";
 }
 
+const PLACEHOLDER_BASE = "https://velai.invalid";
+
+/**
+ * A picture is shown only when it is one of our own files (a site path such as
+ * "/velai-logo.png"). A sign-in provider's photo address (Google, GitHub...)
+ * would make the browser contact that company's image server on every page,
+ * handing it the visitor's IP address, so any other address is ignored and the
+ * initials show instead. This is the one place a picture address becomes an
+ * <img>, so no caller can reintroduce a remote photo.
+ */
+export function localPictureSrc(url?: string): string | undefined {
+    if (!url) return undefined;
+    // The WHATWG parser is the one browsers use: it drops tabs and newlines and
+    // reads "\\" as "/", so a regex over the raw text can disagree with where
+    // the browser actually goes.
+    try {
+        return new URL(url, PLACEHOLDER_BASE).origin === new URL(PLACEHOLDER_BASE).origin ? url : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 export interface UserAvatarProps {
     name?: string;
     email?: string;
@@ -23,13 +45,14 @@ export interface UserAvatarProps {
 }
 
 /**
- * Identity trigger for the signed-in header menu — a profile photo when we
- * have one, else initials. Deliberately not Klein: identity is not an
+ * Identity trigger for the signed-in header menu — a Velai-hosted picture when
+ * there is one, else initials (provider photos are never loaded). Deliberately not Klein: identity is not an
  * action or a selection state (rulebook, docs/design/rulebook-2026-09), so
  * it sits on the neutral layer token (`bg-muted`) with a hairline border
  * (`border-border`) like any other inert surface.
  */
 export function UserAvatar({ name, email, pictureUrl, size = 32, className }: UserAvatarProps) {
+    const src = localPictureSrc(pictureUrl);
     return (
         <span
             // The identity mark uses the pill role (fully round at any size),
@@ -41,9 +64,9 @@ export function UserAvatar({ name, email, pictureUrl, size = 32, className }: Us
             )}
             style={{ width: size, height: size }}
         >
-            {pictureUrl ? (
+            {src ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={pictureUrl} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
+                <img src={src} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" />
             ) : (
                 getAvatarInitials(name, email)
             )}
