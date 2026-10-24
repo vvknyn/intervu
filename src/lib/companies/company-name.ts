@@ -275,6 +275,24 @@ function expandSquashedLabel(label: string, names: readonly string[]): string | 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
 const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word !== word[0]!.toUpperCase() + word.slice(1).toLowerCase();
 
+/**
+ * The site name that is a proper name inside the label ("Dunkin'" in dunkindonuts, "St. Charles Health" in
+ * stcharleshealthcare): its key is a proper prefix of the label, at least 3 letters, it passes the expansion
+ * hygiene, and it carries evidence of being a name rather than a page title: 2+ words, or one word with its own
+ * casing ("EverTrue", "ATI"; not "Home", "Careers"). The longest key wins.
+ */
+function prefixBrand(label: string, names: readonly string[]): string | undefined {
+  const qualifies = (name: string) => {
+    const key = siteKey(name);
+    return (
+      key.length >= 3 && key.length < label.length && label.startsWith(key) &&
+      wordCount(name) <= EXPANSION_MAX_WORDS && EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) &&
+      !isBanner(name) && isSoundSpelling(name) && (wordCount(name) >= 2 || carriesCasing(name))
+    );
+  };
+  return names.filter(qualifies).sort((a, b) => siteKey(b).length - siteKey(a).length)[0];
+}
+
 /** The site name whose first word is the label with its own casing ("BNSF" from "BNSF Railway"). */
 function respellFirstWord(label: string, display: string, names: readonly string[]): string | undefined {
   return names
@@ -292,20 +310,22 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * Guards: (1) SQ runs only for a one-word `display`; a spaced name is already spelled. (2) An expansion spells the
  * label from the starts of its words ("Pyramid Healthcare", not letters scattered through a phrase). (3) A 2+ word
  * prefix of an expansion that already spells the label is the name; the rest is a tagline ("Airbus Helicopters in Canada").
- * (4) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
+ * (4) A name that is a proper prefix of the label ("Dunkin'" for dunkindonuts) is the last resort, and needs 2+ words or
+ * casing of its own. (5) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
  * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no).
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string): string {
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  const respelled = spellings.find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display));
+  const cleaned = spellings.map((c) => displayCompanyName(c));
+  // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
-  const cleaned = spellings.map((c) => displayCompanyName(c));
   const cased = respellFirstWord(label, display, cleaned);
   if (cased) return cased;
   if (cleaned.some((c) => siteKey(c) === label)) return display;
-  return expandSquashedLabel(label, cleaned) ?? display;
+  return expandSquashedLabel(label, cleaned) ?? prefixBrand(label, cleaned) ?? display;
 }
 
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */
@@ -425,16 +445,33 @@ type NameGroup = {
   extends: number;
 };
 
+/**
+ * Fold a group keyed by another group's key plus a legal form ("ebayinc" onto "ebay") into that root: the rows
+ * name the same employer, and the glued form is never shown when a root exists. Only the root's spellings are kept.
+ */
+function foldGluedLegalForms<T extends { count: number }>(groups: Map<string, T>): void {
+  const rootsOf = (key: string) =>
+    [...groups.keys()].filter((root) => key.length - root.length >= 3 && key.startsWith(root) && root.length >= 3 && LABEL_LEGAL_SUFFIXES.includes(key.slice(root.length)));
+  const glued = new Map([...groups.keys()].map((key) => [key, rootsOf(key)] as const).filter(([, roots]) => roots.length > 0));
+  for (const [key, roots] of glued) {
+    const root = roots.filter((r) => !glued.has(r)).sort((a, b) => b.length - a.length)[0];
+    if (!root) continue;
+    groups.get(root)!.count += groups.get(key)!.count;
+    groups.delete(key);
+  }
+}
+
 /** Written in lower case with no space: a feed's flattening ("tdsynnex"), not a spelling anyone chose. */
 const isFlat = (spelling: string): boolean => spelling === spelling.toLowerCase() && !/\s/.test(spelling);
 
 /**
  * The spelling a group of spellings of one name is shown as: the most common that is not flat
- * ("TD SYNNEX" over "tdsynnex"), the most common overall when all are; a tie goes to the one carrying case.
+ * ("TD SYNNEX" over "tdsynnex") and not an all-capitals banner ("Five Guys" over "FIVE GUYS"), the most common overall when all are; a tie goes to the one carrying case.
  */
 function shownSpelling(spellings: ReadonlyMap<string, number>): string {
   const ranked = [...spellings].sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
-  return (ranked.find(([spelling]) => !isFlat(spelling)) ?? ranked[0]!)[0];
+  const cased = ([spelling]: [string, number]) => !isFlat(spelling);
+  return (ranked.find((entry) => cased(entry) && !isBanner(entry[0])) ?? ranked.find(cased) ?? ranked[0]!)[0];
 }
 
 /**
@@ -547,6 +584,7 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     spellings.set(alnum(name), group);
   }
 
+  foldGluedLegalForms(spellings);
   const all = [...spellings.values()].map(({ count, spellings: forms }) => {
     const display = shownSpelling(forms);
     return { count, display, tokens: brandTokens(display), extends: 0, lead: agreesWithLabels(display, host, true) };
@@ -575,6 +613,7 @@ function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"
   // the same recovery — see `capitalizeAfterNonLetter`. `source` stays "corpus-flat": this is still
   // the corpus's own string, not a guess.
   // A 2-3 letter single token is read as an acronym by `titleCaseDisplay`'s own rule ("dhl" -> "DHL"; ordinary words stay words).
-  const value = /^\p{L}{2,3}$/u.test(display) ? titleCaseDisplay(display.toUpperCase()) : capitalizeAfterNonLetter(display);
+  // An all-capitals banner carries no case either, and `titleCaseDisplay` is the rule that recovers it ("PEOPLE AND BABY" -> "People and Baby").
+  const value = /^\p{L}{2,3}$/u.test(display) ? titleCaseDisplay(display.toUpperCase()) : isBanner(display) ? titleCaseDisplay(display) : capitalizeAfterNonLetter(display);
   return { value, source: "corpus-flat" };
 }
