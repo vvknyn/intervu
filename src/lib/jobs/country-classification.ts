@@ -105,6 +105,26 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "congo-brazzaville": "Congo",
   "east timor": "Timor-Leste",
   "viet nam": "Vietnam",
+  // Endonyms a company name can carry ("intermedix Österreich"), beyond the English names above.
+  "österreich": "Austria",
+  "osterreich": "Austria",
+  "deutschland": "Germany",
+  "schweiz": "Switzerland",
+  "suisse": "Switzerland",
+  "svizzera": "Switzerland",
+  "españa": "Spain",
+  "italia": "Italy",
+  "nederland": "Netherlands",
+  "belgique": "Belgium",
+  "belgië": "Belgium",
+  "polska": "Poland",
+  "sverige": "Sweden",
+  "norge": "Norway",
+  "danmark": "Denmark",
+  "suomi": "Finland",
+  "brasil": "Brazil",
+  "méxico": "Mexico",
+  "türkiye": "Turkey",
 };
 
 export interface CountryClassification {

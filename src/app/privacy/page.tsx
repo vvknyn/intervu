@@ -12,8 +12,10 @@ import { SectionTitle } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
 import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
+import { PROCESSORS } from "@/lib/legal/processors";
 import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
 import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
+import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
@@ -123,15 +125,15 @@ export default function PrivacyPage() {
           us: what Velai works with is the text and the structured résumé read from it.
         </p>
         <p>
-          If you aren&apos;t signed in, that structured résumé is kept in this browser&apos;s local storage and
-          nowhere else. If you are signed in, it is saved to your account so it follows you across devices, and it
+          Without a paid month, Velai does not save that structured résumé or send it to its servers: it is kept in
+          this browser&apos;s local storage, signed in or not. With a paid month, it is saved to your account so it follows you across devices, and it
           is encrypted with AES-256 before it is stored, under a key kept on our web server rather than in the
           database. The same goes for the copies Velai keeps for you: earlier versions saved in the résumé editor,
           the résumé a role kept when you marked it applied, and tailored résumés filed on a role.
         </p>
         <p>
           Besides you, only an AI assistant or the Velai browser extension that you connect yourself can load your
-          résumé. Velai never sends it to an employer: you apply on the employer&apos;s own site. No AI model on
+          saved résumé, and only with a paid month. Velai never sends it to an employer: you apply on the employer&apos;s own site. No AI model on
           our servers reads it. When AI helps read or tailor it, your name and contact details are taken out first
           and the request goes, encrypted, to a sealed server that we can&apos;t read (see{" "}
           <a href="#ai-processing">AI processing</a>).
@@ -139,7 +141,7 @@ export default function PrivacyPage() {
         <p>
           To find jobs that fit, Velai sends role titles taken from your résumé, plus a country and seniority
           filter, to our search index. Those searches are not logged. Strong, Good and Stretch are worked out in
-          your browser. The one exception is daily picks, if you turn them on: then our server ranks your saved
+          your browser. The one exception is daily picks, a paid feature you turn on yourself: then our server ranks your saved
           résumé against the week&apos;s roles once a day, by the same rules and with no AI, to choose what it
           emails you (see <a href="#email">Email</a>).
         </p>
@@ -238,12 +240,12 @@ export default function PrivacyPage() {
 
         <SectionTitle>How we use it</SectionTitle>
         <p>
-          We use your account data to run the product: to show your tracked applications and keep your résumés and
+          We use your account data to run the product: to show your tracked applications and, with a paid month, keep your résumés and
           prep answers where you left them. We use your search-activity profile for two things: to make your own
           results more relevant the more you use Velai, and, looked at in aggregate across everyone, to understand
-          which kinds of job postings people actually apply to so we can improve search for everyone. Velai is
-          free to use today; if we introduce a paid plan it will be listed on the{" "}
-          <Link href="/pricing">pricing page</Link> before anything is charged. We don&apos;t sell any of this to
+          which kinds of job postings people actually apply to so we can improve search for everyone. Job search is
+          free. Anything that has our servers or AI handle your résumé costs {PRO_MONTHLY_PRICE} for a month, bought in advance with one payment and no
+          renewal; see the <Link href="/pricing">pricing page</Link>. We don&apos;t sell any of this to
           advertisers. Velai never sells or licenses your data to anyone, even aggregated.
         </p>
 
@@ -280,7 +282,7 @@ export default function PrivacyPage() {
         <p>
           If you pair an AI client with Velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
-          connection — read your saved résumé, your tracked applications, and your job preferences, and save
+          connection — read your tracked applications and your job preferences, and, with a paid month, your saved résumé, and save
           changes back when you tell it to. Anything your AI client reads travels to that provider and is handled
           under <em>their</em> privacy terms, not ours — we can&apos;t control what the provider you chose retains
           or how it uses what it processes. This only ever happens for a client you connected yourself, and you
@@ -351,7 +353,7 @@ export default function PrivacyPage() {
           status (sent, bounced, or marked as spam) — not the content of what we send you.
         </p>
         <p>
-          Daily picks are off until you turn them on. When they&apos;re on, our server reads the résumé saved on your
+          Daily picks are off until you turn them on, and need a paid month. When they&apos;re on, our server reads the résumé saved on your
           account once a day, ranks the roles posted that week by the same rules as the list on the jobs page that ranks by fit (no AI), and emails you up
           to five. So no role is sent twice, we keep which roles we&apos;ve sent you and when, encrypted with the rest
           of your account and erased with it.
@@ -444,6 +446,34 @@ export default function PrivacyPage() {
           any free text through PostHog. PostHog also does not collect browser error reports.
         </p>
 
+        <SectionTitle id="processors">Who handles your data</SectionTitle>
+        <p>
+          These are the outside services that touch your data, and what each one gets. Free job search needs no
+          account. Anything that reads your résumé on a server is paid.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">Service</th>
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">What it receives</th>
+                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">Why</th>
+                <th className="border-b border-border-strong pb-2 text-left text-xs font-semibold text-muted-foreground">Retention</th>
+              </tr>
+            </thead>
+            <tbody>
+              {PROCESSORS.map((p) => (
+                <tr key={p.name}>
+                  <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">{p.name}</td>
+                  <td className="border-b border-border py-2 pr-3 align-top">{p.receives}</td>
+                  <td className="border-b border-border py-2 pr-3 align-top">{p.why}</td>
+                  <td className="border-b border-border py-2 align-top">{p.retention}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
         <SectionTitle>Where data is processed</SectionTitle>
         <p>
           You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
@@ -473,7 +503,7 @@ export default function PrivacyPage() {
           That server action removes your profile and every user-owned collection in our migration manifest (for
           example applications, résumés, saved searches, prep answers, agent credentials, and email digest state
           keyed to your account). When your sign-in email is a real address, not a synthetic username-only address,
-          it also removes contact-form messages and connect, founding-seat, and credit-pack waitlist entries stored
+          it also removes contact-form messages and connect and other waitlist entries stored
           under that address. It deletes the behavioural-ledger rows in PostgreSQL stamped with your account id,
           deletes your customer record at Stripe (with the saved cards and subscriptions on it), erases the
           copy of your account data held in our second database (Firestore or PostgreSQL, whichever is not the

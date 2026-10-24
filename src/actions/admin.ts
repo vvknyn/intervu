@@ -3,6 +3,8 @@
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { isAdminUser } from "@/lib/llm/credit-gate";
+import { validate, updateAppConfigSchema } from "@/lib/validation";
+import { stripUndefinedDeep } from "@/lib/pursuits/upsert-core";
 
 export async function getAppConfig() {
     try {
@@ -26,12 +28,13 @@ export async function updateAppConfig(updates: {
     donation_url?: string;
 }) {
     if (!(await isCurrentUserAdmin())) return { error: "Forbidden" };
+    const parsed = validate(updateAppConfigSchema, updates);
+    if (!parsed.ok) return { error: parsed.error };
     try {
         const db = getAdminDb();
-        await db.collection("app_config").doc("main").update({
-            ...updates,
-            updated_at: new Date().toISOString(),
-        });
+        await db.collection("app_config").doc("main").update(
+            stripUndefinedDeep({ ...parsed.data, updated_at: new Date().toISOString() }),
+        );
 
         return { success: true };
     } catch (error: any) {

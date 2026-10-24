@@ -54,15 +54,29 @@ export const optionalString = (max = 5000) =>
     .optional()
     .transform((v) => (v ? v : undefined));
 
-/** A URL we'd store/deep-link to. Must be http(s). Optional. */
-export const optionalHttpUrl = z
-  .string()
-  .trim()
-  .url("must be a valid URL")
-  .refine((u) => /^https?:\/\//i.test(u), "must be an http(s) URL")
-  .max(2048, "URL is too long")
-  .optional()
-  .or(z.literal("").transform(() => undefined));
+/** Schemeless host input ("boards.greenhouse.io/x") gets https:// prepended;
+ *  anything with a scheme ("javascript:", "ftp://") is left to the http(s) check. */
+const withDefaultScheme = (v: unknown) => {
+  if (typeof v !== "string") return v;
+  const t = v.trim();
+  const schemeless = !/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(t) && t.includes(".") && !/\s/.test(t);
+  return schemeless ? `https://${t}` : t;
+};
+
+/** A URL we'd store/deep-link to. Must be http(s); a bare host is read as https. Optional. */
+export const optionalHttpUrl = z.preprocess(
+  withDefaultScheme,
+  z
+    .string()
+    .url("must be a valid URL")
+    .refine((u) => /^https?:\/\//i.test(u), "must be an http(s) URL")
+    .max(2048, "URL is too long")
+    .optional()
+    .or(z.literal("").transform(() => undefined)),
+);
+
+/** Field caps shared by the create/update schemas and the inputs that feed them. */
+export const APPLICATION_FIELD_MAX = { company: 200, position: 300, note: 2000, url: 2048 } as const;
 
 // The pursuit stage union (jobs-first bloom PR2, spec §3) — this WIDENS the
 // same `status` field the five original statuses already lived on, so old
@@ -84,8 +98,8 @@ export const applicationStatus = z.enum([
  *  predate the pursuit job_id linkage keep working unchanged (falls back to
  *  a plain create — see actions/jobs.ts). */
 export const markJobAppliedSchema = z.object({
-  company: nonEmptyString(200),
-  title: nonEmptyString(300),
+  company: nonEmptyString(APPLICATION_FIELD_MAX.company),
+  title: nonEmptyString(APPLICATION_FIELD_MAX.position),
   applyUrl: optionalHttpUrl,
   jobId: optionalString(200),
 });
@@ -93,15 +107,61 @@ export const markJobAppliedSchema = z.object({
 /** updateApplication `updates` payload — every field optional, but no unknown keys. */
 export const updateApplicationSchema = z
   .object({
-    company_name: optionalString(200),
-    position: optionalString(300),
+    company_name: optionalString(APPLICATION_FIELD_MAX.company),
+    position: optionalString(APPLICATION_FIELD_MAX.position),
     job_url: optionalHttpUrl,
     applied_at: optionalString(64),
     status: applicationStatus.optional(),
     resume_version_id: optionalString(200),
     cover_letter: optionalString(50000),
     interview_date: optionalString(64),
-    note: optionalString(2000),
+    note: optionalString(APPLICATION_FIELD_MAX.note),
+  })
+  .strict();
+
+/** createApplication payload — the legal create fields only. `user_id`, the
+ *  timestamps and `applied_resume` are server-set, so they are unknown keys here. */
+export const createApplicationSchema = z
+  .object({
+    company_name: nonEmptyString(APPLICATION_FIELD_MAX.company),
+    position: nonEmptyString(APPLICATION_FIELD_MAX.position),
+    job_url: optionalHttpUrl,
+    applied_at: optionalString(64),
+    status: applicationStatus,
+    resume_version_id: optionalString(200),
+    cover_letter: optionalString(50000),
+    note: optionalString(APPLICATION_FIELD_MAX.note),
+  })
+  .strict();
+
+/** addFavorite payload — `user_id` and the timestamps are server-set. */
+export const addFavoriteSchema = z
+  .object({
+    question_text: nonEmptyString(5000),
+    question_category: optionalString(200),
+    company: optionalString(200),
+    position: optionalString(300),
+    round: optionalString(200),
+    notes: optionalString(5000),
+  })
+  .strict();
+
+/** saveSource payload — `id`, `user_id` and `created_at` are server-set. */
+export const saveSourceSchema = z
+  .object({
+    type: z.enum(["text", "url", "file"]),
+    title: z.string().trim(),
+    content: z.string().trim().min(1, "is required"),
+    visibility: z.enum(["private", "public"]).optional(),
+  })
+  .strict();
+
+/** updateAppConfig payload (admin-only action). */
+export const updateAppConfigSchema = z
+  .object({
+    show_donation: z.boolean().optional(),
+    // "" clears the link, so it stays "" rather than normalizing to undefined.
+    donation_url: z.union([z.literal(""), z.string().trim().url("must be a valid URL").max(2048)]).optional(),
   })
   .strict();
 

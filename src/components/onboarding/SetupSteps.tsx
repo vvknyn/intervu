@@ -233,7 +233,7 @@ function ResumeStep({
                 <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
                         Add your résumé and every list is ranked by how well each role fits it. It&apos;s read in this
-                        browser and saved to your account.
+                        browser. Saving it to your account needs a paid month.
                     </p>
                     {onUploadResume ? (
                         <Button type="button" data-testid="setup-add-resume" onClick={onUploadResume}>

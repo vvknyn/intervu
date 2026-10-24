@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, displayNameFromDomain, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, dropCountryQualifier, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -247,9 +248,9 @@ describe("siteSpelling — SP: the company's own spelling of the agreed name", (
     assert.equal(siteSpelling("Fooco", ["Home", "Foo Co", "FOO-CO"]), "Foo Co");
   });
 
-  it("never shows different letters, an all-caps banner, or anything when there are no candidates", () => {
+  it("never shows different letters, or anything when there are no candidates", () => {
     assert.equal(siteSpelling("Abbott Laboratories", ["Abbott"]), "Abbott Laboratories");
-    assert.equal(siteSpelling("Fiveguys", ["FIVE GUYS"]), "Fiveguys");
+    assert.equal(siteSpelling("Fiveguys", ["FIVE GUYS"], undefined, "FIVE GUYS"), "FIVE GUYS"); // an all-caps name is a spelling when the rows carry it too
     assert.equal(siteSpelling("Fiveguys", []), "Fiveguys");
     assert.equal(siteSpelling("Fiveguys"), "Fiveguys");
     assert.equal(siteSpelling("Acme", ["Acme"]), "Acme");
@@ -375,7 +376,7 @@ describe("companies/company-name — brand stem spelled by the domain", () => {
   it("groups differing only by a legal suffix are one sibling", () => {
     assert.equal(
       name({ "Acme Health India": 2, "Acme Health India Private Limited": 1 }, "acmehealth.com"),
-      "Acme Health India",
+      "Acme Health",
     );
   });
 
@@ -405,12 +406,12 @@ describe("siteSpelling — N1: a proper name that prefixes the squashed label", 
     assert.equal(sq("Circlecareservices", "circlecareservices.com", ["Circle", "Circle Care", "CircleCare"]), "Circle Care");
   });
 
-  it("rejects a single plain word, a banner, a too-short key, a cut phrase and a domain-like title", () => {
+  it("rejects a single plain word, a too-short key, a cut phrase and a domain-like title", () => {
     assert.equal(sq("Homedepot", "homedepot.com", ["Home"]), "Homedepot");
     assert.equal(sq("Careersource", "careersource.com", ["Careers"]), "Careersource");
     assert.equal(sq("Agilitihealth", "agilitihealth.com", ["Agiliti"]), "Agilitihealth");
     assert.equal(sq("Bigcorpgroup", "bigcorpgroup.com", ["Bigcorp"]), "Bigcorpgroup");
-    assert.equal(sq("Fiveguysburgers", "fiveguysburgers.com", ["FIVE GUYS"]), "Fiveguysburgers");
+    assert.equal(sq("Fiveguysburgers", "fiveguysburgers.com", ["FIVE GUYS"]), "Five Guys");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["AW"]), "Acmewidgets");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme Widgets -"]), "Acmewidgets");
     assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme.com Site"]), "Acmewidgets");
@@ -470,5 +471,174 @@ describe("N4 — all-capitals banners carry no case", () => {
     assert.equal(name({ AAFF: 3 }, "aaff.com").value, "AAFF");
     assert.equal(name({ "DHL Express": 3 }, "dhl.com").value, "DHL Express");
     assert.equal(name({ "McCain Foods": 3 }, "mccain.com").value, "McCain Foods");
+  });
+});
+
+describe("R1 — a folded glued legal form carries its spellings to the root", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+
+  it("a flattened root does not outvote the company's own spelling it absorbed (invented names)", () => {
+    assert.equal(name({ Acmeworks: 6, "Acme Works Corp": 2 }, "acmeworks.com"), "Acme Works");
+    assert.equal(name({ Zetapharma: 3, "Zeta Pharma, Inc.": 9 }, "zetapharma.com"), "Zeta Pharma");
+  });
+
+  it("the folded spelling is cut after the shortest prefix that spells the root", () => {
+    assert.equal(name({ Bolt: 1, "Bolt Foods Ltd": 4, "Bolt Labs Ltd": 4 }, "bolt.com"), "Bolt");
+    assert.equal(name({ Qubit: 2, "Qubit Systems, LLC": 2, "Qubit Labs, LLC": 2, "Qubit Systems": 2 }, "qubit.com"), "Qubit");
+  });
+
+  it("a spelling that lowered the interior case of another never wins, whatever the counts", () => {
+    assert.equal(name({ Novatx: 9, "NovaTX Inc": 2 }, "novatx.com"), "NovaTX");
+    assert.equal(name({ Mediflow: 9, MediFlow: 1 }, "mediflow.com"), "MediFlow");
+  });
+
+  it("an all-capitals spelling has no interior case to lose (banners still lose to a cased spelling, never win by it)", () => {
+    assert.equal(name({ "ACME WIDGETS": 5, "Acme Widgets": 1 }, "acmewidgets.com"), "Acme Widgets");
+    assert.equal(name({ ZIPLY: 5 }, "ziply.com"), "Ziply");
+  });
+
+  it("regression: Duke Energy, CorroHealth (feed-flattened roots)", () => {
+    assert.equal(name({ "Duke Energy Corp": 136, Dukeenergy: 57 }, "duke-energy.com"), "Duke Energy");
+    assert.equal(name({ "CorroHealth Inc": 59, "CorroHealth Infotech Private Limited": 59, Corrohealth: 5 }, "corrohealth.com"), "CorroHealth");
+  });
+});
+
+describe("R2 — a spaced-out acronym is one word and never the shown spelling", () => {
+  it("a respelling may collapse the letter run (invented names)", () => {
+    assert.equal(siteSpelling("X Y Z Labs", ["XYZ Labs"], "xyzlabs.com"), "XYZ Labs");
+    assert.equal(siteSpelling("Q R Holdings", ["QR Holdings"], "qrholdings.com"), "QR Holdings");
+  });
+
+  it("the letter run never wins its group, however common", () => {
+    const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+    assert.equal(name({ "X Y Z  Labs": 9, "XYZ LABS": 1 }, "xyzlabs.com"), "XYZ Labs");
+    assert.equal(name({ "Q R Holdings": 4, "QR Holdings": 1 }, "qrholdings.com"), "QR Holdings");
+  });
+
+  it("regression: APF entreprises", () => {
+    assert.equal(siteSpelling("A P F Entreprises", ["APF Entreprises"], "apf-entreprises.fr"), "APF Entreprises");
+    assert.equal(siteSpelling("APF Entreprises", ["APF entreprises"], "apf-entreprises.fr"), "APF Entreprises"); // a site may not lower-case the display's word
+  });
+
+  it("a plain extra space is still a space", () => {
+    assert.equal(siteSpelling("Sunlife", ["Sun Life"], "sunlife.com"), "Sun Life");
+    assert.equal(siteSpelling("Sun Life", ["Sunlife"], "sunlife.com"), "Sun Life");
+  });
+});
+
+describe("R3 — a respelling never lowers an acronym", () => {
+  it("keeps a capitalised word of display (invented names)", () => {
+    assert.equal(siteSpelling("ZED", ["Zed Corp"], "zed.com"), "ZED");
+    assert.equal(siteSpelling("QX Systems", ["Qx Systems"], "qxsystems.com"), "QX Systems");
+  });
+
+  it("still re-cases a banner display, where the cased spelling is the point", () => {
+    assert.equal(siteSpelling("ZEDWORKS", ["Zedworks"], "zedworks.com"), "Zedworks");
+    assert.equal(siteSpelling("AIR LIQUIDE", ["Air Liquide"], "airliquide.com"), "Air Liquide");
+  });
+
+  it("still takes a respelling that lowers nothing capitalised", () => {
+    assert.equal(siteSpelling("Naughtone", ["NaughtOne"], "naughtone.com"), "NaughtOne");
+  });
+
+  it("regression: FOX, ARK Systems", () => {
+    assert.equal(siteSpelling("FOX", ["foxcorporation", "Fox Corporation"], "foxcorporation.com"), "FOX");
+    assert.equal(siteSpelling("ARK Systems", ["Ark Systems Inc"], "arksysinc.com"), "ARK Systems");
+  });
+});
+
+describe("R4 — title-casing a banner still lets the legal form strip", () => {
+  it("displayCompanyName strips the legal form after the resolver title-cased the banner (invented names)", () => {
+    const shown = (tally: Record<string, number>, domain: string) => displayCompanyName(resolveCompanyName(rows(tally), domain).value);
+    assert.equal(shown({ "ACME WIDGETS CORP.": 3 }, "acmewidgets.com"), "Acme Widgets");
+    assert.equal(shown({ "ZETA PHARMA INC": 3 }, "zetapharma.com"), "Zeta Pharma");
+  });
+});
+
+describe("R2/ruling — the homepage's all-caps name is a spelling; a trailing ? or ! is clean", () => {
+  it("an all-caps site name respells a title-cased banner display (invented names)", () => {
+    assert.equal(siteSpelling("Zenbotix", ["ZENBOTIX"], "zenbotix.com", "ZENBOTIX"), "ZENBOTIX");
+    assert.equal(siteSpelling("Vorta Labs", ["VORTA LABS"], "vortalabs.com", "VORTA LABS"), "VORTA LABS");
+  });
+
+  it("rows that shout with no all-caps site name stay title-cased", () => {
+    assert.equal(siteSpelling("Zenbotix", ["Home"], "zenbotix.com"), "Zenbotix");
+  });
+
+  it("names ending in ? or ! are sound spellings (invented names)", () => {
+    assert.equal(siteSpelling("Wowza Foods", ["WOWZA Foods!"], "wowzafoods.com"), "WOWZA Foods!");
+    assert.equal(siteSpelling("Whatsup Co", ["WhatsUp Co?"], "whatsupco.com"), "WhatsUp Co?");
+  });
+});
+
+describe("witness guards on the shown name (invented names)", () => {
+  const rowsOf = (tally: Record<string, number>) =>
+    Object.entries(tally).flatMap(([company, n]) => Array.from({ length: n }, () => ({ company }))) as unknown as readonly Pick<PublicJob, "company">[];
+
+  it("an all-caps site name respells only when the rows themselves spell it that way", () => {
+    assert.equal(siteSpelling("Zentrova", ["ZENTROVA"], "zentrova.com"), "Zentrova");
+    assert.equal(siteSpelling("Zentrova", ["ZENTROVA"], "zentrova.com", "Zentrova"), "Zentrova");
+    assert.equal(siteSpelling("Zentrova", ["ZENTROVA"], "zentrova.com", "ZENTROVA"), "ZENTROVA");
+    assert.equal(siteSpelling("Qorvanta Group", ["QORVANTA GROUP"], "qorvanta.com", "Qorvanta Group"), "Qorvanta Group");
+  });
+
+  it("the rows' winning spelling is exposed before re-casing", () => {
+    assert.equal(resolveCompanyName(rowsOf({ ZENTROVA: 9 }), "zentrova.com").rowSpelling, "ZENTROVA");
+    assert.equal(resolveCompanyName(rowsOf({ ZENTROVA: 9 }), "zentrova.com").value, "Zentrova");
+  });
+
+  it("a hyphen joining capitalised words survives a spaced spelling of the same name", () => {
+    assert.equal(resolveCompanyName(rowsOf({ "Marlow-Ostrander": 20, "Marlow  Ostrander": 3 }), "marlow-ostrander.com").value, "Marlow-Ostrander");
+    assert.equal(resolveCompanyName(rowsOf({ "Kestrel-Brandt Health": 10, "kestrel brandt health": 2 }), "kestrel-brandt.org").value, "Kestrel-Brandt Health");
+  });
+
+  it("a site name may not lower-case a non-first word the display capitalises, except a connector", () => {
+    assert.equal(siteSpelling("Norvik Holdings", ["Norvik holdings"], "norvik.com"), "Norvik Holdings");
+    assert.equal(siteSpelling("Tarn And Lowe", ["Tarn and Lowe"], "tarnandlowe.com"), "Tarn and Lowe");
+    assert.equal(siteSpelling("Ovanta", ["oVanta"], "ovanta.com"), "oVanta");
+  });
+
+  it("among site names that spell the label, the one with the fewest unspelled trailing words wins, in any source order", () => {
+    assert.equal(siteSpelling("Bretlm", ["Bret Lumen Germany", "Bret Lumen"], "bretlm.com"), "Bret Lumen");
+    assert.equal(siteSpelling("Bretlm", ["Bret Lumen", "Bret Lumen Germany"], "bretlm.com"), "Bret Lumen");
+    assert.equal(siteSpelling("Bretlm", ["Bret Lumen Germany"], "bretlm.com"), "Bret Lumen Germany");
+    assert.equal(siteSpelling("Tavrix", ["Tavrix Hold Co", "Tavrix Holdings"], "tavrix.com"), "Tavrix");
+  });
+  it("a banner site name with no row witness is re-cased by the row re-caser, then competes normally", () => {
+    assert.equal(siteSpelling("Zentrovasolar", ["ZENTROVA SOLAR"], "zentrovasolar.com"), "Zentrova Solar");
+    assert.equal(siteSpelling("Qorvantaz", ["QORVANTA Z"], "qorvantaz.com"), "Qorvanta Z");
+    assert.equal(siteSpelling("Zentrova", ["ZENTROVA"], "zentrova.com", "ZENTROVA"), "ZENTROVA");
+  });
+
+  it("a glued label whose acronym tail ends in a legal-form word still expands (the legal word spells a letter)", () => {
+    assert.equal(siteSpelling("Zorvaxpmc", ["Zorvax Program Management Company"], "zorvaxpmc.com"), "Zorvax Program Management Company");
+    assert.equal(siteSpelling("Quillmtg", ["Quill Management Group"], "quillmtg.com"), "Quill Management Group");
+  });
+
+  it("a re-cased banner never swaps a spaced display for a hyphenated twin", () => {
+    assert.equal(siteSpelling("Pelmar Services", ["PELMAR-SERVICES"], "pelmarservices.com"), "Pelmar Services");
+  });
+});
+
+describe("dropCountryQualifier — the hiring entity's country is not part of the employer's name", () => {
+  it("drops a trailing country code or endonym when the rest names the host", () => {
+    assert.equal(resolveCompanyName(rows({ "argenx US": 12 }), "argenx.com").value, "argenx");
+    assert.equal(resolveCompanyName(rows({ "intermedix Österreich": 5 }), "intermedix.com").value, "intermedix");
+    assert.equal(resolveCompanyName(rows({ "Nestlé USA": 9 }), "nestle.com").value, "Nestlé");
+    assert.equal(dropCountryQualifier("Acme United Kingdom", "acme.com"), "Acme");
+    assert.equal(dropCountryQualifier("Acme DEU", "acme.com"), "Acme");
+    assert.equal(dropCountryQualifier("Acme Nederland", "acme.fi"), "Acme");
+    assert.equal(resolveCompanyName(rows({ "argenx US Inc": 12 }), "argenx.com").value, "argenx");
+  });
+
+  it("keeps a name the host spells in full, or whose rest is not the host", () => {
+    assert.equal(dropCountryQualifier("Air Canada", "aircanada.com"), "Air Canada");
+    assert.equal(dropCountryQualifier("Booz Allen Hamilton", "boozallen.com"), "Booz Allen Hamilton");
+    assert.equal(dropCountryQualifier("Bank of America", "bankofamerica.com"), "Bank of America");
+    assert.equal(dropCountryQualifier("Deutsche Bank", "db.com"), "Deutsche Bank");
+    assert.equal(dropCountryQualifier("Bank of Georgia", "bog.ge"), "Bank of Georgia");
+    assert.equal(dropCountryQualifier("Acme IT", "acme.com"), "Acme IT");
+    assert.equal(dropCountryQualifier("Acme Switzerland", "acme.ch"), "Acme Switzerland");
+    assert.equal(dropCountryQualifier("Acme UK", "acme.co.uk"), "Acme UK");
   });
 });

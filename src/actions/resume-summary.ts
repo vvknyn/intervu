@@ -6,6 +6,8 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
 import { resumeDataFromPlainText } from "@/lib/resume/structure-resume-text";
+import { refuseUnpaid, whenPaid } from "@/lib/resume/when-paid";
+import type { PAYMENT_REQUIRED } from "@/lib/billing/access";
 
 export type ResumeSummary = BaseResume & { updatedAt: string | null };
 
@@ -29,9 +31,11 @@ export async function fetchResumeSummaryAction(): Promise<{ data?: ResumeSummary
  * construction (see its own doc comment) — the binding no-AI-on-this-path
  * rule holds for free by reuse, not by a separate guard here.
  */
-export async function uploadBaseResumeAction(input: { text: string; label?: string }): Promise<{ data?: SetBaseResumeResult; error?: string }> {
+export async function uploadBaseResumeAction(input: { text: string; label?: string }): Promise<{ data?: SetBaseResumeResult; error?: string; code?: typeof PAYMENT_REQUIRED }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
+    const refused = await refuseUnpaid(user.uid);
+    if (refused) return refused;
     const validation = validateResumeUploadText(input.text);
     if (!validation.ok) return { error: validation.error };
     const previous = await getAdminDb()
@@ -66,7 +70,7 @@ export async function fetchResumeVersionsAction(): Promise<{ data?: SavedResumeV
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
     try {
-        return { data: await getResumeHistoryForUser(user.uid) };
+        return { data: await whenPaid(user.uid, () => getResumeHistoryForUser(user.uid), []) };
     } catch (e) {
         return { error: e instanceof Error ? e.message : "Failed to load versions" };
     }
@@ -83,9 +87,11 @@ export async function deleteResumeVersionAction(versionId: string): Promise<{ er
     }
 }
 
-export async function saveNamedResumeVersionAction(input: { data: ResumeData; label: string }): Promise<{ data?: SavedResumeVersion; error?: string }> {
+export async function saveNamedResumeVersionAction(input: { data: ResumeData; label: string }): Promise<{ data?: SavedResumeVersion; error?: string; code?: typeof PAYMENT_REQUIRED }> {
     const user = await getServerUser();
     if (!user) return { error: "Unauthorized" };
+    const refused = await refuseUnpaid(user.uid);
+    if (refused) return refused;
     try {
         return { data: await saveNamedResumeVersion(user.uid, input) };
     } catch (e) {

@@ -1,57 +1,35 @@
-# Stripe billing (backend infrastructure)
+# Stripe billing: prepaid months
 
-This slice is **server infrastructure only**. There is no pricing page wired to it, and nothing in the UI reads subscription entitlement. Checkout (`POST /api/billing/checkout`) and Customer Portal (`POST /api/billing/portal`) exist for a future client; they return **503 not_configured** until the env vars below are set.
+One price per 30-day month, `MONTH_PRICE_USD` in `src/app/pricing/offer.ts`. A customer buys 1-12 months in a single one-time Checkout payment (`POST /api/billing/checkout {months}`); there is no subscription, trial or auto-renew. Access = `access_until` on `profiles/{uid}`, recomputed from the customer's paid Checkout Sessions plus the dated `grants[]` (`src/lib/billing/access.ts`).
 
-Entitlement on a profile is a raw boolean (`billing_entitled`), not a named plan or tier.
-
-## Environment variables
-
-All server-only — never commit values to git.
+## Env (server-only; all three required, else checkout and the webhook answer 503)
 
 | Variable | Purpose |
-|----------|---------|
-| `STRIPE_SECRET_KEY` | Restricted API key (`rk_test_...`) preferred over `sk_`. Use sandbox/test until go-live. |
-| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret (`whsec_...`). |
-| `STRIPE_PRICE_IDS` | Comma-separated Price IDs from the Dashboard. The code does not assign names to them. |
-| `STRIPE_CHECKOUT_SUCCESS_URL` | Absolute `https://` URL (or `http://localhost` / `http://127.0.0.1` for local). |
-| `STRIPE_CHECKOUT_CANCEL_URL` | Same rules as success URL. |
-| `STRIPE_PORTAL_RETURN_URL` | Return URL for the Customer Portal session. |
+| --- | --- |
+| `STRIPE_SECRET_KEY` | Restricted key preferred (`rk_...`). |
+| `STRIPE_WEBHOOK_SECRET` | Signing secret (`whsec_...`) of the endpoint below. |
+| `STRIPE_PRICE_ID` | The one-time Price at `MONTH_PRICE_USD`. The client never sends a price. |
 
-## Stripe Dashboard setup
+## Stripe Dashboard
 
-1. **Products / Prices** — Create prices in the sandbox Dashboard and copy Price IDs into `STRIPE_PRICE_IDS`. Amounts and billing intervals are your product decision; this doc does not prescribe them.
-2. **Webhooks** — Developers → Webhooks → add endpoint `https://<host>/api/webhooks/stripe` (local: use the Stripe CLI forwarder).
-3. **Events to send** — `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_failed`.
-4. Copy the endpoint **signing secret** to `STRIPE_WEBHOOK_SECRET`.
-5. **Customer portal** — Settings → Billing → Customer portal: enable the portal (required or portal session creation errors). Portal plan-change options are up to you.
+1. Create a one-time Price at `MONTH_PRICE_USD` on the Velai product; put its id in `STRIPE_PRICE_ID`.
+2. Webhook endpoint `https://<host>/api/webhooks/stripe`, events (exactly these, tested against `RECOMPUTE_EVENT_TYPES`): `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `charge.refunded`, `charge.dispute.closed`.
+3. Local: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
 
-## Local webhook testing
+## How access is computed
 
-```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-```
+`access_until` is recomputed from Stripe (the customer's completed payment-mode Checkout Sessions, refunds and lost disputes netted out, in `recompute.ts`) and folded with `grants[]` in one date-ordered pass, never incremented, so replayed or reordered events give the same answer. Months are counted from every paid line item on the Velai Stripe product, whatever price it was sold at; a price on another product counts 0. Triggers: the four webhook events, the `/billing/return` page, and `grantDays()`, which appends a grant; `scripts/grant-access-days.ts` documents how to run it in the container.
 
-Use the `whsec_...` value the CLI prints for `STRIPE_WEBHOOK_SECRET`. Keep live keys out of committed files; `.env.local` is gitignored.
+## Changing the price
 
-## Profile fields (Firestore `profiles/{uid}`)
+Checkout refuses (503) unless `STRIPE_PRICE_ID`'s `unit_amount` equals `MONTH_PRICE_USD`. Create the new Price on the SAME Velai product (so past purchases keep counting), then update `MONTH_PRICE_USD` and `STRIPE_PRICE_ID` together in one deploy.
 
-Written by the webhook handler (snake_case, merged into existing profile docs):
+## Résumé retention
 
-- `stripe_customer_id`
-- `stripe_subscription_id`
-- `stripe_subscription_status`
-- `stripe_current_period_end` (Unix seconds)
-- `billing_entitled` (boolean)
-- `billing_updated_at` (ISO string)
-- `billing_event_created` (Unix seconds of the last applied subscription lifecycle event; checkout and `invoice.payment_failed` do not move it)
-- `stripe_last_payment_failed_at` (ISO string or null)
+| Variable | Purpose |
+| --- | --- |
+| `RESUME_RETENTION_CRON_SECRET` | Bearer for `POST /api/retention/resumes`; unset, the route answers 503. |
 
-## Tax and checkout params
+`deploy/run-resume-retention.sh` is a DRY RUN unless given `--apply`. It is not scheduled by the repo; install the daily cron at go-live.
 
-`automatic_tax` is **not** set on Checkout. Do not enable Stripe Tax collection until you have a tax registration; without one Stripe collects nothing and does not error.
-
-Checkout sessions use `subscription_data.billing_mode: { type: "flexible" }` when supported by the installed Stripe SDK types.
-
-## Out of scope for this slice
-
-Dispute, refund, and early-fraud-warning webhook handling is not implemented here.
+Go-live order: run the launch grant with `--apply` BEFORE the first retention `--apply`. Otherwise never-paid accounts with a stored résumé hit the 90-day deadline immediately. Read a dry-run's counts first.

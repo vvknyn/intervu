@@ -1,6 +1,7 @@
 import type { FilterState } from "@/components/jobs/FilterPanel";
 import { appliedPostedBucket } from "@/components/jobs/FilterPanel";
 import type { JobSearchParams, JobSortMode, PostedBucket } from "@/lib/jobs/types";
+import { omitsPastSenior, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { defaultedFields } from "@/lib/jobs/search-defaults";
 import { urlSortToMode, type JobsUrlState, type UrlSort } from "@/lib/jobs/url-state";
 
@@ -141,15 +142,16 @@ export function packContentMark(phrases: readonly string[], unplacedRemote: bool
 
 /**
  * A fit-ranked or pack search's query is the résumé's own role titles: marked so the search log leaves it
- * out (`shouldLogSearch`), and, unless the résumé shows a role past Senior, so roles past Senior are left
- * out of its pool (`omitPastSenior`, types.ts). Shared by the board and the tests that search by hand.
+ * out (`shouldLogSearch`), and, unless `omitsPastSenior` says otherwise, so roles past Senior are left
+ * out of its pool (`omitPastSenior`, types.ts); a person who picked a level gets that on every search. Shared by the board and the tests that search by hand.
  */
 export function resumeSearchMark(
     fromResume: boolean,
     holdsResume = false,
-    keepPastSenior = false,
+    seniority?: CandidateSignals["seniority"] | null,
 ): Pick<JobSearchParams, "fromResume" | "omitPastSenior" | "jdTerms"> {
-    if (fromResume) return keepPastSenior ? { fromResume: true } : { fromResume: true, omitPastSenior: true };
+    const omit = omitsPastSenior(seniority, fromResume) ? { omitPastSenior: true } : {};
+    if (fromResume) return { fromResume: true, ...omit };
     // Rows this browser will score against a résumé carry their description's terms (jd-terms.ts).
-    return holdsResume ? { jdTerms: true } : {};
+    return { ...(holdsResume ? { jdTerms: true } : {}), ...omit };
 }

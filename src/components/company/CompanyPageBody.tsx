@@ -9,7 +9,8 @@ import { CompanyIntegrityBand } from "@/components/company/CompanyIntegrityBand"
 import { CompanyIntelGate } from "@/components/company/CompanyIntelGate";
 import { staleShareText } from "@/components/company/company-page-copy";
 import { CompanyIntelligenceGrid } from "@/components/company/CompanyIntelligenceGrid";
-import { CompanySections, type RelatedCompany } from "@/components/company/CompanySections";
+import { CompanySections } from "@/components/company/CompanySections";
+import type { RelatedCompany } from "@/lib/companies/related-companies";
 import { buildCompanyFaq } from "@/lib/companies/company-faq";
 import { companySections } from "@/lib/companies/company-sections";
 import { CompanyRoleSearch } from "@/components/company/CompanyRoleSearch";

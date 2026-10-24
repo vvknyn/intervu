@@ -2,41 +2,26 @@ import { expect, test } from "./fixtures";
 
 /**
  * Journeys for /pricing — see tests/journeys/CATALOG.md (J-PRICING-*).
- * Read-only: nothing here reaches Stripe. The founding-seat button's target
- * depends on whether `FOUNDING_MEMBER_CHECKOUT_URL` is set on the server
- * under test, so J-PRICING-03 accepts either state and asserts the one that
- * is showing is well-formed (a real `https://buy.stripe.com/…` link, or the
- * email-only reservation form) — never a guessed URL. Nothing here submits
- * the reservation; that is J-PRICING-07 (uncovered: it needs a Firestore-
- * backed server and a throwaway inbox).
+ * Read-only: nothing here reaches Stripe. Whether the card shows the Buy
+ * flow or "Payments open soon" depends on the server's Stripe config, so
+ * J-PRICING-03 accepts either state and asserts the one showing is whole.
  */
 
-const FOUNDING_SEAT_PRICE = "$49";
-const FOUNDING_SEAT_COUNT = "100";
-
-test("the pricing page shows two plans and the founding seat", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
+test("the pricing page is one card with the monthly price and the refund promise", { tag: ["@J-PRICING-01"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
-  // Release 5 shipped the page behind a permanent /pricing → / redirect left in
-  // next.config.ts by the 2026-08-27 billing removal; the page never rendered.
   await expect(page).toHaveURL(/\/pricing$/);
   await expect(page.getByTestId("pricing-page")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Free while you search");
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("One plan");
 
-  const free = page.getByTestId("pricing-plan-free");
-  const pro = page.getByTestId("pricing-plan-pro");
-  await expect(free).toContainText("$0");
-  await expect(free).toContainText("Create free account");
-  await expect(pro).toContainText(`${FOUNDING_SEAT_PRICE} once`);
-  await expect(pro).toContainText(`First ${FOUNDING_SEAT_COUNT} seats`);
-  // "Refundable on request…" with the Stripe link set, "…a seat is refundable
-  // on request…" in reservation mode (release 9 failed this on prod over the
-  // capital R); the promise is the same sentence either way.
-  await expect(pro).toContainText(/refundable on request/i);
-
-  // The promise the whole page rests on, in the FAQ.
-  await expect(page.getByText("Will anything I use today start costing money?")).toBeVisible();
-  await expect(page.getByTestId("pricing-paid-banner")).toHaveCount(0);
+  const card = page.getByTestId("pricing-card");
+  await expect(card).toContainText("$6");
+  await expect(card).toContainText("1 to 12 months");
+  await expect(card).toContainText("no auto-renew");
+  await expect(card).toContainText("14-day refund");
+  await expect(card).toContainText("Always free");
+  await expect(card).toContainText("Each month adds");
+  await expect(page.getByTestId("pricing-page")).not.toContainText(/founding|pledge/i);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
@@ -52,61 +37,29 @@ test("the footer links to pricing from a marketing page", { tag: ["@J-PRICING-02
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("the founding-seat button links to Stripe, or takes a reservation while unconfigured", { tag: ["@J-PRICING-03"] }, async ({ page, diagnostics }) => {
+test("the card offers sign-in-to-buy with a month picker, or says payments open soon, never a dead button", { tag: ["@J-PRICING-03"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
-  const cta = page.getByTestId("pricing-founding-cta");
-  await expect(cta).toBeVisible();
-  const href = await cta.getAttribute("href");
-  const pro = page.getByTestId("pricing-plan-pro");
-  // Search results and link previews read these, not the page body; release 8
-  // fixed the body and left the description saying "open now".
-  const description = page.locator('meta[name="description"]');
-  const ogDescription = page.locator('meta[property="og:description"]');
-  if (href) {
-    expect(href).toMatch(/^https:\/\/buy\.stripe\.com\//);
-    await expect(cta).toHaveText("Take a founding seat");
-    await expect(pro).toContainText("Founding seats open");
-    await expect(page.getByTestId("pricing-page")).toContainText("seats are open now");
-    await expect(description).toHaveAttribute("content", /seats are open now/);
-    await expect(ogDescription).toHaveAttribute("content", /seats are open now/);
+  const soon = page.getByTestId("pricing-soon");
+  if ((await soon.count()) > 0) {
+    await expect(soon).toHaveText("Payments open soon");
+    await expect(page.getByTestId("pricing-months")).toHaveCount(0);
+    await expect(page.getByTestId("pricing-sign-in")).toHaveCount(0);
   } else {
-    // No Stripe link on this server: the Pro column takes an email
-    // reservation instead of showing an inert button (release 9).
-    await expect(cta).toBeEnabled();
-    await expect(cta).toHaveText("Reserve a founding seat");
-    await expect(page.getByTestId("pricing-founding-email")).toBeVisible();
-    // The headline and badge must not promise what the button withholds
-    // (release 7 said "open now" over an "open soon" button).
-    await expect(pro).toContainText("Reservations open");
-    await expect(page.getByTestId("pricing-page")).toContainText("seats open soon");
-    await expect(page.getByTestId("pricing-page")).not.toContainText("are open now");
-    await expect(description).toHaveAttribute("content", /seats open soon/);
-    await expect(description).not.toHaveAttribute("content", /are open now/);
-    await expect(ogDescription).toHaveAttribute("content", /seats open soon/);
+    await expect(page.getByTestId("pricing-sign-in")).toHaveAttribute("href", "/auth/start?next=/pricing");
+    await page.getByTestId("pricing-months").selectOption("3");
+    await expect(page.getByTestId("pricing-total")).toContainText("$18");
   }
+  // Search results and link previews read these, not the page body.
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /\$6/);
+  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", /\$6/);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 
-test("returning from Stripe shows the founding thank-you only with a session id", { tag: ["@J-PRICING-04"] }, async ({ page, diagnostics }) => {
-  await page.goto("/pricing?checkout=success&session_id=cs_test_a1B2c3D4e5F6g7H8");
-  await expect(page.getByTestId("pricing-paid-banner")).toContainText("You have a founding seat");
-
-  await page.goto("/pricing?checkout=success");
-  await expect(page.getByTestId("pricing-page")).toBeVisible();
-  await expect(page.getByTestId("pricing-paid-banner")).toHaveCount(0);
-
-  await page.goto("/pricing?checkout=success&session_id=not-a-stripe-id");
-  await expect(page.getByTestId("pricing-page")).toBeVisible();
-  await expect(page.getByTestId("pricing-paid-banner")).toHaveCount(0);
-  expect(diagnostics.serverErrors).toEqual([]);
-});
-
-test("pricing offers no data sale or licence", { tag: ["@J-PRICING-05"] }, async ({ page, diagnostics }) => {
+test("pricing offers no data sale or licence", { tag: ["@J-PRICING-04"] }, async ({ page, diagnostics }) => {
   await page.goto("/pricing");
 
   await expect(page.getByTestId("pricing-page")).toBeVisible();
-  await expect(page.getByTestId("pricing-plan-data-api")).toHaveCount(0);
   await expect(page.getByTestId("pricing-page")).not.toContainText(/Data API|licens/i);
   expect(diagnostics.serverErrors).toEqual([]);
 });

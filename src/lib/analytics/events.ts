@@ -246,30 +246,10 @@ export interface EventPayloads {
   resume_parse_failed: ResumeFunnelEventPayload;
   resume_review_completed: ResumeFunnelEventPayload;
 
-  /** /pricing mounted. `founding_available` is whether the founding-seat
-   *  button pointed at a real Stripe link (env var set) or read "opening
-   *  soon" — the denominator for `upgrade_clicked` is only the former. */
-  pricing_viewed: { signed_in: boolean; founding_available: boolean };
-  /** A priced call to action on /pricing was clicked. `plan` names the
-   *  column: `pro_founding` is the founding-seat button. `mode` says what the founding
-   *  button did: `checkout` (leaving for Stripe) or `reserve` (the
-   *  email-only reservation shown while the Stripe link is unset). No
-   *  amounts — the price is a page constant, not a payload. */
-  upgrade_clicked: { plan: UpgradePlan; signed_in: boolean; mode?: "checkout" | "reserve" };
-  /** The visitor came back from Stripe with `checkout=success` and a
-   *  well-formed session id (`paidCheckoutSessionId`, lib/billing). The
-   *  id is not sent: it would join this event to a Stripe customer.
-   *  Fired once per session id per browser session. */
-  founding_member_paid: { signed_in: boolean };
-  /** The reservation form on /pricing (shown while the Stripe link is
-   *  unset) saved an address. No email in the payload; the row is in
-   *  Firestore `founding_waitlist` and counted on /admin. */
-  founding_seat_reserved: { signed_in: boolean };
-  /** The pay-it-forward button on a tracker pursuit in the Offer lane was
-   *  clicked (the person is leaving for Stripe). `job_id` is null for a
-   *  hand-tracked role, as in `application_stage_changed`. Stripe is the
-   *  ledger; this only joins the click to a PostHog person. */
-  landed_pledge_clicked: { job_id: string | null };
+  /** /pricing mounted. */
+  pricing_viewed: { signed_in: boolean };
+  /** The Buy button on /pricing was pressed for `months` months (1-12). No amounts: the price is a page constant. */
+  upgrade_clicked: { signed_in: boolean; months: number };
 
   /** A search saved to the account or this browser (the weekly email reads the account's). */
   saved_search_created: {
@@ -297,8 +277,6 @@ export interface EventPayloads {
     skipped: number;
   };
 }
-
-export type UpgradePlan = "pro_founding";
 
 export interface ResumeFunnelEventPayload {
   reason?: ResumeFunnelReason;

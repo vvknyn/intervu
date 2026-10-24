@@ -1,4 +1,5 @@
-import { companyRolesParams, PUBLIC_ROLES_ATTRIBUTES } from "@/lib/companies/company-roles-query";
+import { companyOpenCount, companyRolesParams, PUBLIC_ROLES_ATTRIBUTES } from "@/lib/companies/company-roles-query";
+import type { OpenCount } from "@/lib/companies/open-count";
 import { meiliSearchEach, type EachResult } from "@/lib/jobs/meilisearch";
 
 /** Queries per /multi-search request. */
@@ -65,4 +66,21 @@ export const fetchNameEvidence = async (domains: readonly string[], read: BatchR
   const chunks: string[][] = [];
   for (let i = 0; i < domains.length; i += CHUNK) chunks.push(domains.slice(i, i + CHUNK));
   return (await mapLimit(chunks, CHUNK_CONCURRENCY, (chunk) => readChunk(chunk, read))).flat();
+};
+
+/**
+ * THE fresh open-roles number for a list of companies: each domain read with the company page's own
+ * query and counted by `companyOpenCount`, so a row shows what the page shows. Never the directory
+ * memo's number. A failed read returns no counts at all (logged), so callers render rows without a
+ * number rather than with a stale or invented one.
+ */
+export const fetchOpenCounts = async (domains: readonly string[], read: typeof fetchNameEvidence = fetchNameEvidence): Promise<Map<string, OpenCount>> => {
+  if (domains.length === 0) return new Map();
+  try {
+    const results = await read(domains);
+    return new Map(domains.map((domain, i) => [domain, companyOpenCount(results[i]!)]));
+  } catch (error) {
+    console.warn(`open counts: read of ${domains.length} companies failed, rows shown without a number: ${error instanceof Error ? error.message : String(error)}`);
+    return new Map();
+  }
 };

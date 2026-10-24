@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { validate, upsertPursuitSchema } from "@/lib/validation";
 import { appliedAtForTransition } from "@/lib/pursuits/applied-at";
 import { mergeGuestPursuit, type JobSnapshot, type Pursuit, type PursuitStage } from "@/lib/pursuits/types";
-import { appliedResumeFor, withoutAppliedResumeText } from "@/lib/pursuits/resume-on-apply";
+import { appliedResumeFor, withoutResumeText } from "@/lib/pursuits/resume-on-apply";
 import { accountResumeText } from "@/lib/pursuits/applied-resume";
 
 /**
@@ -118,7 +118,7 @@ export async function upsertPursuitCore(
             );
             revalidatePath("/yours");
             return {
-                data: withoutAppliedResumeText({
+                data: withoutResumeText({
                     ...merged,
                     ...(appliedAt ? { applied_at: appliedAt } : {}),
                     ...(appliedResume ? { applied_resume: appliedResume } : {}),
@@ -145,7 +145,7 @@ export async function upsertPursuitCore(
 
         const docRef = await db.collection("applications").add(clean);
         revalidatePath("/yours");
-        return { data: withoutAppliedResumeText({ id: docRef.id, ...clean } as Pursuit) };
+        return { data: withoutResumeText({ id: docRef.id, ...clean } as Pursuit) };
     } catch (error) {
         console.error("Error upserting pursuit:", error);
         return { error: error instanceof Error ? error.message : "Failed to save pursuit" };

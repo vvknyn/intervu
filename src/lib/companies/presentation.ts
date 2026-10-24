@@ -13,6 +13,7 @@ import { fetchCompanyInSitemapSet } from "./directory-model";
 import { resolveCompanyIndexability } from "./indexable";
 import { companyBoardPath } from "./paths";
 import type { CompanyPageData } from "./types";
+import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 import { hiringRecordSentence } from "./hiring-record";
@@ -53,6 +54,9 @@ export function openCountText(
 ): string {
   return data.openCountIsLowerBound ? `${formatCount(data.openCount)}+` : formatCount(data.openCount);
 }
+
+/** The same text for an {@link OpenCount} read outside a company page (directory rows, related companies). */
+export const openCountLabel = (count: OpenCount): string => openCountText({ openCount: count.value, openCountIsLowerBound: count.isLowerBound });
 
 /**
  * Does the fetched role window (`jobs` — at most `COMPANY_JOBS_FETCH_LIMIT`)

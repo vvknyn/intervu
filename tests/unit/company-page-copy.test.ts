@@ -69,7 +69,7 @@ test("fitPromptTitle counts the roles the résumé would be scored against", () 
   assert.equal(fitPromptTitle(200, true), "Which of the 200 newest roles here fit you?");
 });
 
-test("fitPromptBody says where the résumé is kept", () => {
+test("fitPromptBody says where the résumé is kept: saved only when the account has paid time", () => {
   assert.match(fitPromptBody(false), /It stays in this browser\.$/);
   assert.match(fitPromptBody(true), /It's saved to your account, encrypted\.$/);
 });

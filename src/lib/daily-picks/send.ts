@@ -11,6 +11,7 @@
  *
  * Plain module, server code only.
  */
+import { hasPaidAccess } from "@/lib/billing/access";
 import { isMintedLoginEmail } from "@/lib/auth/username-email";
 import { getAgentPreferences } from "@/lib/agent/preferences";
 import { searchAsTheSite } from "@/lib/agent/search-as-the-site";
@@ -42,6 +43,7 @@ export const DAILY_PICKS_SERVER_DEPS: DailyPicksDeps = {
 
 export type DailyPicksSkipReason =
     | "off"
+    | "not-paid"
     | "sent-recently"
     | "no-email"
     | "no-mailbox"
@@ -90,10 +92,12 @@ export function dailyPickItem(role: TodayRole, siteUrl: string): DailyPickItem {
 
 export async function previewDailyPicksForUser(
     uid: string,
-    opts: { nowMs: number; deps?: DailyPicksDeps },
+    opts: { nowMs: number; deps?: DailyPicksDeps; isPaid?: (uid: string) => Promise<boolean> },
 ): Promise<DailyPicksPreviewResult> {
     const state = await getDailyPicksState(uid);
     if (!state.on) return { skipped: "off" };
+    // The email is the stored résumé read and scored on our servers: a paid month (the picks stay on, nothing is sent).
+    if (!(await (opts.isPaid ?? hasPaidAccess)(uid))) return { skipped: "not-paid" };
     const lastMs = state.lastSentAt ? Date.parse(state.lastSentAt) : NaN;
     if (!Number.isNaN(lastMs) && opts.nowMs - lastMs < DAILY_PICKS_MIN_GAP_MS) return { skipped: "sent-recently" };
 

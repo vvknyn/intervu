@@ -1,13 +1,14 @@
 /**
- * POST /api/billing/checkout — Stripe Checkout session (server-only; no UI wired).
+ * POST /api/billing/checkout {months?: 1..12} — Stripe Checkout for prepaid months.
+ * 200 {url} | 400 | 401 | 503 {error}
  */
-import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getServerUser } from "@/lib/auth/server-user";
-import { isCheckoutConfigured, readStripeBillingEnv } from "@/lib/billing/config";
-import { readBillingRecord } from "@/lib/billing/profile-store";
+import { getSiteUrl } from "@/lib/seo/constants";
+import { parseMonths, startCheckout } from "@/lib/billing/checkout";
+import { isBillingConfigured, readPriceId } from "@/lib/billing/config";
 import { validateVelaiUid } from "@/lib/billing/events";
-import { createCheckoutSession, makeIntegrationIdentifier } from "@/lib/billing/sessions";
+import { readProfileBilling, writeStripeCustomerId } from "@/lib/billing/profile-store";
 import { getStripe } from "@/lib/billing/stripe-client";
 
 export const runtime = "nodejs";
@@ -15,59 +16,34 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request): Promise<NextResponse> {
     const user = await getServerUser();
-    if (!user) {
+    if (!user || !validateVelaiUid(user.uid)) {
         return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const env = readStripeBillingEnv(process.env);
     const stripe = getStripe();
-    if (!stripe || !isCheckoutConfigured(env)) {
-        return NextResponse.json({ error: "not_configured" }, { status: 503 });
+    if (!stripe || !isBillingConfigured()) {
+        return NextResponse.json({ error: "Payments open soon." }, { status: 503 });
     }
 
-    let body: { priceId?: unknown };
+    let raw: unknown;
     try {
-        body = await request.json();
+        raw = ((await request.json()) as { months?: unknown } | null)?.months;
     } catch {
-        return NextResponse.json({ error: "unknown_price" }, { status: 400 });
+        raw = undefined; // an empty body means the default one month
+    }
+    const months = parseMonths(raw);
+    if (months === null) {
+        return NextResponse.json({ error: "months must be a whole number from 1 to 12" }, { status: 400 });
     }
 
-    const priceId = typeof body.priceId === "string" ? body.priceId.trim() : "";
-    if (!priceId || !env.priceIds.includes(priceId)) {
-        return NextResponse.json({ error: "unknown_price" }, { status: 400 });
-    }
-
-    if (!validateVelaiUid(user.uid)) {
-        return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    }
-
-    const billing = await readBillingRecord(user.uid);
-    const integrationSuffix = randomBytes(8).reduce(
-        (acc, byte) => acc + String.fromCharCode(97 + (byte % 26)),
-        "",
+    const result = await startCheckout(
+        {
+            stripe,
+            readCustomerId: async (uid) => (await readProfileBilling(uid)).stripeCustomerId,
+            storeCustomerId: writeStripeCustomerId,
+            log: (line) => console.error(line),
+        },
+        { uid: user.uid, months, priceId: readPriceId(), origin: getSiteUrl() },
     );
-    const integrationId = makeIntegrationIdentifier(integrationSuffix);
-    if (typeof integrationId !== "string") {
-        return NextResponse.json({ error: "not_configured" }, { status: 503 });
-    }
-
-    const session = await createCheckoutSession(stripe, {
-        uid: user.uid,
-        priceId,
-        allowedPriceIds: env.priceIds,
-        successUrl: env.checkoutSuccessUrl!,
-        cancelUrl: env.checkoutCancelUrl!,
-        integrationIdentifier: integrationId,
-        customerId: billing?.stripe_customer_id,
-        email: user.email,
-    });
-
-    if ("error" in session) {
-        if (session.error === "unknown_price" || session.error === "empty_allowlist") {
-            return NextResponse.json({ error: "unknown_price" }, { status: 400 });
-        }
-        return NextResponse.json({ error: "not_configured" }, { status: 503 });
-    }
-
-    return NextResponse.json({ url: session.url, id: session.id });
+    return NextResponse.json(result.body, { status: result.status });
 }

@@ -42,6 +42,9 @@
  */
 import { cleanCompany, displayCompanyName, isCompanyPlaceholder, titleCaseDisplay } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
+import { loadGazetteer } from "@/lib/geo/gazetteer";
+import { ISO3_COUNTRY } from "@/lib/geo/iso3-countries";
+import { classifyCountryValue } from "@/lib/jobs/country-classification";
 
 /** Provenance of a resolved name — never "we made this up". */
 export type CompanyNameSource =
@@ -63,6 +66,8 @@ export type CompanyDisplayName = {
   /** The share of the rows that carry a name at all whose name agrees with the domain: how corroborated
    *  the domain's identity is (0 when the label is shown). */
   share: number;
+  /** The rows' own winning spelling, legal form cut, before any re-casing ("SEARCH" where `value` is "Search"): what the rows themselves witness. */
+  rowSpelling: string;
 };
 
 /**
@@ -223,31 +228,59 @@ const DOMAIN_TOKEN_RE = /\.[a-z]{2,}\b/i;
 /**
  * Can `label` be read as pieces taken in order from the start of successive tokens of `name`? Each piece is a
  * subsequence of ONE token that begins with that token's first letter ("pyramidhc" = Pyramid + h,c of Healthcare);
- * the first piece comes from the first token, later tokens may be skipped.
+ * the first piece comes from the first token, middle tokens may be skipped.
+ * Returns how many trailing words (legal forms aside, which may still spell a letter: "Company" for the C of jasarapmc) the best reading leaves unspelled ("Germany" after "JT International": 1), or Infinity when none reads.
  */
-function spellsFromWordStarts(label: string, name: string): boolean {
+function unspelledTrailingWords(label: string, name: string): number {
   const tokens = name.split(/[\s&]+/).map(siteKey).filter(Boolean);
   const isSubsequence = (token: string, piece: string): boolean => {
     let at = 0;
     for (const ch of token) if (ch === piece[at]) at++;
     return at === piece.length;
   };
-  const consume = (rest: string, from: number, last: number): boolean => {
-    if (!rest) return true;
+  const consume = (rest: string, from: number, last: number): number => {
+    if (!rest) return tokens.slice(from).filter((token) => !LEGAL_FORM_TOKENS.has(token)).length;
+    let fewest = Infinity;
     for (let t = from; t < last; t++) {
       if (tokens[t]![0] !== rest[0]) continue;
-      for (let k = rest.length; k >= 1; k--) if (isSubsequence(tokens[t]!, rest.slice(0, k)) && consume(rest.slice(k), t + 1, tokens.length)) return true;
+      for (let k = rest.length; k >= 1; k--) if (isSubsequence(tokens[t]!, rest.slice(0, k))) fewest = Math.min(fewest, consume(rest.slice(k), t + 1, tokens.length));
     }
-    return false;
+    return fewest;
   };
   return consume(label, 0, Math.min(1, tokens.length));
 }
 
 /** A respelling the page title can be trusted for: cased (all lower-case is the domain written out), and not cut mid-phrase. */
-const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019]$/u.test(c);
+const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019?!]$/u.test(c);
 const wordCount = (c: string): number => c.split(/\s+/).length;
-/** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). */
-const keepsWords = (c: string, display: string): boolean => wordCount(c) >= wordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+const isLetterWord = (word: string): boolean => /^\p{L}\d?$/u.test(word);
+/** Words of `c` with a run of spaced-out single letters ("A P F", "A E C O M2") counted once: an acronym written out is one word. */
+function acronymAwareWordCount(c: string): number {
+  const words = c.split(/\s+/);
+  return words.filter((word, i) => !(isLetterWord(word) && isLetterWord(words[i - 1] ?? ""))).length;
+}
+/** An acronym written out letter by letter ("A P F  Entreprises"): a spelling of the letters, not of words. */
+const isSpelledOut = (c: string): boolean => acronymAwareWordCount(c) < wordCount(c);
+/** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). A hyphen joining capitalised words in `c` ("Renaud-Bray") stands for that space. */
+const keepsWords = (c: string, display: string): boolean => acronymAwareWordCount(c.replace(/(?<=\p{L})-(?=\p{Lu})/gu, " ")) >= acronymAwareWordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+/** Does `c` write in lower case a word (2+ letters) that `display` writes in capitals ("Fox" for "FOX")? A banner display is exempt: re-casing it is the point. */
+function lowersAcronym(c: string, display: string): boolean {
+  if (isBanner(display)) return false;
+  const words = c.split(/[^\p{L}\p{N}]+/u);
+  return display.split(/[^\p{L}\p{N}]+/u).some((w) => w.length >= 2 && /^\p{Lu}+$/u.test(w) && words.some((x) => x !== w && x.toUpperCase() === w));
+}
+
+const HYPHEN_JOIN_RE = /\p{L}-\p{Lu}/u;
+const WORD_SPLIT_RE = /[^\p{L}\p{N}'\u2019]+/u;
+/** SMALL_WORDS plus the joiners other languages and title case use ("for", "de", "y"): words a name may write in lower case. */
+const CONNECTORS = new Set([...SMALL_WORDS, "for", "de", "du", "des", "la", "le", "y", "et", "von", "van", "der"]);
+/** Does `c` swap a space of `display` for a hyphen ("Pearce-Services" for "Pearce Services")? A hyphen the name did not have is not the site's to add. */
+const swapsSpaceForHyphen = (c: string, display: string): boolean => /\s/.test(display) && HYPHEN_JOIN_RE.test(c) && !HYPHEN_JOIN_RE.test(display);
+/** Does `c` write in lower case a non-first word that `display` capitalises ("APF entreprises" for "APF Entreprises")? A connector ("and", "of") is exempt. */
+function lowersWord(c: string, display: string): boolean {
+  const written = new Set(c.split(WORD_SPLIT_RE));
+  return display.split(WORD_SPLIT_RE).slice(1).some((w) => /^\p{Lu}/u.test(w) && !CONNECTORS.has(w.toLowerCase()) && !written.has(w) && written.has(w.toLowerCase()));
+}
 
 /** The shortest whitespace-word prefix (2+ words) of `name` that already spells `label`: the rest is a tagline. */
 function dropTagline(label: string, name: string): string {
@@ -259,17 +292,19 @@ function dropTagline(label: string, name: string): string {
   return name;
 }
 
-/** The shortest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words. */
+/** The tightest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words, leaving the fewest words unspelled. */
 function expandSquashedLabel(label: string, names: readonly string[]): string | undefined {
   const qualifies = (name: string) => {
     const words = name.split(/\s+/);
     return (
       words.length >= 2 && words.length <= EXPANSION_MAX_WORDS &&
       EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) && !isBanner(name) &&
-      siteKey(words[0]!) !== label && spellsFromWordStarts(label, name)
+      siteKey(words[0]!) !== label && unspelledTrailingWords(label, dropTagline(label, name)) < Infinity
     );
   };
-  return names.filter(qualifies).map((name) => dropTagline(label, name)).filter(isSoundSpelling).sort((a, b) => a.length - b.length)[0];
+  // The tightest reading first: fewest words the label does not spell ("Japan Tobacco International" over "JT International Germany" for jti), then the shortest.
+  const unspelled = (name: string) => unspelledTrailingWords(label, name);
+  return names.filter(qualifies).map((name) => dropTagline(label, name)).filter(isSoundSpelling).sort((a, b) => unspelled(a) - unspelled(b) || a.length - b.length)[0];
 }
 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
@@ -303,7 +338,8 @@ function respellFirstWord(label: string, display: string, names: readonly string
 /**
  * SP: the company's own spelling of the agreed name `display`. The first of the homepage `candidates`
  * (source order) that differs from `display` only in spaces, casing, punctuation or accents ("Aspen Dental"
- * for "Aspendental", "Air Liquide" for "AIR LIQUIDE") is shown; an all-capitals title is no spelling.
+ * for "Aspendental", "Air Liquide" for "AIR LIQUIDE", "GEICO" for "Geico") is shown: the homepage is the company's own
+ * voice, so an all-capitals title is a spelling. A respelling never writes in lower case a word `display` has in capitals ("Fox" for "FOX").
  * SQ: when `display` is only the host's squashed first label ("Pyramidhc" on pyramidhc.com) and no site
  * name respells it, the shortest 2-5 word site name that spells the label's letters across its words wins
  * ("Pyramid Healthcare"), or the site's cased first word when that is the label ("BNSF"). Otherwise `display` stands.
@@ -312,13 +348,19 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * prefix of an expansion that already spells the label is the name; the rest is a tagline ("Airbus Helicopters in Canada").
  * (4) A name that is a proper prefix of the label ("Dunkin'" for dunkindonuts) is the last resort, and needs 2+ words or
  * casing of its own. (5) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
- * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no).
+ * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no),
+ * or lower-case a non-connector word `display` capitalises. (6) An all-capitals
+ * site name keeps its capitals only when the rows' own winning spelling (`rowSpelling`) is that same one (two independent witnesses);
+ * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
-export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string): string {
-  const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  const cleaned = spellings.map((c) => displayCompanyName(c));
+export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string): string {
+  // An all-capitals site name no row repeats is re-cased by the rule that re-cases all-capitals rows ("TD SYNNEX" -> "TD Synnex") and competes as any respelling.
+  const recased = (c: string): string => (isBanner(c) && c !== rowSpelling ? titleCaseDisplay(c) : c);
+  const plain = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
+  const spellings = plain.map(recased);
+  const cleaned = plain.map((c) => recased(displayCompanyName(c)));
   // A domain-shaped title ("McCain.com") is humanized by the cleaner ("Mc Cain"): only its raw form may respell.
-  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display));
+  const respelled = [...spellings, ...cleaned.filter((_, i) => !DOMAIN_TOKEN_RE.test(spellings[i]!))].find((c) => c !== display && siteKey(c) === siteKey(display) && isSoundSpelling(c) && keepsWords(c, display) && !swapsSpaceForHyphen(c, display) && !lowersAcronym(c, display) && !lowersWord(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
@@ -331,6 +373,39 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
 /** True when the host's registrable label IS the name, letters only ("kering.com" for "Kering"; not "keringeyewear.com"). */
 export function hostLabelIsName(domain: string, name: string): boolean {
   return alnum(hostParts(domain).parts.at(-1) ?? "") === alnum(name);
+}
+
+/** Longest country a trailing qualifier can be ("United Arab Emirates", "South Africa"). */
+const MAX_COUNTRY_WORDS = 3;
+
+/** The canonical country `text` names: English or native name or alias ("US", "Österreich"), or an upper-case ISO3 code ("USA"); else null. */
+function countryOf(text: string): string | null {
+  const { kind, canonical } = classifyCountryValue(text);
+  return kind === "country" ? canonical : text === text.toUpperCase() ? ISO3_COUNTRY[text] ?? null : null;
+}
+
+/** The country whose ccTLD ends `domain` (".uk" is the United Kingdom), else null. */
+function tldCountry(domain: string): string | null {
+  const tld = domain.toLowerCase().split(".").pop() ?? "";
+  const name = tld === "uk" ? "United Kingdom" : loadGazetteer().countriesByIso2.get(tld.toUpperCase())?.name;
+  return name ? countryOf(name) ?? name : null;
+}
+
+/**
+ * The hiring entity's country is not part of the employer's name: "argenx US" on argenx.com, "intermedix
+ * Österreich" on intermedix.com. Trailing words that form a country go when the words before them name the
+ * host's label and the full name does not ("Air Canada" on aircanada.com keeps its country). A country-scoped
+ * domain keeps its own country ("Alten Switzerland" on alten.ch says which arm it is). The remainder keeps its spelling.
+ */
+export function dropCountryQualifier(name: string, domain: string): string {
+  if (hostLabelIsName(domain, name)) return name;
+  const words = name.split(/\s+/);
+  for (let n = 1; n <= Math.min(MAX_COUNTRY_WORDS, words.length - 1); n += 1) {
+    const country = countryOf(words.slice(-n).join(" "));
+    const remainder = words.slice(0, -n).join(" ").replace(/[\s,\-–]+$/, "");
+    if (country && country !== tldCountry(domain) && hostLabelIsName(domain, remainder)) return remainder;
+  }
+  return name;
 }
 
 type Word = { text: string; optional: boolean };
@@ -445,18 +520,32 @@ type NameGroup = {
   extends: number;
 };
 
+/** `spelling` cut after its shortest prefix that spells `key` ("Palo Alto Networks, Inc." -> "Palo Alto Networks"), or `null` when none does. */
+function cutAtKey(spelling: string, key: string): string | null {
+  for (let end = 1; end <= spelling.length; end += 1) if (alnum(spelling.slice(0, end)) === key) return spelling.slice(0, end);
+  return null;
+}
+
 /**
  * Fold a group keyed by another group's key plus a legal form ("ebayinc" onto "ebay") into that root: the rows
- * name the same employer, and the glued form is never shown when a root exists. Only the root's spellings are kept.
+ * name the same employer, and the glued form is never shown when a root exists. Its spellings join the root's with the
+ * legal form cut ("Duke Energy Corp" -> "Duke Energy"), so a flattened root ("Dukeenergy") cannot outvote the
+ * company's own spelling for having absorbed it.
  */
-function foldGluedLegalForms<T extends { count: number }>(groups: Map<string, T>): void {
+function foldGluedLegalForms<T extends { count: number; spellings: Map<string, number> }>(groups: Map<string, T>): void {
   const rootsOf = (key: string) =>
     [...groups.keys()].filter((root) => key.length - root.length >= 3 && key.startsWith(root) && root.length >= 3 && LABEL_LEGAL_SUFFIXES.includes(key.slice(root.length)));
   const glued = new Map([...groups.keys()].map((key) => [key, rootsOf(key)] as const).filter(([, roots]) => roots.length > 0));
   for (const [key, roots] of glued) {
     const root = roots.filter((r) => !glued.has(r)).sort((a, b) => b.length - a.length)[0];
     if (!root) continue;
-    groups.get(root)!.count += groups.get(key)!.count;
+    const target = groups.get(root)!;
+    const folded = groups.get(key)!;
+    target.count += folded.count;
+    for (const [spelling, count] of folded.spellings) {
+      const cut = cutAtKey(spelling, root);
+      if (cut) target.spellings.set(cut, (target.spellings.get(cut) ?? 0) + count);
+    }
     groups.delete(key);
   }
 }
@@ -465,11 +554,30 @@ function foldGluedLegalForms<T extends { count: number }>(groups: Map<string, T>
 const isFlat = (spelling: string): boolean => spelling === spelling.toLowerCase() && !/\s/.test(spelling);
 
 /**
+/** Capital after the first character, in a name that also carries lower case ("CorroHealth", "eBay"; not "IBM"): case someone chose. */
+const hasInteriorCapital = (c: string): boolean => carriesCase(c) && /.\p{Lu}/u.test(c);
+
+/**
+ * Does `spelling` lose something its group-mate `other` keeps: a space it lacks ("Redhat" for "Red Hat"), interior capitals it
+ * lowered ("Corrohealth" for "CorroHealth", "Ebay" for "eBay"), or the words of an acronym it writes out letter by letter
+ * ("A P F" for "APF")? An `other` without interior capitals (all-capitals, flat) has no case to lose.
+ */
+function flattens(spelling: string, other: string): boolean {
+  return (
+    !keepsWords(spelling, other) ||
+    (hasInteriorCapital(other) && !hasInteriorCapital(spelling) && spelling.toLowerCase() === other.toLowerCase()) ||
+    (isSpelledOut(spelling) && !isSpelledOut(other))
+  );
+}
+
+/**
  * The spelling a group of spellings of one name is shown as: the most common that is not flat
  * ("TD SYNNEX" over "tdsynnex") and not an all-capitals banner ("Five Guys" over "FIVE GUYS"), the most common overall when all are; a tie goes to the one carrying case.
+ * A spelling that flattens another of the group never wins over it, whatever the counts.
  */
-function shownSpelling(spellings: ReadonlyMap<string, number>): string {
-  const ranked = [...spellings].sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
+function shownSpelling(group: ReadonlyMap<string, number>): string {
+  const spellings = [...group].filter(([spelling]) => ![...group.keys()].some((other) => flattens(spelling, other)));
+  const ranked = spellings.sort(([a, x], [b, y]) => y - x || Number(carriesCase(b)) - Number(carriesCase(a)));
   const cased = ([spelling]: [string, number]) => !isFlat(spelling);
   return (ranked.find((entry) => cased(entry) && !isBanner(entry[0])) ?? ranked.find(cased) ?? ranked[0]!)[0];
 }
@@ -603,8 +711,15 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     }
   }
 
-  if (best) return { ...casedName(best.display), agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named };
-  return { value: displayNameFromDomain(domain), source: "domain", agrees: false, share: 0 };
+  if (best) {
+    const cased = casedName(best.display);
+    // The country sits before a legal form ("argenx US Inc"), so it is judged on the name as displayed.
+    const shown = displayCompanyName(cased.value);
+    const value = dropCountryQualifier(shown, domain);
+    return { ...cased, value: value === shown ? cased.value : value, agrees: true, share: all.reduce((agreeing, g) => agreeing + g.count, 0) / named, rowSpelling: dropCountryQualifier(displayCompanyName(best.display), domain) };
+  }
+  const value = displayNameFromDomain(domain);
+  return { value, source: "domain", agrees: false, share: 0, rowSpelling: value };
 }
 
 function casedName(display: string): Pick<CompanyDisplayName, "value" | "source"> {

@@ -177,3 +177,8 @@ export function removeGuestPursuit(id: string): void {
 export function clearGuestPursuits(): void {
     write([]);
 }
+
+/** Removes exactly the rows named: the ones the account confirmed. Any other row (unconfirmed, or added meanwhile) stays. */
+export function removeGuestPursuits(ids: ReadonlySet<string>): void {
+    write(read().filter((p) => !ids.has(p.id)));
+}

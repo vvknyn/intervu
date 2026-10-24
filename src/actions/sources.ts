@@ -3,6 +3,7 @@
 import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { SourceItem } from "@/types";
+import { validate, saveSourceSchema } from "@/lib/validation";
 import { checkContentSafety, checkContentSafetyStrict } from "@/lib/url-safety";
 import { fetchUrlContent as fetchUrlCore, discoverLinks as discoverLinksCore } from "@/actions/fetch-url";
 
@@ -31,11 +32,14 @@ export async function saveSource(source: Omit<SourceItem, 'id' | 'created_at' | 
         const user = await getServerUser();
         if (!user) return { error: "Unauthorized" };
 
+        const parsed = validate(saveSourceSchema, source);
+        if (!parsed.ok) return { error: parsed.error };
+
         // Normalize newlines in content to prevent issues
-        const content = source.content.replace(/\r\n/g, '\n');
+        const content = parsed.data.content.replace(/\r\n/g, '\n');
 
         // Content safety check - strict for public sources
-        const visibility = source.visibility || 'private';
+        const visibility = parsed.data.visibility || 'private';
         if (visibility === 'public') {
             const safetyCheck = checkContentSafetyStrict(content);
             if (!safetyCheck.safe) return { error: safetyCheck.reason };
@@ -47,7 +51,7 @@ export async function saveSource(source: Omit<SourceItem, 'id' | 'created_at' | 
         const db = getAdminDb();
         const now = new Date().toISOString();
         const docData = {
-            ...source,
+            ...parsed.data,
             content,
             visibility,
             user_id: user.uid,

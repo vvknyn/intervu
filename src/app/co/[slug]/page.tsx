@@ -47,6 +47,7 @@ async function CompanyPageContent({ slug }: { slug: string }) {
   reportShownJobs(data.jobs);
   // The page's one sign-in read: it picks which gate card shows and opens
   // `CompanyExhaustGate`'s signed-in bands.
+  const relatedRead = fetchRelatedCompanies(data.facts);
   const signedIn = !!(await getServerUser());
   // One clock read for the whole page, taken here rather than inside JSX so
   // every staleness decision below is measured against a single instant.
@@ -58,7 +59,7 @@ async function CompanyPageContent({ slug }: { slug: string }) {
 
   // The visible FAQ (inside CompanyPageBody) and this JSON-LD render the same array.
   const faqJsonLd = buildFaqPageJsonLd(buildCompanyFaq(data.facts));
-  const related = await fetchRelatedCompanies(data.facts);
+  const related = await relatedRead;
   // Same array-of-graphs convention as the root layout's own JSON-LD
   // (app/layout.tsx) — one script tag, not one per graph. Organization is
   // unconditional (domain, hence a logo URL, always exists here); FAQPage

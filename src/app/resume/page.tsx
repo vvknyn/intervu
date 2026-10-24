@@ -26,6 +26,7 @@ import {
     RESUME_PAGE_SUBCOPY_SIGNED_IN,
     RESUME_SIGNED_OUT_EMPTY_TITLE,
     RESUME_UPLOAD_PROMISE,
+    paidFeaturesSentence,
 } from "@/lib/jobs/resume-privacy-copy";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
@@ -206,7 +207,7 @@ function ResumeContent() {
                                     <FileText size={20} className="text-live shrink-0" />
                                     <div>
                                         <p className="text-sm font-semibold text-foreground">Local résumé on this device</p>
-                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}<p className="text-xs text-muted-foreground">Create a free account to edit in the full builder, export formatted PDFs, and sync across devices.</p>
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}<p className="text-xs text-muted-foreground">Create a free account for saved jobs and alerts. A paid month adds {paidFeaturesSentence()}.</p>
                                     </div>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -237,7 +238,7 @@ function ResumeContent() {
                                         size="sm"
                                         onClick={() => openResumeAuth()}
                                     >
-                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}Sign up to sync
+                                        {/* signup-gate-exempt: state description beside buttons that open the auth dialog on an explicit click */}Sign up
                                     </Button>
                                 </div>
                             </div>

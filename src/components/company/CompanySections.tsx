@@ -12,12 +12,8 @@ import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
-
-export interface RelatedCompany {
-  domain: string;
-  name: string;
-  openRoleCount: number;
-}
+import { openCountLabel } from "@/lib/companies/presentation";
+import type { RelatedCompany } from "@/lib/companies/related-companies";
 
 export interface SectionContext {
   facts: CompanyFacts;
@@ -202,7 +198,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
         {related.map((c) => (
           <li key={c.domain} className="min-w-0 truncate">
             <a href={companyBoardPath(c.domain)} className="text-brand hover:underline">{c.name}</a>
-            <span className="text-muted-foreground">{` · ${formatCount(c.openRoleCount)} open`}</span>
+            {c.openCount && <span className="text-muted-foreground">{` · ${openCountLabel(c.openCount)} open`}</span>}
           </li>
         ))}
       </ul>

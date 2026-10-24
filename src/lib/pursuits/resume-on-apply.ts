@@ -57,3 +57,10 @@ export function withoutAppliedResumeText<T extends Pick<Pursuit, "applied_resume
     if (!pursuit.applied_resume) return pursuit;
     return { ...pursuit, applied_resume: { saved_at: pursuit.applied_resume.saved_at } };
 }
+
+/** Every résumé-derived text a role carries (the copy and the filed versions), blanked: what an account without paid time, and every write's reply, gets. A version keeps its label and date. */
+export function withoutResumeText<T extends Pick<Pursuit, "applied_resume" | "resume_versions">>(pursuit: T): T {
+    const stripped = withoutAppliedResumeText(pursuit);
+    if (!stripped.resume_versions?.length) return stripped;
+    return { ...stripped, resume_versions: stripped.resume_versions.map((v) => ({ ...v, content: "" })) };
+}

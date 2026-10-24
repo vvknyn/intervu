@@ -70,7 +70,7 @@ describe('For-you pack == manual /jobs search (same ids, same call)', () => {
             const linkState = parseJobsUrl(new URL(jobsBoardHref(filters), 'https://velai.test').searchParams);
             const byHand = await manual.search({
                 ...searchParamsFromUrlState(linkState),
-                ...resumeSearchMark(true, true, signals.seniority.pastSenior === true),
+                ...resumeSearchMark(true, true, signals.seniority),
                 limit: DEPTH,
                 offset: 0,
             });

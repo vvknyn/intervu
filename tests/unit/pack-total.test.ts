@@ -39,7 +39,7 @@ describe('pack total comes from the pack search', () => {
         await countResults(filters, mine.search);
         assert.equal(mine.calls[0].omitPastSenior, true);
         const staff = corpusStub(CORPUS);
-        await countResults(filters, staff.search, { keepPastSenior: true });
+        await countResults(filters, staff.search, { seniority: { value: 'senior', source: 'explicit', pastSenior: true } });
         assert.equal(staff.calls[0].omitPastSenior, undefined);
     });
 

@@ -1,8 +1,7 @@
 import { minutesLabel } from "@/lib/shield/rate-limit";
 
 /**
- * What the one-shot email forms (the founding-seat reservation on /pricing,
- * the /connect and /openclaw waitlist) say when they refuse. Their own module
+ * What the one-shot email form (the /connect and /openclaw waitlist) says when they refuse. Their own module
  * because a "use server" file may export only async functions. Same rule as
  * the signup refusals (lib/auth/auth-refusal-copy.ts): every line says what
  * happened and what to do next, and names a way in the refusal doesn't cover
