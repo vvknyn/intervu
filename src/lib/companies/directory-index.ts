@@ -11,9 +11,9 @@ export const HUB_COMPANY_LIMIT = 12;
 /** Bucket for names that do not start with a Latin letter (digits, other scripts). */
 const OTHER_LETTER = "#";
 
+/** A listed company: the directory docs carry no name, so it is read separately ({@link namedEntries}). */
 export interface DirectoryEntry {
   domain: string;
-  name: string;
   openRoleCount: number;
 }
 
@@ -22,13 +22,9 @@ export interface LetterGroup {
   entries: DirectoryEntry[];
 }
 
-/** The one label a directory or hub list shows for a company: derived from its domain,
- *  because the directory docs carry no name (the page's own H1 is read from its job rows). */
-const labelOf = ({ domain, openRoleCount }: IndexableCompanyDomain): DirectoryEntry => ({
-  domain,
-  name: displayNameFromDomain(domain),
-  openRoleCount,
-});
+export interface NamedEntry extends DirectoryEntry {
+  name: string;
+}
 
 /** A-Z for a Latin start (accents folded: "é" -> "E"), else "#". */
 function letterOf(name: string): string {
@@ -46,17 +42,28 @@ export function letterFromSegment(segment: string): string {
   return segment === "other" ? OTHER_LETTER : segment.toUpperCase();
 }
 
-/** Pure: the A-Z index groups (then "#") over the indexable set, names sorted inside each. */
+/** Pure: the A-Z index groups (then "#") over the indexable set. The bucket is the first letter of the
+ *  domain's label: it is known for every company without reading any job rows, so the index and every
+ *  letter page agree on the set; the name each entry shows comes from {@link namedEntries}. */
 export function groupCompaniesByLetter(companies: readonly IndexableCompanyDomain[]): LetterGroup[] {
   const byLetter = new Map<string, DirectoryEntry[]>();
-  for (const entry of companies.map(labelOf)) {
-    const letter = letterOf(entry.name);
-    byLetter.set(letter, [...(byLetter.get(letter) ?? []), entry]);
+  for (const { domain, openRoleCount } of companies) {
+    const letter = letterOf(displayNameFromDomain(domain));
+    byLetter.set(letter, [...(byLetter.get(letter) ?? []), { domain, openRoleCount }]);
   }
   const rank = (letter: string) => (letter === OTHER_LETTER ? "￿" : letter);
-  return [...byLetter]
-    .sort(([a], [b]) => rank(a).localeCompare(rank(b)))
-    .map(([letter, entries]) => ({ letter, entries: entries.sort((a, b) => a.name.localeCompare(b.name) || a.domain.localeCompare(b.domain)) }));
+  return [...byLetter].sort(([a], [b]) => rank(a).localeCompare(rank(b))).map(([letter, entries]) => ({ letter, entries }));
+}
+
+/** Pure: `entries` with the names a company page's H1 shows (`names`, keyed by domain), sorted by name. */
+export function namedEntries(entries: readonly DirectoryEntry[], names: Readonly<Record<string, string>>): NamedEntry[] {
+  return entries
+    .map((entry) => {
+      const name = names[entry.domain];
+      if (name === undefined) throw new Error(`no name read for ${entry.domain}`);
+      return { ...entry, name };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || a.domain.localeCompare(b.domain));
 }
 
 /** Pure: companies behind a hub query's hits, most matching roles first, only those in the
@@ -75,5 +82,8 @@ export function topHubCompanies(
   return [...matches]
     .sort(([da, na], [db, nb]) => nb - na || da.localeCompare(db))
     .slice(0, limit)
-    .map(([domain]) => labelOf(byDomain.get(domain)!));
+    .map(([domain]) => {
+      const { domain: listed, openRoleCount } = byDomain.get(domain)!;
+      return { domain: listed, openRoleCount };
+    });
 }
