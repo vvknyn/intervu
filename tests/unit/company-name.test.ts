@@ -130,7 +130,7 @@ describe("companies/company-name — brand vs legal entity", () => {
     assert.equal(
       resolveCompanyName(
         rows({ "Constellation Technologies": 12, "Constellation Labs": 9 }),
-        "constellation.com",
+        "constellationtech.com",
       ).value,
       "Constellation Technologies",
     );
@@ -343,5 +343,44 @@ describe("siteSpelling — SQ: a display that is only the squashed domain word t
     assert.equal(sq("Lincolnfinancial", "lincolnfinancial.com", ["lincolnfinancial"]), "Lincolnfinancial");
     assert.equal(sq("Naught One", "naughtone.com", ["NaughtOne"]), "NaughtOne");
     assert.equal(sq("Acmeco", "acmeco.com", ["Acme Co -"]), "Acmeco");
+  });
+});
+
+describe("companies/company-name — brand stem spelled by the domain", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+
+  it("aliaxis.it: regional entities, no bare row -> the stem the host spells", () => {
+    assert.equal(
+      name({ "Aliaxis Latin American Services": 5, "Aliaxis Iberia SAU (Spain)": 2, "Aliaxis UK Limited (United Kingdom)": 2 }, "aliaxis.it"),
+      "Aliaxis",
+    );
+  });
+
+  it("carat.com: the vote no longer flips between countries", () => {
+    assert.equal(name({ "Carat Colombia": 3, "Carat Argentina": 4 }, "carat.com"), "Carat");
+  });
+
+  it("a multi-word stem is spelled with the siblings' own words (nordwindfreight.com)", () => {
+    assert.equal(name({ "Nordwind Freight Ohio": 1, "Nordwind Freight Texas": 1 }, "nordwindfreight.com"), "Nordwind Freight");
+  });
+
+  it("no stem when the shared run does not spell the label (alphasys.com)", () => {
+    assert.notEqual(name({ "Alpha Systems Inc": 1, "Alpha Networks LLC": 1 }, "alphasys.com"), "Alpha");
+  });
+
+  it("no stem from one qualified group (lakeviewclinic.org)", () => {
+    assert.equal(name({ "Lakeview Clinic Hospital": 3 }, "lakeviewclinic.org"), "Lakeview Clinic Hospital");
+  });
+
+  it("groups differing only by a legal suffix are one sibling", () => {
+    assert.equal(
+      name({ "Acme Health India": 2, "Acme Health India Private Limited": 1 }, "acmehealth.com"),
+      "Acme Health India",
+    );
+  });
+
+  it("a bare root row keeps the existing pickBrandRoot result", () => {
+    assert.equal(name({ Carat: 1, "Carat Colombia": 3, "Carat Argentina": 4 }, "carat.com"), "Carat");
+    assert.equal(name({ "Carat Group": 1, "Carat Group Colombia": 3, "Carat Group Chile": 4 }, "carat.com"), "Carat Group");
   });
 });
