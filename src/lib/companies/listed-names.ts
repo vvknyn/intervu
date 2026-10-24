@@ -1,8 +1,5 @@
-import { companyRolesParams } from "@/lib/companies/company-roles-query";
+import { companyRolesParams, PUBLIC_ROLES_ATTRIBUTES } from "@/lib/companies/company-roles-query";
 import { meiliSearchEach, type EachResult } from "@/lib/jobs/meilisearch";
-
-/** What the name, the internal-posting filter and the title+location dedupe read from a role row (the directory's evidence): a wider payload took 199 s for 3600 domains on the box sequentially; with 4 chunks in flight 4200 domains took 107 s (2026-10-23). */
-const EVIDENCE_ATTRIBUTES = ["company", "title", "location", "location_city", "location_state", "location_country"] as const;
 
 /** Queries per /multi-search request. */
 const BATCH = 50;
@@ -30,7 +27,7 @@ type BatchReader = typeof meiliSearchEach;
 const readChunk = async (domains: readonly string[], read: BatchReader): Promise<EachResult[]> => {
   const batches: string[][] = [];
   for (let i = 0; i < domains.length; i += BATCH) batches.push(domains.slice(i, i + BATCH));
-  const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })), EVIDENCE_TIMEOUT_MS);
+  const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: PUBLIC_ROLES_ATTRIBUTES })), EVIDENCE_TIMEOUT_MS);
   const rows = await Promise.all(
     batches.map((batch, index) =>
       readBatch(batch)

@@ -92,7 +92,7 @@ describe("companies/company-name — brand vs legal entity", () => {
       "HITACHI VANTARA LLC": 50,
     });
     const resolved = resolveCompanyName(jobs, "hitachicapitalamerica.com");
-    assert.equal(resolved.value, "HITACHI ENERGY LTD");
+    assert.equal(resolved.value, "Hitachi Energy LTD");
     // All-caps carries no case information — the existing honesty flag is
     // untouched by the new selection step.
     assert.equal(resolved.source, "corpus-flat");
@@ -314,7 +314,7 @@ describe("siteSpelling — SQ: a display that is only the squashed domain word t
 
   it("lets the same-key respell win over an expansion", () => {
     assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC"]), "Pyramid HC");
-    assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC Inc"]), "Pyramidhc");
+    assert.equal(sq("Pyramidhc", "pyramidhc.com", ["Pyramid Healthcare", "Pyramid HC Inc"]), "Pyramid HC");
   });
 
   it("1. runs only for a one-word display (a spaced display is already spelled)", () => {
@@ -382,5 +382,93 @@ describe("companies/company-name — brand stem spelled by the domain", () => {
   it("a bare root row keeps the existing pickBrandRoot result", () => {
     assert.equal(name({ Carat: 1, "Carat Colombia": 3, "Carat Argentina": 4 }, "carat.com"), "Carat");
     assert.equal(name({ "Carat Group": 1, "Carat Group Colombia": 3, "Carat Group Chile": 4 }, "carat.com"), "Carat Group");
+  });
+});
+
+describe("siteSpelling — N1: a proper name that prefixes the squashed label", () => {
+  const sq = (display: string, domain: string, names: string[]) => siteSpelling(display, names, domain);
+
+  it("takes the cased or multi-word prefix name", () => {
+    assert.equal(sq("Dunkindonuts", "dunkindonuts.com", ["Dunkin'®"]), "Dunkin'");
+    assert.equal(sq("Atimaterials", "atimaterials.com", ["ATI"]), "ATI");
+    assert.equal(sq("Evertrueliving", "evertrueliving.com", ["EverTrue"]), "EverTrue");
+    assert.equal(sq("Circlecareservices", "circlecareservices.com", ["Circle Care"]), "Circle Care");
+    assert.equal(sq("Publicisgroupeuk", "publicisgroupeuk.com", ["Publicis Groupe"]), "Publicis Groupe");
+    assert.equal(sq("Scanscapeusa", "scanscapeusa.com", ["Scan Scape"]), "Scan Scape");
+    assert.equal(sq("Stcharleshealthcare", "stcharleshealthcare.com", ["St. Charles Health"]), "St. Charles Health");
+    assert.equal(sq("Unitedfutureinc", "unitedfutureinc.com", ["United Future"]), "United Future");
+    assert.equal(sq("Blueridgeenergy", "blueridgeenergy.com", ["Blue Ridge"]), "Blue Ridge");
+    assert.equal(sq("Fooexamplecorp", "fooexamplecorp.com", ["FooEx"]), "FooEx");
+  });
+
+  it("prefers the longest prefix key", () => {
+    assert.equal(sq("Circlecareservices", "circlecareservices.com", ["Circle", "Circle Care", "CircleCare"]), "Circle Care");
+  });
+
+  it("rejects a single plain word, a banner, a too-short key, a cut phrase and a domain-like title", () => {
+    assert.equal(sq("Homedepot", "homedepot.com", ["Home"]), "Homedepot");
+    assert.equal(sq("Careersource", "careersource.com", ["Careers"]), "Careersource");
+    assert.equal(sq("Agilitihealth", "agilitihealth.com", ["Agiliti"]), "Agilitihealth");
+    assert.equal(sq("Bigcorpgroup", "bigcorpgroup.com", ["Bigcorp"]), "Bigcorpgroup");
+    assert.equal(sq("Fiveguysburgers", "fiveguysburgers.com", ["FIVE GUYS"]), "Fiveguysburgers");
+    assert.equal(sq("Acmewidgets", "acmewidgets.com", ["AW"]), "Acmewidgets");
+    assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme Widgets -"]), "Acmewidgets");
+    assert.equal(sq("Acmewidgets", "acmewidgets.com", ["Acme.com Site"]), "Acmewidgets");
+  });
+});
+
+describe("siteSpelling — N2: a site name carrying a legal form still respells", () => {
+  it("respells through the cleaned candidate", () => {
+    assert.equal(siteSpelling("Iqresourcegroup", ["IQ Resource Group, Inc."], "iqresourcegroup.com"), "IQ Resource Group");
+    assert.equal(siteSpelling("Acmewidgets", ["Acme Widgets, LLC"], "acmewidgets.com"), "Acme Widgets");
+    assert.equal(siteSpelling("Foobar", ["FooBar Ltd."], "foobar.com"), "FooBar");
+  });
+
+  it("raw spelling wins when it already respells, and a flat site name still does not", () => {
+    assert.equal(siteSpelling("Acmewidgets", ["Acme Widgets", "Acme Widgets, LLC"], "acmewidgets.com"), "Acme Widgets");
+    assert.equal(siteSpelling("Acmewidgets", ["acmewidgets inc"], "acmewidgets.com"), "Acmewidgets");
+  });
+});
+
+describe("resolveCompanyName — N3: a glued legal form votes with its root", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain);
+
+  it("folds Ebayinc into eBay even when the glued group is busier", () => {
+    const r = name({ eBay: 2, Ebayinc: 5 }, "ebay.com");
+    assert.equal(r.value, "eBay");
+    assert.equal(r.share, 1);
+  });
+
+  it("folds another glued form (corp) and keeps the busier root's spelling", () => {
+    assert.equal(name({ Acme: 3, Acmecorp: 6, "Acme Labs Foo": 1 }, "acme.com").value, "Acme");
+  });
+
+  it("leaves a lone glued form, or a short remainder, alone", () => {
+    assert.equal(name({ Ebayinc: 4 }, "ebay.com").value, "Ebayinc");
+    assert.equal(name({ Zinc: 2, Z: 1 }, "zinc.com").value, "Zinc");
+    assert.equal(name({ Ab: 1, Abinc: 4 }, "ab.com").value, "Abinc");
+  });
+});
+
+describe("N4 — all-capitals banners carry no case", () => {
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain);
+
+  it("recovers case for a banner like it does for flat text", () => {
+    assert.equal(name({ "PEOPLE AND BABY": 3 }, "peopleandbaby.com").value, "People and Baby");
+    assert.equal(name({ "SCOTTISH POWER": 2 }, "scottishpower.com").value, "Scottish Power");
+    assert.equal(name({ "FIVE GUYS": 2 }, "fiveguys.com").value, "Five Guys");
+  });
+
+  it("prefers a cased spelling over a banner, even when the banner is commoner", () => {
+    assert.equal(name({ "SCOTTISH POWER": 5, "Scottish Power": 1 }, "scottishpower.com").value, "Scottish Power");
+    assert.equal(name({ "FIVE GUYS": 5, "Five Guys": 1 }, "fiveguys.com").source, "corpus-cased");
+  });
+
+  it("leaves acronyms and mixed case unchanged", () => {
+    assert.equal(name({ IBM: 3 }, "ibm.com").value, "IBM");
+    assert.equal(name({ DHL: 3 }, "dhl.com").value, "DHL");
+    assert.equal(name({ AAFF: 3 }, "aaff.com").value, "AAFF");
+    assert.equal(name({ "DHL Express": 3 }, "dhl.com").value, "DHL Express");
+    assert.equal(name({ "McCain Foods": 3 }, "mccain.com").value, "McCain Foods");
   });
 });
