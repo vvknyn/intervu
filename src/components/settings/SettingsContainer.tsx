@@ -21,6 +21,7 @@ import { AgentPreferencesSection } from "@/components/settings/AgentPreferencesS
 import { EmailPreferencesSection } from "@/components/settings/EmailPreferencesSection";
 import { LandingNotice } from "@/components/layout/LandingNotice";
 import { FollowedCompaniesSection } from "@/components/settings/FollowedCompaniesSection";
+import { PlanCard } from "@/components/settings/PlanCard";
 import { YourResumeSection } from "@/components/settings/YourResumeSection";
 import { cn } from "@/lib/utils";
 import { incompleteEraseMessage } from "@/lib/account/erase-copy";
@@ -176,6 +177,7 @@ export function SettingsContainer() {
                         <div className="mb-5">
                             <PageHeader title="Settings" description={ACCOUNT_SUBCOPY} bare size="display" />
                         </div>
+                        <PlanCard />
                         <TabBar tab={tab} onChange={selectTab} />
                     </>
                 )}

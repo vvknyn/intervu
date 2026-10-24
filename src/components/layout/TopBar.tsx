@@ -10,6 +10,7 @@ import { resolveAuthChrome } from "@/lib/auth/chrome-state";
 import { useSearchDock } from "@/components/layout/SearchDockContext";
 import { AuthPopover } from "@/components/auth/auth-popover";
 import { FollowAlertsBell } from "@/components/follows/FollowAlertsBell";
+import { PlanEndingNotice } from "@/components/layout/PlanEndingNotice";
 import { AccountMenu } from "@/components/layout/AccountMenu";
 import { Button } from "@/components/ui/button";
 import { CountBadge, SolidBadge } from "@/components/ui/badge";
@@ -204,6 +205,14 @@ export function TopBar() {
                         />
                     ) : (
                         <>
+                            <Link
+                                href="/pricing"
+                                prefetch={false}
+                                data-testid="topbar-pricing"
+                                className={cn("px-2 text-sm text-muted-foreground hover:text-foreground", CHROME_FOCUS_VISIBLE)}
+                            >
+                                Pricing
+                            </Link>
                             <Button
                                 type="button"
                                 variant="ghost"
@@ -301,6 +310,8 @@ export function TopBar() {
                 trigger="user"
                 defaultTab={authTab}
             />
+            {/* The one mount for every signed-in page: TopBar is rendered once by the root layout. */}
+            {authChrome === "authenticated" && user ? <PlanEndingNotice /> : null}
         </header>
     );
 }
