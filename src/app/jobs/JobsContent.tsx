@@ -5805,7 +5805,7 @@ export function JobsContent({
                         at every width (mobile: full-width rounded-panel panel;
                         xl+: paired with the detail panel via the grid gap
                         above). */}
-                    <div className="flex min-h-0 flex-1 flex-col rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] xl:min-w-0">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-panel border border-border bg-surface pt-3 shadow-[var(--shadow-bevel-highlight)] xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
                             typed query before result_clicked / job_viewed, dropping
@@ -6070,7 +6070,7 @@ export function JobsContent({
                                         <>
                                             {/* Count line: plain secondary text, no panel (rulebook
                                                 item i) — "Show all" reads as the one Klein text link. */}
-                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] py-2 text-sm text-muted-foreground">
+                                            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 px-[var(--list-inset)] pb-2 text-sm text-muted-foreground">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span
                                                         data-testid="result-line"
