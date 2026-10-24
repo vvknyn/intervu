@@ -105,6 +105,7 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
           {PRO_MONTHLY_PRICE}
           <span className="text-sm font-normal text-muted-foreground"> / month</span>
         </p>
+        <p className="mt-1 text-sm text-muted-foreground">Each month is 30 days of access.</p>
         <p className="mt-1 text-sm text-muted-foreground">
           Buy 1 to 12 months at a time. One payment, no auto-renew, no trial, and a {REFUND_DAYS}-day refund.
         </p>

@@ -5,9 +5,10 @@
  */
 import type Stripe from "stripe";
 import { readPriceId } from "@/lib/billing/config";
+import { priceMatchesOffer } from "@/lib/billing/checkout";
 import { getStripe } from "@/lib/billing/stripe-client";
 import { readIdField } from "@/lib/billing/events";
-import { readProfileBilling, writeAccessUntil, type Grant } from "@/lib/billing/profile-store";
+import { readProfile, shapeProfileBilling, writeAccessUntil, type Grant } from "@/lib/billing/profile-store";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const MONTH_MS = 30 * DAY_MS;
@@ -39,9 +40,9 @@ export interface SessionFacts {
     mode: string;
     status: string | null;
     paymentStatus: string;
-    /** Quantity of every line item bought at the Velai product. */
+    /** Quantity of every line item bought at the Velai product at the $12 offer. */
     pricedQuantity: number;
-    /** What was charged and refunded; null charge = nothing to prorate against. */
+    /** What was actually charged (null = unknown) and refunded. */
     charged: number | null;
     refunded: number;
     /** The buyer won a dispute against the charge: it counts as fully refunded. */
@@ -52,14 +53,14 @@ export interface SessionFacts {
 export function monthsFromSession(s: SessionFacts): number {
     if (s.mode !== "payment" || s.status !== "complete" || s.paymentStatus !== "paid") return 0;
     if (s.disputeLost) return 0;
-    if (!s.charged || s.charged <= 0) return s.pricedQuantity;
+    if (s.charged === null || s.charged <= 0) return 0;
     return Math.max(0, Math.floor((s.pricedQuantity * (s.charged - s.refunded)) / s.charged));
 }
 
 async function sessionFacts(stripe: Stripe, session: Stripe.Checkout.Session, productId: string): Promise<SessionFacts> {
     const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100 });
     const pricedQuantity = items.data
-        .filter((li) => readIdField(li.price?.product) === productId)
+        .filter((li) => readIdField(li.price?.product) === productId && !!li.price && priceMatchesOffer(li.price))
         .reduce((sum, li) => sum + (li.quantity ?? 0), 0);
     const pi = typeof session.payment_intent === "object" ? session.payment_intent : null;
     const charge = pi && typeof pi.latest_charge === "object" ? pi.latest_charge : null;
@@ -95,11 +96,17 @@ export async function readPaymentFacts(stripe: Stripe, customerId: string, produ
 
 /**
  * Recompute and store `access_until` for an account; returns it. Throws on any read or write failure.
- * With no Stripe customer, payments are [] and Stripe is not called. `customerHint` (from a webhook or
+ * A uid with no profile is skipped (returns 0, writes nothing). With no Stripe customer, payments are [] and Stripe is not called. `customerHint` (from a webhook or
  * the return page) is used only when the profile has no customer stored yet.
  */
 export async function recomputeAccess(uid: string, customerHint: string | null = null, stripe: Stripe | null = getStripe()): Promise<number> {
-    const { stripeCustomerId, grants } = await readProfileBilling(uid);
+    const profile = await readProfile(uid);
+    if (!profile) {
+        // An erased account: a late Stripe event must not recreate its billing record.
+        console.warn("[billing] recompute skipped: no profile");
+        return 0;
+    }
+    const { stripeCustomerId, grants } = shapeProfileBilling(profile);
     const customerId = stripeCustomerId ?? customerHint;
     let payments: PaymentFact[] = [];
     if (customerId) {

@@ -63,7 +63,11 @@ describe("monthsFromSession", () => {
         assert.equal(monthsFromSession(paid({ disputeLost: true })), 0);
         assert.equal(monthsFromSession(paid({ disputeLost: true, pricedQuantity: 12 })), 0);
     });
-    it("without a charge, the priced quantity stands", () => assert.equal(monthsFromSession(paid({ charged: null })), 3));
+    it("F6: nothing actually charged (zero or unknown) credits no months, refunds or not", () => {
+        assert.equal(monthsFromSession(paid({ charged: 0 })), 0);
+        assert.equal(monthsFromSession(paid({ charged: null })), 0);
+        assert.equal(monthsFromSession(paid({ charged: 0, refunded: 0, pricedQuantity: 12 })), 0);
+    });
 });
 
 describe("access reads", () => {
@@ -84,7 +88,7 @@ describe("access reads", () => {
 });
 
 /** A Stripe fake that ASSERTS the parameters the recompute sends. */
-function fakeStripe(over: { sessions: Stripe.Checkout.Session[]; lineItems: Record<string, { product: string; quantity: number }[]>; productOfPrice?: string; disputes?: Record<string, string[]> }) {
+function fakeStripe(over: { sessions: Stripe.Checkout.Session[]; lineItems: Record<string, { product: string; quantity: number; unit_amount?: number }[]>; productOfPrice?: string; disputes?: Record<string, string[]> }) {
     const seen = { list: [] as Stripe.Checkout.SessionListParams[], lineItems: [] as string[], prices: [] as string[], disputes: [] as string[] };
     const stripe = {
         prices: { retrieve: async (id: string) => (seen.prices.push(id), { id, product: over.productOfPrice ?? "prod_velai" }) },
@@ -99,7 +103,7 @@ function fakeStripe(over: { sessions: Stripe.Checkout.Session[]; lineItems: Reco
                 },
                 listLineItems: async (id: string) => {
                     seen.lineItems.push(id);
-                    return { data: (over.lineItems[id] ?? []).map((li) => ({ price: { product: li.product }, quantity: li.quantity })) };
+                    return { data: (over.lineItems[id] ?? []).map((li) => ({ price: { product: li.product, unit_amount: li.unit_amount ?? 1200, currency: "usd" }, quantity: li.quantity })) };
                 },
             },
         },
@@ -144,6 +148,16 @@ describe("readPaymentFacts", () => {
     });
 });
 
+describe("F5: only the $12 offer earns months", () => {
+    it("a cheaper price on the same product grants 0 months; a $12 price from an older price id still counts", async () => {
+        const { stripe } = fakeStripe({
+            sessions: [session("cheap", 100), session("old", 200)],
+            lineItems: { cheap: [{ product: "prod_velai", quantity: 2, unit_amount: 100 }], old: [{ product: "prod_velai", quantity: 1, unit_amount: 1200 }] },
+        });
+        assert.deepEqual(await readPaymentFacts(stripe, "cus_1", "prod_velai"), [{ createdMs: 200_000, months: 1 }]);
+    });
+});
+
 describe("recomputeAccess", () => {
     beforeEach(() => {
         process.env.STRIPE_PRICE_ID = "price_new";
@@ -164,6 +178,24 @@ describe("recomputeAccess", () => {
         const { stripe } = fakeStripe({ sessions: [session("a", T0 / 1000)], lineItems: { a: [{ product: "prod_velai", quantity: 2 }] }, productOfPrice: "prod_else" });
         assert.equal(await recomputeAccess("u", null, stripe), 0);
         useBillingDb();
+    });
+    it("F7: a uid with no profile (erased) gets no billing record and nothing is logged about it", async () => {
+        const { db, docs } = memoryFirestore({});
+        useBillingDb(db);
+        const logged: string[] = [];
+        const warn = console.warn;
+        console.warn = (...a: unknown[]) => void logged.push(a.join(" "));
+        try {
+            const { stripe, seen } = fakeStripe({ sessions: [session("a", T0 / 1000)], lineItems: { a: [{ product: "prod_velai", quantity: 1 }] } });
+            assert.equal(await recomputeAccess("erased-uid", "cus_1", stripe), 0);
+            assert.equal(docs.size, 0);
+            assert.equal(seen.list.length, 0);
+            assert.equal(logged.length, 1);
+            assert.ok(!logged[0].includes("erased-uid"));
+        } finally {
+            console.warn = warn;
+            useBillingDb();
+        }
     });
     it("with no customer it makes no Stripe call and folds grants alone", async () => {
         const { db, docs } = memoryFirestore({ "profiles/u": { grants: [{ id: "g", at: T0, days: 30 }] } });

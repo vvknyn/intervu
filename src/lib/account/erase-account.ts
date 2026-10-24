@@ -217,10 +217,9 @@ export async function readStripeCustomerId(db: Firestore, uid: string): Promise<
 }
 
 /**
- * The customer behind a uid, asked of Stripe: checkout stamps the uid on the
- * subscription metadata (billing/sessions.ts) and, for a prepaid buyer with no
- * subscription, on the customer itself (billing/checkout.ts). A subscription
- * names its customer, so that answer wins; else the customer stamped directly.
+ * The customer behind a uid, asked of Stripe: checkout stamps velai_uid on the
+ * customer (billing/checkout.ts); an older subscription carrying the uid names
+ * its customer, so that answer wins; else the customer stamped directly.
  * Null when billing is off or Stripe has neither.
  */
 export async function findStripeCustomerByUid(
