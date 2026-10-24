@@ -718,10 +718,13 @@ describe("siteSpelling — labelSpellings only space or case a glued domain labe
     assert.equal(ls("Homedepot", "homedepot.com", ["Home Depot"]), "Home Depot");
     assert.equal(ls("Usfoods", "usfoods.com", ["US Foods"]), "US Foods");
     assert.equal(ls("Pacsun", "pacsun.com", ["PacSun"]), "PacSun");
+    assert.equal(ls("Iceye", "iceye.com", ["ICEYE"]), "ICEYE");
     assert.equal(ls("Flynnarbysjobs", "flynnarbysjobs.com", ["Flynn Arby's"]), "Flynn Arby's");
   });
 
   it("never touches a name that already carries spacing, casing or punctuation, or a different name", () => {
+    assert.equal(ls("Monks", "monks.com", [".monks"]), "Monks");
+    assert.equal(ls("Monks", "monks.com", [".monks", "Monks Agency"]), "Monks");
     assert.equal(ls("NVIDIA", "nvidia.com", ["Nvidia"]), "NVIDIA");
     assert.equal(ls("Cigna", "cigna.com", ["Connecticut General Life Insurance Company"]), "Cigna");
     assert.equal(ls("Uvahealth", "uvahealth.org", ["University of Virginia Health System"]), "Uvahealth");

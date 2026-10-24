@@ -364,13 +364,13 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
 /**
  * The last step: an unwitnessed label (one plain-cased letters/digits word whose key is the domain's first label,
  * "Homedepot") may be spaced or cased by the first of the secondary `labelSpellings` (wikidata/row names) whose key is
- * that label, or the label minus one `LABEL_TAIL_WORDS` word. Any name already carrying spacing, casing or punctuation stands.
+ * that label, or the label minus one `LABEL_TAIL_WORDS` word, and which starts with a letter or digit (".monks" is no name). Any name already carrying spacing, casing or punctuation stands.
  */
 function labelSpelled(display: string, labelSpellings: readonly string[], domain?: string): string {
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
   if (!label || !/^\p{Lu}[\p{Ll}\d]*$/u.test(display) || alnum(display) !== label) return display;
   const keys = new Set([label, ...[...LABEL_TAIL_WORDS].filter((tail) => label.endsWith(tail)).map((tail) => label.slice(0, -tail.length))]);
-  return labelSpellings.find((spelling) => keys.has(siteKey(spelling))) ?? display;
+  return labelSpellings.find((spelling) => /^[\p{L}\d]/u.test(spelling) && keys.has(siteKey(spelling))) ?? display;
 }
 
 /** A trailing legal form the display name strips ("zahneins GmbH"): a site name carrying one is not a spelling of the display name. A trading "Co."/"Company" is part of the brand ("Australian Venue Co."), not a legal tail. */
