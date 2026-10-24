@@ -660,8 +660,9 @@ async function withCareerChangerTamResume(page: Page) {
   }, [LOCAL_AI_ENABLED_KEY, LOCAL_AI_RESUME_KEY] as const);
 }
 
-test("the list reads a career changer's level from the years in the role they hold now, so senior roles in that role aren't listed, whether the listing or only the title says senior", { tag: ["@J-JOBS-110"] }, async ({ page, diagnostics }) => {
+test("the list reads a career changer's level from the years in the role they hold now, so senior roles in that role are ranked below, not left out, whether the listing or only the title says senior", { tag: ["@J-JOBS-110"] }, async ({ page, diagnostics }) => {
   // Vivek, 2026-10-06: "All the roles that are showing up are all senior roles ... ALL MY RECOMMENDATIONS SUCK".
+  // Vivek, 2026-10-22: "return all search results ranked by relevance and fit" - senior roles stay in the list, after the roles at their level.
   await returningVisitor(page);
   await withCareerChangerTamResume(page);
   const asked: string[] = [];
@@ -680,11 +681,12 @@ test("the list reads a career changer's level from the years in the role they ho
   await page.goto("/jobs");
 
   await expect(page.getByTestId("job-row").first()).toBeVisible({ timeout: 60_000 });
-  await expect.poll(() => listRowIds(page), { timeout: 30_000 }).toEqual(["tam"]);
-  await expect(page.getByTestId("list-left-out")).toContainText("above your level");
-  // The list asks search for roles at their level, not senior ones too.
+  await expect.poll(() => listRowIds(page), { timeout: 30_000 }).toEqual(["tam", "tam-senior", "tam-senior-title"]);
+  await expect(page.getByTestId("ranked-disclosure-toggle")).toContainText("2 ranked lower");
+  await expect(page.getByTestId("list-left-out")).toHaveCount(0);
+  // The search bounds roles past Senior (omitPastSenior, 4c5c0c3e) and no longer names a level; the senior roles it returns are ranked below.
   expect(asked.length).toBeGreaterThan(0);
-  expect(asked.at(-1)).toMatch(/\bmid\b/);
+  expect(asked.at(-1)).toContain('"omitPastSenior":true');
   expect(asked.at(-1)).not.toMatch(/\bsenior\b/i);
   expect(diagnostics.pageErrors).toEqual([]);
   expect(diagnostics.serverErrors).toEqual([]);
