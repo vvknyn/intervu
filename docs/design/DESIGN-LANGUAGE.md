@@ -27,9 +27,9 @@ Owner: "the interface should become a little more CALM". Amends the rulebook's "
 - **R3** List rows use an inset separator at `--border-subtle`, starting at the title x. Hover is a tonal fill.
 - **R4** Glass only where content scrolls under: the sticky top bar, the /jobs filter band, the mobile tab bar, the sticky action bar. One utility, `material-bar` (globals.css): page colour at 75% alpha, `backdrop-filter: blur(16px) saturate(140%)`, opaque `@supports not` fallback, no hairline. `backdrop-filter` appears nowhere else (guarded in design-language.test.ts).
 - **R5** Chips are fills: surface-2 + muted text at rest; selected = brand tint + brand text. Posting-check pills are tint fills, no outline.
-- **R6** One filled primary per region. Secondary actions are ghost (no outline, no fill); green outlines are retired. A tonal surface-2 secondary is NOT adopted: button-variants.test.ts rule (a) still bans grey-filled buttons.
+- **R6** One filled primary per region. Secondary actions (`outline`/`secondary`/`quiet`) are borderless brand-coloured text with a brand-tint hover; `ghost` stays foreground text. Green outlines are retired. A tonal surface-2 secondary is NOT adopted: button-variants.test.ts rule (a) still bans grey-filled buttons.
 - **R7** The promo card is a tonal surface panel; green is only the one primary button.
-- **R8** Facts are words: no per-fact icons in the detail meta. Icons stay only on controls.
+- **R8** Facts are words: one middot meta line (`MetaLine`), no per-fact icons or cells in the detail meta. Icons stay only on controls.
 
 ## Decisions (owner, 2026-09-26) — Concept A skeuomorphic system
 

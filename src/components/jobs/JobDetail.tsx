@@ -910,98 +910,59 @@ export function JobDetail({
                     collapseDescription && "min-h-0 flex-1 overflow-y-auto custom-scrollbar",
                 )}
             >
-                {/* Facts grid (cards pass, 2026-09-17) — one cell per fact
-                    buildFactChips already decided is present, replacing the
-                    old single dotted meta line. Calm pass R8: facts are
-                    words, no per-fact icon (public job detail reads the same). */}
-                <div className="grid grid-cols-1 gap-x-6 gap-y-2 pb-4 text-sm sm:grid-cols-2">
-                    {location && (
-                        <div className="flex items-start gap-2 text-foreground">
-                            <span className="inline-flex flex-col">
-                                {locationClamped ? (
-                                    <>
-                                        {(locationExpanded
-                                            ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
-                                            : locationDisclosure.visible
-                                        ).map((segment, i) => (
-                                            <span key={i} data-testid="job-location">{segment}</span>
-                                        ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => setLocationExpanded((v) => !v)}
-                                            className="mt-0.5 text-left text-xs text-brand hover:underline cursor-pointer"
-                                        >
-                                            {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
-                                        </button>
-                                    </>
-                                ) : (
-                                    <span data-testid="job-location">{locationDisplay}</span>
-                                )}
-                                {/* Review fix: `variants` (page.tsx's
-                                    `detailVariants`, same clusters the SERP
-                                    row groups on) went unread once the old
-                                    dotted meta line was removed — restored
-                                    as its own line under location via the
-                                    shared MetaLine seam, rather than a raw
-                                    span, per reuse-before-write. */}
-                                {alsoIn && (
-                                    <span className="mt-0.5 text-xs text-muted-foreground">
-                                        <MetaLine items={[`also in ${alsoIn}`]} />
-                                    </span>
-                                )}
-                            </span>
-                        </div>
-                    )}
-                    {workTypeChip && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            <span>{workTypeChip.label}</span>
-                        </div>
-                    )}
-                    {(employmentTypeChip || experienceLevelChip) && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            {/* One flex item: as the row's own items, the row's
-                                gap-2 landed after the "·" ("Part Time ·   Mid"). */}
-                            <span>
-                                <MetaLine
-                                    items={[
-                                        employmentTypeChip && <span>{employmentTypeChip.label}</span>,
-                                        experienceLevelChip && <span>{experienceLevelChip.label}</span>,
-                                    ]}
-                                />
-                            </span>
-                        </div>
-                    )}
-                    {(postedChip || firstSeenChip) && (
-                        <div className="flex items-center gap-2 text-foreground">
-                            <span>
-                                {postedChip && (
-                                    <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
-                                )}
-                                {firstSeenChip && (
-                                    <span className="text-xs text-muted-foreground">
-                                        {postedChip ? " · " : ""}{firstSeenChip.label}
-                                    </span>
-                                )}
-                            </span>
-                            {postedChip && firstSeenChip && (
-                                <ContextHelp
-                                    content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
-                                    className="self-center"
-                                />
-                            )}
-                        </div>
-                    )}
-                    {/* Review fix: report_count is a retrieved Meili
-                        attribute (meilisearch.ts's fetch fields), not a
-                        buildFactChips kind — rowExceptionMark doesn't cover
-                        it either. Same gate + wording as the pre-restyle
-                        line, reused verbatim rather than rephrased. */}
-                    {typeof job.report_count === "number" && job.report_count > 0 && (
-                        <div className="flex items-center gap-2 text-warn">
-                            <span>
-                                reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
-                            </span>
-                        </div>
+                {/* Calm pass R8: every fact as one flowing middot line through the
+                    shared `MetaLine` seam, the same pattern JobDetailDocument.tsx
+                    uses — no per-fact icon or cell, and a long location wraps
+                    naturally. buildFactChips decides which facts exist. */}
+                <div className="flex flex-wrap items-baseline pb-4 text-sm text-foreground">
+                    <MetaLine
+                        items={[
+                            location && (
+                                <span>
+                                    {locationClamped ? (
+                                        <>
+                                            {(locationExpanded
+                                                ? [...locationDisclosure.visible, ...locationDisclosure.hidden]
+                                                : locationDisclosure.visible
+                                            ).map((segment, i) => (
+                                                <span key={i}>
+                                                    {i > 0 && "; "}
+                                                    <span data-testid="job-location">{segment}</span>
+                                                </span>
+                                            ))}{" "}
+                                            <button
+                                                type="button"
+                                                onClick={() => setLocationExpanded((v) => !v)}
+                                                className="text-left text-xs text-brand hover:underline cursor-pointer"
+                                            >
+                                                {locationExpanded ? "Show less" : `+ ${locationDisclosure.hidden.length} more locations`}
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <span data-testid="job-location">{locationDisplay}</span>
+                                    )}
+                                </span>
+                            ),
+                            location && alsoIn && <span className="text-xs text-muted-foreground">also in {alsoIn}</span>,
+                            workTypeChip && <span>{workTypeChip.label}</span>,
+                            employmentTypeChip && <span>{employmentTypeChip.label}</span>,
+                            experienceLevelChip && <span>{experienceLevelChip.label}</span>,
+                            postedChip && (
+                                <span className={freshness.kind === "relisted" ? LISTING_STATE_TEXT.relisted : undefined}>{postedChip.label}</span>
+                            ),
+                            firstSeenChip && <span className="text-xs text-muted-foreground">{firstSeenChip.label}</span>,
+                            typeof job.report_count === "number" && job.report_count > 0 && (
+                                <span className="text-warn">
+                                    reported {job.report_count} {job.report_count === 1 ? "user" : "users"}
+                                </span>
+                            ),
+                        ]}
+                    />
+                    {postedChip && firstSeenChip && (
+                        <ContextHelp
+                            content="Employer posted is the date on their listing. First seen by us is when our crawler actually found it — a relist can reset the employer's date without the role being new."
+                            className="ml-1 self-center"
+                        />
                     )}
                 </div>
 
