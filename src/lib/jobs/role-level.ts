@@ -87,6 +87,11 @@ export function listedPastSenior(level: string | null | undefined): boolean {
     return (level ?? "").trim().toLowerCase() === "executive";
 }
 
+/** Not a role past Senior (`omitPastSenior`, types.ts): by its title and by the level the listing is marked with. */
+export function withinSenior(job: { title: string; experience_level?: string | null }): boolean {
+    return !titlePastSenior(job.title) && !listedPastSenior(job.experience_level);
+}
+
 /**
  * The résumé shows a role past Senior: a title it held or holds (`titlePastSenior`). Only then is a
  * Staff, Principal or Director role their own level and not a step above it.

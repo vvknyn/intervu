@@ -58,6 +58,7 @@ import { useListRenderTiming } from "@/lib/analytics/use-list-render-timing";
 import { holdPursuitsRead, releasePursuitsRead } from "@/lib/pursuits/read-hold";
 import { usePursuits, invalidatePursuitsCache, syncGuestPursuitsToServer } from "@/lib/pursuits/use-pursuits";
 import { recordJobView, useViewed } from "@/lib/views/use-viewed";
+import { withinSenior } from "@/lib/jobs/role-level";
 import { buildViewedSet, applyViewedFilter } from "@/lib/views/viewed-set";
 import { listGuestPursuits, removeGuestAppliedResumes } from "@/lib/pursuits/guest-store";
 import { syncGuestFollowsToServer } from "@/lib/follows/use-follows";
@@ -314,7 +315,7 @@ import { deckListFor, sortByFit, withListRemovals } from "@/lib/jobs/for-you/ban
 import { collapseByEmployer } from "@/lib/jobs/for-you/employer-slot";
 import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
-import { resolveCandidateSignals, resumeDefaultLanguages } from "@/lib/jobs/candidate-signals";
+import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
@@ -1705,7 +1706,7 @@ export function JobsContent({
     // Read by the search effects (refs, so holding a résumé never re-runs a search by itself).
     const resumeHeldRef = useRef(false);
     resumeHeldRef.current = resume != null;
-    const keepPastSeniorRef = useRef(false);
+    const seniorityRef = useRef<CandidateSignals["seniority"] | null>(null);
     // Timestamp for match-score chips (see `fetchResumeData`, actions/resume.ts)
     // — kept alongside `resume` itself, set at the same call sites.
     const [resumeUpdatedAt, setResumeUpdatedAt] = useState<string | null>(null);
@@ -1716,7 +1717,7 @@ export function JobsContent({
     const uid = user?.uid ?? null;
     const { prefs: agentPrefs } = useAgentPreferences(uid);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
-    keepPastSeniorRef.current = signals?.seniority.pastSenior === true;
+    seniorityRef.current = signals?.seniority ?? null;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
     const pack = useMemo(() => (resume && signals ? packFilters(resume, signals) : null), [resume, signals]);
     const searchBox = searchBoxFor(queryDraft, query, fitActive, pack?.q ?? null);
@@ -2168,7 +2169,7 @@ export function JobsContent({
                         ? await getDefaultBrowseActionGuarded(locationDefaultSuppressed)
                         : await searchJobsAction({
                               ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                              ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                              ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, seniorityRef.current),
                               ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
                               withFacets: true,
                               limit: firstPageLimit,
@@ -2598,13 +2599,17 @@ export function JobsContent({
     // `openedIds` is folded in alongside the hook's own server+local
     // `viewedIds` so a job opened THIS render (before the round trip lands)
     // disappears immediately too, same as it already dims immediately below.
+    // A level picked in Settings bounds every list: roles past Senior are left out of a plain search too (a
+    // fit-ranked list leaves them out in its pool and counts them, `deckLeftOut`'s "level"), and said below.
+    const levelBounds = !fitActive && omitsPastSenior(signals?.seniority, false);
+    const pastSeniorLeftOut = levelBounds ? (result?.hits ?? []).filter((job) => !withinSenior(job)).length : 0;
     const hits = useMemo(() => {
-        const raw = result?.hits ?? [];
+        const raw = levelBounds ? (result?.hits ?? []).filter(withinSenior) : (result?.hits ?? []);
         // `viewedIds` (the hook's own server+local merge) union'd with this
         // render's `openedIds` — belt-and-suspenders so a just-opened job is
         // excluded even before the optimistic `markViewed` state re-renders.
         return applyViewedFilter(raw, buildViewedSet(viewedIds, openedIds, []), hideViewed);
-    }, [result?.hits, viewedIds, openedIds, hideViewed]);
+    }, [result?.hits, levelBounds, viewedIds, openedIds, hideViewed]);
 
     /**
      * Render fallback for a zero-query state (`resolveJobsRenderMode`,
@@ -3278,7 +3283,7 @@ export function JobsContent({
             // a behavior-preserving swap, not a functional change.
             const r = await searchJobsAction({
                 ...buildJobSearchPayload(filterState, query, backendSort, postedDateSupported, locationDefaultSuppressed),
-                ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, keepPastSeniorRef.current),
+                ...resumeSearchMark(fitActiveRef.current, resumeHeldRef.current, seniorityRef.current),
                 ...resumeContentMark(fitActiveRef.current, query, packContentRef.current),
                 limit: pageSize,
                 offset: ticket.offset,
@@ -4453,7 +4458,7 @@ export function JobsContent({
                         ? detectedLocationLabel(result.defaultedLocation!, result.remoteAnywhere)
                         : undefined,
                     relocation: signals?.relocation.value,
-                    keepPastSenior: signals?.seniority.pastSenior === true,
+                    seniority: signals?.seniority,
                 }}
                 // The raw action: a count probe must not become `lastSearchId` (open attribution).
                 search={searchJobsActionRaw}
@@ -6145,6 +6150,11 @@ export function JobsContent({
                                             </div>
                                             {/* A résumé-ranked list says what it left out and why, in the words the
                                                 daily picks and the MCP tools use (left-out-copy.ts). */}
+                                            {pastSeniorLeftOut > 0 && (
+                                                <p className="mb-2 px-[var(--list-inset)] text-xs text-muted-foreground" data-testid="level-left-out">
+                                                    {pastSeniorLeftOut} {pastSeniorLeftOut === 1 ? "role" : "roles"} past Senior left out, as your Experience level in Settings asks.
+                                                </p>
+                                            )}
                                             {recommendedReady && recommended && (
                                                 <RecommendedListNotes summary={recommended.summary} languages={languagesPanelEl} employers={recommended.slots.length} onInclude={includeFromList} />
                                             )}

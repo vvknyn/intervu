@@ -34,7 +34,8 @@ export function packFilters(resume: ResumeData, signals: CandidateSignals): Jobs
     const { q, facets: derived } = buildMatchQuery(resume, undefined, preferredRoles(signals));
     const facets = { ...derived };
     // The résumé's level ranks roles (band order, the "level" left-out reason), it never filters them: only a level
-    // the person picks in Filters does (Vivek, 2026-10-22: "return all search results ranked by relevance and fit").
+    // the person picks does, in Filters or in Settings' Experience level (the defaults for those filters). Vivek,
+    // 2026-10-22: "return all search results ranked by relevance and fit"; a picked level bounds past Senior.
     // `levels` only decides whether the title search also asks for the lead name below.
     const levels = experienceLevelFacet(signals.seniority.value, resume);
     const countries = candidateCountries(signals);
@@ -76,7 +77,7 @@ export function packSearchParams(
     signals?: Pick<CandidateSignals, "seniority">,
     content?: { resume: ResumeData; unplacedRemote?: boolean },
 ): JobSearchParams {
-    const base = { ...searchParamsFromUrlState(filters), ...resumeSearchMark(true, false, signals?.seniority.pastSenior === true) };
+    const base = { ...searchParamsFromUrlState(filters), ...resumeSearchMark(true, false, signals?.seniority) };
     if (!content) return base;
     return { ...base, ...packContentMark(packContentPhrases(content.resume, filters.q), content.unplacedRemote === true) };
 }

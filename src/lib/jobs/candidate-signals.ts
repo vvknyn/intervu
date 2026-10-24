@@ -49,8 +49,12 @@ export interface CandidateSignals {
     /** Only ever `explicit`: a résumé does not state willingness to relocate. */
     relocation: Signal<CandidateRelocation>;
     /** With what the résumé's level was read from (`resumeSeniorityBasis`), when it was. */
-    /** `pastSenior`: the person holds or held a role past Senior (Staff, Principal, Director...), so such roles are their own class. */
-    seniority: Signal<Seniority> & { basis?: SeniorityBasis; pastSenior?: true };
+    /**
+     * `pastSenior`: roles past Senior (Staff, Principal, Director...) are this person's own class: they stated Lead
+     * or Executive, or, with no stated level, their résumé holds such a title. `levelStated`: they picked a level in
+     * Settings, which bounds their results (`omitsPastSenior`).
+     */
+    seniority: Signal<Seniority> & { basis?: SeniorityBasis; pastSenior?: true; levelStated?: true };
     roleFamily: Signal<string>;
     skills: Signal<string[]>;
     /** Only ever `explicit`: how recent a role they want to see (Settings › Posted within), in days. */
@@ -171,11 +175,22 @@ function resolveRelocation(prefs: AgentPreferences | null): Signal<CandidateRelo
 
 function resolveSeniority(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {
     const level = resolveSeniorityLevel(resume, prefs);
-    // A Lead or Executive level set in Settings, or a Staff, Principal or Director title on the résumé, is a person
-    // for whom those roles are their own class; everyone else is not a fit for them (`pastSenior`, match/score.ts).
+    // A stated level wins: Lead or Executive makes roles past Senior their own class, any other level leaves them
+    // out whatever the résumé once held (a stated Mid beside a "Head of Growth" résumé, 2026-10-24). With no stated
+    // level the résumé decides: a Staff, Principal or Director title on it (`pastSenior`, match/score.ts).
     const statedLevel = (prefs?.search.experienceLevel ?? "").trim().toLowerCase();
-    const holdsPast = statedLevel === "lead" || statedLevel === "executive" || resumeHoldsPastSenior(resume);
-    return holdsPast ? { ...level, pastSenior: true as const } : level;
+    const stated = seniorityOfLevel(statedLevel) != null;
+    const holdsPast = stated ? statedLevel === "lead" || statedLevel === "executive" : resumeHoldsPastSenior(resume);
+    return { ...level, ...(holdsPast ? { pastSenior: true as const } : {}), ...(stated ? { levelStated: true as const } : {}) };
+}
+
+/**
+ * Whether roles past Senior are left out for this person: never when they are their own class (`pastSenior`);
+ * otherwise on every surface and sort when they picked a level, and with none picked, only in a fit-ranked list
+ * (the résumé ranks, it does not filter elsewhere; Vivek, 2026-10-22). The ONE decision every caller reads.
+ */
+export function omitsPastSenior(seniority: CandidateSignals["seniority"] | null | undefined, fitActive: boolean): boolean {
+    return seniority?.pastSenior !== true && (fitActive || seniority?.levelStated === true);
 }
 
 function resolveSeniorityLevel(resume: ResumeData | null, prefs: AgentPreferences | null): CandidateSignals["seniority"] {

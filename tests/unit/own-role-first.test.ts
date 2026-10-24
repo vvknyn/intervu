@@ -524,8 +524,8 @@ describe('a role past Senior is never recommended to a résumé that shows none'
 
     it('the board marks a résumé-built search the same way, and a typed search not at all', () => {
         assert.deepEqual(resumeSearchMark(true), { fromResume: true, omitPastSenior: true });
-        assert.deepEqual(resumeSearchMark(true, true, true), { fromResume: true });
-        assert.deepEqual(resumeSearchMark(false, true, false), { jdTerms: true });
+        assert.deepEqual(resumeSearchMark(true, true, { value: 'senior', source: 'explicit', pastSenior: true }), { fromResume: true });
+        assert.deepEqual(resumeSearchMark(false, true), { jdTerms: true });
         assert.deepEqual(resumeSearchMark(false), {});
     });
 });
