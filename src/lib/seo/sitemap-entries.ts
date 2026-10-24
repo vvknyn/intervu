@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { fetchIndexableCompanyDomains, type IndexableCompanyDomain } from "@/lib/companies/indexable";
+import { getDirectory, type DirectoryCompany } from "@/lib/companies/directory-model";
+import { groupCompaniesByLetter, letterPath } from "@/lib/companies/directory-index";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { BLOG_PATH, BLOG_POSTS, blogPostPath } from "@/lib/blog/posts";
 import { CAREER_HUBS } from "./career-hubs";
@@ -27,20 +28,23 @@ const DEPLOYED_AT = new Date();
  * good answer serves the pages without /co/ entries, still never a 5xx.
  */
 export interface CompanyCache {
-  companies: IndexableCompanyDomain[];
+  companies: DirectoryCompany[];
   at: number;
 }
 /** Module state (survives across requests); exported so tests can start a case with none. */
 export const LAST_GOOD: { current: CompanyCache | null } = { current: null };
 
-export async function buildSitemapEntries(
-  fetchCompanies: () => Promise<IndexableCompanyDomain[]> = fetchIndexableCompanyDomains,
-  lastGood: { current: CompanyCache | null } = LAST_GOOD,
-): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = getSiteUrl();
-  const at = (path: string) => `${siteUrl}${path}`;
+const listedCompanies = async (): Promise<DirectoryCompany[]> => (await getDirectory()).companies;
 
-  let companies: IndexableCompanyDomain[] = [];
+/**
+ * THE company set for every surface that lists companies (sitemap, /co index,
+ * hub company lists), with the failure posture above.
+ */
+export async function resolveIndexableCompanies(
+  fetchCompanies: () => Promise<DirectoryCompany[]> = listedCompanies,
+  lastGood: { current: CompanyCache | null } = LAST_GOOD,
+): Promise<DirectoryCompany[]> {
+  let companies: DirectoryCompany[] = [];
   let failure: string | null = null;
   try {
     companies = await fetchCompanies();
@@ -57,6 +61,16 @@ export async function buildSitemapEntries(
   } else {
     console.error(`sitemap: ${failure}, no earlier set to serve, listing pages without /co/ entries`);
   }
+  return companies;
+}
+
+export async function buildSitemapEntries(
+  fetchCompanies?: () => Promise<DirectoryCompany[]>,
+  lastGood?: { current: CompanyCache | null },
+): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = getSiteUrl();
+  const at = (path: string) => `${siteUrl}${path}`;
+  const companies = await resolveIndexableCompanies(fetchCompanies, lastGood);
 
   return [
     ...SITEMAP_PAGES.map(({ path, changeFrequency, priority }) => ({
@@ -75,6 +89,12 @@ export async function buildSitemapEntries(
       changeFrequency: "monthly" as const,
       priority: 0.5,
       images: Object.keys(post.images).map((src) => at(src)),
+    })),
+    ...groupCompaniesByLetter(companies).map(({ letter }) => ({
+      url: at(letterPath(letter)),
+      lastModified: DEPLOYED_AT,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
     })),
     ...companies.map(({ domain, computedAt }) => ({
       url: at(companyBoardPath(domain)),

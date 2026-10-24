@@ -4,6 +4,7 @@ import { isAuthSignOutRequest } from "@/lib/auth/signout-request";
 import { isAuthGatedProductPath, loginRedirectUrl } from "@/lib/auth/product-routes";
 import { shouldBlockSuspiciousRequest } from "@/lib/shield/suspicious-request";
 import { robotsHeaderFor } from "@/lib/seo/indexability";
+import { lowercaseSlugPath } from "@/lib/seo/slug-case";
 import { FIRST_ROWS_PATH, shouldServeFirstRows } from "@/lib/jobs/server-first-rows";
 import { FRONT_DOOR_PATH, shouldServeFrontDoor } from "@/lib/jobs/server-front-door";
 import {
@@ -27,6 +28,15 @@ export async function middleware(request: NextRequest) {
     }
 
     const { pathname } = request.nextUrl;
+
+    // Generated-lowercase slugs (/co, /careers): a mixed-case URL is a
+    // duplicate of the lowercase page, so it 308s there with the query kept.
+    const lowerPath = lowercaseSlugPath(pathname);
+    if (lowerPath) {
+        const target = request.nextUrl.clone();
+        target.pathname = lowerPath;
+        return NextResponse.redirect(target, 308);
+    }
 
     // Sign-out POST must not refresh wos-session — authkit() would re-seal the
     // cookie after AuthKit deletes it, or race the delete on the way out.

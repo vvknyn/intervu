@@ -62,6 +62,7 @@ export const SITEMAP_PAGES: readonly {
   { path: "/jobs", changeFrequency: "daily", priority: 1 },
   { path: "/trends", changeFrequency: "daily", priority: 0.8 },
   { path: "/connect", changeFrequency: "weekly", priority: 0.7 },
+  { path: "/co", changeFrequency: "daily", priority: 0.7 },
   { path: "/research/ghost-jobs", changeFrequency: "monthly", priority: 0.6 },
   { path: "/indeed-alternative", changeFrequency: "monthly", priority: 0.7 },
   { path: "/linkedin-jobs-alternative", changeFrequency: "monthly", priority: 0.7 },
@@ -72,6 +73,10 @@ export const SITEMAP_PAGES: readonly {
   { path: "/privacy", changeFrequency: "yearly", priority: 0.3 },
   { path: "/terms", changeFrequency: "yearly", priority: 0.3 },
 ];
+
+/** Per-letter pages of the company directory (`/co/letter/a`, `/co/letter/other`): the
+ *  one-page `/co` list would be ~1 MB, so it is split by first letter. */
+export const DIRECTORY_LETTER_PATH = "/co/letter";
 
 const underPath = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 const underAny = (pathname: string, bases: readonly string[]) =>
@@ -85,7 +90,8 @@ function indexabilityForPath(pathname: string, company?: CompanyIndexability): I
     return { ...NO_INDEX, follow: false };
   }
   if (underAny(pathname, NOINDEX_FOLLOW_PAGES)) return { ...NO_INDEX, follow: true };
-  if (underPath(pathname, "/co")) {
+  if (underPath(pathname, DIRECTORY_LETTER_PATH)) return listed(pathname);
+  if (pathname.startsWith("/co/")) {
     return {
       index: company?.pageIndexable ?? true,
       follow: true,

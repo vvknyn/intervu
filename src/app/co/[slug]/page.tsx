@@ -1,22 +1,19 @@
-import { cache, Suspense } from "react";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CompanyPageBody } from "@/components/company/CompanyPageBody";
 import { CompanyPageSkeleton } from "@/components/company/CompanyPageSkeleton";
 import { getServerUser } from "@/lib/auth/server-user";
-import { humanizeProjectorHeadline } from "@/lib/companies/events";
-import { companyExists, getCompanyPageData } from "@/lib/companies/get-company";
+import { loadCompany } from "@/lib/companies/load-company";
+import { buildCompanyFaq } from "@/lib/companies/company-faq";
+import { fetchRelatedCompanies } from "@/lib/companies/related-companies";
+import { companyExists } from "@/lib/companies/get-company";
 import { reportShownJobs } from "@/lib/jobs/liveness-demand";
-import { buildCompanyHiringAnswer, buildCompanyPageMetadata } from "@/lib/companies/presentation";
+import { buildCompanyPageMetadata } from "@/lib/companies/presentation";
 import { companyBoardPath } from "@/lib/companies/paths";
-import { buildBreadcrumbJsonLd, buildCompanyFaqItems, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
+import { buildBreadcrumbJsonLd, buildCompanyOrganizationJsonLd, buildFaqPageJsonLd, serializeJsonLd } from "@/lib/seo/jsonld";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
-
-// `cache()` so generateMetadata and the page body share ONE load per request
-// (same pattern as jobs/[slug]/page.tsx): each load is a 200-role search plus
-// the news, events and hiring-record reads, and it used to run twice.
-const loadCompany = cache((slug: string) => getCompanyPageData(slug));
 
 export async function generateMetadata({
   params,
@@ -59,14 +56,9 @@ async function CompanyPageContent({ slug }: { slug: string }) {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
 
-  const hiring = buildCompanyHiringAnswer(data, data.nowMs);
-  const faqJsonLd = buildFaqPageJsonLd(
-    buildCompanyFaqItems({
-      companyName: data.name,
-      // The same sentence the body renders — see `CompanyFaqInput`.
-      hiringAnswer: humanizeProjectorHeadline(hiring.headline),
-    }),
-  );
+  // The visible FAQ (inside CompanyPageBody) and this JSON-LD render the same array.
+  const faqJsonLd = buildFaqPageJsonLd(buildCompanyFaq(data.facts));
+  const related = await fetchRelatedCompanies(data.facts);
   // Same array-of-graphs convention as the root layout's own JSON-LD
   // (app/layout.tsx) — one script tag, not one per graph. Organization is
   // unconditional (domain, hence a logo URL, always exists here); FAQPage
@@ -75,12 +67,13 @@ async function CompanyPageContent({ slug }: { slug: string }) {
     buildCompanyOrganizationJsonLd({
       name: data.name,
       domain: data.domain,
-      knowsAbout: data.intelligence?.techStack?.languages,
+      knowsAbout: data.facts.mix.tech?.buckets.map((b) => b.value),
     }),
     ...(faqJsonLd ? [faqJsonLd] : []),
     // Mirrors the visible breadcrumb row below.
     buildBreadcrumbJsonLd([
-      { name: "Find jobs", path: "/jobs" },
+      { name: "Jobs", path: "/jobs" },
+      { name: "Companies", path: "/co" },
       { name: data.name, path: companyBoardPath(data.domain) },
     ]),
   ];
@@ -94,14 +87,18 @@ async function CompanyPageContent({ slug }: { slug: string }) {
       <div className="border-b border-border">
         <nav className="shell-row flex h-10 items-center text-sm text-muted-foreground">
           <Link href="/jobs" className="text-brand hover:underline">
-            Find jobs
+            Jobs
+          </Link>
+          <span className="mx-1.5" aria-hidden>/</span>
+          <Link href="/co" className="text-brand hover:underline">
+            Companies
           </Link>
           <span className="mx-1.5" aria-hidden>/</span>
           {data.name}
         </nav>
       </div>
 
-      <CompanyPageBody data={data} signedIn={signedIn} now={now} />
+      <CompanyPageBody data={data} signedIn={signedIn} now={now} related={related} />
     </div>
   );
 }

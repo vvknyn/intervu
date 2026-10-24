@@ -2247,6 +2247,37 @@ export async function meiliMultiSearch(
 }
 
 /**
+ * One `/multi-search` round trip of full job searches: `buildSearchBody`'s body for each of `queries`
+ * (the exact query `searchMeili` would send, optionally retrieving fewer attributes), hits in the
+ * order asked. Throws on any failure — a caller must not read a failed batch as "no rows".
+ */
+export async function meiliSearchEach(
+  queries: { params: JobSearchParams; attributesToRetrieve?: readonly string[] }[],
+): Promise<PublicJob[][]> {
+  const h = host();
+  if (!h) throw new Error("MEILISEARCH_HOST not set");
+  const res = await meiliFetch(`${h}/multi-search`, {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${searchKey()}` },
+    cache: "no-store",
+    body: JSON.stringify({
+      queries: queries.map(({ params, attributesToRetrieve }) => ({
+        indexUid: JOBS_INDEX,
+        ...buildSearchBody(params, false),
+        ...(attributesToRetrieve ? { attributesToRetrieve } : {}),
+      })),
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Meilisearch multi-search failed: ${res.status} ${text.slice(0, 300)}`);
+  }
+  const { results } = (await res.json()) as { results?: { hits?: PublicJob[] }[] };
+  if (results?.length !== queries.length) throw new Error(`Meilisearch multi-search answered ${results?.length ?? 0} of ${queries.length} queries`);
+  return results.map((r) => normalizePublicJobs(r.hits ?? []));
+}
+
+/**
  * Pure: the `q`/`filter`/`attributesToSearchOn` `fetchJobsLastUpdated` sends
  * for `p` — the exact same `buildFilter(p)` clauses, `quoteShortTokens(p.q)`
  * text, AND `resolveAttributesToSearchOn` scope the results search itself

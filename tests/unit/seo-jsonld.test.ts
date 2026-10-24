@@ -5,7 +5,6 @@ import { describe, it } from "node:test";
 import {
   buildArticleJsonLd,
   buildBreadcrumbJsonLd,
-  buildCompanyFaqItems,
   buildCompanyOrganizationJsonLd,
   buildFaqPageJsonLd,
   buildJobSearchFaqJsonLd,
@@ -24,35 +23,6 @@ import { companyLogoUrl } from "@/lib/companies/logo";
 const ORIGIN = getSiteUrl();
 
 describe("seo/jsonld", () => {
-  it("buildCompanyFaqItems publishes the page's own hiring answer verbatim", () => {
-    // The answer is authored once, by `buildCompanyHiringAnswer`, and rendered
-    // in the page body; this builder must not restate it in words of its own,
-    // or the structured data starts asserting something no reader can see.
-    const items = buildCompanyFaqItems({
-      companyName: "Acme",
-      hiringAnswer: "velai isn't tracking any live open roles right now.",
-    });
-    assert.equal(items.length, 1);
-    assert.equal(items[0]!.question, "Is Acme hiring?");
-    assert.equal(items[0]!.answer, "velai isn't tracking any live open roles right now.");
-  });
-
-  it("buildCompanyFaqItems never emits a ghost-flagged-share question — that stat is follower-gated on the page, structured data must not leak gated content to crawlers", () => {
-    const items = buildCompanyFaqItems({
-      companyName: "Beta",
-      hiringAnswer: "Yes — 1 open role is live on velai right now.",
-    });
-    // Positive control: the ungated hiring question is still present.
-    assert.ok(items.some((i) => i.question === "Is Beta hiring?"));
-    // Negative control: nothing in the output — question or answer — mentions
-    // the gated ghost/flagged-share stat, proving this isn't just an
-    // "only checked the question text" false negative.
-    const mentionsGhostOrFlagged = items.some(
-      (i) => /ghost|flagged/i.test(i.question) || /ghost|flagged/i.test(i.answer),
-    );
-    assert.equal(mentionsGhostOrFlagged, false);
-  });
-
   it("buildFaqPageJsonLd drops blank pairs and returns null when nothing valid remains", () => {
     assert.equal(buildFaqPageJsonLd([{ question: "  ", answer: "" }]), null);
     assert.equal(buildFaqPageJsonLd([]), null);
@@ -150,7 +120,7 @@ describe("seo/jsonld", () => {
     assert.equal(jsonLd.url, "https://servicetitan.com");
     // Same URL the CompanyLogo <img> tag renders — not a second, independently
     // invented logo source (see lib/companies/logo.ts).
-    assert.equal(jsonLd.logo, companyLogoUrl("servicetitan.com"));
+    assert.equal(jsonLd.logo, `${ORIGIN}${companyLogoUrl("servicetitan.com")}`);
   });
 
   it("buildCompanyOrganizationJsonLd carries the name through verbatim — it does not re-clean it", () => {

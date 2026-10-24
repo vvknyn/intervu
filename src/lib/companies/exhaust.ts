@@ -158,6 +158,10 @@ export type CompanyExhaust = {
   integrity: ExhaustSection<IntegrityFacts>;
   techStack: ExhaustSection<TechFacts>;
   changeHistory: ExhaustSection<ChangeEventRow[]>;
+  /** The one resolved sector (see {@link resolveSector}); null when no source names one. */
+  sector: string | null;
+  /** The employer's careers page from `company_boards` (see {@link resolveCareersUrl}); null when none is a web address. */
+  careersUrl: string | null;
 };
 
 /** 13 weeks: the strip sits in the page's 320px rail, and a quarter lines up
@@ -309,6 +313,32 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(s)) ? null : s;
 }
 
+/** health_reviews and fingerprints fill every domain, with a default bucket
+ *  ('general', 'unknown') when they could not classify it. That bucket is not
+ *  a sector, so it must not shadow a real one further down the chain. */
+const NON_SECTORS = new Set(["", "general", "unknown"]);
+
+/** THE sector resolver: health_reviews, then fingerprints, then boards; the
+ *  first that names a real sector wins, null when none does. */
+export function resolveSector(row: Partial<SectorRow> | null): string | null {
+  for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards]) {
+    const sector = str(candidate)?.trim();
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return sector;
+  }
+  return null;
+}
+
+/** THE careers-link resolver: a stored `career_page_url` is shown only when it is an http(s) address. */
+export function resolveCareersUrl(row: Partial<SectorRow> | null): string | null {
+  const raw = str(row?.careers_url)?.trim();
+  if (!raw) return null;
+  try {
+    return /^https?:$/.test(new URL(raw).protocol) ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
 // ─────────────────────────────── row shapes ───────────────────────────────
 
 interface EnrichmentRow {
@@ -377,6 +407,27 @@ async function fetchHealthRow(pg: Queryable, domain: string): Promise<HealthRow 
      WHERE company_domain = $1
      ORDER BY created_at DESC
      LIMIT 1`,
+    [domain],
+  );
+  return rows[0] ?? null;
+}
+
+export interface SectorRow {
+  health_reviews: string | null;
+  fingerprints: string | null;
+  boards: string | null;
+  careers_url: string | null;
+}
+
+/** The three sector columns the box holds for one domain, side by side so
+ *  {@link resolveSector} can pick, plus the careers page the same board row holds; scalar subselects each hit a domain index. */
+async function fetchSectorRow(pg: Queryable, domain: string): Promise<SectorRow | null> {
+  const { rows } = await pg.query<SectorRow>(
+    `SELECT
+       (SELECT sector FROM company_health_reviews WHERE company_domain = $1 ORDER BY created_at DESC LIMIT 1) AS health_reviews,
+       (SELECT sector FROM company_fingerprints WHERE domain = $1 LIMIT 1) AS fingerprints,
+       (SELECT sector FROM company_boards WHERE company_domain = $1 LIMIT 1) AS boards,
+       (SELECT career_page_url FROM company_boards WHERE company_domain = $1 LIMIT 1) AS careers_url`,
     [domain],
   );
   return rows[0] ?? null;
@@ -761,8 +812,9 @@ export async function readCompanyExhaust(
     fetchCadenceRows(pg, domain),
     fetchIntegrityRows(pg, domain),
     fetchChangeHistoryRows(pg, domain),
+    fetchSectorRow(pg, domain),
   ] as const);
-  const [enrichment, health, cadence, integrity, changeHistory] = settled;
+  const [enrichment, health, cadence, integrity, changeHistory, sector] = settled;
 
   const enrichmentRows = enrichment.status === "fulfilled" ? enrichment.value : new Map<string, EnrichmentRow>();
 
@@ -779,6 +831,8 @@ export async function readCompanyExhaust(
       cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : null, nowMs),
       integrity: buildIntegritySection(integrity.status === "fulfilled" ? integrity.value : null, nowMs),
       changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
+      sector: resolveSector(sector.status === "fulfilled" ? sector.value : null),
+      careersUrl: resolveCareersUrl(sector.status === "fulfilled" ? sector.value : null),
     },
     complete: settled.every((r) => r.status === "fulfilled"),
   };

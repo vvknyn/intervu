@@ -58,7 +58,7 @@ describe("companies/company-name — brand vs legal entity", () => {
     assert.equal(resolveCompanyName(jobs, "boeing.com.au").value, "Boeing");
   });
 
-  it("displays the root VERBATIM when the root's own name ends in a legal form (pharm-int.com, live)", () => {
+  it("displays the root VERBATIM when the root's own name ends in a legal form (jabil.com)", () => {
     // "Jabil Inc." roots seven differently-qualified siblings. The suffix
     // stripper is what lets it be recognised as the root — and the name is
     // still rendered in full. It must never be shortened to "Jabil": the
@@ -72,7 +72,7 @@ describe("companies/company-name — brand vs legal entity", () => {
       "Jabil Circuit Sdn Bhd": 35,
       "Jabil Circuit India Private Limited": 32,
     });
-    const resolved = resolveCompanyName(jobs, "pharm-int.com");
+    const resolved = resolveCompanyName(jobs, "jabil.com");
     assert.equal(resolved.value, "Jabil Inc.");
     // "Jabil Circuit" also roots ≥2 siblings; the SHORTER stem has to win, or
     // the page names itself after a mid-level division.

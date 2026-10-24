@@ -127,34 +127,6 @@ export function buildJobSearchFaqJsonLd(): FaqPageJsonLd | null {
   return buildFaqPageJsonLd(JOB_SEARCH_FAQ);
 }
 
-export interface CompanyFaqInput {
-  companyName: string;
-  /** The page's OWN visible answer to "Is X hiring?" — `buildCompanyHiringAnswer`
-   *  (lib/companies/presentation.ts) `.headline`, the exact sentence rendered
-   *  in the body. Passed in rather than re-derived from the count here: a
-   *  FAQPage answer is a machine-readable assertion that must match what the
-   *  page shows a human, and two independent wordings of the same count is
-   *  precisely how that match rots. It also keeps the honesty rules about
-   *  floors ("200+") and zero-role employers stated once. */
-  hiringAnswer: string;
-}
-
-/**
- * Company-page FAQ content ("Is X hiring?"), built only from fields the page
- * itself renders (KPI tiles on `/co/[slug]`) — never a claim the page
- * doesn't also show a human reader. The ghost-flagged share is deliberately
- * excluded: it's follower-gated content on the page (`CompanyIntelGate`),
- * and structured data must never expose gated content to crawlers.
- */
-export function buildCompanyFaqItems(input: CompanyFaqInput): FaqItem[] {
-  return [
-    {
-      question: `Is ${input.companyName} hiring?`,
-      answer: input.hiringAnswer,
-    },
-  ];
-}
-
 export interface ArticleJsonLdInput {
   headline: string;
   /** ISO 8601 date/datetime string. */
@@ -274,8 +246,8 @@ export function buildSiteJsonLd(): (WebsiteJsonLd | OrganizationJsonLd)[] {
  * must already be the cleaned display name the page renders (`data.name`,
  * `lib/jobs/presentation.ts`'s `displayCompanyName`), not recomputed here, so
  * the structured data can't drift from the H1. `logo` reuses
- * `companyLogoUrl` — the same favicon URL `CompanyLogo` puts in the `<img>`
- * tag — rather than inventing a second logo source; it's always derivable
+ * `companyLogoUrl` — the same first-party path `CompanyLogo` puts in the
+ * `<img>` tag, made absolute — rather than inventing a second logo source; it's always derivable
  * because `CompanyPageData.domain` is never empty.
  */
 export function buildCompanyOrganizationJsonLd(input: {
@@ -288,7 +260,7 @@ export function buildCompanyOrganizationJsonLd(input: {
     "@type": "Organization",
     name: input.name,
     url: `https://${input.domain}`,
-    logo: companyLogoUrl(input.domain),
+    logo: `${getSiteUrl()}${companyLogoUrl(input.domain)}`,
     ...(input.knowsAbout && input.knowsAbout.length > 0 ? { knowsAbout: input.knowsAbout } : {}),
   };
 }

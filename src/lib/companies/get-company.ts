@@ -2,15 +2,17 @@ import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/li
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
-import { collapseDuplicatePostings } from "@/lib/companies/dedupe-postings";
+import { getDirectory } from "@/lib/companies/directory-model";
+import { COMPANY_JOBS_FETCH_LIMIT, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { resolveOpenCount } from "@/lib/companies/open-count";
+import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { getSharedCompanyExhaust } from "@/lib/companies/exhaust-cache";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyChangeEvent, CompanyNewsArticle, CompanyPageData } from "@/lib/companies/types";
-import { displayCompanyName, isInternalPosting } from "@/lib/jobs/presentation";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -18,13 +20,7 @@ import { logServer, type LogAttrs } from "@/lib/observability/posthog-logs";
 
 type SearchFn = (params: JobSearchParams) => Promise<JobSearchResult>;
 
-/**
- * Hit window for the roles list. Named and exported because it is also the
- * saturation threshold `resolveOpenCount` needs — the count must know how
- * big the window was to know whether it filled up. It is NOT the count: that
- * conflation is exactly the bug this replaced.
- */
-export const COMPANY_JOBS_FETCH_LIMIT = 200;
+export { COMPANY_JOBS_FETCH_LIMIT };
 
 /**
  * A company page's roles search slower than this is logged (see
@@ -33,14 +29,23 @@ export const COMPANY_JOBS_FETCH_LIMIT = 200;
  */
 export const SEARCH_BUDGET_MS = 1_000;
 
+/** The longest the page waits for any one side read. A read still out then is
+ *  left off the render (its facts are null) and logged; it keeps going into
+ *  its cache, so the next visit has it. */
+export const SIDE_READ_TIMEOUT_MS = 1_500;
+
 /** The page's reads other than the search, injectable for tests (same
  *  shape as the `search: SearchFn` parameter). */
 export interface CompanySideReads {
   news: (domain: string) => Promise<CompanyNewsArticle[]>;
   events: (domain: string) => Promise<CompanyChangeEvent[]>;
   exhaust: (domain: string) => Promise<CompanyExhaust | null>;
+  /** The company directory: the name this company is listed under. */
+  directory: typeof getDirectory;
   /** A search slower than this is logged. */
   budgetMs: number;
+  /** Per-read cap: see {@link SIDE_READ_TIMEOUT_MS}. */
+  sideTimeoutMs: number;
   log: (level: "warn", body: string, attrs: LogAttrs) => void;
 }
 
@@ -48,7 +53,9 @@ const SIDE_READS: CompanySideReads = {
   news: fetchCompanyNews,
   events: fetchCompanyEvents,
   exhaust: getSharedCompanyExhaust,
+  directory: getDirectory,
   budgetMs: SEARCH_BUDGET_MS,
+  sideTimeoutMs: SIDE_READ_TIMEOUT_MS,
   log: logServer,
 };
 
@@ -61,12 +68,13 @@ function timed<T>(read: Promise<T>, startedAt: number): { promise: Promise<T>; m
   return { promise: read.finally(settle), ms: () => ms };
 }
 
-/** The read's value if it settles before `deadline`, else `fallback`. */
-function byDeadline<T>(read: Promise<T>, deadline: Promise<unknown>, fallback: T): Promise<{ value: T; late: boolean }> {
-  return Promise.race([
-    read.then((value) => ({ value, late: false })),
-    deadline.then(() => ({ value: fallback, late: true })),
-  ]);
+/** The read's value if it settles within `ms`, else `fallback` (and `late`). */
+function withTimeout<T>(read: Promise<T>, ms: number, fallback: T): Promise<{ value: T; late: boolean }> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<{ value: T; late: boolean }>((resolve) => {
+    timer = setTimeout(() => resolve({ value: fallback, late: true }), ms);
+  });
+  return Promise.race([read.then((value) => ({ value, late: false })), deadline]).finally(() => clearTimeout(timer));
 }
 
 function ghostFlaggedPct(jobs: PublicJob[]): number | null {
@@ -101,24 +109,24 @@ export async function getCompanyPageData(
   if (!domain) return null;
 
   // The roles come from the search; news, recent changes and the box
-  // database's record (hiring record, posting chart, profile) are side
-  // reads. All four start together, and the page waits for the search
-  // alone: a side read still out when the search answers is left off this
-  // render, as if it had nothing, instead of holding the roles back. Each
-  // side read already fails soft on its own, and a late one still finishes
-  // into its cache (Next's fetch cache for news and events,
-  // `exhaust-cache.ts` for the box), so the next visit has it. The first
-  // visit to a big employer took 4.3s on release 16, against a 2s budget for
-  // every list; release 20 let side reads hold the roles for up to 1s, and
-  // on release 23 a cold box read for Amazon (1.4s) still cost its first
-  // visitor that whole second.
+  // database's record (hiring record, posting chart, profile, sector) are side
+  // reads. All four start together and the page waits for each, but a side
+  // read for no longer than `sideTimeoutMs`: one still out then is left off
+  // this render (its facts are null, never a placeholder) and logged once,
+  // instead of holding the roles back. A late read still finishes into its
+  // cache (Next's fetch cache for news and events, `exhaust-cache.ts` for the
+  // box), so the next visit has it. Awaiting them keeps the render
+  // deterministic: whether a section appears no longer depends on which read
+  // happened to win a race with the search. Release 23's first Amazon visit
+  // paid a whole second for a cold box read (1.4s) that this bounds.
   const reads = { ...SIDE_READS, ...deps };
   const startedAt = Date.now();
   const searchRead = timed(
     search({
-      companyDomain: domain,
-      limit: COMPANY_JOBS_FETCH_LIMIT,
-      hideGhosts: false,
+      ...companyRolesParams(domain),
+      // Distributions (countries, work mode, skills...) over ALL the company's
+      // live roles, not just the 200 fetched.
+      withFacets: true,
     }),
     startedAt,
   );
@@ -126,20 +134,22 @@ export async function getCompanyPageData(
     news: timed(reads.news(domain).catch((): CompanyNewsArticle[] => []), startedAt),
     events: timed(reads.events(domain).catch((): CompanyChangeEvent[] => []), startedAt),
     box: timed(reads.exhaust(domain).catch(() => null), startedAt),
+    directory: timed(reads.directory().catch(() => null), startedAt),
   };
-  const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise]);
-  const deadline = searchRead.promise.catch(() => undefined);
+  const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise, sideReads.directory.promise]);
 
-  const [result, news, changeEvents, exhaust] = await Promise.all([
+  const [result, news, changeEvents, exhaust, directory] = await Promise.all([
     searchRead.promise,
-    byDeadline(sideReads.news.promise, deadline, [] as CompanyNewsArticle[]),
-    byDeadline(sideReads.events.promise, deadline, [] as CompanyChangeEvent[]),
-    byDeadline(sideReads.box.promise, deadline, null as CompanyExhaust | null),
+    withTimeout(sideReads.news.promise, reads.sideTimeoutMs, [] as CompanyNewsArticle[]),
+    withTimeout(sideReads.events.promise, reads.sideTimeoutMs, [] as CompanyChangeEvent[]),
+    withTimeout(sideReads.box.promise, reads.sideTimeoutMs, null as CompanyExhaust | null),
+    withTimeout(sideReads.directory.promise, reads.sideTimeoutMs, null),
   ]);
   const late = [
     news.late && "news",
     changeEvents.late && "events",
     exhaust.late && "box",
+    directory.late && "directory",
   ].filter((name): name is string => !!name);
   if (late.length > 0 || (searchRead.ms() ?? 0) > reads.budgetMs) {
     // Once every read has answered, so the record has all four times.
@@ -151,6 +161,7 @@ export async function getCompanyPageData(
         "news.ms": sideReads.news.ms() ?? undefined,
         "events.ms": sideReads.events.ms() ?? undefined,
         "box.ms": sideReads.box.ms() ?? undefined,
+        "directory.ms": sideReads.directory.ms() ?? undefined,
         // How much of search.ms the search engine itself spent, and in how
         // many requests: the rest is the trip between the boxes.
         "search.engine.ms": result.engineMs,
@@ -179,7 +190,7 @@ export async function getCompanyPageData(
   // instead of each re-deriving its own view of it — the seam that used to
   // let the hero KPI (sourced from this array pre-dedup) and the rendered
   // role list (deduped a second time, client-side) disagree.
-  const jobs = collapseDuplicatePostings(result.hits.filter((job) => !isInternalPosting(job.title)));
+  const jobs = publicRoles(result.hits);
   const boards = getBoardsForDomain(domain);
 
   if (jobs.length === 0 && boards.length === 0) return null;
@@ -197,6 +208,7 @@ export async function getCompanyPageData(
   // `resolveOpenCount` owns that decision because it is the only thing that
   // knows whether the number is exact or a floor.
   const trackRecord = resolveTrackRecord(jobs);
+  const ghostPct = ghostFlaggedPct(jobs);
   const intelligence = resolveCompanyIntelligence(jobs, stage, news.value);
   // Legal-entity suffix stripped here — the ONE place `/co/[slug]` reads its
   // display name from (H1, `<title>`, OG image, JSON-LD all read
@@ -204,7 +216,8 @@ export async function getCompanyPageData(
   // `.value` other callers (the corpus tally, existing tests) depend on
   // keeping the suffix intact. Reused below for the about-line extraction so
   // both read the same brand token instead of each re-deriving it.
-  const displayName = displayCompanyName(name.value);
+  // A listed company shows the name the directory lists it under, so the page and the listing agree.
+  const displayName = directory.value?.companies.find((c) => c.domain === domain)?.name ?? displayCompanyName(name.value);
 
   return {
     domain,
@@ -221,12 +234,22 @@ export async function getCompanyPageData(
     hasTrackRecord: trackRecord !== null,
     openCount: openCount.value,
     openCountIsLowerBound: openCount.isLowerBound,
-    ghostFlaggedPct: ghostFlaggedPct(jobs),
+    ghostFlaggedPct: ghostPct,
     jobs,
     boards,
     intelligence,
     changeEvents: changeEvents.value,
     exhaust: exhaust.value,
+    facts: buildCompanyFacts({
+      name: displayName,
+      domain,
+      jobs,
+      openCount,
+      trackRecord,
+      ghostFlaggedPct: ghostPct,
+      facetDistribution: result.facetDistribution,
+      exhaust: exhaust.value,
+    }),
     // Read here — the async I/O boundary — not in the page component's
     // render body. See `CompanyPageData.nowMs`.
     nowMs: Date.now(),

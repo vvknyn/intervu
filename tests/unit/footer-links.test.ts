@@ -19,4 +19,11 @@ describe("footer links come from one list", () => {
         const hrefs = new Set(LEGAL_LINKS.map((l) => l.href));
         for (const hub of CAREER_HUBS) assert.ok(hrefs.has(hub.path), hub.path);
     });
+    it("every footer variant carries every hub and /co (the lean list is built from the same entries)", () => {
+        for (const links of [LEGAL_LINKS, LEAN_LEGAL_LINKS]) {
+            const hrefs = new Set(links.map((l) => l.href));
+            for (const hub of CAREER_HUBS) assert.ok(hrefs.has(hub.path), hub.path);
+            assert.ok(hrefs.has("/co"));
+        }
+    });
 });

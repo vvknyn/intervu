@@ -813,6 +813,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-SEO-07 | See security headers on a page response | agent | /jobs | signed-out | no | uncovered | — |
 | J-SEO-08 | See the sitemap fail loud when the data source is down | agent | /sitemap.xml | signed-out | no | uncovered | — |
 | J-SEO-09 | Follow the signed-out short URLs /packs and /apply to real surfaces | anon | /packs | signed-out | no | uncovered | — |
+| J-SEO-10 | Browse the front door, a search, a company page, /privacy and /login and see the browser contact only velai.app, Cloudflare Turnstile and WorkOS sign-in: company logos come from our own /logos/ path, never a third party | anon | /, /jobs?q=software+engineer, a /co page, /privacy, /login | signed-out | no | covered | third-party-hosts.spec.ts |
 
 ## NAV
 
