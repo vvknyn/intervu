@@ -16,6 +16,7 @@
  * what "the same name" means.
  */
 import { domainToSlug } from "@/lib/boards/slug";
+import { isCompanyDomain } from "@/lib/jobs/presentation";
 
 export function companyPagePath(company: string): string {
   return `/companies/${encodeURIComponent(company)}`;
@@ -28,14 +29,14 @@ export function companyPagePath(company: string): string {
  * domain (see `company-stats.ts`'s `dominantCompanyDomain` /
  * `page.tsx`'s redirect). A job carrying a `company_domain` therefore
  * links straight to `/co/`, skipping the resolver hop; a domain-less job
- * falls back to the name-keyed path. Uses `domainToSlug` unmodified — same
+ * falls back to the name-keyed path, as does one whose domain is an ATS or vendor host (no company page). Uses `domainToSlug` unmodified — same
  * normalization (trim + lowercase) every other `/co/[slug]` caller
  * (get-company.ts, hot-list.ts, app/page.tsx) already applies; adding a
  * second one here would risk disagreeing with it.
  */
 export function jobCompanyHref(company: string, companyDomain: string | null): string {
   const domain = companyDomain?.trim();
-  return domain ? companyBoardPath(domain) : companyPagePath(company);
+  return domain && isCompanyDomain(domain) ? companyBoardPath(domain) : companyPagePath(company);
 }
 
 /**

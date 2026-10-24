@@ -12,7 +12,7 @@ import { getSharedCompanyExhaust } from "@/lib/companies/exhaust-cache";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
 import type { CompanyChangeEvent, CompanyNewsArticle, CompanyPageData } from "@/lib/companies/types";
-import { ATS_PORTAL_HOSTNAME_RE, displayCompanyName } from "@/lib/jobs/presentation";
+import { displayCompanyName, isCompanyDomain } from "@/lib/jobs/presentation";
 import { isUnavailableJobsResult, SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import { searchJobs } from "@/lib/jobs/search";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -92,7 +92,7 @@ function ghostFlaggedPct(jobs: PublicJob[]): number | null {
  */
 export async function companyExists(slug: string, search: SearchFn = searchJobs): Promise<boolean> {
   const domain = decodeSlug(slug);
-  if (!domain || ATS_PORTAL_HOSTNAME_RE.test(domain)) return false;
+  if (!domain || !isCompanyDomain(domain)) return false;
   if (getBoardsForDomain(domain).length > 0) return true;
   const result = await search({ companyDomain: domain, limit: 1, hideGhosts: false });
   if (isUnavailableJobsResult(result)) throw new Error(result.note ?? SEARCH_UNAVAILABLE_MESSAGE);

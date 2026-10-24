@@ -568,6 +568,8 @@ export function humanizeTenantSubdomain(raw: string): string {
 }
 
 export const ATS_PORTAL_HOSTNAME_RE = /\.(applicantpro|greenhouse|lever|workday|icims|jobvite|bamboohr|smartrecruiters|zohorecruit|ashbyhq|recruitee|breezy|workable|oraclecloud)\.(com|io|net|co)\b/i;
+/** False for an ATS or vendor host (the directory's M1 rule): it hosts many employers' boards and is no company's domain. */
+export const isCompanyDomain = (domain: string): boolean => !ATS_PORTAL_HOSTNAME_RE.test(domain);
 const BARE_DOMAIN_RE = /^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i;
 
 /**
