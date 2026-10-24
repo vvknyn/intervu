@@ -7,7 +7,7 @@
  * call the results use. Options that would add nothing are never shown; an
  * option whose count cannot be fetched is dropped, never guessed.
  */
-import type { CandidateRelocation } from "@/lib/jobs/candidate-signals";
+import type { CandidateRelocation, CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { resumeSearchMark, searchParamsFromUrlState } from "@/lib/jobs/search-payload";
 import type { FacetKey, JobSearchParams, JobSearchResult, PostedBucket } from "@/lib/jobs/types";
 import type { JobsUrlState } from "@/lib/jobs/url-state";
@@ -41,8 +41,8 @@ export interface BroadenContext {
     /** The state's location is an eligibility filter (a For-you pack): every count reads a
      *  search that dropped it (`locationDropped`) as 0 roles there, never the unfiltered total. */
     locationRequired?: boolean;
-    /** The résumé shows a role past Senior, so the résumé-built searches these counts read keep such roles (`CountOptions.keepPastSenior`). */
-    keepPastSenior?: boolean;
+    /** The person's seniority, so these counts leave out roles past Senior as the results do (`omitsPastSenior`). */
+    seniority?: CandidateSignals["seniority"];
 }
 
 /** "Any": the search's own sentinel for "no location filter" (it also stops the IP default re-applying). */
@@ -180,8 +180,8 @@ type SearchFn = ResolveBroadenInput["search"];
 export interface CountOptions {
     /** See `BroadenContext.locationRequired`. */
     locationRequired?: boolean;
-    /** A résumé-built (`sort=fit`) state is counted as the pack retrieves it, leaving out roles past Senior unless this is set (`resumeSearchMark`). */
-    keepPastSenior?: boolean;
+    /** A state is counted as its results are retrieved: leaving out roles past Senior where `omitsPastSenior` says so (`resumeSearchMark`). */
+    seniority?: CandidateSignals["seniority"];
     /** Wait before the one retry of a failed count (tests pass an instant one). */
     sleep?: (ms: number) => Promise<void>;
 }
@@ -196,7 +196,7 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 export async function countResults(state: JobsUrlState, search: SearchFn, opts: CountOptions = {}): Promise<number | null> {
     const params = {
         ...searchParamsFromUrlState(state),
-        ...(state.sort === "fit" ? resumeSearchMark(true, false, opts.keepPastSenior) : {}),
+        ...resumeSearchMark(state.sort === "fit", false, opts.seniority),
         limit: 1,
         offset: 0,
     };
@@ -218,7 +218,7 @@ export async function countResults(state: JobsUrlState, search: SearchFn, opts: 
 export async function resolveBroadenOptions({ state, total, ctx, search, sleep }: ResolveBroadenInput): Promise<BroadenOption[]> {
     const counted = await Promise.all(
         broadenRungs(state, ctx).map(async (rung): Promise<BroadenOption | null> => {
-            const count = await countResults(rung.next, search, { locationRequired: ctx?.locationRequired, keepPastSenior: ctx?.keepPastSenior, sleep });
+            const count = await countResults(rung.next, search, { locationRequired: ctx?.locationRequired, seniority: ctx?.seniority, sleep });
             return count === null ? null : { ...rung, count };
         }),
     );

@@ -33,7 +33,7 @@ import { normalizePublicJobs } from "./normalize-public-job";
 import { sanitizeTimestamp } from "./posting-freshness";
 import { buildMeiliSort, compareJobsBySort, isPageSorted, resolveEffectiveSort, sortVerifiableHits } from "./sort";
 import { FACETABLE_KEYS, REQUESTED_FACET_KEYS } from "./types";
-import { listedPastSenior, titlePastSenior } from "./role-level";
+import { titlePastSenior, withinSenior } from "./role-level";
 import { payPlace } from "./pay-place";
 import { jobCountries, titlePlace } from "./resume-location";
 import { facetFilterClause, salaryMinClause } from "./unknown-inclusive-facets";
@@ -1407,9 +1407,9 @@ export async function searchMeili(p: JobSearchParams): Promise<JobSearchResult> 
       const { facetDistribution } = fetched;
       // A lane whose own phrase names a role past Senior ("Staff Product Manager") was asked for by
       // that phrase, so it keeps its rows: only the résumé's other phrases drop them.
-      const keepWithinSenior = (lane: PublicJob[]) => (p.omitPastSenior ? lane.filter(isWithinSenior) : lane);
+      const keepWithinSenior = (lane: PublicJob[]) => (p.omitPastSenior ? lane.filter(withinSenior) : lane);
       const lanes = p.omitPastSenior
-        ? fetched.lanes.map((lane, i) => (titlePastSenior(fitPhrases[i] ?? "") ? lane : lane.filter(isWithinSenior)))
+        ? fetched.lanes.map((lane, i) => (titlePastSenior(fitPhrases[i] ?? "") ? lane : lane.filter(withinSenior)))
         : fetched.lanes;
       const seen = new Set<string>();
       const unique: PublicJob[] = [];
@@ -1573,11 +1573,6 @@ async function fetchCompanyScopedLanes(
     lanes: laneParams.map((params, i) => ({ params, hits: batches[i].hits, total: batches[i].total })),
     facetDistribution: batches[0]?.facetDistribution,
   };
-}
-
-/** Not a role past Senior (`omitPastSenior`, types.ts). */
-function isWithinSenior(hit: PublicJob): boolean {
-  return !titlePastSenior(hit.title) && !listedPastSenior(hit.experience_level);
 }
 
 function fitPhraseTitleScoped(phrase: string): boolean {
