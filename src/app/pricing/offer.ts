@@ -3,7 +3,7 @@
  * its metadata, the blog posts and the tests quote the same figures.
  */
 
-export const MONTH_PRICE_USD = 12;
+export const MONTH_PRICE_USD = 6;
 export const MIN_MONTHS = 1;
 export const MAX_MONTHS = 12;
 export const REFUND_DAYS = 14;

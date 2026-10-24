@@ -40,7 +40,7 @@ export interface SessionFacts {
     mode: string;
     status: string | null;
     paymentStatus: string;
-    /** Quantity of every line item bought at the Velai product at the $12 offer. */
+    /** Quantity of every line item bought at the Velai product at the current offer. */
     pricedQuantity: number;
     /** What was actually charged (null = unknown) and refunded. */
     charged: number | null;

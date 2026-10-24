@@ -15,6 +15,7 @@ import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
 import { PROCESSORS } from "@/lib/legal/processors";
 import { LOG_ATTR_ALLOW_LIST } from "@/lib/observability/posthog-logs";
 import { PRIVACY_RESUME_SECTION_ID } from "@/lib/legal/privacy-promises";
+import { PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
 
 export { TELEMETRY_LEDGER_FIELDS_DISCLOSED };
 
@@ -243,7 +244,7 @@ export default function PrivacyPage() {
           prep answers where you left them. We use your search-activity profile for two things: to make your own
           results more relevant the more you use Velai, and, looked at in aggregate across everyone, to understand
           which kinds of job postings people actually apply to so we can improve search for everyone. Job search is
-          free. Anything that has our servers or AI handle your résumé costs $12 for a month, bought in advance with one payment and no
+          free. Anything that has our servers or AI handle your résumé costs {PRO_MONTHLY_PRICE} for a month, bought in advance with one payment and no
           renewal; see the <Link href="/pricing">pricing page</Link>. We don&apos;t sell any of this to
           advertisers. Velai never sells or licenses your data to anyone, even aggregated.
         </p>

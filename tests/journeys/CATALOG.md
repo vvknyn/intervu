@@ -864,7 +864,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 
 | ID | Journey | Persona | Entry | Auth | Writes | Status | Spec |
 |---|---|---|---|---|---|---|---|
-| J-PRICING-01 | Read the pricing page: one card, $12 a month, bought 1 to 12 months at a time, one payment, no auto-renew, no trial, 14-day refund, what stays free and what a month adds | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
+| J-PRICING-01 | Read the pricing page: one card, $6 a month, bought 1 to 12 months at a time, one payment, no auto-renew, no trial, 14-day refund, what stays free and what a month adds | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-02 | Reach pricing from the footer link on a marketing page | anon | /about | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-03 | The card shows a month picker and "Sign in to buy" when payments are configured, otherwise "Payments open soon" and no button; the meta description matches the card | anon | /pricing | signed-out | no | covered | pricing.spec.ts |
 | J-PRICING-04 | Pricing offers no data sale or licence | anon | /pricing | signed-out | no | covered | pricing.spec.ts |

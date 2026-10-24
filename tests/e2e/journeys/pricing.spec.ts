@@ -15,7 +15,7 @@ test("the pricing page is one card with the monthly price and the refund promise
   await expect(page.getByRole("heading", { level: 1 })).toContainText("One plan");
 
   const card = page.getByTestId("pricing-card");
-  await expect(card).toContainText("$12");
+  await expect(card).toContainText("$6");
   await expect(card).toContainText("1 to 12 months");
   await expect(card).toContainText("no auto-renew");
   await expect(card).toContainText("14-day refund");
@@ -48,11 +48,11 @@ test("the card offers sign-in-to-buy with a month picker, or says payments open 
   } else {
     await expect(page.getByTestId("pricing-sign-in")).toHaveAttribute("href", "/auth/start?next=/pricing");
     await page.getByTestId("pricing-months").selectOption("3");
-    await expect(page.getByTestId("pricing-total")).toContainText("$36");
+    await expect(page.getByTestId("pricing-total")).toContainText("$18");
   }
   // Search results and link previews read these, not the page body.
-  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /\$12/);
-  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", /\$12/);
+  await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /\$6/);
+  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", /\$6/);
   expect(diagnostics.serverErrors).toEqual([]);
 });
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type Stripe from "stripe";
 import { accessUntil, hasPaidAccess } from "../../src/lib/billing/access";
 import { useBillingDb } from "../../src/lib/billing/profile-store";
+import { MONTH_PRICE_USD } from "../../src/app/pricing/offer";
 import {
     DAY_MS,
     MONTH_MS,
@@ -103,7 +104,7 @@ function fakeStripe(over: { sessions: Stripe.Checkout.Session[]; lineItems: Reco
                 },
                 listLineItems: async (id: string) => {
                     seen.lineItems.push(id);
-                    return { data: (over.lineItems[id] ?? []).map((li) => ({ price: { product: li.product, unit_amount: li.unit_amount ?? 1200, currency: "usd" }, quantity: li.quantity })) };
+                    return { data: (over.lineItems[id] ?? []).map((li) => ({ price: { product: li.product, unit_amount: li.unit_amount ?? MONTH_PRICE_USD * 100, currency: "usd" }, quantity: li.quantity })) };
                 },
             },
         },
@@ -148,11 +149,11 @@ describe("readPaymentFacts", () => {
     });
 });
 
-describe("F5: only the $12 offer earns months", () => {
-    it("a cheaper price on the same product grants 0 months; a $12 price from an older price id still counts", async () => {
+describe("F5: only the current offer earns months", () => {
+    it("a cheaper price on the same product grants 0 months; a current-offer price from an older price id still counts", async () => {
         const { stripe } = fakeStripe({
             sessions: [session("cheap", 100), session("old", 200)],
-            lineItems: { cheap: [{ product: "prod_velai", quantity: 2, unit_amount: 100 }], old: [{ product: "prod_velai", quantity: 1, unit_amount: 1200 }] },
+            lineItems: { cheap: [{ product: "prod_velai", quantity: 2, unit_amount: 100 }], old: [{ product: "prod_velai", quantity: 1, unit_amount: MONTH_PRICE_USD * 100 }] },
         });
         assert.deepEqual(await readPaymentFacts(stripe, "cus_1", "prod_velai"), [{ createdMs: 200_000, months: 1 }]);
     });

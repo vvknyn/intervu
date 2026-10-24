@@ -1,3 +1,5 @@
+import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE } from "@/app/pricing/offer";
+
 /**
  * Every outside service that receives a visitor's or user's personal data, as
  * /privacy ("Who handles your data") lists them. One list: the page renders
@@ -100,7 +102,7 @@ export const PROCESSORS: readonly Processor[] = [
     name: "Stripe",
     receives:
       "Your email and card details, entered on Stripe's checkout page. We also send your Velai account id, as the payment reference and in the notes attached to the payment and to your Stripe customer record. From Stripe we keep your Stripe customer id and the date your paid time ends.",
-    why: "Payment for 1 to 12 prepaid months at $12 a month.",
+    why: `Payment for ${MIN_MONTHS} to ${MAX_MONTHS} prepaid months at ${PRO_MONTHLY_PRICE} a month.`,
     retention: "Set by Stripe. We have not confirmed a period.",
     hosts: [],
     packages: ["stripe"],

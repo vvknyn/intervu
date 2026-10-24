@@ -47,7 +47,7 @@ describe("/pricing when the paid-time read failed", () => {
 describe("/pricing card", () => {
   it("states the price, the terms of the purchase and the privacy link", () => {
     const html = render({ signedIn: false, billingConfigured: true, paidUntil: null });
-    assert.match(html, /\$12/);
+    assert.match(html, /\$6/);
     assert.match(html, /1 to 12 months/);
     assert.match(html, /no auto-renew/);
     assert.match(html, /14-day refund/);
@@ -59,7 +59,7 @@ describe("/pricing card", () => {
   it("configured and signed out: a month picker with 12 choices, the total, and sign-in that returns to /pricing", () => {
     const html = render({ signedIn: false, billingConfigured: true, paidUntil: null });
     assert.equal([...html.matchAll(/<option /g)].length, 12);
-    assert.match(html, /Total: \$12 for 1 month/);
+    assert.match(html, /Total: \$6 for 1 month/);
     assert.match(html, /data-testid="pricing-sign-in"[^>]*href="\/auth\/start\?next=\/pricing"|href="\/auth\/start\?next=\/pricing"[^>]*data-testid="pricing-sign-in"/);
     assert.doesNotMatch(html, /data-testid="pricing-buy"/);
     assert.doesNotMatch(html, /Payments open soon|Paid until/);
@@ -77,7 +77,7 @@ describe("/pricing card", () => {
 
   it("configured and signed in: a Buy button, not a sign-in link", () => {
     const html = render({ signedIn: true, billingConfigured: true, paidUntil: null });
-    assert.match(html, /data-testid="pricing-buy"[^>]*>Buy 1 month for \$12/);
+    assert.match(html, /data-testid="pricing-buy"[^>]*>Buy 1 month for \$6/);
     assert.doesNotMatch(html, /pricing-sign-in/);
   });
 
@@ -92,7 +92,7 @@ describe("/pricing card", () => {
   it("signed in with access: shows the paid-until date and offers to add months", () => {
     const html = render({ signedIn: true, billingConfigured: true, paidUntil: PAID_UNTIL });
     assert.match(html, /Paid until Nov 22, 2026/);
-    assert.match(html, />Add 1 month for \$12/);
+    assert.match(html, />Add 1 month for \$6/);
     assert.doesNotMatch(render({ signedIn: true, billingConfigured: true, paidUntil: null }), /Paid until/);
   });
 
@@ -106,14 +106,14 @@ describe("/pricing card", () => {
 
 describe("pricing offer helpers", () => {
   it("totals are months times the monthly price", () => {
-    assert.equal(totalPrice(1), "$12");
-    assert.equal(totalPrice(12), "$144");
+    assert.equal(totalPrice(1), "$6");
+    assert.equal(totalPrice(12), "$72");
   });
   it("paid-until is a UTC calendar date", () => {
     assert.equal(formatPaidUntil(PAID_UNTIL), "Nov 22, 2026");
   });
   it("the meta description quotes the same price and terms as the card", () => {
-    assert.match(PRICING_DESCRIPTION, /\$12/);
+    assert.match(PRICING_DESCRIPTION, /\$6/);
     assert.match(PRICING_DESCRIPTION, /1 to 12 months/);
     assert.match(PRICING_DESCRIPTION, /14-day refund/);
   });
