@@ -17,11 +17,26 @@ export const LISTED_NAMES_REVALIDATE_SECONDS = 6 * 60 * 60;
 /** Rows per domain, in the order asked: the company page's own roles query, fewer attributes. */
 export type EvidenceFetcher = (domains: readonly string[]) => Promise<PublicJob[][]>;
 
-export const fetchNameEvidence: EvidenceFetcher = async (domains) => {
+type BatchReader = typeof meiliSearchEach;
+
+/**
+ * Every batch is read once, then once more if it fails (a transient Meilisearch blip). A batch that
+ * fails twice is logged with its index and size — prod masks Server Components errors to a digest —
+ * and rethrown, so a failed read is never papered over.
+ */
+export const fetchNameEvidence = async (domains: readonly string[], read: BatchReader = meiliSearchEach): Promise<PublicJob[][]> => {
   const batches: string[][] = [];
   for (let i = 0; i < domains.length; i += BATCH) batches.push(domains.slice(i, i + BATCH));
+  const readBatch = (batch: string[]) => read(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })));
   const rows = await Promise.all(
-    batches.map((batch) => meiliSearchEach(batch.map((domain) => ({ params: companyRolesParams(domain), attributesToRetrieve: EVIDENCE_ATTRIBUTES })))),
+    batches.map((batch, index) =>
+      readBatch(batch)
+        .catch(() => readBatch(batch))
+        .catch((error: unknown) => {
+          console.error(`listed names: batch ${index} (${batch.length} domains) failed twice: ${error instanceof Error ? error.message : String(error)}`);
+          throw error;
+        }),
+    ),
   );
   return rows.flat();
 };
