@@ -561,5 +561,12 @@ test("displayCompanyName keeps bare Co/Company/Group/Holdings and 'AS' unstrippe
     assert.equal(displayCompanyName("Riverside Group"), "Riverside Group");
     assert.equal(displayCompanyName("Inc Magazine"), "Inc Magazine");
     assert.equal(displayCompanyName("Frontier AS"), "Frontier AS");
-    assert.equal(displayCompanyName("Smith & Co."), "Smith &");
+    });
+
+test("displayCompanyName never strips a legal form that directly follows '&' or 'and' — it is part of the name", () => {
+    assert.equal(displayCompanyName("Smith & Co."), "Smith & Co.");
+    assert.equal(displayCompanyName("Levi Strauss & Co."), "Levi Strauss & Co.");
+    assert.equal(displayCompanyName("Procter & Gamble Co."), "Procter & Gamble");
+    assert.equal(displayCompanyName("Barnes and Noble Inc."), "Barnes and Noble");
+    assert.equal(displayCompanyName("Smith and Co."), "Smith and Co.");
 });

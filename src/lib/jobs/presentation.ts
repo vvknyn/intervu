@@ -834,15 +834,18 @@ const GEO_GATED_TAIL_TOKENS = new Set(GEO_GATED_TAIL_WORDS.map(normalizeSuffixTo
  * `COMPOUND_ONLY_LEGAL_WORDS` left dangling before the stripped form go too.
  */
 function stripBareLegalForm(s: string): string {
+    /** A word right after "&"/"and" is part of the name ("Smith & Co."), never a suffix. */
+    const joinedToName = (at: number) => /(?:&|\band)\s*$/i.test(s.slice(0, at));
     const tokens = [...s.matchAll(/[^\s.]+/g)]
         .map((m) => ({ norm: normalizeSuffixToken(m[0]), start: m.index }))
         .filter((t) => t.norm);
     for (const suffix of BARE_LEGAL_SUFFIX_TOKENS) {
         const first = tokens.length - suffix.length;
         if (first < 1 || !suffix.every((w, i) => tokens[first + i].norm === w)) continue;
+        if (joinedToName(tokens[first].start)) continue;
         if (suffix.length === 1 && GEO_GATED_TAIL_TOKENS.has(suffix[0]) && !s.trimEnd().endsWith(".")) continue;
         let keep = first;
-        while (keep > 1 && COMPOUND_ONLY_LEGAL_WORDS.has(tokens[keep - 1].norm)) keep--;
+        while (keep > 1 && COMPOUND_ONLY_LEGAL_WORDS.has(tokens[keep - 1].norm) && !joinedToName(tokens[keep - 1].start)) keep--;
         for (const end of keep === first ? [first] : [keep, first]) {
             const remainder = s.slice(0, tokens[end].start).replace(/[,\s]+$/, "");
             if (remainder && !isOnlyLegalForm(remainder)) return remainder;
