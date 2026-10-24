@@ -706,16 +706,12 @@ export function pickBrandRoot(groups: readonly NameGroup[]): NameGroup | null {
  * The brand a domain spells when the corpus names only its qualified entities, or `null`. Where no bare
  * root row exists, a leading token run whose key equals one of the host's labels ("Aliaxis" on aliaxis.it)
  * and that at least `MIN_BRANDED_SIBLINGS` groups with DISTINCT qualifiers share is the brand: the siblings
- * are one witness, the domain the second. A group only counts when it holds at least `min(2, largest group's rows)` rows:
- * a lone outlier beside a corroborated group is an odd row and cannot trigger the stem, while a domain of all singletons
- * weighs every group equally. Groups differing only by a legal suffix share a qualifier
+ * are one witness, the domain the second. Groups differing only by a legal suffix share a qualifier
  * (`brandTokens` drops it), so they count once. The run is spelled as the siblings' own leading words.
  */
 function hostSpelledStem(groups: readonly NameGroup[], labels: readonly string[]): string | null {
-  const floor = Math.min(2, Math.max(...groups.map((g) => g.count)));
   const stems = new Map<string, { run: number; qualifiers: Set<string>; spellings: Map<string, number> }>();
   for (const { display, tokens, count } of groups) {
-    if (count < floor) continue;
     for (let run = 1; run < tokens.length; run += 1) {
       const key = tokens.slice(0, run).join("");
       if (!labels.includes(key)) continue;

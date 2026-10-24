@@ -653,7 +653,7 @@ describe("companies/company-name — name classes (C1-C6)", () => {
   });
 
   it("C2: a short word a row spells in capitals is an acronym everywhere; known acronym words always are", () => {
-    assert.equal(name({ "Qrt Group": 3, "QRT Capital": 1 }, "qrt.com"), "QRT Group");
+    assert.equal(name({ "Qrt Group": 3, "QRT Capital": 1 }, "qrt.com"), "QRT");
     assert.equal(name({ "Hello Ai": 3 }, "helloai.com"), "Hello AI");
     assert.equal(name({ "Zed Uk": 3 }, "zed.co.uk"), "Zed UK");
   });
@@ -683,14 +683,10 @@ describe("companies/company-name — name classes (C1-C6)", () => {
     assert.equal(dropCountryQualifier("US Steelworks", "us-steelworks.com"), "US Steelworks");
   });
 
-  it("C6: a lone outlier group cannot trigger the stem; all-singleton domains weigh every group equally", () => {
-    assert.equal(name({ "Acme Robotics": 2, "Acme Labs": 1 }, "acme.com"), "Acme Robotics");
-    assert.equal(name({ "Zeta Robotics": 3, "Zeta Staffing": 1, "Zeta Labs": 1 }, "zeta.com"), "Zeta Robotics");
-    assert.equal(name({ "Orbit Energy": 4, "Orbit Foods": 1, "Orbit Labs": 1 }, "orbit.com"), "Orbit Energy");
+  it("C6: the stem the host spells is the brand whenever only qualified entities exist, whatever the row counts", () => {
+    assert.equal(name({ "Acme Robotics": 2, "Acme Labs": 1 }, "acme.com"), "Acme");
+    assert.equal(name({ "Zeta Robotics": 3, "Zeta Staffing": 1, "Zeta Labs": 1 }, "zeta.com"), "Zeta");
+    assert.equal(name({ "Graybar Electric": 3, "Graybar Canada": 1 }, "graybar.com"), "Graybar");
     assert.equal(name({ "Nova Bio": 1, "Nova Air": 1, "Nova Tech": 1 }, "nova.com"), "Nova");
-    assert.equal(
-      name({ "Aliaxis Latin American Services": 5, "Aliaxis Iberia SAU (Spain)": 2, "Aliaxis UK Limited (United Kingdom)": 2 }, "aliaxis.it"),
-      "Aliaxis",
-    );
   });
 });
