@@ -220,12 +220,43 @@ const EXPANSION_MAX_WORDS = 5;
 const EXPANSION_CHARS_RE = /^[\p{L}\p{N} &.'\u2019-]+$/u;
 const DOMAIN_TOKEN_RE = /\.[a-z]{2,}\b/i;
 
-/** Are all of `label`'s characters in `key`, in order, starting with its first character? */
-function isAnchoredSubsequence(label: string, key: string): boolean {
-  if (!label || label[0] !== key[0]) return false;
-  let at = 0;
-  for (const ch of key) if (ch === label[at]) at++;
-  return at === label.length;
+/**
+ * Can `label` be read as pieces taken in order from the start of successive tokens of `name`? Each piece is a
+ * subsequence of ONE token that begins with that token's first letter ("pyramidhc" = Pyramid + h,c of Healthcare);
+ * the first piece comes from the first token, later tokens may be skipped.
+ */
+function spellsFromWordStarts(label: string, name: string): boolean {
+  const tokens = name.split(/[\s&]+/).map(siteKey).filter(Boolean);
+  const isSubsequence = (token: string, piece: string): boolean => {
+    let at = 0;
+    for (const ch of token) if (ch === piece[at]) at++;
+    return at === piece.length;
+  };
+  const consume = (rest: string, from: number, last: number): boolean => {
+    if (!rest) return true;
+    for (let t = from; t < last; t++) {
+      if (tokens[t]![0] !== rest[0]) continue;
+      for (let k = rest.length; k >= 1; k--) if (isSubsequence(tokens[t]!, rest.slice(0, k)) && consume(rest.slice(k), t + 1, tokens.length)) return true;
+    }
+    return false;
+  };
+  return consume(label, 0, Math.min(1, tokens.length));
+}
+
+/** A respelling the page title can be trusted for: cased (all lower-case is the domain written out), and not cut mid-phrase. */
+const isSoundSpelling = (c: string): boolean => /\p{Lu}/u.test(c) && /^[\p{L}\p{N}]/u.test(c) && /[\p{L}\p{N}.)'\u2019]$/u.test(c);
+const wordCount = (c: string): number => c.split(/\s+/).length;
+/** A same-key respelling may not drop a space of `display` unless it marks the join with a case change (NaughtOne, FieldAI). */
+const keepsWords = (c: string, display: string): boolean => wordCount(c) >= wordCount(display) || /\p{Ll}\p{Lu}/u.test(c);
+
+/** The shortest whitespace-word prefix (2+ words) of `name` that already spells `label`: the rest is a tagline. */
+function dropTagline(label: string, name: string): string {
+  const words = name.split(/\s+/);
+  for (let n = 2; n < words.length; n++) {
+    const head = words.slice(0, n).join(" ");
+    if (siteKey(head) === label) return head;
+  }
+  return name;
 }
 
 /** The shortest site name that `label` (a domain word) squashes: it spells the label's letters across 2+ words. */
@@ -235,10 +266,10 @@ function expandSquashedLabel(label: string, names: readonly string[]): string | 
     return (
       words.length >= 2 && words.length <= EXPANSION_MAX_WORDS &&
       EXPANSION_CHARS_RE.test(name) && !DOMAIN_TOKEN_RE.test(name) && !isBanner(name) &&
-      siteKey(words[0]!) !== label && isAnchoredSubsequence(label, siteKey(name))
+      siteKey(words[0]!) !== label && spellsFromWordStarts(label, name)
     );
   };
-  return names.filter(qualifies).sort((a, b) => a.length - b.length)[0];
+  return names.filter(qualifies).map((name) => dropTagline(label, name)).filter(isSoundSpelling).sort((a, b) => a.length - b.length)[0];
 }
 
 /** Does `word` carry casing that plain title case lacks (BNSF, McCain, nVent, Sendik's)? */
@@ -248,7 +279,7 @@ const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word 
 function respellFirstWord(label: string, display: string, names: readonly string[]): string | undefined {
   return names
     .map((name) => name.split(/\s+/)[0]!.replace(/[.,:;|]+$/, ""))
-    .find((word) => word !== display && siteKey(word) === label && !isBanner(word) && carriesCasing(word));
+    .find((word) => word !== display && siteKey(word) === label && !isBanner(word) && carriesCasing(word) && isSoundSpelling(word));
 }
 
 /**
@@ -258,13 +289,18 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * SQ: when `display` is only the host's squashed first label ("Pyramidhc" on pyramidhc.com) and no site
  * name respells it, the shortest 2-5 word site name that spells the label's letters across its words wins
  * ("Pyramid Healthcare"), or the site's cased first word when that is the label ("BNSF"). Otherwise `display` stands.
+ * Guards: (1) SQ runs only for a one-word `display`; a spaced name is already spelled. (2) An expansion spells the
+ * label from the starts of its words ("Pyramid Healthcare", not letters scattered through a phrase). (3) A 2+ word
+ * prefix of an expansion that already spells the label is the name; the rest is a tagline ("Airbus Helicopters in Canada").
+ * (4) Any respelling needs an upper-case letter and a clean start/end ("Children of America -" fails), and a
+ * same-key one may not drop a space of `display` unless it marks the join by case ("NaughtOne" yes, "Sunlife" no).
  */
 export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string): string {
   const spellings = candidates.map((c) => c.replace(/[®™©℠]/g, "").trim());
-  const respelled = spellings.find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c));
+  const respelled = spellings.find((c) => c !== display && siteKey(c) === siteKey(display) && !isBanner(c) && isSoundSpelling(c) && keepsWords(c, display));
   if (respelled) return respelled;
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
-  if (!label || siteKey(display) !== label) return display;
+  if (!label || /\s/.test(display) || siteKey(display) !== label) return display;
   const cleaned = spellings.map((c) => displayCompanyName(c));
   const cased = respellFirstWord(label, display, cleaned);
   if (cased) return cased;
