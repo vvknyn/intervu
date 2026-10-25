@@ -84,11 +84,19 @@ export function Affordance({
     );
 }
 
-/** The typed draft as a salary floor: digits only, so a pasted "-5", "$65,000"
- *  or "abc" can never commit a negative or non-numeric value (the field is
- *  type=text, which does no validation of its own). */
-export function parseSalaryMinDraft(draft: string): number {
-    return Number(draft.replace(/[^0-9]/g, "")) || 0;
+/** The typed draft as a salary floor in whole dollars, or `null` when it is not
+ *  a number we can read without guessing. Accepts "120000", "$120,000",
+ *  "120,000", "120k"/"120K", "120.5k" and "120000.50" (rounded to the dollar);
+ *  blank is 0, which clears the floor. Everything else ("1.5e5", "-5", "abc",
+ *  "12 0", "120k+") is `null`: stripping non-digits turned "120k" into 120,
+ *  "1.5e5" into 155 and "120000.50" into 12000050, each a silent wrong filter. */
+export function parseSalaryMinDraft(draft: string): number | null {
+    const text = draft.trim().replace(/^\$\s*(?=\S)/, "");
+    if (text === "") return 0;
+    const m = /^(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?([kK])?$/.exec(text);
+    if (!m) return null;
+    const amount = Number(m[1].replace(/,/g, "") + (m[2] ?? "")) * (m[3] ? 1000 : 1);
+    return Number.isSafeInteger(Math.round(amount)) ? Math.round(amount) : null;
 }
 
 /**
@@ -112,9 +120,16 @@ export function SalaryCustomMinInput({
 
     useEffect(() => {
         setDraft(salaryMin > 0 ? String(salaryMin) : "");
+        setInvalid(false);
     }, [salaryMin]);
 
-    const commit = () => onSalaryMin(parseSalaryMinDraft(draft));
+    const [invalid, setInvalid] = useState(false);
+
+    const commit = () => {
+        const value = parseSalaryMinDraft(draft);
+        setInvalid(value === null);
+        if (value !== null) onSalaryMin(value);
+    };
 
     return (
         // Wraps the field under its label when the column is narrow (a
@@ -126,11 +141,12 @@ export function SalaryCustomMinInput({
                 <span className="text-muted-foreground">$</span>
                 <input
                     type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
                     enterKeyHint="done"
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => {
+                        setDraft(e.target.value);
+                        setInvalid(false);
+                    }}
                     onBlur={commit}
                     onKeyDown={(e) => {
                         if (e.key !== "Enter") return;
@@ -139,10 +155,16 @@ export function SalaryCustomMinInput({
                     }}
                     placeholder="e.g. 65000"
                     aria-label="Custom minimum salary"
+                    aria-invalid={invalid || undefined}
                     data-testid="salary-custom-min"
                     className="w-20 min-w-0 bg-transparent text-xs text-foreground outline-none"
                 />
             </span>
+            {invalid && (
+                <span role="alert" className="w-full text-destructive" data-testid="salary-custom-min-error">
+                    Enter an amount like 120000 or 120k.
+                </span>
+            )}
         </label>
     );
 }
