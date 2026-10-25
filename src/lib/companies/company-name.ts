@@ -379,8 +379,23 @@ export function siteSpelling(display: string, candidates: readonly string[] = []
 export function siteSpellings(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = [], rowNames: readonly string[] = []): { name: string; unsettled: string; identity: string } {
   const respelled = respelledBySite(display, candidates, domain, rowSpelling);
   const finish = (name: string): string => casingRefined(labelSpelled(restoreAcronyms(hostAcronym(name, domain, candidates), candidates), labelSpellings, domain), candidates, domain);
-  const settled = respelled === display ? settledByHost(display, candidates, domain, rowNames) : { name: respelled, identity: respelled };
+  const hostSettled = respelled === display ? settledByHost(display, candidates, domain, rowNames) : { name: respelled, identity: respelled };
+  const settled = hostSettled.name === display ? ((cut) => (cut ? { name: cut, identity: cut } : hostSettled))(attestedBeforeCareersWord(display, candidates)) : hostSettled;
   return { name: finish(settled.name), unsettled: finish(respelled), identity: finish(settled.identity) };
+}
+
+/** Careers-site words (several languages) a job row may glue onto a company name ("Bjakcareer"); display-only, unlike the label/collision `SITE_PURPOSE_WORDS`. */
+const GLUED_CAREERS_WORDS = new Set(["career", "careers", "job", "jobs", "carreira", "carreiras", "carrera", "carreras", "karriere", "carriere", "carrieres", "empleo", "empleos", "vagas", "vacatures", "stellen"]);
+
+/** A one-word `display` that is a name the site attests plus a glued careers word ("Bjakcareer" with site name "BJAK") shows the attested name; null otherwise. */
+function attestedBeforeCareersWord(display: string, candidates: readonly string[]): string | null {
+  if (/\s/.test(display)) return null;
+  const plainKey = (value: string): string => siteKey(value.normalize("NFD").replace(/\p{M}/gu, ""));
+  const key = plainKey(display);
+  return candidates.map(cleanedSiteName).find((c) => {
+    const head = plainKey(c);
+    return head.length > 0 && key.length > head.length && key.startsWith(head) && GLUED_CAREERS_WORDS.has(key.slice(head.length)) && EXPANSION_CHARS_RE.test(c) && !DOMAIN_TOKEN_RE.test(c) && !isBanner(c) && isSoundSpelling(c);
+  }) ?? null;
 }
 
 /** The keys a name can have and still be the domain's own label: the label, or the label minus exactly one `LABEL_TAIL_WORDS` word. */
