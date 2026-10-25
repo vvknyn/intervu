@@ -568,6 +568,7 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-SETTINGS-32 | A failed account delete shows the inline error in the dialog and keeps it open | signed-in | /settings?tab=account, type DELETE, the delete action answered with an error | signed-in | no | uncovered | — |
 | J-SETTINGS-33 | Download the on-device model from Preferences and see its progress | signed-in | /settings?tab=prefs | signed-in | no | uncovered | — |
 | J-SETTINGS-34 | Daily picks are off until turned on; turning them on from Account saves it, and when the saved résumé can't be ranked it says "None can go out yet" with "Upload it on Jobs" (dev-server only: signed-in mock, actions answered in the browser) | signed-in | /mock/settings?tab=account | signed-in | no | covered | settings.spec.ts |
+| J-SETTINGS-35 | A failed read of the saved preferences ends Settings › Preferences › "Postings written in" in "We can't load your saved language right now." with Retry, never the control showing the résumé's language as if it were the saved choice; Retry reads again and shows the saved language (dev-server only: signed-in mock, actions answered in the browser) | signed-in | /mock/settings?tab=prefs | signed-in | no | covered | settings.spec.ts |
 
 ## TRACKER
 
