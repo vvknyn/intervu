@@ -38,8 +38,6 @@ function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id" | "title" | "c
         vacancy_status: "open",
         ghost_badge: "clear",
         company_open_count: 4,
-        company_opened_90d: 6,
-        company_closed_90d: 2,
         ...overrides,
     };
 }
@@ -126,8 +124,6 @@ const STATES: Record<string, { viewed: PublicJob; related: PublicJob[]; basis: R
             salary_period: null,
             tags: [],
             company_open_count: null,
-            company_opened_90d: null,
-            company_closed_90d: null,
         }),
         related: SIMILAR.slice(0, 1),
         basis: "title",

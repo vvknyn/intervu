@@ -1,4 +1,5 @@
 import { readCompanyExhaust, type CompanyExhaust } from "@/lib/companies/exhaust";
+import { exhaustHiringRecord } from "@/lib/companies/hiring-record";
 
 /**
  * The company page's box-database read, kept per employer in this server
@@ -70,3 +71,12 @@ export function createExhaustCache(
 
 /** The page's shared instance. */
 export const getSharedCompanyExhaust = createExhaustCache((domain) => readCompanyExhaust(domain));
+
+/** The employer's record sentence through the shared cache: at most one cached read per call, null when the box has none. */
+export async function companyHiringRecord(
+  domain: string,
+  load: (domain: string) => Promise<CompanyExhaust | null> = getSharedCompanyExhaust,
+  nowMs: number = Date.now(),
+): Promise<string | null> {
+  return exhaustHiringRecord(await load(domain.trim().toLowerCase()), nowMs);
+}

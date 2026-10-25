@@ -16,7 +16,7 @@ export function companySections(facts: CompanyFacts, extras: SectionExtras): Sec
   const { hiring, mix, pay, health, filings } = facts;
   const present: Record<SectionId, boolean> = {
     identity: true,
-    hiringNow: hiring.openCount > 0 || hiring.opened90d != null || hiring.closed90d != null || hiring.lastPostedAt != null || (hiring.cadence?.length ?? 0) > 0,
+    hiringNow: hiring.openCount > 0 || hiring.lastPostedAt != null || (hiring.cadence?.length ?? 0) > 0,
     whereAndHow: [mix.countries, mix.workType, mix.employmentType, mix.experienceLevel, mix.visaSponsorship, pay].some((f) => f != null),
     skills: mix.skills != null || mix.tech != null,
     listingHealth: health.ghostFlaggedPct != null || health.verdict != null,

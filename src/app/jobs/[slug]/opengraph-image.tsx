@@ -17,18 +17,14 @@ export default async function Image({ params }: { params: Promise<{ slug: string
   const id = parseJobSlug(slug);
   const job = id ? await getJobById(id) : null;
 
-  // The eyebrow is the reason someone forwards the link: the employer's own
-  // 90-day track record when we have it. Never invent a number — fall back
-  // to the company name, and only to a generic label when even that is absent.
+  // The eyebrow is the company name, or a generic label when even that is absent.
+  // No opened/closed numbers: a count baked into a share image is cached by social sites and goes stale.
   // `company` is cleaned through the same chain the job page itself uses
   // (`displayCompanyFor` in ./page.tsx) — the index carries the ATS-stated
   // raw name, so an uncleaned `job.company` here would put "REQ123 Acme" in
   // a social-preview card nobody else on the route renders raw.
   const company = job ? displayCompanyBrand(job.company, job.company_domain, job.title) || null : null;
-  const eyebrow =
-    job && job.company_opened_90d != null && job.company_closed_90d != null && company
-      ? `${company} · opened ${job.company_opened_90d}, closed ${job.company_closed_90d} in 90d`
-      : (company ?? "Live jobs, checked against companies' own career pages");
+  const eyebrow = company ?? "Live jobs, checked against companies' own career pages";
 
   const jobTitle = job ? titleCaseDisplay(decodeText(job.title)) : null;
   return buildPageOgImage(jobTitle ?? SITE_NAME, eyebrow);

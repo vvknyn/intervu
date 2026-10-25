@@ -16,7 +16,7 @@ import type { CompanyPageData } from "./types";
 import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
-import { hiringRecordSentence } from "./hiring-record";
+import { exhaustHiringRecord } from "./hiring-record";
 import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
@@ -33,22 +33,6 @@ import { formatCount } from "@/lib/format";
  * renders as `N+`. One helper, so the KPI tile, the roles-list caption and
  * the footer CTA cannot end up disagreeing about how exact the same number is.
  */
-/**
- * Does the KPI tile row have anything to show?
- *
- * All four tiles (open roles, opened/closed 90d, possibly-stale share) read
- * as a literal "0" beside three "—" placeholders when an employer has no
- * live roles and no 90-day track record — a row of dead placeholders next to
- * a real zero, not information a visitor can act on. Gates the whole row
- * rather than each tile individually, since a partial row would still make
- * the same "nothing to see" claim once the rest render blank.
- */
-export function hasCompanyKpiContent(
-  data: Pick<CompanyPageData, "openCount" | "hasTrackRecord">,
-): boolean {
-  return data.openCount > 0 || data.hasTrackRecord;
-}
-
 export function openCountText(
   data: Pick<CompanyPageData, "openCount" | "openCountIsLowerBound">,
 ): string {
@@ -303,9 +287,9 @@ export type CompanyHiringAnswer = {
   /** See `buildLiveCheckFact`. The page prints it after the headline, so the
    *  count of every open role sits beside how many were recently seen live. */
   liveCheck: string;
-  /** The opened/closed record when it is known, and a plain statement that
-   *  it isn't when it isn't. Never phrased as a finding either way. */
-  trackRecord: string;
+  /** The opened/closed record from `IntegrityFacts`; null when those are
+   *  unavailable. No other source states it. */
+  trackRecord: string | null;
   /** See `buildFreshnessFact`. Empty string when there is no fetched role to
    *  measure or no default window to measure against — the page renders it
    *  conditionally, same as `trackRecord`'s sibling section. */
@@ -323,13 +307,9 @@ export type CompanyHiringAnswer = {
  *
  * It is built as ONE function over the whole answer, rather than a line the
  * page assembles, because the honesty constraint is a property of the
- * combination: the open-role count is known today, the 90-day open/close
- * record is null for every employer until the `company_*` aggregate sync
- * lands (see `CompanyPageData.hasTrackRecord`), and a sentence that reads the
- * same in both states would be claiming the missing half. So the verdict rests
- * only on the count, and `trackRecord` NAMES the gap instead of dressing two
- * nulls as a stable history. When the aggregates arrive the same code says
- * more without being edited — the branch is data-driven, not a TODO.
+ * combination: the open-role count is always known, the opened/closed record
+ * only when `IntegrityFacts` loaded. The verdict rests on the count alone, and
+ * `trackRecord` is null rather than a stand-in when the record is missing.
  *
  * `nowMs` is threaded by the caller (same convention as `searchResultLine`,
  * lib/jobs/presentation.ts) rather than read internally via `Date.now()`, so
@@ -338,17 +318,15 @@ export type CompanyHiringAnswer = {
 export function buildCompanyHiringAnswer(
   data: Pick<
     CompanyPageData,
-    "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord" | "jobs"
+    "openCount" | "openCountIsLowerBound" | "jobs"
   > &
     Partial<Pick<CompanyPageData, "exhaust">>,
   nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
   const roles = data.openCount === 1 ? "open role" : "open roles";
-  // The box database's record (job_listings) is the one the gated integrity
-  // band prints; reading it here too keeps the rail from saying "isn't
-  // tracked" a few inches above a band that prints the same record.
-  const integrity = data.exhaust?.integrity?.data ?? null;
+  // The box database's record (job_listings) is the only source of the
+  // opened/closed record, the one the integrity band and "Hiring now" print.
   return {
     hasOpenRoles,
     // No "No" on the empty branch: the page knows what Velai tracks, not
@@ -359,11 +337,7 @@ export function buildCompanyHiringAnswer(
       ? `${openCountText(data)} ${roles} live on Velai right now`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
-    trackRecord: integrity
-      ? hiringRecordSentence(integrity, nowMs)
-      : data.hasTrackRecord
-        ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
-        : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
+    trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
     freshness: buildFreshnessFact(data, nowMs),
   };
 }
