@@ -929,6 +929,8 @@ A new account's setup (`src/components/onboarding/`): the account is marked at s
 | J-MODAL-04 | Open "Track a role" on /yours as a guest; the Status picker opens above the sheet (an option is the topmost element), picking one sets it, Close dismisses without saving | anon | /yours?view=new | signed-out | no | covered | modal.spec.ts |
 | J-MODAL-05 | Open Feedback from the account menu; the menu closes, the Type picker opens above the dialog and picking an option sets it, Cancel closes without sending (dev-server only: signed-in mock) | signed-in | any page, `topbar-avatar` then Feedback | signed-in | no | covered | modal.spec.ts |
 | J-MODAL-06 | Customize a role twice with a guest résumé (on-device mode on); each draft starts from the guest's own résumé (every "Was:" line is the guest's own summary or line), offers only Close, Copy and Download PDF, and the résumé stored in the browser is unchanged | anon with a guest résumé | /jobs?q=engineer, open a role, `local-customize-open` | signed-out | no | covered | modal.spec.ts |
+| J-MODAL-07 | On /jobs, tap the Posted chip at 390 wide: a full-width bottom sheet with 44px rows opens and Escape closes it; at 1440 the same chip opens the 224px popover | anon | /jobs, `facet-chip-posted` | signed-out | no | covered | mobile-overlays.spec.ts |
+| J-MODAL-08 | Open Feedback at 390x470 (keyboard-height viewport): the Dialog is full width, anchored to the bottom edge and never starts above y=0 (dev-server only: signed-in mock) | signed-in | /resume, `topbar-avatar` then Feedback | signed-in | no | covered | mobile-overlays.spec.ts |
 
 ## SPEED
 
