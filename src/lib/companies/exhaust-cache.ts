@@ -25,23 +25,28 @@ export const EXHAUST_MAX_AGE_MS = 24 * 60 * 60_000;
 /** Employers kept; the least recently used goes first. */
 export const EXHAUST_MAX_ENTRIES = 1_000;
 
-type Read = (domain: string) => Promise<{ exhaust: CompanyExhaust | null; complete: boolean }>;
+type Read = (domain: string, onPartial: (partial: CompanyExhaust) => void) => Promise<{ exhaust: CompanyExhaust | null; complete: boolean }>;
+
+/** A cached exhaust read; with `deadlineMs`, a visit not served by then gets what the read has settled so far (null if nothing), while the read carries on into the cache. */
+export type ExhaustRead = (domain: string, deadlineMs?: number) => Promise<CompanyExhaust | null>;
 
 export function createExhaustCache(
   read: Read,
   options: { now?: () => number; freshMs?: number; maxAgeMs?: number; maxEntries?: number } = {},
-): (domain: string) => Promise<CompanyExhaust | null> {
+): ExhaustRead {
   const now = options.now ?? Date.now;
   const freshMs = options.freshMs ?? EXHAUST_FRESH_MS;
   const maxAgeMs = options.maxAgeMs ?? EXHAUST_MAX_AGE_MS;
   const maxEntries = options.maxEntries ?? EXHAUST_MAX_ENTRIES;
   const entries = new Map<string, { exhaust: CompanyExhaust | null; at: number }>();
   const inFlight = new Map<string, Promise<CompanyExhaust | null>>();
+  /** What each in-flight read has settled so far; dropped when it ends. */
+  const partials = new Map<string, CompanyExhaust>();
 
   function load(domain: string): Promise<CompanyExhaust | null> {
     const pending = inFlight.get(domain);
     if (pending) return pending;
-    const started = read(domain)
+    const started = read(domain, (partial) => partials.set(domain, partial))
       .then(({ exhaust, complete }) => {
         if (complete) {
           entries.delete(domain);
@@ -52,15 +57,29 @@ export function createExhaustCache(
       })
       // The page treats a missing box read as "no box data", as it always has.
       .catch(() => null)
-      .finally(() => inFlight.delete(domain));
+      .finally(() => {
+        inFlight.delete(domain);
+        partials.delete(domain);
+      });
     inFlight.set(domain, started);
     return started;
   }
 
-  return async (domain) => {
+  /** `load`, or the in-flight read's partial once `deadlineMs` passes. */
+  function loadUntil(domain: string, deadlineMs: number | undefined): Promise<CompanyExhaust | null> {
+    const full = load(domain);
+    if (deadlineMs === undefined) return full;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<CompanyExhaust | null>((resolve) => {
+      timer = setTimeout(() => resolve(partials.get(domain) ?? null), deadlineMs);
+    });
+    return Promise.race([full, deadline]).finally(() => clearTimeout(timer));
+  }
+
+  return async (domain, deadlineMs) => {
     const entry = entries.get(domain);
     const age = entry ? now() - entry.at : Infinity;
-    if (!entry || age >= maxAgeMs) return load(domain);
+    if (!entry || age >= maxAgeMs) return loadUntil(domain, deadlineMs);
     // Most recently used goes to the back of the eviction order.
     entries.delete(domain);
     entries.set(domain, entry);
@@ -70,7 +89,7 @@ export function createExhaustCache(
 }
 
 /** The page's shared instance. */
-export const getSharedCompanyExhaust = createExhaustCache((domain) => readCompanyExhaust(domain));
+export const getSharedCompanyExhaust = createExhaustCache((domain, onPartial) => readCompanyExhaust(domain, undefined, undefined, onPartial));
 
 /** The employer's record sentence through the shared cache: at most one cached read per call, null when the box has none. */
 export async function companyHiringRecord(
