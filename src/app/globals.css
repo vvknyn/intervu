@@ -1549,15 +1549,15 @@ textarea::selection {
   --tw-prose-invert-counters: rgb(var(--muted-foreground));
 }
 
-/* Long-form body copy at 17px / 1.6 (reading column, owner directive
-   2026-10-24), overriding `.prose-sm`'s 14px (every
-   call site uses the `-sm` modifier for its list/heading spacing). Absolute
-   `rem` values rather than touching the modifier's own em-relative base
-   font-size, which every other `.prose-sm` measurement (h2/h3/table/code)
-   is computed relative to — changing the base would rescale all of them. */
+/* Long-form body copy is 16px at 1.625 (articles and legal pages share this
+   one rule), overriding `.prose-sm`'s 14px (every call site uses the `-sm`
+   modifier for its list/heading spacing). 17px is off the house type scale.
+   Set here rather than on the modifier's own em-relative base font-size,
+   which every other `.prose-sm` measurement (h2/h3/table/code) is computed
+   relative to — changing the base would rescale all of them. */
 .prose :where(p, li):not(:where([class~="not-prose"] *)) {
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: 1.625;
 }
 
 /* Links: Klein, 400/600 weight (the plugin's default weight is 500, which

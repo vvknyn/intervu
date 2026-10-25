@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { LegalDocFrame, LegalDocHeader, LegalProse } from "@/components/legal/LegalDocHeader";
+import { LegalDocFrame, LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { Prose } from "@/components/ui/prose";
 import { SubTitle } from "@/components/ui/heading";
 import { DocHeading } from "@/components/ui/on-this-page";
 import { TELEMETRY_LEDGER_FIELDS_DISCLOSED } from "@/lib/telemetry/public-disclosure";
@@ -110,7 +111,7 @@ export default function PrivacyPage() {
 
         <PrivacyPromises heading="Velai's privacy promises" showPolicyLink={false} className="mb-8" />
 
-        <LegalProse>
+        <Prose>
         <p>
           Velai is a job search tool, and keeping your résumé private is part of what it is. This page explains
           what we collect, why, and how you can control it. If anything here is unclear, use the contact page — we
@@ -537,7 +538,7 @@ export default function PrivacyPage() {
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
         </p>
-      </LegalProse>
+      </Prose>
     </LegalDocFrame>
   );
 }

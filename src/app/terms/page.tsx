@@ -3,7 +3,8 @@ import Link from "next/link";
 import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE, REFUND_DAYS } from "@/app/pricing/offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { LegalDocFrame, LegalDocHeader, LegalProse } from "@/components/legal/LegalDocHeader";
+import { LegalDocFrame, LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { Prose } from "@/components/ui/prose";
 import { DocHeading } from "@/components/ui/on-this-page";
 import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
@@ -25,7 +26,7 @@ export default function TermsPage() {
     <LegalDocFrame testId="terms-page">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
-        <LegalProse>
+        <Prose>
         <p>
           velai is in beta. That means the product is real and working, but still changing — features may shift,
           and we&apos;re actively improving how the service works. By using velai, you agree to the terms below.
@@ -108,7 +109,7 @@ export default function TermsPage() {
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
         </p>
-      </LegalProse>
+      </Prose>
     </LegalDocFrame>
   );
 }

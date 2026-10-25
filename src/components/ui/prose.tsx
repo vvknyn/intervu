@@ -2,8 +2,8 @@ import { cn } from "@/lib/utils";
 
 // The ONE long-form article wrapper (About, legal, research, SEO hubs).
 // `prose-sm` is what the Typography plugin's list/heading spacing is tuned
-// against; globals.css binds its colours to tokens and lifts p/li to the
-// 16/22 body size. <SectionTitle> / <SubTitle> inside get their spacing here,
+// against; globals.css binds its colours to tokens and lifts p/li to
+// 16px / 1.625. <SectionTitle> / <SubTitle> inside get their spacing here,
 // so a page carries no per-page heading-margin constant.
 /** The ONE reading column (~68 characters a line). Prose, the page-header
  *  description and the standalone job description all take it, so a running
