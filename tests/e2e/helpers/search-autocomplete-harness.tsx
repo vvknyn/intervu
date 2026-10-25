@@ -12,6 +12,8 @@ declare global {
     interface Window {
         __log: string[];
         __close: () => void;
+        /** How the stubbed suggest source answers: a list (default), nothing, a rejection, or very late. */
+        __suggest?: "ok" | "zero" | "error" | "slow";
     }
 }
 
@@ -37,7 +39,10 @@ function App() {
                         window.__log.push("clear");
                     }}
                     suggest={async (q) => {
-                        await new Promise((r) => setTimeout(r, 100));
+                        const mode = window.__suggest ?? "ok";
+                        await new Promise((r) => setTimeout(r, mode === "slow" ? 5000 : 100));
+                        if (mode === "error") throw new Error("suggest 500");
+                        if (mode === "zero") return [];
                         const roles = TITLES.filter((t) => t.toLowerCase().includes(q.toLowerCase()));
                         return [...roles.map((text) => ({ text, type: "role" as const })), { text: `${q} Inc`, type: "company" as const }];
                     }}

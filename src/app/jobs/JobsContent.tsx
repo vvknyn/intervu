@@ -3377,16 +3377,13 @@ export function JobsContent({
     // serializes a client's action calls per request — a typeahead action
     // fired on every keystroke was queuing behind whatever full search was
     // already in flight. A plain fetch has
-    // no such head-of-line block. Non-ok response or a network rejection
-    // both degrade to empty suggestions — never surfaces as a box error.
+    // no such head-of-line block. A non-ok response or a network failure
+    // rejects, and the box shows "unavailable"; only an answer with no matches
+    // is an empty list.
     const suggestForBox = useCallback(async (q: string) => {
-        try {
-            const res = await fetch(`/api/jobs/suggest?q=${encodeURIComponent(q)}`);
-            const data = res.ok ? await res.json() : { titles: [], companies: [] };
-            return mapToSuggestions(data);
-        } catch {
-            return mapToSuggestions({ titles: [], companies: [] });
-        }
+        const res = await fetch(`/api/jobs/suggest?q=${encodeURIComponent(q)}`);
+        if (!res.ok) throw new Error(`suggest ${res.status}`);
+        return mapToSuggestions(await res.json());
     }, []);
     useEffect(() => () => observerRef.current?.disconnect(), []);
 

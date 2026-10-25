@@ -32,9 +32,11 @@ test.beforeAll(async () => {
     css = (await postcss([tailwind()]).process(readFileSync(from, "utf8"), { from })).css;
 });
 
+declare global { interface Window { __seen?: string[] } }
 const log = (page: Page) => page.evaluate(() => window.__log);
 
-async function open(page: Page) {
+async function open(page: Page, suggest?: "zero" | "error" | "slow") {
+    if (suggest) await page.addInitScript((mode) => { window.__suggest = mode; }, suggest);
     // A real origin (not about:blank, which denies localStorage, which the component reads).
     await page.route("http://harness.test/", (route) =>
         route.fulfill({ contentType: "text/html", body: `<!doctype html><style>${css}</style><div id="root"></div><script>${bundle.replace(/<\/script/g, "<\\/script")}</script>` }),
@@ -76,7 +78,8 @@ test.describe("search combobox keyboard model (APG)", () => {
     test("Enter runs the row picked with the arrow keys, once", async ({ page }) => {
         const input = await open(page);
         await input.fill("account");
-        await expect(page.getByRole("option").first()).toHaveText("Accountant");
+        await expect(page.getByRole("option").nth(1)).toHaveText("Accountant");
+        await input.press("ArrowDown");
         await input.press("ArrowDown");
         await input.press("ArrowDown");
         await input.press("Enter");
@@ -175,7 +178,7 @@ test.describe("search combobox on a phone: full-screen search view", () => {
         await expect(layer(page)).toHaveCount(0);
         await expect(input).toBeFocused();
         expect(await page.evaluate(() => getComputedStyle(document.body).overflow)).not.toBe("hidden");
-        await input.tap(); // and a second tap on the trigger reopens it
+        await input.click(); // and a second press on the trigger reopens it (a click: see the already-focused tests below)
         await expect(layer(page)).toBeVisible();
     });
 
@@ -223,6 +226,104 @@ test.describe("search combobox on a phone: full-screen search view", () => {
         await input.press("Enter");
         await expect(layer(page)).toHaveCount(0);
         expect(await log(page)).toEqual(["search:nurse"]);
+    });
+
+    test("Enter on typed words drops the keyboard: the field is blurred", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await input.fill("nurse");
+        await input.press("Enter");
+        await expect(layer(page)).toHaveCount(0);
+        await expect(input).not.toBeFocused();
+    });
+
+    // The layer moves the field. Moved while a finger is still down on it, WebKit drops the focus
+    // (no keyboard, and a second tap needed), so a press on a focused field opens at the END of the press.
+    for (const [state, reach] of [
+        ["after Escape", async (page: Page, input: Locator) => { await input.tap(); await input.press("Escape"); }],
+        ["after a tapped suggestion, focus returned", async (page: Page, input: Locator) => {
+            await input.tap();
+            await page.getByRole("option", { name: "Engineer" }).tap();
+            await expect(layer(page)).toHaveCount(0);
+            await input.focus();
+        }],
+    ] as const) {
+        test(`a tap on the already-focused field ${state} opens the layer only once the press ends, keeping focus`, async ({ page }) => {
+            const input = await open(page);
+            await reach(page, input);
+            await expect(layer(page)).toHaveCount(0);
+            await expect(input).toBeFocused();
+            await page.evaluate(() => {
+                window.__seen = [];
+                for (const t of ["pointerdown", "pointerup", "click"]) {
+                    document.addEventListener(t, () => window.__seen!.push(`${t}:${document.querySelector("[data-search-layer]") ? "open" : "closed"}`), true);
+                }
+            });
+            // A mouse press, not `tap()`: Playwright's synthetic touch tap does not always get its click
+            // delivered (with the runner's video recording on it never does), and this test is about the click.
+            await input.click();
+            await expect(layer(page)).toBeVisible();
+            await expect(input).toBeFocused();
+            expect(await page.evaluate(() => window.__seen)).toEqual(["pointerdown:closed", "pointerup:closed", "click:closed"]);
+        });
+    }
+
+    test("a click that no press on the focused field began (the late click of the tap that took focus, a pick's click) opens nothing", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await input.press("Escape");
+        await expect(layer(page)).toHaveCount(0);
+        await input.dispatchEvent("click");
+        await page.waitForTimeout(300);
+        await expect(layer(page)).toHaveCount(0);
+        await expect(input).toBeFocused();
+    });
+
+    test("an unfocused tap still opens the layer with focus", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await expect(layer(page)).toBeVisible();
+        await expect(input).toBeFocused();
+    });
+
+    test("typed with a slow answer: the Search row and a loading row, no stale seeds", async ({ page }) => {
+        const input = await open(page, "slow");
+        await input.tap();
+        await expect(page.getByRole("option")).toHaveText(["Nurse", "Engineer"]);
+        await input.fill("nurse");
+        await expect(page.getByText("Loading suggestions")).toBeVisible();
+        await expect(page.getByRole("option")).toHaveText(['Search “nurse”']);
+    });
+});
+
+test.describe("search combobox: what a typed query lists", () => {
+    test("the first row searches the raw text, same as Enter; suggestions follow", async ({ page }) => {
+        const input = await open(page);
+        await input.fill("account");
+        await expect(page.getByRole("option")).toHaveText(['Search “account”', "Accountant", "Account Manager", "Senior Accountant", "account Inc"]);
+        await page.getByRole("option").first().click();
+        await expect(input).toHaveValue("account");
+        await expect.poll(() => log(page)).toEqual(["search:account"]);
+    });
+
+    test("no match: only the Search row, and no unavailable line", async ({ page }) => {
+        const input = await open(page, "zero");
+        await input.fill("zzz");
+        await expect(page.getByRole("option")).toHaveText(['Search “zzz”']);
+        await expect(page.getByText("Suggestions are unavailable")).toHaveCount(0);
+    });
+
+    test("an error: the Search row plus one muted line saying suggestions are unavailable", async ({ page }) => {
+        const input = await open(page, "error");
+        await input.fill("zzz");
+        await expect(page.getByText("Suggestions are unavailable right now.")).toBeVisible();
+        await expect(page.getByRole("option")).toHaveText(['Search “zzz”']);
+    });
+
+    test("the empty query lists the seeds and no Search row", async ({ page }) => {
+        const input = await open(page);
+        await input.focus();
+        await expect(page.getByRole("option")).toHaveText(["Nurse", "Engineer"]);
     });
 });
 

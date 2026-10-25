@@ -5,7 +5,7 @@ import type { ComboBoxState } from "react-aria-components";
 import { Combobox, ComboboxInput, ComboboxItem, ComboboxLayer, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
 import { ArrowLeft, Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
-import { getSuggestions, groupSuggestions, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
+import { getSuggestions, groupSuggestions, withQueryRow, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
     subscribeRecentSearches,
@@ -96,6 +96,9 @@ const LAYER_STYLE: CSSProperties = {
     paddingRight: "env(safe-area-inset-right)",
 };
 
+/** The words a row reads as: the raw-text row names the search it runs. */
+const rowLabel = (row: SearchSuggestion) => (row.type === "query" ? `Search \u201c${row.text}\u201d` : row.text);
+
 export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
     onChange,
@@ -114,6 +117,8 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
+    // The source rejected: told apart from "no matches", which is an empty list.
+    const [suggestFailed, setSuggestFailed] = useState(false);
     // Whether the list is wanted open — the combobox's own open state, reported
     // through `onOpenChange`. It stays true while the list has nothing to show
     // (`allowsEmptyCollection`), so a typed query can fetch the suggestions that
@@ -185,7 +190,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const comboboxStateRef = useRef<ComboBoxState<SuggestionSection> | null>(null);
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
     const showClear = Boolean(onClear) && value.length > 0;
-    const sections = useMemo(() => groupSuggestions(suggestions), [suggestions]);
+    const rows = useMemo(() => withQueryRow(value, suggestions), [value, suggestions]);
+    const sections = useMemo(() => groupSuggestions(rows), [rows]);
+    const showSuggestFailed = Boolean(suggest) && isOpen && value.trim().length > 0 && !suggestLoading && suggestFailed;
     useImperativeHandle(
         ref,
         () => ({
@@ -237,6 +244,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 return invalidate;
             }
             setSuggestLoading(true);
+            setSuggestFailed(false);
             const timer = setTimeout(() => {
                 const fn = suggestRef.current;
                 if (!fn) return;
@@ -245,7 +253,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         if (suggestGenRef.current === myGeneration) setSuggestions(results);
                     })
                     .catch(() => {
-                        if (suggestGenRef.current === myGeneration) setSuggestions([]);
+                        if (suggestGenRef.current !== myGeneration) return;
+                        setSuggestions([]);
+                        setSuggestFailed(true);
                     })
                     .finally(() => {
                         if (suggestGenRef.current === myGeneration) setSuggestLoading(false);
@@ -288,12 +298,15 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // `onSearch` is the search; a surrounding form must not submit it a second time.
         e.preventDefault();
         setLayerOpen(false);
+        // Full-screen search is done: the keyboard drops so the results show. The desktop box keeps the cursor.
+        if (compact) e.currentTarget.blur();
         onSearchRef.current();
     };
 
     // The library hands focus back to the field after a pick; that is not a new
     // visit to it. Set by a pick, cleared by the next press on the field or blur.
     const pickedRef = useRef(false);
+    const pressOnFocusedRef = useRef(false);
     const openLayer = () => {
         if (!compact) return;
         setLayerOpen(true);
@@ -301,7 +314,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     };
 
     const handleSelect = (key: Key | null) => {
-        const picked = key == null ? undefined : suggestions[Number(key)];
+        const picked = key == null ? undefined : rows[Number(key)];
         if (!picked) return;
         onChange(picked.text);
 
@@ -326,17 +339,11 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const suggestionList = (
         <>
-                    {showSuggestLoading && (
-                        <div role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
-                            <InlineSpinner size={16} className="shrink-0" />
-                            Loading suggestions…
-                        </div>
-                    )}
                     <ComboboxList aria-label="Search suggestions" className={layer ? "max-h-none" : undefined}>
                         {(section: SuggestionSection) => (
                             <ComboboxSection key={section.id} id={section.id} aria-label={section.label ?? "Suggestions"} heading={section.label} items={section.rows}>
                                 {(row: SuggestionRow) => (
-                                    <ComboboxItem id={row.id} textValue={row.text}>
+                                    <ComboboxItem id={row.id} textValue={rowLabel(row)}>
                                         {({ isFocused }) => (
                                             <>
                                                 {row.type === "history" ? (
@@ -347,15 +354,17 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                                                     <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
                                                 )}
                                                 <span className="flex-1 truncate">
-                                                    {highlightMatch(row.text, value).map((seg, i) =>
-                                                        seg.matched ? (
-                                                            <mark key={i} className="bg-transparent font-semibold text-foreground">
-                                                                {seg.text}
-                                                            </mark>
-                                                        ) : (
-                                                            <span key={i}>{seg.text}</span>
-                                                        ),
-                                                    )}
+                                                    {row.type === "query"
+                                                        ? rowLabel(row)
+                                                        : highlightMatch(row.text, value).map((seg, i) =>
+                                                            seg.matched ? (
+                                                                <mark key={i} className="bg-transparent font-semibold text-foreground">
+                                                                    {seg.text}
+                                                                </mark>
+                                                            ) : (
+                                                                <span key={i}>{seg.text}</span>
+                                                            ),
+                                                        )}
                                                 </span>
                                                 {isFocused && <CaretRight className="opacity-50" />}
                                             </>
@@ -365,6 +374,13 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                             </ComboboxSection>
                         )}
                     </ComboboxList>
+                    {showSuggestLoading && (
+                        <div role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+                            <InlineSpinner size={16} className="shrink-0" />
+                            Loading suggestions…
+                        </div>
+                    )}
+                    {showSuggestFailed && <p className="px-4 py-3 text-sm text-muted-foreground">Suggestions are unavailable right now.</p>}
         </>
     );
 
@@ -451,14 +467,21 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     )}
                     enterKeyHint="search"
                     onFocus={() => !pickedRef.current && openLayer()}
-                    // A press on a field that already has focus (after Escape) fires no focus
-                    // event. Pointer-DOWN, not click: a pick closes the
-                    // layer on pointer-up, and the click that follows lands on the field below.
+                    // A press that STARTS on a field that already has focus (after Escape) fires no
+                    // focus event, so it opens at the END of the press (click). The layer moves the
+                    // field: moved under a finger still down, WebKit drops its focus. Only such a
+                    // press counts, so neither a pick's click (it lands on the field below the closing
+                    // layer) nor the late click of the press that took focus can reopen the layer.
                     // An unfocused field opens on its focus event instead: moving it before it
                     // takes focus makes WebKit drop the focus (no keyboard).
                     onPointerDown={(e) => {
                         pickedRef.current = false;
-                        if (document.activeElement === e.currentTarget) openLayer();
+                        pressOnFocusedRef.current = document.activeElement === e.currentTarget;
+                    }}
+                    onClick={() => {
+                        if (!pressOnFocusedRef.current) return;
+                        pressOnFocusedRef.current = false;
+                        openLayer();
                     }}
                     onBlur={() => {
                         pickedRef.current = false;
@@ -501,7 +524,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     {suggestionList}
                 </div>
             ) : (
-                (suggestions.length > 0 || showSuggestLoading) && (
+                (rows.length > 0 || showSuggestLoading) && (
                     <ComboboxPopover triggerRef={anchorRef}>{suggestionList}</ComboboxPopover>
                 )
             )}

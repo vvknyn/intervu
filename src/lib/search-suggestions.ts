@@ -21,7 +21,7 @@ export interface SearchSuggestion {
      *  query (SearchAutocomplete's `seeds` prop) — falls through to the
      *  default magnifying-glass icon like `role`/`full`, distinguished only
      *  by the "Popular searches" section header rendered above the list. */
-    type: 'company' | 'role' | 'history' | 'full' | 'seed';
+    type: 'company' | 'role' | 'history' | 'full' | 'seed' | 'query';
 }
 
 /**
@@ -37,6 +37,7 @@ export const SECTION_LABELS: Record<SearchSuggestion['type'], string | undefined
     role: "Roles",
     company: "Companies",
     full: undefined,
+    query: undefined,
 };
 
 export interface SuggestionRow extends SearchSuggestion {
@@ -49,6 +50,17 @@ export interface SuggestionSection {
     /** Visible header; absent for an unlabeled type. */
     label: string | undefined;
     rows: SuggestionRow[];
+}
+
+/**
+ * What a typed query lists: first the words as typed (`query`, the same search
+ * Enter runs), then the suggestions. Seeds belong to the empty query only, so
+ * any still held from it are dropped; an empty or blank query is the list as is.
+ */
+export function withQueryRow(query: string, suggestions: SearchSuggestion[]): SearchSuggestion[] {
+    const text = query.trim();
+    if (!text) return suggestions;
+    return [{ text, type: 'query' }, ...suggestions.filter((s) => s.type !== 'seed')];
 }
 
 /** Splits the flat, ordered list into runs of one type, each run one labeled section — the order the source ranked them in is kept. */
