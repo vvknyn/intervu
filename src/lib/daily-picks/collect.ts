@@ -43,8 +43,8 @@ export interface DailyPicksDeps {
 /** Tracked roles read to keep them out of the picks: well past any real tracker. */
 const TRACKED_READ_LIMIT = 1_000;
 
-/** Why there is nothing to rank: no résumé saved, one saved as text only, or one with no role or skills to read. */
-export type DailyPicksNoResume = "none" | "text-only" | "unusable";
+/** Why there is nothing to rank: no résumé saved, one saved but locked behind a paid month, one saved as text only, or one with no role or skills to read. */
+export type DailyPicksNoResume = "none" | "locked" | "text-only" | "unusable";
 
 export type DailyPicksResult =
     | {
@@ -67,7 +67,7 @@ export async function collectDailyPicks(
     opts: { nowMs: number; sent: DailyPicksSent },
 ): Promise<DailyPicksResult> {
     const base = await deps.getBaseResume(uid);
-    if (base.source === "none") return { kind: "no-resume", reason: "none" };
+    if (base.source === "none" || base.source === "locked") return { kind: "no-resume", reason: base.source };
     if (base.source === "resume_text") return { kind: "no-resume", reason: "text-only" };
     const resume = base.resume_data;
     if (!resumeIsUsable(resume)) return { kind: "no-resume", reason: "unusable" };

@@ -11,6 +11,8 @@ import Link from "next/link";
 import { getDailyPicksAction, setDailyPicksAction, type DailyPicksView } from "@/actions/daily-picks";
 import { Switch } from "@/components/settings/Switch";
 import { captureEvent } from "@/lib/analytics/events";
+import { LOCKED_RESUME_NOTE } from "@/lib/resume/locked-copy";
+import { PRICING_HREF } from "@/lib/resume/payment-required";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
@@ -84,7 +86,17 @@ export function useDailyPicks(enabled: boolean, accountKey: string | null, surfa
 export const DAILY_PICKS_DESCRIPTION = "Up to 5 new roles a day that fit your résumé and level, each with why. No email on days with none. Needs a paid month.";
 
 /** While it's on but the saved résumé can't be ranked: nothing goes out until it can. */
-function ResumeNotReady({ className }: { className?: string }) {
+function ResumeNotReady({ className, locked }: { className?: string; locked?: boolean }) {
+    if (locked) {
+        return (
+            <p className={cn("text-xs text-foreground", className)} data-testid="daily-picks-resume-not-ready">
+                {LOCKED_RESUME_NOTE}{" "}
+                <Link href={PRICING_HREF} className="underline underline-offset-2">
+                    See pricing
+                </Link>
+            </p>
+        );
+    }
     return (
         <p className={cn("text-xs text-foreground", className)} data-testid="daily-picks-resume-not-ready">
             None can go out yet: we can&apos;t read a role or skills from the résumé saved on your account.{" "}
@@ -130,7 +142,7 @@ export function DailyPicksSettingsRow({ control }: { control: DailyPicksControl 
                     aria-label="Daily picks"
                 />
             </div>
-            {view.on && view.resumeReady === false ? <ResumeNotReady className="mt-2" /> : null}
+            {view.on && view.resumeReady === false ? <ResumeNotReady className="mt-2" locked={view.resumeLocked} /> : null}
         </div>
     );
 }
@@ -153,7 +165,7 @@ export function DailyPicksTodayLine({ control }: { control: DailyPicksControl })
                     Email me new picks each day
                 </label>
             </div>
-            {view.on && view.resumeReady === false ? <ResumeNotReady className="mt-1" /> : null}
+            {view.on && view.resumeReady === false ? <ResumeNotReady className="mt-1" locked={view.resumeLocked} /> : null}
         </div>
     );
 }

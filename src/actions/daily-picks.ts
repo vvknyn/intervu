@@ -26,12 +26,15 @@ export interface DailyPicksView {
      * email can go out until it is. `null` while off.
      */
     resumeReady: boolean | null;
+    /** With `resumeReady: false`: a résumé is saved but needs a paid month to open, so "upload it" would be the wrong advice. */
+    resumeLocked?: true;
 }
 
 /** Whether the daily run can rank this account's saved résumé (`collectDailyPicks`'s own test). */
-async function savedResumeReady(uid: string): Promise<boolean> {
+async function savedResumeState(uid: string): Promise<{ resumeReady: boolean; resumeLocked?: true }> {
     const base = await getBaseResumeForUser(uid);
-    return base.source === "resume_data" && resumeIsUsable(base.resume_data);
+    if (base.source === "locked") return { resumeReady: false, resumeLocked: true };
+    return { resumeReady: base.source === "resume_data" && resumeIsUsable(base.resume_data) };
 }
 
 export async function getDailyPicksAction(): Promise<{ data?: DailyPicksView; error?: string }> {
@@ -44,7 +47,7 @@ export async function getDailyPicksAction(): Promise<{ data?: DailyPicksView; er
             reachable: setting.reachable,
             blockedGlobally: setting.blockedGlobally,
             emailedIds: emailedToPin({ ids: setting.state.latestIds, sentAt: setting.state.lastSentAt }, Date.now()),
-            resumeReady: setting.on ? await savedResumeReady(user.uid) : null,
+            ...(setting.on ? await savedResumeState(user.uid) : { resumeReady: null }),
         },
     };
 }
