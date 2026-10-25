@@ -57,9 +57,6 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     changeEvents: [],
     oneLiner: null,
     stage: null,
-    opened90d: null,
-    closed90d: null,
-    hasTrackRecord: false,
     openCount: jobs.length,
     openCountIsLowerBound: false,
     ghostFlaggedPct: null,
@@ -156,7 +153,7 @@ describe("/co/[slug] metadata", () => {
 
   it("a track record no longer buys indexation: outside the set it is noindex,follow", async () => {
     const meta = await buildCompanyPageMetadata(
-      company({ jobs: roles(0), openCount: 0, hasTrackRecord: true, opened90d: 5, closed90d: 2, facts: factsFor(0) }),
+      company({ jobs: roles(0), openCount: 0, facts: factsFor(0) }),
       inSet(false),
     );
     assert.deepEqual(meta.robots, { index: false, follow: true });

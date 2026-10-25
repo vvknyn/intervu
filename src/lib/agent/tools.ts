@@ -250,7 +250,7 @@ const POSTED_WITHIN_DAYS_TO_BUCKET: Record<PostedWithinDays, { bucket: PostedBuc
  * review fix) — every PublicJob field a job seeker can already see on
  * intervu's own job-detail view (JobDetail.tsx / job-detail-facts.ts), and
  * nothing else. Company-aggregate/close-rate fields
- * (company_opened_90d/company_closed_90d/company_stage) and `source`/
+ * (the company 90-day opened/closed pair and company_stage) and `source`/
  * `location_city`/`location_state`/`visa_sponsorship`/`posted_ts` are
  * deliberately absent — none of them render anywhere in the web UI today.
  * `company_open_count` is absent too, for a different reason: the job pane

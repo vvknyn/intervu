@@ -17,7 +17,7 @@
  * it, a real company under its own name, the top {@link SITEMAP_COMPANY_CAP} by live count.
  * Nothing else gates it: the page states only the facts it holds, so a member without, say, a stated country is still a full page.
  * Every other company page still renders in full, as `noindex, follow`. The earlier 3-role page floor and the
- * `hasTrackRecord` OR are gone: they let ~10-role pages and pages with only a
+ * track-record OR are gone: they let ~10-role pages and pages with only a
  * track record be indexable while the sitemap (25 roles) never listed them.
  *
  * UPDATE 2026-08-13: `fetchIndexableCompanyDomains` below no longer sources

@@ -108,17 +108,6 @@ export type CompanyPageData = {
   oneLiner: string | null;
   /** Funding / stage chip (from job aggregate). */
   stage: string | null;
-  opened90d: number | null;
-  closed90d: number | null;
-  /**
-   * True only when BOTH `opened90d` and `closed90d` are known, i.e. there is
-   * a real open/close history to show — the renderer must hide the
-   * track-record section rather than draw it from two nulls. The pair is read
-   * whole from a single hit (see `resolveTrackRecord`), so the two numbers
-   * always describe the same 90-day window and this can never be true with a
-   * null on either side.
-   */
-  hasTrackRecord: boolean;
   openCount: number;
   /**
    * True when `openCount` is "at least this many" rather than an exact count

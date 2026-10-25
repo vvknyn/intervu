@@ -1,4 +1,4 @@
-import type { IntegrityFacts } from "./exhaust";
+import type { CompanyExhaust, IntegrityFacts } from "./exhaust";
 
 /**
  * Pure helpers for the employer's opened/closed record. Kept apart from
@@ -48,4 +48,13 @@ export function hiringRecordSentence(facts: IntegrityFacts, nowMs: number): stri
     return `Tracked since the week of ${week}: ${roles(opened)} opened after that first week, ${closed} closed.`;
   }
   return `Last ${INTEGRITY_WINDOW_DAYS} days: ${roles(opened)} opened, ${closed} closed.`;
+}
+
+/**
+ * The record sentence for an employer's box read, or null when the integrity
+ * facts are missing. Every surface that states the record goes through this,
+ * so a missing read shows no line and nothing else can stand in for it.
+ */
+export function exhaustHiringRecord(exhaust: CompanyExhaust | null | undefined, nowMs: number): string | null {
+  return exhaust?.integrity ? hiringRecordSentence(exhaust.integrity.data, nowMs) : null;
 }
