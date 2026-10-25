@@ -249,6 +249,43 @@ describe("buildCompanyFacts", () => {
         });
     });
 
+    describe("site description tagline", () => {
+        const site = "We build payroll software for small teams";
+        const hcProfile = section({
+            tagline: "hiring.cafe line", homepageUri: null, hqCountry: null, industries: [], yearFounded: null,
+            organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
+        });
+        const wd = { label: "Acme", industries: [], id: "Q42", description: "German software company" };
+
+        it("alone: becomes the tagline and names the company website as its source", () => {
+            const f = buildCompanyFacts(input({ siteDescription: site }));
+            assert.equal(f.identity.profile?.tagline, site);
+            assert.deepEqual(f.identity.profileSources, [{ name: "company website", url: "https://acme.com", fetchedAt: null }]);
+        });
+
+        it("precedence: hiring.cafe beats Wikidata beats the site, and only the winner is credited", () => {
+            const all = { siteDescription: site, wikidata: [wd] };
+            const hc = buildCompanyFacts(input({ ...all, exhaust: exhaust({ profile: hcProfile }) }));
+            assert.equal(hc.identity.profile?.tagline, "hiring.cafe line");
+            assert.ok(!hc.identity.profileSources.some((s) => s.name === "company website"));
+            const w = buildCompanyFacts(input(all));
+            assert.equal(w.identity.profile?.tagline, "German software company");
+            assert.ok(!w.identity.profileSources.some((s) => s.name === "company website"));
+        });
+
+        it("fewer than 5 words is a page label, dropped (no profile, no source)", () => {
+            const f = buildCompanyFacts(input({ siteDescription: "Payroll for small teams" }));
+            assert.equal(f.identity.profile, null);
+            assert.deepEqual(f.identity.profileSources, []);
+        });
+
+        it("class-wide: a different company gets its own description and domain link", () => {
+            const f = buildCompanyFacts(input({ name: "Globex", domain: "globex.io", siteDescription: "  Cloud hosting for modern engineering teams  " }));
+            assert.equal(f.identity.profile?.tagline, "Cloud hosting for modern engineering teams");
+            assert.deepEqual(f.identity.profileSources, [{ name: "company website", url: "https://globex.io", fetchedAt: null }]);
+        });
+    });
+
     it("sector comes from the box's one resolver", () => {
         assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ sector: "Fintech" }) })).identity.sector, "Fintech");
         assert.equal(buildCompanyFacts(input()).identity.sector, null);
