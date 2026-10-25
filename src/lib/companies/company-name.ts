@@ -614,6 +614,16 @@ function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): 
   return name;
 }
 
+/** Legal forms written FIRST, a closed class: upper-case abbreviations (Indonesia, Russia/CIS) and "Kabushiki Kaisha" / 株式会社.
+ *  Case-sensitive for the abbreviations, so "Pt Reyes Bakery" keeps its first word; the trailing-form lexicon is not reused
+ *  because its short members ("AG", "AB", "AS") are real name starts. */
+const LEADING_ABBREVIATION_RE = /^(?:PT|CV|PJSC|JSC|OOO|ООО|АО)\.?\s+(?=\S)/u;
+const LEADING_SPELLED_FORM_RE = /^(?:株式会社|kabushiki\s+kaisha)\s*(?=\S)/iu;
+
+function stripLeadingLegalForm(name: string): string {
+  return name.replace(LEADING_ABBREVIATION_RE, "").replace(LEADING_SPELLED_FORM_RE, "");
+}
+
 /**
  * The corpus string, reduced to the part that agrees with the domain, or `null` when none does.
  * A corpus `company` string is whatever the feed carried: an ATS vendor on a tenant's rows, another
@@ -631,7 +641,7 @@ function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): 
 export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
   const host = domainLabels(domain);
   const { labels } = host;
-  const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const spaced = stripLeadingLegalForm(candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim());
   const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
   const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
   const stripped = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
