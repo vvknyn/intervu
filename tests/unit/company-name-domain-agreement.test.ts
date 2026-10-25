@@ -112,3 +112,10 @@ describe("companies/company-name — a corpus name must agree with the domain", 
     assert.equal(resolveCompanyName(datadog, "datadog.com").value, "Datadog");
   });
 });
+
+describe("companies/company-name — ATS entity codes", () => {
+  it("a multi-underscore entity code never leaks into the resolved display name", () => {
+    const rows = Array(3).fill({ company: "US_XYZ_1000 Xyz Corporation" });
+    assert.equal(resolveCompanyName(rows, "xyzcorporation.com").value, "Xyz Corporation");
+  });
+});
