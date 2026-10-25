@@ -1,4 +1,4 @@
-import { X } from "@phosphor-icons/react"
+import { Check, X } from "@phosphor-icons/react"
 import { cva } from "class-variance-authority"
 
 import { solidBadgeVariants } from "@/components/ui/badge"
@@ -35,6 +35,35 @@ export const chipVariants = cva(
     defaultVariants: { active: false, interactive: false },
   },
 )
+
+/**
+ * A chip that is a boolean toggle (on/off, no value in its label). Selected is
+ * never colour alone (WCAG 1.4.1): the state is announced (`aria-pressed`, or
+ * `aria-checked` when the chip is a `role="radio"`) and a leading check
+ * shows it (the Material filter-chip pattern). A chip whose label already
+ * states its value (it has a remove X or a dropdown chevron) is not a toggle
+ * and stays on plain `chipVariants`.
+ */
+export function ToggleChip({
+  selected,
+  className,
+  children,
+  ...props
+}: Omit<React.ComponentProps<"button">, "aria-pressed" | "aria-checked"> & { selected: boolean }) {
+  const isRadio = props.role === "radio"
+  return (
+    <button
+      type="button"
+      aria-pressed={isRadio ? undefined : selected}
+      aria-checked={isRadio ? selected : undefined}
+      className={cn(chipVariants({ active: selected, interactive: true }), className)}
+      {...props}
+    >
+      {selected && <Check weight="bold" aria-hidden />}
+      {children}
+    </button>
+  )
+}
 
 /** Shared count badge for filter toolbars — neutral, not brand-accented
  *  (ACCENT DISCIPLINE: brand navy is reserved for the 3 named filled

@@ -1,15 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { LegalDocFrame, LegalDocHeader, LegalProse } from "@/components/legal/LegalDocHeader";
+import { SubTitle } from "@/components/ui/heading";
+import { DocHeading } from "@/components/ui/on-this-page";
 import { TELEMETRY_LEDGER_FIELDS_DISCLOSED } from "@/lib/telemetry/public-disclosure";
 import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
-import { Prose } from "@/components/ui/prose";
-import { SectionTitle } from "@/components/ui/heading";
-import { PageContainer } from "@/components/layout/PageContainer";
 import { PrivacyPromises } from "@/components/legal/PrivacyPromises";
 import { COOKIES_DISCLOSED } from "@/lib/legal/cookies-disclosed";
 import { PROCESSORS } from "@/lib/legal/processors";
@@ -106,20 +105,19 @@ export const FIRESTORE_COLLECTIONS_DISCLOSED: readonly string[] =
 
 export default function PrivacyPage() {
   return (
-    <PageContainer measure="reading" data-testid="privacy-page" className="py-10">
-      <div className="rounded-none border border-border bg-card p-6 sm:p-10">
+    <LegalDocFrame testId="privacy-page">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <PrivacyPromises heading="Velai's privacy promises" showPolicyLink={false} className="mb-8" />
 
-        <Prose>
+        <LegalProse>
         <p>
           Velai is a job search tool, and keeping your résumé private is part of what it is. This page explains
           what we collect, why, and how you can control it. If anything here is unclear, use the contact page — we
           read every message ourselves.
         </p>
 
-        <SectionTitle id={PRIVACY_RESUME_SECTION_ID}>Your résumé</SectionTitle>
+        <DocHeading id={PRIVACY_RESUME_SECTION_ID}>Your résumé</DocHeading>
         <p>
           Velai reads your résumé file in your browser, on your own device. The file itself is never uploaded to
           us: what Velai works with is the text and the structured résumé read from it.
@@ -155,7 +153,7 @@ export default function PrivacyPage() {
           removes everything, tailored résumés included.
         </p>
 
-        <SectionTitle>What we collect</SectionTitle>
+        <DocHeading>What we collect</DocHeading>
         <p>
           When you create an account, we collect the email address and profile information you provide. You can
           sign in with Google, a passkey, an email code, or a username and password. Google, passkey, and
@@ -238,7 +236,7 @@ export default function PrivacyPage() {
           We don&apos;t buy marketing profiles about you from data brokers.
         </p>
 
-        <SectionTitle>How we use it</SectionTitle>
+        <DocHeading>How we use it</DocHeading>
         <p>
           We use your account data to run the product: to show your tracked applications and, with a paid month, keep your résumés and
           prep answers where you left them. We use your search-activity profile for two things: to make your own
@@ -249,7 +247,7 @@ export default function PrivacyPage() {
           advertisers. Velai never sells or licenses your data to anyone, even aggregated.
         </p>
 
-        <SectionTitle id="ai-processing">AI processing</SectionTitle>
+        <DocHeading id="ai-processing">AI processing</DocHeading>
         <p>
           We read your résumé in your browser first. If that quick read misses something we match on, the
           résumé&apos;s text, with your name, email, phone number and links taken out, goes to an AI model on{" "}
@@ -278,7 +276,7 @@ export default function PrivacyPage() {
           box go to OpenRouter, only to models set not to keep what they are sent, and never your résumé. No audio
           is sent anywhere.
         </p>
-        <SectionTitle>Connected AI clients</SectionTitle>
+        <DocHeading>Connected AI clients</DocHeading>
         <p>
           If you pair an AI client with Velai from the <Link href="/connect">connect page</Link> (Claude,
           ChatGPT, Gemini, or another app that speaks MCP), that client can — after you sign in and approve the
@@ -290,7 +288,7 @@ export default function PrivacyPage() {
           further access.
         </p>
 
-        <SectionTitle id="browser-extension">Browser extension</SectionTitle>
+        <DocHeading id="browser-extension">Browser extension</DocHeading>
         <p>
           The Velai extension for Chrome reads a job page in two ways. On the job sites it names when you install it
           (job boards and applicant-tracking sites such as LinkedIn, Indeed, Greenhouse, Lever and Workday), and on
@@ -345,7 +343,7 @@ export default function PrivacyPage() {
           Signing in and editing your résumé happen on velai.app itself, in a small window the extension opens.
         </p>
 
-        <SectionTitle id="email">Email</SectionTitle>
+        <DocHeading id="email">Email</DocHeading>
         <p>
           We send email through Resend, a transactional email provider, which processes your address and message
           content on our behalf under its own processor terms. Beyond your address itself, we store which kind of
@@ -370,7 +368,7 @@ export default function PrivacyPage() {
           <Link href="/settings">account settings</Link>.
         </p>
 
-        <SectionTitle>Behavioural analytics ledger</SectionTitle>
+        <DocHeading>Behavioural analytics ledger</DocHeading>
         <p>
           Alongside PostHog (below), we keep a separate behavioural ledger in a PostgreSQL database we run. Your
           browser batches product events to our telemetry API — the same catalogue of actions we use to understand
@@ -383,7 +381,7 @@ export default function PrivacyPage() {
           are deleted after 90 days, and they are deleted with your account.
         </p>
 
-        <SectionTitle id="cookies-analytics">Cookies &amp; analytics</SectionTitle>
+        <DocHeading id="cookies-analytics">Cookies &amp; analytics</DocHeading>
         <p>
           Velai sets the cookies below and no others. None is an advertising or tracking cookie, and none is shared
           with another company.
@@ -446,35 +444,23 @@ export default function PrivacyPage() {
           any free text through PostHog. PostHog also does not collect browser error reports.
         </p>
 
-        <SectionTitle id="processors">Who handles your data</SectionTitle>
+        <DocHeading id="processors">Who handles your data</DocHeading>
         <p>
           These are the outside services that touch your data, and what each one gets. Free job search needs no
           account. Anything that reads your résumé on a server is paid.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">Service</th>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">What it receives</th>
-                <th className="border-b border-border-strong pb-2 pr-3 text-left text-xs font-semibold text-muted-foreground">Why</th>
-                <th className="border-b border-border-strong pb-2 text-left text-xs font-semibold text-muted-foreground">Retention</th>
-              </tr>
-            </thead>
-            <tbody>
-              {PROCESSORS.map((p) => (
-                <tr key={p.name}>
-                  <td className="border-b border-border py-2 pr-3 align-top font-semibold text-foreground">{p.name}</td>
-                  <td className="border-b border-border py-2 pr-3 align-top">{p.receives}</td>
-                  <td className="border-b border-border py-2 pr-3 align-top">{p.why}</td>
-                  <td className="border-b border-border py-2 align-top">{p.retention}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-6">
+          {PROCESSORS.map((p) => (
+            <section key={p.name}>
+              <SubTitle>{p.name}</SubTitle>
+              <p><span className="font-semibold text-foreground">What it receives. </span>{p.receives}</p>
+              <p><span className="font-semibold text-foreground">Why. </span>{p.why}</p>
+              <p><span className="font-semibold text-foreground">Retention. </span>{p.retention}</p>
+            </section>
+          ))}
         </div>
 
-        <SectionTitle>Where data is processed</SectionTitle>
+        <DocHeading>Where data is processed</DocHeading>
         <p>
           You may be in one country while our providers and infrastructure operate elsewhere. We have not verified
           or published a single home region for every data store behind Velai. PostHog product analytics are
@@ -485,7 +471,7 @@ export default function PrivacyPage() {
           confirmed in configuration.
         </p>
 
-        <SectionTitle>Retention &amp; deletion</SectionTitle>
+        <DocHeading>Retention &amp; deletion</DocHeading>
         <p>
           We keep your account data for as long as your account is active. Search-activity records —
           which searches, which clicks, which applies — are kept for 90 days and then deleted; after that we keep
@@ -532,7 +518,7 @@ export default function PrivacyPage() {
           contact-form records sent from another address.
         </p>
 
-        <SectionTitle>Your choices</SectionTitle>
+        <DocHeading>Your choices</DocHeading>
         <p>
           You can edit or delete content you created in the product. To remove your entire account, use the
           self-serve flow in account settings ({ACCOUNT_SELF_SERVE_DELETION_FLOW}). For questions about privacy or
@@ -543,7 +529,7 @@ export default function PrivacyPage() {
           or use the <Link href="/contact">contact page</Link>.
         </p>
 
-        <SectionTitle>Contact</SectionTitle>
+        <DocHeading>Contact</DocHeading>
         <p>
           Questions: email{" "}
           <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
@@ -551,8 +537,7 @@ export default function PrivacyPage() {
           </a>{" "}
           or use the <Link href="/contact">contact page</Link>.
         </p>
-      </Prose>
-      </div>
-    </PageContainer>
+      </LegalProse>
+    </LegalDocFrame>
   );
 }

@@ -12,7 +12,7 @@ export { FRONT_DOOR_RESUME_CARD_SUBCOPY, FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_I
  */
 
 export const RESUME_UPLOAD_SIGNIN_LINE =
-    "Sign in to keep your tracker on every device. Saving your résumé to your account is a paid month.";
+    "Sign in to see every match. Saving your résumé to your account is a paid month.";
 
 /** Jobs tabs helper — directly under ForYouToggle when Search is active. */
 export const JOBS_TAB_HELPER =

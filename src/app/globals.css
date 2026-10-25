@@ -463,6 +463,10 @@
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
   --color-brand-hover: rgb(var(--brand-hover));
+  /* The calm secondary button's fill: a faint wash of the brand (8%), stronger
+     on hover (14%). Tokens, not `bg-brand/8`, so the opacity-suffix ban holds. */
+  --color-brand-wash: rgb(var(--brand) / 0.08);
+  --color-brand-wash-hover: rgb(var(--brand) / 0.14);
   --color-chrome: rgb(var(--chrome));
   --color-chrome-foreground: rgb(var(--chrome-foreground));
   --color-surface: rgb(var(--surface));
@@ -614,15 +618,6 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
   --jobs-sticky-offset: calc(var(--topbar-h) + var(--jobs-filter-row-h) + var(--jobs-bar-content-gap));
 }
 
-.jobs-instrument-rule {
-  display: block;
-  width: 1px;
-  height: 1.5rem;
-  flex-shrink: 0;
-  align-self: center;
-  background: rgb(var(--border-strong) / 0.22);
-}
-
 /* Empty portal mounts must not leave gap holes in the docked instrument row */
 [data-testid="topbar-docked-field-directory"]:empty,
 [data-testid="topbar-docked-facets"]:empty,
@@ -740,11 +735,11 @@ body:has([data-shell="bleed"]) {
 }
 /* Calm pass R4: the single sanctioned glass material. Only chrome that content
    scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
-   action bar) uses it. Page colour at 75% alpha + blur(16px) saturate(140%),
+   action bar) uses it. Page colour at 85% alpha + blur(16px) saturate(140%),
    no hairline. design-language.test.ts guards that backdrop-filter appears
    nowhere else in src/. */
 @utility material-bar {
-  background-color: rgb(var(--background) / 0.75);
+  background-color: rgb(var(--background) / 0.85);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
   @supports not (backdrop-filter: blur(1px)) {

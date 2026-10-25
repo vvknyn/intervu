@@ -96,12 +96,14 @@ function restingTokens(classes: string): string[] {
 }
 
 const ALLOWED_RESTING_BG = new Set(["bg-brand", "bg-danger-text", "bg-transparent"]);
+/** A brand tint (`bg-brand-wash`) is still Klein: a faint wash of the brand, not a grey. */
+const BRAND_TINT_BG = /^bg-brand-wash$/;
 
 /** Rule (a): every resting bg-* token is Klein, red, or no fill at all. */
 function isFilledKleinOrRedOrTransparent(classes: string): boolean {
     return restingTokens(classes)
         .filter((cls) => cls.startsWith("bg-"))
-        .every((cls) => ALLOWED_RESTING_BG.has(cls));
+        .every((cls) => ALLOWED_RESTING_BG.has(cls) || BRAND_TINT_BG.test(cls));
 }
 
 /** Rule (b): a variant using the bare `border` utility is the Klein tertiary. */

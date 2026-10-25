@@ -18,7 +18,7 @@ import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction } from "@/actions/saved-searches";
 import { Button } from "@/components/ui/button";
-import { chipVariants } from "@/components/ui/chip";
+import { ToggleChip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/settings/Switch";
@@ -354,17 +354,15 @@ function PlaceStep({ view, resumeLocation, onAnswer }: { view: OnboardingView; r
                 <legend className="text-sm text-foreground">Would you move for the right role?</legend>
                 <div role="radiogroup" aria-label="Would you move for the right role?" className="flex flex-wrap gap-2">
                     {RELOCATION_OPTIONS.map((o) => (
-                        <button
+                        <ToggleChip
                             key={o.choice}
-                            type="button"
                             role="radio"
-                            aria-checked={relocation === o.choice}
+                            selected={relocation === o.choice}
                             data-testid={`setup-relocation-${o.choice}`}
                             onClick={() => setRelocation((c) => (c === o.choice ? null : o.choice))}
-                            className={chipVariants({ active: relocation === o.choice, interactive: true })}
                         >
                             {o.label}
-                        </button>
+                        </ToggleChip>
                     ))}
                 </div>
                 {relocation === "to" ? (

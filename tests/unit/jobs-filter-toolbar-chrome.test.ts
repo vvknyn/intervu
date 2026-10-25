@@ -201,10 +201,9 @@ describe("jobs filter toolbar chrome", () => {
         );
     });
 
-    it("TopBar docked band wraps active chips with instrument rule", () => {
+    it("TopBar docked band wraps active chips", () => {
         const src = readFileSync(TOPBAR, "utf8");
         assert.match(src, /data-testid="topbar-docked-active-filters"/);
-        assert.match(src, /jobs-instrument-rule/);
         assert.ok(
             chipVariantsActiveValues(src).includes("true"),
             "a docked active-filter chip should render chipVariants({ active: true, ...}) — an already-applied filter is unconditionally active",
@@ -227,9 +226,8 @@ describe("jobs filter toolbar chrome", () => {
         assert.match(dockedChip, /title=\{chip\.label\}/);
     });
 
-    it("globals.css defines jobs-instrument-rule and hides empty docked portal mounts", () => {
+    it("globals.css hides empty docked portal mounts", () => {
         const src = readFileSync(GLOBALS, "utf8");
-        assert.match(src, /\.jobs-instrument-rule/);
         assert.match(src, /\[data-testid="topbar-docked-field-directory"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-facets"\]:empty/);
         assert.match(src, /\[data-testid="topbar-docked-clear-filters"\]:empty/);

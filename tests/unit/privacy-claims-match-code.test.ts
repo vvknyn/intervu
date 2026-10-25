@@ -27,7 +27,7 @@ function privacyPageSource(): string {
 
 function privacyArticleSource(): string {
     const src = privacyPageSource();
-    return src.split("<Prose")[1]?.split("</Prose>")[0] ?? "";
+    return src.split("<LegalProse")[1]?.split("</LegalProse>")[0] ?? "";
 }
 
 /**

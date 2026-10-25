@@ -62,7 +62,7 @@ test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
         // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
-        "Upload one résumé to see your top 3 matches and why. It stays in this browser. A free account unlocks every match; a paid month adds your résumé saved to your account and read back on any device, sealed-AI help importing it, sealed-AI tailoring for each job, sealed-AI answers to screening questions, your résumé in the Chrome extension, résumé tools for your AI agent and the daily-picks email.",
+        "Upload a résumé to see your top 3 matches and why. It stays in this browser.",
     );
 });
 

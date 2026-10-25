@@ -128,7 +128,7 @@ import { countResults, formatPlaceList, isThinResults, locationDropped, namedPla
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
-import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, filterCountBadgeClass, ToggleChip } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { SearchAlertSwitch } from "@/components/jobs/SearchAlertSwitch";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -4883,19 +4883,18 @@ export function JobsContent({
                     query.toLowerCase() === cat.q.toLowerCase() &&
                     queryDraft.toLowerCase() === cat.q.toLowerCase();
                 return (
-                    <button
+                    <ToggleChip
                         key={cat.q}
-                        type="button"
+                        selected={isMatch}
                         data-testid="field-directory-chip"
                         onClick={() => submitSearch(cat.q)}
                         className={cn(
-                            chipVariants({ active: isMatch, interactive: true }),
                             toolbarControlHeight,
                             "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 leading-none transition-colors",
                         )}
                     >
                         {cat.title}
-                    </button>
+                    </ToggleChip>
                 );
             })}
         </div>
