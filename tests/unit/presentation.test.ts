@@ -7,6 +7,7 @@ import {
   GHOST_META,
   HEADLINE_POLICY,
   isInternalPosting,
+  locationText,
   resolveHeadlineTotal,
   stripStreetAddress,
   tieredSeamIndex,
@@ -349,4 +350,19 @@ test("source-scan gate: only types.ts and presentation.ts read must_have_skills/
     [],
     `direct must_have_skills/preferred_skills property read outside the gate in: ${offenders.join(", ")} — funnel through evidencedSkills() instead.`,
   );
+});
+
+test("locationText drops a stringified-object segment wherever it sits", () => {
+  const job = (location: string | null, location_city: string | null = null) =>
+    ({ location, location_city } as unknown as PublicJob);
+  // Real records (kraftheinz / telekom / vodafone, 2026-10-24)
+  assert.equal(locationText(job("Amsterdam, NH,NL, [object Object]")), "Amsterdam, NH, NL");
+  assert.equal(locationText(job("Stuttgart, BW,DE, [object Object]")), "Stuttgart, BW, DE");
+  assert.equal(locationText(job("[object Object]")), "Location not listed");
+  // Segment first
+  assert.equal(locationText(job("[object Object], Utrecht, NL")), "Utrecht, NL");
+  // Segment as the only structured value
+  assert.equal(locationText(job(null, "[object Object]")), "Location not listed");
+  // location_city equal to it, with a readable location absent
+  assert.ok(!locationText(job("[object Object]", "[object Object]")).includes("object"));
 });
