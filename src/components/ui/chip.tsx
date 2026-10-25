@@ -49,13 +49,11 @@ export function ToggleChip({
   className,
   children,
   ...props
-}: Omit<React.ComponentProps<"button">, "aria-pressed" | "aria-checked"> & { selected: boolean }) {
-  const isRadio = props.role === "radio"
+}: Omit<React.ComponentProps<"button">, "aria-pressed"> & { selected: boolean }) {
   return (
     <button
       type="button"
-      aria-pressed={isRadio ? undefined : selected}
-      aria-checked={isRadio ? selected : undefined}
+      aria-pressed={selected}
       className={cn(chipVariants({ active: selected, interactive: true }), className)}
       {...props}
     >

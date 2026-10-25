@@ -19,7 +19,7 @@ import {
     type AgentPreferencesPatch,
 } from "@/actions/agent-preferences";
 import { Trash } from "@phosphor-icons/react";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { LanguagesSetting } from "@/components/settings/LanguagesSetting";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";

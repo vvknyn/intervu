@@ -7,7 +7,7 @@ import { getEmailPreferencesAction, setDigestPreferenceAction, type EmailPrefere
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";

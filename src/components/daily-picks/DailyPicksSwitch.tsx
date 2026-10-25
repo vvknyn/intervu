@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getDailyPicksAction, setDailyPicksAction, type DailyPicksView } from "@/actions/daily-picks";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { captureEvent } from "@/lib/analytics/events";
 import { LOCKED_RESUME_NOTE } from "@/lib/resume/locked-copy";
 import { PRICING_HREF } from "@/lib/resume/payment-required";

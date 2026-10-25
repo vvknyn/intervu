@@ -16,7 +16,7 @@ export { coerceSortToSupported, resolveEffectiveSort } from "./sort-mode";
 /**
  * The one label source for a `JobSortMode`, shared by every surface that
  * names a sort option (desktop's "Sort: {label}" trigger + its
- * DropdownMenuItems, the mobile filter sheet's ToolbarSegment tabs) so a
+ * DropdownMenuItems, the mobile filter sheet's sort tabs) so a
  * casing/wording fix made in one place can't drift out of sync with a
  * re-typed copy elsewhere — the mobile-tabs-were-lowercase defect was
  * exactly that: a second, hand-typed set of these strings.
