@@ -228,6 +228,8 @@ export function unaccountedHosts(found: readonly Found[]): Found[] {
 export const DYNAMIC_HOST_SITES: Readonly<Record<string, { sites: number; why: string }>> = {
   "src/components/company/CompanySections.tsx": { sites: 1, why: "a link to the company's own website (href=https://domain) that you click; our server and page never request it." },
   "src/lib/analytics/ai-generation.ts": { sites: 2, why: "a check that a configured address starts with http:// or https://; not a request." },
+  "src/lib/companies/careers-board-root.ts": { sites: 3, why: "rebuilds an employer's careers-board address from the host and first path segment of posting links we already stored (greenhouse, lever, workday and similar); it is shown as a link on the company page that you click, and our server and page never request it." },
+  "src/lib/companies/company-facts.ts": { sites: 1, why: "the company's own website (https://domain) as a \"company website\" source link on its page; you click it, our server and page never request it." },
   "src/lib/seo/jsonld.ts": { sites: 1, why: "the company url field written into page markup (https://domain); nothing fetches it." },
   "src/lib/validation.ts": { sites: 1, why: "a job link you typed on a role you track, saved on your own tracked role with https:// added when you left it off; you click it, our server and page never request it." },
   "src/lib/server-warm-up.ts": { sites: 1, why: "our own server calling itself on a loopback address (127.0.0.1 or the host it listens on) after start, at the address it listens on (127.0.0.1 unless HOSTNAME says otherwise)." },
