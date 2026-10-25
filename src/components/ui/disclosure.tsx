@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CaretDown } from "@phosphor-icons/react"
+import { CaretDown } from "@phosphor-icons/react/ssr"
 
 import { cn } from "@/lib/utils"
 
@@ -9,7 +9,8 @@ import { cn } from "@/lib/utils"
  * server-rendered HTML for search engines and Cmd-F (Collapsible unmounts it
  * unless `forceMount`, and then hides it with `hidden`, which find-in-page
  * skips). Zero client JS; the browser owns the keyboard and the open state.
- * `<DisclosureSummary>` must be the first child.
+ * `<DisclosureSummary>` must be the first child. The caret icon comes from the
+ * `/ssr` entry so server pages (about, FAQ) can import this module.
  */
 function Disclosure({ className, ...props }: React.ComponentProps<"details">) {
   return <details data-slot="disclosure" className={cn("group/disclosure", className)} {...props} />
