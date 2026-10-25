@@ -36,7 +36,7 @@ export interface FilingFact {
 }
 
 export interface ProfileSource {
-  name: "hiring.cafe" | "Wikidata";
+  name: "hiring.cafe" | "Wikidata" | "company website";
   url: string | null;
   fetchedAt: string | null;
 }
@@ -101,6 +101,8 @@ export interface CompanyFactsInput {
   exhaust?: CompanyExhaust | null;
   /** The directory's Wikidata items for this domain: fills identity facts hiring.cafe lacks, with or without `exhaust`. */
   wikidata?: readonly WikidataItem[];
+  /** The company's own homepage description: the tagline of last resort, after hiring.cafe and Wikidata. */
+  siteDescription?: string | null;
 }
 
 export const PAY_SCOPE = "US roles listing pay";
@@ -195,17 +197,19 @@ function countryName(value: string): string {
 const describes = (item: WikidataItem) => (item.description && item.description.trim().split(/\s+/).length > 1 ? item.description : null);
 
 /** Identity facts per field: hiring.cafe's value first, else the one Wikidata value (see `pickWikidata`); the sector is `exhaust.sector`, else Wikidata's. Every source of a shown fact is named. */
-function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata: readonly WikidataItem[], name: string) {
+function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata: readonly WikidataItem[], name: string, domain: string, siteDescription: string | null | undefined) {
   const section = exhaust?.profile;
   const p = section?.data;
   const wd = <T>(read: (item: WikidataItem) => T | null) => pickWikidata(wikidata, name, read);
   const wdTagline = wd(describes);
+  // Homepage meta text is free-form: values under 5 words are page labels, not descriptions.
+  const siteTagline = !p?.tagline && !wdTagline && siteDescription && siteDescription.trim().split(/\s+/).length >= 5 ? siteDescription.trim() : null;
   const wdFounded = wd((i) => i.founded ?? null);
   const wdHq = wd((i) => (i.hqCountry ? countryName(i.hqCountry) : null));
   const wdEmployees = wd((i) => i.employees ?? null);
   const wdSector = exhaust?.sector ? null : wikidataSectorPick(wikidata, name);
   const profile = {
-    tagline: p?.tagline || wdTagline?.value || null,
+    tagline: p?.tagline || wdTagline?.value || siteTagline,
     yearFounded: p?.yearFounded ?? wdFounded?.value ?? null,
     employees: p?.nbEmployees || (wdEmployees ? formatCount(wdEmployees.value) : null),
     employeesAsOf: p?.nbEmployees ? null : (wdEmployees?.item.employeesAsOf ?? null),
@@ -225,6 +229,7 @@ function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata
   const profileSources: ProfileSource[] = [
     ...(fromHiringCafe && section ? [{ name: "hiring.cafe" as const, url: null, fetchedAt: section.asOf }] : []),
     ...(wikiPicks.length > 0 ? [{ name: "Wikidata" as const, url: wikidataId ? `https://www.wikidata.org/wiki/${wikidataId}` : null, fetchedAt: null }] : []),
+    ...(siteTagline ? [{ name: "company website" as const, url: `https://${domain}`, fetchedAt: null }] : []),
   ];
   const present = profile.tagline || profile.yearFounded != null || profile.employees || profile.hqCountry || profile.industries.length > 0;
   return { profile: present ? profile : null, profileSources, sector: exhaust?.sector ?? wdSector?.value ?? null };
@@ -250,7 +255,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
   const { jobs, openCount, exhaust, facetDistribution: facets } = input;
   const total = openCount.value;
   const postings = input.postingTotal;
-  const { profile, profileSources, sector } = buildIdentityFacts(exhaust, input.wikidata ?? [], input.name);
+  const { profile, profileSources, sector } = buildIdentityFacts(exhaust, input.wikidata ?? [], input.name, input.domain, input.siteDescription);
   const visa = facets?.visa_sponsorship;
   const sponsors = visa?.true ?? 0;
   const stated = sponsors + (visa?.false ?? 0);

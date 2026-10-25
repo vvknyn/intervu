@@ -251,6 +251,13 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
+  it("carries site_description only when it is a string, else absent", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    assert.equal(parseCompanyDirectoryHit({ ...hit, site_description: "We make anvils for everyone" })?.siteDescription, "We make anvils for everyone");
+    assert.equal(parseCompanyDirectoryHit({ ...hit, site_description: 7 })?.siteDescription, undefined);
+    assert.equal(parseCompanyDirectoryHit(hit)?.siteDescription, undefined);
+  });
+
   it("carries wikidata_industries items, dropping malformed entries; absent when none remain", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
     const parsed = parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: ["retail", 3] }, { label: "", industries: [] }, { label: "Bad" }, null] });

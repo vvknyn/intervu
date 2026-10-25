@@ -249,6 +249,7 @@ export async function getCompanyPageData(
       facetDistribution: result.facetDistribution,
       exhaust: exhaust.value,
       wikidata: listed?.wikidataIndustries,
+      siteDescription: listed?.siteDescription,
     }),
     // Read here — the async I/O boundary — not in the page component's
     // render body. See `CompanyPageData.nowMs`.
