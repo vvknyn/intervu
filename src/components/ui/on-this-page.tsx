@@ -6,7 +6,7 @@ import { SectionTitle } from "@/components/ui/heading";
  * anchor id derives from its title (an explicit `id` wins for anchors other
  * pages already link to) and `DocWithToc` builds the list from those same
  * elements, so a heading is never retyped. At >= lg the list sticks beside a
- * centred ~65ch column; on a phone it collapses into a native <details>.
+ * centred 28rem column (~66 chars of body text; rem, not ch, which tracks the container font); on a phone it collapses into a native <details>.
  */
 type DocHeadingProps = { id?: string; children: string };
 
@@ -42,7 +42,7 @@ export function DocWithToc({ children }: { children: React.ReactNode }) {
         </li>
     ));
     return (
-        <div className="lg:grid lg:grid-cols-[1fr_minmax(0,65ch)_1fr] lg:gap-10">
+        <div className="lg:grid lg:grid-cols-[1fr_minmax(0,28rem)_1fr] lg:gap-10">
             <details className="mb-6 rounded-panel bg-surface px-4 py-3 lg:hidden">
                 <summary className="cursor-pointer text-sm font-semibold text-foreground">On this page</summary>
                 <ul className="mt-2">{links}</ul>
