@@ -20,10 +20,10 @@ import { PageTitle } from "@/components/ui/heading";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyPageData } from "@/lib/companies/types";
 import { companyUnlockStep } from "@/lib/company/unlock-step";
+import { formatCount } from "@/lib/format";
 import {
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
-  buildCompanyRoleStats,
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
@@ -70,7 +70,6 @@ export function CompanyPageBody({
   const hiring = buildCompanyHiringAnswer(data, data.nowMs);
   const staleShare = staleShareText(data);
   const faq = buildCompanyFaq(data.facts);
-  const roleStats = buildCompanyRoleStats(data, data.nowMs);
   const roles = (
     <CompanyRoleSearch
       jobs={data.jobs}
@@ -81,7 +80,6 @@ export function CompanyPageBody({
       searchesPartialWindow={!ghostPctIsCompanyWide}
       jobsSearchUrl={jobsSearchUrl}
       now={now}
-      stats={roleStats}
     />
   );
   const sectionIds = companySections(data.facts, { roleCount: data.jobs.length, relatedCount: related.length, faqCount: faq.length });
@@ -117,7 +115,7 @@ export function CompanyPageBody({
       ? {
           title: "Listing integrity",
           description: "How honest their postings are: reposts, resurrections, how roles actually close.",
-          count: `${integrityCount} closings on record`,
+          count: `${formatCount(integrityCount)} closings on record`,
         }
       : null,
     // Change history lives once, behind CompanyIntelGate — not a second
@@ -133,7 +131,7 @@ export function CompanyPageBody({
       ? {
           title: "Filings & records",
           description: "SEC filings, funding rounds, federal contracts, WARN layoffs and H-1B approvals.",
-          count: `${filingsCount} record${filingsCount === 1 ? "" : "s"}`,
+          count: `${formatCount(filingsCount)} record${filingsCount === 1 ? "" : "s"}`,
         }
       : null,
   ].filter((t): t is ExhaustGateTeaser => t !== null);
@@ -215,7 +213,7 @@ export function CompanyPageBody({
           <div className="mt-10">
             <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers} signedIn={signedIn}>
               <div className="space-y-8">
-                <CompanyIntegrityBand integrity={data.exhaust.integrity} nowMs={data.nowMs} />
+                <CompanyIntegrityBand integrity={data.exhaust.integrity} />
                 <CompanyTechStackBand techStack={data.exhaust.techStack} />
                 <CompanyFilingsBand exhaust={data.exhaust} />
               </div>

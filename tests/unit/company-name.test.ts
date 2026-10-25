@@ -631,6 +631,13 @@ describe("dropCountryQualifier — the hiring entity's country is not part of th
     assert.equal(resolveCompanyName(rows({ "argenx US Inc": 12 }), "argenx.com").value, "argenx");
   });
 
+  it("drops a trailing parenthesised country the domain does not name, keeps one it does", () => {
+    assert.equal(dropCountryQualifier("Acme Group (NZ)", "acmegroup.com"), "Acme Group");
+    assert.equal(dropCountryQualifier("Acme Group (Germany)", "acmegroup.com"), "Acme Group");
+    assert.equal(dropCountryQualifier("Acme Group (NZ)", "acmegroup.co.nz"), "Acme Group (NZ)");
+    assert.equal(dropCountryQualifier("Acme Group (Beta)", "acmegroup.com"), "Acme Group (Beta)");
+  });
+
   it("keeps a name the host spells in full, or whose rest is not the host", () => {
     assert.equal(dropCountryQualifier("Air Canada", "aircanada.com"), "Air Canada");
     assert.equal(dropCountryQualifier("Booz Allen Hamilton", "boozallen.com"), "Booz Allen Hamilton");
@@ -777,5 +784,91 @@ describe("siteSpelling — same-letters casing: site casing, connectors, vowelle
     assert.equal(siteSpelling("Vml Commerce", [], "vmlyrcommerce.com"), "VML Commerce");
     assert.equal(siteSpelling("Bdx", [], "bd.com"), "Bdx");
     assert.equal(siteSpelling("Tsd Group", [], "hii.com"), "Tsd Group");
+  });
+});
+
+describe("companies/company-name — a minority group never names the company", () => {
+  it("names the shared brand root when no group holds a majority", () => {
+    const r = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "GLOBEX FRANCE SIEGE": 8, "Globex Evolution Siege": 7, "globex france": 4 }), "globex.fr");
+    assert.equal(r.value, "Globex");
+    assert.equal(r.agrees, true);
+  });
+
+  it("leaves a majority winner as it was", () => {
+    const r = resolveCompanyName(rows({ "Initech Inc": 6, "Initech Canada": 4 }), "initech.com");
+    assert.equal(r.value, "Initech Inc");
+    assert.equal(r.agrees, true);
+  });
+
+  it("names nothing (agrees=false) when no root and no majority exist", () => {
+    const r = resolveCompanyName(rows({ "Zenith Foods": 3, "Orbit Foods": 3 }), "zenithorbit.com");
+    assert.equal(r.agrees, false);
+    assert.equal(r.source, "domain");
+  });
+
+  it("with no majority, the one group that spells the host label is the domain's own entity (alphasys.com)", () => {
+    assert.equal(resolveCompanyName(rows({ "Alpha Systems Inc": 1, "Alpha Networks LLC": 1 }), "alphasys.com").value, "Alpha Systems Inc");
+  });
+
+  it("with two groups spelling the label, the brand root names it", () => {
+    const r = resolveCompanyName(rows({ "Alpha Systems Inc": 2, "Alpha Sys Canada": 2, "Alpha Networks LLC": 2 }), "alphasys.com");
+    assert.equal(r.value, "Alpha");
+    assert.equal(r.agrees, true);
+  });
+
+  it("is stable when a different minority subsidiary has the plurality", () => {
+    const a = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "Globex France Siege": 8, "Globex Evolution Siege": 7, "Globex Process Outsourcing": 5 }), "globex.fr");
+    const b = resolveCompanyName(rows({ "Globex Hong Kong Limited": 9, "Globex France Siege": 10, "Globex Evolution Siege": 7, "Globex Process Outsourcing": 5 }), "globex.fr");
+    assert.equal(a.value, "Globex");
+    assert.equal(b.value, a.value);
+  });
+  // Rows below are verbatim (name: count) from the 2026-10 live evidence, top rows per domain.
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+  const servpro = {
+    "SERVPRO of East Mahoning County": 15,
+    "SERVPRO Team Nichols": 8,
+    "SERVPRO of Pewaukee & Sussex": 6,
+    "SERVPRO of Southwest Raleigh/Holly Springs": 6,
+    "SERVPRO of Allentown": 5,
+    "SERVPRO of the Ohio/Kentucky/Indiana Tri-State Area": 5,
+    "SERVPRO Team Landers": 4,
+    "SERVPRO - Frankfort": 3,
+  };
+
+  it("the root is a prefix of a real row and never ends on a connector, so '&' survives and 'of' goes", () => {
+    assert.equal(name({ "The Goddard School of Auburn, MA": 3, "The Goddard School of Edina, MN": 2, "The Goddard School of Novi (Grand River), MI": 1 }, "goddardschool.com"), "The Goddard School");
+    assert.equal(name({ "Voda Cleaning & Restoration of Jersey City": 3, "Voda Cleaning & Restoration of Afton": 2, "Voda Cleaning & Restoration of Concord and Walnut Creek": 2 }, "myvoda.com"), "Voda Cleaning & Restoration");
+    // another domain, same class: "SERVPRO of ..." rows
+    const r = resolveCompanyName(rows(servpro), "servproofbirmingham.com");
+    assert.equal(siteSpelling(displayCompanyName(r.value), ["SERVPRO", "SERVPRO of Birmingham"], "servproofbirmingham.com", r.rowSpelling), "SERVPRO");
+    assert.equal(name({ "LOGISTICS INSIGHT CORP.": 51, "UNIVERSMICHIGAN LLC": 28, "UNIVERSCAROLINA LLC": 19, "UNIVERSAL DEDICATED OF SMYRNA, TN LLC": 12, "UNIVERSAL MANAGEMENT SERVICES, INC.": 9, "UNIVERSAL DEDICATED OF DETROIT, MI LLC": 8, "UNIVERSAL DEDICATED OF GREER, SC LLC": 7, "UNIVERSAL DEDICATED OF ROMULUS, MI LLC": 7, "UNIVERSCAL LLC": 6, "UACL LOGISTICS, LLC": 5, "UNIVERSAL INTERMODAL SERVICES, INC.": 5, "UNIVERSAL DEDICATED OF NEBRASKA & WISCONSIN LLC": 5 }, "universallogistics.com"), "Universal");
+  });
+
+  it("a leading legal form is skipped only when the name as written fails the domain test", () => {
+    assert.equal(name({ "JSC Management Group": 145 }, "jscmanagement.com"), "JSC Management Group");
+    assert.equal(name({ "PT Astra Motor": 3 }, "astra.co.id"), "Astra Motor");
+  });
+
+  it("one group spelling the label is the domain's entity only from word starts across 2+ words, never as a domain echo", () => {
+    assert.equal(name({ veho: 87, "Veho Tech Inc": 85, shipveho: 6 }, "shipveho.com"), "Veho");
+    const franklin = { "Benjamin Franklin Plumbing of Tampa": 7, "Benjamin Franklin Plumbing of In-Town Atlanta, GA": 6, "Benjamin Franklin Plumbing of St Louis MO": 5, "Benjamin Franklin Plumbing Corporate Store": 2 };
+    assert.equal(name(franklin, "benjaminfranklinplumbingiowa.com"), "Benjamin Franklin Plumbing");
+    // another domain, same class: letters picked from inside a word ("Frost" + "ank" of Bankers) do not spell the label
+    assert.equal(name({ "Cullen/Frost Bankers Inc": 154, "Frost Insurance Agency, Inc.": 16, "Frost Brokerage Services, Inc.": 14, "Frost Investment Services, LLC": 2 }, "frostbank.com"), "Frost");
+  });
+
+  it("a name led by the label with further brand words spells it in one word and beats a multi-word acronym", () => {
+    const acronym = { "Zinc Eagle Tool Alliance": 4, "Zebra Eagle Tool Armor": 4 };
+    assert.equal(name({ "Zeta Analytics Holdings": 5, ...acronym }, "zeta.com"), "Zeta Analytics Holdings");
+    // the one-brand-word echo ("Zeta", "Zeta Inc") is still the domain echoed, not a spelling
+    assert.notEqual(name({ "Zeta Inc": 5, ...acronym }, "zeta.com"), "Zeta Inc");
+    // two compositions (no direct name) are no single entity: word count does not rank them, the brand root decides
+    assert.notEqual(name({ "Zinc Eagle Tool Alliance": 4, "Zebra Tank Works": 4, "Zulu Echo Tango Alpha": 1 }, "zeta.com"), "Zebra Tank Works");
+    // a short composition ("Acme MH UK Ltd") does not outrank the brand root its siblings share
+    assert.equal(name({ "Acme MH UK Ltd": 10, "Acme Material Handling Sweden": 8, "Acme Material Handling Austria GmbH": 7, "Acme Material Handling Polska": 6 }, "acmemh.com"), "Acme Material Handling");
+  });
+
+  it("a tie at the fewest words falls through to the brand root", () => {
+    assert.equal(name({ "Zeta Analytics": 4, "Zeta Labs": 4, "Zeta Cloud": 4 }, "zeta.com"), "Zeta");
   });
 });

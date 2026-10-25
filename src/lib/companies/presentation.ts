@@ -16,7 +16,7 @@ import type { CompanyPageData } from "./types";
 import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
-import { hiringRecordSentence } from "./hiring-record";
+import { exhaustHiringRecord } from "./hiring-record";
 import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
@@ -33,22 +33,6 @@ import { formatCount } from "@/lib/format";
  * renders as `N+`. One helper, so the KPI tile, the roles-list caption and
  * the footer CTA cannot end up disagreeing about how exact the same number is.
  */
-/**
- * Does the KPI tile row have anything to show?
- *
- * All four tiles (open roles, opened/closed 90d, possibly-stale share) read
- * as a literal "0" beside three "—" placeholders when an employer has no
- * live roles and no 90-day track record — a row of dead placeholders next to
- * a real zero, not information a visitor can act on. Gates the whole row
- * rather than each tile individually, since a partial row would still make
- * the same "nothing to see" claim once the rest render blank.
- */
-export function hasCompanyKpiContent(
-  data: Pick<CompanyPageData, "openCount" | "hasTrackRecord">,
-): boolean {
-  return data.openCount > 0 || data.hasTrackRecord;
-}
-
 export function openCountText(
   data: Pick<CompanyPageData, "openCount" | "openCountIsLowerBound">,
 ): string {
@@ -178,85 +162,6 @@ export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): stri
 
 const MS_PER_DAY = 86_400_000;
 
-/**
- * ms window for /jobs' own default recency filter
- * (`DEFAULT_URL_STATE.postedBucket`, lib/jobs/url-state.ts — "90d" today).
- * Deliberately NOT read from `BUCKET_MS` (lib/jobs/meilisearch.ts): that
- * constant is module-private, and meilisearch.ts is out of this change's
- * scope to edit into an export. Parsed off `DEFAULT_URL_STATE`'s own bucket
- * key instead — every `PostedBucket` but "older" is already an "Nd" string —
- * so this tracks the real default by construction rather than adding a
- * second hardcoded day count. `null` when the default is "any" (`undefined`)
- * or "older" (not a lookback window), i.e. there is no window to report a
- * fact about.
- */
-function defaultRecencyWindowMs(): number | null {
-  const bucket = DEFAULT_URL_STATE.postedBucket;
-  if (!bucket || bucket === "older") return null;
-  const days = Number.parseInt(bucket, 10);
-  return Number.isFinite(days) ? days * MS_PER_DAY : null;
-}
-
-/**
- * How many of the employer's open roles were posted inside /jobs' own
- * default recency filter — the fact that reconciles the page's "N open
- * roles, live right now" headline with /jobs' CTA target treating an
- * older-but-still-open role as too old to show by default. Stated as a fact
- * either way (all recent, none recent, or a genuine split), never as a
- * caveat or apology: a role posted outside the window is still open.
- *
- * Two things this must never do, both regressions of bugs this repo already
- * fixed once:
- *
- *  - Present a REQUEST WINDOW as the employer's role count. `data.jobs` is
- *    capped at `COMPANY_JOBS_FETCH_LIMIT` (200, get-company.ts); an employer
- *    with more open roles than that (measured live: stripe.com 582,
- *    amazon.com 18,352) would otherwise render "N of 200" as though 200
- *    were their count — exactly the `jobs.length`-as-count bug
- *    `resolveOpenCount` (open-count.ts) already exists to prevent, walked
- *    right around by a second reader of the same field. Gated on
- *    `sampleCoversAllRoles` — the SAME sample-vs-census check
- *    `ghostFlaggedPct`'s rendering already gates on, not a second,
- *    independently-drifting copy of it — when the window is only a partial
- *    sample, this returns "" (a supported, documented outcome) rather than
- *    a sentence that would need a caveat to be true.
- *  - Count an UNKNOWN posted date as evidence of age. A null `posted_ts`
- *    role goes in neither the numerator nor the denominator — this product
- *    surfaces what was observed, never fills a gap with an inference.
- *
- * INVARIANT: the denominator here always equals the open-role count the
- * page states one line above (`openCountText`), never a smaller "roles we
- * happened to have a date for." A partial known-date set is the same "do we
- * actually know enough to say this?" question as the two bullets above, not
- * a separate case — so it folds into the same gate rather than a caveated
- * sentence over a shrunken denominator (e.g. "3 of 3" for a 5-role employer
- * where 2 dates are unknown would silently disagree with the "5 open roles"
- * headline). Render only when EVERY covered role has a known `posted_ts`;
- * otherwise "".
- */
-function buildFreshnessFact(
-  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
-  nowMs: number,
-): string {
-  const windowMs = defaultRecencyWindowMs();
-  if (windowMs == null || !sampleCoversAllRoles(data)) return "";
-  const jobs = data.jobs;
-  if (jobs.length === 0) return "";
-  const known = jobs.filter((j): j is PublicJob & { posted_ts: number } => j.posted_ts != null);
-  if (known.length !== jobs.length) return "";
-  const cutoff = nowMs - windowMs;
-  const recent = known.filter((j) => j.posted_ts >= cutoff).length;
-  const days = Math.round(windowMs / MS_PER_DAY);
-  const roles = known.length === 1 ? "open role" : "open roles";
-  // The zero case reads as a stilted "0 of N" when spelled out numerically —
-  // "None of the N ..." is the same fact in the phrasing a person would
-  // actually say. Every other split keeps the counted "N of M" form.
-  if (recent === 0) {
-    return `None of the ${known.length} ${roles} ${known.length === 1 ? "was" : "were"} posted in the last ${days} days.`;
-  }
-  return `${recent} of ${known.length} open roles were posted in the last ${days} days.`;
-}
-
 /** A role counts as seen live when Velai observed it alive (or ran its ghost
  *  check without flagging it) inside this window. */
 const LIVE_CHECK_DAYS = 7;
@@ -303,13 +208,9 @@ export type CompanyHiringAnswer = {
   /** See `buildLiveCheckFact`. The page prints it after the headline, so the
    *  count of every open role sits beside how many were recently seen live. */
   liveCheck: string;
-  /** The opened/closed record when it is known, and a plain statement that
-   *  it isn't when it isn't. Never phrased as a finding either way. */
-  trackRecord: string;
-  /** See `buildFreshnessFact`. Empty string when there is no fetched role to
-   *  measure or no default window to measure against — the page renders it
-   *  conditionally, same as `trackRecord`'s sibling section. */
-  freshness: string;
+  /** The opened/closed record from `IntegrityFacts`; null when those are
+   *  unavailable. No other source states it. */
+  trackRecord: string | null;
 };
 
 /**
@@ -323,13 +224,9 @@ export type CompanyHiringAnswer = {
  *
  * It is built as ONE function over the whole answer, rather than a line the
  * page assembles, because the honesty constraint is a property of the
- * combination: the open-role count is known today, the 90-day open/close
- * record is null for every employer until the `company_*` aggregate sync
- * lands (see `CompanyPageData.hasTrackRecord`), and a sentence that reads the
- * same in both states would be claiming the missing half. So the verdict rests
- * only on the count, and `trackRecord` NAMES the gap instead of dressing two
- * nulls as a stable history. When the aggregates arrive the same code says
- * more without being edited — the branch is data-driven, not a TODO.
+ * combination: the open-role count is always known, the opened/closed record
+ * only when `IntegrityFacts` loaded. The verdict rests on the count alone, and
+ * `trackRecord` is null rather than a stand-in when the record is missing.
  *
  * `nowMs` is threaded by the caller (same convention as `searchResultLine`,
  * lib/jobs/presentation.ts) rather than read internally via `Date.now()`, so
@@ -338,17 +235,15 @@ export type CompanyHiringAnswer = {
 export function buildCompanyHiringAnswer(
   data: Pick<
     CompanyPageData,
-    "openCount" | "openCountIsLowerBound" | "opened90d" | "closed90d" | "hasTrackRecord" | "jobs"
+    "openCount" | "openCountIsLowerBound" | "jobs"
   > &
     Partial<Pick<CompanyPageData, "exhaust">>,
   nowMs: number,
 ): CompanyHiringAnswer {
   const hasOpenRoles = data.openCount > 0;
   const roles = data.openCount === 1 ? "open role" : "open roles";
-  // The box database's record (job_listings) is the one the gated integrity
-  // band prints; reading it here too keeps the rail from saying "isn't
-  // tracked" a few inches above a band that prints the same record.
-  const integrity = data.exhaust?.integrity?.data ?? null;
+  // The box database's record (job_listings) is the only source of the
+  // opened/closed record, the one the integrity band and "Hiring now" print.
   return {
     hasOpenRoles,
     // No "No" on the empty branch: the page knows what Velai tracks, not
@@ -359,12 +254,7 @@ export function buildCompanyHiringAnswer(
       ? `${openCountText(data)} ${roles} live on Velai right now`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
-    trackRecord: integrity
-      ? hiringRecordSentence(integrity, nowMs)
-      : data.hasTrackRecord
-        ? `Last 90 days: ${data.opened90d} roles opened, ${data.closed90d} closed.`
-        : "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
-    freshness: buildFreshnessFact(data, nowMs),
+    trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
   };
 }
 
@@ -412,41 +302,13 @@ export function typicalPayText(jobs: PublicJob[]): string | null {
   return lo === hi ? `${currency} ${lo}/yr` : `${currency} ${lo}–${hi}/yr`;
 }
 
-/**
- * The stat row under the company header: what a job seeker decides on before
- * reading a list. Each figure counts the fetched roles, so the row only
- * renders when those are every open role (`sampleCoversAllRoles`); a figure
- * over a 200-role sample beside a company-wide headline would read as
- * company-wide. A figure with nothing behind it is left out, never zero-filled
- * except where zero is the answer (none posted recently).
- *
- * Pay and visa live in the public pay / visa sections (`CompanyFacts`), so
- * they are not repeated here.
- */
-export function buildCompanyRoleStats(
-  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
-  nowMs: number,
-): CompanyRoleStat[] {
-  const jobs = data.jobs;
-  if (jobs.length === 0 || !sampleCoversAllRoles(data)) return [];
-  const stats: CompanyRoleStat[] = [];
-
-  const windowMs = defaultRecencyWindowMs();
-  if (windowMs != null && jobs.every((j) => j.posted_ts != null)) {
-    const recent = jobs.filter((j) => (j.posted_ts as number) >= nowMs - windowMs).length;
-    stats.push({ key: "recent", value: formatCount(recent), label: `new in the last ${Math.round(windowMs / MS_PER_DAY)} days` });
-  }
-
-  return stats;
-}
-
 /** Real page data only — degrades to a generic line when there are zero open
  *  roles rather than fabricating a count, and says "at least" rather than
  *  stating a floor as a total. */
 export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
-    const count = data.openCountIsLowerBound ? `at least ${data.openCount}` : String(data.openCount);
+    const count = data.openCountIsLowerBound ? `at least ${formatCount(data.openCount)}` : formatCount(data.openCount);
     return `${data.name} has ${count} live, verified open ${roles} tracked on Velai, screened for ${GHOST_JOB_TERM} risk.`;
   }
   return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on Velai.`;
@@ -502,12 +364,12 @@ export function roleCountLabel(a: {
   openCountLabel: string;
   windowSize: number | null;
 }): string {
-  if (!a.hasQuery) return `${a.displayed} of ${a.openCountLabel} shown`;
+  if (!a.hasQuery) return `${formatCount(a.displayed)} of ${a.openCountLabel} shown`;
   if (a.windowSize != null) {
-    return `${a.matched} of the ${a.windowSize} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
+    return `${formatCount(a.matched)} of the ${formatCount(a.windowSize)} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
   }
-  if (a.displayed === a.matched) return `${a.matched} match${a.matched === 1 ? "" : "es"}`;
-  return `${a.displayed} of ${a.matched} matches shown`;
+  if (a.displayed === a.matched) return `${formatCount(a.matched)} match${a.matched === 1 ? "" : "es"}`;
+  return `${formatCount(a.displayed)} of ${formatCount(a.matched)} matches shown`;
 }
 
 /** The expand button names its increment ("Show 186 more roles"), never "all": the list is a window. */

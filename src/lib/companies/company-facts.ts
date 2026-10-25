@@ -8,7 +8,6 @@
  * when its field is non-null, and nothing here is a placeholder. Pure — the
  * loader does the I/O and passes the results in.
  */
-import type { TrackRecord } from "@/lib/companies/aggregates";
 import type { CompanyExhaust, WeeklyCadence } from "@/lib/companies/exhaust";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
@@ -56,8 +55,6 @@ export interface CompanyFacts {
   hiring: {
     openCount: number;
     openCountIsLowerBound: boolean;
-    opened90d: number | null;
-    closed90d: number | null;
     monitoredSince: string | null;
     lastPostedAt: string | null;
     lastSeenAliveAt: string | null;
@@ -89,7 +86,6 @@ export interface CompanyFactsInput {
   /** Every posting the facet counts were taken over (duplicates and internal ones included): the
    *  denominator of every facet share, as opposed to the deduped `openCount`. */
   postingTotal: number;
-  trackRecord?: TrackRecord | null;
   ghostFlaggedPct?: number | null;
   facetDistribution?: FacetDistribution;
   exhaust?: CompanyExhaust | null;
@@ -227,9 +223,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
     hiring: {
       openCount: total,
       openCountIsLowerBound: openCount.isLowerBound,
-      opened90d: input.trackRecord?.opened90d ?? null,
-      closed90d: input.trackRecord?.closed90d ?? null,
-      monitoredSince: exhaust?.cadence?.data.trackedSinceIso ?? null,
+      monitoredSince: exhaust?.integrity?.data.trackedSinceIso ?? null,
       lastPostedAt: latestIso(jobs, (j) => j.posted_at),
       lastSeenAliveAt: latestIso(jobs, (j) => j.last_observed_alive_at),
       cadence: exhaust?.cadence?.data.weeks ?? null,

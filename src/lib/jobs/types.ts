@@ -142,8 +142,6 @@ export interface PublicJob {
    */
   last_observed_alive_at?: string | null;
   /** Company aggregate fields — optional until sync backfills (Task 5). */
-  company_opened_90d?: number | null;
-  company_closed_90d?: number | null;
   company_open_count?: number | null;
   company_stage?: string | null;
   /**

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildCompanyHiringAnswer, buildCompanyJobsUrl, hasCompanyKpiContent } from "@/lib/companies/presentation";
+import { buildCompanyHiringAnswer, buildCompanyJobsUrl } from "@/lib/companies/presentation";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import type { CompanyPageData } from "@/lib/companies/types";
@@ -52,9 +52,6 @@ function company(overrides: Partial<CompanyPageData> = {}): CompanyPageData {
     changeEvents: [],
     oneLiner: null,
     stage: null,
-    opened90d: null,
-    closed90d: null,
-    hasTrackRecord: false,
     openCount: 213,
     openCountIsLowerBound: false,
     ghostFlaggedPct: null,
@@ -72,23 +69,9 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     const answer = buildCompanyHiringAnswer(company(), NOW);
     assert.equal(answer.hasOpenRoles, true);
     assert.equal(answer.headline, "213 open roles live on Velai right now");
-    // The half it does NOT have is stated as missing, not implied, not
-    // rendered as a plausible-looking zero or an em-dash on its own.
-    assert.equal(
-      answer.trackRecord,
-      "Opened and closed counts for the last 90 days aren't tracked for this employer yet.",
-    );
-    // No count of any kind is asserted about the window it cannot see.
-    assert.doesNotMatch(answer.trackRecord, /\d+ roles? (opened|closed)/);
-  });
-
-  it("gets richer from the same code once the aggregates arrive — no edit required", () => {
-    const answer = buildCompanyHiringAnswer(
-      company({ opened90d: 48, closed90d: 31, hasTrackRecord: true }),
-      NOW,
-    );
-    assert.equal(answer.headline, "213 open roles live on Velai right now");
-    assert.equal(answer.trackRecord, "Last 90 days: 48 roles opened, 31 closed.");
+    // The half it does NOT have is omitted, not implied, not rendered as a
+    // plausible-looking zero or an em-dash on its own.
+    assert.equal(answer.trackRecord, null);
   });
 
   it("keeps a floor a floor and singularises one role", () => {
@@ -108,13 +91,11 @@ describe("companies/presentation — the answer to 'Is X hiring?'", () => {
     assert.equal(answer.hasOpenRoles, false);
     assert.equal(answer.headline, "Velai isn't tracking any live open roles right now");
     assert.doesNotMatch(answer.headline, /^(Yes|No)\b/);
-    // A zero-role employer still gets the 90-day record when one exists.
+    // A zero-role employer still gets the record when integrity facts exist.
     assert.equal(
-      buildCompanyHiringAnswer(
-        company({ openCount: 0, opened90d: 0, closed90d: 12, hasTrackRecord: true }),
-        NOW,
-      ).trackRecord,
-      "Last 90 days: 0 roles opened, 12 closed.",
+      buildCompanyHiringAnswer(company({ openCount: 0, exhaust: withIntegrity(0, 12, "2025-11-03T10:00:00Z") }), NOW)
+        .trackRecord,
+      "Last 13 weeks: 0 roles opened, 12 closed.",
     );
   });
 });
@@ -141,10 +122,10 @@ describe("companies/presentation — the rail's hiring record reads the box data
       company({ exhaust: withIntegrity(14, 9, "2025-11-03T10:00:00Z") }),
       NOW,
     );
-    assert.equal(answer.trackRecord, "Last 90 days: 14 roles opened, 9 closed.");
+    assert.equal(answer.trackRecord, "Last 13 weeks: 14 roles opened, 9 closed.");
   });
 
-  it("names when tracking began instead of calling a partial window 'last 90 days'", () => {
+  it("names when tracking began instead of calling a partial window 'last 13 weeks'", () => {
     // Tracking began Wednesday Jul 22, 2026 — 24 days before NOW.
     const answer = buildCompanyHiringAnswer(
       company({ exhaust: withIntegrity(3, 1, "2026-07-22T08:00:00Z") }),
@@ -156,12 +137,14 @@ describe("companies/presentation — the rail's hiring record reads the box data
     );
   });
 
-  it("falls back to the index aggregates, then to naming the gap, when the box has no record", () => {
-    assert.equal(
-      buildCompanyHiringAnswer(company({ opened90d: 5, closed90d: 2, hasTrackRecord: true }), NOW).trackRecord,
-      "Last 90 days: 5 roles opened, 2 closed.",
+  it("never falls back to the sync aggregate a job document carries", () => {
+    const synced = [{ ...job({ id: "1" }), company_opened_90d: 237, company_closed_90d: 117 } as PublicJob];
+    assert.equal(buildCompanyHiringAnswer(company({ jobs: synced }), NOW).trackRecord, null);
+    const answer = buildCompanyHiringAnswer(
+      company({ jobs: synced, exhaust: withIntegrity(136, 117, "2026-01-05T00:00:00Z") }),
+      NOW,
     );
-    assert.match(buildCompanyHiringAnswer(company(), NOW).trackRecord, /aren't tracked/);
+    assert.equal(answer.trackRecord, "Last 13 weeks: 136 roles opened, 117 closed.");
   });
 });
 
@@ -198,80 +181,6 @@ describe("companies/presentation — live check beside the headline count", () =
       "",
     );
     assert.equal(buildCompanyHiringAnswer(company({ jobs: [seen("1", 20)], openCount: 1 }), NOW).liveCheck, "");
-  });
-});
-
-describe("companies/presentation — freshness fact (reconciles the CTA's own 30d default)", () => {
-  // The window is /jobs' DEFAULT_URL_STATE.postedBucket — 90 days since
-  // 2026-09-30 (30 before), so "old" fixtures sit at 120 days.
-  it("states a true zero when every open role is older than /jobs' 90-day default (the Leogy case)", () => {
-    // All 5 roles posted 120 days ago — still open, just outside the window.
-    const jobs = Array.from({ length: 5 }, (_, i) =>
-      job({ id: String(i), posted_ts: NOW - 120 * DAY_MS }),
-    );
-    const answer = buildCompanyHiringAnswer(company({ openCount: 5, jobs }), NOW);
-    assert.equal(answer.freshness, "None of the 5 open roles were posted in the last 90 days.");
-    // Never worded as an apology/warning — a plain, natural-language fact.
-    assert.doesNotMatch(answer.freshness, /sorry|unfortunately|warning/i);
-  });
-
-  it("states every role as recent when every role is inside the window — not falsely 0", () => {
-    const jobs = Array.from({ length: 4 }, (_, i) =>
-      job({ id: String(i), posted_ts: NOW - 2 * DAY_MS }),
-    );
-    const answer = buildCompanyHiringAnswer(company({ openCount: 4, jobs }), NOW);
-    assert.equal(answer.freshness, "4 of 4 open roles were posted in the last 90 days.");
-  });
-
-  it("reports a genuine split accurately — not rounded to all-or-nothing", () => {
-    const jobs = [
-      job({ id: "1", posted_ts: NOW - 2 * DAY_MS }),
-      job({ id: "2", posted_ts: NOW - 5 * DAY_MS }),
-      job({ id: "3", posted_ts: NOW - 120 * DAY_MS }),
-    ];
-    const answer = buildCompanyHiringAnswer(company({ openCount: 3, jobs }), NOW);
-    assert.equal(answer.freshness, "2 of 3 open roles were posted in the last 90 days.");
-  });
-
-  it("says nothing when there are no fetched roles to measure, rather than a fabricated '0 of 0'", () => {
-    const answer = buildCompanyHiringAnswer(company({ openCount: 0, jobs: [] }), NOW);
-    assert.equal(answer.freshness, "");
-  });
-
-  it("omits the fact for an employer above the fetch cap — never presents the 200-role WINDOW as the role count (stripe.com/amazon.com shape)", () => {
-    const jobs = Array.from({ length: 200 }, (_, i) =>
-      job({ id: String(i), posted_ts: NOW - 2 * DAY_MS }),
-    );
-    const answer = buildCompanyHiringAnswer(
-      company({ openCount: 582, openCountIsLowerBound: true, jobs }),
-      NOW,
-    );
-    assert.equal(answer.freshness, "");
-    assert.doesNotMatch(answer.freshness, /200/);
-  });
-
-  it("omits the fact rather than shrink the denominator — a partial known-date set must never disagree with the 'N open roles' headline above it", () => {
-    const jobs = [
-      job({ id: "1", posted_ts: NOW - 2 * DAY_MS }), // known, recent
-      job({ id: "2", posted_ts: NOW - 120 * DAY_MS }), // known, old
-      job({ id: "3", posted_ts: null }), // unknown
-      job({ id: "4", posted_ts: null }), // unknown
-      job({ id: "5", posted_ts: NOW - 3 * DAY_MS }), // known, recent
-    ];
-    // A "2 of 3" sentence here would silently disagree with the "5 open
-    // roles" headline the page states one line above — omit instead.
-    const answer = buildCompanyHiringAnswer(company({ openCount: 5, jobs }), NOW);
-    assert.equal(answer.freshness, "");
-  });
-
-  it("says nothing when every fetched role has an unknown posted date — never infers '0 recent' from silence", () => {
-    const jobs = [
-      job({ id: "1", posted_ts: null }),
-      job({ id: "2", posted_ts: null }),
-      job({ id: "3", posted_ts: null }),
-    ];
-    const answer = buildCompanyHiringAnswer(company({ openCount: 3, jobs }), NOW);
-    assert.equal(answer.freshness, "");
   });
 });
 
@@ -361,31 +270,5 @@ describe("companies/presentation — buildCompanyJobsUrl (the CTA must transmit 
         `facet ${field} carries a narrowing value`,
       );
     }
-  });
-});
-
-describe("companies/presentation — hasCompanyKpiContent", () => {
-  it("hides the KPI row when there are zero open roles and no 90-day track record", () => {
-    assert.equal(
-      hasCompanyKpiContent(company({ openCount: 0, hasTrackRecord: false })),
-      false,
-    );
-  });
-
-  it("shows the row when there are open roles, even with no track record", () => {
-    assert.equal(
-      hasCompanyKpiContent(company({ openCount: 5, hasTrackRecord: false })),
-      true,
-    );
-  });
-
-  // A different employer shape than the one that motivated the fix: zero
-  // roles TODAY but a real 90-day history is still something to show, not a
-  // dead row — the gate is an OR, not "roles only".
-  it("shows the row when there are zero open roles but a real 90-day track record exists", () => {
-    assert.equal(
-      hasCompanyKpiContent(company({ openCount: 0, hasTrackRecord: true })),
-      true,
-    );
   });
 });

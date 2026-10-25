@@ -13,6 +13,7 @@ import { FormattedJobDescription } from "@/components/jobs/JobDescription";
 import { ApplyButtonIcon, fetchRelatedJobs, JobDetailActionBar, KpiStat, MetaLine, NO_RELATED, PostingCheckHeader, PostingCheckSignalsGrid, RelatedJobsSection, type RelatedJobs } from "@/components/jobs/JobDetail";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
+import { useCompanyHiringRecord } from "@/components/jobs/use-company-hiring-record";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { DotSeparated } from "@/components/ui/dot-separated";
 import type { MatchScore } from "@/lib/match/score";
@@ -27,8 +28,6 @@ import {
     deriveExposureBadges,
     deriveGhostSignals,
     ghostCheckedText,
-    jobTrackRecord,
-    pairedKpiChips,
 } from "@/components/jobs/job-detail-facts";
 import { shouldSuppressOpenCount, type OpenCount } from "@/lib/companies/open-count";
 import { buildCompanyJobsUrl, openCountText } from "@/lib/companies/presentation";
@@ -87,7 +86,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     // itself one of that company's open postings (see
     // `shouldSuppressOpenCount`'s doc comment for the closed-job carve-out).
     const showOpenCount = openCount != null && !shouldSuppressOpenCount(openCount.value, job.vacancy_status === "closed");
-    const trackRecord = jobTrackRecord(job);
+    const hiringRecord = useCompanyHiringRecord(job.company_domain);
 
     // Rulebook item g: keep the content, render on page bg with a hairline
     // top divider instead of a bordered/bg panel; name 16/22 600 ink,
@@ -99,7 +98,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                 {companyBrand || "This company"}
             </h2>
             {rail?.aboutLine && <p className="mt-2 max-w-[640px] text-sm leading-relaxed text-muted-foreground">{rail.aboutLine}</p>}
-            {(showOpenCount || trackRecord != null) && (
+            {(showOpenCount || hiringRecord != null) && (
                 <div className="mt-4 flex flex-wrap gap-4">
                     {showOpenCount && openCount && (
                         <KpiStat
@@ -108,10 +107,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
                             minWidthClassName="min-w-[90px]"
                         />
                     )}
-                    {trackRecord &&
-                        pairedKpiChips(trackRecord).map((chip) => (
-                            <KpiStat key={chip.label} value={chip.value} label={chip.label} minWidthClassName="min-w-[110px]" />
-                        ))}
+                    {hiringRecord && <p data-testid="job-detail-hiring-record" className="basis-full text-sm text-muted-foreground">{hiringRecord}</p>}
                 </div>
             )}
             {cleanedCompany && (

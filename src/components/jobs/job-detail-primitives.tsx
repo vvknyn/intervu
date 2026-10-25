@@ -50,9 +50,8 @@ export function MetaLine({ items }: { items: Array<ReactNode | null | false | un
 
 /**
  * One "value over label" KPI chip — the employer rail's "Live roles" shape,
- * pulled out so every KPI in the rail (single stats and paired ones alike,
- * see `pairedKpiChips`, job-detail-facts.ts) renders through the same
- * primitive instead of each stat hand-rolling its own value/label markup.
+ * pulled out so every KPI in the rail renders through the same primitive
+ * instead of each stat hand-rolling its own value/label markup.
  */
 export function KpiStat({ value, label, minWidthClassName = "min-w-[100px]" }: { value: string; label: string; minWidthClassName?: string }) {
     return (

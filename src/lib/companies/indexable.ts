@@ -17,7 +17,7 @@
  * it, a real company under its own name, the top {@link SITEMAP_COMPANY_CAP} by live count.
  * Nothing else gates it: the page states only the facts it holds, so a member without, say, a stated country is still a full page.
  * Every other company page still renders in full, as `noindex, follow`. The earlier 3-role page floor and the
- * `hasTrackRecord` OR are gone: they let ~10-role pages and pages with only a
+ * track-record OR are gone: they let ~10-role pages and pages with only a
  * track record be indexable while the sitemap (25 roles) never listed them.
  *
  * UPDATE 2026-08-13: `fetchIndexableCompanyDomains` below no longer sources
@@ -62,6 +62,7 @@
  * the page itself marks `noindex` is a self-contradicting submission.
  */
 import { hasMeilisearch, host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
+import { stripFormatChars } from "@/lib/jobs/presentation";
 
 /** Live roles a company needs to be in the sitemap set, and so to be indexable. */
 export const MIN_SITEMAP_ROLES = 25;
@@ -143,8 +144,9 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(v)) ? null : v;
 }
 
-/** The string entries of a doc field, or null when it is not an array. */
-const stringsOf = (v: unknown): string[] | null => (Array.isArray(v) ? v.filter((n): n is string => typeof n === "string") : null);
+/** The string entries of a doc field, cleaned of invisible format characters (the one read of `site_names`, `wikidata_names`, `row_names`), or null when it is not an array. */
+const stringsOf = (v: unknown): string[] | null =>
+  Array.isArray(v) ? v.filter((n): n is string => typeof n === "string").map(stripFormatChars).filter(Boolean) : null;
 
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.

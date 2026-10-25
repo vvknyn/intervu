@@ -21,7 +21,8 @@ import { ReportJobButton } from "@/components/jobs/ReportJobButton";
 import { RowBookmarkButton } from "@/components/jobs/RowBookmarkButton";
 import { TrackedStageLine } from "@/components/jobs/TrackedStageLine";
 import { McpHandoffNote } from "@/components/mcp/McpHandoffNote";
-import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, jobTrackRecord, pairedKpiChips, applyButtonLabel, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
+import { useCompanyHiringRecord } from "@/components/jobs/use-company-hiring-record";
+import { buildFactChips, deriveExposureBadges, deriveGhostSignals, ghostCheckedText, alsoInLabel, applyButtonLabel, GHOST_CHECK_TAGLINE } from "@/components/jobs/job-detail-facts";
 import { jobCompanyHref } from "@/lib/companies/paths";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
 import { cn } from "@/lib/utils";
@@ -712,8 +713,8 @@ export function JobDetail({
     // closed-job carve-out.
     const showOpenCount = liveOpenCount != null && !shouldSuppressOpenCount(liveOpenCount.value, job.vacancy_status === "closed");
 
-    const trackRecord = jobTrackRecord(job);
-    const hasCompanyIntel = showOpenCount || trackRecord != null;
+    const hiringRecord = useCompanyHiringRecord(job.company_domain, descriptionSettled);
+    const hasCompanyIntel = showOpenCount || hiringRecord != null;
 
     return (
         <div
@@ -1222,11 +1223,8 @@ export function JobDetail({
                                     label="Live roles"
                                 />
                             )}
-                            {trackRecord &&
-                                pairedKpiChips(trackRecord).map((chip) => (
-                                    <KpiStat key={chip.label} value={chip.value} label={chip.label} minWidthClassName="min-w-[110px]" />
-                                ))}
                         </div>
+                        {hiringRecord && <p data-testid="job-detail-hiring-record" className="mt-3 text-sm text-muted-foreground">{hiringRecord}</p>}
                         {cleanedCompany && (
                             <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
                                 <Link

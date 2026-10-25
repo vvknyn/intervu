@@ -1,7 +1,7 @@
 import { resolveCorpusCount } from "@/lib/jobs/corpus-count";
 import { decodeSlug, domainToSlug, getBoardsForDomain, slugToDomain } from "@/lib/boards/slug";
 import { extractCompanyAboutLine } from "@/lib/companies/about-line";
-import { firstNonNull, resolveTrackRecord } from "@/lib/companies/aggregates";
+import { firstNonNull } from "@/lib/companies/aggregates";
 import { resolveCompanyName } from "@/lib/companies/company-name";
 import { getDirectory, peekCountGeneration } from "@/lib/companies/directory-model";
 import { COMPANY_JOBS_FETCH_LIMIT, companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
@@ -201,16 +201,9 @@ export async function getCompanyPageData(
   const name = resolveCompanyName(jobs, domain);
   const openCount = reads.countGeneration()?.get(domain) ?? companyOpenCount(result);
   const stage = firstNonNull(jobs, (j) => j.company_stage?.trim() || null);
-  // The `company_*` aggregates land on documents progressively as the sync
-  // re-writes them, so most of a company's hits still carry nothing while some
-  // already do. Take them from the first hit that HAS them rather than from
-  // `jobs[0]`, which made the track record depend on where the sorted window
-  // happened to land — see aggregates.ts for why the pair is sourced from one
-  // document and what happens when two documents disagree.
   // `company_open_count` is still deliberately NOT consulted for the count:
   // `resolveOpenCount` owns that decision because it is the only thing that
   // knows whether the number is exact or a floor.
-  const trackRecord = resolveTrackRecord(jobs);
   const ghostPct = ghostFlaggedPct(jobs);
   const intelligence = resolveCompanyIntelligence(jobs, stage, news.value);
   // Legal-entity suffix stripped here — the ONE place `/co/[slug]` reads its
@@ -232,9 +225,6 @@ export async function getCompanyPageData(
     // invented. Null when no confident extraction was found.
     oneLiner: extractCompanyAboutLine(jobs, displayName),
     stage,
-    opened90d: trackRecord?.opened90d ?? null,
-    closed90d: trackRecord?.closed90d ?? null,
-    hasTrackRecord: trackRecord !== null,
     openCount: openCount.value,
     openCountIsLowerBound: openCount.isLowerBound,
     ghostFlaggedPct: ghostPct,
@@ -249,7 +239,6 @@ export async function getCompanyPageData(
       jobs,
       openCount,
       postingTotal: resolveCorpusCount(result).value,
-      trackRecord,
       ghostFlaggedPct: ghostPct,
       facetDistribution: result.facetDistribution,
       exhaust: exhaust.value,

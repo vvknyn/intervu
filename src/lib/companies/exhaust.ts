@@ -16,8 +16,9 @@
  */
 import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
-import { INTEGRITY_WINDOW_DAYS, isoWeekStart } from "@/lib/companies/hiring-record";
+import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
+import { formatCount } from "@/lib/format";
 
 export type ExhaustSection<T> = { data: T; source: string; label: string; asOf: string } | null;
 
@@ -113,20 +114,18 @@ export interface CadenceFacts {
   /** Chronological; starts at the first tracked week when tracking began
    *  inside the window, so weeks Velai never watched are not drawn as zeros. */
   weeks: WeeklyCadence[];
-  /** First day `company_posting_daily` has for this employer, or null. */
-  trackedSinceIso: string | null;
 }
 
 export interface IntegrityFacts {
-  /** How the 90-day-closed roles closed, one row per distinct closed_reason. */
+  /** How the roles closed since the record window began, one row per distinct closed_reason. */
   closedReasonCounts: { reason: string; label: string; count: number }[];
-  /** Roles first seen in the trailing 90 days, not counting roles first seen
-   *  in the first week Velai tracked the employer (those were already open —
-   *  the first crawl's backlog, not new hiring). */
+  /** The SUM of the cadence strip's bars over the same window, leaving out
+   *  the first tracked week when it falls inside it (those roles were already
+   *  open — the first crawl's backlog, not new hiring). Equal to the strip by
+   *  construction: see {@link buildHiringRecordSections}. */
   openedCount: number;
-  /** Earliest `first_seen_at` Velai has for this employer when that is
-   *  recent enough to matter (inside the 90-day window plus a week); null
-   *  when tracking began earlier, or never. */
+  /** Earliest `first_seen_at` Velai has for this employer, or null when it
+   *  has never seen one. The one tracked-start value on the page. */
   trackedSinceIso: string | null;
 }
 
@@ -165,9 +164,6 @@ export type CompanyExhaust = {
   careersUrl: string | null;
 };
 
-/** 13 weeks: the strip sits in the page's 320px rail, and a quarter lines up
- *  with the 90-day hiring record printed under it. */
-const CADENCE_WEEKS = 13;
 const VERDICT_MIN_OBSERVATION_DAYS = 90;
 /** Exported — `get_company_timeline` (agent/company-tools.ts) clamps its
  *  own `limit` input to this SAME cap, so the MCP wire's ceiling can never
@@ -193,7 +189,7 @@ const WARN_RECENT_LIMIT = 3;
 export function buildWeeklyCadence(
   weekSums: { weekStartIso: string; newListings: number }[],
   nowMs: number,
-  weekCount = CADENCE_WEEKS,
+  weekCount = RECORD_WINDOW_WEEKS,
   trackedSinceIso: string | null = null,
 ): WeeklyCadence[] {
   const byWeek = new Map(weekSums.map((w) => [w.weekStartIso, w.newListings]));
@@ -260,13 +256,13 @@ export function resolveFundingOrListingCell(input: {
 export function buildH1bSentence(data: H1bLcaFacts): string {
   const total = data.initialApprovals + data.continuingApprovals;
   const denials = data.initialDenials + data.continuingDenials;
-  const base = `${total} h-1b approval${total === 1 ? "" : "s"} in fy${data.fiscalYear} (${data.initialApprovals} initial, ${data.continuingApprovals} continuing).`;
-  return denials > 0 ? `${base} ${denials} denial${denials === 1 ? "" : "s"} in the same period.` : base;
+  const base = `${formatCount(total)} h-1b approval${total === 1 ? "" : "s"} in fy${data.fiscalYear} (${formatCount(data.initialApprovals)} initial, ${formatCount(data.continuingApprovals)} continuing).`;
+  return denials > 0 ? `${base} ${formatCount(denials)} denial${denials === 1 ? "" : "s"} in the same period.` : base;
 }
 
 /** "N layoff notice(s) filed — M employees affected." */
 export function buildWarnSentence(data: WarnNoticeFacts): string {
-  return `${data.noticeCount} layoff notice${data.noticeCount === 1 ? "" : "s"} filed — ${data.totalEmployeesAffected} employee${data.totalEmployeesAffected === 1 ? "" : "s"} affected.`;
+  return `${formatCount(data.noticeCount)} layoff notice${data.noticeCount === 1 ? "" : "s"} filed — ${formatCount(data.totalEmployeesAffected)} employee${data.totalEmployeesAffected === 1 ? "" : "s"} affected.`;
 }
 
 /**
@@ -357,14 +353,12 @@ interface HealthRow {
   last_checked_at: string | null;
 }
 
-interface CadenceRow {
-  week_start: string;
-  total: number | string;
-}
-
-interface CadenceResult {
-  rows: CadenceRow[];
-  firstDay: string | null;
+/** One `job_listings` week bucket; a lone row with a null `week_start`
+ *  carries `first_day` for an employer with nothing opened in the window. */
+interface OpenedWeekRow {
+  week_start: string | null;
+  total: number | string | null;
+  first_day: string | null;
 }
 
 interface ClosedReasonRow {
@@ -434,87 +428,42 @@ async function fetchSectorRow(pg: Queryable, domain: string): Promise<SectorRow 
   return rows[0] ?? null;
 }
 
-async function fetchCadenceRows(pg: Queryable, domain: string): Promise<CadenceResult> {
-  const [weeks, first] = await Promise.all([
-    pg.query<CadenceRow>(
-      `SELECT date_trunc('week', day)::date::text AS week_start, SUM(new_listings)::int AS total
-       FROM company_posting_daily
-       WHERE company_domain = $1 AND day >= (CURRENT_DATE - INTERVAL '${CADENCE_WEEKS} weeks')
-       GROUP BY 1
-       ORDER BY 1`,
-      [domain],
-    ),
-    // All-time, not windowed: when tracking began is what decides whether an
-    // early empty week is a real zero or a week nobody was watching.
-    pg.query<{ first_day: string | null }>(
-      `SELECT MIN(day)::text AS first_day FROM company_posting_daily WHERE company_domain = $1`,
-      [domain],
-    ),
-  ]);
-  return { rows: weeks.rows, firstDay: first.rows[0]?.first_day ?? null };
-}
+/** Start of the record window: the Monday `RECORD_WINDOW_WEEKS - 1` weeks
+ *  before this week's, in UTC — the same boundary `isoWeekStart` draws. */
+const WINDOW_START_SQL = `(date_trunc('week', now() AT TIME ZONE 'UTC') - interval '${RECORD_WINDOW_WEEKS - 1} weeks') AT TIME ZONE 'UTC'`;
 
-/** How far back the "when did tracking begin" lookups read: the record's
- *  window plus the week the first crawl is left out of. A first sighting
- *  older than this changes neither the opened count nor the sentence. */
-const TRACKING_LOOKBACK_DAYS = INTEGRITY_WINDOW_DAYS + 7;
-
-interface IntegrityRows {
+export interface RecordRows {
   closedReasons: ClosedReasonRow[];
-  openedCount: number;
-  /** First sighting when it falls inside the lookback, else null. */
-  trackedSince: string | null;
-  /** Velai has seen at least one of the employer's roles, ever. */
-  tracked: boolean;
+  weekRows: OpenedWeekRow[];
 }
 
-async function fetchIntegrityRows(pg: Queryable, domain: string): Promise<IntegrityRows> {
-  const [closed, opened] = await Promise.all([
+/** The employer's opened/closed record, every figure from `job_listings`:
+ *  opened roles per week over the strip's window, when tracking began, and
+ *  how many closed since the window began. */
+async function fetchRecordRows(pg: Queryable, domain: string): Promise<RecordRows> {
+  const [closed, weeks] = await Promise.all([
     pg.query<ClosedReasonRow>(
       `SELECT closed_reason, COUNT(*)::int AS n
        FROM job_listings
-       WHERE company_domain = $1 AND closed_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'
+       WHERE company_domain = $1 AND closed_at >= ${WINDOW_START_SQL}
        GROUP BY closed_reason`,
       [domain],
     ),
-    // Roles first seen during the first tracked week were already open when
-    // Velai found the employer; counting them as "opened" inflated every
-    // newly-tracked employer's record. Same week boundary the cadence strip
-    // flags as `firstTracked`.
-    //
-    // Reads stay inside the lookback, and the rows are scanned once (`r`).
-    // Release 15's version took MIN(first_seen_at) over the employer's whole
-    // history and counted `j.*` over every row it had ever seen. A whole-row
-    // reference makes Postgres detoast each row's description, so a large
-    // employer's page waited seconds on it. An EXISTS on one older row
-    // answers "tracked before the window?" without reading that history.
-    pg.query<{ n: number; tracked_since: string | null; tracked: boolean }>(
-      `WITH r AS (
-         SELECT first_seen_at FROM job_listings
-         WHERE company_domain = $1 AND first_seen_at >= now() - interval '${TRACKING_LOOKBACK_DAYS} days'
-       ), b AS (
-         SELECT
-           (SELECT MIN(first_seen_at) FROM r) AS first_seen,
-           EXISTS (SELECT 1 FROM job_listings
-             WHERE company_domain = $1 AND first_seen_at < now() - interval '${TRACKING_LOOKBACK_DAYS} days') AS tracked_before
+    pg.query<OpenedWeekRow>(
+      `WITH wk AS (
+         SELECT date_trunc('week', first_seen_at AT TIME ZONE 'UTC')::date::text AS week_start, COUNT(*)::int AS total
+         FROM job_listings
+         WHERE company_domain = $1 AND first_seen_at >= ${WINDOW_START_SQL}
+         GROUP BY 1
        )
-       SELECT
-         (SELECT COUNT(*) FROM r
-           WHERE r.first_seen_at >= now() - interval '${INTEGRITY_WINDOW_DAYS} days'
-             AND (b.tracked_before OR r.first_seen_at >= date_trunc('week', b.first_seen) + interval '7 days'))::int AS n,
-         CASE WHEN b.tracked_before THEN NULL ELSE b.first_seen::date::text END AS tracked_since,
-         (b.tracked_before OR b.first_seen IS NOT NULL) AS tracked
-       FROM b`,
+       SELECT wk.week_start, wk.total,
+         (SELECT (MIN(first_seen_at) AT TIME ZONE 'UTC')::date::text FROM job_listings WHERE company_domain = $1) AS first_day
+       FROM (SELECT 1) one LEFT JOIN wk ON true
+       ORDER BY wk.week_start`,
       [domain],
     ),
   ]);
-  const row = opened.rows[0];
-  return {
-    closedReasons: closed.rows,
-    openedCount: row?.n ?? 0,
-    trackedSince: row?.tracked_since ?? null,
-    tracked: row?.tracked === true,
-  };
+  return { closedReasons: closed.rows, weekRows: weeks.rows };
 }
 
 async function fetchChangeHistoryRows(pg: Queryable, domain: string): Promise<ChangeEventDbRow[]> {
@@ -721,37 +670,42 @@ function buildHealthSection(row: HealthRow | null): ExhaustSection<HealthFacts> 
   };
 }
 
-function buildCadenceSection(result: CadenceResult | null, nowMs: number): ExhaustSection<CadenceFacts> {
-  if (!result || result.rows.length === 0) return null;
-  const weekSums = result.rows.map((r) => ({ weekStartIso: r.week_start, newListings: num(r.total) ?? 0 }));
-  const trackedSinceIso = isoDate(result.firstDay);
+/**
+ * The cadence strip and the opened/closed record, built from the same weekly
+ * rows so they cannot disagree: `openedCount` is the sum of the bars after
+ * the first tracked week. Kept with zero counts once tracking has started
+ * ("tracked since X, 0 opened, 0 closed" is a record); both are null for an
+ * employer Velai has never seen, where null reads as "not tracked".
+ */
+export function buildHiringRecordSections(
+  result: RecordRows | null,
+  nowMs: number,
+): { cadence: ExhaustSection<CadenceFacts>; integrity: ExhaustSection<IntegrityFacts> } {
+  const trackedSinceIso = isoDate(result?.weekRows[0]?.first_day);
+  if (!result || !trackedSinceIso) return { cadence: null, integrity: null };
+  const weekSums = result.weekRows
+    .filter((r) => r.week_start)
+    .map((r) => ({ weekStartIso: r.week_start as string, newListings: num(r.total) ?? 0 }));
+  const weeks = buildWeeklyCadence(weekSums, nowMs, RECORD_WINDOW_WEEKS, trackedSinceIso);
+  const asOf = new Date(nowMs).toISOString();
   return {
-    data: { weeks: buildWeeklyCadence(weekSums, nowMs, CADENCE_WEEKS, trackedSinceIso), trackedSinceIso },
-    source: "company_posting_daily",
-    label: "Posting activity",
-    asOf: new Date(nowMs).toISOString(),
-  };
-}
-
-function buildIntegritySection(result: IntegrityRows | null, nowMs: number): ExhaustSection<IntegrityFacts> {
-  // Kept with zero counts once tracking has started: "tracked since X, 0
-  // opened, 0 closed" is a record, where a null would read as "not tracked".
-  if (!result || (result.closedReasons.length === 0 && result.openedCount === 0 && !result.tracked)) return null;
-  return {
-    data: {
-      closedReasonCounts: result.closedReasons
-        .filter((r) => r.closed_reason)
-        .map((r) => ({
-          reason: r.closed_reason as string,
-          label: eventTypeLabel(r.closed_reason as string),
-          count: num(r.n) ?? 0,
-        })),
-      openedCount: result.openedCount,
-      trackedSinceIso: isoDate(result.trackedSince),
+    cadence: { data: { weeks }, source: "job_listings", label: "Posting activity", asOf },
+    integrity: {
+      data: {
+        closedReasonCounts: result.closedReasons
+          .filter((r) => r.closed_reason)
+          .map((r) => ({
+            reason: r.closed_reason as string,
+            label: eventTypeLabel(r.closed_reason as string),
+            count: num(r.n) ?? 0,
+          })),
+        openedCount: weeks.filter((w) => !w.firstTracked).reduce((sum, w) => sum + w.newListings, 0),
+        trackedSinceIso,
+      },
+      source: "job_listings",
+      label: "Job listings",
+      asOf,
     },
-    source: "job_listings",
-    label: "Job listings",
-    asOf: new Date(nowMs).toISOString(),
   };
 }
 
@@ -810,12 +764,12 @@ export async function readCompanyExhaust(
   const settled = await Promise.allSettled([
     fetchEnrichmentRows(pg, domain),
     fetchHealthRow(pg, domain),
-    fetchCadenceRows(pg, domain),
-    fetchIntegrityRows(pg, domain),
+    fetchRecordRows(pg, domain),
     fetchChangeHistoryRows(pg, domain),
     fetchSectorRow(pg, domain),
   ] as const);
-  const [enrichment, health, cadence, integrity, changeHistory, sector] = settled;
+  const [enrichment, health, record, changeHistory, sector] = settled;
+  const { cadence, integrity } = buildHiringRecordSections(record.status === "fulfilled" ? record.value : null, nowMs);
 
   const enrichmentRows = enrichment.status === "fulfilled" ? enrichment.value : new Map<string, EnrichmentRow>();
 
@@ -829,8 +783,8 @@ export async function readCompanyExhaust(
       warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
       techStack: buildTechSection(enrichmentRows.get("tech_profile")),
       health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
-      cadence: buildCadenceSection(cadence.status === "fulfilled" ? cadence.value : null, nowMs),
-      integrity: buildIntegritySection(integrity.status === "fulfilled" ? integrity.value : null, nowMs),
+      cadence,
+      integrity,
       changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
       sector: resolveSector(sector.status === "fulfilled" ? sector.value : null),
       careersUrl: resolveCareersUrl(sector.status === "fulfilled" ? sector.value : null),

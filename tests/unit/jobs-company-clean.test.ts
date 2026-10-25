@@ -570,3 +570,17 @@ test("displayCompanyName never strips a legal form that directly follows '&' or 
     assert.equal(displayCompanyName("Barnes and Noble Inc."), "Barnes and Noble");
     assert.equal(displayCompanyName("Smith and Co."), "Smith and Co.");
 });
+
+test("strips a leading ATS entity code with any number of underscore segments", () => {
+    assert.equal(cleanCompany("US_ORB_4000 ORBIS Corporation"), "ORBIS Corporation");
+    assert.equal(cleanCompany("US_MPC_1000 Menasha Packaging Company"), "Menasha Packaging Company");
+    assert.equal(cleanCompany("EU_DE_XYZ_77 Xyz Gmbh"), "Xyz Gmbh");
+    assert.equal(cleanCompany("QLYS_CA Qualys Canada Ltd."), "Qualys Canada Ltd.");
+});
+
+test("entity-code strip leaves a bare code, lower-case tokens and underscore-less names alone", () => {
+    assert.equal(cleanCompany("US_ORB_4000"), "US_ORB_4000");
+    assert.equal(cleanCompany("us_orb_4000 Foo"), "us_orb_4000 Foo");
+    assert.equal(cleanCompany("US_orb_4000 Foo"), "US_orb_4000 Foo");
+    assert.equal(cleanCompany("IBM Research"), "IBM Research");
+});
