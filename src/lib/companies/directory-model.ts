@@ -58,14 +58,22 @@ const MAJORITY_SHARE = 0.5;
 type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean; legal: string };
 
 /**
- * Pure: of domains showing one name, those that are told apart by a legal-form-bearing resolver value
- * ("ORBIS Inc." / "ORBIS Corporation"): the value carries a legal form, differs case-insensitively from
+ * Pure: `name` with its legal form, from the first of `candidates` (resolver value, site names, row/wikidata
+ * spellings) that carries one and displays as `name` — it only adds a form to the name shown ("Marmon
+ * Holdings, Inc." never stands in for "Marmon"). "" when none does.
+ */
+export const legalNameOf = (name: string, candidates: readonly string[]): string =>
+  candidates.find((c) => carriesLegalTail(c) && displayCompanyName(c).toLowerCase() === name.toLowerCase()) ?? "";
+
+/**
+ * Pure: of domains showing one name, those that are told apart by their legal name (`legalNameOf`,
+ * "ORBIS Inc." / "ORBIS Corporation"): it exists, differs case-insensitively from
  * every other's, and the registrable label differs from every other's (linde-mh.ie and linde-mh.co.uk are
  * one company). Fewer than two such domains tell nothing apart, so the result is empty and M3 applies.
  */
 export function distinctLegalNames(group: readonly { domain: string; legal: string }[]): Set<string> {
   const unique = (key: (m: { domain: string; legal: string }) => string, m: { domain: string; legal: string }) => group.filter((o) => key(o) === key(m)).length === 1;
-  const told = group.filter((m) => carriesLegalTail(m.legal) && unique((o) => o.legal.toLowerCase(), m) && unique((o) => registrableLabel(o.domain), m));
+  const told = group.filter((m) => m.legal !== "" && unique((o) => o.legal.toLowerCase(), m) && unique((o) => registrableLabel(o.domain), m));
   return new Set(told.length >= 2 ? told.map((m) => m.domain) : []);
 }
 
@@ -100,7 +108,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], re
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
     const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings);
-    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name), legal: resolved.value });
+    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]) });
   });
 
   const byName = new Map<string, DirectoryCompany>();

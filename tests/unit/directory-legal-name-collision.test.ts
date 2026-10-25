@@ -5,9 +5,9 @@ import type { EachResult } from "@/lib/jobs/meilisearch";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /** Each spec is a domain and the one company string its 5 rows carry. */
-const build = (specs: [domain: string, company: string][]): Directory =>
+const build = (specs: [domain: string, company: string, extra?: { siteNames?: string[]; labelSpellings?: string[] }][]): Directory =>
   buildDirectory(
-    specs.map(([domain]) => ({ domain, openRoleCount: 5, computedAt: null })),
+    specs.map(([domain, , extra]) => ({ domain, openRoleCount: 5, computedAt: null, ...extra })),
     specs.map(([, company]): EachResult => ({ hits: Array.from({ length: 5 }, () => ({ company, title: "Engineer", location: "Remote" }) as PublicJob), total: 5 })),
     undefined,
     1,
@@ -26,6 +26,22 @@ describe("buildDirectory — domains that collide on a display name but carry di
     const d = build([["acmeinc.com", "Acme Inc."], ["acme-gruppe.de", "Acme GmbH"]]);
     assert.deepEqual(listed(d), { "acmeinc.com": "Acme Inc.", "acme-gruppe.de": "Acme GmbH" });
     assert.deepEqual(m3(d), []);
+  });
+
+  it("finds the legal form in the site names or row names when the resolver value has none (the ORBIS shapes)", () => {
+    const d = build([
+      ["orbisinc.net", "ORBIS", { siteNames: ["ORBIS Inc.", "An Engineering Solutions Company"] }],
+      ["orbiscorporation.com", "US_ORB_4000\u200b ORBIS Corporation", { siteNames: ["Reusable Plastic Pallets & Containers", "ORBIS"], labelSpellings: ["ORBIS Corporation"] }],
+    ]);
+    assert.deepEqual(listed(d), { "orbisinc.net": "ORBIS Inc.", "orbiscorporation.com": "ORBIS Corporation" });
+    const other = build([["acmeinc.com", "Acme", { siteNames: ["Acme Inc."] }], ["acme-gruppe.de", "Acme", { siteNames: ["Acme GmbH"] }]]);
+    assert.deepEqual(listed(other), { "acmeinc.com": "Acme Inc.", "acme-gruppe.de": "Acme GmbH" });
+  });
+
+  it("never swaps in a different name: a legal name that does not display as the colliding name is rejected", () => {
+    const d = build([["marmon.com", "Marmon", { siteNames: ["Marmon Holdings, Inc."] }], ["marmon-group.de", "Marmon", { siteNames: ["Marmon GmbH"] }]]);
+    assert.equal(m3(d).length, 1);
+    assert.equal(d.companies.length, 1);
   });
 
   it("same registrable label on two TLDs is one company: M3 still applies", () => {
