@@ -28,6 +28,7 @@ import { fetchIndexableCompanyDomains, MIN_SITEMAP_ROLES, SITEMAP_COMPANY_CAP, t
 import { fetchNameEvidence, fetchOpenCounts } from "@/lib/companies/listed-names";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { ATS_PORTAL_HOSTNAME_RE, displayCompanyName } from "@/lib/jobs/presentation";
+import { mapYielding } from "@/lib/perf/yielding-map";
 import type { EachResult } from "@/lib/jobs/meilisearch";
 
 /** A listed company, with the name and the letter every surface shows for it. */
@@ -94,23 +95,24 @@ const byClaim = (a: Claim, b: Claim): number =>
   byRoles(a.company, b.company);
 
 /**
- * Pure: the directory over `candidates` (most raw live roles first), `reads` being each one's roles
+ * Pure (async only to yield between candidates, see mapYielding): the directory over `candidates` (most raw live roles first), `reads` being each one's roles
  * read in the same order. Lists at most `cap`, by open-roles number, those with at least `minRoles`.
  */
-export function buildDirectory(candidates: readonly IndexableCompanyDomain[], reads: readonly EachResult[], cap: number = SITEMAP_COMPANY_CAP, minRoles: number = MIN_SITEMAP_ROLES): Directory {
+export async function buildDirectory(candidates: readonly IndexableCompanyDomain[], reads: readonly EachResult[], cap: number = SITEMAP_COMPANY_CAP, minRoles: number = MIN_SITEMAP_ROLES): Promise<Directory> {
   const excluded: Exclusion[] = [];
-  const claims: Claim[] = [];
-  candidates.forEach((raw, i) => {
-    if (ATS_PORTAL_HOSTNAME_RE.test(raw.domain)) return void excluded.push({ domain: raw.domain, rule: "M1" });
-    const read = reads[i] ?? { hits: [], total: 0 };
-    const candidate = { ...raw, openRoleCount: companyOpenCount(read).value };
-    const roles = publicRoles(read.hits);
-    const resolved = resolveCompanyName(roles, candidate.domain);
-    if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
-    if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
-    const { name, unsettled, identity } = siteSpellings(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings, roles.map((role) => role.company ?? ""));
-    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: [unsettled, identity, name].some((own) => hostLabelNamesCompany(candidate.domain, own)), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]), unsettled, identity });
-  });
+  const claims = (
+    await mapYielding(candidates, (raw, i): Claim | undefined => {
+      if (ATS_PORTAL_HOSTNAME_RE.test(raw.domain)) return void excluded.push({ domain: raw.domain, rule: "M1" });
+      const read = reads[i] ?? { hits: [], total: 0 };
+      const candidate = { ...raw, openRoleCount: companyOpenCount(read).value };
+      const roles = publicRoles(read.hits);
+      const resolved = resolveCompanyName(roles, candidate.domain);
+      if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
+      if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
+      const { name, unsettled, identity } = siteSpellings(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings, roles.map((role) => role.company ?? ""));
+      return { company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: [unsettled, identity, name].some((own) => hostLabelNamesCompany(candidate.domain, own)), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]), unsettled, identity };
+    })
+  ).filter((claim) => claim !== undefined);
 
   // A name owns both its listed fold and its unsettled one: refining the display must not change who a duplicate is.
   const owners = new Map<string, number>();
@@ -217,7 +219,7 @@ export type CountGeneration = ReadonlyMap<string, OpenCount>;
 export const buildCountGeneration = async (directory: typeof getDirectory = getDirectory, readEvidence: typeof fetchNameEvidence = fetchNameEvidence): Promise<CountGeneration> => {
   const domains = (await directory()).companies.map((c) => c.domain);
   const results = await readEvidence(domains);
-  return new Map(domains.map((domain, i) => [domain, companyOpenCount(results[i]!)]));
+  return new Map(await mapYielding(domains, (domain, i): [string, OpenCount] => [domain, companyOpenCount(results[i]!)]));
 };
 
 /**
