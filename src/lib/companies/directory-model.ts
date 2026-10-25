@@ -12,7 +12,8 @@
  *       name that belongs elsewhere, a vendor's name, no name) is an uncorroborated identity and is
  *       not listed — a page for it still renders, as `noindex`, under its domain label;
  *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
- *       subdomain, then more live roles.
+ *       subdomain, then more live roles — unless their legal names tell them apart (`distinctLegalNames`),
+ *       when each is listed under its own.
  * Each listed company's `openRoleCount` is that number as of the memo build (up to 6h old): it ranks,
  * thresholds and caps only, and is never displayed. A displayed count of a listed company comes from
  * ONE count generation (below), rebuilt every 30 min with the company page's own count function, so the
@@ -20,7 +21,7 @@
  * generation holds is read fresh with `fetchOpenCounts` (listed-names.ts), the same query the page uses.
  * Candidates arrive by raw live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { hostLabelIsName, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { carriesLegalTail, hostLabelIsName, registrableLabel, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
 import { companyOpenCount, publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, MIN_SITEMAP_ROLES, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -54,7 +55,34 @@ export const DIRECTORY_REVALIDATE_SECONDS = 6 * 60 * 60;
 const MAJORITY_SHARE = 0.5;
 
 /** A listable candidate and how strongly it holds the name it is listed under. */
-type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean };
+type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean; legal: string };
+
+/**
+ * Pure: `name` with its legal form, from the first of `candidates` (resolver value, site names, row/wikidata
+ * spellings) that carries one and displays as `name` — it only adds a form to the name shown ("Marmon
+ * Holdings, Inc." never stands in for "Marmon"). "" when none does.
+ */
+export const legalNameOf = (name: string, candidates: readonly string[]): string =>
+  candidates.find((c) => carriesLegalTail(c) && displayCompanyName(c).toLowerCase() === name.toLowerCase()) ?? "";
+
+/**
+ * Pure: of domains showing one name, those that are told apart by their legal name (`legalNameOf`,
+ * "ORBIS Inc." / "ORBIS Corporation"): it exists, differs case-insensitively from
+ * every other's, and the registrable label differs from every other's (linde-mh.ie and linde-mh.co.uk are
+ * one company). Fewer than two such domains tell nothing apart, so the result is empty and M3 applies.
+ */
+export function distinctLegalNames(group: readonly { domain: string; legal: string }[]): Set<string> {
+  const unique = (key: (m: { domain: string; legal: string }) => string, m: { domain: string; legal: string }) => group.filter((o) => key(o) === key(m)).length === 1;
+  const told = group.filter((m) => m.legal !== "" && unique((o) => o.legal.toLowerCase(), m) && unique((o) => registrableLabel(o.domain), m));
+  return new Set(told.length >= 2 ? told.map((m) => m.domain) : []);
+}
+
+/** The claims, each of those `distinctLegalNames` tells apart within its name's collision renamed to its legal name. */
+function listUnderLegalNames(claims: readonly Claim[]): Claim[] {
+  const groups = Map.groupBy(claims, (c) => c.company.name.toLowerCase());
+  const told = new Set([...groups.values()].flatMap((g) => [...distinctLegalNames(g.map((c) => ({ domain: c.company.domain, legal: c.legal })))]));
+  return claims.map((c) => (told.has(c.company.domain) ? { ...c, company: { ...c.company, name: c.legal, letter: letterOf(c.legal) } } : c));
+}
 
 const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
 
@@ -80,11 +108,11 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], re
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
     const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings);
-    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name) });
+    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]) });
   });
 
   const byName = new Map<string, DirectoryCompany>();
-  for (const { company } of claims.sort(byClaim)) {
+  for (const { company } of listUnderLegalNames(claims).sort(byClaim)) {
     const kept = byName.get(company.name.toLowerCase());
     if (kept) excluded.push({ domain: company.domain, rule: "M3", owner: kept.domain });
     else byName.set(company.name.toLowerCase(), company);

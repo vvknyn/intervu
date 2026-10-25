@@ -205,6 +205,9 @@ function hostParts(domain: string): { parts: string[]; tld: string } {
   return { parts, tld };
 }
 
+/** The label that names the registrant: `hostParts`' last ('linde-mh' for linde-mh.ie and linde-mh.co.uk, 'orbisinc' for orbisinc.net). */
+export const registrableLabel = (domain: string): string => hostParts(domain).parts.at(-1) ?? "";
+
 function domainLabels(domain: string): { labels: string[]; brandTld: string | null } {
   const { parts, tld } = hostParts(domain);
   return { labels: parts.map(alnum).filter(Boolean).flatMap(labelVariants), brandTld: tld.length >= BRAND_TLD_MIN_LENGTH ? alnum(tld) : null };
@@ -405,7 +408,7 @@ function labelSpelled(display: string, labelSpellings: readonly string[], domain
 }
 
 /** A trailing legal form the display name strips ("zahneins GmbH"): a site name carrying one is not a spelling of the display name. A trading "Co."/"Company" is part of the brand ("Australian Venue Co."), not a legal tail. */
-const carriesLegalTail = (c: string): boolean => {
+export const carriesLegalTail = (c: string): boolean => {
   const stripped = displayCompanyName(c);
   const tail = c.slice(stripped.length);
   return stripped !== c && c.startsWith(stripped) && /^[\s,]/.test(tail) && !/^[\s,]+Co(?:mpany)?\.?$/i.test(tail);

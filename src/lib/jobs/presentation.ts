@@ -654,7 +654,7 @@ export function cleanCompany(s: string | null | undefined): string {
 
     out = out
         .replace(/^[A-Z]{2,5}\d{2,6}\s+/, "")
-        .replace(/^[A-Z0-9]{2,10}_[A-Z0-9]{2,10}\s+(?=\S)/, "")
+        .replace(/^[A-Z0-9]{2,10}(?:_[A-Z0-9]{2,10})+\s+(?=\S)/, "")
         .replace(/^[A-Z]{2,6}-\s*/, "")
         .replace(/^C\d{4}\s+/, "")
         .trim();
