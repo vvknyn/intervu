@@ -115,3 +115,13 @@ export function formatCompactCorpusCount(count: CorpusCount): string {
     }
     return `~${n.toLocaleString()}${plus}`;
 }
+
+/**
+ * The Filters sheet's primary action. Filters apply live, so this only closes the sheet; its label quotes the
+ * live total when one has landed (`count` is null while a search is in flight or unavailable) and otherwise
+ * says "Show results" rather than a number it cannot back.
+ */
+export function showResultsLabel(count: CorpusCount | null): string {
+    if (!count) return "Show results";
+    return `Show ${formatCorpusCount(count)} ${count.kind === "exact" && count.value === 1 ? "job" : "jobs"}`;
+}
