@@ -27,8 +27,8 @@ function proxyLine(event, detail, { port, method, url, elapsedMs }) {
 }
 
 /** A server failed the request (refused, reset by the server, timed out). */
-export function upstreamErrorLine({ code, ...rest }) {
-    return proxyLine("upstream_error", `code=${code ?? "unknown"} `, rest);
+export function upstreamErrorLine({ code, afterHeaders = false, ...rest }) {
+    return proxyLine("upstream_error", `code=${code ?? "unknown"} ${afterHeaders ? "after_headers " : ""}`, rest);
 }
 
 /** The visitor closed the connection before the answer finished: not a server failure. */

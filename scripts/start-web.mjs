@@ -105,7 +105,8 @@ function startPool(n) {
         probe();
     }
 
-    function forward(req, res, retried) {
+    // `call` is one per response: the attempt now serving it, and whether its outcome is already logged.
+    function forward(req, res, retried, call) {
         const idx = pickWorker({ url: req.url, key: clientKey(req.headers, req.socket.remoteAddress), ready: workers.map((w) => w.ready) });
         if (idx < 0) {
             res.writeHead(503, { "content-type": "text/plain", "retry-after": "2" });
@@ -119,13 +120,21 @@ function startPool(n) {
             (upRes) => {
                 res.writeHead(upRes.statusCode ?? 502, upRes.statusMessage, withoutHopHeaders(upRes.headers));
                 upRes.pipe(res);
-                upRes.on("error", () => res.destroy());
+                upRes.on("error", (err) => failAfterHeaders(err));
             },
         );
-        let visitorLeft = false;
+        call.upstream = upstream;
+        call.port = w.port;
+        // The server died mid-answer: logged as its failure before the destroy makes `close` fire.
+        const failAfterHeaders = (err) => {
+            if (call.settled) return;
+            call.settled = true;
+            console.error(upstreamErrorLine({ code: err.code, afterHeaders: true, port: w.port, method: req.method, url: req.url, elapsedMs: Date.now() - arrivedAt }));
+            res.destroy();
+        };
         upstream.on("error", (err) => {
-            // We destroyed it ourselves (below): the reset is ours, and nobody is left to answer.
-            if (visitorLeft) return;
+            // Already logged (the visitor left and we destroyed it, or the server failed mid-answer).
+            if (call.settled) return;
             // Refused means that server is down: take it out until it listens again.
             const refused = err.code === "ECONNREFUSED";
             if (refused && w.ready) {
@@ -133,30 +142,35 @@ function startPool(n) {
                 waitUntilListening(w);
             }
             if (res.headersSent) {
-                res.destroy();
+                failAfterHeaders(err);
                 return;
             }
             // Nothing reached that server, and a read has no body to replay: the next server answers it.
             if (refused && !retried && (req.method === "GET" || req.method === "HEAD")) {
-                forward(req, res, true);
+                forward(req, res, true, call);
                 return;
             }
+            call.settled = true;
             console.error(upstreamErrorLine({ code: err.code, port: w.port, method: req.method, url: req.url, elapsedMs: Date.now() - arrivedAt }));
             res.writeHead(502, { "content-type": "text/plain" });
             res.end("Bad gateway");
-        });
-        // The visitor left: stop the work on their behalf, and say so apart from a server failure.
-        res.on("close", () => {
-            if (res.writableFinished) return;
-            visitorLeft = true;
-            console.error(visitorLeftLine({ port: w.port, method: req.method, url: req.url, elapsedMs: Date.now() - arrivedAt }));
-            upstream.destroy();
         });
         if (req.method === "GET" || req.method === "HEAD") upstream.end();
         else req.pipe(upstream);
     }
 
-    const server = http.createServer((req, res) => forward(req, res, false));
+    const server = http.createServer((req, res) => {
+        const call = { upstream: null, port: 0, settled: false };
+        // Once per response, naming the attempt now serving it. Unfinished and not logged as a
+        // failure already: the visitor left, so stop the work on their behalf.
+        res.on("close", () => {
+            if (res.writableFinished || call.settled) return;
+            call.settled = true;
+            console.error(visitorLeftLine({ port: call.port, method: req.method, url: req.url, elapsedMs: Date.now() - stampArrival(req) }));
+            call.upstream?.destroy();
+        });
+        forward(req, res, false, call);
+    });
     // Longer than the reverse proxy in front keeps idle connections, so it
     // never sends a request down a connection this side just closed.
     server.keepAliveTimeout = 130_000;

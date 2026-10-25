@@ -31,3 +31,7 @@ test("upstream error without a code, and a bare-query url", () => {
 test("visitor left line has port, method, path without query, elapsed, and no error code", () => {
     assert.equal(visitorLeftLine({ port: 3001, method: "GET", url: "/co/x?q=a@b.c", elapsedMs: 10222.4 }), "[proxy] visitor_left port=3001 GET /co/x 10222ms");
 });
+
+test("upstream error after the headers says so, before the port", () => {
+    assert.equal(upstreamErrorLine({ code: "ECONNRESET", afterHeaders: true, port: 3002, method: "GET", url: "/jobs?q=x", elapsedMs: 40 }), "[proxy] upstream_error code=ECONNRESET after_headers port=3002 GET /jobs 40ms");
+});
