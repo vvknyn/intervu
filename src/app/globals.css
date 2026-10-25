@@ -1320,6 +1320,22 @@ h4 {
   }
 }
 
+/* LinkPending (components/ui/link-pending.tsx): invisible for the base motion
+   beat, then shown; the link dims after the same beat. */
+.link-pending-mark {
+  opacity: 0;
+  animation: link-pending-in var(--transition-fast) var(--ease-standard) var(--transition-base) forwards;
+}
+@keyframes link-pending-in {
+  to {
+    opacity: 1;
+  }
+}
+a:has(> .link-pending-mark) {
+  opacity: 0.6;
+  transition: opacity var(--transition-fast) var(--ease-standard) var(--transition-base);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .deck-exit-next,
   .deck-exit-previous,

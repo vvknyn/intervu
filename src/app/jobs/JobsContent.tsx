@@ -252,7 +252,7 @@ import {
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
 import { mergeUnderstood, understoodLine } from "@/lib/jobs/understood";
-import { retryDelayMs } from "@/lib/load-result";
+import { retryDelayMs, settleAction } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
@@ -323,6 +323,7 @@ import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBa
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { toast } from "@/lib/toast";
+import { LinkPending } from "@/components/ui/link-pending";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import type { JobsInitial } from "@/lib/jobs/server-entry";
 import { LandingNotice } from "@/components/layout/LandingNotice";
@@ -2510,7 +2511,7 @@ export function JobsContent({
         // drops — so a job opened from a URL rather than a search logs nothing
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
-        void recordJobOpenedAction(lastSearchId, id, rank);
+        void recordJobOpenedAction(lastSearchId, id, rank).catch(() => {});
         // Same -1 rule as the line above, for the same reason: a job opened
         // from a URL has no rank in the current result set, and a fabricated
         // `position: -1` would quietly poison every position-ranked insight.
@@ -3698,12 +3699,14 @@ export function JobsContent({
         });
         triggerSavePulse(job.id);
         try {
-            const res = await markJobAppliedAction({
-                company: job.company ?? "",
-                title: job.title,
-                applyUrl: job.apply_url,
-                jobId: job.id,
-            });
+            const res = await settleAction(
+                markJobAppliedAction({
+                    company: job.company ?? "",
+                    title: job.title,
+                    applyUrl: job.apply_url,
+                    jobId: job.id,
+                }),
+            );
             if (res.error) {
                 setOptimisticPursuits((prev) => {
                     const next = new Map(prev);
@@ -3781,7 +3784,7 @@ export function JobsContent({
         triggerSavePulse(job.id);
         void (async () => {
             try {
-                const res = await goAfterJobAction(job);
+                const res = await settleAction(goAfterJobAction(job));
                 if (res.error) {
                     setOptimisticPursuits((prev) => {
                         const next = new Map(prev);
@@ -5795,6 +5798,7 @@ export function JobsContent({
                                             className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             Edit
+                                            <LinkPending />
                                         </Link>
                                         {!signedIn && guestResumeInBrowser && (
                                             <>
