@@ -512,7 +512,7 @@ describe("wikidataSector: the item that names the company decides", () => {
   const item = (label: string, ...industries: string[]) => ({ label, industries });
 
   it("takes the agreeing item over a subsidiary item, casing the label like other sectors", () => {
-    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry")], "Acme"), "Semiconductor Industry");
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry")], "Acme"), "Semiconductor");
     assert.equal(wikidataSector([item("Globex", "airline"), item("Globex Bank", "banking")], "Globex"), "Airline");
   });
 
@@ -531,7 +531,26 @@ describe("wikidataSector: the item that names the company decides", () => {
     assert.equal(wikidataSector([item("Acme", "general", "unknown")], "Acme"), null);
   });
 
+  it("drops a trailing 'industry' so the label reads as a sector", () => {
+    assert.equal(wikidataSector([item("Acme", "software industry")], "Acme"), "Software");
+    assert.equal(wikidataSector([item("Acme", "mining industry")], "Acme"), "Mining");
+    assert.equal(wikidataSector([item("Acme", "health care industry", "health care")], "Acme"), "Health Care");
+  });
+
+  it("keeps labels without the suffix as they were", () => {
+    assert.equal(wikidataSector([item("Acme", "show business")], "Acme"), "Show Business");
+    assert.equal(wikidataSector([item("Acme", "financial services")], "Acme"), "Financial Services");
+  });
+
+  it("gives no sector for generic economy-level or legal-form labels", () => {
+    for (const generic of ["industry", "service", "tertiary sector of the economy", "primary sector of the economy", "business-to-business", "business to business", "holding company activities", "holding company"]) {
+      assert.equal(wikidataSector([item("Acme", generic)], "Acme"), null, generic);
+    }
+    assert.equal(wikidataSector([item("Acme", "industry", "software industry")], "Acme"), "Software");
+  });
+
   it("gives no sector for two agreeing items with different industries, or none at all", () => {
+    assert.equal(wikidataSector([item("Acme", "software industry", "mining industry")], "Acme"), null);
     assert.equal(wikidataSector([item("Acme", "banking"), item("Acme", "retail")], "Acme"), null);
     assert.equal(wikidataSector([], "Acme"), null);
   });
