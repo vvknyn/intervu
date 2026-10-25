@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { BookmarkSimple, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+import { settleAction } from "@/lib/load-result";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction, deleteSavedSearchAction } from "@/actions/saved-searches";
@@ -37,7 +39,7 @@ import type { JobsUrlState } from "@/lib/jobs/url-state";
  * Reads (list, guest merge) live in the sibling `use-saved-searches.ts`.
  */
 export function SavedSearchesPanel({
-    saved,
+    saved: savedProp,
     urlState,
     canSave,
     onApply,
@@ -75,7 +77,9 @@ export function SavedSearchesPanel({
     const [nameDraft, setNameDraft] = useState("");
     const [newCounts, setNewCounts] = useState<Record<string, CorpusCount>>({});
     const [saving, setSaving] = useState(false);
-    const [removingId, setRemovingId] = useState<string | null>(null);
+    // Optimistic remove: a chip leaves at once and returns, with a toast, if the server refuses.
+    const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set());
+    const saved = savedProp.filter((s) => !removedIds.has(s.id));
     // A guest sees the signup gate instead of a name
     // field; the search they meant to save is saved once they sign in.
     const [gated, setGated] = useState<PendingSavedSearch | null>(null);
@@ -96,7 +100,7 @@ export function SavedSearchesPanel({
         try {
             const href = hrefFromJobsUrlState(urlState);
             if (getSignedInUser()) {
-                const res = await saveSavedSearchAction({ name, href });
+                const res = await settleAction(saveSavedSearchAction({ name, href }));
                 if (!res.error) {
                     invalidateSavedSearchesCache();
                     captureEvent("saved_search_created", { surface: "toolbar", signed_in: true });
@@ -120,19 +124,27 @@ export function SavedSearchesPanel({
         }
     };
 
+    const markRemoved = (id: string, removed: boolean) =>
+        setRemovedIds((prev) => {
+            const next = new Set(prev);
+            if (removed) next.add(id);
+            else next.delete(id);
+            return next;
+        });
+
     const removeSaved = async (s: SavedSearch) => {
-        if (removingId) return;
-        setRemovingId(s.id);
-        try {
-            if (getSignedInUser()) {
-                const res = await deleteSavedSearchAction(s.id);
-                if (!res.error) invalidateSavedSearchesCache();
-            } else {
-                deleteSavedSearch(s.id);
-            }
-        } finally {
-            setRemovingId(null);
+        markRemoved(s.id, true);
+        if (!getSignedInUser()) {
+            deleteSavedSearch(s.id);
+            return;
         }
+        const res = await settleAction(deleteSavedSearchAction(s.id));
+        if (res.error) {
+            markRemoved(s.id, false);
+            toast.error(`Couldn't remove "${s.name}". Try again.`);
+            return;
+        }
+        invalidateSavedSearchesCache();
     };
 
     // "N new" chips — one count per rendered saved search, fetched together
@@ -299,16 +311,11 @@ export function SavedSearchesPanel({
                             <button
                                 type="button"
                                 data-testid="saved-search-remove"
-                                disabled={removingId === s.id}
                                 onClick={() => void removeSaved(s)}
-                                className="text-muted-foreground hover:text-foreground ml-0.5 disabled:opacity-50"
+                                className="text-muted-foreground hover:text-foreground ml-0.5"
                                 aria-label={`Remove saved search ${s.name}`}
                             >
-                                {removingId === s.id ? (
-                                    <InlineSpinner />
-                                ) : (
-                                    <X />
-                                )}
+                                <X />
                             </button>
                         </li>
                     ))}
