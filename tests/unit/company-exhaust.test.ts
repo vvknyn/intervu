@@ -527,7 +527,7 @@ describe("wikidataSector: the item that names the company decides", () => {
 
   it("shows a sector only when exactly one industry remains after the generic filter", () => {
     assert.equal(wikidataSector([item("Siemens", "electrical engineering", "electronics industry")], "Siemens"), null);
-    assert.equal(wikidataSector([item("Acme", "industry", "retail")], "Acme"), "Retail");
+    assert.equal(wikidataSector([item("Acme", "general", "retail")], "Acme"), "Retail");
     assert.equal(wikidataSector([item("Acme", "industry", "unknown")], "Acme"), null);
   });
 
