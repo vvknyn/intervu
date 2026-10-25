@@ -17,21 +17,50 @@ export function loadFailed(error: unknown): { ok: false; error: string } {
 }
 
 /**
+ * How long a client waits on one server action before it stops waiting and
+ * reports failure. Above the 8 s "taking longer than usual" line (a slow
+ * answer still wins), below the 53 s a stalled web pool took to answer 502
+ * (Oct 25) — a stall must not hold a control pending for that long. The
+ * action itself cannot be aborted; the UI just stops waiting on it.
+ */
+export const ACTION_CEILING_MS = 30_000;
+
+type ActionFailure<T> = { [K in keyof T]?: undefined } & { error: string };
+
+/**
+ * Await a server action so it can only ever answer, never throw or hang: a
+ * throw (502, network, stale action id) or a wait past `ceilingMs` becomes
+ * the `{ error }` an action already returns. Next rejects on the client when
+ * the response is not a valid action response, so checking `res.error` alone
+ * leaves a control pending forever.
+ */
+export async function settleAction<T>(call: Promise<T>, ceilingMs: number = ACTION_CEILING_MS): Promise<T | ActionFailure<T>> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ceiling = new Promise<ActionFailure<T>>((resolve) => {
+        timer = setTimeout(() => resolve({ error: "The server took too long to answer." } as ActionFailure<T>), ceilingMs);
+    });
+    try {
+        return await Promise.race([call, ceiling]);
+    } catch (e) {
+        return { error: loadFailed(e).error } as ActionFailure<T>;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+/**
  * Settle a server action's `{ data } | { error }` envelope. A throw (503,
- * aborted POST, stale action id), an `error`, or a missing `data` is a
- * failure — never an empty list.
+ * aborted POST, stale action id), a hang, an `error`, or a missing `data` is
+ * a failure — never an empty list.
  */
 export async function settleEnvelope<T>(
     call: Promise<{ data?: T | null; error?: string | null }>,
+    ceilingMs?: number,
 ): Promise<LoadResult<T>> {
-    try {
-        const res = await call;
-        if (res.error) return loadFailed(res.error);
-        if (res.data == null) return loadFailed("response carried no data");
-        return loaded(res.data);
-    } catch (e) {
-        return loadFailed(e);
-    }
+    const res = await settleAction(call, ceilingMs);
+    if (res.error) return loadFailed(res.error);
+    if (res.data == null) return loadFailed("response carried no data");
+    return loaded(res.data);
 }
 
 /** The automatic retry waits RETRY_BASE_MS plus up to RETRY_JITTER_MS. */

@@ -14,7 +14,13 @@ const RULES = [
   { id: "role-dialog", test: (l) => has(l, /(?<![\[\w])role(=|:\s*)\{?\s*["']dialog["']/) },
   { id: "aria-modal", test: (l) => has(l, /(?<![\[\w])aria-modal\b/) },
   { id: "html-dialog", test: (l) => has(l, /<dialog[\s>]/) },
-  { id: "radix-dialog-import", test: (l) => has(l, /from\s+["'](@radix-ui\/react-dialog|vaul)["']/) },
+  {
+    id: "radix-dialog-import",
+    // The per-package path, vaul, or `Dialog` named out of the `radix-ui` umbrella (AlertDialog is its own primitive: ui/alert-dialog.tsx).
+    test: (l) =>
+      has(l, /from\s+["'](@radix-ui\/react-dialog|vaul)["']/) ||
+      has(l, /import\s*\{[^}]*(?<![\w])Dialog\b[^}]*\}\s*from\s*["']radix-ui["']/),
+  },
   { id: "fixed-full-viewport", test: (l) => has(l, FIXED) && has(l, CLASS_TOKEN("inset-0")) },
   {
     id: "fixed-centered",

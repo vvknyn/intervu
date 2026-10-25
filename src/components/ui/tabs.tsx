@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
-import { Slot } from "@radix-ui/react-slot"
+import { Tabs as TabsPrimitive } from "radix-ui"
+import { Slot } from "radix-ui"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -120,7 +120,7 @@ function TabItem({
     current?: boolean | "page"
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot : "button"
+  const Comp = asChild ? Slot.Root : "button"
   return (
     <Comp
       data-slot="tab-item"

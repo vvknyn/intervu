@@ -1378,6 +1378,18 @@ test("calm pass R4: backdrop-filter exists only in the one `material-bar` utilit
     assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, "material-bar needs an opaque fallback");
 });
 
+test("material-bar fill hides content without the blur (alpha floor + reduced-transparency)", () => {
+    const util = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "").match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    const alpha = Number(util.match(/^\s{2}background-color:\s*rgb\(var\(--background\) \/ ([\d.]+)\)/m)?.[1]);
+    // 0.94 keeps white text under the bar at 1.13:1 against the fill; 0.85 leaves 1.48:1 (readable).
+    assert.ok(alpha >= 0.94, `material-bar fill alpha ${alpha} is below the 0.94 legibility floor`);
+    assert.match(
+        util,
+        /@media \(prefers-reduced-transparency: reduce\)\s*\{\s*background-color: rgb\(var\(--background\)\);/,
+        "material-bar must be fully opaque under prefers-reduced-transparency",
+    );
+});
+
 /**
  * Reading measure lives in one token (READING_MEASURE in ui/prose.tsx, rem-based).
  * A `ch` width resolves against the declaring element's own font, so the same

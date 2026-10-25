@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CaretDown } from "@phosphor-icons/react";
+import { Disclosure, DisclosureCaret, DisclosureSummary } from "@/components/ui/disclosure";
 import { MetaLine } from "@/components/jobs/job-detail-primitives";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { jobCompanyHref } from "@/lib/companies/paths";
@@ -46,16 +46,17 @@ export function EmployerMore({
     if (total <= 0) return null;
     const employer = displayCompanyBrand(lead.company, lead.company_domain, lead.title) || "this employer";
     return (
-        <details open={defaultOpen} data-testid={testId} className={cn("group/employer-more text-sm", className)}>
-            <summary
+        <Disclosure open={defaultOpen} data-testid={testId} className={cn("text-sm", className)}>
+            <DisclosureSummary
+                marker={false}
                 data-testid={`${testId}-toggle`}
-                className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-ctl text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand [&::-webkit-details-marker]:hidden"
+                className="flex w-fit items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
             >
-                <CaretDown size={16} weight="bold" aria-hidden className="transition-transform group-open/employer-more:rotate-180" />
+                <DisclosureCaret weight="bold" />
                 <span>
                     {total} more at {employer}
                 </span>
-            </summary>
+            </DisclosureSummary>
             <ul className="mt-2 flex flex-col gap-2 border-l border-border pl-3">
                 {roles.map(({ job, score }) => {
                     const presented = presentJob(job);
@@ -92,6 +93,6 @@ export function EmployerMore({
                     See the other {hidden} at {employer}
                 </Link>
             ) : null}
-        </details>
+        </Disclosure>
     );
 }

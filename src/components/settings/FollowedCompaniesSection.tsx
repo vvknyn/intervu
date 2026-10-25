@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { unfollowCompanyAction } from "@/actions/follows";
@@ -44,7 +45,7 @@ export function FollowedCompaniesSection() {
     const unfollow = async (domain: string, displayName: string) => {
         setRemoving(domain);
         try {
-            const res = await unfollowCompanyAction(domain);
+            const res = await settleAction(unfollowCompanyAction(domain));
             if (res.error) {
                 toast.error(`Couldn't unfollow ${displayName}. Try again.`);
                 return;

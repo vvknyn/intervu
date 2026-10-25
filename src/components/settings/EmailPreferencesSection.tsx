@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useEffect, useState } from "react";
 import { toast } from "@/lib/toast";
 import type { User } from "@/lib/firebase/client-auth";
@@ -7,7 +8,7 @@ import { getEmailPreferencesAction, setDigestPreferenceAction, type EmailPrefere
 import { getAccountEmailStateAction } from "@/actions/account-email";
 import { AccountEmailPrompt } from "@/components/account/AccountEmailPrompt";
 import type { EmailNudgeState } from "@/lib/auth/account-email";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { WaitBar, WaitState } from "@/components/ui/wait-state";
 import { Button } from "@/components/ui/button";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
@@ -63,7 +64,7 @@ export function EmailPreferencesSection({ user }: { user: User | null }) {
         const next = !prefs.digestEnabled;
         setSaving(true);
         setPrefs({ ...prefs, digestEnabled: next });
-        const result = await setDigestPreferenceAction(next);
+        const result = await settleAction(setDigestPreferenceAction(next));
         setSaving(false);
         if ("error" in result) {
             setPrefs((p) => (p ? { ...p, digestEnabled: !next } : p));

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
+import { Slot } from "radix-ui"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
@@ -53,6 +53,9 @@ const buttonVariants = cva(
         xs: "ctl-md px-2",
         sm: "ctl-md px-3",
         lg: "ctl-lg px-4 [&_svg]:size-5",
+        // Action buttons in an overlay: the 32px step on desktop, the 44px
+        // tap minimum below lg (dialog actions, sheet footers).
+        touch: "ctl-md px-3 max-lg:ctl-lg max-lg:px-4",
         // Inline text link: sized by its text (no step, so it takes the type
         // around it); the coarse-pointer ::before still grows the hit area.
         link: "h-auto px-0", // control-scale-allow: inline text link, no box
@@ -78,7 +81,7 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
-  const Comp = asChild ? Slot : "button"
+  const Comp = asChild ? Slot.Root : "button"
 
   return (
     <Comp

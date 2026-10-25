@@ -5,7 +5,10 @@ import { StarStory } from "@/types";
 import { StoryList } from "@/components/dashboard/StoryList";
 import { StoryEditorWizard } from "@/components/dashboard/StoryEditorWizard";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Plus, DownloadSimple } from "@phosphor-icons/react";
 import { exportStoriesToText } from "@/lib/export-utils";
 
@@ -118,24 +121,22 @@ export function StoryManager({ stories, onChange }: StoryManagerProps) {
             />
 
             {/* Clear All Confirmation Dialog */}
-            <Dialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Clear All Stories?</DialogTitle>
-                        <DialogDescription>
+            <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Clear All Stories?</AlertDialogTitle>
+                        <AlertDialogDescription>
                             Are you sure you want to remove all your stories? This action will move them to trash.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setClearConfirmOpen(false)}>
-                            Cancel
-                        </Button>
-                        <Button variant="destructive" onClick={handleClearAll}>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" onClick={handleClearAll}>
                             Clear All
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

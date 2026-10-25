@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import * as SelectPrimitive from "@radix-ui/react-select"
+import { Select as SelectPrimitive } from "radix-ui"
 import { Check, CaretDown, CaretUp } from "@phosphor-icons/react"
 
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"

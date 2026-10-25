@@ -5,6 +5,7 @@ import { join, relative } from "node:path";
 
 const ROOT = join(__dirname, "..", "..");
 const DIALOG_PATH = join(ROOT, "src", "components", "ui", "dialog.tsx");
+const ALERT_DIALOG_PATH = join(ROOT, "src", "components", "ui", "alert-dialog.tsx");
 const SHEET_PATH = join(ROOT, "src", "components", "ui", "sheet.tsx");
 const TOAST_PATH = join(ROOT, "src", "lib", "toast.tsx");
 const AUTH_POPOVER_PATH = join(ROOT, "src", "components", "auth", "auth-popover.tsx");
@@ -12,14 +13,21 @@ const LOGIN_FORM_PATH = join(ROOT, "src", "components", "auth", "login-form.tsx"
 const GLOBALS_CSS_PATH = join(ROOT, "src", "app", "globals.css");
 
 // 8b775697 moved the z-index tiers into globals.css tokens; the tier values
-// are asserted on the tokens, the primitives on reading them.
+// are asserted on the tokens, the primitives on reading them (the class constants
+// are shared with ui/alert-dialog.tsx).
 test("DialogOverlay and DialogContent use modal z-index tier (200, 210)", () => {
     const src = readFileSync(DIALOG_PATH, "utf8");
     const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
-    assert.match(src, /data-slot="dialog-overlay"[\s\S]*?z-\[var\(--z-dialog-scrim\)\]/);
-    assert.match(src, /data-slot="dialog-content"[\s\S]*?z-\[var\(--z-dialog\)\]/);
+    assert.match(src, /dialogOverlayClass =[\s\S]*?z-\[var\(--z-dialog-scrim\)\]/);
+    assert.match(src, /dialogContentClass =[\s\S]*?z-\[var\(--z-dialog\)\]/);
     assert.match(css, /--z-dialog-scrim:\s*200;/);
     assert.match(css, /--z-dialog:\s*210;/);
+    // the primitives must consume the shared constants, or the tiers above guard nothing
+    assert.match(src, /DialogPrimitive\.Overlay[\s\S]*?dialogOverlayClass/);
+    assert.match(src, /DialogPrimitive\.Content[\s\S]*?dialogContentClass/);
+    const alert = readFileSync(ALERT_DIALOG_PATH, "utf8");
+    assert.match(alert, /AlertDialogPrimitive\.Overlay[^>]*dialogOverlayClass/);
+    assert.match(alert, /AlertDialogPrimitive\.Content[\s\S]*?dialogContentClass/);
 });
 
 /** Every .tsx under src/, outside the ui primitives that own the tiers. */
