@@ -631,6 +631,13 @@ describe("dropCountryQualifier — the hiring entity's country is not part of th
     assert.equal(resolveCompanyName(rows({ "argenx US Inc": 12 }), "argenx.com").value, "argenx");
   });
 
+  it("drops a trailing parenthesised country the domain does not name, keeps one it does", () => {
+    assert.equal(dropCountryQualifier("Acme Group (NZ)", "acmegroup.com"), "Acme Group");
+    assert.equal(dropCountryQualifier("Acme Group (Germany)", "acmegroup.com"), "Acme Group");
+    assert.equal(dropCountryQualifier("Acme Group (NZ)", "acmegroup.co.nz"), "Acme Group (NZ)");
+    assert.equal(dropCountryQualifier("Acme Group (Beta)", "acmegroup.com"), "Acme Group (Beta)");
+  });
+
   it("keeps a name the host spells in full, or whose rest is not the host", () => {
     assert.equal(dropCountryQualifier("Air Canada", "aircanada.com"), "Air Canada");
     assert.equal(dropCountryQualifier("Booz Allen Hamilton", "boozallen.com"), "Booz Allen Hamilton");
@@ -848,5 +855,18 @@ describe("companies/company-name — a minority group never names the company", 
     assert.equal(name(franklin, "benjaminfranklinplumbingiowa.com"), "Benjamin Franklin Plumbing");
     // another domain, same class: letters picked from inside a word ("Frost" + "ank" of Bankers) do not spell the label
     assert.equal(name({ "Cullen/Frost Bankers Inc": 154, "Frost Insurance Agency, Inc.": 16, "Frost Brokerage Services, Inc.": 14, "Frost Investment Services, LLC": 2 }, "frostbank.com"), "Frost");
+  });
+
+  it("a name led by the label with further brand words spells it in one word and beats a multi-word acronym", () => {
+    const acronym = { "Zinc Eagle Tool Alliance": 4, "Zebra Eagle Tool Armor": 4 };
+    assert.equal(name({ "Zeta Analytics Holdings": 5, ...acronym }, "zeta.com"), "Zeta Analytics Holdings");
+    // the one-brand-word echo ("Zeta", "Zeta Inc") is still the domain echoed, not a spelling
+    assert.notEqual(name({ "Zeta Inc": 5, ...acronym }, "zeta.com"), "Zeta Inc");
+    // fewer words wins among acronyms too
+    assert.equal(name({ "Zinc Eagle Tool Alliance": 4, "Zebra Tank Works": 4, "Zulu Echo Tango Alpha": 1 }, "zeta.com"), "Zebra Tank Works");
+  });
+
+  it("a tie at the fewest words falls through to the brand root", () => {
+    assert.equal(name({ "Zeta Analytics": 4, "Zeta Labs": 4, "Zeta Cloud": 4 }, "zeta.com"), "Zeta");
   });
 });
