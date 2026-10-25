@@ -95,9 +95,9 @@ function fixture(now: number, withRoles: boolean, withExhaust: boolean): Company
     h1bLca: null,
     warnNotices: null,
     health: section({ verdict: "actively_hiring", score: 88, repostRate: 0.08, operatingStatus: "active", observedSinceIso: new Date(now - 120 * DAY).toISOString() }, "company_health_reviews", "Company health review"),
-    cadence: section({ weeks: buildWeeklyCadence(weekSums, now, 13, trackedSince), trackedSinceIso: trackedSince }, "company_posting_daily", "Posting activity"),
+    cadence: section({ weeks: buildWeeklyCadence(weekSums, now, 13, trackedSince) }, "job_listings", "Posting activity"),
     integrity: section(
-      { closedReasonCounts: [{ reason: "filled", label: "Filled", count: 5 }, { reason: "expired", label: "Expired", count: 2 }], openedCount: 9, trackedSinceIso: trackedSince },
+      { closedReasonCounts: [{ reason: "filled", label: "Filled", count: 5 }, { reason: "expired", label: "Expired", count: 2 }], openedCount: 8, trackedSinceIso: trackedSince },
       "job_listings",
       "Job listings",
     ),

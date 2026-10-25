@@ -5,7 +5,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { CompanyRoleSearch, jobMatchesQuery, levelText, roleFitStat, sortByFit } from "@/components/company/CompanyRoleSearch";
 import { MATCH_BAND_GOOD_MIN, MATCH_BAND_STRONG_MIN, type MatchScore } from "@/lib/match/score";
 import { ExhaustGateSignInCard } from "@/components/company/CompanyExhaustGate";
-import { buildCompanyRoleStats, type CompanyRoleStat } from "@/lib/companies/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
 /**
@@ -50,41 +49,6 @@ function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
 
 const yearly = (min: number, max: number) =>
   ({ salary_min: min, salary_max: max, salary_currency: "USD", salary_period: "year" }) as const;
-
-function stats(jobs: PublicJob[], extra: { openCount?: number; openCountIsLowerBound?: boolean } = {}) {
-  return buildCompanyRoleStats(
-    { jobs, openCount: extra.openCount ?? jobs.length, openCountIsLowerBound: extra.openCountIsLowerBound ?? false },
-    NOW,
-  );
-}
-
-const byKey = (list: CompanyRoleStat[]) => Object.fromEntries(list.map((s) => [s.key, s]));
-
-describe("buildCompanyRoleStats", () => {
-  const roles = [
-    job({ id: "1", ...yearly(100_000, 140_000), visa_sponsorship: true }),
-    job({ id: "2", ...yearly(120_000, 160_000) }),
-    job({ id: "3", ...yearly(150_000, 190_000), posted_ts: NOW - 45 * DAY }),
-    job({ id: "4", posted_ts: NOW - 60 * DAY }),
-  ];
-
-  it("counts recent roles and leaves pay and visa to the public fact sections", () => {
-    const s = byKey(stats(roles));
-    assert.deepEqual(s.recent, { key: "recent", value: "2", label: "new in the last 30 days" });
-    assert.deepEqual(Object.keys(s), ["recent"]);
-  });
-
-  it("says nothing when the fetched roles are only a sample of the company's open roles", () => {
-    assert.deepEqual(stats(roles, { openCount: 400 }), []);
-    assert.deepEqual(stats(roles, { openCountIsLowerBound: true }), []);
-    assert.deepEqual(stats([]), []);
-  });
-
-  it("drops the recent count when any role's posted date is unknown, instead of shrinking the denominator", () => {
-    const s = byKey(stats([...roles, job({ id: "5", posted_ts: null })]));
-    assert.equal(s.recent, undefined);
-  });
-});
 
 describe("levelText", () => {
   it("names the corpus levels in words and says nothing for an unknown level", () => {
@@ -148,7 +112,7 @@ describe("roleFitStat and sortByFit: the résumé-loaded first screen", () => {
   });
 });
 
-function renderRoles(jobs: PublicJob[], roleStats: CompanyRoleStat[] = []): string {
+function renderRoles(jobs: PublicJob[]): string {
   return renderToStaticMarkup(
     React.createElement(CompanyRoleSearch, {
       jobs,
@@ -159,17 +123,15 @@ function renderRoles(jobs: PublicJob[], roleStats: CompanyRoleStat[] = []): stri
       searchesPartialWindow: false,
       jobsSearchUrl: "/jobs?companyDomain=acme.example",
       now: NOW,
-      stats: roleStats,
     }),
   );
 }
 
 describe("CompanyRoleSearch: first screen", () => {
-  it("draws the stat row above the roles when there are stats, and none when there are not", () => {
-    const html = renderRoles([job({ id: "1" })], [{ key: "pay", value: "7 of 12", label: "list pay" }]);
-    assert.match(html, /data-testid="company-role-stats"[\s\S]*7 of 12[\s\S]*list pay/);
-    assert.ok(html.indexOf("company-role-stats") < html.indexOf("Open roles"));
-    assert.doesNotMatch(renderRoles([job({ id: "1" })]), /company-role-stats/);
+  it("draws no stat row before a résumé is scored, and no posted-recently tile ever", () => {
+    const html = renderRoles([job({ id: "1" }), job({ id: "2", posted_ts: NOW - 60 * DAY })]);
+    assert.doesNotMatch(html, /company-role-stats/);
+    assert.doesNotMatch(html, /new in the last/);
   });
 
   it("puts the posting's age in the row's right rail instead of a bare 'View'", () => {

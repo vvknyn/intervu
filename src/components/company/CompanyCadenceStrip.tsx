@@ -42,27 +42,26 @@ export function cadenceStripHasContent(
  * the crawl's backlog of already-open roles, drawn grey and left out of the
  * scale so it can't flatten the weeks after it; this week is dashed because
  * it is still being counted. Every week prints its count, since phones never
- * show a hover title.
+ * show a hover title. The sentence above it states when tracking began, so the
+ * heading does not repeat it.
  */
 export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<CadenceFacts> }) {
   if (!cadenceStripHasContent(cadence)) return null;
-  const { weeks, trackedSinceIso } = cadence.data;
+  const { weeks } = cadence.data;
   const scaled = weeks.filter((w) => !w.firstTracked);
   const max = Math.max(...(scaled.length > 0 ? scaled : weeks).map((w) => w.newListings), 1);
   const first = eventDate(`${weeks[0].weekStartIso}T00:00:00Z`);
   const last = eventDate(`${weeks[weeks.length - 1].weekStartIso}T00:00:00Z`);
   const trackedWithinWindow = weeks.some((w) => w.firstTracked);
-  const trackedSince = trackedWithinWindow && trackedSinceIso ? eventDate(`${trackedSinceIso}T00:00:00Z`) : null;
   const hasInProgress = weeks.some((w) => w.inProgress);
 
   return (
     <section data-testid="company-cadence-strip" className="border-t border-border pt-6">
       <h2 className="text-base font-semibold leading-snug text-foreground">
         New postings per week
-        <span className="text-sm font-normal text-muted-foreground">
-          {" · "}
-          {trackedSince ? `tracking since ${trackedSince}` : `last ${weeks.length} weeks`}
-        </span>
+        {!trackedWithinWindow && (
+          <span className="text-sm font-normal text-muted-foreground">{` · last ${weeks.length} weeks`}</span>
+        )}
       </h2>
       <ol
         className="mt-4 flex items-end gap-0.5 overflow-x-auto pb-1"

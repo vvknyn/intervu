@@ -223,7 +223,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
     hiring: {
       openCount: total,
       openCountIsLowerBound: openCount.isLowerBound,
-      monitoredSince: exhaust?.cadence?.data.trackedSinceIso ?? null,
+      monitoredSince: exhaust?.integrity?.data.trackedSinceIso ?? null,
       lastPostedAt: latestIso(jobs, (j) => j.posted_at),
       lastSeenAliveAt: latestIso(jobs, (j) => j.last_observed_alive_at),
       cadence: exhaust?.cadence?.data.weeks ?? null,

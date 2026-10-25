@@ -16,8 +16,8 @@ const NOW = Date.parse("2026-08-27T00:00:00Z");
 
 function cadence(trackedSinceIso: string | null, sums: { weekStartIso: string; newListings: number }[]): ExhaustSection<CadenceFacts> {
   return {
-    data: { weeks: buildWeeklyCadence(sums, NOW, 26, trackedSinceIso), trackedSinceIso },
-    source: "company_posting_daily",
+    data: { weeks: buildWeeklyCadence(sums, NOW, 26, trackedSinceIso) },
+    source: "job_listings",
     label: "Posting activity",
     asOf: new Date(NOW).toISOString(),
   };
@@ -34,7 +34,7 @@ describe("CompanyCadenceStrip", () => {
       ]),
     );
     assert.equal(html.match(/data-testid="company-cadence-week"/g)?.length, 4);
-    assert.match(html, /tracking since Aug 5, 2026/);
+    assert.doesNotMatch(html, /tracking since/, "the sentence above states the start; the chart does not repeat it");
     assert.match(html, /First week tracked: includes roles already open/);
     assert.match(html, />40</);
     assert.match(html, />3</);
