@@ -190,9 +190,10 @@ export function JobCard({
                 // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
                 // @media (hover:hover), so touch never sticks it). The open row = the brand
                 // tint (a different hue, but only 1.03x hover in luminance) PLUS a 1px inset
-                // brand hairline, which is the luminance cue (2.3x hover) and no thicker than
-                // the 1px the craft floor allows. Chips and the logo tile lift off the tint.
-                active ? "bg-brand-tint-bg ring-1 ring-inset ring-live-tint-border" : "hover:bg-surface-hover",
+                // brand-muted hairline (5.3x the tint, 5.5x hover, 6.5x the page; WCAG 1.4.11
+                // needs 3x), no thicker than the 1px the craft floor allows. Chips and the
+                // logo tile lift off the tint.
+                active ? "bg-brand-tint-bg ring-1 ring-inset ring-brand-muted" : "hover:bg-surface-hover",
             )}
         >
             <div className="self-start">

@@ -213,8 +213,11 @@ test.describe('JOBS-SEARCH - sort, selection, and pane geometry', () => {
         await page.getByPlaceholder(/Job title/i).fill('engineer');
         await expect(page.getByText('Updating…', { exact: true })).toBeVisible({ timeout: 2000 });
         await expect(firstResult).toBeVisible();
-        await expect(page.getByText('Finding live roles…', { exact: true })).toHaveCount(0);
-        await expect(page.getByText('Loading more roles…', { exact: true })).toHaveCount(0);
+        // WaitState renders role=status with its label in an sr-only span at every stage, so this sees
+        // the wait even before the 2 s text line appears (the old ellipsis text never matched).
+        const waitFor = (label: string) => page.getByRole('status').filter({ hasText: label });
+        await expect(waitFor('Finding live roles')).toHaveCount(0);
+        await expect(waitFor('Loading more roles')).toHaveCount(0);
         await expect(page.getByText('Updating…', { exact: true })).toHaveCount(0, { timeout: 15000 });
     });
 
