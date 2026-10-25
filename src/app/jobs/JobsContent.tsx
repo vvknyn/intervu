@@ -1,7 +1,7 @@
 "use client";
 
 import "@/app/elite-signal.css";
-import { Suspense, type CSSProperties, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
@@ -18,7 +18,6 @@ import {
     LockSimple,
 } from "@phosphor-icons/react";
 import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
-import { WAIT_SKELETON_AFTER_MS } from "@/lib/wait-state/ladder";
 import { useResultSetEnter } from "@/lib/motion/result-set-enter";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
@@ -186,8 +185,6 @@ import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorRetur
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
 
-/** Read by `[data-refreshing]` / `.updating-label` (globals.css): dim and label only once the wait is perceptible. */
-const REFRESH_DELAY_STYLE = { "--refresh-delay": `${WAIT_SKELETON_AFTER_MS}ms` } as CSSProperties;
 // `loading: () => null` on each: without it a dynamic() component holds up
 // the first render of everything around it until its own chunk arrives, and
 // these only show once a job is opened or the importer is asked for.
@@ -4450,9 +4447,7 @@ export function JobsContent({
         loading,
         hitCount: hits.length,
     });
-    // Refetching over rows already on screen: they stay (dimmed, inert) until the new set lands.
-    const refreshing = loading && hits.length > 0;
-    const resultSetEnter = useResultSetEnter(resultSearchKey);
+    const resultSetEntering = useResultSetEnter(resultSearchKey);
     // The ONE "broaden this search" nudge — the same component the packs' thin state renders, so the
     // board's zero and thin results offer the same options with the same counts. Each option applies
     // in place through `applyFilterState`, the chokepoint every filter change goes through.
@@ -4552,7 +4547,7 @@ export function JobsContent({
     // sentence carries that state instead.
     const resultCountLine =
         recommendedLine ??
-        (result?.configured && (!loading || hits.length > 0) && !result.widened && !recommended
+        (result?.configured && !loading && !result.widened && !recommended
             ? searchResultLine({
                   count: totalCount,
                   postedBucket: appliedPosted,
@@ -6090,16 +6085,6 @@ export function JobsContent({
                                                     >
                                                         {resultCountLine}
                                                     </span>
-                                                    {refreshing && (
-                                                        <span
-                                                            role="status"
-                                                            data-testid="result-line-updating"
-                                                            className="updating-label font-normal text-muted-foreground"
-                                                            style={REFRESH_DELAY_STYLE}
-                                                        >
-                                                            Updating…
-                                                        </span>
-                                                    )}
                                                     {listNew && (
                                                         <span className="flex items-center gap-2">
                                                             <span className="size-2 shrink-0 rounded-pill bg-brand" aria-hidden />
@@ -6216,10 +6201,6 @@ export function JobsContent({
                                     // between rows (`handleResultsKeyDown`).
                                     role="region"
                                     aria-label="Job results"
-                                    aria-busy={refreshing || undefined}
-                                    data-refreshing={refreshing}
-                                    inert={refreshing || undefined}
-                                    style={REFRESH_DELAY_STYLE}
                                     onKeyDown={handleResultsKeyDown}
                                     className={cn(
                                         "focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
@@ -6238,7 +6219,7 @@ export function JobsContent({
                                             </h2>
                                         </div>
                                     )}
-                                    <div key={resultSetEnter.key ?? "initial"} className={cn(resultSetEnter.animate && "result-set-enter")}>
+                                    <div className={cn(resultSetEntering && "result-set-enter")}>
                                         {/* Deliverable 3 — one row (the best-ranked
                                             member) per cluster, its variants inserted
                                             right below only while expanded. The seam

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MOTION_DURATION_MS, MOTION_STAGGER_MS } from "@/lib/motion/interaction-contract";
 
 /**
  * Whether the rows of a result set should play their entrance.
@@ -21,10 +22,29 @@ export function nextResultSetTrack(track: ResultSetTrack, key: string | null): R
     return { key, changes: track.key !== null && key !== null ? track.changes + 1 : track.changes };
 }
 
-export function useResultSetEnter(key: string | null): { key: string | null; animate: boolean } {
+/** Last staggered row (8th, 7 steps in) finishing its enter; after this the class comes off. */
+export const RESULT_SET_ENTER_WINDOW_MS = MOTION_STAGGER_MS * 7 + MOTION_DURATION_MS.enter;
+
+/**
+ * The entrance plays only inside the window after a NEW set key: `settled` is
+ * the `changes` count whose window has closed. A same-key re-render, a dismiss,
+ * a cluster expand or an append leaves `changes` alone, so they stay off.
+ */
+export function isEntering(changes: number, settled: number): boolean {
+    return changes > 0 && settled !== changes;
+}
+
+export function useResultSetEnter(key: string | null): boolean {
     const [track, setTrack] = useState<ResultSetTrack>({ key, changes: 0 });
+    const [settled, setSettled] = useState(0);
     const next = nextResultSetTrack(track, key);
     // Derived state: adjust during render, before paint (React docs, "storing information from previous renders").
     if (next !== track) setTrack(next);
-    return { key: next.key, animate: next.changes > 0 };
+    const { changes } = next;
+    useEffect(() => {
+        if (changes === 0) return;
+        const t = setTimeout(() => setSettled(changes), RESULT_SET_ENTER_WINDOW_MS);
+        return () => clearTimeout(t);
+    }, [changes]);
+    return isEntering(changes, settled);
 }
