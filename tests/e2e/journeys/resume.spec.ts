@@ -316,6 +316,22 @@ test.describe("signed in (dev-server only)", () => {
     await expect(page.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
+  test("An account whose saved résumé needs a paid month sees it is saved, not \"No resume on file\", and is offered pricing, never a blank template", { tag: ["@J-RESUME-55"] }, async ({ page }) => {
+    await signIn(page, { unauthorized: { data: { source: "locked", updatedAt: "2026-09-20T00:00:00.000Z" } }, hasResume: false });
+    await page.goto("/resume");
+
+    const card = page.getByTestId("settings-resume-locked");
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    await expect(card.getByText("Your résumé is saved to your account")).toBeVisible();
+    await expect(card.getByText("Opening or editing it needs a paid month.")).toBeVisible();
+    await expect(card.getByText(/Saved .*2026/)).toBeVisible();
+    await expect(card.getByRole("link", { name: "See pricing" })).toHaveAttribute("href", "/pricing");
+    await expect(card.getByRole("button", { name: /or upload a PDF or Word file to use on this device/ })).toBeVisible();
+    await expect(card.getByRole("button", { name: "Delete" })).toBeVisible();
+    await expect(page.getByText("No resume on file")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /Edit template/ })).toHaveCount(0);
+  });
+
   test("A résumé saved to the account as text ranks /jobs against it instead of asking for an upload", { tag: ["@J-RESUME-34"] }, async ({ page }) => {
     // fetchResumeData sends the stored text; the browser structures it.
     await signIn(page, { unauthorized: { text: RESUME_TEXT, updatedAt: "2026-09-20T00:00:00.000Z" }, hasResume: true });

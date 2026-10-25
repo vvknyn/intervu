@@ -12,7 +12,7 @@ import { saveResumeData } from "@/actions/resume";
 import { isAccountPaid, sendIfPaid } from "@/lib/account/paid-status";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
-import { effectiveResumeSummary } from "./effective-resume-summary";
+import { effectiveResumeSummary, type EffectiveResumeSummary } from "./effective-resume-summary";
 import { reloadSignedInAgentPreferences } from "@/hooks/use-agent-preferences";
 import { keepExplicitNudges } from "@/lib/jobs/for-you/tuning-store";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
@@ -27,6 +27,7 @@ import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
 import type { ResumeData } from "@/types/resume";
+import { LOCKED_RESUME_DETAIL, LOCKED_RESUME_TITLE } from "@/lib/resume/locked-copy";
 import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastKeptOnDevice } from "@/lib/resume/payment-required";
 
 interface YourResumeSectionProps {
@@ -80,7 +81,7 @@ function defaultResumeData(userEmail?: string, userName?: string): ResumeData {
 }
 
 function summaryToResumeData(summary: ResumeSummary | null, user?: User | null): ResumeData {
-    if (!summary || summary.source === "none") {
+    if (!summary || summary.source === "none" || summary.source === "locked") {
         return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
     }
     if (summary.source === "resume_data") {
@@ -108,7 +109,7 @@ function summaryToResumeData(summary: ResumeSummary | null, user?: User | null):
 
 export function YourResumeSection({ user, onLoginClick, embedded, onEditorActiveChange }: YourResumeSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-    const [summary, setSummary] = useState<ResumeSummary | null>(null);
+    const [summary, setSummary] = useState<EffectiveResumeSummary | null>(null);
     const [retryToken, setRetryToken] = useState(0);
     const [viewMode, setViewMode] = useState<"summary" | "upload" | "live_editor">("summary");
 
@@ -211,7 +212,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             {status === "ready" && summary && (
                 viewMode === "upload" ? (
                     <ResumeUploadForm
-                        showCancel={summary.source !== "none"}
+                        showCancel={summary.source !== "none" && summary.source !== "locked"}
                         onCancel={() => setViewMode("summary")}
                         onSaved={() => {
                             setViewMode("summary");
@@ -249,7 +250,7 @@ function ResumeSummaryBody({
     onOpenEditor,
     onDeleted,
 }: {
-    summary: ResumeSummary;
+    summary: EffectiveResumeSummary;
     user: User | null;
     onReplace: () => void;
     onOpenEditor: () => void;
@@ -281,6 +282,55 @@ function ResumeSummaryBody({
             onDeleted();
         });
     };
+
+    const deleteControl = confirmingDelete ? (
+        <InlineConfirm
+            prompt="Delete this résumé and its saved versions?"
+            busy={deleting}
+            busyLabel="Deleting…"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmingDelete(false)}
+        />
+    ) : (
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmingDelete(true)}
+            className="w-full gap-1.5 text-danger-text hover:text-danger-text sm:w-auto"
+        >
+            <Trash />
+            Delete
+        </Button>
+    );
+
+    if (summary.source === "locked") {
+        return (
+            <div data-testid="settings-resume-locked" className="space-y-4 rounded-panel border border-border bg-surface p-6 text-center shadow-[var(--shadow-bevel-highlight)]">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-pill border border-border bg-surface-2 text-foreground shadow-[var(--shadow-bevel-inset)]">
+                    <LockSimple size={24} />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                    <h3 className="text-sm font-semibold text-foreground">{LOCKED_RESUME_TITLE}</h3>
+                    <p className="text-xs text-muted-foreground">{LOCKED_RESUME_DETAIL}</p>
+                    {updatedLabel && <p className="text-xs text-muted-foreground">Saved {updatedLabel}</p>}
+                </div>
+                <div className="flex flex-col items-center gap-2 pt-1">
+                    <Button size="sm" asChild className="w-full gap-1.5 sm:w-auto">
+                        <Link href={PRICING_HREF}>See pricing</Link>
+                    </Button>
+                    <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
+                        or upload a PDF or Word file to use on this device
+                    </button>
+                    {deleteControl}
+                </div>
+                {deleteError && (
+                    <p role="alert" className="text-xs text-danger-text">
+                        {deleteError}
+                    </p>
+                )}
+            </div>
+        );
+    }
 
     if (summary.source === "none") {
         return (
@@ -319,25 +369,7 @@ function ResumeSummaryBody({
             <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 sm:w-auto">
                 <Upload /> Replace
             </Button>
-            {confirmingDelete ? (
-                <InlineConfirm
-                    prompt="Delete this résumé and its saved versions?"
-                    busy={deleting}
-                    busyLabel="Deleting…"
-                    onConfirm={handleDelete}
-                    onCancel={() => setConfirmingDelete(false)}
-                />
-            ) : (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setConfirmingDelete(true)}
-                    className="w-full gap-1.5 text-danger-text hover:text-danger-text sm:w-auto"
-                >
-                    <Trash />
-                    Delete
-                </Button>
-            )}
+            {deleteControl}
         </div>
     );
 
@@ -350,6 +382,14 @@ function ResumeSummaryBody({
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
+            {summary.accountCopyLocked && (
+                <p data-testid="settings-resume-also-locked" className="text-xs text-muted-foreground">
+                    Your account also holds a saved copy. Opening it needs a paid month.{" "}
+                    <Link href={PRICING_HREF} className="text-foreground underline underline-offset-2">
+                        See pricing
+                    </Link>
+                </p>
+            )}
             <div className="max-h-96 overflow-y-auto rounded-panel border border-border bg-background p-4 sm:p-6">
                 <LiveResumePreview data={resumeData} />
             </div>
