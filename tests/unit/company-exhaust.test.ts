@@ -493,7 +493,7 @@ describe("resolveSector — health_reviews, then fingerprints, then boards", () 
   it("shows a machine token as words, any token and any separator", () => {
     assert.equal(resolveSector({ health_reviews: "big_tech", fingerprints: null, boards: null }), "Big Tech");
     assert.equal(resolveSector({ health_reviews: null, fingerprints: "financial_services", boards: null }), "Financial Services");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: null, boards: "ai-infra" }), "Ai Infra");
+    assert.equal(resolveSector({ health_reviews: null, fingerprints: null, boards: "ai-infra" }), "AI Infra");
   });
 
   it("leaves free text unchanged and still skips NON_SECTORS tokens", () => {

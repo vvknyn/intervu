@@ -1779,6 +1779,8 @@ export function JobsContent({
                 };
                 setImportOpen(true);
             },
+            // Queued only by /resume, and replay is path-scoped.
+            resume: () => {},
         },
         user,
         onGateOpen: (reason) => {
@@ -2541,7 +2543,7 @@ export function JobsContent({
         // drops — so a job opened from a URL rather than a search logs nothing
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
-        void recordJobOpenedAction(lastSearchId, id, rank);
+        void recordJobOpenedAction(lastSearchId, id, rank).catch(() => {});
         // Same -1 rule as the line above, for the same reason: a job opened
         // from a URL has no rank in the current result set, and a fabricated
         // `position: -1` would quietly poison every position-ranked insight.

@@ -100,7 +100,7 @@ describe("buildCompanyFacts", () => {
         const f = buildCompanyFacts(input());
         assert.equal(f.identity.sector, null);
         assert.equal(f.identity.profile, null);
-        assert.equal(f.identity.profileSource, null);
+        assert.deepEqual(f.identity.profileSources, []);
         assert.equal(f.hiring.lastPostedAt, null);
         assert.equal(f.hiring.cadence, null);
         assert.equal(f.mix.countries, null);
@@ -170,8 +170,8 @@ describe("buildCompanyFacts", () => {
             organizationType: null, nbEmployees: "201-500", parentCompany: null, atsHint: "greenhouse", totalJobs: null,
         });
         const f = buildCompanyFacts(input({ exhaust: exhaust({ profile }) }));
-        assert.deepEqual(f.identity.profile, { tagline: "We build things", yearFounded: 2011, employees: "201-500", hqCountry: "US", industries: ["Fintech"] });
-        assert.deepEqual(f.identity.profileSource, { domain: "hiring.cafe", fetchedAt: "2026-04-25T00:00:00Z" });
+        assert.deepEqual(f.identity.profile, { tagline: "We build things", yearFounded: 2011, employees: "201-500", employeesAsOf: null, hqCountry: "United States", industries: ["Fintech"] });
+        assert.deepEqual(f.identity.profileSources, [{ name: "hiring.cafe", url: null, fetchedAt: "2026-04-25T00:00:00Z" }]);
         assert.equal(f.identity.atsProvider, "greenhouse");
     });
 
@@ -182,7 +182,108 @@ describe("buildCompanyFacts", () => {
         });
         const f = buildCompanyFacts(input({ exhaust: exhaust({ profile }) }));
         assert.equal(f.identity.profile, null);
-        assert.equal(f.identity.profileSource, null);
+        assert.deepEqual(f.identity.profileSources, []);
+    });
+
+    describe("Wikidata identity facts", () => {
+        const wd = { label: "Acme", industries: ["software industry"], id: "Q42", founded: 1999, hqCountry: "DE", employees: 1200, employeesAsOf: 2023, description: "German software company" };
+        const wikiUrl = "https://www.wikidata.org/wiki/Q42";
+
+        it("exhaust null: every fact renders from Wikidata, attributed to it, linked by QID", () => {
+            const f = buildCompanyFacts(input({ exhaust: null, wikidata: [wd] }));
+            assert.deepEqual(f.identity.profile, { tagline: "German software company", yearFounded: 1999, employees: "1,200", employeesAsOf: 2023, hqCountry: "Germany", industries: [] });
+            assert.equal(f.identity.sector, "Software");
+            assert.deepEqual(f.identity.profileSources, [{ name: "Wikidata", url: wikiUrl, fetchedAt: null }]);
+        });
+
+        it("hiring.cafe wins per field; Wikidata fills the rest and both sources are named", () => {
+            const profile = section({
+                tagline: null, homepageUri: null, hqCountry: "US", industries: [], yearFounded: 2011,
+                organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
+            });
+            const f = buildCompanyFacts(input({ exhaust: exhaust({ profile, sector: "Fintech" }), wikidata: [wd] }));
+            assert.equal(f.identity.profile?.yearFounded, 2011);
+            assert.equal(f.identity.profile?.hqCountry, "United States");
+            assert.equal(f.identity.profile?.employees, "1,200");
+            assert.equal(f.identity.sector, "Fintech");
+            assert.deepEqual(f.identity.profileSources.map((s) => s.name), ["hiring.cafe", "Wikidata"]);
+        });
+
+        it("one HQ formatter: hiring.cafe code and Wikidata code become names, a full name passes through", () => {
+            const hc = (hqCountry: string) => section({
+                tagline: null, homepageUri: null, hqCountry, industries: [], yearFounded: null,
+                organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
+            });
+            const hq = (e: CompanyExhaust | null, wikidata: typeof wd[] = []) => buildCompanyFacts(input({ exhaust: e, wikidata })).identity.profile?.hqCountry;
+            assert.equal(hq(exhaust({ profile: hc("DE") })), "Germany");
+            assert.equal(hq(exhaust({ profile: hc("United Kingdom") })), "United Kingdom");
+            assert.equal(hq(null, [wd]), "Germany");
+        });
+
+        it("a hiring.cafe employee range carries no Wikidata as-of year", () => {
+            const profile = section({
+                tagline: "T", homepageUri: null, hqCountry: null, industries: [], yearFounded: null,
+                organizationType: null, nbEmployees: "201-500", parentCompany: null, atsHint: null, totalJobs: null,
+            });
+            const p = buildCompanyFacts(input({ exhaust: exhaust({ profile }), wikidata: [wd] })).identity.profile;
+            assert.deepEqual([p?.employees, p?.employeesAsOf], ["201-500", null]);
+        });
+
+        it("items that disagree give no fact; a one-word description is dropped", () => {
+            const de = { ...wd, label: "Acme Germany", description: "Company" };
+            const fr = { ...wd, label: "Acme France", id: "Q43", founded: 2005, hqCountry: "FR", employees: 50, industries: ["retail"], description: "Company" };
+            const f = buildCompanyFacts(input({ wikidata: [de, fr] }));
+            assert.equal(f.identity.profile?.yearFounded ?? null, null);
+            assert.equal(f.identity.profile?.tagline ?? null, null);
+            assert.deepEqual(f.identity.profileSources, []);
+        });
+
+        it("facts from different items name Wikidata without a link; an old-shape item changes nothing", () => {
+            const a = { ...wd, label: "Acme", description: undefined, employees: undefined };
+            const b = { label: "Acme Germany", industries: [], id: "Q43", employees: 9, description: "unused" };
+            const f = buildCompanyFacts(input({ wikidata: [a, { ...b, label: "Acme" }] }));
+            assert.equal(f.identity.profileSources[0]?.url, null);
+            const old = buildCompanyFacts(input({ wikidata: [{ label: "Acme", industries: [] }] }));
+            assert.equal(old.identity.profile, null);
+            assert.deepEqual(old.identity.profileSources, []);
+        });
+    });
+
+    describe("site description tagline", () => {
+        const site = "We build payroll software for small teams";
+        const hcProfile = section({
+            tagline: "hiring.cafe line", homepageUri: null, hqCountry: null, industries: [], yearFounded: null,
+            organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
+        });
+        const wd = { label: "Acme", industries: [], id: "Q42", description: "German software company" };
+
+        it("alone: becomes the tagline and names the company website as its source", () => {
+            const f = buildCompanyFacts(input({ siteDescription: site }));
+            assert.equal(f.identity.profile?.tagline, site);
+            assert.deepEqual(f.identity.profileSources, [{ name: "company website", url: "https://acme.com", fetchedAt: null }]);
+        });
+
+        it("precedence: hiring.cafe beats Wikidata beats the site, and only the winner is credited", () => {
+            const all = { siteDescription: site, wikidata: [wd] };
+            const hc = buildCompanyFacts(input({ ...all, exhaust: exhaust({ profile: hcProfile }) }));
+            assert.equal(hc.identity.profile?.tagline, "hiring.cafe line");
+            assert.ok(!hc.identity.profileSources.some((s) => s.name === "company website"));
+            const w = buildCompanyFacts(input(all));
+            assert.equal(w.identity.profile?.tagline, "German software company");
+            assert.ok(!w.identity.profileSources.some((s) => s.name === "company website"));
+        });
+
+        it("fewer than 5 words is a page label, dropped (no profile, no source)", () => {
+            const f = buildCompanyFacts(input({ siteDescription: "Payroll for small teams" }));
+            assert.equal(f.identity.profile, null);
+            assert.deepEqual(f.identity.profileSources, []);
+        });
+
+        it("class-wide: a different company gets its own description and domain link", () => {
+            const f = buildCompanyFacts(input({ name: "Globex", domain: "globex.io", siteDescription: "  Cloud hosting for modern engineering teams  " }));
+            assert.equal(f.identity.profile?.tagline, "Cloud hosting for modern engineering teams");
+            assert.deepEqual(f.identity.profileSources, [{ name: "company website", url: "https://globex.io", fetchedAt: null }]);
+        });
     });
 
     it("sector comes from the box's one resolver", () => {
