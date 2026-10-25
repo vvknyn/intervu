@@ -62,6 +62,7 @@
  * the page itself marks `noindex` is a self-contradicting submission.
  */
 import { hasMeilisearch, host, meiliFetch, searchKey } from "@/lib/jobs/meilisearch";
+import { stripFormatChars } from "@/lib/jobs/presentation";
 
 /** Live roles a company needs to be in the sitemap set, and so to be indexable. */
 export const MIN_SITEMAP_ROLES = 25;
@@ -143,8 +144,9 @@ function isoDate(v: unknown): string | null {
   return Number.isNaN(Date.parse(v)) ? null : v;
 }
 
-/** The string entries of a doc field, or null when it is not an array. */
-const stringsOf = (v: unknown): string[] | null => (Array.isArray(v) ? v.filter((n): n is string => typeof n === "string") : null);
+/** The string entries of a doc field, cleaned of invisible format characters (the one read of `site_names`, `wikidata_names`, `row_names`), or null when it is not an array. */
+const stringsOf = (v: unknown): string[] | null =>
+  Array.isArray(v) ? v.filter((n): n is string => typeof n === "string").map(stripFormatChars).filter(Boolean) : null;
 
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
