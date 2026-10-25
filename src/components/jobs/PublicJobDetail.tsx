@@ -230,6 +230,7 @@ export function PublicJobDetail({
             // required: `AuthGateHandlers` is a mapped type over every
             // `PendingAction` kind, so every caller supplies both.
             upload: () => {},
+            resume: () => {},
         },
         user,
         onGateOpen: (reason) => {
