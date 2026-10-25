@@ -21,7 +21,7 @@
  * generation holds is read fresh with `fetchOpenCounts` (listed-names.ts), the same query the page uses.
  * Candidates arrive by raw live roles, so exclusions are refilled from the next ones up to the cap.
  */
-import { carriesLegalTail, hostLabelIsName, registrableLabel, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { carriesLegalTail, hostLabelNamesCompany, registrableLabel, resolveCompanyName, isBetterSpelling, nameKey, siteSpellings, withoutSitePurpose } from "@/lib/companies/company-name";
 import { companyOpenCount, publicRoles } from "@/lib/companies/company-roles-query";
 import { letterOf } from "@/lib/companies/directory-index";
 import { fetchIndexableCompanyDomains, MIN_SITEMAP_ROLES, SITEMAP_COMPANY_CAP, type IndexableCompanyDomain } from "@/lib/companies/indexable";
@@ -55,7 +55,7 @@ export const DIRECTORY_REVALIDATE_SECONDS = 6 * 60 * 60;
 const MAJORITY_SHARE = 0.5;
 
 /** A listable candidate and how strongly it holds the name it is listed under. */
-type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean; legal: string };
+type Claim = { company: DirectoryCompany; majority: boolean; hostIsName: boolean; legal: string; unsettled: string; identity: string };
 
 /**
  * Pure: `name` with its legal form, from the first of `candidates` (resolver value, site names, row/wikidata
@@ -81,7 +81,7 @@ export function distinctLegalNames(group: readonly { domain: string; legal: stri
 function listUnderLegalNames(claims: readonly Claim[]): Claim[] {
   const groups = Map.groupBy(claims, (c) => c.company.name.toLowerCase());
   const told = new Set([...groups.values()].flatMap((g) => [...distinctLegalNames(g.map((c) => ({ domain: c.company.domain, legal: c.legal })))]));
-  return claims.map((c) => (told.has(c.company.domain) ? { ...c, company: { ...c.company, name: c.legal, letter: letterOf(c.legal) } } : c));
+  return claims.map((c) => (told.has(c.company.domain) ? { ...c, unsettled: c.legal, identity: c.legal, company: { ...c.company, name: c.legal, letter: letterOf(c.legal) } } : c));
 }
 
 const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
@@ -104,20 +104,31 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], re
     if (ATS_PORTAL_HOSTNAME_RE.test(raw.domain)) return void excluded.push({ domain: raw.domain, rule: "M1" });
     const read = reads[i] ?? { hits: [], total: 0 };
     const candidate = { ...raw, openRoleCount: companyOpenCount(read).value };
-    const resolved = resolveCompanyName(publicRoles(read.hits), candidate.domain);
+    const roles = publicRoles(read.hits);
+    const resolved = resolveCompanyName(roles, candidate.domain);
     if (!resolved.agrees) return void excluded.push({ domain: candidate.domain, rule: "R1" });
     if (candidate.openRoleCount < minRoles) return void excluded.push({ domain: candidate.domain, rule: "T1" });
-    const name = siteSpelling(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings);
-    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: hostLabelIsName(candidate.domain, name), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]) });
+    const { name, unsettled, identity } = siteSpellings(displayCompanyName(resolved.value), candidate.siteNames, candidate.domain, resolved.rowSpelling, candidate.labelSpellings, roles.map((role) => role.company ?? ""));
+    claims.push({ company: { ...candidate, name, letter: letterOf(name) }, majority: resolved.share >= MAJORITY_SHARE, hostIsName: [unsettled, identity, name].some((own) => hostLabelNamesCompany(candidate.domain, own)), legal: legalNameOf(name, [resolved.value, ...(candidate.siteNames ?? []), ...(candidate.labelSpellings ?? [])]), unsettled, identity });
   });
 
-  const byName = new Map<string, DirectoryCompany>();
-  for (const { company } of listUnderLegalNames(claims).sort(byClaim)) {
-    const kept = byName.get(company.name.toLowerCase());
-    if (kept) excluded.push({ domain: company.domain, rule: "M3", owner: kept.domain });
-    else byName.set(company.name.toLowerCase(), company);
+  // A name owns both its listed fold and its unsettled one: refining the display must not change who a duplicate is.
+  const owners = new Map<string, number>();
+  const kept: DirectoryCompany[] = [];
+  for (const { company, unsettled, identity } of listUnderLegalNames(claims).sort(byClaim)) {
+    // A careers-purpose domain is its company: the names are also compared without a trailing site-purpose word.
+    const keys = [company.name, unsettled, identity].flatMap((own) => [own, withoutSitePurpose(own)]).map(nameKey);
+    const at = keys.map((key) => owners.get(key)).find((i) => i !== undefined);
+    if (at === undefined) {
+      keys.forEach((key) => owners.set(key, kept.length));
+      kept.push(company);
+      continue;
+    }
+    excluded.push({ domain: company.domain, rule: "M3", owner: kept[at]!.domain });
+    // The same letters spelled with word boundaries: the survivor keeps its domain and shows the better spelling. A collision through the unsettled key keeps its own name.
+    if (nameKey(kept[at]!.name) === keys[0] && isBetterSpelling(company.name, kept[at]!.name)) kept[at] = { ...kept[at]!, name: company.name, letter: company.letter };
   }
-  return { companies: [...byName.values()].sort(byRoles).slice(0, cap), excluded };
+  return { companies: kept.sort(byRoles).slice(0, cap), excluded };
 }
 
 /** Thin I/O: the pool from `company_directory`, each candidate's rows from the jobs index. */

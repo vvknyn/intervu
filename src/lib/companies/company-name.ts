@@ -217,6 +217,9 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
 const MAX_ACRONYM_LETTERS = 4;
 
 export const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
+
+/** The fold two spellings of one listed name share in any script: letters and digits only, accents and case folded ("Basic-Fit" and "Basic Fit"; "Яндекс" stays distinct from "トヨタ"). "&" is dropped, not read as "and": "Central & Northern" and "Central and Northern" are two spellings the listing has always kept apart. */
+export const nameKey = (value: string): string => fold(value).toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
 const isBanner = (c: string): boolean => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
 
 /** A site name that can expand a squashed label: 2 to 5 words of letters, digits, spaces and & . ' - only. */
@@ -317,9 +320,11 @@ const carriesCasing = (word: string): boolean => /['\u2019]/.test(word) || word 
 
 /** The one corporate/careers tail words a domain label may carry after its brand ("trilongroup" = "trilon" + "group"):
  *  the legal forms of `LEGAL_FORM_TOKENS` that read as words, plus the careers-site and holding-company words. */
+const SITE_PURPOSE_WORDS = ["jobs", "careers"];
+const SITE_PURPOSE_TAIL_RE = new RegExp(`[\\s,]+(?:${SITE_PURPOSE_WORDS.join("|")})$`, "i");
 const LABEL_TAIL_WORDS = new Set([
   ...["inc", "corp", "corporation", "llc", "ltd", "co", "company"].filter((word) => LEGAL_FORM_TOKENS.has(word)),
-  "group", "jobs", "careers", "usa", "global", "holdings", "intl",
+  ...SITE_PURPOSE_WORDS, "group", "usa", "global", "holdings", "intl",
 ]);
 
 /**
@@ -366,8 +371,69 @@ function respellFirstWord(label: string, display: string, names: readonly string
  * site name keeps its capitals only when the rows' own winning spelling (`rowSpelling`) is that same one (two independent witnesses);
  * otherwise it is re-cased by `titleCaseDisplay`, the rule that re-cases all-capitals rows, and competes as a normal respelling.
  */
-export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = []): string {
-  return casingRefined(labelSpelled(restoreAcronyms(hostAcronym(respelledBySite(display, candidates, domain, rowSpelling), domain, candidates), candidates), labelSpellings, domain), candidates, domain);
+export function siteSpelling(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = [], rowNames: readonly string[] = []): string {
+  return siteSpellings(display, candidates, domain, rowSpelling, labelSpellings, rowNames).name;
+}
+
+/** `siteSpelling`'s name, the same chain's name without the host-label step, and the identity the host label settled: the names a duplicate check also compares, since settling by the host renames a company, not its identity. */
+export function siteSpellings(display: string, candidates: readonly string[] = [], domain?: string, rowSpelling?: string, labelSpellings: readonly string[] = [], rowNames: readonly string[] = []): { name: string; unsettled: string; identity: string } {
+  const respelled = respelledBySite(display, candidates, domain, rowSpelling);
+  const finish = (name: string): string => casingRefined(labelSpelled(restoreAcronyms(hostAcronym(name, domain, candidates), candidates), labelSpellings, domain), candidates, domain);
+  const settled = respelled === display ? settledByHost(display, candidates, domain, rowNames) : { name: respelled, identity: respelled };
+  return { name: finish(settled.name), unsettled: finish(respelled), identity: finish(settled.identity) };
+}
+
+/** The keys a name can have and still be the domain's own label: the label, or the label minus exactly one `LABEL_TAIL_WORDS` word. */
+const labelKeys = (label: string): Set<string> => new Set([label, ...[...LABEL_TAIL_WORDS].filter((tail) => label.endsWith(tail)).map((tail) => label.slice(0, -tail.length))]);
+
+const wordKeys = (name: string): string[] => name.split(/[\s&]+/).map(siteKey).filter(Boolean);
+const isStrictPrefix = (short: string[], long: string[]): boolean => short.length > 0 && short.length < long.length && short.every((word, i) => word === long[i]);
+
+/** Do the job rows' own names carry `words` as the start of a name? The site may add words to a name only when they do: it refines the rows' name, never replaces it. */
+const rowsCarry = (words: string[], rowNames: readonly string[]): boolean => rowNames.some((row) => { const own = wordKeys(displayCompanyName(row)); return own.length >= words.length && words.every((word, i) => word === own[i]); });
+
+/** `name` without a trailing site-purpose word ("Disney Careers" -> "Disney"): the company a careers-purpose page belongs to. */
+export const withoutSitePurpose = (name: string): string => name.replace(SITE_PURPOSE_TAIL_RE, "");
+
+/** Does the host's registrable label name `name`: exactly, or once a trailing site-purpose word is cut off it ("lockheedmartinjobs" names "Lockheed Martin")? */
+export function hostLabelNamesCompany(domain: string, name: string): boolean {
+  const label = alnum(registrableLabel(domain));
+  return hostLabelIsName(domain, name) || SITE_PURPOSE_WORDS.some((word) => label.endsWith(word) && label.slice(0, -word.length) === alnum(name));
+}
+
+/** A site name as a company name: marks and a trailing legal form are the page's, not the name's. */
+const cleanedSiteName = (candidate: string): string => {
+  const plain = candidate.replace(/[®™©℠]/g, "").trim();
+  return carriesLegalTail(plain) ? displayCompanyName(plain) : plain;
+};
+
+/** Is `candidate` a better spelling of the same name than `current`: sound, with real word boundaries (a space, a hyphen or an inner capital) where `current` has none ("Trane Technologies" over "Tranetechnologies")? */
+export const isBetterSpelling = (candidate: string, current: string): boolean => {
+  const bounded = (c: string): boolean => /[\s-]|\p{Ll}\p{Lu}/u.test(c);
+  return isSoundSpelling(candidate) && bounded(candidate) && !bounded(current);
+};
+
+/**
+ * The host label settles a word-prefix pair: a name cut short ("Frost" for Frost Bank) or carrying a regional tail
+ * ("Champion Petfoods (Shanghai)") becomes the homepage site name whose words are a strict whole-word prefix of it
+ * (or that it is a strict prefix of) when that site name's key is the registrable label, or the label minus one tail word.
+ * A site name that ADDS words must be carried by the job-row names (`rowsCarry`). Only a homepage site name may name the company; a name already equal to the label stands.
+ */
+function settledByHost(display: string, candidates: readonly string[], domain: string | undefined, rowNames: readonly string[]): { name: string; identity: string } {
+  const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
+  const shown = wordKeys(display);
+  if (!label || !shown.length || siteKey(display) === label) return { name: display, identity: display };
+  const keys = labelKeys(label);
+  // A host label that itself ends in the site-purpose word ("nbhealthjobs") may make it part of the name; otherwise it is cut ("Asda Jobs" on asda.jobs).
+  const keepsPurpose = SITE_PURPOSE_WORDS.some((word) => label.endsWith(word));
+  // Each site name is tried as shown (the word kept when the label ends in it), then without the word; the first form that agrees with the rows' name settles, and a word its form lacks is never added back.
+  const forms = candidates.flatMap((full) => { const named = cleanedSiteName(full); return (keepsPurpose ? [named, withoutSitePurpose(named)] : [withoutSitePurpose(named)]).map((form) => ({ form, attested: form === named })); });
+  const agreeing = forms.filter(({ form: c }) => {
+    const words = wordKeys(c);
+    return keys.has(siteKey(c)) && (isStrictPrefix(words, shown) || (isStrictPrefix(shown, words) && rowsCarry(words, rowNames))) && wordCount(c) <= EXPANSION_MAX_WORDS && EXPANSION_CHARS_RE.test(c) && !DOMAIN_TOKEN_RE.test(c) && !isBanner(c) && isSoundSpelling(c) && !lowersAcronym(c, display);
+  });
+  // The first agreeing form is the company's identity; it is shown only when the site writes it (as written, or its key is the whole label), never when we built it by cutting a tail word.
+  return { identity: agreeing[0]?.form ?? display, name: agreeing.find(({ form, attested }) => attested || siteKey(form) === label)?.form ?? display };
 }
 
 /** English function words that stay lower case inside a title ("State of Arkansas"); a closed grammatical class, not a list of companies. */
@@ -398,13 +464,15 @@ function casingRefined(display: string, candidates: readonly string[], domain?: 
 /**
  * The last step: an unwitnessed label (one plain-cased letters/digits word whose key is the domain's first label,
  * "Homedepot") may be spaced or cased by the first of the secondary `labelSpellings` (wikidata/row names) whose key is
- * that label, or the label minus one `LABEL_TAIL_WORDS` word, and which starts with a letter or digit (".monks" is no name). Any name already carrying spacing, casing or punctuation stands.
+ * that label, or the label minus one `LABEL_TAIL_WORDS` word (a display already that tail-less word takes only a spelling of its own letters), and which starts with a letter or digit (".monks" is no name). Any name already carrying spacing, casing or punctuation stands.
  */
 function labelSpelled(display: string, labelSpellings: readonly string[], domain?: string): string {
   const label = domain ? alnum(hostParts(domain).parts.at(-1) ?? "") : "";
-  if (!label || !/^\p{Lu}[\p{Ll}\d]*$/u.test(display) || alnum(display) !== label) return display;
-  const keys = new Set([label, ...[...LABEL_TAIL_WORDS].filter((tail) => label.endsWith(tail)).map((tail) => label.slice(0, -tail.length))]);
-  return labelSpellings.find((spelling) => /^[\p{L}\d]/u.test(spelling) && keys.has(siteKey(spelling))) ?? display;
+  const keys = labelKeys(label);
+  if (!label || !/^\p{Lu}[\p{Ll}\d]*$/u.test(display) || !keys.has(alnum(display))) return display;
+  // The bare label may take any label-shaped spelling; a label minus its tail ("Kraftheinz") only a spacing or casing of itself.
+  const fits = (key: string): boolean => (alnum(display) === label ? keys.has(key) : key === alnum(display));
+  return labelSpellings.find((spelling) => /^[\p{L}\d]/u.test(spelling) && fits(siteKey(spelling))) ?? display;
 }
 
 /** A trailing legal form the display name strips ("zahneins GmbH"): a site name carrying one is not a spelling of the display name. A trading "Co."/"Company" is part of the brand ("Australian Venue Co."), not a legal tail. */
