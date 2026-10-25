@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { WarningOctagon, Trash } from "@phosphor-icons/react";
@@ -89,8 +90,12 @@ export function SettingsContainer() {
         if (!email) return;
         setIsResetting(true);
         setResetMessage(null);
-        await requestPasswordResetAction({ email });
-        setResetMessage({ type: "success", text: SETTINGS_MESSAGES.resetLinkSent });
+        const res = await settleAction(requestPasswordResetAction({ email }));
+        setResetMessage(
+            "error" in res
+                ? { type: "error", text: "Couldn't send the link. Try again." }
+                : { type: "success", text: SETTINGS_MESSAGES.resetLinkSent },
+        );
         setTimeout(() => setResetMessage(null), 5000);
         setIsResetting(false);
     };

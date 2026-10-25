@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { WaitBar } from "@/components/ui/wait-state";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -68,7 +69,7 @@ export function FollowAlertsBell() {
 
       setLoading(true);
       const sinceIso = readFollowAlertCursor();
-      const res = await listFollowAlertsAction(sinceIso, follows);
+      const res = await settleAction(listFollowAlertsAction(sinceIso, follows));
       if (cancelled) return;
       if (res.data) setGroups(res.data);
       setLoading(false);

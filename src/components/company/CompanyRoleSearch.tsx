@@ -375,6 +375,7 @@ export function CompanyRoleSearch({
             <Input
               id="company-role-search"
               type="search"
+              enterKeyHint="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => {

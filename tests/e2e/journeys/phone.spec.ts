@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
+import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "./signed-in";
 
 /**
  * Journeys for the phone layout: the search box, the toolbar, the rows and
@@ -207,6 +208,85 @@ async function expectSheetBar(page: Page, title: string | RegExp, content: Locat
     await expect(sheet).toBeHidden();
 }
 
+test("on a phone the Filters sheet holds filters only, in one column, over a sticky Clear all / Show results bar", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/jobs?q=engineer");
+    await page.getByTestId("filters-toggle").click();
+    const panel = page.getByTestId("filters-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("a[href='/terms']")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
+    const show = page.getByRole("button", { name: /^Show (results|[\d,]+\+? jobs?)$/ });
+    await expect(show).toBeVisible();
+    const sheet = page.getByRole("dialog", { name: "Filters" });
+    // One column: every filter group starts at the same left edge (a 2-up grid gives two).
+    const groups = panel.locator("div.grid").first().locator("> *");
+    expect(await groups.count()).toBeGreaterThanOrEqual(2);
+    const lefts = await groups.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().x)));
+    expect(new Set(lefts).size).toBe(1);
+    // Sticky: with the body scrolled to its end the bar still ends at the sheet's bottom edge, both buttons in view.
+    await panel.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+    const clear = page.getByRole("button", { name: "Clear all" });
+    const bar = clear.locator("xpath=..");
+    await expect
+        .poll(async () => {
+            const [s, f, c, b] = [await box(sheet), await box(bar), await box(clear), await box(show)];
+            const [inView, vh] = [(r: { y: number; height: number }) => r.y >= s.y && r.y + r.height <= s.y + s.height, page.viewportSize()!.height];
+            return Math.abs(s.y + s.height - (f.y + f.height)) <= 1 && s.y + s.height <= vh && inView(c) && inView(b);
+        })
+        .toBe(true);
+    // A thumb target: the 44px step on both buttons.
+    expect((await box(clear)).height).toBeGreaterThanOrEqual(44);
+    expect((await box(show)).height).toBeGreaterThanOrEqual(44);
+    await show.click();
+    await expect(panel).toBeHidden();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+// The Filters journey's neighbour: the full footer is not on /jobs (a lean surface), so this reads it on /about.
+test("on a phone the footer is one collapsible section per kind of link: 44px triggers that open on a tap, Enter or Space, and at 1440 only the flat line shows", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/about");
+    const footer = page.getByTestId("site-footer");
+    const triggers = footer.locator("[data-slot=accordion-trigger]");
+    // The section names are the contract; Footer.tsx cannot be imported here (it pulls in browser-only modules).
+    const groups = ["Job searches", "Company", "Help & legal"];
+    expect(await triggers.count()).toBe(groups.length);
+    for (const [i, group] of groups.entries()) {
+        const trigger = triggers.nth(i);
+        await trigger.scrollIntoViewIfNeeded();
+        await expect(trigger).toHaveText(group);
+        expect((await box(trigger)).height).toBeGreaterThanOrEqual(44);
+        // A tap opens the section and shows its links (the first link of the group is enough to see it).
+        const links = footer.locator(`[data-slot=accordion-item]:nth-child(${i + 1}) a`);
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+        await expect(links.first()).toBeVisible();
+        expect((await box(links.first())).height).toBeGreaterThanOrEqual(44);
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        // The keyboard does the same from a focused trigger.
+        for (const key of ["Enter", "Space"]) {
+            await trigger.focus();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "true");
+            await expect(links.first()).toBeVisible();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        }
+    }
+    // At 1440 the accordion is gone and the flat line of links is what shows.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(triggers.first()).toBeHidden();
+    await expect(footer.getByRole("link", { name: "Privacy" })).toBeVisible();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
@@ -345,4 +425,92 @@ test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets 
         test.info().annotations.push({ type: "skipped-part", description: "this server lists no jobs (no search backend), so there is no job sheet to swipe" });
     }
     expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * Largest per-channel difference between any pixel under `icon` and the fill
+ * of `field` (sampled in its empty right-hand end). Pixels, not
+ * `elementFromPoint`: a leading icon is pointer-events-none, so hit-testing
+ * never sees it, and an opaque field painted over it (the coarse-pointer
+ * hit-area rule once positioned every `.ctl-*` input, lifting it above its
+ * `absolute` icon) leaves the icon's rect identical to the fill.
+ */
+async function iconInkOverFieldFill(page: Page, icon: Locator, field: Locator) {
+    const [i, f] = [await box(icon), await box(field)];
+    const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: 390, height: 844 }, fullPage: false })).toString("base64");
+    return page.evaluate(
+        async ({ shot, i, f }) => {
+            const img = await createImageBitmap(await (await fetch(`data:image/png;base64,${shot}`)).blob());
+            const cv = document.createElement("canvas");
+            cv.width = img.width;
+            cv.height = img.height;
+            const cx = cv.getContext("2d")!;
+            cx.drawImage(img, 0, 0);
+            const s = img.width / innerWidth;
+            const px = (x: number, y: number) => cx.getImageData(Math.round(x * s), Math.round(y * s), 1, 1).data;
+            const fill = px(f.x + f.width * 0.85, f.y + f.height / 2);
+            let max = 0;
+            for (let x = Math.floor(i.x); x < i.x + i.width; x++) {
+                for (let y = Math.floor(i.y); y < i.y + i.height; y++) {
+                    const d = px(x, y);
+                    max = Math.max(max, Math.abs(d[0] - fill[0]), Math.abs(d[1] - fill[1]), Math.abs(d[2] - fill[2]));
+                }
+            }
+            return max;
+        },
+        { shot, i, f },
+    );
+}
+
+/** An icon is painted when some pixel in its rect is clearly not the field's fill. */
+const ICON_INK_MIN = 40;
+
+test("on a phone the leading search icon is painted over the field's fill: tracker search, at rest and focused", { tag: ["@J-MOB-28"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    const now = new Date().toISOString();
+    await page.addInitScript(
+        (seed) => localStorage.setItem("intervu.pursuits.guest", JSON.stringify([seed])),
+        {
+            id: "guest-journey-icon",
+            user_id: "guest",
+            company_name: "Acme Corp",
+            position: "Staff Engineer",
+            status: "applied",
+            job_id: "job-journey-icon",
+            job_snapshot: { title: "Staff Engineer", company: "Acme Corp", location: "Remote", description: "Build things.", apply_url: "https://example.com/jobs/1" },
+            created_at: now,
+            updated_at: now,
+        },
+    );
+    await page.goto("/yours");
+    const field = page.getByTestId("tracker-search");
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    // The icon is the field's previous sibling inside the shared wrapper.
+    const icon = field.locator("xpath=preceding-sibling::*[1]");
+    await field.scrollIntoViewIfNeeded();
+    await testInfo.attach("tracker-rest", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    await field.focus();
+    await testInfo.attach("tracker-focused", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on a phone the leading search icon is painted over the field's fill: community sources search", { tag: ["@J-MOB-28"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    test.skip(!isLocalOrigin(testInfo.project.use.baseURL), SIGNED_IN_SKIP_REASON);
+    await returningVisitor(page);
+    await mockSignIn(page);
+    await page.goto("/stories?tab=sources");
+    await page.getByRole("tab", { name: "Community" }).click();
+    const field = page.getByPlaceholder("Search community sources...");
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    const icon = field.locator("xpath=preceding-sibling::*[1]");
+    await testInfo.attach("community-rest", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    await field.focus();
+    await testInfo.attach("community-focused", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    expect(diagnostics.pageErrors.filter((e) => !e.startsWith("Hydration failed"))).toEqual([]);
 });

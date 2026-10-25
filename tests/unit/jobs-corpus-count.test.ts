@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveCorpusCount, resolveLiveCorpusCount, formatCorpusCount, formatCompactCorpusCount, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
+import { resolveCorpusCount, resolveLiveCorpusCount, formatCorpusCount, formatCompactCorpusCount, showResultsLabel, CORPUS_COUNT_CAP, type CorpusCount } from '../../src/lib/jobs/corpus-count';
 
 // Whole-branch review finding: the app must never present a Meilisearch
 // maxTotalHits-capped `total` as an exact fact. `resolveCorpusCount` is the
@@ -96,5 +96,22 @@ describe('resolveLiveCorpusCount (counts that get cached)', () => {
     it('a working search resolves like resolveCorpusCount', () => {
         assert.deepEqual(resolveLiveCorpusCount({ total: 1_234 }), { kind: 'exact', value: 1_234 });
         assert.deepEqual(resolveLiveCorpusCount({ total: CORPUS_COUNT_CAP }), { kind: 'floor', value: CORPUS_COUNT_CAP });
+    });
+});
+
+describe('showResultsLabel (Filters sheet primary action)', () => {
+    it('quotes an exact live total', () => {
+        assert.equal(showResultsLabel({ kind: 'exact', value: 1_234 }), 'Show 1,234 jobs');
+        assert.equal(showResultsLabel({ kind: 'exact', value: 0 }), 'Show 0 jobs');
+    });
+    it('singular for exactly one', () => {
+        assert.equal(showResultsLabel({ kind: 'exact', value: 1 }), 'Show 1 job');
+    });
+    it('a floor keeps its plus, and never reads as singular', () => {
+        assert.equal(showResultsLabel({ kind: 'floor', value: CORPUS_COUNT_CAP }), 'Show 100,000+ jobs');
+        assert.equal(showResultsLabel({ kind: 'floor', value: 1 }), 'Show 1+ jobs');
+    });
+    it('no live total — never a number', () => {
+        assert.equal(showResultsLabel(null), 'Show results');
     });
 });

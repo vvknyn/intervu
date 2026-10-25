@@ -612,6 +612,11 @@
 /* Base Styles */
 html {
   scroll-behavior: smooth;
+  /* Fixed chrome never covers an anchor or a scrolled-into-view field: the
+     sticky header (and /jobs' docked filter band, which --jobs-sticky-offset
+     already adds) clears the top; the bottom side is the tab bar, set where
+     its height is defined (compact width only). */
+  scroll-padding-top: calc(var(--jobs-sticky-offset) + var(--jobs-bar-content-gap));
 }
 
 html:has([data-testid="topbar-docked-filters-toggle"]) {
@@ -652,9 +657,37 @@ body {
 }
 
 @media (max-width: 1023px) {
-  body:has([data-mobile-tabbar]) {
+  /* The bar's height lives on <html> so the viewport scroller (scroll-padding
+     below) and the body's own clearance read the SAME token. */
+  html:has([data-mobile-tabbar]) {
     --mobile-tabbar-h: 56px;
+    scroll-padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  body:has([data-mobile-tabbar]) {
     padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  /* A fixed bar must never cover the field being typed in or the keyboard
+     area: while a text-entry control has focus the tab bar steps aside
+     (iOS Safari / Android Chrome do the same with their own toolbars) and
+     returns on blur. No motion, so reduced-motion needs no carve-out. */
+  html:has(:is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="hidden"]),
+    textarea,
+    [contenteditable]:not([contenteditable="false"])
+  ):focus) [data-mobile-tabbar] {
+    display: none;
+  }
+  /* iOS Safari zooms the page when a control under 16px takes focus. Every
+     form control computes >=16px at compact width, whatever class a call
+     site gives it. Unlayered on purpose: it must beat a `text-xs` utility on
+     a raw <input>. */
+  :where(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="hidden"]),
+    select,
+    textarea,
+    [contenteditable]:not([contenteditable="false"])
+  ) {
+    font-size: max(16px, 1em);
   }
 }
 
@@ -735,14 +768,20 @@ body:has([data-shell="bleed"]) {
 }
 /* Calm pass R4: the single sanctioned glass material. Only chrome that content
    scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
-   action bar) uses it. Page colour at 85% alpha + blur(16px) saturate(140%),
-   no hairline. design-language.test.ts guards that backdrop-filter appears
-   nowhere else in src/. */
+   action bar) uses it. Page colour at 94% alpha + blur(16px) saturate(140%),
+   no hairline. The fill alone must hide what scrolls under it (worst-case
+   white text under the fill measures 1.13:1), because WebKit can report
+   backdrop-filter as supported and still not blur; the blur is only the
+   enhancement. design-language.test.ts guards the alpha floor and that
+   backdrop-filter appears nowhere else in src/. */
 @utility material-bar {
-  background-color: rgb(var(--background) / 0.85);
+  background-color: rgb(var(--background) / 0.94);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
   @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--background));
+  }
+  @media (prefers-reduced-transparency: reduce) {
     background-color: rgb(var(--background));
   }
 }
@@ -805,11 +844,15 @@ body:has([data-shell="bleed"]) {
    ::before (`before:*` utilities) is skipped rather than half-overridden.
    @layer base + :where() keep this at zero specificity, so an explicit
    `absolute`/`fixed` utility on a control still wins over `position:relative`.
-   Replaced elements (input, select, textarea) cannot carry a pseudo-element,
-   so they sit on the `lg` step (44px) themselves. */
+   Text-entry controls (text-like and number inputs, select, textarea) cannot
+   carry a pseudo-element (measured in Chromium and WebKit; checkbox, radio,
+   file, range, color and date-likes do), so they sit on the `lg` step (44px)
+   themselves and are NOT positioned here: `position: relative` on them only
+   re-orders paint, hiding an absolute leading icon (z-index auto) that
+   precedes them under their opaque fill. */
 @layer base {
   @media (pointer: coarse) {
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"])) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]))) {
       position: relative;
     }
     :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"]))::before {
@@ -853,6 +896,19 @@ body:has([data-shell="bleed"]) {
   .wrap-row > :last-child {
     margin-inline-end: 0;
   }
+}
+
+/* The native search-field clear button is ~13px. Same glyph, 16px, padded to
+   the 44px touch floor (--hit-min) by its own padding box. */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: content-box;
+  width: 1rem;
+  height: 1rem;
+  padding: calc((var(--hit-min) - 1rem) / 2);
+  margin-inline-end: calc((var(--hit-min) - 1rem) / -2);
+  background: no-repeat center / 1rem 1rem url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23a1a1aa'%3E%3Cpath d='M205.66 194.34a8 8 0 0 1-11.32 11.32L128 139.31l-66.34 66.35a8 8 0 0 1-11.32-11.32L116.69 128 50.34 61.66a8 8 0 0 1 11.32-11.32L128 116.69l66.34-66.35a8 8 0 0 1 11.32 11.32L139.31 128Z'/%3E%3C/svg%3E");
 }
 
 /* Heading typography */
@@ -1318,6 +1374,22 @@ h4 {
   to {
     opacity: 0;
   }
+}
+
+/* LinkPending (components/ui/link-pending.tsx): invisible for the base motion
+   beat, then shown; the link dims after the same beat. */
+.link-pending-mark {
+  opacity: 0;
+  animation: link-pending-in var(--transition-fast) var(--ease-standard) var(--transition-base) forwards;
+}
+@keyframes link-pending-in {
+  to {
+    opacity: 1;
+  }
+}
+a:has(> .link-pending-mark) {
+  opacity: 0.6;
+  transition: opacity var(--transition-fast) var(--ease-standard) var(--transition-base);
 }
 
 @media (prefers-reduced-motion: reduce) {

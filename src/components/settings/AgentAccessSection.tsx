@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,7 +92,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
         // real permission denial. Retry briefly instead of flashing a false
         // error for a login that's still completing.
         for (let attempt = 0; attempt < 4; attempt++) {
-            const res = await listAgentCredentialsAction();
+            const res = await settleAction(listAgentCredentialsAction());
             if (!res.error) {
                 setCredentials(res.data ?? []); // load-result-allow: res.error was checked on the line above
                 setLoadStatus("ready");
@@ -116,7 +117,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
     const handleGenerate = async () => {
         setGenerating(true);
         try {
-            const res = await createManualTokenAction(label);
+            const res = await settleAction(createManualTokenAction(label));
             if (res.error || !res.secret) {
                 toast.error(res.error || TOKEN_CREATE_ERROR);
                 return;
@@ -145,7 +146,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
 
         setRevokingId(credential.id);
         try {
-            const res = await revokeAgentCredentialAction(credential.id, credential.kind);
+            const res = await settleAction(revokeAgentCredentialAction(credential.id, credential.kind));
             if (res.error) {
                 toast.error(res.error);
                 return;
@@ -233,7 +234,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             </div>
 
             <div className="mb-6">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
@@ -244,9 +245,9 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         aria-label="Token label"
                         maxLength={AGENT.MAX_TOKEN_LABEL_LENGTH}
                         disabled={generating}
-                        className="max-w-64"
+                        className="sm:max-w-64"
                     />
-                    <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0">
+                    <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0 self-start">
                         {generating ? <InlineSpinner /> : null}
                         {generating ? "Generating..." : "Generate manual token"}
                     </Button>
