@@ -186,8 +186,11 @@ export function JobCard({
                 // grid carries no border or bottom margin of its own — rows
                 // touch, the line between them starts at the title's x, not
                 // the tile's.
-                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-150 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live gap-x-3 px-[var(--list-inset)] pt-4",
-                active && "bg-surface-hover border-l-2 border-l-brand",
+                "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live gap-x-3 px-[var(--list-inset)] pt-4",
+                // Tonal tiers, no stripe: hover = --surface-hover (Tailwind v4 gates `hover:`
+                // behind @media (hover:hover), so touch never sticks it); the open row = the
+                // brand tint, a different hue from hover so the two never read as one.
+                active ? "bg-brand-tint-bg" : "hover:bg-surface-hover",
             )}
         >
             <div className="self-start">

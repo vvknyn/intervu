@@ -77,6 +77,11 @@ export function CompanyLogo({
     // Kept with the logo it belongs to, so a row that swaps companies tries
     // the new one's logo instead of keeping the last one's letter tile.
     const [failedSrc, setFailedSrc] = useState<string | null>(null);
+    // The favicon fades in only if it was still loading when attached. One that
+    // is already complete (cached, or loaded from the server-rendered HTML) is
+    // shown as is; either way the tile's box is the same, so nothing shifts.
+    const [pendingSrc, setPendingSrc] = useState<string | null>(null);
+    const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
     const showImage = shouldShowFavicon(domain, src !== null && failedSrc === src);
 
     // React's onError only hears failures after hydration. A logo that failed
@@ -86,7 +91,9 @@ export function CompanyLogo({
     // asked for yet has no currentSrc, so it is never mistaken for a failure.
     const checkFailedBeforeHydration = useCallback(
         (img: HTMLImageElement | null) => {
-            if (img && src && img.complete && img.naturalWidth === 0 && img.currentSrc) setFailedSrc(src);
+            if (!img || !src) return;
+            if (img.complete && img.naturalWidth === 0 && img.currentSrc) setFailedSrc(src);
+            else if (!img.complete) setPendingSrc(src);
         },
         [src],
     );
@@ -122,7 +129,11 @@ export function CompanyLogo({
                 loading="lazy"
                 referrerPolicy="no-referrer"
                 onError={() => setFailedSrc(src)}
-                className="h-full w-full object-contain p-1"
+                onLoad={() => setLoadedSrc(src)}
+                className={cn(
+                    "h-full w-full object-contain p-1",
+                    pendingSrc === src && (loadedSrc === src ? "fade-in-base" : "opacity-0"),
+                )}
             />
         </div>
     );
