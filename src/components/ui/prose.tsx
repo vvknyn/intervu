@@ -5,10 +5,10 @@ import { cn } from "@/lib/utils";
 // against; globals.css binds its colours to tokens and lifts p/li to
 // 16px / 1.625. <SectionTitle> / <SubTitle> inside get their spacing here,
 // so a page carries no per-page heading-margin constant.
-/** The ONE reading column (~68 characters a line). Prose, the page-header
+/** The ONE reading column (65ch, Tailwind max-w-prose). Prose, the page-header
  *  description and the standalone job description all take it, so a running
  *  paragraph never exceeds the comfortable ceiling whatever its container. */
-export const READING_MEASURE = "max-w-[68ch]";
+export const READING_MEASURE = "max-w-[65ch]";
 
 export function Prose({ className, ...props }: React.ComponentProps<"article">) {
   return (

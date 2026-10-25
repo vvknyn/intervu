@@ -4,7 +4,7 @@ import { DocWithToc } from "@/components/ui/on-this-page";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 /**
- * Shared frame for the legal documents (/privacy, /terms): a centred ~68ch
+ * Shared frame for the legal documents (/privacy, /terms): a centred ~65ch
  * reading column with no outer box, so the two pages can't drift apart.
  * `LegalDocFrame` adds the shared "On this page" list. `LegalDocHeader` is the
  * eyebrow, title and "Last updated" line. The body is the shared `Prose`
