@@ -17,7 +17,7 @@ const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, 
 const STATEMENTS: Record<string, { match: string; rows: unknown[] }> = {
   enrichment: { match: "company_enrichment", rows: [] },
   health: { match: "health_verdict", rows: [{ health_verdict: "healthy", health_score: 80, job_repost_rate: 0.1, operating_status: "active", created_at: "2026-01-01T00:00:00Z", last_checked_at: null }] },
-  sector: { match: "AS careers_url", rows: [{ health_reviews: "software", fingerprints: null, boards: null, careers_url: "https://acme.com/careers" }] },
+  sector: { match: "AS careers_url", rows: [{ careers_url: "https://acme.com/careers" }] },
   changes: { match: "company_change_events", rows: [{ event_type: "layoff", direction: "down", title: "Cut", occurred_at: "2026-08-01T00:00:00Z", confidence: 0.9 }] },
   closed: { match: "closed_reason", rows: [{ closed_reason: "filled", n: 3 }] },
   weeks: { match: "wk.week_start", rows: [{ week_start: null, total: null, first_day: "2026-01-05" }] },
@@ -47,12 +47,11 @@ const DEADLINE = 80;
 const SLOW = 300;
 
 describe("a slow statement voids only its own sections at the deadline", () => {
-  it("slow closed-reasons query: record and cadence absent; sector, careers, health, changes present", async () => {
+  it("slow closed-reasons query: record and cadence absent; careers, health, changes present", async () => {
     const { get } = cacheOver(fakePg({ closed: SLOW }));
     const x = (await get("acme.com", DEADLINE)) as CompanyExhaust;
     assert.equal(x.cadence, null);
     assert.equal(x.integrity, null);
-    assert.ok(x.sector);
     assert.equal(x.careersUrl, "https://acme.com/careers");
     assert.equal(x.health?.data.verdict, "healthy");
     assert.equal(x.changeHistory?.data.length, 1);
@@ -65,7 +64,7 @@ describe("a slow statement voids only its own sections at the deadline", () => {
     const { get } = cacheOver(fakePg({ health: SLOW }));
     const x = (await get("acme.com", DEADLINE)) as CompanyExhaust;
     assert.equal(x.health, null);
-    assert.ok(x.cadence && x.integrity && x.sector && x.changeHistory);
+    assert.ok(x.cadence && x.integrity && x.careersUrl && x.changeHistory);
   });
 
   it("all fast: identical to the complete read", async () => {
@@ -95,8 +94,18 @@ describe("a slow statement voids only its own sections at the deadline", () => {
   });
 });
 
+describe("the sector is never read from the pipeline's classifier columns", () => {
+  it("a company whose rows carry only classifier sectors has no sector", async () => {
+    const classifier = { health_reviews: "Education", fingerprints: "Education", boards: "Education", careers_url: "https://acme.com/careers" };
+    const pg = fakePg();
+    const rigged = { query: async (sql: string) => (sql.includes("AS careers_url") ? { rows: [classifier] } : pg.query(sql)) } as unknown as Queryable;
+    const { exhaust } = await readCompanyExhaust("acme.com", () => rigged, NOW);
+    assert.equal(exhaust?.sector, null);
+  });
+});
+
 describe("getCompanyPageData with the real cache", () => {
-  it("a slow record leaves off only the record: sector and careers still reach the page", async () => {
+  it("a slow record leaves off only the record: the careers link still reaches the page", async () => {
     const { getCompanyPageData } = await import("../../src/lib/companies/get-company");
     const { get } = cacheOver(fakePg({ closed: SLOW }));
     const job = { id: "1", title: "Eng", company: "Acme", company_domain: "acme.com", vacancy_status: "open", ghost_badge: "clear", tags: [] };
@@ -105,7 +114,7 @@ describe("getCompanyPageData with the real cache", () => {
       news: async () => [], events: async () => [], directory: (async () => null) as never, exhaust: get,
       sideTimeoutMs: DEADLINE, budgetMs: 1_000, log: () => {},
     });
-    assert.ok(data?.exhaust?.sector && data.exhaust.careersUrl);
+    assert.ok(data?.exhaust?.careersUrl);
     assert.equal(data?.exhaust?.integrity, null);
     assert.equal(data?.facts.hiring.cadence, null);
   });
