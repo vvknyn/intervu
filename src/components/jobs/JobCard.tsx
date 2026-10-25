@@ -187,10 +187,12 @@ export function JobCard({
                 // touch, the line between them starts at the title's x, not
                 // the tile's.
                 "group grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)] rounded-none bg-transparent text-left transition-colors duration-[var(--transition-base)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-live gap-x-3 px-[var(--list-inset)] pt-4",
-                // Tonal tiers, no stripe: hover = --surface-hover (Tailwind v4 gates `hover:`
-                // behind @media (hover:hover), so touch never sticks it); the open row = the
-                // brand tint, a different hue from hover so the two never read as one.
-                active ? "bg-brand-tint-bg" : "hover:bg-surface-hover",
+                // No stripe. hover = --surface-hover (Tailwind v4 gates `hover:` behind
+                // @media (hover:hover), so touch never sticks it). The open row = the brand
+                // tint (a different hue, but only 1.03x hover in luminance) PLUS a 1px inset
+                // brand hairline, which is the luminance cue (2.3x hover) and no thicker than
+                // the 1px the craft floor allows. Chips and the logo tile lift off the tint.
+                active ? "bg-brand-tint-bg ring-1 ring-inset ring-live-tint-border" : "hover:bg-surface-hover",
             )}
         >
             <div className="self-start">

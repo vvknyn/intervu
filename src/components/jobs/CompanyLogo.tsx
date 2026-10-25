@@ -14,7 +14,7 @@ const TILE_VARIANT_CLASS = [
     "bg-surface-2 text-foreground",
     "bg-surface-3 text-muted-foreground",
     "bg-live-tint-bg text-verdict-live",
-    "bg-brand-tint-bg text-brand",
+    "bg-surface-3 text-brand",
     "bg-verdict-caution-bg text-verdict-caution",
     "bg-chip text-faint",
 ] as const;
@@ -114,13 +114,17 @@ export function CompanyLogo({
         );
     }
 
+    // While the favicon is still loading, the company's initial tile fills the box (same size, so nothing shifts); it goes when the image lands and fades in.
+    const loading = pendingSrc === src && loadedSrc !== src;
+
     return (
         <div
             className={cn(
-                "flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-2 shadow-[var(--shadow-bevel-inset)]",
+                "relative flex shrink-0 items-center justify-center overflow-hidden border border-border bg-surface-2 shadow-[var(--shadow-bevel-inset)]",
                 sizeCls,
             )}
         >
+            {loading && <CompanyInitialTile name={cleanedName} className="absolute inset-0 rounded-none" />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 ref={checkFailedBeforeHydration}

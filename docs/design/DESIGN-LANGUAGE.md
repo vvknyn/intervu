@@ -239,22 +239,21 @@ Colour is defined once as RGB triplets in `:root` and `.dark`, exposed to Tailwi
 ### Motion patterns (reuse these; do not write a new keyframe)
 
 - **New result set enters.** `.result-set-enter` on the rows container: opacity plus 4px rise,
-  `--transition-enter`, `--ease-enter`, 30ms stagger on the first 8 rows (under 500ms total). It
-  plays only when the result set changes (`useResultSetEnter`, `src/lib/motion/result-set-enter.ts`;
-  the first set shown is the baseline). Appends, back navigation and re-renders never replay it.
+  `--transition-enter`, `--ease-enter`, 30ms stagger on the first 8 rows (under 500ms total). The
+  class is applied only for the 410ms window after a new set key (`useResultSetEnter`,
+  `src/lib/motion/result-set-enter.ts`; the first set shown is the baseline), so appends, dismisses,
+  cluster expands, back navigation and re-renders never replay it. The stagger counts job rows only.
 - **Detail pane crossfade.** `.detail-crossfade` on the pane, keyed by job id: opacity plus at most
   4px, `--transition-base`. The exit is an instant swap, so it is faster than the enter.
 - **Late image.** `.fade-in-base` (opacity only) for a logo or label that arrives after paint.
   Skip it when the image is already complete on mount, so cached images never blink.
-- **Refetch with rows on screen.** Keep the rows, set `data-refreshing`, show `.updating-label`
-  beside the count. Both wait `--refresh-delay` (from `WAIT_SKELETON_AFTER_MS`, 300ms) so a fast
-  refetch shows nothing. The count changes only when data lands.
 - **Loading placeholders.** Always `WaitState` / `WaitBar` (`src/components/ui/wait-state.tsx`):
   they show after 300ms and never flash. A spinner stays only on an action or a labelled check.
 - **Menus grow from the trigger.** Dropdown, popover, select and tooltip content carry
   `origin-(--radix-<name>-content-transform-origin)` with token durations.
-- **Selected vs hover rows.** Selected is the `brand-tint-bg` tier plus `aria-current`; hover is
-  `surface-hover`. No stripe, no lift.
+- **Selected vs hover rows.** Selected is `brand-tint-bg` plus a 1px inset `ring-live-tint-border` hairline and
+  `aria-current` (tint alone is 1.03x hover; the hairline is 2.3x); hover is `surface-hover`. No
+  stripe, no lift. Chips and tiles on the selected row lift to `surface-3`.
 - **Reduced motion.** Every class above is zeroed in the `prefers-reduced-motion: reduce` block.
 
 - **Guard:** `tests/unit/design-language.test.ts` enforces the three rules above against the
