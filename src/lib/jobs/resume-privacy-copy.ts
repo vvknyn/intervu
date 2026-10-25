@@ -88,11 +88,11 @@ export const RESUME_IMPORT_SEALED_DETAIL =
 
 /** /jobs front-door résumé band (signed-out or no résumé on file). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY =
-    "Upload a résumé to see your top 3 matches and why. It stays in this browser.";
+    "Top 3 matches and why. Your résumé stays in this browser.";
 
 /** The same band for a signed-in account with no résumé: the upload is saved to the account (see `resumeImportStorageNote`). */
 export const FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN =
-    "Upload your résumé to rank these jobs by fit. It stays on this device; a paid month saves it to your account, encrypted.";
+    "Rank these jobs by fit. Your résumé stays on this device; a paid month saves it to your account, encrypted.";
 
 /** Packs home, once a résumé has loaded (Today header, and the welcome panel before it): results are ranked in this browser (see `RESUME_UPLOAD_PROMISE`). */
 export const PRIVATE_MATCHING_ACTIVE = "Private matching active on this device";

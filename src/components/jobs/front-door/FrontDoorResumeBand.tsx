@@ -46,12 +46,12 @@ export function FrontDoorResumeBand({
             aria-label="Add your resume"
             // rounded-panel: it sits inside the page gutter, not edge to edge,
             // so its square corners were the one unrounded panel on the page.
-            className="mb-3 w-full rounded-panel bg-surface px-4 py-6 text-foreground sm:px-8"
+            className="@container mb-3 w-full rounded-panel bg-surface px-4 py-6 text-foreground sm:px-8"
         >
-            <div className="mx-auto grid max-w-[960px] gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+            <div className="mx-auto grid max-w-[960px] gap-3 @lg:grid-cols-[minmax(0,1fr)_auto] @lg:items-center @lg:gap-6">
                 <div>
                     <h2 className="text-xl font-semibold text-foreground">
-                        See which live jobs fit your experience.
+                        See which live jobs fit you.
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {signedIn ? FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN : FRONT_DOOR_RESUME_CARD_SUBCOPY}
@@ -62,7 +62,7 @@ export function FrontDoorResumeBand({
                     {RESUME_UPLOAD_CTA}
                 </Button>
                 {!signedIn && (
-                    <p data-testid="front-door-band-signin" className="text-xs text-muted-foreground sm:col-span-2">
+                    <p data-testid="front-door-band-signin" className="text-xs text-muted-foreground @lg:col-span-2">
                         {RESUME_UPLOAD_SIGNIN_LINE.split(AUTH_CTA_LABEL).map((part, i) => (
                             <span key={i}>
                                 {i > 0 && (

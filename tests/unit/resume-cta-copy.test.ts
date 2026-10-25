@@ -62,7 +62,7 @@ test("front door card subcopy matches contract", () => {
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
         // 4ac07706 (signed-out résumé privacy claims) added "It stays in this browser".
-        "Upload a résumé to see your top 3 matches and why. It stays in this browser.",
+        "Top 3 matches and why. Your résumé stays in this browser.",
     );
 });
 

@@ -24,7 +24,7 @@ test("RESUME_UPLOAD_SIGNIN_LINE makes no on-device/privacy/AI claim", () => {
     assert.doesNotMatch(RESUME_UPLOAD_SIGNIN_LINE, /on-device|on device|privacy|never leaves|\bAI\b/i);
     assert.equal(
         RESUME_UPLOAD_SIGNIN_LINE,
-        "Sign in to see every match. Saving your résumé to your account is a paid month.",
+        "Sign in for every match. Saving your résumé to your account is a paid month.",
     );
 });
 
@@ -54,10 +54,10 @@ test("FrontDoorResumeBand renders card subcopy, and the sign-in value line only 
     assert.match(band, /<Button[^>]*variant="secondary"/, "the upload action is the Button primitive's secondary, not a raw button");
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Upload a résumé to see your top 3 matches and why. It stays in this browser.",
+        "Top 3 matches and why. Your résumé stays in this browser.",
     );
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
-        "Upload your résumé to rank these jobs by fit. It stays on this device; a paid month saves it to your account, encrypted.",
+        "Rank these jobs by fit. Your résumé stays on this device; a paid month saves it to your account, encrypted.",
     );
 });
