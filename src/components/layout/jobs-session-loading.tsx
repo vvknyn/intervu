@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { WaitBar } from "@/components/ui/wait-state";
+import { WaitBar, WaitState } from "@/components/ui/wait-state";
 
 /** Stable jobs for-you column — pairs with `.jobs-session-frame` in globals.css. */
 export const JOBS_SESSION_FRAME_CLASS = "jobs-session-frame";
@@ -54,38 +54,44 @@ export function ForYouDeckSkeleton({
                     </p>
                 )
             ) : null}
-            <div className={PAPER_SLOT_CLASS[tone]} aria-hidden>
-                <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
-                    <div className="flex items-start gap-3">
-                        <WaitBar className="size-10 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                            <WaitBar className="h-3 w-24" />
-                            <WaitBar className="h-5 w-2/3" />
-                            <WaitBar className="h-3 w-40" />
+            {/* The paper holds its space at once but paints only past the wait ladder's first step. */}
+            <WaitState
+                label="Loading roles"
+                skeleton={
+                    <div className={PAPER_SLOT_CLASS[tone]}>
+                        <div className="border-b border-border py-4 px-4 lg:py-6 lg:px-8">
+                            <div className="flex items-start gap-3">
+                                <WaitBar className="size-10 shrink-0" />
+                                <div className="flex-1 space-y-2">
+                                    <WaitBar className="h-3 w-24" />
+                                    <WaitBar className="h-5 w-2/3" />
+                                    <WaitBar className="h-3 w-40" />
+                                </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                                <WaitBar className="h-7 w-20" />
+                                <WaitBar className="h-7 w-24" />
+                                <WaitBar className="h-7 w-16" />
+                            </div>
+                        </div>
+                        <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
+                            <div className="for-you-deck-fit-inset hidden rounded-ctl border border-border p-4 lg:block">
+                                <WaitBar className="h-3 w-20" />
+                                <WaitBar className="mt-3 h-2 w-full" />
+                                <WaitBar className="mt-4 h-3 w-24" />
+                                <WaitBar className="mt-2 h-2 w-full" />
+                            </div>
+                            <div className={cn(JOBS_SESSION_SCROLL_CLASS, "space-y-3")}>
+                                <WaitBar className="h-4 w-full" />
+                                <WaitBar className="h-4 w-full" />
+                                <WaitBar className="h-4 w-5/6" />
+                                <WaitBar className="h-4 w-full" />
+                                <WaitBar className="h-4 w-2/3" />
+                            </div>
                         </div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        <WaitBar className="h-7 w-20" />
-                        <WaitBar className="h-7 w-24" />
-                        <WaitBar className="h-7 w-16" />
-                    </div>
-                </div>
-                <div className="grid gap-6 py-4 px-4 lg:grid-cols-[280px_1fr] lg:py-6 lg:px-8">
-                    <div className="for-you-deck-fit-inset hidden rounded-ctl border border-border p-4 lg:block">
-                        <WaitBar className="h-3 w-20" />
-                        <WaitBar className="mt-3 h-2 w-full" />
-                        <WaitBar className="mt-4 h-3 w-24" />
-                        <WaitBar className="mt-2 h-2 w-full" />
-                    </div>
-                    <div className={cn(JOBS_SESSION_SCROLL_CLASS, "space-y-3")}>
-                        <WaitBar className="h-4 w-full" />
-                        <WaitBar className="h-4 w-full" />
-                        <WaitBar className="h-4 w-5/6" />
-                        <WaitBar className="h-4 w-full" />
-                        <WaitBar className="h-4 w-2/3" />
-                    </div>
-                </div>
-            </div>
+                }
+            />
         </div>
     );
 }

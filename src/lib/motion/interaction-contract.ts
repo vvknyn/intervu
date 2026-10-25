@@ -7,7 +7,11 @@ export const MOTION_EASE = {
   standard: "cubic-bezier(0.4, 0, 0.2, 1)",
   outExit: "cubic-bezier(0.4, 0, 1, 1)",
   stack: "cubic-bezier(0.22, 0.9, 0.24, 1)",
+  enter: "cubic-bezier(0.22, 1, 0.36, 1)",
 } as const;
+
+/** Delay between consecutive rows of a new result set (`--motion-stagger`). */
+export const MOTION_STAGGER_MS = 30;
 
 /** Durations in milliseconds — keep in sync with `--transition-*` in globals.css. */
 export const MOTION_DURATION_MS = {

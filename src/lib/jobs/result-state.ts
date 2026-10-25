@@ -642,10 +642,13 @@ export function resolveJobsRenderMode(
  * Order is the ternary's own precedence, unchanged: the ask state, then
  * hard backend states, then loading, then empty, then the list.
  *
- * `loading` returns "loading" even when `hitCount > 0` (stale results from
- * the previous search are present). Showing irrelevant old rows during a new
- * query/filter/sort/location refresh confuses more than it helps: the rows
- * belong to a different search the user just changed. `blockingError` and
+ * `loading` returns "loading" only while there is nothing on screen. With
+ * rows already shown (a filter/query/sort change refetching) the panel stays
+ * "list": JobsContent dims and disables those rows (`data-refreshing`) and the
+ * result line says "Updating…", so a short refetch never blanks the list
+ * (2026-10-25; the old rows used to be hidden, which flashed an empty pane on
+ * every filter change).
+ * `blockingError` and
  * `notConnected` are only ever true at their declaration sites when
  * `hits.length === 0`, so the guard ordering already handles any overlap.
  */
@@ -661,7 +664,8 @@ export function resolveJobsResultsPanel(input: {
     if (input.isSerpAsk) return "serp-ask";
     if (input.notConnected) return "not-connected";
     if (input.blockingError) return "error";
-    if (input.loading) return "loading";
+    // A refetch over rows already on screen keeps them (dimmed, see `data-refreshing`); only a wait with nothing to show is "loading".
+    if (input.loading && input.hitCount === 0) return "loading";
     return input.hitCount === 0 ? "empty" : "list";
 }
 

@@ -285,6 +285,8 @@
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --ease-out-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-stack: cubic-bezier(0.22, 0.9, 0.24, 1);
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --motion-stagger: 30ms;
   --transition-instant: 0ms;
   --transition-fast: 100ms;
   --transition-base: 150ms;
@@ -361,19 +363,19 @@
   --border-subtle: 26 30 41;
   --input: 245 247 250;
   --ring: var(--brand);
-  --chart-1: 45 104 255;
+  --chart-1: var(--brand);
   --chart-2: 245 245 245;
   --chart-3: 163 163 163;
   --chart-4: 82 82 82;
   --chart-5: 38 38 38;
   --sidebar: 14 17 24;
   --sidebar-foreground: 245 247 250;
-  --sidebar-primary: 45 104 255;
+  --sidebar-primary: var(--brand);
   --sidebar-primary-foreground: 10 10 10;
   --sidebar-accent: 24 29 40;
   --sidebar-accent-foreground: 245 247 250;
   --sidebar-border: 38 44 58;
-  --sidebar-ring: 45 104 255;
+  --sidebar-ring: var(--brand);
 
   /* Brand — slightly brighter green on the deepest ground */
   --brand: 47 191 113;
@@ -382,8 +384,8 @@
   --brand-hover: 56 205 125;
   /* See the light-mode comment above — same tints --live-tint-* carried
      before the Ledger palette, now under the honest --brand-tint-* name. */
-  --brand-tint-bg: 15 23 42;
-  --brand-tint-bg-alt: 15 23 42;
+  --brand-tint-bg: 15 38 26;
+  --brand-tint-bg-alt: 15 38 26;
 
   /* Site chrome (dark) */
   --chrome: 11 13 18;
@@ -993,6 +995,103 @@ h4 {
 
 .enter-reveal {
   animation: panel-enter var(--transition-enter) var(--ease-standard) both;
+}
+
+/* List and detail motion (DESIGN-LANGUAGE.md "Motion patterns"). Transform +
+   opacity only; every duration reads a token, so the reduced-motion token
+   zeroing below collapses them, and the rules at the end of this block
+   remove the keyframes outright. */
+@keyframes row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* A NEW result set: the container is re-keyed per set (JobsContent), so its
+   first eight rows play this once. Appended pages, re-renders and back
+   navigation keep the same container and never replay it. */
+.result-set-enter > [data-job-row]:nth-child(-n + 8) {
+  animation: row-enter var(--transition-enter) var(--ease-enter) backwards;
+}
+
+.result-set-enter > :nth-child(2) { animation-delay: calc(var(--motion-stagger) * 1); }
+.result-set-enter > :nth-child(3) { animation-delay: calc(var(--motion-stagger) * 2); }
+.result-set-enter > :nth-child(4) { animation-delay: calc(var(--motion-stagger) * 3); }
+.result-set-enter > :nth-child(5) { animation-delay: calc(var(--motion-stagger) * 4); }
+.result-set-enter > :nth-child(6) { animation-delay: calc(var(--motion-stagger) * 5); }
+.result-set-enter > :nth-child(7) { animation-delay: calc(var(--motion-stagger) * 6); }
+.result-set-enter > :nth-child(8) { animation-delay: calc(var(--motion-stagger) * 7); }
+
+/* Detail pane: keyed by job id, so a new selection plays this once. The old
+   content is replaced at once (exit = 0ms, faster than the enter). `backwards`
+   fill leaves no lingering transform on the pane. */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.detail-crossfade {
+  animation: fade-rise var(--transition-base) var(--ease-enter) backwards;
+}
+
+/* Opacity-only reveal for a late image or label. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in-base {
+  animation: fade-in var(--transition-base) var(--ease-standard) backwards;
+}
+
+/* Results refetching: the previous rows stay (no blank flash), dim and go
+   inert once the wait outlasts --refresh-delay (set inline from
+   WAIT_SKELETON_AFTER_MS, the one wait-ladder constant). */
+[data-refreshing="true"] {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity var(--transition-base) var(--ease-standard) var(--refresh-delay, 0ms);
+}
+
+[data-refreshing="false"] {
+  transition: opacity var(--transition-base) var(--ease-standard);
+}
+
+/* "Updating…" beside the count: mounted for the whole refetch, painted only
+   after --refresh-delay, so a fast refetch never flashes it. */
+.updating-label {
+  animation: fade-in var(--transition-base) var(--ease-standard) var(--refresh-delay, 0ms) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-set-enter > *,
+  .detail-crossfade,
+  .fade-in-base,
+  .updating-label {
+    animation: none !important;
+  }
+
+  [data-refreshing] {
+    transition: none !important;
+  }
 }
 
 /** Shared /jobs for-you column — pending, loaded deck, and empty share this footprint (no CLS). */
