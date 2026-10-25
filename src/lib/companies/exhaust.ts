@@ -747,48 +747,78 @@ export async function getCompanyExhaust(
   return (await readCompanyExhaust(domain, getPg, nowMs)).exhaust;
 }
 
+/** What each of the five fetchers returns. */
+interface Pieces {
+  enrichment: Map<string, EnrichmentRow>;
+  health: HealthRow | null;
+  record: RecordRows;
+  changeHistory: ChangeEventDbRow[];
+  sector: SectorRow | null;
+}
+
+/** The fetchers that have answered so far; a key still missing is a query still out. */
+type Settled = { [K in keyof Pieces]?: PromiseSettledResult<Pieces[K]> };
+
+/**
+ * The exhaust from whatever has settled. A piece that failed or is still out
+ * builds the same absent (null) section: never a zero or an empty list, so the
+ * page leaves that section off.
+ */
+function assembleExhaust(settled: Settled, nowMs: number): CompanyExhaust {
+  const value = <K extends keyof Pieces>(key: K): Pieces[K] | null => {
+    const r = settled[key];
+    return r?.status === "fulfilled" ? r.value : null;
+  };
+  const { cadence, integrity } = buildHiringRecordSections(value("record"), nowMs);
+  const enrichmentRows = value("enrichment") ?? new Map<string, EnrichmentRow>();
+  const sector = value("sector");
+  return {
+    profile: buildProfileSection(enrichmentRows.get("company_profile")),
+    funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
+    secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
+    govContracts: buildGovSection(enrichmentRows.get("government_contract")),
+    h1bLca: buildH1bSection(enrichmentRows.get("h1b_lca")),
+    warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
+    techStack: buildTechSection(enrichmentRows.get("tech_profile")),
+    health: buildHealthSection(value("health")),
+    cadence,
+    integrity,
+    changeHistory: buildChangeHistorySection(value("changeHistory") ?? [], nowMs),
+    sector: resolveSector(sector),
+    careersUrl: resolveCareersUrl(sector),
+  };
+}
+
 /**
  * `getCompanyExhaust`, plus whether every query answered. Only a complete
  * read is worth keeping (`exhaust-cache.ts`): one that lost a section to a
  * failed or timed-out query would keep hiding that section after the box
- * recovered.
+ * recovered. `onPartial` gets the exhaust built from what has settled each time
+ * a query answers, so a caller out of patience can use that instead of waiting
+ * on the slowest query.
  */
 export async function readCompanyExhaust(
   domain: string,
   getPg: () => Queryable | null = getExhaustPg,
   nowMs: number = Date.now(),
+  onPartial?: (partial: CompanyExhaust) => void,
 ): Promise<{ exhaust: CompanyExhaust | null; complete: boolean }> {
   const pg = getPg();
   if (!pg) return { exhaust: null, complete: false };
 
-  const settled = await Promise.allSettled([
-    fetchEnrichmentRows(pg, domain),
-    fetchHealthRow(pg, domain),
-    fetchRecordRows(pg, domain),
-    fetchChangeHistoryRows(pg, domain),
-    fetchSectorRow(pg, domain),
-  ] as const);
-  const [enrichment, health, record, changeHistory, sector] = settled;
-  const { cadence, integrity } = buildHiringRecordSections(record.status === "fulfilled" ? record.value : null, nowMs);
-
-  const enrichmentRows = enrichment.status === "fulfilled" ? enrichment.value : new Map<string, EnrichmentRow>();
-
-  return {
-    exhaust: {
-      profile: buildProfileSection(enrichmentRows.get("company_profile")),
-      funding: buildFundingSection(enrichmentRows.get("company_profile"), enrichmentRows.get("funding")),
-      secListing: buildSecSection(enrichmentRows.get("sec_filing_summary")),
-      govContracts: buildGovSection(enrichmentRows.get("government_contract")),
-      h1bLca: buildH1bSection(enrichmentRows.get("h1b_lca")),
-      warnNotices: buildWarnSection(enrichmentRows.get("warn_notice")),
-      techStack: buildTechSection(enrichmentRows.get("tech_profile")),
-      health: buildHealthSection(health.status === "fulfilled" ? health.value : null),
-      cadence,
-      integrity,
-      changeHistory: buildChangeHistorySection(changeHistory.status === "fulfilled" ? changeHistory.value : [], nowMs),
-      sector: resolveSector(sector.status === "fulfilled" ? sector.value : null),
-      careersUrl: resolveCareersUrl(sector.status === "fulfilled" ? sector.value : null),
-    },
-    complete: settled.every((r) => r.status === "fulfilled"),
-  };
+  const settled: Settled = {};
+  const track = <K extends keyof Pieces>(key: K, read: Promise<Pieces[K]>) =>
+    Promise.allSettled([read]).then(([result]) => {
+      (settled as Record<K, PromiseSettledResult<Pieces[K]>>)[key] = result;
+      onPartial?.(assembleExhaust(settled, nowMs));
+      return result;
+    });
+  const results = await Promise.all([
+    track("enrichment", fetchEnrichmentRows(pg, domain)),
+    track("health", fetchHealthRow(pg, domain)),
+    track("record", fetchRecordRows(pg, domain)),
+    track("changeHistory", fetchChangeHistoryRows(pg, domain)),
+    track("sector", fetchSectorRow(pg, domain)),
+  ]);
+  return { exhaust: assembleExhaust(settled, nowMs), complete: results.every((r) => r.status === "fulfilled") };
 }

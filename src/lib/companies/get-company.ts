@@ -33,13 +33,16 @@ export const SEARCH_BUDGET_MS = 1_000;
  *  left off the render (its facts are null) and logged; it keeps going into
  *  its cache, so the next visit has it. */
 export const SIDE_READ_TIMEOUT_MS = 1_500;
+/** How long after the box read's own deadline the page's backstop fires: the read's partial always lands first, by construction. */
+export const BOX_BACKSTOP_MARGIN_MS = 25;
 
 /** The page's reads other than the search, injectable for tests (same
  *  shape as the `search: SearchFn` parameter). */
 export interface CompanySideReads {
   news: (domain: string) => Promise<CompanyNewsArticle[]>;
   events: (domain: string) => Promise<CompanyChangeEvent[]>;
-  exhaust: (domain: string) => Promise<CompanyExhaust | null>;
+  /** Past `deadlineMs` the box read answers with the pieces settled so far (absent sections stay null). */
+  exhaust: (domain: string, deadlineMs?: number) => Promise<CompanyExhaust | null>;
   /** The company directory: the name this company is listed under. */
   directory: typeof getDirectory;
   /** The built count generation (never awaited): a listed company shows its value. */
@@ -136,7 +139,7 @@ export async function getCompanyPageData(
   const sideReads = {
     news: timed(reads.news(domain).catch((): CompanyNewsArticle[] => []), startedAt),
     events: timed(reads.events(domain).catch((): CompanyChangeEvent[] => []), startedAt),
-    box: timed(reads.exhaust(domain).catch(() => null), startedAt),
+    box: timed(reads.exhaust(domain, reads.sideTimeoutMs).catch(() => null), startedAt),
     directory: timed(reads.directory().catch(() => null), startedAt),
   };
   const allSideReads = Promise.all([sideReads.news.promise, sideReads.events.promise, sideReads.box.promise, sideReads.directory.promise]);
@@ -145,13 +148,15 @@ export async function getCompanyPageData(
     searchRead.promise,
     withTimeout(sideReads.news.promise, reads.sideTimeoutMs, [] as CompanyNewsArticle[]),
     withTimeout(sideReads.events.promise, reads.sideTimeoutMs, [] as CompanyChangeEvent[]),
-    withTimeout(sideReads.box.promise, reads.sideTimeoutMs, null as CompanyExhaust | null),
+    // The box read cuts itself off at `sideTimeoutMs` with what it has (the
+    // backstop waits a margin longer); this is for a read that does not.
+    withTimeout(sideReads.box.promise, reads.sideTimeoutMs + BOX_BACKSTOP_MARGIN_MS, null as CompanyExhaust | null),
     withTimeout(sideReads.directory.promise, reads.sideTimeoutMs, null),
   ]);
   const late = [
     news.late && "news",
     changeEvents.late && "events",
-    exhaust.late && "box",
+    (exhaust.late || (sideReads.box.ms() ?? 0) >= reads.sideTimeoutMs) && "box",
     directory.late && "directory",
   ].filter((name): name is string => !!name);
   if (late.length > 0 || (searchRead.ms() ?? 0) > reads.budgetMs) {
