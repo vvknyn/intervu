@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { getDailyPicksAction, setDailyPicksAction, type DailyPicksView } from "@/actions/daily-picks";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { captureEvent } from "@/lib/analytics/events";
 import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";

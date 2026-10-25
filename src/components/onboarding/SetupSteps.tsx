@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleChip } from "@/components/ui/chip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { rememberAgentPreferences } from "@/hooks/use-agent-preferences";
 import { answerStep, noteSetupFacts, useOnboarding, type StepVia } from "@/hooks/use-onboarding";
