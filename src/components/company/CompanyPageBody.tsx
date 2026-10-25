@@ -20,6 +20,7 @@ import { PageTitle } from "@/components/ui/heading";
 import { humanizeProjectorHeadline } from "@/lib/companies/events";
 import type { CompanyChangeEvent, CompanyPageData } from "@/lib/companies/types";
 import { companyUnlockStep } from "@/lib/company/unlock-step";
+import { formatCount } from "@/lib/format";
 import {
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
@@ -114,7 +115,7 @@ export function CompanyPageBody({
       ? {
           title: "Listing integrity",
           description: "How honest their postings are: reposts, resurrections, how roles actually close.",
-          count: `${integrityCount} closings on record`,
+          count: `${formatCount(integrityCount)} closings on record`,
         }
       : null,
     // Change history lives once, behind CompanyIntelGate — not a second
@@ -130,7 +131,7 @@ export function CompanyPageBody({
       ? {
           title: "Filings & records",
           description: "SEC filings, funding rounds, federal contracts, WARN layoffs and H-1B approvals.",
-          count: `${filingsCount} record${filingsCount === 1 ? "" : "s"}`,
+          count: `${formatCount(filingsCount)} record${filingsCount === 1 ? "" : "s"}`,
         }
       : null,
   ].filter((t): t is ExhaustGateTeaser => t !== null);

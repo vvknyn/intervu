@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCount } from "@/lib/format";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -103,8 +104,8 @@ export function roleFitStat(
   if (!matchScores) return null;
   const strong = [...matchScores.values()].filter((m) => m && matchBand(m.total) === "strong").length;
   return partialWindow
-    ? { key: "fit", value: String(strong), label: `strong fits among the ${loadedCount} newest` }
-    : { key: "fit", value: `${strong} of ${loadedCount}`, label: "strong fit for your résumé" };
+    ? { key: "fit", value: formatCount(strong), label: `strong fits among the ${formatCount(loadedCount)} newest` }
+    : { key: "fit", value: `${formatCount(strong)} of ${formatCount(loadedCount)}`, label: "strong fit for your résumé" };
 }
 
 /** Best fit first once a résumé is scored, in the order every other list uses (`sortByFit` in

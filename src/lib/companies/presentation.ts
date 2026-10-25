@@ -308,7 +308,7 @@ export function typicalPayText(jobs: PublicJob[]): string | null {
 export function companyMetaDescription(data: CompanyPageData): string {
   if (data.openCount > 0) {
     const roles = data.openCount === 1 ? "role" : "roles";
-    const count = data.openCountIsLowerBound ? `at least ${data.openCount}` : String(data.openCount);
+    const count = data.openCountIsLowerBound ? `at least ${formatCount(data.openCount)}` : formatCount(data.openCount);
     return `${data.name} has ${count} live, verified open ${roles} tracked on Velai, screened for ${GHOST_JOB_TERM} risk.`;
   }
   return `Track live verified job postings and ${GHOST_JOB_TERM} risk signals for ${data.name} on Velai.`;
@@ -364,12 +364,12 @@ export function roleCountLabel(a: {
   openCountLabel: string;
   windowSize: number | null;
 }): string {
-  if (!a.hasQuery) return `${a.displayed} of ${a.openCountLabel} shown`;
+  if (!a.hasQuery) return `${formatCount(a.displayed)} of ${a.openCountLabel} shown`;
   if (a.windowSize != null) {
-    return `${a.matched} of the ${a.windowSize} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
+    return `${formatCount(a.matched)} of the ${formatCount(a.windowSize)} roles listed here ${a.matched === 1 ? "matches" : "match"}`;
   }
-  if (a.displayed === a.matched) return `${a.matched} match${a.matched === 1 ? "" : "es"}`;
-  return `${a.displayed} of ${a.matched} matches shown`;
+  if (a.displayed === a.matched) return `${formatCount(a.matched)} match${a.matched === 1 ? "" : "es"}`;
+  return `${formatCount(a.displayed)} of ${formatCount(a.matched)} matches shown`;
 }
 
 /** The expand button names its increment ("Show 186 more roles"), never "all": the list is a window. */
