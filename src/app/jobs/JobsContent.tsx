@@ -5616,17 +5616,15 @@ export function JobsContent({
                                     N is the live total, never a guess (showResultsLabel). */}
                                 <SheetFooter className="shrink-0 flex-row gap-3 border-t border-border bg-surface p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
                                     <Button
-                                        // control-type-allow: the sheet action bar is a phone thumb target, so both buttons take the 44px step
                                         variant="outline"
-                                        size="lg"
+                                        size="touch"
                                         disabled={activeCount === 0}
                                         onClick={panelClearAll}
                                     >
                                         Clear all
                                     </Button>
                                     <Button
-                                        // control-type-allow: the sheet action bar is a phone thumb target, so both buttons take the 44px step
-                                        size="lg"
+                                        size="touch"
                                         className="flex-1"
                                         onClick={() => setFiltersOpen(false)}
                                     >

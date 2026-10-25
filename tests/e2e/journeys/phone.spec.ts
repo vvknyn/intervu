@@ -244,6 +244,49 @@ test("on a phone the Filters sheet holds filters only, in one column, over a sti
     expect(diagnostics.pageErrors).toEqual([]);
 });
 
+// The Filters journey's neighbour: the full footer is not on /jobs (a lean surface), so this reads it on /about.
+test("on a phone the footer is one collapsible section per kind of link: 44px triggers that open on a tap, Enter or Space, and at 1440 only the flat line shows", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/about");
+    const footer = page.getByTestId("site-footer");
+    const triggers = footer.locator("[data-slot=accordion-trigger]");
+    // The section names are the contract; Footer.tsx cannot be imported here (it pulls in browser-only modules).
+    const groups = ["Job searches", "Company", "Help & legal"];
+    expect(await triggers.count()).toBe(groups.length);
+    for (const [i, group] of groups.entries()) {
+        const trigger = triggers.nth(i);
+        await trigger.scrollIntoViewIfNeeded();
+        await expect(trigger).toHaveText(group);
+        expect((await box(trigger)).height).toBeGreaterThanOrEqual(44);
+        // A tap opens the section and shows its links (the first link of the group is enough to see it).
+        const links = footer.locator(`[data-slot=accordion-item]:nth-child(${i + 1}) a`);
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "true");
+        await expect(links.first()).toBeVisible();
+        expect((await box(links.first())).height).toBeGreaterThanOrEqual(44);
+        await trigger.tap();
+        await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        await expect(links.first()).toBeHidden();
+        // The keyboard does the same from a focused trigger.
+        for (const key of ["Enter", "Space"]) {
+            await trigger.focus();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "true");
+            await expect(links.first()).toBeVisible();
+            await page.keyboard.press(key);
+            await expect(trigger).toHaveAttribute("aria-expanded", "false");
+        }
+    }
+    // At 1440 the accordion is gone and the flat line of links is what shows.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(triggers.first()).toBeHidden();
+    await expect(footer.getByRole("link", { name: "Privacy" })).toBeVisible();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
