@@ -133,6 +133,7 @@ export function SearchAlertCapture({
           type="email"
           required
           autoComplete="email"
+          enterKeyHint="go"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
           placeholder="you@example.com"

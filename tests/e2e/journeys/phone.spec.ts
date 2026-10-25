@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { APPLY_SIGNED_OUT_LABEL } from "../../../src/components/jobs/job-detail-facts";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { expect, test } from "./fixtures";
+import { isLocalOrigin, mockSignIn, SIGNED_IN_SKIP_REASON } from "./signed-in";
 
 /**
  * Journeys for the phone layout: the search box, the toolbar, the rows and
@@ -345,4 +346,92 @@ test("on a phone a swipe down on a sheet's bar closes it, and a short pull lets 
         test.info().annotations.push({ type: "skipped-part", description: "this server lists no jobs (no search backend), so there is no job sheet to swipe" });
     }
     expect(diagnostics.pageErrors).toEqual([]);
+});
+
+/**
+ * Largest per-channel difference between any pixel under `icon` and the fill
+ * of `field` (sampled in its empty right-hand end). Pixels, not
+ * `elementFromPoint`: a leading icon is pointer-events-none, so hit-testing
+ * never sees it, and an opaque field painted over it (the coarse-pointer
+ * hit-area rule once positioned every `.ctl-*` input, lifting it above its
+ * `absolute` icon) leaves the icon's rect identical to the fill.
+ */
+async function iconInkOverFieldFill(page: Page, icon: Locator, field: Locator) {
+    const [i, f] = [await box(icon), await box(field)];
+    const shot = (await page.screenshot({ clip: { x: 0, y: 0, width: 390, height: 844 }, fullPage: false })).toString("base64");
+    return page.evaluate(
+        async ({ shot, i, f }) => {
+            const img = await createImageBitmap(await (await fetch(`data:image/png;base64,${shot}`)).blob());
+            const cv = document.createElement("canvas");
+            cv.width = img.width;
+            cv.height = img.height;
+            const cx = cv.getContext("2d")!;
+            cx.drawImage(img, 0, 0);
+            const s = img.width / innerWidth;
+            const px = (x: number, y: number) => cx.getImageData(Math.round(x * s), Math.round(y * s), 1, 1).data;
+            const fill = px(f.x + f.width * 0.85, f.y + f.height / 2);
+            let max = 0;
+            for (let x = Math.floor(i.x); x < i.x + i.width; x++) {
+                for (let y = Math.floor(i.y); y < i.y + i.height; y++) {
+                    const d = px(x, y);
+                    max = Math.max(max, Math.abs(d[0] - fill[0]), Math.abs(d[1] - fill[1]), Math.abs(d[2] - fill[2]));
+                }
+            }
+            return max;
+        },
+        { shot, i, f },
+    );
+}
+
+/** An icon is painted when some pixel in its rect is clearly not the field's fill. */
+const ICON_INK_MIN = 40;
+
+test("on a phone the leading search icon is painted over the field's fill: tracker search, at rest and focused", { tag: ["@J-MOB-28"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    const now = new Date().toISOString();
+    await page.addInitScript(
+        (seed) => localStorage.setItem("intervu.pursuits.guest", JSON.stringify([seed])),
+        {
+            id: "guest-journey-icon",
+            user_id: "guest",
+            company_name: "Acme Corp",
+            position: "Staff Engineer",
+            status: "applied",
+            job_id: "job-journey-icon",
+            job_snapshot: { title: "Staff Engineer", company: "Acme Corp", location: "Remote", description: "Build things.", apply_url: "https://example.com/jobs/1" },
+            created_at: now,
+            updated_at: now,
+        },
+    );
+    await page.goto("/yours");
+    const field = page.getByTestId("tracker-search");
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    // The icon is the field's previous sibling inside the shared wrapper.
+    const icon = field.locator("xpath=preceding-sibling::*[1]");
+    await field.scrollIntoViewIfNeeded();
+    await testInfo.attach("tracker-rest", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    await field.focus();
+    await testInfo.attach("tracker-focused", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
+test("on a phone the leading search icon is painted over the field's fill: community sources search", { tag: ["@J-MOB-28"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    test.skip(!isLocalOrigin(testInfo.project.use.baseURL), SIGNED_IN_SKIP_REASON);
+    await returningVisitor(page);
+    await mockSignIn(page);
+    await page.goto("/stories?tab=sources");
+    await page.getByRole("tab", { name: "Community" }).click();
+    const field = page.getByPlaceholder("Search community sources...");
+    await expect(field).toBeVisible({ timeout: 15_000 });
+    const icon = field.locator("xpath=preceding-sibling::*[1]");
+    await testInfo.attach("community-rest", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    await field.focus();
+    await testInfo.attach("community-focused", { body: await page.screenshot(), contentType: "image/png" });
+    expect(await iconInkOverFieldFill(page, icon, field)).toBeGreaterThan(ICON_INK_MIN);
+    expect(diagnostics.pageErrors.filter((e) => !e.startsWith("Hydration failed"))).toEqual([]);
 });

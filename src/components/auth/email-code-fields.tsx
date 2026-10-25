@@ -15,6 +15,7 @@ export function EmailCodeFields({ isPending }: { isPending: boolean }) {
                     type="text"
                     inputMode="numeric"
                     autoComplete="one-time-code"
+                    enterKeyHint="go"
                     autoFocus
                     required
                     maxLength={7}
