@@ -119,3 +119,18 @@ describe("companies/company-name — ATS entity codes", () => {
     assert.equal(resolveCompanyName(rows, "xyzcorporation.com").value, "Xyz Corporation");
   });
 });
+
+describe("companies/company-name — a leading legal form is skipped in the domain test", () => {
+  it("skips PT., PJSC and Kabushiki Kaisha", () => {
+    assert.ok(nameAgreeingWithDomain("PT. Initech Solutions Indonesia", "initech.co.id"));
+    assert.ok(nameAgreeingWithDomain("PJSC Globex", "globex.ru"));
+    assert.ok(nameAgreeingWithDomain("Kabushiki Kaisha Hooli", "hooli.jp"));
+    assert.ok(nameAgreeingWithDomain("株式会社 Hooli", "hooli.jp"));
+  });
+
+  it("keeps a leading word that is not a legal form", () => {
+    assert.equal(nameAgreeingWithDomain("Pt Reyes Bakery", "ptreyesbakery.com"), "Pt Reyes Bakery");
+    assert.equal(nameAgreeingWithDomain("Pt Reyes Bakery", "reyesbakery.com") !== null, true);
+    assert.equal(nameAgreeingWithDomain("PT Barnum Circus", "barnumcircus.com"), "Barnum Circus");
+  });
+});

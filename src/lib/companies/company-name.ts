@@ -454,17 +454,27 @@ function countryOf(text: string): string | null {
   return kind === "country" ? canonical : text === text.toUpperCase() ? ISO3_COUNTRY[text] ?? null : null;
 }
 
+/** The country an ISO 3166 alpha-2 code names ("uk" is the United Kingdom), else null. */
+function iso2Country(code: string): string | null {
+  const name = code.toLowerCase() === "uk" ? "United Kingdom" : loadGazetteer().countriesByIso2.get(code.toUpperCase())?.name;
+  return name ? countryOf(name) ?? name : null;
+}
+
 /** The country whose ccTLD ends `domain` (".uk" is the United Kingdom), else null. */
 function tldCountry(domain: string): string | null {
-  const tld = domain.toLowerCase().split(".").pop() ?? "";
-  const name = tld === "uk" ? "United Kingdom" : loadGazetteer().countriesByIso2.get(tld.toUpperCase())?.name;
-  return name ? countryOf(name) ?? name : null;
+  return iso2Country(domain.toLowerCase().split(".").pop() ?? "");
+}
+
+/** The country a trailing qualifier names; inside parentheses a two-letter code counts too ("(NZ)"), which a bare word never does ("Acme IT"). */
+function qualifierCountry(text: string): string | null {
+  const inner = /^\((.*)\)$/.exec(text)?.[1];
+  return countryOf(inner ?? text) ?? (inner && /^[A-Z]{2}$/.test(inner) ? iso2Country(inner) : null);
 }
 
 /**
  * The hiring entity's country is not part of the employer's name: "argenx US" on argenx.com, "intermedix
  * Österreich" on intermedix.com. Trailing words that form a country go when the words before them name the
- * host's label and the full name does not ("Air Canada" on aircanada.com keeps its country); the same goes for
+ * host's label and the full name does not, parenthesised or not ("Toll Group (NZ)" on tollgroup.com; "Air Canada" on aircanada.com keeps its country); the same goes for
  * a leading country, when the words after it lead with the host's label. A country-scoped
  * domain keeps its own country ("Alten Switzerland" on alten.ch says which arm it is). The remainder keeps its spelling.
  */
@@ -481,7 +491,7 @@ export function dropCountryQualifier(name: string, domain: string): string {
     }
   }
   for (let n = 1; n <= Math.min(MAX_COUNTRY_WORDS, words.length - 1); n += 1) {
-    const country = countryOf(words.slice(-n).join(" "));
+    const country = qualifierCountry(words.slice(-n).join(" "));
     const remainder = words.slice(0, -n).join(" ").replace(/[\s,\-–]+$/, "");
     if (country && country !== tldCountry(domain) && hostLabelIsName(domain, remainder)) return remainder;
   }
@@ -558,18 +568,18 @@ function wordsOf(segment: string): Word[] {
     }));
 }
 
-/** Is `label` a concatenation of non-empty prefixes of successive `words`? Every required word up to
- *  the last one used contributes; trailing words may go unused. */
-function composedFromPrefixes(label: string, words: readonly Word[], i = 0): boolean {
-  if (label === "") return true;
+/** How many words (from the first) does the shortest reading of `label` as a concatenation of non-empty prefixes of successive `words` span? Every required word up to
+ *  the last one used contributes; trailing words may go unused. Infinity when no reading exists. */
+function composedFromPrefixes(label: string, words: readonly Word[], i = 0): number {
+  if (label === "") return i;
   const word = words[i];
-  if (!word) return false;
-  if (word.optional && composedFromPrefixes(label, words, i + 1)) return true;
+  if (!word) return Infinity;
+  let fewest = word.optional ? composedFromPrefixes(label, words, i + 1) : Infinity;
   for (let k = 1; k <= Math.min(word.text.length, label.length); k++) {
-    if (label[k - 1] !== word.text[k - 1]) return false;
-    if (composedFromPrefixes(label.slice(k), words, i + 1)) return true;
+    if (label[k - 1] !== word.text[k - 1]) break;
+    fewest = Math.min(fewest, composedFromPrefixes(label.slice(k), words, i + 1));
   }
-  return false;
+  return fewest;
 }
 
 const containsLabel = (squashed: string, label: string): boolean =>
@@ -592,7 +602,7 @@ function agreesWithLabels(segment: string, { labels, brandTld }: ReturnType<type
     (label) =>
       squashes.some((squashed) => named(squashed, label)) ||
       (first.length >= 3 && label.includes(first)) ||
-      (label.length >= 2 && (label === initials || label === significantInitials || composedFromPrefixes(label, composable))),
+      (label.length >= 2 && (label === initials || label === significantInitials || composedFromPrefixes(label, composable) < Infinity)),
   );
 }
 
@@ -614,6 +624,16 @@ function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): 
   return name;
 }
 
+/** Legal forms written FIRST, a closed class: upper-case abbreviations (Indonesia, Russia/CIS) and "Kabushiki Kaisha" / 株式会社.
+ *  Case-sensitive for the abbreviations, so "Pt Reyes Bakery" keeps its first word; the trailing-form lexicon is not reused
+ *  because its short members ("AG", "AB", "AS") are real name starts. */
+const LEADING_ABBREVIATION_RE = /^(?:PT|CV|PJSC|JSC|OOO|ООО|АО)\.?\s+(?=\S)/u;
+const LEADING_SPELLED_FORM_RE = /^(?:株式会社|kabushiki\s+kaisha)\s*(?=\S)/iu;
+
+function stripLeadingLegalForm(name: string): string {
+  return name.replace(LEADING_ABBREVIATION_RE, "").replace(LEADING_SPELLED_FORM_RE, "");
+}
+
 /**
  * The corpus string, reduced to the part that agrees with the domain, or `null` when none does.
  * A corpus `company` string is whatever the feed carried: an ATS vendor on a tenant's rows, another
@@ -629,9 +649,15 @@ function dropLeadingCodes(name: string, host: ReturnType<typeof domainLabels>): 
  *      ("LPSC Ayvens" on ayvens.com).
  */
 export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
+  const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  // A leading legal form is skipped only when the name as written fails the domain test ("JSC Management Group" on jscmanagement.com keeps its JSC).
+  const withoutForm = stripLeadingLegalForm(spaced);
+  return agreeingPart(spaced, domain) ?? (withoutForm !== spaced ? agreeingPart(withoutForm, domain) : null);
+}
+
+function agreeingPart(spaced: string, domain: string): string | null {
   const host = domainLabels(domain);
   const { labels } = host;
-  const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
   const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
   const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
   const stripped = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
@@ -780,6 +806,49 @@ function hostSpelledStem(groups: readonly NameGroup[], labels: readonly string[]
   return stem ? shownSpelling(stem.spellings) : null;
 }
 
+/** In how many words does `name` spell the whole `label` from the starts of its words ("Alpha Systems Inc" for alphasys: 2; "Stars Behavioral Health" for stars: 1), else Infinity? A name whose only brand word is the label is the domain echoed, and letters picked from inside a word ("iow" of "In-Town") are not a spelling. */
+const labelSpellingWords = (label: string, name: string): number => {
+  const words = wordsOf(name);
+  const echo = brandTokens(name).length === 1 && words[0]?.text.startsWith(label);
+  return unspelledTrailingWords(label, name) < Infinity && !echo ? composedFromPrefixes(label, words) : Infinity;
+};
+
+/** A display name's words as (prefix as written, comparison key) pairs; words with no letter or digit ("&", "-") are not words but stay inside the prefixes. */
+function nameWords(display: string): { raw: string; key: string }[] {
+  return [...display.matchAll(/\S+/g)]
+    .filter(([word]) => alnum(word) !== "")
+    .map(({ 0: word, index }) => ({ raw: display.slice(0, index + word.replace(/[,.;:]+$/, "").length), key: alnum(word) }));
+}
+
+/**
+ * The name a domain's rows agree on when no single group holds most of them: the longest leading word
+ * sequence that groups holding a strict majority of the rows all start with ("Globex" over Globex Hong
+ * Kong, Globex France, Globex Evolution ...), spelled as those rows most often spell it. `null` when no
+ * such sequence is a name the domain agrees with. A minority subsidiary never names the company.
+ */
+function majorityBrandRoot(groups: readonly NameGroup[], domain: string): string | null {
+  const total = groups.reduce((sum, g) => sum + g.count, 0);
+  const grouped = groups.map((g) => ({ ...g, words: nameWords(g.display) }));
+  const prefixes = new Map<string, number>();
+  for (const { words } of grouped) {
+    for (let len = 1; len <= words.length; len += 1) prefixes.set(words.slice(0, len).map((w) => w.key).join(" "), len);
+  }
+  const roots = [...prefixes]
+    .map(([key, len]) => ({ key, len, members: grouped.filter((g) => g.words.slice(0, len).map((w) => w.key).join(" ") === key) }))
+    .filter(({ key, members }) => !CONNECTORS.has(key.split(" ").pop()!) && members.reduce((sum, g) => sum + g.count, 0) * 2 > total)
+    .sort((a, b) => b.len - a.len);
+  for (const { len, members } of roots) {
+    const spellings = new Map<string, number>();
+    for (const { words, count } of members) {
+      const spelling = words[len - 1]!.raw;
+      spellings.set(spelling, (spellings.get(spelling) ?? 0) + count);
+    }
+    const root = nameAgreeingWithDomain(shownSpelling(spellings), domain);
+    if (root) return root;
+  }
+  return null;
+}
+
 /**
  * Pure: pick the best-supported display name for a company from its own job
  * rows. Candidates are cleaned through `cleanCompany` first (it already
@@ -843,6 +912,17 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
   if (!best) {
     for (const group of candidates) {
       if (!best || group.count > best.count) best = group;
+    }
+    // A plurality is not enough to name the company: only a strict majority of the agreeing rows may,
+    // otherwise the brand root they share does, and with neither the domain stays unnamed.
+    if (best && best.count * 2 <= candidates.reduce((sum, g) => sum + g.count, 0)) {
+      // One group spelling the host's label from the starts of its words ("Alpha Systems Inc" on alphasys.com) is the domain's own entity.
+      // A name leading with a whole host label is direct evidence; compositions across words are weaker and count only when none is direct. One group in the tier names the company, 2+ fall to the brand root.
+      const span = (g: NameGroup) => Math.min(...host.labels.map((label) => labelSpellingWords(label, g.display)));
+      const direct = candidates.filter((g) => span(g) === 1);
+      const spelling = direct.length ? direct : candidates.filter((g) => span(g) < Infinity);
+      const root = spelling.length === 1 ? null : majorityBrandRoot(candidates, domain);
+      best = spelling.length === 1 ? spelling[0]! : root ? { count: 0, display: root, tokens: brandTokens(root), extends: 0 } : null;
     }
   }
 
