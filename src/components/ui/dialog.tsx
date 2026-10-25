@@ -9,6 +9,16 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { revealFocusedField } from "@/lib/ui/reveal-focused-field"
 
+/** The scrim and panel look, shared with ui/alert-dialog.tsx so the two modals cannot drift. */
+export const dialogOverlayClass =
+  // dialog-primitive-exempt: this IS the dialog primitive
+  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[var(--z-dialog-scrim)] bg-black/50"
+export const dialogContentClass =
+  // dialog-primitive-exempt: this IS the dialog primitive
+  "bg-background border border-border shadow-[var(--shadow-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[var(--z-dialog)] flex flex-col w-full max-w-[calc(100%-2rem)] max-h-[var(--overlay-max-h)] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-6 rounded-panel p-6 duration-200 outline-none sm:max-w-lg"
+export const dialogTitleClass = "text-lg leading-7 font-semibold"
+export const dialogDescriptionClass = "text-muted-foreground text-sm"
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -41,8 +51,7 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        // dialog-primitive-exempt: this IS the dialog primitive
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[var(--z-dialog-scrim)] bg-black/50",
+        dialogOverlayClass,
         className
       )}
       {...props}
@@ -65,8 +74,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          // dialog-primitive-exempt: this IS the dialog primitive
-          "bg-background border border-border shadow-[var(--shadow-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[var(--z-dialog)] flex flex-col w-full max-w-[calc(100%-2rem)] max-h-[var(--overlay-max-h)] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-6 rounded-panel p-6 duration-200 outline-none sm:max-w-lg",
+          dialogContentClass,
           className
         )}
         onFocusCapture={(event) => {
@@ -147,7 +155,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg leading-7 font-semibold", className)}
+      className={cn(dialogTitleClass, className)}
       {...props}
     />
   )
@@ -160,7 +168,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn(dialogDescriptionClass, className)}
       {...props}
     />
   )
