@@ -94,6 +94,22 @@ describe('persistPendingAction / takePersistedPendingAction — survives a hard-
         assert.deepEqual(record?.action, { kind: 'upload', payload: true });
     });
 
+    it('round-trips a resume intent back on /resume', () => {
+        const storage = fakeStorage();
+        persistPendingAction(storage, {
+            action: { kind: 'resume', payload: 'pdf' },
+            returnTo: '/resume',
+            scrollY: 0,
+            createdAt: 1000,
+        });
+
+        const record = takePersistedPendingAction<string>(storage, {
+            currentPath: '/resume',
+            now: 1000,
+        });
+        assert.deepEqual(record?.action, { kind: 'resume', payload: 'pdf' });
+    });
+
     // A record queued by the retired "report" kind (still in a tab's
     // sessionStorage across a deploy) must replay as nothing, not throw.
     it('drops a persisted record of the retired report kind', () => {

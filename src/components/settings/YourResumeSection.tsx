@@ -12,7 +12,7 @@ import { saveResumeData } from "@/actions/resume";
 import { isAccountPaid, sendIfPaid } from "@/lib/account/paid-status";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
-import { effectiveResumeSummary } from "./effective-resume-summary";
+import { effectiveResumeSummary, type EffectiveResumeSummary } from "./effective-resume-summary";
 import { reloadSignedInAgentPreferences } from "@/hooks/use-agent-preferences";
 import { keepExplicitNudges } from "@/lib/jobs/for-you/tuning-store";
 import { extractResumeFileText, resumeFileExtension } from "@/lib/resume/extract-file-text";
@@ -26,14 +26,19 @@ import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
+import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
-import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastKeptOnDevice } from "@/lib/resume/payment-required";
+import { LOCKED_RESUME_DETAIL, LOCKED_RESUME_TITLE } from "@/lib/resume/locked-copy";
+import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastFailure, toastKeptOnDevice } from "@/lib/resume/payment-required";
 
 interface YourResumeSectionProps {
     user: User | null;
     onLoginClick: () => void;
     embedded?: boolean;
     onEditorActiveChange?: (active: boolean) => void;
+    /** What the person asked for before signing up (/resume's Edit or PDF on a device résumé): done once, when the résumé is shown. */
+    intent?: ResumeIntent | null;
+    onIntentDone?: () => void;
 }
 
 function formatDate(iso: string | null): string | null {
@@ -44,6 +49,14 @@ function formatDate(iso: string | null): string | null {
 }
 
 async function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
+    try {
+        await buildBaseResumePdf(summary);
+    } catch (e) {
+        toastFailure(e, "Couldn't make the PDF. Try again.");
+    }
+}
+
+async function buildBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
     const name = summary.source === "resume_data" ? summary.resume_data.profile?.name : null;
     const filename = deriveResumePdfFilename({
         company: null,
@@ -80,7 +93,7 @@ function defaultResumeData(userEmail?: string, userName?: string): ResumeData {
 }
 
 function summaryToResumeData(summary: ResumeSummary | null, user?: User | null): ResumeData {
-    if (!summary || summary.source === "none") {
+    if (!summary || summary.source === "none" || summary.source === "locked") {
         return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
     }
     if (summary.source === "resume_data") {
@@ -106,9 +119,9 @@ function summaryToResumeData(summary: ResumeSummary | null, user?: User | null):
     return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
 }
 
-export function YourResumeSection({ user, onLoginClick, embedded, onEditorActiveChange }: YourResumeSectionProps) {
+export function YourResumeSection({ user, onLoginClick, embedded, onEditorActiveChange, intent, onIntentDone }: YourResumeSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
-    const [summary, setSummary] = useState<ResumeSummary | null>(null);
+    const [summary, setSummary] = useState<EffectiveResumeSummary | null>(null);
     const [retryToken, setRetryToken] = useState(0);
     const [viewMode, setViewMode] = useState<"summary" | "upload" | "live_editor">("summary");
 
@@ -137,6 +150,15 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             cancelled = true;
         };
     }, [user, retryToken]);
+
+    // The queued Edit or PDF runs on the résumé as shown (the device copy for an account that can't open its own), then is dropped.
+    useEffect(() => {
+        if (!intent || status !== "ready" || !summary) return;
+        const shown = summary.source === "resume_data" || summary.source === "resume_text" ? summary : null;
+        if (shown && intent === "edit") setViewMode("live_editor");
+        if (shown && intent === "pdf") void downloadBaseResumePdf(shown);
+        onIntentDone?.();
+    }, [intent, status, summary, onIntentDone]);
 
     // Saving to the account is the paid month: an unpaid account's edit stays on this device, and nothing is sent.
     const handleSaveEditor = async (updatedData: ResumeData): Promise<string | void> => {
@@ -189,11 +211,16 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
     const content = (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             <h2 className="text-base font-semibold leading-snug mb-1">Your résumé</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-                {embedded
-                    ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
-                    : "The resume your agent has on file."}
-            </p>
+            {/* The locked card says all there is to say; the usual subtitle talks of a template to edit. */}
+            {summary?.source === "locked" ? (
+                <div className="mb-4" />
+            ) : (
+                <p className="text-sm text-muted-foreground mb-4">
+                    {embedded
+                        ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
+                        : "The resume your agent has on file."}
+                </p>
+            )}
 
             {status === "loading" && (
                 <WaitState label="Loading your résumé" className="py-2" />
@@ -249,7 +276,7 @@ function ResumeSummaryBody({
     onOpenEditor,
     onDeleted,
 }: {
-    summary: ResumeSummary;
+    summary: EffectiveResumeSummary;
     user: User | null;
     onReplace: () => void;
     onOpenEditor: () => void;
@@ -281,6 +308,55 @@ function ResumeSummaryBody({
             onDeleted();
         });
     };
+
+    const deleteControl = confirmingDelete ? (
+        <InlineConfirm
+            prompt={summary.source === "locked" ? "Delete the résumé saved to your account, and any copy on this device?" : "Delete this résumé and its saved versions?"}
+            busy={deleting}
+            busyLabel="Deleting…"
+            onConfirm={handleDelete}
+            onCancel={() => setConfirmingDelete(false)}
+        />
+    ) : (
+        <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirmingDelete(true)}
+            className="w-full gap-1.5 text-danger-text hover:text-danger-text sm:w-auto"
+        >
+            <Trash />
+            Delete
+        </Button>
+    );
+
+    if (summary.source === "locked") {
+        return (
+            <div data-testid="settings-resume-locked" className="space-y-4 rounded-panel border border-border bg-surface p-6 text-center shadow-[var(--shadow-bevel-highlight)]">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-pill border border-border bg-surface-2 text-foreground shadow-[var(--shadow-bevel-inset)]">
+                    <LockSimple size={24} />
+                </div>
+                <div className="space-y-1 max-w-sm mx-auto">
+                    <h3 className="text-sm font-semibold text-foreground">{LOCKED_RESUME_TITLE}</h3>
+                    <p className="text-xs text-muted-foreground">{LOCKED_RESUME_DETAIL}</p>
+                    {updatedLabel && <p className="text-xs text-muted-foreground">Saved {updatedLabel}</p>}
+                </div>
+                <div className="flex flex-col items-center gap-2 pt-1">
+                    <Button size="sm" asChild className="w-full gap-1.5 sm:w-auto">
+                        <Link href={PRICING_HREF}>See pricing</Link>
+                    </Button>
+                    <button type="button" onClick={onReplace} className="text-xs text-foreground underline underline-offset-2 hover:underline">
+                        or upload a PDF or Word file to use on this device
+                    </button>
+                    {deleteControl}
+                </div>
+                {deleteError && (
+                    <p role="alert" className="text-xs text-danger-text">
+                        {deleteError}
+                    </p>
+                )}
+            </div>
+        );
+    }
 
     if (summary.source === "none") {
         return (
@@ -319,25 +395,7 @@ function ResumeSummaryBody({
             <Button variant="outline" size="sm" onClick={onReplace} className="w-full gap-1.5 sm:w-auto">
                 <Upload /> Replace
             </Button>
-            {confirmingDelete ? (
-                <InlineConfirm
-                    prompt="Delete this résumé and its saved versions?"
-                    busy={deleting}
-                    busyLabel="Deleting…"
-                    onConfirm={handleDelete}
-                    onCancel={() => setConfirmingDelete(false)}
-                />
-            ) : (
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setConfirmingDelete(true)}
-                    className="w-full gap-1.5 text-danger-text hover:text-danger-text sm:w-auto"
-                >
-                    <Trash />
-                    Delete
-                </Button>
-            )}
+            {deleteControl}
         </div>
     );
 
@@ -350,6 +408,14 @@ function ResumeSummaryBody({
     return (
         <div className="space-y-3">
             {updatedLabel && <p className="text-xs text-muted-foreground">Last updated {updatedLabel}</p>}
+            {summary.accountCopyLocked && (
+                <p data-testid="settings-resume-also-locked" className="text-xs text-muted-foreground">
+                    Your account also holds a saved copy. Opening it needs a paid month.{" "}
+                    <Link href={PRICING_HREF} className="text-foreground underline underline-offset-2">
+                        See pricing
+                    </Link>
+                </p>
+            )}
             <div className="max-h-96 overflow-y-auto rounded-panel border border-border bg-background p-4 sm:p-6">
                 <LiveResumePreview data={resumeData} />
             </div>
