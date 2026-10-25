@@ -8,7 +8,9 @@
  * when its field is non-null, and nothing here is a placeholder. Pure — the
  * loader does the I/O and passes the results in.
  */
-import type { CompanyExhaust, WeeklyCadence } from "@/lib/companies/exhaust";
+import { pickWikidata, wikidataSectorPick, type CompanyExhaust, type WeeklyCadence } from "@/lib/companies/exhaust";
+import type { WikidataItem } from "@/lib/companies/indexable";
+import { formatCount } from "@/lib/format";
 import type { OpenCount } from "@/lib/companies/open-count";
 import { categoryLabel, machineTokenLabel } from "@/lib/companies/machine-token";
 import { typicalPayText } from "@/lib/companies/presentation";
@@ -33,6 +35,12 @@ export interface FilingFact {
   latestAt: string | null;
 }
 
+export interface ProfileSource {
+  name: "hiring.cafe" | "Wikidata";
+  url: string | null;
+  fetchedAt: string | null;
+}
+
 export interface CompanyFacts {
   identity: {
     name: string;
@@ -46,11 +54,13 @@ export interface CompanyFacts {
       tagline: string | null;
       yearFounded: number | null;
       employees: string | null;
+      /** Year of a Wikidata employee count; null for hiring.cafe's range and when Wikidata gives none. */
+      employeesAsOf: number | null;
       hqCountry: string | null;
       industries: string[];
     } | null;
-    /** Present exactly when `profile` is; rendered as "Source: hiring.cafe". */
-    profileSource: { domain: "hiring.cafe"; fetchedAt: string } | null;
+    /** Every source that contributed a shown identity fact (sector included); `url` only when it points at that record. */
+    profileSources: ProfileSource[];
   };
   hiring: {
     openCount: number;
@@ -89,6 +99,8 @@ export interface CompanyFactsInput {
   ghostFlaggedPct?: number | null;
   facetDistribution?: FacetDistribution;
   exhaust?: CompanyExhaust | null;
+  /** The directory's Wikidata items for this domain: fills identity facts hiring.cafe lacks, with or without `exhaust`. */
+  wikidata?: readonly WikidataItem[];
 }
 
 export const PAY_SCOPE = "US roles listing pay";
@@ -169,21 +181,53 @@ function buildPay(jobs: readonly PublicJob[]): CompanyFacts["pay"] {
   return roles === 0 ? null : { typical: typicalPayText(us), roles, scope: PAY_SCOPE };
 }
 
-function buildProfile(exhaust: CompanyExhaust | null | undefined) {
+/** THE HQ formatter, whatever the source: an ISO 3166 alpha-2 code becomes its English country name (kept as is when Intl does not know it); any other string passes through. */
+function countryName(value: string): string {
+  if (!/^[A-Z]{2}$/.test(value)) return value;
+  try {
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(value) ?? value;
+  } catch {
+    return value;
+  }
+}
+
+/** A Wikidata description of more than one word: a single word adds nothing. */
+const describes = (item: WikidataItem) => (item.description && item.description.trim().split(/\s+/).length > 1 ? item.description : null);
+
+/** Identity facts per field: hiring.cafe's value first, else the one Wikidata value (see `pickWikidata`); the sector is `exhaust.sector`, else Wikidata's. Every source of a shown fact is named. */
+function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata: readonly WikidataItem[], name: string) {
   const section = exhaust?.profile;
-  if (!section) return { profile: null, profileSource: null };
-  const p = section.data;
+  const p = section?.data;
+  const wd = <T>(read: (item: WikidataItem) => T | null) => pickWikidata(wikidata, name, read);
+  const wdTagline = wd(describes);
+  const wdFounded = wd((i) => i.founded ?? null);
+  const wdHq = wd((i) => (i.hqCountry ? countryName(i.hqCountry) : null));
+  const wdEmployees = wd((i) => i.employees ?? null);
+  const wdSector = exhaust?.sector ? null : wikidataSectorPick(wikidata, name);
   const profile = {
-    tagline: p.tagline,
-    yearFounded: p.yearFounded,
-    employees: p.nbEmployees,
-    hqCountry: p.hqCountry,
-    industries: p.industries,
+    tagline: p?.tagline || wdTagline?.value || null,
+    yearFounded: p?.yearFounded ?? wdFounded?.value ?? null,
+    employees: p?.nbEmployees || (wdEmployees ? formatCount(wdEmployees.value) : null),
+    employeesAsOf: p?.nbEmployees ? null : (wdEmployees?.item.employeesAsOf ?? null),
+    hqCountry: countryName(p?.hqCountry || wdHq?.value || "") || null,
+    industries: p?.industries ?? [],
   };
+  const fromHiringCafe = !!p && !!(p.tagline || p.yearFounded != null || p.nbEmployees || p.hqCountry || p.industries.length > 0);
+  const wikiPicks = [
+    p?.tagline ? null : wdTagline,
+    p?.yearFounded != null ? null : wdFounded,
+    p?.nbEmployees ? null : wdEmployees,
+    p?.hqCountry ? null : wdHq,
+    wdSector,
+  ].filter((x) => x !== null);
+  const ids = new Set(wikiPicks.map((x) => x.item.id));
+  const wikidataId = ids.size === 1 && wikiPicks.every((x) => x.item.id) ? [...ids][0] : null;
+  const profileSources: ProfileSource[] = [
+    ...(fromHiringCafe && section ? [{ name: "hiring.cafe" as const, url: null, fetchedAt: section.asOf }] : []),
+    ...(wikiPicks.length > 0 ? [{ name: "Wikidata" as const, url: wikidataId ? `https://www.wikidata.org/wiki/${wikidataId}` : null, fetchedAt: null }] : []),
+  ];
   const present = profile.tagline || profile.yearFounded != null || profile.employees || profile.hqCountry || profile.industries.length > 0;
-  return present
-    ? { profile, profileSource: { domain: "hiring.cafe" as const, fetchedAt: section.asOf } }
-    : { profile: null, profileSource: null };
+  return { profile: present ? profile : null, profileSources, sector: exhaust?.sector ?? wdSector?.value ?? null };
 }
 
 const newestIso = (dates: readonly (string | null | undefined)[]): string | null =>
@@ -206,7 +250,7 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
   const { jobs, openCount, exhaust, facetDistribution: facets } = input;
   const total = openCount.value;
   const postings = input.postingTotal;
-  const { profile, profileSource } = buildProfile(exhaust);
+  const { profile, profileSources, sector } = buildIdentityFacts(exhaust, input.wikidata ?? [], input.name);
   const visa = facets?.visa_sponsorship;
   const sponsors = visa?.true ?? 0;
   const stated = sponsors + (visa?.false ?? 0);
@@ -214,11 +258,11 @@ export function buildCompanyFacts(input: CompanyFactsInput): CompanyFacts {
     identity: {
       name: input.name,
       domain: input.domain,
-      sector: exhaust?.sector ?? null,
+      sector,
       atsProvider: exhaust?.profile?.data.atsHint ?? null,
       careersUrl: exhaust?.careersUrl ?? null,
       profile,
-      profileSource,
+      profileSources,
     },
     hiring: {
       openCount: total,

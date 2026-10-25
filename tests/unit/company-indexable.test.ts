@@ -255,6 +255,14 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
     const parsed = parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: ["retail", 3] }, { label: "", industries: [] }, { label: "Bad" }, null] });
     assert.deepEqual(parsed?.wikidataIndustries, [{ label: "Acme", industries: ["retail"] }]);
+    const facts = { id: "Q1", founded: 1999, hq_country: "DE", employees: 1200, employees_as_of: 2023, description: "A firm" };
+    assert.deepEqual(parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: [], ...facts }] })?.wikidataIndustries, [
+      { label: "Acme", industries: [], id: "Q1", founded: 1999, hqCountry: "DE", employees: 1200, employeesAsOf: 2023, description: "A firm" },
+    ]);
+    assert.deepEqual(
+      parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: [], id: "x", founded: "1999", hq_country: "de", employees: -3, description: " " }] })?.wikidataIndustries,
+      [{ label: "Acme", industries: [] }],
+    );
     assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit({ ...hit, wikidata_industries: [] })!));
     assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit(hit)!));
   });

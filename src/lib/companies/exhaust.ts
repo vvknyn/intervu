@@ -343,22 +343,33 @@ function sectorForm(industry: string): string | null {
   return generic ? null : form;
 }
 
-/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the matched item whose
- *  label names the company as displayed (`displayName`); with none agreeing, of the items only when every one has the same industries. */
-export function wikidataSector(items: readonly WikidataItem[], displayName: string): string | null {
+/** THE Wikidata fact selector: the value `read` finds on the items whose label names the company as displayed (`displayName`) and that state the fact;
+ *  with none of those, on all the items. A value only when every chosen item states the same one — a fact never comes from items that disagree.
+ *  `item` is the first chosen item (its QID is the fact's source). */
+export function pickWikidata<T>(items: readonly WikidataItem[], displayName: string, read: (item: WikidataItem) => T | null): { value: T; item: WikidataItem } | null {
   const key = (name: string) => siteKey(displayCompanyName(name));
-  const industriesKey = (item: WikidataItem) => JSON.stringify(item.industries);
-  const agreeing = items.filter((item) => item.industries.length > 0 && key(item.label) === key(displayName));
+  const agreeing = items.filter((item) => read(item) !== null && key(item.label) === key(displayName));
   const chosen = agreeing.length > 0 ? agreeing : items;
   const [first] = chosen;
-  if (!first || chosen.some((item) => industriesKey(item) !== industriesKey(first))) return null;
+  const value = first && read(first);
+  if (value == null || chosen.some((item) => JSON.stringify(read(item)) !== JSON.stringify(value))) return null;
+  return { value, item: first };
+}
+
+/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the item
+ *  {@link pickWikidata} selects; null when the selected items' industries differ. */
+export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string; item: WikidataItem } | null {
+  const picked = pickWikidata(items, displayName, (item) => (item.industries.length > 0 ? item.industries : null));
+  if (!picked) return null;
   const forms = new Map<string, string>();
-  for (const x of first.industries) {
+  for (const x of picked.value) {
     const form = sectorForm(x);
     if (form) forms.set(form.toLowerCase(), form);
   }
-  return forms.size === 1 ? categoryLabel([...forms.values()][0]!) : null;
+  return forms.size === 1 ? { value: categoryLabel([...forms.values()][0]!), item: picked.item } : null;
 }
+
+export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value ?? null;
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
  *  jobs.ashbyhq.com/api/non-user-graphql): an `api.` / `<x>-api.` host or an `/api` path segment. A bare version

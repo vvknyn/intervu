@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { CompanyCadenceStrip, cadenceStripHasContent } from "@/components/company/CompanyCadenceStrip";
 import { CompanyVerdictBand, verdictBandHasContent } from "@/components/company/CompanyVerdictBand";
 import { DotSeparated } from "@/components/ui/dot-separated";
@@ -100,13 +100,28 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
               i.sector,
               p?.hqCountry && `HQ ${p.hqCountry}`,
               p?.yearFounded != null && `Founded ${p.yearFounded}`,
-              p?.employees && `≈${p.employees} people`,
+              p?.employees && `≈${p.employees} people${p.employeesAsOf ? ` (${p.employeesAsOf})` : ""}`,
               p && p.industries.map(categoryLabel).filter((x) => x !== i.sector).join(", "),
             ]}
           />
         </div>
-        {i.profileSource && (
-          <p className="mt-2 text-xs text-muted-foreground">{`Source: ${i.profileSource.domain} · ${monthYear(i.profileSource.fetchedAt)}`}</p>
+        {i.profileSources.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {i.profileSources.length > 1 ? "Sources: " : "Source: "}
+            {i.profileSources.map((s, n) => (
+              <Fragment key={s.name}>
+                {n > 0 && ", "}
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="hover:underline">
+                    {s.name}
+                  </a>
+                ) : (
+                  s.name
+                )}
+                {s.fetchedAt && ` · ${monthYear(s.fetchedAt)}`}
+              </Fragment>
+            ))}
+          </p>
         )}
       </Section>
     );

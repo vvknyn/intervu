@@ -120,10 +120,20 @@ export interface IndexableCompanyDomain {
   wikidataIndustries?: WikidataItem[];
 }
 
-/** One Wikidata item matched to a domain: its English label and its industry labels (may be empty). */
+/** One Wikidata item matched to a domain: its English label and its industry labels (may be empty), plus each identity fact the doc carries (absent when unknown). */
 export interface WikidataItem {
   label: string;
   industries: string[];
+  /** Wikidata QID, e.g. "Q95". */
+  id?: string;
+  founded?: number;
+  /** ISO 3166-1 alpha-2. */
+  hqCountry?: string;
+  employees?: number;
+  /** Year the employee count was stated. */
+  employeesAsOf?: number;
+  /** CC0 description. */
+  description?: string;
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -159,9 +169,22 @@ const stringsOf = (v: unknown): string[] | null =>
 /** The well-formed `wikidata_industries` entries of a doc field (a labelled item with string industries), or [] when it is not an array. */
 const wikidataItemsOf = (v: unknown): WikidataItem[] =>
   (Array.isArray(v) ? v : []).flatMap((e: unknown) => {
-    const { label, industries } = (e ?? {}) as Record<string, unknown>;
+    const { label, industries, id, founded, hq_country, employees, employees_as_of, description } = (e ?? {}) as Record<string, unknown>;
     const name = typeof label === "string" ? stripFormatChars(label) : "";
-    return name && Array.isArray(industries) ? [{ label: name, industries: stringsOf(industries) ?? [] }] : [];
+    if (!name || !Array.isArray(industries)) return [];
+    const count = (v: unknown) => (typeof v === "number" && Number.isInteger(v) && v > 0 ? v : undefined);
+    const text = typeof description === "string" ? stripFormatChars(description).trim() : "";
+    const item: WikidataItem = {
+      label: name,
+      industries: stringsOf(industries) ?? [],
+      ...(typeof id === "string" && /^Q\d+$/.test(id) && { id }),
+      ...(count(founded) && { founded: count(founded) }),
+      ...(typeof hq_country === "string" && /^[A-Z]{2}$/.test(hq_country) && { hqCountry: hq_country }),
+      ...(count(employees) && { employees: count(employees) }),
+      ...(count(employees_as_of) && { employeesAsOf: count(employees_as_of) }),
+      ...(text && { description: text }),
+    };
+    return [item];
   });
 
 /**
