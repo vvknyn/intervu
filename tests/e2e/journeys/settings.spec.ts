@@ -20,7 +20,7 @@ const FOLLOWS = [
 /** Next server-action response in flight format: `1:` carries the action's return value. */
 const flight = (value: unknown) => `0:{"a":"$@1","f":"","q":"","i":true,"b":"development"}\n1:D"$2"\n1:${JSON.stringify(value)}\n`;
 
-type ActionAnswer = (body: string, text: string) => unknown | undefined;
+type ActionAnswer = (body: string, text: string) => unknown | undefined | Promise<unknown | undefined>;
 
 /** Answer server actions in the browser: `answer` returns a value to send
  *  back, or undefined to pass the real response through. */
@@ -32,7 +32,7 @@ async function answerActions(page: Page, answer: ActionAnswer) {
       if (req.method() !== "POST" || !req.headers()["next-action"]) return route.continue();
       const res = await route.fetch();
       const text = await res.text();
-      const value = answer(req.postData() ?? "", text);
+      const value = await answer(req.postData() ?? "", text);
       return route.fulfill({ response: res, body: value === undefined ? text : flight(value) });
     },
   );
@@ -148,4 +148,50 @@ test("The follow-alerts bell links to the companies you follow, not the Elite bo
   const cta = page.getByTestId("follow-alerts-cta");
   await expect(cta).toHaveText("Manage companies you follow");
   await expect(cta).toHaveAttribute("href", MANAGE_FOLLOWS_HREF);
+});
+
+test("A failed read of the saved preferences shows Retry on the languages row, not the résumé's language", { tag: ["@J-SETTINGS-35"] }, async ({ page }) => {
+  const saved = { configured: true, search: { languages: ["german"] }, answers: { custom: {} } };
+  let failReads = true;
+  let reads = 0;
+  await answerActions(page, async (body, text) => {
+    // fetchAgentPreferencesAction takes no arguments. The form reads it first (twice, dev StrictMode); every read after that is the languages row's.
+    if (body !== "[]" || !text.includes("Unauthorized")) return undefined;
+    return failReads && ++reads > 2 ? { error: "Preferences unavailable" } : { data: saved };
+  });
+  await page.goto("/mock/settings?tab=prefs");
+
+  await expect(page.getByTestId("settings-languages-load-failed")).toBeVisible();
+  await expect(page.getByTestId("settings-languages-row")).toHaveCount(0);
+  failReads = false;
+  await page.getByTestId("settings-languages-load-failed-retry").click();
+  await expect(page.getByTestId("settings-languages-row")).toBeVisible();
+  await expect(page.getByTestId("settings-languages")).toContainText(/german/i);
+});
+
+test("While the saved preferences are still being read, the languages row shows no value and sends no save; when the read answers it shows the stored language", { tag: ["@J-SETTINGS-36"] }, async ({ page }) => {
+  const saved = { configured: true, search: { languages: ["german"] }, answers: { custom: {} } };
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reads = 0;
+  const saves: string[] = [];
+  await answerActions(page, async (body, text) => {
+    if (body.includes("languages")) saves.push(body);
+    if (body !== "[]" || !text.includes("Unauthorized")) return undefined;
+    // The form reads first (twice, dev StrictMode); every read after that is the languages row's, and it hangs until released.
+    if (++reads > 2) await held;
+    return { data: saved };
+  });
+  await page.goto("/mock/settings?tab=prefs");
+
+  await expect(page.getByText("Loading your language")).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId("settings-languages-row")).toHaveCount(0);
+  await expect(page.getByTestId("settings-languages")).toHaveCount(0);
+  expect(saves).toEqual([]);
+
+  release();
+  await expect(page.getByTestId("settings-languages-row")).toBeVisible();
+  await expect(page.getByTestId("settings-languages")).toContainText(/german/i);
+  expect(saves).toEqual([]);
 });

@@ -108,6 +108,7 @@ async function read(uid: string) {
     lastReadAt = Date.now();
     try {
         for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+            // load-result-allow: a failed read never sets a view (stays "not known yet"): no setup count or sheet appears, and a tab return re-reads
             const res = await getOnboardingAction(uid).catch(() => null);
             if (snapshot.uid !== uid) return;
             const view = parseView(res?.data);

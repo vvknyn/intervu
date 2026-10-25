@@ -99,6 +99,7 @@ export function SearchAlertCapture({
         onSent?.();
       } else {
         // A Turnstile refusal carries its own actionable `message`.
+        // load-result-allow: an unreadable refusal still sets status "error", so the form shows its generic error and resets Turnstile
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         setRejectMessage(body?.message ?? null);
         setStatus("error");
