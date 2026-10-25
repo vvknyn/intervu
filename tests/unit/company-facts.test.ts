@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildCompanyFacts, buildDistribution, type CompanyFactsInput } from "@/lib/companies/company-facts";
-import { resolveCareersUrl, type CompanyExhaust, type ExhaustSection } from "@/lib/companies/exhaust";
+import { resolveCareersUrl, resolveSector, type CompanyExhaust, type ExhaustSection } from "@/lib/companies/exhaust";
 import type { PublicJob } from "@/lib/jobs/types";
 
 function job(overrides: Partial<PublicJob> & Pick<PublicJob, "id">): PublicJob {
@@ -198,7 +198,7 @@ describe("buildCompanyFacts", () => {
 
         it("hiring.cafe wins per field; Wikidata fills the rest and both sources are named", () => {
             const profile = section({
-                tagline: null, homepageUri: null, hqCountry: "US", industries: [], yearFounded: 2011,
+                tagline: null, homepageUri: null, hqCountry: "US", industries: ["Fintech"], yearFounded: 2011,
                 organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
             });
             const f = buildCompanyFacts(input({ exhaust: exhaust({ profile, sector: "Fintech" }), wikidata: [wd] }));
@@ -286,9 +286,36 @@ describe("buildCompanyFacts", () => {
         });
     });
 
-    it("sector comes from the box's one resolver", () => {
-        assert.equal(buildCompanyFacts(input({ exhaust: exhaust({ sector: "Fintech" }) })).identity.sector, "Fintech");
-        assert.equal(buildCompanyFacts(input()).identity.sector, null);
+    describe("sector: hiring.cafe, then Wikidata, never an unsourced classifier", () => {
+        const bjakWd = { label: "Bjak", industries: ["fintech"], id: "Q136756944" };
+        const withIndustries = (industries: string[]) => section({
+            tagline: null, homepageUri: null, hqCountry: null, industries, yearFounded: null,
+            organizationType: null, nbEmployees: null, parentCompany: null, atsHint: null, totalJobs: null,
+        });
+
+        it("no hiring.cafe industries, Wikidata fintech: shown, and Wikidata is credited", () => {
+            const f = buildCompanyFacts(input({ name: "Bjak", domain: "bjak.my", exhaust: exhaust(), wikidata: [bjakWd] }));
+            assert.equal(f.identity.sector, "Fintech");
+            assert.deepEqual(f.identity.profileSources, [{ name: "Wikidata", url: "https://www.wikidata.org/wiki/Q136756944", fetchedAt: null }]);
+        });
+
+        it("no source naming one: empty, for a company other than bjak", () => {
+            assert.equal(buildCompanyFacts(input({ exhaust: exhaust() })).identity.sector, null);
+            assert.equal(buildCompanyFacts(input()).identity.sector, null);
+        });
+
+        it("hiring.cafe wins over a different Wikidata industry and is credited", () => {
+            const f = buildCompanyFacts(input({ exhaust: exhaust({ profile: withIndustries(["Fintech"]), sector: "Fintech" }), wikidata: [{ label: "Acme", industries: ["software industry"], id: "Q42" }] }));
+            assert.equal(f.identity.sector, "Fintech");
+            assert.ok(f.identity.profileSources.some((s) => s.name === "hiring.cafe"));
+            assert.ok(!f.identity.profileSources.some((s) => s.name === "Wikidata"));
+        });
+
+        it("generic hiring.cafe industries only: falls through to Wikidata", () => {
+            const f = buildCompanyFacts(input({ exhaust: exhaust({ profile: withIndustries(["general"]), sector: resolveSector(["general"]) }), wikidata: [{ label: "Acme", industries: ["software industry"], id: "Q42" }] }));
+            assert.equal(f.identity.sector, "Software");
+            assert.ok(f.identity.profileSources.some((s) => s.name === "Wikidata"));
+        });
     });
 });
 

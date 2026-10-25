@@ -196,7 +196,7 @@ function countryName(value: string): string {
 /** A Wikidata description of more than one word: a single word adds nothing. */
 const describes = (item: WikidataItem) => (item.description && item.description.trim().split(/\s+/).length > 1 ? item.description : null);
 
-/** Identity facts per field: hiring.cafe's value first, else the one Wikidata value (see `pickWikidata`); the sector is `exhaust.sector`, else Wikidata's. Every source of a shown fact is named. */
+/** Identity facts per field: hiring.cafe's value first, else the one Wikidata value (see `pickWikidata`); the sector is `exhaust.sector` (hiring.cafe's industries), else Wikidata's, else none. Every source of a shown fact is named. */
 function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata: readonly WikidataItem[], name: string, domain: string, siteDescription: string | null | undefined) {
   const section = exhaust?.profile;
   const p = section?.data;
