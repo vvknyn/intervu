@@ -18,7 +18,7 @@ import { saveAgentPreferencesAction } from "@/actions/agent-preferences";
 import { countNewSinceAction } from "@/actions/jobs";
 import { saveSavedSearchAction } from "@/actions/saved-searches";
 import { Button } from "@/components/ui/button";
-import { ToggleChip } from "@/components/ui/chip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -352,19 +352,19 @@ function PlaceStep({ view, resumeLocation, onAnswer }: { view: OnboardingView; r
             </div>
             <fieldset className="space-y-2">
                 <legend className="text-sm text-foreground">Would you move for the right role?</legend>
-                <div role="radiogroup" aria-label="Would you move for the right role?" className="flex flex-wrap gap-2">
+                <ToggleGroup
+                    role="radiogroup"
+                    aria-label="Would you move for the right role?"
+                    className="flex flex-wrap gap-2"
+                    value={relocation ?? ""}
+                    onValueChange={(v) => setRelocation((v || null) as RelocationChoice | null)}
+                >
                     {RELOCATION_OPTIONS.map((o) => (
-                        <ToggleChip
-                            key={o.choice}
-                            role="radio"
-                            selected={relocation === o.choice}
-                            data-testid={`setup-relocation-${o.choice}`}
-                            onClick={() => setRelocation((c) => (c === o.choice ? null : o.choice))}
-                        >
+                        <ToggleGroupItem key={o.choice} value={o.choice} data-testid={`setup-relocation-${o.choice}`}>
                             {o.label}
-                        </ToggleChip>
+                        </ToggleGroupItem>
                     ))}
-                </div>
+                </ToggleGroup>
                 {relocation === "to" ? (
                     <Input
                         aria-label="Where you'd move to"

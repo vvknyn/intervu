@@ -428,38 +428,6 @@ function StripDot() {
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
 
-function ToolbarSegment({
-    label,
-    pressed,
-    onClick,
-    pending = false,
-    title,
-}: {
-    label: string;
-    pressed: boolean;
-    onClick: () => void;
-    pending?: boolean;
-    title?: string;
-}) {
-    return (
-        <button
-            type="button"
-            aria-pressed={pressed}
-            aria-busy={pending || undefined}
-            disabled={pending}
-            onClick={onClick}
-            title={title}
-            className={cn(
-                "ctl-md ctl-button inline-flex box-border items-center justify-center gap-2 px-3 leading-none transition-all duration-150 text-foreground",
-                pressed && "underline underline-offset-2",
-            )}
-        >
-            {pending && <InlineSpinner size={16} className="shrink-0" />}
-            {label}
-        </button>
-    );
-}
-
 /**
  * The IP-based location default's own honesty affordance — lives IN the
  * location control now (G3, Grok UX wave), not downstream in the results
@@ -4220,8 +4188,8 @@ export function JobsContent({
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
-    // The sort control's relevance segment: "Best match" for someone with a résumé on file, plain "Relevance"
-    // otherwise (see the ToolbarSegment mount sites below). It writes an explicit `sort=relevance`, so the choice
+    // The sort control's relevance item: "Best match" for someone with a résumé on file, plain "Relevance"
+    // otherwise (see `sortEl` below). It writes an explicit `sort=relevance`, so the choice
     // sticks across searches (`viewerDefaults` fills only an absent sort); "Best fit" is its own item.
     const sortsByRelevanceLabel = !fitActive && effectiveSort === "relevance";
 
@@ -4769,29 +4737,6 @@ export function JobsContent({
      */
     const renderFiltersPanel = (layout: "panel" | "rail" = "panel") => (
         <>
-            {result?.configured && (
-                <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
-                    {postedDateSupported && (
-                        <ToolbarSegment
-                            label={sortOptionLabel("newest", resumeOnFile)}
-                            pressed={!fitActive && effectiveSort === "newest"}
-                            onClick={() => chooseSort("newest")}
-                        />
-                    )}
-                    <ToolbarSegment
-                        label={sortOptionLabel("salary_desc", resumeOnFile)}
-                        pressed={!fitActive && effectiveSort === "salary_desc"}
-                        onClick={() => chooseSort("salary_desc")}
-                    />
-                    <ToolbarSegment
-                        label={sortOptionLabel("relevance", resumeOnFile)}
-                        title={resumeOnFile === true ? "Matched by your résumé" : undefined}
-                        pressed={sortsByRelevanceLabel}
-                        onClick={chooseBestMatch}
-                        pending={fitResolving}
-                    />
-                </div>
-            )}
             <SerpFilters
                 distribution={result?.facetDistribution}
                 resultTotal={result?.total}
@@ -5604,8 +5549,7 @@ export function JobsContent({
                         {!headerDockActive && (
                             <div data-testid="jobs-toolbar-actions" className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                 {savedSearchMountElInToolbar}
-                                {/* Below lg, Sort lives in the Filters sheet (its own Sort group). */}
-                                <span className="hidden lg:contents">{sortEl}</span>
+                                {sortEl}
                             </div>
                         )}
                     </div>
