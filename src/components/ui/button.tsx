@@ -4,12 +4,14 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils"
 
-// Rulebook (docs/design/rulebook-2026-09/RULEBOOK.md line 15) tertiary shape:
-// a 1px Klein outline on a transparent fill, blue text. `outline`,
-// `secondary` and `quiet` were three separate strings for this one shape
-// (secondary's grey fill and outline/quiet's ink border were the rulebook
-// violations) — one shared constant so they can't drift apart again.
-const TERTIARY_BUTTON_CLASSES = "border border-brand bg-transparent text-brand hover:bg-muted"
+// Calm pass R6: outline / quiet share ONE borderless shape, so they can't drift
+// apart: brand-coloured text, no border, no fill at rest, brand-tint hover
+// (rulebook "ghost = accent text", like the green text links). `secondary` is
+// the same brand text on a faint brand-tint fill (helium.computer's calm
+// secondary), stronger on hover. Neither is grey-filled, so
+// button-variants.test.ts rule (a) holds; `ghost` is brand text with a neutral
+// hover.
+const TERTIARY_BUTTON_CLASSES = "bg-transparent text-brand hover:bg-live-tint-bg"
 
 const buttonVariants = cva(
   cn(
@@ -31,7 +33,7 @@ const buttonVariants = cva(
         brand: "bg-brand text-brand-foreground hover:bg-brand-hover",
         destructive: "bg-danger-text text-white hover:opacity-90",
         outline: TERTIARY_BUTTON_CLASSES,
-        secondary: TERTIARY_BUTTON_CLASSES,
+        secondary: "bg-brand-wash text-brand hover:bg-brand-wash-hover",
         ghost: "text-brand hover:bg-muted",
         link: "text-brand underline-offset-4 hover:underline",
         // Alias of tertiary — not in the rulebook's own variant set, kept

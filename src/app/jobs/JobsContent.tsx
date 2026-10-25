@@ -128,7 +128,7 @@ import { countResults, formatPlaceList, isThinResults, locationDropped, namedPla
 import { detectedLocationLabel } from "@/lib/jobs/location-label";
 import { countryToFlag } from "@/lib/jobs/country-flag";
 import { PUSHED_IN_APP, previousEntryIsOurs, urlWithoutJob } from "@/lib/jobs/detail-close";
-import { chipVariants, ChipDismiss, filterCountBadgeClass } from "@/components/ui/chip";
+import { chipVariants, ChipDismiss, filterCountBadgeClass, ToggleChip } from "@/components/ui/chip";
 import { SavedSearchesPanel } from "@/components/jobs/SavedSearchesPanel";
 import { SearchAlertSwitch } from "@/components/jobs/SearchAlertSwitch";
 import { SignupGate } from "@/components/auth/SignupGate";
@@ -550,7 +550,7 @@ function BrowseSeedRow({ seeds, onSubmit }: { seeds: string[]; onSubmit: (seed: 
                     title={`Search for ${seed}`}
                     onClick={() => onSubmit(seed)}
                     // control-type-allow: a seed suggestion chip keeps the chip pill; its type still comes from the step
-                    className="ctl-md ctl-button inline-flex items-center rounded-pill border border-border bg-muted px-2.5 text-left text-foreground transition-all hover:border-border hover:bg-border hover:text-foreground dark:border-border dark:bg-border dark:text-foreground dark:hover:border-border dark:hover:bg-border"
+                    className="ctl-md ctl-button inline-flex items-center rounded-pill bg-surface-2 px-2.5 text-left text-muted-foreground transition-colors hover:bg-border hover:text-foreground"
                 >
                     {seed}
                 </button>
@@ -640,7 +640,7 @@ function SimilarRolesCta({ onClick }: { onClick: () => void }) {
  */
 function DeadJobTombstone({ onSimilarRoles }: { onSimilarRoles: () => void }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-panel bg-surface px-6 py-16 text-center">
             <WarningCircle size={24} className="mb-3 text-muted-foreground" />
             <h3 className="text-sm font-semibold">{DEAD_JOB_TOMBSTONE_TEXT}</h3>
             <SimilarRolesCta onClick={onSimilarRoles} />
@@ -670,7 +670,7 @@ function DeadJobUnresolved({
     checking: boolean;
 }) {
     return (
-        <div className="flex flex-col items-center justify-center rounded-panel border border-dashed border-border bg-surface px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-panel bg-surface px-6 py-16 text-center">
             {checking ? (
                 <InlineSpinner size={24} className="mb-3 text-brand" />
             ) : (
@@ -4814,7 +4814,7 @@ export function JobsContent({
                 layout={layout}
             />
             {/* The page tour's replay lives with the filters, not in the toolbar. */}
-            <div className="mt-3 flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+            <div className="mt-3 flex items-center gap-2 pt-3 text-xs text-muted-foreground">
                 {tourReplayEl}
                 How these listings work
             </div>
@@ -4883,19 +4883,18 @@ export function JobsContent({
                     query.toLowerCase() === cat.q.toLowerCase() &&
                     queryDraft.toLowerCase() === cat.q.toLowerCase();
                 return (
-                    <button
+                    <ToggleChip
                         key={cat.q}
-                        type="button"
+                        selected={isMatch}
                         data-testid="field-directory-chip"
                         onClick={() => submitSearch(cat.q)}
                         className={cn(
-                            chipVariants({ active: isMatch, interactive: true }),
                             toolbarControlHeight,
                             "ctl-button inline-flex box-border shrink-0 items-center justify-center whitespace-nowrap px-3 leading-none transition-colors",
                         )}
                     >
                         {cat.title}
-                    </button>
+                    </ToggleChip>
                 );
             })}
         </div>
@@ -5413,7 +5412,7 @@ export function JobsContent({
                                 size="lg"
                                 type="submit"
                                 data-testid="search-submit"
-                                variant={atRest ? "outline" : "default"}
+                                variant="default"
                                 className={cn(
                                     "shrink-0 px-3 transition-colors sm:px-6",
                                     !atRest && "bg-primary text-primary-foreground hover:bg-primary",
@@ -5440,7 +5439,7 @@ export function JobsContent({
                         shortcut's permanent screen space on a phone.
                         Desktop keeps it; vertical space isn't scarce there. */}
                     {!showLandingMarketing && !atRest && isLgUp && (
-                        <div className="mt-2.5 flex items-center gap-2 border-t border-border pt-2 lg:mt-2 lg:pt-1.5">
+                        <div className="mt-2.5 flex items-center gap-2 pt-2 lg:mt-2 lg:pt-1.5">
                             {/* Field dropdown — radio-like, REPLACE query on click */}
                             {fieldDirectoryMenu}
                         </div>
@@ -5497,14 +5496,14 @@ export function JobsContent({
                     <div
                         id="filters-panel"
                         data-testid="filters-panel"
-                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2.5 text-foreground custom-scrollbar"
+                        className="panel-enter max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel bg-surface p-2.5 text-foreground custom-scrollbar"
                     >
                         {renderFiltersPanel()}
                         {/* The global `Footer` is mounted below this infinite feed and
                             never scrolls into view here — this is the only reachable
                             desktop filter surface on /jobs, so the footer links live
                             at its end too. */}
-                        <div className="mt-3 border-t border-border pt-3">
+                        <div className="mt-3 pt-3">
                             <FooterLinks />
                         </div>
                     </div>
@@ -5519,13 +5518,13 @@ export function JobsContent({
                                 // Requirement 1d (front-door redesign): at rest
                                 // the toolbar becomes a centered hairline strip
                                 // in the same 960px column as the masthead and
-                                // search field — top/bottom rule only, no filled
+                                // search field — no rule and no filled
                                 // `bg-muted` band — instead of the full-bleed,
                                 // filled strip a live query still gets.
                                 atRest
                                     // page-scale-allow: the at-rest front door is a centred 960px search column
-                                    ? "mx-auto mt-3 w-full max-w-[960px] border-y border-border py-2"
-                                    : "mt-3 w-full min-w-0 border-y border-border bg-muted py-2 lg:px-0.5 lg:py-1.5"
+                                    ? "mx-auto mt-3 w-full max-w-[960px] py-2"
+                                    : "mt-3 w-full min-w-0 bg-muted py-2 lg:px-0.5 lg:py-1.5"
                             ),
                     )}
                 >
@@ -5616,7 +5615,7 @@ export function JobsContent({
                             data-testid="active-filter-row"
                             className={cn(
                                 "flex shrink-0 items-center gap-2 pr-[var(--list-inset)] [&>*]:shrink-0",
-                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:border-t @2xl:border-border @2xl:pr-0 @2xl:pt-2",
+                                "@2xl:mt-2 @2xl:w-full @2xl:min-w-0 @2xl:max-w-full @2xl:flex-wrap @2xl:overflow-x-clip @2xl:pr-0 @2xl:pt-2",
                             )}
                         >
                             {!headerDockActive && unnamedEntries.map((entry) => {
@@ -5645,7 +5644,7 @@ export function JobsContent({
                         <div
                             id="filters-panel"
                             data-testid="filters-panel"
-                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel border border-border bg-surface shadow-[var(--shadow-bevel-highlight)] p-2.5 text-foreground custom-scrollbar"
+                            className="panel-enter mt-3 max-h-[min(62dvh,520px)] overflow-y-auto overscroll-contain rounded-panel bg-surface p-2.5 text-foreground custom-scrollbar"
                         >
                             {renderFiltersPanel()}
                         </div>
@@ -5666,7 +5665,7 @@ export function JobsContent({
                                     {/* Same reachability gap as the desktop inline panel
                                         above — the global `Footer` never scrolls into view
                                         below the mobile infinite feed either. */}
-                                    <div className="mt-3 border-t border-border pt-3">
+                                    <div className="mt-3 pt-3">
                                         <FooterLinks />
                                     </div>
                                 </SheetBody>
@@ -5789,7 +5788,7 @@ export function JobsContent({
                     {hits.length > 0 && (
                         <div
                             data-testid="detail-pane"
-                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:border xl:border-border xl:bg-surface"
+                            className="hidden xl:order-2 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden xl:sticky xl:top-[var(--jobs-sticky-offset)] xl:max-h-[calc(100dvh-var(--jobs-sticky-offset)-var(--jobs-sticky-gap))] xl:min-w-0 xl:rounded-panel xl:bg-surface"
                         >
                             {detailMountSite === "pane" ? (
                                 renderDetailSurface(detailSheetOpen ? closeDetail : undefined)
@@ -5810,7 +5809,7 @@ export function JobsContent({
                         at every width (mobile: full-width rounded-panel panel;
                         xl+: paired with the detail panel via the grid gap
                         above). */}
-                    <div className="flex min-h-0 flex-1 flex-col rounded-panel border border-border bg-surface pt-3 shadow-[var(--shadow-bevel-highlight)] xl:min-w-0">
+                    <div className="flex min-h-0 flex-1 flex-col rounded-panel bg-surface pt-3 xl:min-w-0">
                         {/* Mobile cold visitors already get a seeded default browse
                             (overlay-ask); hiding the results column forced an extra
                             typed query before result_clicked / job_viewed, dropping
@@ -5878,7 +5877,7 @@ export function JobsContent({
                                             setEmailNudgeDismissed(true);
                                             setEmailNudgeOpen(false);
                                         }}
-                                        className="mb-3 border-t border-border pt-4 pb-2"
+                                        className="mb-3 pt-4 pb-2"
                                     />
                                 )}
 
@@ -6282,7 +6281,7 @@ export function JobsContent({
                                                         key="ranked-lower"
                                                         id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
-                                                        className="mt-2 scroll-mt-20 border-t border-border px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
+                                                        className="mt-2 scroll-mt-20 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
                                                     >
                                                         Ranked lower · {rankedLowerTotal(recommended.summary).toLocaleString()}
                                                     </p>,
@@ -6299,7 +6298,7 @@ export function JobsContent({
                                                 <p
                                                     key="seam"
                                                     data-testid="relevance-seam"
-                                                    className="mb-1 border-t border-border pt-4 pb-1 text-xs text-muted-foreground"
+                                                    className="mb-1 pt-4 pb-1 text-xs text-muted-foreground"
                                                 >
                                                     {seamSummary(seamIndex, total, displayHits.length)}
                                                 </p>,
@@ -6377,7 +6376,7 @@ export function JobsContent({
                                         exactly once, here at the end of the results list —
                                         not in the masthead, not in the search well. */}
                                     {liveCountEl && (
-                                        <div className="border-t border-border px-[var(--list-inset)] pt-4 pb-3">{liveCountEl}</div>
+                                        <div className="px-[var(--list-inset)] pt-4 pb-3">{liveCountEl}</div>
                                     )}
                                 </div>
                                 </>
@@ -6474,7 +6473,7 @@ export function JobsContent({
                     hideCloseButton
                     className="left-1/2 max-h-[min(760px,var(--overlay-max-h))] w-full max-w-[720px] -translate-x-1/2 overflow-hidden border border-border border-b-0 p-0 data-[state=open]:duration-[var(--transition-panel)] data-[state=closed]:duration-[var(--transition-panel)]"
                 >
-                    <div className="shrink-0 border-b border-border">
+                    <div className="shrink-0">
                         <div className="flex justify-center pb-1 pt-2.5" aria-hidden="true">
                             <SheetHandle />
                         </div>
@@ -6510,7 +6509,7 @@ export function JobsContent({
                         the floating prompt is hidden while a sheet is open, so the
                         question is asked here. The floating one below stands down. */}
                     {applyReturnPrompt ? (
-                        <div className="shrink-0 border-b border-border px-4 py-3">
+                        <div className="shrink-0 px-4 py-3">
                             <ApplyReturnPrompt
                                 placement="inline"
                                 record={applyReturnPrompt}

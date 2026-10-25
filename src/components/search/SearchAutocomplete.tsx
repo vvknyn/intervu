@@ -405,11 +405,11 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onClear?.()}
                         className={cn(
-                            "absolute right-1.5 z-30 flex ctl-sm ctl-button ctl-square items-center justify-center bg-muted text-muted-foreground transition-colors hover:text-foreground lg:right-2.5",
+                            "absolute right-1.5 z-30 flex ctl-sm ctl-button ctl-square items-center justify-center text-muted-foreground transition-colors hover:text-foreground lg:right-2.5",
                             CONTROL_FOCUS_VISIBLE,
                         )}
                     >
-                        <X size={20} aria-hidden />
+                        <X size={16} aria-hidden />
                     </button>
                 )}
             </div>

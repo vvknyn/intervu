@@ -105,9 +105,9 @@ describe("header nav", () => {
         assert.match(src, /data-tour=\{tab\.tourSelector\}/);
     });
 
-    it("MobileTabBar paints paper chrome, not ink siteChrome", () => {
+    it("MobileTabBar paints glass material (calm pass R4), not ink siteChrome", () => {
         const src = readFileSync(MOBILE_TABBAR, "utf8");
-        assert.match(src, /bg-background/);
+        assert.match(src, /material-bar/);
         assert.doesNotMatch(src, /siteChrome/);
         assert.doesNotMatch(src, /bg-chrome/);
     });

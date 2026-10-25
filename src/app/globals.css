@@ -113,7 +113,9 @@
   --tracking-wider: 0em;
   --tracking-widest: 0em;
 
-  /* No blur anywhere (rulebook: no translucent/frosted surfaces). */
+  /* No blur anywhere (rulebook: no translucent/frosted surfaces). The ONE
+     sanctioned exception is the `material-bar` utility below (calm pass R4),
+     which sets backdrop-filter itself; these tokens stay 0. */
   --blur-xs: 0px;
   --blur-sm: 0px;
   --blur-md: 0px;
@@ -186,6 +188,7 @@
      rather than repointing this sitewide one. */
   --danger-text: 218 30 40;
   --border: 45 50 62;
+  --border-subtle: 30 34 46;
   --input: 115 122 135;
   --ring: var(--brand);
 
@@ -355,6 +358,7 @@
   --destructive: 255 59 105;
   --destructive-foreground: 10 10 10;
   --border: 38 44 58;
+  --border-subtle: 26 30 41;
   --input: 245 247 250;
   --ring: var(--brand);
   --chart-1: 45 104 255;
@@ -447,6 +451,7 @@
   --color-destructive-foreground: rgb(var(--destructive-foreground));
   --color-danger-text: rgb(var(--danger-text));
   --color-border: rgb(var(--border));
+  --color-border-subtle: rgb(var(--border-subtle));
   --color-input: rgb(var(--input));
   --color-ring: rgb(var(--ring));
   --color-chart-1: rgb(var(--chart-1));
@@ -458,6 +463,10 @@
   --color-brand-foreground: rgb(var(--brand-foreground));
   --color-brand-muted: rgb(var(--brand-muted));
   --color-brand-hover: rgb(var(--brand-hover));
+  /* The calm secondary button's fill: a faint wash of the brand (8%), stronger
+     on hover (14%). Tokens, not `bg-brand/8`, so the opacity-suffix ban holds. */
+  --color-brand-wash: rgb(var(--brand) / 0.08);
+  --color-brand-wash-hover: rgb(var(--brand) / 0.14);
   --color-chrome: rgb(var(--chrome));
   --color-chrome-foreground: rgb(var(--chrome-foreground));
   --color-surface: rgb(var(--surface));
@@ -609,15 +618,6 @@ html:has([data-testid="topbar-docked-filters-toggle"]) {
   --jobs-sticky-offset: calc(var(--topbar-h) + var(--jobs-filter-row-h) + var(--jobs-bar-content-gap));
 }
 
-.jobs-instrument-rule {
-  display: block;
-  width: 1px;
-  height: 1.5rem;
-  flex-shrink: 0;
-  align-self: center;
-  background: rgb(var(--border-strong) / 0.22);
-}
-
 /* Empty portal mounts must not leave gap holes in the docked instrument row */
 [data-testid="topbar-docked-field-directory"]:empty,
 [data-testid="topbar-docked-facets"]:empty,
@@ -733,6 +733,20 @@ body:has([data-shell="bleed"]) {
      only the hit area grows (below). */
   --hit-min: 2.75rem;
 }
+/* Calm pass R4: the single sanctioned glass material. Only chrome that content
+   scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
+   action bar) uses it. Page colour at 85% alpha + blur(16px) saturate(140%),
+   no hairline. design-language.test.ts guards that backdrop-filter appears
+   nowhere else in src/. */
+@utility material-bar {
+  background-color: rgb(var(--background) / 0.85);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--background));
+  }
+}
+
 @utility ctl-sm {
   --ctl-h: var(--control-h-sm);
   --ctl-text: var(--control-text-sm);
@@ -1535,14 +1549,15 @@ textarea::selection {
   --tw-prose-invert-counters: rgb(var(--muted-foreground));
 }
 
-/* Body copy at the rulebook's 16/22, overriding `.prose-sm`'s 14px (every
-   call site uses the `-sm` modifier for its list/heading spacing). Absolute
-   `rem` values rather than touching the modifier's own em-relative base
-   font-size, which every other `.prose-sm` measurement (h2/h3/table/code)
-   is computed relative to — changing the base would rescale all of them. */
+/* Long-form body copy is 16px at 1.625 (articles and legal pages share this
+   one rule), overriding `.prose-sm`'s 14px (every call site uses the `-sm`
+   modifier for its list/heading spacing). 17px is off the house type scale.
+   Set here rather than on the modifier's own em-relative base font-size,
+   which every other `.prose-sm` measurement (h2/h3/table/code) is computed
+   relative to — changing the base would rescale all of them. */
 .prose :where(p, li):not(:where([class~="not-prose"] *)) {
   font-size: var(--text-base);
-  line-height: var(--text-base--line-height);
+  line-height: 1.625;
 }
 
 /* Links: Klein, 400/600 weight (the plugin's default weight is 500, which

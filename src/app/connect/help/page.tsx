@@ -4,6 +4,7 @@ import { mcpConnectorUrl, openclawInstallCommand } from "@/components/marketing/
 import { AGENT } from "@/lib/agent/config";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
 
 export const metadata: Metadata = {
@@ -45,7 +46,7 @@ function HelpSection({
   return (
     <section id={id} className="scroll-mt-8 border-t border-border py-8 first:border-t-0 first:pt-0">
       <SectionTitle>{title}</SectionTitle>
-      <div className="mt-3 space-y-3 text-base leading-relaxed text-foreground">{children}</div>
+      <div className={`mt-3 space-y-4 text-base leading-relaxed text-foreground ${READING_MEASURE}`}>{children}</div>
     </section>
   );
 }
@@ -73,7 +74,7 @@ export default function ConnectHelpPage() {
         Setup help
       </p>
       <PageTitle className="mt-2">Connecting your AI to velai</PageTitle>
-      <p className="mt-3 max-w-xl text-base text-muted-foreground">
+      <p className={`mt-3 ${READING_MEASURE} text-base text-muted-foreground`}>
         Two ways to connect: a connector you paste into an AI client you already use, or a local
         agent you install on your own Mac. If an install failed and sent you here, find the
         section it named below — each one covers what happened, why, and what to do next. Start
@@ -139,20 +140,59 @@ export default function ConnectHelpPage() {
           <p>
             Out of the box, this gets you search and tracking: ask your AI to find roles,
             sanity-check a posting, or save something to your tracker, and it can do that right
-            away. It can also list the roles that fit your résumé, found and matched on what each posting asks
-            for before its title (the search looks for the duties and tools your résumé lists first, and your titles fill what is left), so a title you haven&apos;t held can show up (leaving out any
-            posted more than 30 days ago, above your level, asking for what your résumé doesn&apos;t show, written in a language you haven&apos;t chosen
-            (your résumé&apos;s language and English until you say otherwise; ask it to include French, say, or to stop showing it),
-            whose text reads as another line of work than your experience shows whatever it is called, or whose title is
-            none of your kinds of role and whose posting doesn&apos;t show your work, and saying how many roles the search found, how many fit and how many it left out for each reason;
-            when nothing fits, it lists the closest roles and says plainly that they are a weaker fit; when only
-            older roles fit, it lists those and says how old they are; when not even a newer role is close, it lists the
-            closest older ones and says they are a weaker fit and how old they are; each employer has one place in the
-            list, its best fit&apos;s, with its other roles that fit listed under it), marking a remote role whose
-            posting says it hires in your country with the posting&apos;s own line that says so, and naming the place a remote
-            role is open to (&quot;Remote (North America)&quot;) when its posting says so,
-            list today&apos;s picks (one per employer, the same way), and turn the daily picks email on or off. Actually opening a listing and filling out the application form needs a
-            different kind of tool — one with browser control, like Claude Code. Either way,
+            away.
+          </p>
+          <p>
+            It can also list the roles that fit your résumé. It matches on what each posting asks for before its
+            title: the search looks for the duties and tools your résumé lists first, and your titles fill what is
+            left, so a title you haven&apos;t held can show up.
+          </p>
+          <p>It leaves out roles:</p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            <li>posted more than 30 days ago</li>
+            <li>above your level</li>
+            <li>asking for what your résumé doesn&apos;t show</li>
+            <li>
+              written in a language you haven&apos;t chosen (your résumé&apos;s language and English until you say
+              otherwise; ask it to include French, say, or to stop showing it)
+            </li>
+            <li>whose text reads as another line of work than your experience shows, whatever it is called</li>
+            <li>whose title is none of your kinds of role and whose posting doesn&apos;t show your work</li>
+          </ul>
+          <p>
+            It says how many roles the search found, how many fit and how many it left out for each reason. Beyond
+            that:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-4">
+            <li>When nothing fits, it lists the closest roles and says plainly that they are a weaker fit.</li>
+            <li>When only older roles fit, it lists those and says how old they are.</li>
+            <li>
+              When not even a newer role is close, it lists the closest older ones and says they are a weaker fit and
+              how old they are.
+            </li>
+            <li>
+              Each employer has one place in the list, its best fit&apos;s, with its other roles that fit listed under
+              it.
+            </li>
+            <li>
+              It marks a remote role whose posting says it hires in your country with the posting&apos;s own line that
+              says so.
+            </li>
+            <li>
+              It names the place a remote role is open to (&quot;Remote (North America)&quot;) when its posting says
+              so.
+            </li>
+          </ul>
+          <p>
+            It can also list today&apos;s picks (one per employer, the same way), and turn the daily picks email on or
+            off.
+          </p>
+          <p>
+            Actually opening a listing and filling out the application form needs a
+            different kind of tool — one with browser control, like Claude Code.
+          </p>
+          <p>
+            Either way,
             nothing here ever submits an application by itself; you&apos;re always the one who
             hits submit.
           </p>

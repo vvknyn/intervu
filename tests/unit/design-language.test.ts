@@ -1354,3 +1354,70 @@ test('no user-facing string in src spells the auth verb "log in" — canonical i
             `verb is "sign in" (sentence case) everywhere in user-facing copy.`,
     );
 });
+
+test("calm pass R4: backdrop-filter exists only in the one `material-bar` utility", () => {
+    const walk = (dir: string): string[] =>
+        readdirSync(dir).flatMap((name) => {
+            const full = path.join(dir, name);
+            return statSync(full).isDirectory() ? walk(full) : /\.(css|tsx?|jsx?)$/.test(name) ? [full] : [];
+        });
+    const pattern = /backdrop-(?:filter|blur)/;
+    const offenders = walk(path.join(ROOT, "src"))
+        .filter((f) => f !== path.join(ROOT, "src/app/globals.css"))
+        .filter((f) => pattern.test(readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `backdrop-filter/backdrop-blur outside globals.css: ${offenders.join(", ")}`);
+
+    const css = GLOBALS.replace(/\/\*[\s\S]*?\*\//g, "");
+    const uses = [...css.matchAll(/backdrop-filter/g)].length;
+    const util = css.match(/@utility material-bar\s*\{[\s\S]*?\n\}/)?.[0] ?? "";
+    assert.ok(util, "@utility material-bar missing from globals.css");
+    const inUtil = [...util.matchAll(/backdrop-filter/g)].length;
+    // 2 sets + the @supports probe: every occurrence must live inside the utility.
+    assert.equal(uses, inUtil, "backdrop-filter appears in globals.css outside @utility material-bar");
+    assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, "material-bar needs an opaque fallback");
+});
+
+/**
+ * Reading measure lives in one token (READING_MEASURE in ui/prose.tsx, rem-based).
+ * A `ch` width resolves against the declaring element's own font, so the same
+ * class gives different pixel widths under prose-sm vs text-base.
+ */
+const CH_MEASURE = /max-w-prose|max-w-\[\d+ch\]/;
+
+test("reading measure: no max-w-prose or max-w-[<n>ch] outside prose.tsx", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => path.basename(f) !== "prose.tsx")
+        .filter((f) => CH_MEASURE.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use READING_MEASURE from @/components/ui/prose: ${offenders.join("; ")}`);
+    assert.equal(CH_MEASURE.test('<p className="max-w-[60ch]">'), true, "positive control: a ch width must be flagged");
+    assert.equal(CH_MEASURE.test('<p className="max-w-prose">'), true, "positive control: max-w-prose must be flagged");
+});
+
+/** A paragraph's width comes from READING_MEASURE, never a wider named max-w (max-w-xl = ~88 chars/line). */
+const WIDE_P_MEASURE = /<p\b[^>]*className=[^>]*\bmax-w-(?:lg|xl|[2-7]xl)\b/;
+
+test("reading measure: no <p> with a wider named max-w than READING_MEASURE", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => !f.includes(`${path.sep}mock${path.sep}`))
+        .filter((f) => WIDE_P_MEASURE.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use READING_MEASURE from @/components/ui/prose: ${offenders.join("; ")}`);
+    assert.equal(WIDE_P_MEASURE.test('<p className="mt-3 max-w-xl text-base">'), true, "positive control: max-w-xl on a <p> must be flagged");
+    assert.equal(WIDE_P_MEASURE.test('<p className="max-w-md">'), false, "negative control: max-w-md must not be flagged");
+});
+
+/** A page lead is a PageLead (reading measure built in), never a raw 16px <p> hand-rolled after the h1 with no READING_MEASURE.
+ *  Smaller or already-measured paragraphs (error pages, mocks, dense headers) are out of scope. */
+const RAW_LEAD = /<\/PageTitle>\s*<p\b(?![^>]*READING_MEASURE)[^>]*\btext-base\b/;
+
+test("page lead: no raw 16px <p> directly after </PageTitle>", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => RAW_LEAD.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use PageLead from @/components/ui/heading: ${offenders.join("; ")}`);
+    assert.equal(RAW_LEAD.test('</PageTitle>\n  <p className="mt-1.5 text-base text-muted-foreground">'), true, "positive control: a raw <p> after the title must be flagged");
+    assert.equal(RAW_LEAD.test("</PageTitle>\n  <PageLead>"), false, "negative control: PageLead must not be flagged");
+    assert.equal(RAW_LEAD.test("</PageTitle>\n  <p className={`mt-3 ${READING_MEASURE} text-base`}>"), false, "negative control: an already-measured <p> must not be flagged");
+});

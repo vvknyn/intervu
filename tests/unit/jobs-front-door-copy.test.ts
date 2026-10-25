@@ -24,7 +24,7 @@ test("RESUME_UPLOAD_SIGNIN_LINE makes no on-device/privacy/AI claim", () => {
     assert.doesNotMatch(RESUME_UPLOAD_SIGNIN_LINE, /on-device|on device|privacy|never leaves|\bAI\b/i);
     assert.equal(
         RESUME_UPLOAD_SIGNIN_LINE,
-        "Sign in to keep your tracker on every device. Saving your résumé to your account is a paid month.",
+        "Sign in for every match. Saving your résumé to your account is a paid month.",
     );
 });
 
@@ -51,12 +51,13 @@ test("FrontDoorResumeBand renders card subcopy, and the sign-in value line only 
     assert.match(band, /\{signedIn \? FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN : FRONT_DOOR_RESUME_CARD_SUBCOPY\}/);
     assert.match(band, /\{!signedIn && \(\s*<p[^>]*>\s*\{RESUME_UPLOAD_SIGNIN_LINE\.split/);
     assert.match(band, /\{RESUME_UPLOAD_CTA\}/);
+    assert.match(band, /<Button[^>]*variant="secondary"/, "the upload action is the Button primitive's secondary, not a raw button");
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY,
-        "Upload one résumé to see your top 3 matches and why. It stays in this browser. A free account unlocks every match; a paid month adds your résumé saved to your account and read back on any device, sealed-AI help importing it, sealed-AI tailoring for each job, sealed-AI answers to screening questions, your résumé in the Chrome extension, résumé tools for your AI agent and the daily-picks email.",
+        "Top 3 matches and why. Your résumé stays in this browser.",
     );
     assert.equal(
         FRONT_DOOR_RESUME_CARD_SUBCOPY_SIGNED_IN,
-        "Upload your résumé to rank these jobs by fit, with the reasons. It stays on this device; a paid month saves it to your account, encrypted, so it follows you across devices.",
+        "Rank these jobs by fit. Your résumé stays on this device; a paid month saves it to your account, encrypted.",
     );
 });

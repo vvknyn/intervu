@@ -193,7 +193,7 @@ export function JobCard({
             <div className="self-start">
                 <CompanyLogo domain={job.company_domain} name={job.company} size="md" />
             </div>
-            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border pb-4">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 border-b border-border-subtle pb-4">
             <div className="min-w-0">
                 <span className="inline-flex flex-wrap items-baseline gap-x-1">
                     <Link

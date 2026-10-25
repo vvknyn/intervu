@@ -29,12 +29,12 @@ export function SignalChip({
         <li
             title={title}
             className={cn(
-                "inline-flex items-center gap-1 rounded-pill border px-2.5 py-0.5 text-xs",
+                "inline-flex items-center gap-1 rounded-pill px-2.5 py-0.5 text-xs",
                 tone === "good"
-                    ? "border-live-tint-border bg-live-tint-bg text-verdict-good"
+                    ? "bg-live-tint-bg text-verdict-good"
                     : tone === "caution"
-                      ? cn("border-border", LISTING_STATE_TEXT.relisted)
-                      : "border-border text-muted-foreground",
+                      ? cn("bg-surface-2", LISTING_STATE_TEXT.relisted)
+                      : "bg-surface-2 text-muted-foreground",
             )}
         >
             {tone === "good" ? (

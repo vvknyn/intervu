@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { READING_MEASURE } from "@/components/ui/prose";
 
 // The ONE heading scale (docs/design-language.md §3): page title `text-2xl`,
 // section heading `text-xl`, sub-heading `text-base`, all semibold/snug and
@@ -12,6 +13,11 @@ const SUB = "text-base font-semibold leading-snug text-foreground text-balance";
 
 export function PageTitle({ className, ...props }: React.ComponentProps<"h1">) {
   return <h1 className={cn(PAGE, className)} {...props} />;
+}
+
+/** The subtitle paragraph under a PageTitle: holds the reading measure instead of the container's width. */
+export function PageLead({ className, ...props }: React.ComponentProps<"p">) {
+  return <p className={cn("mt-1.5 text-base text-muted-foreground", READING_MEASURE, className)} {...props} />;
 }
 
 export function SectionTitle({ className, ...props }: React.ComponentProps<"h2">) {

@@ -1,20 +1,29 @@
+import * as React from "react";
 import { PageTitle } from "@/components/ui/heading";
+import { DocWithToc } from "@/components/ui/on-this-page";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 /**
- * Shared header frame for the legal documents (/privacy, /terms) — the
- * eyebrow, title, and "Last updated" fact line. Both pages used to duplicate
- * this block with their own bracketed eyebrow and all-caps h1; this is the
- * one place that markup lives now; the two pages differ only in `title` and
- * `lastUpdated`, and neither page's body copy is touched by this component.
+ * Shared frame for the legal documents (/privacy, /terms): a centred 28rem
+ * reading column (~66 chars of body text) with no outer box, so the two pages can't drift apart.
+ * `LegalDocFrame` adds the shared "On this page" list. `LegalDocHeader` is the
+ * eyebrow, title and "Last updated" line. The body is the shared `Prose`
+ * article wrapper. None of them touch the documents' wording.
  */
+export function LegalDocFrame({ testId, children }: { testId: string; children: React.ReactNode }) {
+    return (
+        <PageContainer data-testid={testId} className="py-10">
+            <DocWithToc>{children}</DocWithToc>
+        </PageContainer>
+    );
+}
+
 export function LegalDocHeader({ title, lastUpdated }: { title: string; lastUpdated: string }) {
     return (
-        <div className="mb-6">
+        <div className="mb-8">
             <p className="text-xs font-semibold text-muted-foreground">Legal</p>
             <PageTitle className="mt-1">{title}</PageTitle>
-            <p className="mono-data mt-3 border-b border-border pb-4 text-sm text-muted-foreground">
-                Last updated: {lastUpdated}
-            </p>
+            <p className="mono-data mt-3 text-sm text-muted-foreground">Last updated: {lastUpdated}</p>
         </div>
     );
 }
