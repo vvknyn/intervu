@@ -12,12 +12,13 @@ const LOGIN_FORM_PATH = join(ROOT, "src", "components", "auth", "login-form.tsx"
 const GLOBALS_CSS_PATH = join(ROOT, "src", "app", "globals.css");
 
 // 8b775697 moved the z-index tiers into globals.css tokens; the tier values
-// are asserted on the tokens, the primitives on reading them.
+// are asserted on the tokens, the primitives on reading them (the class constants
+// are shared with ui/alert-dialog.tsx).
 test("DialogOverlay and DialogContent use modal z-index tier (200, 210)", () => {
     const src = readFileSync(DIALOG_PATH, "utf8");
     const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
-    assert.match(src, /data-slot="dialog-overlay"[\s\S]*?z-\[var\(--z-dialog-scrim\)\]/);
-    assert.match(src, /data-slot="dialog-content"[\s\S]*?z-\[var\(--z-dialog\)\]/);
+    assert.match(src, /dialogOverlayClass =[\s\S]*?z-\[var\(--z-dialog-scrim\)\]/);
+    assert.match(src, /dialogContentClass =[\s\S]*?z-\[var\(--z-dialog\)\]/);
     assert.match(css, /--z-dialog-scrim:\s*200;/);
     assert.match(css, /--z-dialog:\s*210;/);
 });
