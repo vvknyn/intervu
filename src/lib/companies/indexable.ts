@@ -118,6 +118,8 @@ export interface IndexableCompanyDomain {
   labelSpellings?: string[];
   /** `wikidata_industries`: one entry per Wikidata item whose official site is this domain, with its English industry (P452) labels. Absent when the doc has none. */
   wikidataIndustries?: WikidataItem[];
+  /** `site_description`: the company's own homepage description. Absent when the doc has none or it is not a string. */
+  siteDescription?: string;
 }
 
 /** One Wikidata item matched to a domain: its English label and its industry labels (may be empty), plus each identity fact the doc carries (absent when unknown). */
@@ -204,7 +206,7 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const siteNames = homepageNames?.length ? homepageNames : null;
   const labelSpellings = [...new Set([...(stringsOf(h.wikidata_names) ?? []), ...(stringsOf(h.row_names) ?? [])])];
   const wikidataIndustries = wikidataItemsOf(h.wikidata_industries);
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }), ...(wikidataIndustries.length > 0 && { wikidataIndustries }) };
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(typeof h.site_description === "string" && { siteDescription: h.site_description }), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }), ...(wikidataIndustries.length > 0 && { wikidataIndustries }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own
