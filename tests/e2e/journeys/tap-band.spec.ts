@@ -3,7 +3,7 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboardi
 import { expect, test } from "./fixtures";
 
 /**
- * J-MOB-28: on a phone every control in the /jobs header and toolbar, and in
+ * J-MOB-29: on a phone every control in the /jobs header and toolbar, and in
  * the Filters sheet, has a 44px tap band. Probes the points a thumb hits
  * (centre, and 21px above and below it) with elementFromPoint, so a control
  * whose invisible hit area is clipped by a scrolling ancestor fails. Runs in
@@ -65,7 +65,7 @@ const engines = [
 ];
 
 for (const engine of engines) {
-    test(`on a phone every control in the /jobs header, toolbar and Filters sheet has a 44px tap band (${engine.name})`, { tag: ["@J-MOB-28"] }, async ({}, testInfo) => {
+    test(`on a phone every control in the /jobs header, toolbar and Filters sheet has a 44px tap band (${engine.name})`, { tag: ["@J-MOB-29"] }, async ({}, testInfo) => {
         test.skip(testInfo.project.name !== "mobile", "a phone, in the engine this test launches itself");
         const baseURL = (testInfo.project.use.baseURL ?? "http://localhost:3000").toString();
         const browser = await engine.launch.launch();
