@@ -20,10 +20,20 @@ export function eventLoopLine(role, { max, p99, mean }) {
     return `[eld] role=${role} max=${toMs(max)}ms p99=${toMs(p99)}ms mean=${toMs(mean)}ms`;
 }
 
-/** The proxy's upstream-error line. Path only: the query string may carry personal data. */
-export function upstreamErrorLine({ code, port, method, url, elapsedMs }) {
+/** The proxy's request-outcome lines share one shape. Path only: the query string may carry personal data. */
+function proxyLine(event, detail, { port, method, url, elapsedMs }) {
     const pathOnly = url.split("?")[0] || "/";
-    return `[proxy] upstream_error code=${code ?? "unknown"} port=${port} ${method} ${pathOnly} ${Math.round(elapsedMs)}ms`;
+    return `[proxy] ${event} ${detail}port=${port} ${method} ${pathOnly} ${Math.round(elapsedMs)}ms`;
+}
+
+/** A server failed the request (refused, reset by the server, timed out). */
+export function upstreamErrorLine({ code, afterHeaders = false, ...rest }) {
+    return proxyLine("upstream_error", `code=${code ?? "unknown"} ${afterHeaders ? "after_headers " : ""}`, rest);
+}
+
+/** The visitor closed the connection before the answer finished: not a server failure. */
+export function visitorLeftLine(rest) {
+    return proxyLine("visitor_left", "", rest);
 }
 
 /** Start sampling; logs through console.log (stdout, as the other [start-web] lines). */

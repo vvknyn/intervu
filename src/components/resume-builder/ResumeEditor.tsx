@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import React, { useState, useEffect, useCallback } from "react";
 import { ResumeData } from "@/types/resume";
 import { LiveResumePreview } from "./LiveResumePreview";
@@ -122,7 +123,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     const loadVersions = useCallback(async () => {
         setLoadingVersions(true);
         try {
-            const res = await fetchResumeVersionsAction();
+            const res = await settleAction(fetchResumeVersionsAction());
             if (res.data) {
                 setVersions(res.data);
             }
@@ -235,7 +236,7 @@ export function ResumeEditor({ initialData, onSave, onClose, className }: Resume
     const handleDeleteVersion = async (ver: SavedResumeVersion) => {
         setDeletingId(ver.id);
         try {
-            const res = await deleteResumeVersionAction(ver.id);
+            const res = await settleAction(deleteResumeVersionAction(ver.id));
             if (res.error) throw new Error(res.error);
             setVersions((prev) => prev.filter((v) => v.id !== ver.id));
             // If the diff was baselined against this snapshot, that baseline

@@ -252,7 +252,7 @@ import {
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
 import { mergeUnderstood, understoodLine } from "@/lib/jobs/understood";
-import { retryDelayMs } from "@/lib/load-result";
+import { retryDelayMs, settleAction } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
@@ -323,6 +323,7 @@ import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBa
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { toast } from "@/lib/toast";
+import { LinkPending } from "@/components/ui/link-pending";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import type { JobsInitial } from "@/lib/jobs/server-entry";
 import { LandingNotice } from "@/components/layout/LandingNotice";
@@ -427,38 +428,6 @@ function StripDot() {
  * losing their place on the return sweep.
  */
 const cappedContentClass = "mx-auto w-full max-w-[1600px]";
-
-function ToolbarSegment({
-    label,
-    pressed,
-    onClick,
-    pending = false,
-    title,
-}: {
-    label: string;
-    pressed: boolean;
-    onClick: () => void;
-    pending?: boolean;
-    title?: string;
-}) {
-    return (
-        <button
-            type="button"
-            aria-pressed={pressed}
-            aria-busy={pending || undefined}
-            disabled={pending}
-            onClick={onClick}
-            title={title}
-            className={cn(
-                "ctl-md ctl-button inline-flex box-border items-center justify-center gap-2 px-3 leading-none transition-all duration-150 text-foreground",
-                pressed && "underline underline-offset-2",
-            )}
-        >
-            {pending && <InlineSpinner size={16} className="shrink-0" />}
-            {label}
-        </button>
-    );
-}
 
 /**
  * The IP-based location default's own honesty affordance — lives IN the
@@ -2542,7 +2511,7 @@ export function JobsContent({
         // drops — so a job opened from a URL rather than a search logs nothing
         // rather than logging a fake position.
         const rank = resultRef.current?.hits.findIndex((h) => h.id === id) ?? -1;
-        void recordJobOpenedAction(lastSearchId, id, rank);
+        void recordJobOpenedAction(lastSearchId, id, rank).catch(() => {});
         // Same -1 rule as the line above, for the same reason: a job opened
         // from a URL has no rank in the current result set, and a fabricated
         // `position: -1` would quietly poison every position-ranked insight.
@@ -3730,12 +3699,14 @@ export function JobsContent({
         });
         triggerSavePulse(job.id);
         try {
-            const res = await markJobAppliedAction({
-                company: job.company ?? "",
-                title: job.title,
-                applyUrl: job.apply_url,
-                jobId: job.id,
-            });
+            const res = await settleAction(
+                markJobAppliedAction({
+                    company: job.company ?? "",
+                    title: job.title,
+                    applyUrl: job.apply_url,
+                    jobId: job.id,
+                }),
+            );
             if (res.error) {
                 setOptimisticPursuits((prev) => {
                     const next = new Map(prev);
@@ -3813,7 +3784,7 @@ export function JobsContent({
         triggerSavePulse(job.id);
         void (async () => {
             try {
-                const res = await goAfterJobAction(job);
+                const res = await settleAction(goAfterJobAction(job));
                 if (res.error) {
                     setOptimisticPursuits((prev) => {
                         const next = new Map(prev);
@@ -4222,8 +4193,8 @@ export function JobsContent({
         applyUrlState(buildUrlState({ sort: modeToUrlSort(mode) }), "replace");
     };
 
-    // The sort control's relevance segment: "Best match" for someone with a résumé on file, plain "Relevance"
-    // otherwise (see the ToolbarSegment mount sites below). It writes an explicit `sort=relevance`, so the choice
+    // The sort control's relevance item: "Best match" for someone with a résumé on file, plain "Relevance"
+    // otherwise (see `sortEl` below). It writes an explicit `sort=relevance`, so the choice
     // sticks across searches (`viewerDefaults` fills only an absent sort); "Best fit" is its own item.
     const sortsByRelevanceLabel = !fitActive && effectiveSort === "relevance";
 
@@ -4771,29 +4742,6 @@ export function JobsContent({
      */
     const renderFiltersPanel = (layout: "panel" | "sheet" | "rail" = "panel") => (
         <>
-            {result?.configured && (
-                <div role="group" aria-label="Sort" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-1 lg:hidden">
-                    {postedDateSupported && (
-                        <ToolbarSegment
-                            label={sortOptionLabel("newest", resumeOnFile)}
-                            pressed={!fitActive && effectiveSort === "newest"}
-                            onClick={() => chooseSort("newest")}
-                        />
-                    )}
-                    <ToolbarSegment
-                        label={sortOptionLabel("salary_desc", resumeOnFile)}
-                        pressed={!fitActive && effectiveSort === "salary_desc"}
-                        onClick={() => chooseSort("salary_desc")}
-                    />
-                    <ToolbarSegment
-                        label={sortOptionLabel("relevance", resumeOnFile)}
-                        title={resumeOnFile === true ? "Matched by your résumé" : undefined}
-                        pressed={sortsByRelevanceLabel}
-                        onClick={chooseBestMatch}
-                        pending={fitResolving}
-                    />
-                </div>
-            )}
             <SerpFilters
                 distribution={result?.facetDistribution}
                 resultTotal={result?.total}
@@ -5606,8 +5554,7 @@ export function JobsContent({
                         {!headerDockActive && (
                             <div data-testid="jobs-toolbar-actions" className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
                                 {savedSearchMountElInToolbar}
-                                {/* Below lg, Sort lives in the Filters sheet (its own Sort group). */}
-                                <span className="hidden lg:contents">{sortEl}</span>
+                                {sortEl}
                             </div>
                         )}
                     </div>
@@ -5866,6 +5813,7 @@ export function JobsContent({
                                             className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             Edit
+                                            <LinkPending />
                                         </Link>
                                         {!signedIn && guestResumeInBrowser && (
                                             <>
@@ -6298,7 +6246,7 @@ export function JobsContent({
                                                         key="ranked-lower"
                                                         id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
-                                                        className="mt-2 scroll-mt-20 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
+                                                        className="mt-2 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
                                                     >
                                                         Ranked lower · {rankedLowerTotal(recommended.summary).toLocaleString()}
                                                     </p>,

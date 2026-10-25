@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { confirmPasswordResetAction } from "@/actions/auth";
@@ -61,7 +62,7 @@ export function ResetPasswordForm() {
 
         setIsPending(true);
         setError(null);
-        const result = await confirmPasswordResetAction({ token, newPassword: password });
+        const result = await settleAction(confirmPasswordResetAction({ token, newPassword: password }));
         if ("error" in result) {
             setError(result.error);
         } else {
@@ -115,6 +116,7 @@ export function ResetPasswordForm() {
                                 name="password"
                                 type={showPassword ? "text" : "password"}
                                 autoComplete="new-password"
+                                enterKeyHint="next"
                                 required
                                 minLength={MIN_PASSWORD_LENGTH}
                                 className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"
@@ -139,6 +141,7 @@ export function ResetPasswordForm() {
                                 name="confirmPassword"
                                 type={showConfirmPassword ? "text" : "password"}
                                 autoComplete="new-password"
+                                enterKeyHint="go"
                                 required
                                 minLength={MIN_PASSWORD_LENGTH}
                                 className="bg-surface-2 pr-14 shadow-[var(--shadow-bevel-inset)]"

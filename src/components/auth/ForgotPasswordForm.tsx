@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useState } from "react";
 import { requestPasswordResetAction } from "@/actions/auth";
 import { EnvelopeSimple, ArrowLeft } from "@phosphor-icons/react";
@@ -34,9 +35,13 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
         // neutral screen). WorkOS mints the token and emails the link that
         // lands on /reset-password, where ResetPasswordForm calls
         // confirmPasswordResetAction.
-        await requestPasswordResetAction({ email: trimmed });
-        setSent(true);
+        const res = await settleAction(requestPasswordResetAction({ email: trimmed }));
         setIsPending(false);
+        if ("error" in res) {
+            setError("Couldn't send the link. Try again.");
+            return;
+        }
+        setSent(true);
     };
 
     if (sent) {
@@ -88,6 +93,7 @@ export function ForgotPasswordForm({ onBack }: ForgotPasswordFormProps) {
                         name="email"
                         type="email"
                         autoComplete="email"
+                        enterKeyHint="go"
                         required
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}

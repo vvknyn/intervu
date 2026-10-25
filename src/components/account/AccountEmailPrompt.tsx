@@ -11,6 +11,7 @@
  * address that has been typed but not confirmed is exactly the "truthy means
  * finished" trap this whole flow exists to fix.
  */
+import { settleAction } from "@/lib/load-result";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -49,7 +50,7 @@ export function AccountEmailPrompt({
         e.preventDefault();
         if (submitting) return;
         setSubmitting(true);
-        const result = await requestAccountEmailAction(email);
+        const result = await settleAction(requestAccountEmailAction(email));
         setSubmitting(false);
 
         if ("error" in result) {

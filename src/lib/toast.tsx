@@ -21,7 +21,10 @@ import {
     type ToastVariant, type ToastItem,
 } from "./toast-store";
 export { toast, confirmToast, type ToastAction, type ConfirmOptions } from "./toast-store";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, WarningCircle, Info, X } from "@phosphor-icons/react";
 
@@ -105,34 +108,32 @@ export function Toaster() {
                 })}
             </div>
 
-            <Dialog
+            <AlertDialog
                 open={!!confirm}
                 onOpenChange={(open) => {
                     if (!open) resolveConfirm(false);
                 }}
             >
                 {confirm && (
-                    <DialogContent showCloseButton={false}>
-                        <DialogHeader>
-                            <DialogTitle>{confirm.title}</DialogTitle>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{confirm.title}</AlertDialogTitle>
                             {confirm.description && (
-                                <DialogDescription>{confirm.description}</DialogDescription>
+                                <AlertDialogDescription>{confirm.description}</AlertDialogDescription>
                             )}
-                        </DialogHeader>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => resolveConfirm(false)}>
-                                {confirm.cancelLabel || "Cancel"}
-                            </Button>
-                            <Button
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>{confirm.cancelLabel || "Cancel"}</AlertDialogCancel>
+                            <AlertDialogAction
                                 variant={confirm.destructive ? "destructive" : "default"}
                                 onClick={() => resolveConfirm(true)}
                             >
                                 {confirm.confirmLabel || "Confirm"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
                 )}
-            </Dialog>
+            </AlertDialog>
         </>
     );
 }

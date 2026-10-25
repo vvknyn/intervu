@@ -1,5 +1,6 @@
 "use client";
 
+import { settleAction } from "@/lib/load-result";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,7 @@ import {
     type AgentPreferencesPatch,
 } from "@/actions/agent-preferences";
 import { Trash } from "@phosphor-icons/react";
-import { Switch } from "@/components/settings/Switch";
+import { Switch } from "@/components/ui/switch";
 import { LanguagesSetting } from "@/components/settings/LanguagesSetting";
 import { SettingsInlineError } from "@/components/settings/SettingsInlineError";
 import { SettingsSectionLoading } from "@/components/settings/SettingsSectionLoading";
@@ -135,7 +136,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
     const loadPreferences = useCallback(async () => {
         setStatus("loading");
         for (let attempt = 0; attempt < 4; attempt++) {
-            const res = await fetchAgentPreferencesAction();
+            const res = await settleAction(fetchAgentPreferencesAction());
             if (!res.error && res.data) {
                 seedFrom(res.data);
                 setStatus("ready");
@@ -197,7 +198,7 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                     custom: computeCustomAnswersPatch(customRows, loadedCustomKeys),
                 },
             };
-            const res = await saveAgentPreferencesAction(patch);
+            const res = await settleAction(saveAgentPreferencesAction(patch));
             if (res.error || !res.data) {
                 toast.error(res.error || "Couldn't save your agent's answers. Try again.");
                 return;
@@ -316,10 +317,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             <div className="space-y-2">
                                 <Label>Minimum salary</Label>
                                 <Input
-                                    type="number"
-                                    min={0}
+                                    type="text"
+                                    inputMode="numeric"
+                                    enterKeyHint="done"
                                     value={salaryMin}
-                                    onChange={(e) => setSalaryMin(e.target.value)}
+                                    onChange={(e) => setSalaryMin(e.target.value.replace(/\D/g, ""))}
                                     placeholder="e.g. 120000"
                                 />
                             </div>

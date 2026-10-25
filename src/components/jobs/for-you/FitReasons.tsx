@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { CaretDown } from "@phosphor-icons/react";
 import { MatchChip } from "@/components/jobs/MatchChip";
 import { Button } from "@/components/ui/button";
+import { Disclosure, DisclosureCaret, DisclosureSummary } from "@/components/ui/disclosure";
 import { chipVariants } from "@/components/ui/chip";
 import { buildFitReasonRows, fitReasonSourcesFromComponents } from "@/lib/jobs/for-you/fit-reasons";
 import { inferReasons, TITLE_OVERLAP_LEAD } from "@/lib/jobs/for-you/infer-reasons";
@@ -66,19 +66,15 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
     }, [job, score, resume, terms]);
 
     return (
-        <details data-tour="jobs-fit-reasons" className="group mb-4 rounded-panel bg-surface px-4 py-3.5" open>
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+        <Disclosure data-tour="jobs-fit-reasons" className="mb-4 rounded-panel bg-surface px-4 py-3.5" open>
+            <DisclosureSummary marker={false} className="flex items-center justify-between gap-3">
                 {/* A role outside where they can work, or one that doesn't say where it hires, carries no fit word (`matchLabel`), so the heading doesn't claim one. */}
                 <span className="text-sm font-semibold text-foreground">{labelNamesPlace(score) ? "How this compares" : "Why this fits"}</span>
                 <span className="flex items-center gap-2">
                     <MatchChip score={score} asOfDate={asOfDate} jobId={jobId} />
-                    <CaretDown
-                        size={16}
-                        aria-hidden
-                        className="text-muted-foreground transition-transform group-open:rotate-180"
-                    />
+                    <DisclosureCaret className="text-muted-foreground" />
                 </span>
-            </summary>
+            </DisclosureSummary>
 
             <div className="mt-3 space-y-3 border-t border-border pt-3">
                 {rows.map((row) =>
@@ -137,7 +133,7 @@ export function FitReasons({ job, score, asOfDate, resume, jobId }: FitReasonsPr
                     </div>
                 )}
             </div>
-        </details>
+        </Disclosure>
     );
 }
 
