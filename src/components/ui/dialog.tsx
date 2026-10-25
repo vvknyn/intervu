@@ -67,6 +67,8 @@ function DialogContent({
         className={cn(
           // dialog-primitive-exempt: this IS the dialog primitive
           "bg-background border border-border shadow-[var(--shadow-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-1/2 left-1/2 z-[var(--z-dialog)] flex flex-col w-full max-w-[calc(100%-2rem)] max-h-[var(--overlay-max-h)] overflow-y-auto overscroll-contain translate-x-[-50%] translate-y-[-50%] gap-6 rounded-panel p-6 duration-200 outline-none sm:max-w-lg",
+          // Compact width: a full-width sheet on the bottom edge, clear of the home indicator (alerts stay centred).
+          "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
           className
         )}
         onFocusCapture={(event) => {
