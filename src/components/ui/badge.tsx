@@ -76,7 +76,7 @@ const solidBadgeVariants = cva(
       tone: {
         brand: "bg-brand text-brand-foreground",
         warn: "bg-warn text-brand-foreground",
-        muted: "border border-border bg-muted text-foreground",
+        muted: "bg-muted text-foreground",
       },
     },
     defaultVariants: { tone: "brand" },

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Check, MapPin, Minus, Warning } from "@phosphor-icons/react";
 import { getCompanyRailAction } from "@/actions/jobs";
 import { Button } from "@/components/ui/button";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { jobActionSize } from "@/lib/jobs/toolbar-control-height";
 import { ContextHelp } from "@/components/ui/context-help";
 import { CompanyLogo } from "@/components/jobs/CompanyLogo";
@@ -92,7 +93,7 @@ function EmployerCard({ job, companyBrand, cleanedCompany }: { job: PublicJob; c
     // numbers 20/28 600 ink, captions 14/20 secondary, links as plain Klein
     // text with no forced underline decoration.
     return (
-        <div data-testid="job-detail-employer-card" className="border-t border-border py-6">
+        <div data-testid="job-detail-employer-card" className="py-4">
             <h2 className="text-base font-semibold text-foreground">
                 {companyBrand || "This company"}
             </h2>
@@ -177,7 +178,7 @@ function Receipt({ job, now }: { job: PublicJob; now: number }) {
     // progress bar — the ratio and per-signal rows carry the same facts as
     // sentence-case text instead.
     return (
-        <div data-testid="job-detail-receipt" className="border-t border-border py-6">
+        <div data-testid="job-detail-receipt" className="py-4">
             <PostingCheckHeader
                 verdictLabel={ghost.label}
                 verdictClassName={ghost.cls.split(" ").find((c) => c.startsWith("text-")) ?? ""}
@@ -433,7 +434,7 @@ export function JobDetailDocument({
             <TrackedStageLine pursuit={pursuit} nowMs={now} className="mt-3" />
 
             {visibleTags(evidencedSkills(job, "must_have_skills"), 12).length > 0 && (
-                <div className="mt-4 border-t border-border pt-4">
+                <div className="mt-4">
                     {/* Rulebook item c's pattern applied to this chip list too:
                         a sentence-case label + one flowing secondary line, no
                         bordered chips. */}
@@ -469,7 +470,7 @@ export function JobDetailDocument({
     ) : null;
 
     const applyCardEl = closed ? (
-        <div data-testid="job-detail-apply-card" className="border-t border-border py-4">
+        <div data-testid="job-detail-apply-card" className="py-4">
             <p className="mb-3 text-sm text-muted-foreground">This role is closed — it&apos;s no longer accepting applications.</p>
             {job.company_domain && (
                 <Button asChild className="w-full gap-2 bg-brand text-brand-foreground hover:bg-brand">
@@ -484,7 +485,7 @@ export function JobDetailDocument({
         // never shows two filled buttons at once. With nothing to customize
         // the card is desktop-only. The report-listing control is its own
         // block (`reportControlEl` below) with its own mobile position.
-        <div data-testid="job-detail-apply-card" className={cn("border-t border-border py-4", !customizeEl && "hidden lg:block")}>
+        <div data-testid="job-detail-apply-card" className={cn("py-4", !customizeEl && "hidden lg:block")}>
             <div className="hidden items-center gap-2 lg:flex">
                 {job.apply_url && (
                     <Button size={jobActionSize} onClick={onOpenPosting} className="flex-1 gap-2 bg-brand text-brand-foreground hover:bg-brand">
@@ -517,7 +518,7 @@ export function JobDetailDocument({
     // non-closed `applyCardEl` branch) or without a real posting URL to
     // report.
     const reportControlEl = !closed && reportJobEnabled && job.apply_url && (
-        <div className="border-t border-border py-4">
+        <div className="py-4">
             <ReportJobButton
                 jobId={job.id}
                 jobUrl={job.apply_url}
@@ -527,20 +528,20 @@ export function JobDetailDocument({
     );
 
     const postingEl = (
-        <div data-testid="job-detail-posting" className="border-t border-border py-6">
+        <div data-testid="job-detail-posting" className="py-4">
             <h2 className="mb-2 text-sm font-semibold text-foreground">About this role</h2>
             {blocks.length > 0 ? (
-                <div className="max-w-[640px]">
+                <div className={READING_MEASURE}>
                     <FormattedJobDescription description={job.description} headingLevel={3} />
                 </div>
             ) : (
-                <p className="max-w-[640px] text-base leading-normal text-foreground">
+                <p className={`${READING_MEASURE} text-base leading-normal text-foreground`}>
                     No description was captured for this role.{" "}
                     {job.apply_url ? `Use ${applyButtonLabel(signedOut)} to read the full details on the employer's site.` : "Try the original posting for full details."}
                 </p>
             )}
             {visibleTags(job.tags, 16).length > 0 && (
-                <div className="mt-5 border-t border-border pt-4">
+                <div className="mt-5">
                     {/* Rulebook item c: label + one flowing secondary line, no
                         bordered chips. Label stays visible; only the tag list
                         itself collapses below `lg` — same disclosure idiom as
@@ -559,7 +560,7 @@ export function JobDetailDocument({
     const employerCardEl = <EmployerCard job={job} companyBrand={companyBrand} cleanedCompany={cleanedCompany ?? ""} />;
 
     const aiBoxEl = (
-        <div className="border-t border-border py-6">
+        <div className="py-4">
             {/* Rulebook item f: exactly one filled Klein button per region —
                 Apply above is it, so this CTA reads as plain Klein text, no
                 fill/border. Same call-site override as JobDetail.tsx's SERP

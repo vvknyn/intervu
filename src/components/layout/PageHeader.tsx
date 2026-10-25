@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { PageTitle } from "@/components/ui/heading";
+import { READING_MEASURE } from "@/components/ui/prose";
 
 interface PageHeaderProps {
   title: string;
@@ -45,7 +46,7 @@ export function PageHeader({
       <PageTitle className={display ? undefined : "truncate"}>{title}</PageTitle>
       {description &&
         (display ? (
-          <div className="mt-1.5 text-meta text-muted-foreground">{description}</div>
+          <div className={cn("mt-1.5 text-meta text-muted-foreground", READING_MEASURE)}>{description}</div>
         ) : (
           <p className="text-sm text-muted-foreground">{description}</p>
         ))}
@@ -94,8 +95,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "border-b border-border bg-background",
-        sticky && "sticky top-0 z-50",
+        sticky ? "sticky top-0 z-50 material-bar" : "bg-background",
       )}
     >
       <PageContainer>

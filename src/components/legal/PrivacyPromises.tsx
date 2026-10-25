@@ -36,7 +36,7 @@ export function PrivacyPromises({
         <section
             aria-labelledby="privacy-promises-title"
             data-testid="privacy-promises"
-            className={cn("rounded-panel border border-border bg-card px-4 py-5 sm:px-6", className)}
+            className={cn("rounded-panel bg-surface px-4 py-5 sm:px-6", className)}
         >
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <SectionTitle id="privacy-promises-title">{heading}</SectionTitle>
@@ -49,7 +49,7 @@ export function PrivacyPromises({
                     </Link>
                 )}
             </div>
-            <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="mt-3 grid gap-5 sm:grid-cols-2">
                 {PRIVACY_PROMISES.map((promise) => {
                     const Icon = ICONS[promise.id];
                     return (

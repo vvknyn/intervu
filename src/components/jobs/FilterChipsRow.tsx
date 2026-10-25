@@ -2,7 +2,7 @@
 
 import { CaretDown } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { chipVariants } from "@/components/ui/chip";
+import { chipVariants, ToggleChip } from "@/components/ui/chip";
 import type { FacetDistribution, FacetKey, PostedBucket } from "@/lib/jobs/types";
 import { SALARY_PRESETS, appliedPostedBucket, postedBucketLabel, type FilterState } from "@/components/jobs/FilterPanel";
 import { toolbarChipClass } from "@/lib/jobs/toolbar-control-height";
@@ -173,15 +173,16 @@ export function FilterChipsRow({
                     <CaretDown size={16} weight="bold" />
                 </Chip>
             )}
-            <Chip
-                active={remoteActive}
+            <ToggleChip
+                selected={remoteActive}
                 disabled={remoteValue == null}
                 onClick={() => {
                     if (remoteValue) onToggleFacet("work_type", remoteValue);
                 }}
+                className={cn(toolbarChipClass, "shrink-0 leading-none gap-1")}
             >
                 Remote
-            </Chip>
+            </ToggleChip>
             <Chip
                 active={salaryActive}
                 onClick={() => onSalaryMin(nextSalaryPreset(state.salaryMin))}

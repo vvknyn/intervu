@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BLOG_POSTS, blogPostPath, formatBlogDate } from "@/lib/blog/posts";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const TITLE = "Velai blog";
@@ -24,7 +24,7 @@ export default function BlogIndexPage() {
   return (
     <PageContainer measure="reading" data-testid="blog-index" className="py-10">
       <PageTitle>Blog</PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">{DESCRIPTION}</p>
+      <PageLead>{DESCRIPTION}</PageLead>
 
       <ol className="mt-8 divide-y divide-border border-y border-border">
         {BLOG_POSTS.map((post) => (

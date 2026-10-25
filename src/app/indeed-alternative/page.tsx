@@ -7,7 +7,7 @@ import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { getGhostJobsStats } from "@/lib/research/ghost-jobs-snapshot";
 import { PUBLIC_ANTI_SCORE_SENTENCE } from "@/lib/marketing/public-copy";
 import { Prose } from "@/components/ui/prose";
-import { PageTitle, SectionTitle } from "@/components/ui/heading";
+import { PageTitle, SectionTitle, PageLead } from "@/components/ui/heading";
 import { PageContainer } from "@/components/layout/PageContainer";
 
 const { title: TITLE, description: DESCRIPTION, path: PATH } = INDEED_ALTERNATIVE;
@@ -34,9 +34,9 @@ export default function IndeedAlternativePage() {
       <PageTitle className="mt-3">
         The listing is still up. That doesn&apos;t mean they&apos;re hiring.
       </PageTitle>
-      <p className="mt-1.5 text-base text-muted-foreground">
+      <PageLead>
         velai reads the career page. Indeed sells the leftover ad.
-      </p>
+      </PageLead>
 
       <Prose className="mt-6">
         <p>

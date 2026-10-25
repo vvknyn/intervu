@@ -3,14 +3,13 @@ import Link from "next/link";
 import { MAX_MONTHS, MIN_MONTHS, PRO_MONTHLY_PRICE, REFUND_DAYS } from "@/app/pricing/offer";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { GHOST_JOB_TERM } from "@/lib/seo/ghost-job-term";
-import { LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { LegalDocFrame, LegalDocHeader } from "@/components/legal/LegalDocHeader";
+import { Prose } from "@/components/ui/prose";
+import { DocHeading } from "@/components/ui/on-this-page";
 import {
   ACCOUNT_SELF_SERVE_DELETION_FLOW,
   PUBLIC_SUPPORT_EMAIL,
 } from "@/lib/legal/public-contact";
-import { Prose } from "@/components/ui/prose";
-import { SectionTitle } from "@/components/ui/heading";
-import { PageContainer } from "@/components/layout/PageContainer";
 
 const TITLE = "Terms of Service";
 const DESCRIPTION = "The terms for using velai, including how we frame posting-check and risk signals.";
@@ -24,8 +23,7 @@ const LAST_UPDATED = "September 29, 2026";
 
 export default function TermsPage() {
   return (
-    <PageContainer measure="reading" data-testid="terms-page" className="py-10">
-      <div className="rounded-none border border-border bg-card p-6 sm:p-10">
+    <LegalDocFrame testId="terms-page">
         <LegalDocHeader title={TITLE} lastUpdated={LAST_UPDATED} />
 
         <Prose>
@@ -34,14 +32,14 @@ export default function TermsPage() {
           and we&apos;re actively improving how the service works. By using velai, you agree to the terms below.
         </p>
 
-        <SectionTitle>The service</SectionTitle>
+        <DocHeading>The service</DocHeading>
         <p>
           velai helps you search and track job listings, and prepare for interviews. The listings we show are
           collected from employers&apos; own public career pages — we don&apos;t invent listings, and we don&apos;t
           charge employers to be included.
         </p>
 
-        <SectionTitle>Posting-check and risk signals are automated observations, not guarantees</SectionTitle>
+        <DocHeading>Posting-check and risk signals are automated observations, not guarantees</DocHeading>
         <p>
           Posting-check and risk signals — labels like &quot;Possibly stale&quot; or &quot;Worth verifying&quot;,
           covering what the industry calls &quot;{GHOST_JOB_TERM}s&quot; — come from automated checks of facts we
@@ -52,7 +50,7 @@ export default function TermsPage() {
           input, not a verdict, when you decide where to spend your time.
         </p>
 
-        <SectionTitle>Acceptable use</SectionTitle>
+        <DocHeading>Acceptable use</DocHeading>
         <p>You agree not to:</p>
         <ul>
           <li>Scrape, crawl, or systematically extract data from velai</li>
@@ -64,7 +62,7 @@ export default function TermsPage() {
         </ul>
         <p>We may suspend or terminate accounts that violate these terms, including accounts we reasonably believe are engaged in abuse.</p>
 
-        <SectionTitle>Pricing and refunds</SectionTitle>
+        <DocHeading>Pricing and refunds</DocHeading>
         <p>
           Searching jobs, matching them against a résumé kept on your own device, and the application tracker are
           free. A paid month costs {PRO_MONTHLY_PRICE} and covers the features where Velai&apos;s servers or AI handle your résumé:
@@ -82,14 +80,14 @@ export default function TermsPage() {
           <Link href="/privacy">Privacy Policy</Link>.
         </p>
 
-        <SectionTitle>Employers</SectionTitle>
+        <DocHeading>Employers</DocHeading>
         <p>
           If a listing sourced from your company&apos;s careers site is incorrect, outdated, or you&apos;d like it
           removed, use the <Link href="/contact">contact page</Link> and include the listing URL. We&apos;ll act on
           legitimate requests.
         </p>
 
-        <SectionTitle>Account termination</SectionTitle>
+        <DocHeading>Account termination</DocHeading>
         <p>
           We may suspend or close an account that violates these terms or that we determine, in good faith, is
           being used to abuse the service. You may close your account at any time from{" "}
@@ -100,10 +98,10 @@ export default function TermsPage() {
           data.
         </p>
 
-        <SectionTitle>Changes</SectionTitle>
+        <DocHeading>Changes</DocHeading>
         <p>We may update these terms as the product changes. We&apos;ll update the date at the top of this page when we do.</p>
 
-        <SectionTitle>Contact</SectionTitle>
+        <DocHeading>Contact</DocHeading>
         <p>
           Questions: email{" "}
           <a href={`mailto:${PUBLIC_SUPPORT_EMAIL}`} className="text-foreground underline">
@@ -112,7 +110,6 @@ export default function TermsPage() {
           or use the <Link href="/contact">contact page</Link>.
         </p>
       </Prose>
-      </div>
-    </PageContainer>
+    </LegalDocFrame>
   );
 }

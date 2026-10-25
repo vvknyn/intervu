@@ -35,8 +35,8 @@ const tabsListVariants = cva(
         // A row wider than its box scrolls sideways inside the underline,
         // like the TopBar's phone tab strip, instead of pushing the page
         // wider (the /connect client tabs did at 320px).
-        default: "flex max-w-full overflow-x-auto no-scrollbar border-b border-border gap-0 bg-transparent p-0",
-        line: "flex max-w-full overflow-x-auto no-scrollbar border-b border-border gap-0 bg-transparent p-0",
+        default: "flex max-w-full overflow-x-auto no-scrollbar gap-0 bg-transparent p-0",
+        line: "flex max-w-full overflow-x-auto no-scrollbar gap-0 bg-transparent p-0",
       },
     },
     defaultVariants: {

@@ -1,4 +1,4 @@
-import { PageTitle } from "@/components/ui/heading";
+import { PageTitle, PageLead } from "@/components/ui/heading";
 import { formatCount } from "@/lib/format";
 /** Header band for `/companies/[slug]` — name + a single honest headline
  *  number. Plain font-display/tabular register, matching `TrendsHero`'s
@@ -8,9 +8,9 @@ export function CompanyHeader({ name, totalOpenRoles }: { name: string; totalOpe
   return (
     <header data-testid="company-header">
       <PageTitle>{name}</PageTitle>
-      <p className="mt-1.5 text-base text-foreground">
+      <PageLead className="text-foreground">
         {formatCount(totalOpenRoles)} {noun} tracked from the company's own postings
-      </p>
+      </PageLead>
     </header>
   );
 }
