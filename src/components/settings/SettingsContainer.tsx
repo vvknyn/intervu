@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { WarningOctagon, Trash } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import { deleteAccount, requestPasswordResetAction } from "@/actions/auth";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+    AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthPopover } from "@/components/auth/auth-popover";
@@ -263,7 +266,7 @@ export function SettingsContainer() {
 
                 <AuthPopover open={authPopoverOpen} onOpenChange={setAuthPopoverOpen} showTrigger={false} trigger="user" />
 
-                <Dialog
+                <AlertDialog
                     open={showDeleteDialog}
                     onOpenChange={(open) => {
                         if (!open && eraseNotice) {
@@ -277,28 +280,28 @@ export function SettingsContainer() {
                         }
                     }}
                 >
-                    <DialogContent
+                    <AlertDialogContent
                         className="rounded-panel"
                         onCloseAutoFocus={(event) => {
                             event.preventDefault();
                             deleteTriggerRef.current?.focus();
                         }}
                     >
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
                                 <WarningOctagon size={20} className="text-danger-text" />
                                 Delete Account
-                            </DialogTitle>
-                            <DialogDescription>
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
                                 This will permanently delete your account and all your data. This action cannot be undone.
-                            </DialogDescription>
-                        </DialogHeader>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
                         {eraseNotice ? (
                             <>
                                 <p className="py-2 text-sm text-foreground" role="alert">{eraseNotice}</p>
-                                <DialogFooter>
+                                <AlertDialogFooter>
                                     <Button onClick={() => void signOut()}>Sign out</Button>
-                                </DialogFooter>
+                                </AlertDialogFooter>
                             </>
                         ) : (
                             <>
@@ -314,24 +317,26 @@ export function SettingsContainer() {
                             />
                             {deleteError && <SettingsInlineError>{deleteError}</SettingsInlineError>}
                         </div>
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={isDeleting}>
-                                Cancel
-                            </Button>
-                            <Button
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
                                 variant="destructive"
-                                onClick={handleDeleteAccount}
+                                onClick={(event) => {
+                                    // Stay open: a failed delete shows its error here.
+                                    event.preventDefault();
+                                    void handleDeleteAccount();
+                                }}
                                 disabled={deleteConfirmText !== "DELETE" || isDeleting}
                                 className="gap-2"
                             >
                                 {isDeleting ? <InlineSpinner size={16} /> : <Trash size={16} />}
                                 {isDeleting ? "Deleting…" : "Delete Forever"}
-                            </Button>
-                        </DialogFooter>
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
                             </>
                         )}
-                    </DialogContent>
-                </Dialog>
+                    </AlertDialogContent>
+                </AlertDialog>
                 <LandingNotice surface="settings" />
             </div>
         </PageLayout>

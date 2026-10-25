@@ -303,23 +303,17 @@ test.describe('JOBS-FIRST-SCREEN - gate-free entry', () => {
         await expect(page.getByText(/updated (just now|\d+\s?(min|h|d)?\s?ago)/i)).toBeVisible();
     });
 
-    // Portal redesign rewrite: the "Sort results" combobox (with its own
-    // "Rank by fit" dropdown item) is gone — sort is now three plain
-    // `ToolbarSegment` buttons (page.tsx: freshest / top pay / third segment,
-    // see jobs-search-polish.spec.ts's TC-JOBS-SORT-001/002).
-    //
-    // Résumé fold (2026-08): the standalone "My résumé" chip and its own
-    // upload entry point are gone — the third sort segment is now
-    // résumé-aware instead (`chooseBestMatch`, page.tsx). Signed out (or
-    // signed in with no résumé on file, `resumeOnFile !== true`), it reads
-    // "relevance" and clicking it just sets plain relevance sort directly —
-    // no résumé prompt, no auth gate. Only `resumeOnFile === true` (a
-    // résumé already on file) makes it read "Best match" and rank by fit.
-    // Upload still has its own entry points elsewhere on the page
-    // (`beginResumeUpload`) — this control no longer opens one.
+    // Sort is one DropdownMenu at every width ("Sort: <label>" trigger,
+    // `jobs-sort-trigger`; items `jobs-sort-*`). Signed out (or signed in with
+    // no résumé on file, `resumeOnFile !== true`), the relevance item reads
+    // "Relevance" and choosing it sets plain relevance sort directly — no
+    // résumé prompt, no auth gate. Only `resumeOnFile === true` makes it read
+    // "Best match" and rank by fit. Upload has its own entry points elsewhere
+    // (`beginResumeUpload`) — this control never opens one.
     test("relevance sort activates directly for a signed-out visitor — no auth gate, no résumé prompt", async ({ page }) => {
         await page.goto('/jobs?posted=any');
-        await page.getByRole("button", { name: "relevance" }).click();
+        await page.getByTestId("jobs-sort-trigger").click();
+        await page.getByRole("menuitem").and(page.getByTestId("jobs-sort-relevance")).click();
         await expect(page.getByRole("dialog")).not.toBeVisible();
         await expect(page).toHaveURL(/sort=relevance/);
     });
