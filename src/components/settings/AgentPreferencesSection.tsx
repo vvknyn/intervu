@@ -317,10 +317,11 @@ export function AgentPreferencesSection({ user, onLoginClick, embedded }: AgentP
                             <div className="space-y-2">
                                 <Label>Minimum salary</Label>
                                 <Input
-                                    type="number"
-                                    min={0}
+                                    type="text"
+                                    inputMode="numeric"
+                                    enterKeyHint="done"
                                     value={salaryMin}
-                                    onChange={(e) => setSalaryMin(e.target.value)}
+                                    onChange={(e) => setSalaryMin(e.target.value.replace(/\D/g, ""))}
                                     placeholder="e.g. 120000"
                                 />
                             </div>

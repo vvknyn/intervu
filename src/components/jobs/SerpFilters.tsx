@@ -84,6 +84,13 @@ export function Affordance({
     );
 }
 
+/** The typed draft as a salary floor: digits only, so a pasted "-5", "$65,000"
+ *  or "abc" can never commit a negative or non-numeric value (the field is
+ *  type=text, which does no validation of its own). */
+export function parseSalaryMinDraft(draft: string): number {
+    return Number(draft.replace(/[^0-9]/g, "")) || 0;
+}
+
 /**
  * Free-form salary floor, alongside the SALARY_PRESETS ladder (G1) — writes
  * the exact same `salary_min` param the preset radios do, so there is one
@@ -107,10 +114,7 @@ export function SalaryCustomMinInput({
         setDraft(salaryMin > 0 ? String(salaryMin) : "");
     }, [salaryMin]);
 
-    const commit = () => {
-        const parsed = Math.max(0, Math.round(Number(draft.replace(/[^0-9]/g, "")) || 0));
-        onSalaryMin(parsed);
-    };
+    const commit = () => onSalaryMin(parseSalaryMinDraft(draft));
 
     return (
         // Wraps the field under its label when the column is narrow (a
@@ -121,10 +125,10 @@ export function SalaryCustomMinInput({
             <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
                 <span className="text-muted-foreground">$</span>
                 <input
-                    type="number"
-                    min={0}
-                    step={1000}
+                    type="text"
                     inputMode="numeric"
+                    pattern="[0-9]*"
+                    enterKeyHint="done"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onBlur={commit}

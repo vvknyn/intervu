@@ -54,6 +54,27 @@ const CONTROL =
  *  suite outright. */
 const ANY_JSX_TAG = /<[A-Za-z][A-Za-z.]*\b(?:"[^"]*"|'[^']*'|=>|[^>])*?\/?>/g;
 
+/** The compact-width 16px floor in globals.css, as the rule that decides it:
+ *  its selector and whether it sits at top level (unlayered). Unlayered is what
+ *  makes it beat a `text-xs` utility on a raw <input>; moved into @layer it
+ *  would lose to that utility and the page would zoom again. */
+function compactFontFloor(): { selector: string; unlayered: boolean } | null {
+    const m = /@media \(max-width: 1023px\) \{/.exec(GLOBALS);
+    if (!m) return null;
+    const depth = [...GLOBALS.slice(0, m.index)].reduce((d, c) => d + (c === "{" ? 1 : c === "}" ? -1 : 0), 0);
+    const rule = /(:where\([^{}]*?\))\s*\{\s*font-size:\s*max\(16px,\s*1em\);\s*\}/.exec(GLOBALS.slice(m.index));
+    return rule ? { selector: rule[1], unlayered: depth === 0 } : null;
+}
+
+test("every native text-entry control computes 16px on a phone through one unlayered rule", () => {
+    const floor = compactFontFloor();
+    assert.ok(floor, "the `font-size: max(16px, 1em)` compact-width rule is gone from globals.css");
+    assert.ok(floor.unlayered, "the 16px floor is inside an @layer, so a `text-xs` utility on a raw <input> beats it");
+    for (const part of ["input:not(", "select", "textarea", "[contenteditable]"]) {
+        assert.ok(floor.selector.includes(part), `the 16px floor no longer covers ${part}`);
+    }
+});
+
 test("no form control renders below 16px on a phone", () => {
     // iOS Safari zooms the page when a FOCUSED form control computes under
     // 16px, and it does not zoom back out — the user is left scrolled
@@ -72,6 +93,11 @@ test("no form control renders below 16px on a phone", () => {
         const withPlaceholder = (src.match(ANY_JSX_TAG) || []).filter((t) => /\bplaceholder=/.test(t));
         const tags = new Set([...(src.match(CONTROL) || []), ...withPlaceholder]);
         for (const tag of tags) {
+            // A native input/select/textarea is held at 16px by the unlayered
+            // compact-width floor asserted above, whatever size class it
+            // carries; everything else (components, custom editors) must
+            // prefix its own size.
+            if (/^<(input|textarea|select)\b/.test(tag)) continue;
             // Three spellings, and the third is not optional: the primitives
             // compose their base class through `cn(...)`, so an extractor that
             // only understood `className="..."` read every primitive as having

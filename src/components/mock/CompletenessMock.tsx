@@ -702,12 +702,14 @@ export function CompletenessMock() {
                                 <Input
                                     readOnly
                                     defaultValue="product manager"
+                                    enterKeyHint="search"
                                     aria-label="Role search"
                                     className="ctl-lg min-w-[260px] flex-[1_1_260px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />
                                 <Input
                                     readOnly
                                     defaultValue="Remote"
+                                    enterKeyHint="search"
                                     aria-label="Location search"
                                     className="ctl-lg max-w-[200px] flex-[0_1_200px] rounded-none border-0 bg-black px-3.5 text-base md:text-sm text-[#ececec] shadow-none placeholder:text-[#5c636e] focus-visible:border-0 focus-visible:bg-black focus-visible:ring-0"
                                 />

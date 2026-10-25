@@ -182,10 +182,6 @@ export function matchesTrackerSearch(p: Pursuit, query: string): boolean {
     return `${p.company_name} ${p.position}`.toLowerCase().includes(q);
 }
 
-/** Bottom offset for fixed sheets so they sit above MobileTabBar on small screens. */
-export const TRACKER_SHEET_BOTTOM =
-    "bottom-[calc(var(--mobile-tabbar-h,0px)+env(safe-area-inset-bottom,0px))] lg:bottom-0";
-
 export function daysInTracker(p: Pursuit, nowMs: number = Date.now()): number {
     const created = Date.parse(p.created_at);
     if (Number.isNaN(created)) return 0;

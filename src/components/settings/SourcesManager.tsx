@@ -499,6 +499,7 @@ export function SourcesManager({ sources, onChange }: SourcesManagerProps) {
                         <div className="relative flex-1">
                             <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
                             <Input
+                                enterKeyHint="search"
                                 placeholder="Search community sources..."
                                 value={communitySearch}
                                 onChange={(e) => setCommunitySearch(e.target.value)}

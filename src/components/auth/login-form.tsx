@@ -420,6 +420,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         id="email"
                                         type="email"
                                         autoComplete="email"
+                                        enterKeyHint="next"
                                         disabled={isPending}
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -434,6 +435,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                     type="text"
                                     autoCapitalize="none"
                                     autoComplete="username"
+                                    enterKeyHint="next"
                                     autoCorrect="off"
                                     disabled={isPending}
                                     value={username}
@@ -449,6 +451,7 @@ export function LoginForm({ onSuccess, onGuestAccess, defaultTab = "login", head
                                         type={showPassword ? "text" : "password"}
                                         autoCapitalize="none"
                                         autoComplete={activeTab === "signup" ? "new-password" : "current-password"}
+                                        enterKeyHint="go"
                                         disabled={isPending}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
