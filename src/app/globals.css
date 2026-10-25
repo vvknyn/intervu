@@ -838,11 +838,15 @@ body:has([data-shell="bleed"]) {
    ::before (`before:*` utilities) is skipped rather than half-overridden.
    @layer base + :where() keep this at zero specificity, so an explicit
    `absolute`/`fixed` utility on a control still wins over `position:relative`.
-   Replaced elements (input, select, textarea) cannot carry a pseudo-element,
-   so they sit on the `lg` step (44px) themselves. */
+   Text-entry controls (text-like and number inputs, select, textarea) cannot
+   carry a pseudo-element (measured in Chromium and WebKit; checkbox, radio,
+   file, range, color and date-likes do), so they sit on the `lg` step (44px)
+   themselves and are NOT positioned here: `position: relative` on them only
+   re-orders paint, hiding an absolute leading icon (z-index auto) that
+   precedes them under their opaque fill. */
 @layer base {
   @media (pointer: coarse) {
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"])) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]))) {
       position: relative;
     }
     :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg):where(:not([class*="before:"]))::before {
