@@ -512,7 +512,7 @@ describe("wikidataSector: the item that names the company decides", () => {
   const item = (label: string, ...industries: string[]) => ({ label, industries });
 
   it("takes the agreeing item over a subsidiary item, casing the label like other sectors", () => {
-    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry", "retail")], "Acme"), "Semiconductor Industry");
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry")], "Acme"), "Semiconductor Industry");
     assert.equal(wikidataSector([item("Globex", "airline"), item("Globex Bank", "banking")], "Globex"), "Airline");
   });
 
@@ -523,6 +523,12 @@ describe("wikidataSector: the item that names the company decides", () => {
 
   it("uses the shared industries when no item agrees but every item has the same ones", () => {
     assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "banking")], "Acme"), "Banking");
+  });
+
+  it("shows a sector only when exactly one industry remains after the generic filter", () => {
+    assert.equal(wikidataSector([item("Siemens", "electrical engineering", "electronics industry")], "Siemens"), null);
+    assert.equal(wikidataSector([item("Acme", "industry", "retail")], "Acme"), "Retail");
+    assert.equal(wikidataSector([item("Acme", "industry", "unknown")], "Acme"), null);
   });
 
   it("gives no sector for two agreeing items with different industries, or none at all", () => {

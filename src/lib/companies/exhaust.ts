@@ -330,7 +330,7 @@ export function resolveSector(row: Partial<SectorRow> | null, industries: readon
   return null;
 }
 
-/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the first industry of the matched item whose
+/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the matched item whose
  *  label names the company as displayed (`displayName`); with none agreeing, of the items only when every one has the same industries. */
 export function wikidataSector(items: readonly WikidataItem[], displayName: string): string | null {
   const key = (name: string) => siteKey(displayCompanyName(name));
@@ -339,8 +339,8 @@ export function wikidataSector(items: readonly WikidataItem[], displayName: stri
   const chosen = agreeing.length > 0 ? agreeing : items;
   const [first] = chosen;
   if (!first || chosen.some((item) => industriesKey(item) !== industriesKey(first))) return null;
-  const industry = first.industries.find((x) => !NON_SECTORS.has(x.trim().toLowerCase()));
-  return industry ? prettyEnum(machineTokenLabel(industry.trim())) : null;
+  const industries = first.industries.filter((x) => !NON_SECTORS.has(x.trim().toLowerCase()));
+  return industries.length === 1 ? prettyEnum(machineTokenLabel(industries[0]!.trim())) : null;
 }
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
