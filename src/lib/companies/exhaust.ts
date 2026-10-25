@@ -16,7 +16,7 @@
  */
 import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
-import { deriveBoardRoot } from "@/lib/companies/careers-board-root";
+import { pickBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 import { formatCount } from "@/lib/format";
@@ -349,7 +349,7 @@ function isJunkStoredCareersUrl(row: Partial<SectorRow>, url: URL): boolean {
 }
 
 /** THE careers-link resolver: the stored `career_page_url` when it is an http(s) address the pipeline did not
- *  judge junk, else the board root derived from the domain's latest posting URL, else null. */
+ *  judge junk, else the board root derived from the domain's recent posting URLs, else null. */
 export function resolveCareersUrl(row: Partial<SectorRow> | null): string | null {
   const raw = str(row?.careers_url)?.trim();
   if (raw) {
@@ -360,8 +360,7 @@ export function resolveCareersUrl(row: Partial<SectorRow> | null): string | null
       /* not a URL: fall through to the derived root */
     }
   }
-  const listing = str(row?.listing_url)?.trim();
-  return listing ? deriveBoardRoot(listing) : null;
+  return row?.domain && row.listing_urls?.length ? pickBoardRoot(row.listing_urls, row.domain) : null;
 }
 
 // ─────────────────────────────── row shapes ───────────────────────────────
@@ -442,8 +441,10 @@ export interface SectorRow {
   careers_url: string | null;
   /** company_boards.last_scrape_outcome: the pipeline's verdict on the stored URL. */
   last_scrape_outcome: string | null;
-  /** The domain's most recent posting URL, for deriving a board root when no stored URL is usable. */
-  listing_url: string | null;
+  /** The domain's 20 newest posting URLs (newest first), for deriving a board root when no stored URL is usable. */
+  listing_urls: string[] | null;
+  /** The domain the row was read for, which a derived root's tenant must agree with. */
+  domain: string;
 }
 
 /** The three sector columns the box holds for one domain, side by side so
@@ -456,10 +457,10 @@ async function fetchSectorRow(pg: Queryable, domain: string): Promise<SectorRow 
        (SELECT sector FROM company_boards WHERE company_domain = $1 LIMIT 1) AS boards,
        (SELECT career_page_url FROM company_boards WHERE company_domain = $1 LIMIT 1) AS careers_url,
        (SELECT last_scrape_outcome FROM company_boards WHERE company_domain = $1 LIMIT 1) AS last_scrape_outcome,
-       (SELECT url FROM job_listings WHERE company_domain = $1 ORDER BY first_seen_at DESC LIMIT 1) AS listing_url`,
+       (SELECT array_agg(url ORDER BY first_seen_at DESC) FROM (SELECT url, first_seen_at FROM job_listings WHERE company_domain = $1 ORDER BY first_seen_at DESC LIMIT 20) recent) AS listing_urls`,
     [domain],
   );
-  return rows[0] ?? null;
+  return rows[0] ? { ...rows[0], domain } : null;
 }
 
 /** Start of the record window: the Monday `RECORD_WINDOW_WEEKS - 1` weeks
