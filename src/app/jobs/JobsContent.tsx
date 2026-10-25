@@ -252,7 +252,7 @@ import {
     resolveEndOfListState,
 } from "@/lib/jobs/result-state";
 import { mergeUnderstood, understoodLine } from "@/lib/jobs/understood";
-import { retryDelayMs } from "@/lib/load-result";
+import { retryDelayMs, settleAction } from "@/lib/load-result";
 import { isDetailFetchInFlight, resolveDetailDescriptionPending } from "@/lib/jobs/description-section-state";
 import { recordOnboardingInteraction, getOnboardingInteractionCount } from "@/lib/jobs/onboarding-prompt";
 import {
@@ -3729,12 +3729,14 @@ export function JobsContent({
         });
         triggerSavePulse(job.id);
         try {
-            const res = await markJobAppliedAction({
-                company: job.company ?? "",
-                title: job.title,
-                applyUrl: job.apply_url,
-                jobId: job.id,
-            });
+            const res = await settleAction(
+                markJobAppliedAction({
+                    company: job.company ?? "",
+                    title: job.title,
+                    applyUrl: job.apply_url,
+                    jobId: job.id,
+                }),
+            );
             if (res.error) {
                 setOptimisticPursuits((prev) => {
                     const next = new Map(prev);
@@ -3812,7 +3814,7 @@ export function JobsContent({
         triggerSavePulse(job.id);
         void (async () => {
             try {
-                const res = await goAfterJobAction(job);
+                const res = await settleAction(goAfterJobAction(job));
                 if (res.error) {
                     setOptimisticPursuits((prev) => {
                         const next = new Map(prev);

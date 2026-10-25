@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -177,4 +177,21 @@ test("settleEnvelope: a hang past the ceiling is a failed load, not endless load
 
 test("ceiling is longer than the patience line (8 s) and shorter than the 53 s stall seen on prod", () => {
     assert.ok(ACTION_CEILING_MS > 8_000 && ACTION_CEILING_MS < 53_000);
+});
+
+// A client must never say "took too long" while the server is still inside its own deadline.
+test("settleAction: a call given a ceiling past ACTION_CEILING_MS is not a timeout when it answers after 30 s", async () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+        const answersAt = ACTION_CEILING_MS + 1_000;
+        const slowServer = () => new Promise<{ data: string }>((r) => setTimeout(() => r({ data: "done" }), answersAt));
+        const withDefault = settleAction(slowServer());
+        const withLonger = settleAction(slowServer(), answersAt + 1_000);
+        mock.timers.tick(ACTION_CEILING_MS);
+        assert.match(((await withDefault) as { error?: string }).error ?? "", /too long/i, "control: the default ceiling does report it");
+        mock.timers.tick(1_000);
+        assert.deepEqual(await withLonger, { data: "done" });
+    } finally {
+        mock.timers.reset();
+    }
 });

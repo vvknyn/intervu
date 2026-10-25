@@ -1,30 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useLinkStatus } from "next/link";
 import { InlineSpinner } from "@/components/ui/wait-state";
 
-/** A navigation that answers faster than this shows nothing (no flash). */
-export const LINK_PENDING_AFTER_MS = 150;
-
 /**
  * The pending mark for a `next/link` whose route is still loading: render it
- * as a CHILD of the `<Link>` (useLinkStatus reads the nearest one). Nothing
- * for the first 150 ms, then a small inline spinner until the page arrives,
- * so a click on a slow server visibly did something. Reduced motion stills
- * the spin through the site-wide rule in globals.css.
+ * as a CHILD of the `<Link>` (useLinkStatus reads the nearest one). A zero-
+ * width slot holds a spinner positioned inside it, so the label never moves
+ * when it appears. The `.link-pending-mark` rules in globals.css hold it
+ * back for `--transition-base` (a navigation that answers faster shows
+ * nothing) and dim the link while it shows; the site-wide
+ * `prefers-reduced-motion` rule stills the spin.
  */
 export function LinkPending() {
     const { pending } = useLinkStatus();
-    const [shown, setShown] = useState(false);
-    useEffect(() => {
-        if (!pending) {
-            setShown(false);
-            return;
-        }
-        const t = setTimeout(() => setShown(true), LINK_PENDING_AFTER_MS);
-        return () => clearTimeout(t);
-    }, [pending]);
-    if (!shown) return null;
-    return <InlineSpinner size={12} className="ml-1 inline-block align-[-1px] text-muted-foreground" />;
+    if (!pending) return null;
+    return (
+        <span className="link-pending-mark relative inline-block h-0 w-0 align-baseline">
+            <InlineSpinner size={12} className="absolute bottom-0 left-1 text-muted-foreground" />
+        </span>
+    );
 }

@@ -418,7 +418,7 @@ test("A name line with credentials (\"Amara Okafor, RN\") is the name, and the p
   expect(diagnostics.pageErrors).toEqual([]);
 });
 
-test("A server that answers 502 to the résumé read shows the load error with Try again, not endless loading", { tag: ["@J-RESUME-42"] }, async ({ page }) => {
+test("A server that answers 502 to the résumé read shows the load error with Try again, not endless loading", { tag: ["@J-RESUME-55"] }, async ({ page }) => {
   // The web pool's own "Bad gateway" is not an action response, so Next
   // rejects the call on the client; checking `{ error }` alone left the page
   // on "Loading your résumé" for good (Oct 25 stall).
