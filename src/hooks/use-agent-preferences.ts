@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
 import { normalizeLanguages } from "@/lib/match/posting-language";
+import { agentPreferencesRead, type AgentPreferencesRead, type HeldPreferences } from "@/lib/agent-preferences-read";
 import { settleAction } from "@/lib/load-result";
 
 /**
@@ -17,12 +18,8 @@ import { settleAction } from "@/lib/load-result";
  * surface at once, rather than re-ranking the lists mid-visit.
  */
 
-interface Read {
-    uid: string;
-    prefs: AgentPreferences | null;
-    /** The read never answered: `prefs` is unknown, not "none saved". Not kept, so the next mount reads again. */
-    failed?: true;
-}
+/** `failed`: the read never answered, so `prefs` is unknown, not "none saved". Not kept, so the next mount reads again. */
+type Read = HeldPreferences;
 
 let current: Read | null = null;
 let loading: string | null = null;
@@ -84,6 +81,8 @@ export function rememberAgentPreferences(uid: string, prefs: AgentPreferences) {
  * where the person looked.
  */
 export async function saveLanguageChoice(uid: string, languages: string[]): Promise<boolean> {
+    // Never save over preferences this visit has not read: the write would replace what is stored with a value it never held.
+    if (agentPreferencesRead(current, uid).status !== "ready") return false;
     const next = normalizeLanguages(languages);
     const before = current?.uid === uid ? current.prefs : null;
     const base: AgentPreferences = before ?? { configured: true, search: {}, answers: { custom: {} } };
@@ -102,11 +101,10 @@ export async function saveLanguageChoice(uid: string, languages: string[]): Prom
     return true;
 }
 
-export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean; failed: boolean } {
-    const read = useSyncExternalStore(subscribe, () => current, () => null);
+export function useAgentPreferences(uid: string | null): AgentPreferencesRead {
+    const held = useSyncExternalStore(subscribe, () => current, () => null);
     useEffect(() => {
         if (uid) void load(uid);
     }, [uid]);
-    if (!uid) return { prefs: null, settled: true, failed: false };
-    return read?.uid === uid ? { prefs: read.prefs, settled: true, failed: !!read.failed } : { prefs: null, settled: false, failed: false };
+    return useMemo(() => agentPreferencesRead(held, uid), [held, uid]);
 }

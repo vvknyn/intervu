@@ -168,3 +168,30 @@ test("A failed read of the saved preferences shows Retry on the languages row, n
   await expect(page.getByTestId("settings-languages-row")).toBeVisible();
   await expect(page.getByTestId("settings-languages")).toContainText(/german/i);
 });
+
+test("While the saved preferences are still being read, the languages row shows no value and sends no save; when the read answers it shows the stored language", { tag: ["@J-SETTINGS-36"] }, async ({ page }) => {
+  const saved = { configured: true, search: { languages: ["german"] }, answers: { custom: {} } };
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  let reads = 0;
+  const saves: string[] = [];
+  await answerActions(page, async (body, text) => {
+    if (body.includes("languages")) saves.push(body);
+    if (body !== "[]" || !text.includes("Unauthorized")) return undefined;
+    // The form reads first (twice, dev StrictMode); every read after that is the languages row's, and it hangs until released.
+    if (++reads > 2) await held;
+    return { data: saved };
+  });
+  await page.goto("/mock/settings?tab=prefs");
+
+  await expect(page.getByText("Loading your language")).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId("settings-languages-row")).toHaveCount(0);
+  await expect(page.getByTestId("settings-languages")).toHaveCount(0);
+  expect(saves).toEqual([]);
+
+  release();
+  await expect(page.getByTestId("settings-languages-row")).toBeVisible();
+  await expect(page.getByTestId("settings-languages")).toContainText(/german/i);
+  expect(saves).toEqual([]);
+});
