@@ -15,10 +15,10 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
-import { machineTokenLabel } from "@/lib/companies/machine-token";
+import { categoryLabel } from "@/lib/companies/machine-token";
 import { siteKey } from "@/lib/companies/company-name";
 import type { WikidataItem } from "@/lib/companies/indexable";
-import { displayCompanyName, prettyEnum } from "@/lib/jobs/presentation";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isTenantlessVendorUrl, pickBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
@@ -329,7 +329,7 @@ const NON_SECTORS = new Set([
 export function resolveSector(row: Partial<SectorRow> | null, industries: readonly string[] = []): string | null {
   for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards, ...industries]) {
     const sector = str(candidate)?.trim();
-    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return categoryLabel(sector);
   }
   return null;
 }
@@ -357,7 +357,7 @@ export function wikidataSector(items: readonly WikidataItem[], displayName: stri
     const form = sectorForm(x);
     if (form) forms.set(form.toLowerCase(), form);
   }
-  return forms.size === 1 ? prettyEnum(machineTokenLabel([...forms.values()][0]!)) : null;
+  return forms.size === 1 ? categoryLabel([...forms.values()][0]!) : null;
 }
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,

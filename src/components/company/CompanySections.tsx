@@ -10,7 +10,7 @@ import type { SectionId } from "@/lib/companies/company-sections";
 import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { listedOnPostings, listedOnRoles, statedOfTotal } from "@/lib/companies/facts-copy";
 import { exhaustHiringRecord, trackingStartedInWindow } from "@/lib/companies/hiring-record";
-import { machineTokenLabel } from "@/lib/companies/machine-token";
+import { categoryLabel } from "@/lib/companies/machine-token";
 import { careerHubPathFor } from "@/lib/companies/hub-link";
 import { companyBoardPath } from "@/lib/companies/paths";
 import { formatCount } from "@/lib/format";
@@ -101,7 +101,7 @@ const SECTION_VIEWS: Record<SectionId, (c: SectionContext) => ReactNode> = {
               p?.hqCountry && `HQ ${p.hqCountry}`,
               p?.yearFounded != null && `Founded ${p.yearFounded}`,
               p?.employees && `≈${p.employees} people`,
-              p && p.industries.filter((x) => machineTokenLabel(x) !== i.sector).join(", "),
+              p && p.industries.map(categoryLabel).filter((x) => x !== i.sector).join(", "),
             ]}
           />
         </div>
