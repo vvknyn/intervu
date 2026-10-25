@@ -323,6 +323,7 @@ import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBa
 import { domainToSlug } from "@/lib/boards/slug";
 import type { BoardId } from "@/lib/boards/types";
 import { toast } from "@/lib/toast";
+import { LinkPending } from "@/components/ui/link-pending";
 import { saveResumeToAccount } from "@/lib/jobs/save-resume-to-account";
 import type { JobsInitial } from "@/lib/jobs/server-entry";
 import { LandingNotice } from "@/components/layout/LandingNotice";
@@ -5849,6 +5850,7 @@ export function JobsContent({
                                             className="shrink-0 whitespace-nowrap text-foreground underline underline-offset-2 transition-opacity duration-100 hover:opacity-70"
                                         >
                                             Edit
+                                            <LinkPending />
                                         </Link>
                                         {!signedIn && guestResumeInBrowser && (
                                             <>

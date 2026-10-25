@@ -9,6 +9,7 @@ import { WaitState } from "@/components/ui/wait-state";
 import type { User } from "@/lib/firebase/client-auth";
 import { fetchResumeSummaryAction, uploadBaseResumeAction, deleteBaseResumeAction, type ResumeSummary } from "@/actions/resume-summary";
 import { saveResumeData } from "@/actions/resume";
+import { settleAction } from "@/lib/load-result";
 import { isAccountPaid, sendIfPaid } from "@/lib/account/paid-status";
 import { clearLocalAiResume, readLocalAiResume, writeLocalAiResume } from "@/lib/local-ai/resume-storage";
 import { resumeIsUsable } from "@/lib/resume/resume-usable";
@@ -122,7 +123,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
         (async () => {
             setStatus("loading");
             for (let attempt = 0; attempt < 4; attempt++) {
-                const res = await fetchResumeSummaryAction();
+                const res = await settleAction(fetchResumeSummaryAction());
                 if (cancelled) return;
                 if (!res.error && res.data) {
                     setSummary(effectiveResumeSummary(res.data, readLocalAiResume()));
@@ -266,13 +267,8 @@ function ResumeSummaryBody({
         startDeleteTransition(async () => {
             // A failed delete used to close the prompt and reload as if it
             // had worked.
-            try {
-                const res = await deleteBaseResumeAction();
-                if (res.error) {
-                    setDeleteError("Couldn't delete your résumé. Try again.");
-                    return;
-                }
-            } catch {
+            const res = await settleAction(deleteBaseResumeAction());
+            if (res.error) {
                 setDeleteError("Couldn't delete your résumé. Try again.");
                 return;
             }
@@ -441,7 +437,7 @@ function ResumeUploadForm({
                 onSaved();
                 return;
             }
-            const res = await uploadBaseResumeAction({ text, label: fileName ?? "Pasted text" });
+            const res = await settleAction(uploadBaseResumeAction({ text, label: fileName ?? "Pasted text" }));
             if (res.error) {
                 setError(res.error);
                 setPaywalled(isPaymentRequired(res));
