@@ -57,7 +57,6 @@ function input(overrides: Partial<CompanyFactsInput> = {}): CompanyFactsInput {
         jobs: [],
         openCount: { value: 0, isLowerBound: false },
         postingTotal: 0,
-        trackRecord: null,
         ghostFlaggedPct: null,
         facetDistribution: undefined,
         exhaust: null,
@@ -118,7 +117,6 @@ describe("buildCompanyFacts", () => {
                 openCount: { value: 1240, isLowerBound: false },
                 postingTotal: 1240,
                 jobs: [job({ id: "1", posted_at: "2026-10-01T00:00:00Z", posted_ts: Date.parse("2026-10-01T00:00:00Z"), last_observed_alive_at: "2026-10-20T00:00:00Z" })],
-                trackRecord: { opened90d: 40, closed90d: 12 },
                 facetDistribution: {
                     work_type: { remote: 700, hybrid: 100, unknown: 440 },
                     visa_sponsorship: { true: 30, false: 70 },
@@ -128,7 +126,6 @@ describe("buildCompanyFacts", () => {
             }),
         );
         assert.equal(f.hiring.openCount, 1240);
-        assert.equal(f.hiring.opened90d, 40);
         assert.equal(f.hiring.lastPostedAt, "2026-10-01T00:00:00Z");
         assert.equal(f.hiring.lastSeenAliveAt, "2026-10-20T00:00:00Z");
         assert.deepEqual(f.mix.workType, { buckets: [{ value: "Remote", count: 700 }, { value: "Hybrid", count: 100 }], stated: 800, total: 1240 });

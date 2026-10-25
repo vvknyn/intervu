@@ -44,9 +44,8 @@ import type { PublicJob } from "@/lib/jobs/types";
  * The first value any hit actually carries, or null when none does.
  *
  * `read` returning null/undefined means "this hit does not carry it", so a
- * reader can also express a composite that is only meaningful whole (see
- * `resolveTrackRecord`) and get single-document sourcing for free. Absence
- * stays null — it never becomes 0.
+ * reader can also express a composite that is only meaningful whole and get
+ * single-document sourcing for free. Absence stays null — it never becomes 0.
  */
 export function firstNonNull<T>(
   jobs: readonly PublicJob[],
@@ -59,18 +58,5 @@ export function firstNonNull<T>(
   return null;
 }
 
-/** An employer's open/close history for the trailing 90 days. */
+/** An employer's open/close history for the trailing 90 days, as one job document carries it (job pages only; company pages read `IntegrityFacts`). */
 export type TrackRecord = { opened90d: number; closed90d: number };
-
-/**
- * The company's 90-day history, taken whole from the first hit that carries
- * BOTH halves — which is what makes "half a history is not a track record" a
- * property of the data rather than a check some caller has to remember.
- */
-export function resolveTrackRecord(jobs: readonly PublicJob[]): TrackRecord | null {
-  return firstNonNull(jobs, (job) =>
-    typeof job.company_opened_90d === "number" && typeof job.company_closed_90d === "number"
-      ? { opened90d: job.company_opened_90d, closed90d: job.company_closed_90d }
-      : null,
-  );
-}
