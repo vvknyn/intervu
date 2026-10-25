@@ -46,6 +46,16 @@ describe("resolveCareersUrl", () => {
     for (const url of ["https://phh.tbe.taleo.net/phh04/ats/careers/v2/jobSearch?org=DCSCORP2&cws=37", "https://careers.example.com/v3/openings"])
       assert.equal(resolveCareersUrl({ careers_url: url, last_scrape_outcome: "EMPTY_BOARD", listing_urls: null, domain: "example.com" }), url);
   });
+  it("a URL stored beside REACHABLE_NO_CAREER_PAGE / UNSCRAPABLE_NO_URL was never confirmed: the derived root shows", () => {
+    for (const last_scrape_outcome of ["REACHABLE_NO_CAREER_PAGE", "UNSCRAPABLE_NO_URL"])
+      assert.equal(resolveCareersUrl({ careers_url: "https://acme.com/careers", last_scrape_outcome, listing_urls: [posting], domain: "stripe.com" }), "https://boards.greenhouse.io/stripe");
+  });
+  it("a tenantless ATS vendor URL is hidden; tenant-bearing and own-domain URLs are shown", () => {
+    for (const hidden of ["https://boards.greenhouse.io/", "https://jobs.lever.co", "https://acme.wd1.myworkdayjobs.com/"])
+      assert.equal(resolveCareersUrl({ careers_url: hidden, listing_urls: null, domain: "acme.com" }), null, hidden);
+    for (const shown of ["https://jobs.smartrecruiters.com/eurofins", "https://boards.greenhouse.io/acme", "https://acme.wd1.myworkdayjobs.com/External", "https://careers.acme.com"])
+      assert.equal(resolveCareersUrl({ careers_url: shown, listing_urls: null, domain: "acme.com" }), shown);
+  });
   it("no stored URL derives from the listing; an unknown host or a lone posting is never shown", () => {
     assert.equal(resolveCareersUrl({ careers_url: null, listing_urls: ["https://acme.bamboohr.com/careers/42"], domain: "acme.com" }), "https://acme.bamboohr.com/careers");
     assert.equal(resolveCareersUrl({ careers_url: null, listing_urls: ["https://acme.com/jobs/engineer-12"], domain: "acme.com" }), null);

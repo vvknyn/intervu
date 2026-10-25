@@ -16,7 +16,7 @@
  */
 import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
-import { pickBoardRoot } from "@/lib/companies/careers-board-root";
+import { isTenantlessVendorUrl, pickBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
 import { formatCount } from "@/lib/format";
@@ -342,11 +342,14 @@ const UNUSABLE_URL_OUTCOMES = new Set([
   "URL_DEAD_404",
   "SLUG_OWNERSHIP_MISMATCH",
   "SITE_PARKED",
+  // discovery never found a careers URL (subspace scrape-outcome.ts:28-29), so a URL stored beside them was never confirmed
+  "UNSCRAPABLE_NO_URL",
+  "REACHABLE_NO_CAREER_PAGE",
 ]);
 
-/** The pipeline's verdict that the stored URL is unusable (last_scrape_outcome), or an API endpoint. */
+/** The pipeline's verdict that the stored URL is unusable (last_scrape_outcome), an API endpoint, or an ATS vendor URL naming no tenant. */
 function isJunkStoredCareersUrl(row: Partial<SectorRow>, url: URL): boolean {
-  return UNUSABLE_URL_OUTCOMES.has(row.last_scrape_outcome ?? "") || API_ENDPOINT.test(url.hostname) || API_ENDPOINT.test(url.pathname);
+  return UNUSABLE_URL_OUTCOMES.has(row.last_scrape_outcome ?? "") || API_ENDPOINT.test(url.hostname) || API_ENDPOINT.test(url.pathname) || isTenantlessVendorUrl(url.href);
 }
 
 /** THE careers-link resolver: the stored `career_page_url` when it is an http(s) address the pipeline did not

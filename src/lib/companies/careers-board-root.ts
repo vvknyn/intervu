@@ -8,6 +8,7 @@ import { nameAgreeingWithDomain } from "@/lib/companies/company-name";
  * Unlike the original, an unrecognised host is null: one posting is never a careers link.
  */
 const NOT_A_TENANT = new Set(["embed", "api", "v1", "j", "jobs", "oneclick-ui", "www"]);
+const WORKDAY_HOST = /^[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com$/;
 const WORKDAY_LOCALE = /^[a-z]{2}(?:-[a-z]{2})?$/i;
 
 const firstSegment = (path: string): string | null => {
@@ -42,7 +43,7 @@ export function deriveBoardRoot(postingUrl: string): BoardRoot | null {
   if (!/^https?:$/.test(u.protocol)) return null;
   const host = u.hostname.toLowerCase();
 
-  if (/^[a-z0-9-]+\.wd\d+\.myworkdayjobs\.com$/.test(host)) {
+  if (WORKDAY_HOST.test(host)) {
     const segs = u.pathname.split("/").filter(Boolean);
     if (segs[0] && WORKDAY_LOCALE.test(segs[0])) segs.shift();
     return segs[0] ? { root: `https://${host}/${segs[0]}`, tenant: host.split(".")[0]! } : null;
@@ -73,4 +74,17 @@ export function pickBoardRoot(postingUrls: readonly string[], domain: string): s
   let best: string | null = null;
   for (const [root, n] of votes) if (best === null || n > votes.get(best)!) best = root; // Map keeps first-seen (newest) order, so strict > keeps the newest on a tie
   return best;
+}
+
+/** A URL on an ATS vendor host this module knows, from which no tenant can be read (the vendor's own search or home
+ *  page): it names no company, so it is not this employer's careers page. */
+export function isTenantlessVendorUrl(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  const known = WORKDAY_HOST.test(host) || [...SUBDOMAIN_TENANT, ...PATH_TENANT].some(([re]) => re.test(host));
+  return known && deriveBoardRoot(url) === null;
 }
