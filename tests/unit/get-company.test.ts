@@ -390,12 +390,11 @@ describe("getCompanyPageData: Wikidata industry sector", () => {
 
     it("fills an empty sector from the agreeing item, in the other sector labels' casing", async () => {
         const result = await page(null);
-        assert.equal(result?.exhaust?.sector, "Financial Services");
         assert.equal(result?.facts.identity.sector, "Financial Services");
     });
 
     it("never replaces a sector another source named", async () => {
-        assert.equal((await page("Fintech"))?.exhaust?.sector, "Fintech");
+        assert.equal((await page("Fintech"))?.facts.identity.sector, "Fintech");
     });
 
     it("leaves the sector empty for a company the directory does not list", async () => {
