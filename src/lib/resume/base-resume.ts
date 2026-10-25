@@ -19,12 +19,14 @@
 import { getAdminDb } from "@/lib/firebase/admin";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
-import { whenPaid } from "@/lib/resume/when-paid";
+import { hasPaidAccess } from "@/lib/billing/access";
 import type { ResumeData } from "@/types/resume";
 
 export type BaseResume =
     | { source: "resume_data"; resume_data: ResumeData }
     | { source: "resume_text"; resume_text: string }
+    /** Stored, but the account has no paid month: only the fact that a résumé is saved leaves the server, never its text. */
+    | { source: "locked" }
     | { source: "none" };
 
 /**
@@ -54,11 +56,18 @@ export function canonicalizeBaseResume(
  *  place that decides the canonical source. */
 export async function fetchBaseResumeDoc(
     uid: string,
-    isPaid?: (uid: string) => Promise<boolean>,
+    isPaid: (uid: string) => Promise<boolean> = hasPaidAccess,
+    read: (uid: string) => Promise<{ base: BaseResume; updatedAt: string | null }> = readBaseResumeDoc,
 ): Promise<{ base: BaseResume; updatedAt: string | null }> {
-    // The one server-side reader of the stored résumé for MCP, daily picks, Settings and the applied-role copy:
-    // an account without a paid month has none, whatever is still stored.
-    return whenPaid(uid, () => readBaseResumeDoc(uid), { base: { source: "none" }, updatedAt: null }, isPaid);
+    // The one server-side reader of the stored résumé for MCP, daily picks, Settings and the applied-role copy.
+    // An unpaid account is told that a résumé is saved ("locked"), never what it says.
+    const stored = await read(uid);
+    return (await isPaid(uid)) ? stored : lockedOf(stored);
+}
+
+/** What an unpaid account may learn of a stored résumé: that one exists, and when it was saved. */
+export function lockedOf(stored: { base: BaseResume; updatedAt: string | null }): { base: BaseResume; updatedAt: string | null } {
+    return stored.base.source === "none" ? stored : { base: { source: "locked" }, updatedAt: stored.updatedAt };
 }
 
 async function readBaseResumeDoc(uid: string): Promise<{ base: BaseResume; updatedAt: string | null }> {

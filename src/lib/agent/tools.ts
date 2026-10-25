@@ -58,6 +58,7 @@ import { explainMatch } from "../match/explain";
 import { jobShareUrl } from "../jobs/share-url";
 import { displayCompanyBrand } from "../jobs/presentation";
 import { getSiteUrl } from "../seo/constants";
+import { LOCKED_RESUME_NOTE } from "../resume/locked-copy";
 import {
   EXPERIENCE_LEVELS, type ExperienceLevel,
   EMPLOYMENT_TYPES, type EmploymentType,
@@ -718,6 +719,10 @@ export async function toolGetJob(deps: ToolDeps, input: { id: string }): Promise
  *  never invents its own wording. */
 export const NO_RESUME_ERROR = noResumeText("for_you");
 
+function lockedResumeText(): string {
+  return `${LOCKED_RESUME_NOTE} Add a month at ${getSiteUrl()}/pricing`;
+}
+
 function noResumeText(tool: string): string {
   return `no résumé on file — call set_resume first, then retry ${tool}`;
 }
@@ -732,6 +737,7 @@ function textOnlyResumeText(tool: string, use: string): string {
 /** Why a tool that works from the structured résumé can't run: none on file,
  *  or text only (the connected AI structures it, as set_resume asks). */
 export function resumeNeededError(base: BaseResume, tool: string, use: string): string {
+  if (base.source === "locked") return lockedResumeText();
   return base.source === "resume_text" ? textOnlyResumeText(tool, use) : noResumeText(tool);
 }
 
@@ -754,6 +760,7 @@ function unusableResumeText(tool: string): string {
 function noResumeError(base: BaseResume): string {
   if (base.source === "resume_text") return TEXT_ONLY_RESUME_ERROR;
   if (base.source === "resume_data") return UNUSABLE_RESUME_ERROR;
+  if (base.source === "locked") return lockedResumeText();
   return NO_RESUME_ERROR;
 }
 
@@ -966,6 +973,7 @@ export async function toolDailyPicks(deps: ToolDeps, input: DailyPicksInput): Pr
   if (result.kind === "no-resume") {
     if (result.reason === "text-only") return { error: textOnlyResumeText("daily_picks", "ranks against") };
     if (result.reason === "unusable") return { error: unusableResumeText("daily_picks") };
+    if (result.reason === "locked") return { error: lockedResumeText() };
     return { error: noResumeText("daily_picks") };
   }
   if (result.kind === "unavailable") {

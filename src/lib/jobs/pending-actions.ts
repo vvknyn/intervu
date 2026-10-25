@@ -8,6 +8,8 @@
  *               site; after sign-in, resume tracking (apply-intent / mark
  *               applied) rather than blocking the outbound click.
  *   - upload  — gate: open the resume-import modal
+ *   - resume  — /resume's Edit or PDF on a device résumé: after sign-in, open
+ *               the editor or download the PDF the person asked for
  *
  * (A legacy `"gate"` kind — open the posting and write the tracker
  * application on replay — was superseded 2026-09-10 and retired 2026-09-18
@@ -43,14 +45,18 @@ import type { OriginSurface } from "@/lib/auth/gate-attempt";
  *  `PendingAction`'s `kind` union AND this module's own persisted-record
  *  validation both derive from. A new kind is covered by adding it here
  *  once, not by touching a second list. */
-export const PENDING_ACTION_KINDS = ["apply", "upload"] as const;
+export const PENDING_ACTION_KINDS = ["apply", "upload", "resume"] as const;
 
 export type PendingActionKind = (typeof PENDING_ACTION_KINDS)[number];
+
+/** What /resume does with the résumé once the sign-up it asked for is done. */
+export type ResumeIntent = "edit" | "pdf";
 
 /** Maps each kind to its payload type. */
 interface PendingActionPayloadByKind<Apply> {
     apply: Apply;
     upload: boolean;
+    resume: ResumeIntent;
 }
 
 /**
