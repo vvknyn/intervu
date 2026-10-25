@@ -162,85 +162,6 @@ export function buildCompanyJobsUrl(data: Pick<CompanyPageData, "domain">): stri
 
 const MS_PER_DAY = 86_400_000;
 
-/**
- * ms window for /jobs' own default recency filter
- * (`DEFAULT_URL_STATE.postedBucket`, lib/jobs/url-state.ts — "90d" today).
- * Deliberately NOT read from `BUCKET_MS` (lib/jobs/meilisearch.ts): that
- * constant is module-private, and meilisearch.ts is out of this change's
- * scope to edit into an export. Parsed off `DEFAULT_URL_STATE`'s own bucket
- * key instead — every `PostedBucket` but "older" is already an "Nd" string —
- * so this tracks the real default by construction rather than adding a
- * second hardcoded day count. `null` when the default is "any" (`undefined`)
- * or "older" (not a lookback window), i.e. there is no window to report a
- * fact about.
- */
-function defaultRecencyWindowMs(): number | null {
-  const bucket = DEFAULT_URL_STATE.postedBucket;
-  if (!bucket || bucket === "older") return null;
-  const days = Number.parseInt(bucket, 10);
-  return Number.isFinite(days) ? days * MS_PER_DAY : null;
-}
-
-/**
- * How many of the employer's open roles were posted inside /jobs' own
- * default recency filter — the fact that reconciles the page's "N open
- * roles, live right now" headline with /jobs' CTA target treating an
- * older-but-still-open role as too old to show by default. Stated as a fact
- * either way (all recent, none recent, or a genuine split), never as a
- * caveat or apology: a role posted outside the window is still open.
- *
- * Two things this must never do, both regressions of bugs this repo already
- * fixed once:
- *
- *  - Present a REQUEST WINDOW as the employer's role count. `data.jobs` is
- *    capped at `COMPANY_JOBS_FETCH_LIMIT` (200, get-company.ts); an employer
- *    with more open roles than that (measured live: stripe.com 582,
- *    amazon.com 18,352) would otherwise render "N of 200" as though 200
- *    were their count — exactly the `jobs.length`-as-count bug
- *    `resolveOpenCount` (open-count.ts) already exists to prevent, walked
- *    right around by a second reader of the same field. Gated on
- *    `sampleCoversAllRoles` — the SAME sample-vs-census check
- *    `ghostFlaggedPct`'s rendering already gates on, not a second,
- *    independently-drifting copy of it — when the window is only a partial
- *    sample, this returns "" (a supported, documented outcome) rather than
- *    a sentence that would need a caveat to be true.
- *  - Count an UNKNOWN posted date as evidence of age. A null `posted_ts`
- *    role goes in neither the numerator nor the denominator — this product
- *    surfaces what was observed, never fills a gap with an inference.
- *
- * INVARIANT: the denominator here always equals the open-role count the
- * page states one line above (`openCountText`), never a smaller "roles we
- * happened to have a date for." A partial known-date set is the same "do we
- * actually know enough to say this?" question as the two bullets above, not
- * a separate case — so it folds into the same gate rather than a caveated
- * sentence over a shrunken denominator (e.g. "3 of 3" for a 5-role employer
- * where 2 dates are unknown would silently disagree with the "5 open roles"
- * headline). Render only when EVERY covered role has a known `posted_ts`;
- * otherwise "".
- */
-function buildFreshnessFact(
-  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
-  nowMs: number,
-): string {
-  const windowMs = defaultRecencyWindowMs();
-  if (windowMs == null || !sampleCoversAllRoles(data)) return "";
-  const jobs = data.jobs;
-  if (jobs.length === 0) return "";
-  const known = jobs.filter((j): j is PublicJob & { posted_ts: number } => j.posted_ts != null);
-  if (known.length !== jobs.length) return "";
-  const cutoff = nowMs - windowMs;
-  const recent = known.filter((j) => j.posted_ts >= cutoff).length;
-  const days = Math.round(windowMs / MS_PER_DAY);
-  const roles = known.length === 1 ? "open role" : "open roles";
-  // The zero case reads as a stilted "0 of N" when spelled out numerically —
-  // "None of the N ..." is the same fact in the phrasing a person would
-  // actually say. Every other split keeps the counted "N of M" form.
-  if (recent === 0) {
-    return `None of the ${known.length} ${roles} ${known.length === 1 ? "was" : "were"} posted in the last ${days} days.`;
-  }
-  return `${recent} of ${known.length} open roles were posted in the last ${days} days.`;
-}
-
 /** A role counts as seen live when Velai observed it alive (or ran its ghost
  *  check without flagging it) inside this window. */
 const LIVE_CHECK_DAYS = 7;
@@ -290,10 +211,6 @@ export type CompanyHiringAnswer = {
   /** The opened/closed record from `IntegrityFacts`; null when those are
    *  unavailable. No other source states it. */
   trackRecord: string | null;
-  /** See `buildFreshnessFact`. Empty string when there is no fetched role to
-   *  measure or no default window to measure against — the page renders it
-   *  conditionally, same as `trackRecord`'s sibling section. */
-  freshness: string;
 };
 
 /**
@@ -338,7 +255,6 @@ export function buildCompanyHiringAnswer(
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
     trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
-    freshness: buildFreshnessFact(data, nowMs),
   };
 }
 
@@ -384,34 +300,6 @@ export function typicalPayText(jobs: PublicJob[]): string | null {
   const lo = formatSalaryAmount(Math.round(quantile(mids, 0.25)));
   const hi = formatSalaryAmount(Math.round(quantile(mids, 0.75)));
   return lo === hi ? `${currency} ${lo}/yr` : `${currency} ${lo}–${hi}/yr`;
-}
-
-/**
- * The stat row under the company header: what a job seeker decides on before
- * reading a list. Each figure counts the fetched roles, so the row only
- * renders when those are every open role (`sampleCoversAllRoles`); a figure
- * over a 200-role sample beside a company-wide headline would read as
- * company-wide. A figure with nothing behind it is left out, never zero-filled
- * except where zero is the answer (none posted recently).
- *
- * Pay and visa live in the public pay / visa sections (`CompanyFacts`), so
- * they are not repeated here.
- */
-export function buildCompanyRoleStats(
-  data: Pick<CompanyPageData, "jobs" | "openCount" | "openCountIsLowerBound">,
-  nowMs: number,
-): CompanyRoleStat[] {
-  const jobs = data.jobs;
-  if (jobs.length === 0 || !sampleCoversAllRoles(data)) return [];
-  const stats: CompanyRoleStat[] = [];
-
-  const windowMs = defaultRecencyWindowMs();
-  if (windowMs != null && jobs.every((j) => j.posted_ts != null)) {
-    const recent = jobs.filter((j) => (j.posted_ts as number) >= nowMs - windowMs).length;
-    stats.push({ key: "recent", value: formatCount(recent), label: `new in the last ${Math.round(windowMs / MS_PER_DAY)} days` });
-  }
-
-  return stats;
 }
 
 /** Real page data only — degrades to a generic line when there are zero open

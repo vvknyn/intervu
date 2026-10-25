@@ -11,9 +11,6 @@ import { actionObject, signInLikeProduction } from "./signed-in";
 
 const COMPANY = "/co/anthropic--com";
 const OTHER_COMPANY = "/co/openai--com";
-/** A smaller employer, for figures that only show when every open role is
- *  fetched (the stat row is census-gated). */
-const SMALLER_COMPANIES = ["/co/1password--com", "/co/outerboxdesign--com"];
 
 /**
  * Opens a company page and waits for it to settle. Every page remounts once
@@ -73,7 +70,7 @@ test("the posting chart prints each week's count, marks this week in progress an
     expect(tracked).toBeLessThanOrEqual(1);
     if (tracked === 1) {
         await expect(weeks.first()).toHaveAttribute("data-first-tracked", "true");
-        await expect(strip).toContainText("tracking since");
+        await expect(strip).not.toContainText("tracking since");
         await expect(strip).toContainText("First week tracked: includes roles already open");
     }
     // Counts are printed, not hover-only: every week with postings shows its number.
@@ -125,21 +122,15 @@ test("each role row says how old the posting is in its right rail, not a bare 'V
     await expect(page.getByTestId("company-role-search").getByText("View", { exact: true })).toHaveCount(0);
 });
 
-test("the stat row counts the company's own open roles, each figure with its label", { tag: ["@J-COMPANY-41"] }, async ({ page }) => {
+test("the stat row carries no posted-recently tile and no broken figure", { tag: ["@J-COMPANY-41"] }, async ({ page }) => {
     // Census-gated: an employer with more open roles than the page fetches shows no row.
     await openCompany(page);
     await expect(page.getByTestId("company-hiring-headline")).toBeVisible({ timeout: 30_000 });
-    let statRow = page.getByTestId("company-role-stats");
-    for (const company of SMALLER_COMPANIES) {
-        if ((await statRow.count()) > 0) break;
-        const response = await openCompany(page, company);
-        if (!response || response.status() >= 400) continue;
-        await expect(page.getByTestId("company-page")).toBeVisible({ timeout: 30_000 });
-        statRow = page.getByTestId("company-role-stats");
-    }
-    test.skip((await statRow.count()) === 0, "no employer tried has every open role fetched right now");
-    const text = (await statRow.textContent()) ?? "";
-    expect(text).not.toMatch(/NaN|undefined|null/);
+    // The old "new in the last N days" tile counted a third definition of "new"; the figures
+    // left are the résumé fit (signed-in) and the page's one hiring record.
+    await expect(page.getByTestId("company-page")).not.toContainText(/new in the last \d+ days/);
+    const statRow = page.getByTestId("company-role-stats");
+    if ((await statRow.count()) > 0) expect((await statRow.textContent()) ?? "").not.toMatch(/NaN|undefined|null/);
 });
 
 test("a signed-out visitor gets the site's one sign-up gate, back to this company, and no follow lock card", { tag: ["@J-COMPANY-42"] }, async ({ page }) => {

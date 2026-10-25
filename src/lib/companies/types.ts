@@ -142,7 +142,7 @@ export type CompanyPageData = {
    * inside the server component's render body — server components must stay
    * pure during render (a `Date.now()` call there is exactly the seam that
    * lets a cached/revalidated render bake in a stale value). Threaded to
-   * `buildCompanyHiringAnswer`/`buildFreshnessFact` (presentation.ts), which
+   * `buildCompanyHiringAnswer` (presentation.ts), which
    * stay pure functions taking an explicit timestamp so they're
    * unit-testable without mocking the clock.
    */

@@ -19,14 +19,14 @@ const exhaustWith = (openedCount: number, closed: number, trackedSinceIso: strin
   }) as unknown as CompanyExhaust;
 
 describe("job pages state the employer record from the shared integrity read only", () => {
-  it("tracked under 90 days: names the start, excludes the first-week backlog", async () => {
+  it("tracked inside the window: names the start, excludes the first-week backlog", async () => {
     const line = await companyHiringRecord("Zed.Example ", async (d) => (d === "zed.example" ? exhaustWith(7, 3, "2026-09-30T08:00:00Z") : null), NOW);
     assert.equal(line, "Tracked since the week of Sep 28, 2026: 7 roles opened after that first week, 3 closed.");
   });
 
-  it("tracked over 90 days: states the full window", async () => {
+  it("tracked before the window: states the full window", async () => {
     const line = await companyHiringRecord("acme.example", async () => exhaustWith(21, 18, "2026-02-02T08:00:00Z"), NOW);
-    assert.equal(line, "Last 90 days: 21 roles opened, 18 closed.");
+    assert.equal(line, "Last 13 weeks: 21 roles opened, 18 closed.");
     assert.doesNotMatch(line ?? "", /999|888/);
   });
 

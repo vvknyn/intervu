@@ -34,15 +34,15 @@ const hiringNow = (exhaust: CompanyExhaust | null) =>
   );
 
 describe("Hiring now states the opened/closed record from IntegrityFacts only", () => {
-  it("tracked under 90 days: names the start and excludes the first-week backlog", () => {
+  it("tracked inside the window: names the start and excludes the first-week backlog", () => {
     const html = hiringNow(withIntegrity(31, 12, "2026-09-09T08:00:00Z"));
     assert.match(html, /Tracked since the week of Sep 7, 2026: 31 roles opened after that first week, 12 closed\./);
-    assert.doesNotMatch(html, /last 90 days/i);
+    assert.doesNotMatch(html, /last 13 weeks/i);
   });
 
-  it("tracked over 90 days: states the full window", () => {
+  it("tracked before the window: states the full window", () => {
     const html = hiringNow(withIntegrity(52, 40, "2026-03-02T08:00:00Z"));
-    assert.match(html, /Last 90 days: 52 roles opened, 40 closed\./);
+    assert.match(html, /Last 13 weeks: 52 roles opened, 40 closed\./);
     assert.doesNotMatch(html, /Tracked since/);
   });
 

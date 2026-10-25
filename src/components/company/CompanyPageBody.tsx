@@ -23,7 +23,6 @@ import { companyUnlockStep } from "@/lib/company/unlock-step";
 import {
   buildCompanyHiringAnswer,
   buildCompanyJobsUrl,
-  buildCompanyRoleStats,
   openCountText,
   sampleCoversAllRoles,
 } from "@/lib/companies/presentation";
@@ -70,7 +69,6 @@ export function CompanyPageBody({
   const hiring = buildCompanyHiringAnswer(data, data.nowMs);
   const staleShare = staleShareText(data);
   const faq = buildCompanyFaq(data.facts);
-  const roleStats = buildCompanyRoleStats(data, data.nowMs);
   const roles = (
     <CompanyRoleSearch
       jobs={data.jobs}
@@ -81,7 +79,6 @@ export function CompanyPageBody({
       searchesPartialWindow={!ghostPctIsCompanyWide}
       jobsSearchUrl={jobsSearchUrl}
       now={now}
-      stats={roleStats}
     />
   );
   const sectionIds = companySections(data.facts, { roleCount: data.jobs.length, relatedCount: related.length, faqCount: faq.length });
@@ -215,7 +212,7 @@ export function CompanyPageBody({
           <div className="mt-10">
             <CompanyExhaustGate slug={data.slug} displayName={data.name} teasers={exhaustGateTeasers} signedIn={signedIn}>
               <div className="space-y-8">
-                <CompanyIntegrityBand integrity={data.exhaust.integrity} nowMs={data.nowMs} />
+                <CompanyIntegrityBand integrity={data.exhaust.integrity} />
                 <CompanyTechStackBand techStack={data.exhaust.techStack} />
                 <CompanyFilingsBand exhaust={data.exhaust} />
               </div>

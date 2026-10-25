@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildH1bSection,
   buildH1bSentence,
+  buildHiringRecordSections,
   buildWarnSection,
   buildWarnSentence,
   buildWeeklyCadence,
@@ -16,7 +17,7 @@ import {
   type SecFacts,
   type WarnNoticeFacts,
 } from "../../src/lib/companies/exhaust";
-import { hiringRecordSentence, isoWeekStart } from "../../src/lib/companies/hiring-record";
+import { hiringRecordSentence, isoWeekStart, trackingStartedInWindow } from "../../src/lib/companies/hiring-record";
 import type { Queryable } from "../../src/lib/pg/pool";
 
 const NOW = Date.parse("2026-08-27T00:00:00Z");
@@ -103,8 +104,8 @@ describe("hiringRecordSentence", () => {
     trackedSinceIso,
   });
 
-  it("states the 90-day window when tracking began before it", () => {
-    assert.equal(hiringRecordSentence(facts(12, 1, "2025-01-10"), NOW), "Last 90 days: 12 roles opened, 1 closed.");
+  it("states the 13-week window when tracking began before it", () => {
+    assert.equal(hiringRecordSentence(facts(12, 1, "2025-01-10"), NOW), "Last 13 weeks: 12 roles opened, 1 closed.");
   });
 
   it("names the tracking start when it falls inside the window, and says the first week is left out", () => {
@@ -115,7 +116,63 @@ describe("hiringRecordSentence", () => {
   });
 
   it("reads an unknown tracking start as the full window", () => {
-    assert.equal(hiringRecordSentence(facts(2, 3, null), NOW), "Last 90 days: 2 roles opened, 3 closed.");
+    assert.equal(hiringRecordSentence(facts(2, 3, null), NOW), "Last 13 weeks: 2 roles opened, 3 closed.");
+  });
+});
+
+describe("trackingStartedInWindow", () => {
+  // NOW is Thu 2026-08-27; the 13 weeks run from Mon 2026-06-01.
+  it("is true from the first window week on, false for any earlier week or no start", () => {
+    assert.equal(trackingStartedInWindow("2026-06-01", NOW), true);
+    assert.equal(trackingStartedInWindow("2026-06-04", NOW), true);
+    assert.equal(trackingStartedInWindow("2026-05-31", NOW), false);
+    assert.equal(trackingStartedInWindow(null, NOW), false);
+  });
+});
+
+describe("buildHiringRecordSections: the strip's bars and the record are one number", () => {
+  const week = (weekStart: string, total: number, firstDay: string | null) => ({ week_start: weekStart, total, first_day: firstDay });
+  const build = (weekRows: { week_start: string | null; total: number | null; first_day: string | null }[], closed = 0) =>
+    buildHiringRecordSections(
+      { closedReasons: closed > 0 ? [{ closed_reason: "filled", n: closed }] : [], weekRows },
+      NOW,
+    );
+  /** Bars after the first tracked week, summed: what the record must equal. */
+  const barsAfterFirstWeek = (s: ReturnType<typeof build>) =>
+    (s.cadence?.data.weeks ?? []).filter((w) => !w.firstTracked).reduce((n, w) => n + w.newListings, 0);
+
+  it("first tracked week inside the window: the backlog bar is left out of the count", () => {
+    const s = build([week("2026-08-03", 40, "2026-08-05"), week("2026-08-10", 5, "2026-08-05"), week("2026-08-24", 2, "2026-08-05")], 3);
+    assert.equal(s.cadence?.data.weeks[0].firstTracked, true);
+    assert.equal(s.integrity?.data.openedCount, 7);
+    assert.equal(s.integrity?.data.openedCount, barsAfterFirstWeek(s));
+    assert.equal(
+      hiringRecordSentence(s.integrity!.data, NOW),
+      "Tracked since the week of Aug 3, 2026: 7 roles opened after that first week, 3 closed.",
+    );
+  });
+
+  it("tracked before the window: all 13 weeks count, and the sentence says so", () => {
+    const s = build([week("2026-06-01", 4, "2024-02-12"), week("2026-07-13", 9, "2024-02-12"), week("2026-08-24", 1, "2024-02-12")]);
+    assert.equal(s.cadence?.data.weeks.length, 13);
+    assert.ok(s.cadence?.data.weeks.every((w) => !w.firstTracked));
+    assert.equal(s.integrity?.data.openedCount, 14);
+    assert.equal(s.integrity?.data.openedCount, barsAfterFirstWeek(s));
+    assert.equal(s.integrity?.data.trackedSinceIso, "2024-02-12");
+    assert.equal(hiringRecordSentence(s.integrity!.data, NOW), "Last 13 weeks: 14 roles opened, 0 closed.");
+  });
+
+  it("tracked long ago but nothing opened in the window: a zero record over 13 zero bars", () => {
+    const s = build([{ week_start: null, total: null, first_day: "2024-02-12" }]);
+    assert.equal(s.cadence?.data.weeks.length, 13);
+    assert.equal(s.integrity?.data.openedCount, 0);
+    assert.equal(barsAfterFirstWeek(s), 0);
+  });
+
+  it("never seen the employer: no strip and no record, not a zero", () => {
+    assert.deepEqual(build([]), { cadence: null, integrity: null });
+    assert.deepEqual(build([{ week_start: null, total: null, first_day: null }]), { cadence: null, integrity: null });
+    assert.deepEqual(buildHiringRecordSections(null, NOW), { cadence: null, integrity: null });
   });
 });
 
@@ -254,14 +311,15 @@ describe("getCompanyExhaust — section isolation", () => {
     const pg: Queryable = {
       query: async <R,>(text: string) => {
         let rows: unknown[] = [];
-        if (text.includes("MIN(day)")) rows = [{ first_day: "2026-08-05" }];
-        else if (text.includes("company_posting_daily")) rows = [{ week_start: "2026-08-03", total: 40 }];
-        else if (text.includes("MIN(first_seen_at)")) rows = [{ n: 2, tracked_since: "2026-08-05", tracked: true }];
+        if (text.includes("first_day"))
+          rows = [
+            { week_start: "2026-08-03", total: 40, first_day: "2026-08-05" },
+            { week_start: "2026-08-17", total: 2, first_day: "2026-08-05" },
+          ];
         return { rows: rows as R[] };
       },
     };
     const result = await getCompanyExhaust("example.com", () => pg, NOW);
-    assert.equal(result?.cadence?.data.trackedSinceIso, "2026-08-05");
     assert.equal(result?.cadence?.data.weeks[0].weekStartIso, "2026-08-03");
     assert.equal(result?.cadence?.data.weeks[0].firstTracked, true);
     assert.equal(result?.integrity?.data.openedCount, 2);
@@ -271,13 +329,13 @@ describe("getCompanyExhaust — section isolation", () => {
   it("keeps a zero record for an employer tracked since before the window", async () => {
     const pg: Queryable = {
       query: async <R,>(text: string) => {
-        const rows = text.includes("MIN(first_seen_at)") ? [{ n: 0, tracked_since: null, tracked: true }] : [];
+        const rows = text.includes("first_day") ? [{ week_start: null, total: null, first_day: "2024-02-12" }] : [];
         return { rows: rows as R[] };
       },
     };
     const result = await getCompanyExhaust("example.com", () => pg, NOW);
     assert.equal(result?.integrity?.data.openedCount, 0);
-    assert.equal(result?.integrity?.data.trackedSinceIso, null);
+    assert.equal(result?.integrity?.data.trackedSinceIso, "2024-02-12");
   });
 
   it("reads job_listings only inside a bounded window, never every row the employer ever had", async () => {
@@ -293,9 +351,11 @@ describe("getCompanyExhaust — section isolation", () => {
     for (const sql of reads) {
       // A whole-row reference (`j.*`) detoasts every row's description.
       assert.doesNotMatch(sql, /\b\w+\.\*/);
-      // Every scan of the table is bounded by a date on the indexed domain.
+      // Every scan is bounded by the window start on the indexed domain, bar
+      // the one MIN(first_seen_at), an index read that never touches row bodies.
       const scans = sql.split(/FROM job_listings/).slice(1);
-      for (const scan of scans) assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) [<>]=? now\(\)/);
+      for (const scan of scans)
+        assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) >= \(date_trunc\('week', now\(\)|company_domain = \$1\) AS first_day/);
     }
   });
 
