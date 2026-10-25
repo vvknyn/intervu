@@ -417,3 +417,24 @@ test("A name line with credentials (\"Amara Okafor, RN\") is the name, and the p
   await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue("Amara Okafor");
   expect(diagnostics.pageErrors).toEqual([]);
 });
+
+test("A server that answers 502 to the résumé read shows the load error with Try again, not endless loading", { tag: ["@J-RESUME-42"] }, async ({ page }) => {
+  // The web pool's own "Bad gateway" is not an action response, so Next
+  // rejects the call on the client; checking `{ error }` alone left the page
+  // on "Loading your résumé" for good (Oct 25 stall).
+  let reads = 0;
+  await signIn(page, { unauthorized: {} });
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"] || req.postData() !== "[]") return route.fallback();
+      reads += 1;
+      return route.fulfill({ status: 502, contentType: "text/plain", body: "Bad gateway" });
+    },
+  );
+  await page.goto("/resume");
+  await expect(page.getByText("Couldn't load your résumé.")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  expect(reads, "the read was retried before giving up").toBeGreaterThanOrEqual(4);
+});
