@@ -207,6 +207,22 @@ async function expectSheetBar(page: Page, title: string | RegExp, content: Locat
     await expect(sheet).toBeHidden();
 }
 
+test("on a phone the Filters sheet holds filters only, in one column, over a sticky Clear all / Show results bar", { tag: ["@J-MOB-11"] }, async ({ page, diagnostics }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "a phone width");
+    await returningVisitor(page);
+    await page.goto("/jobs?q=engineer");
+    await page.getByTestId("filters-toggle").click();
+    const panel = page.getByTestId("filters-panel");
+    await expect(panel).toBeVisible();
+    await expect(panel.locator("a[href='/terms']")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear all" })).toBeVisible();
+    const show = page.getByRole("button", { name: /^Show (results|[\d,]+\+? jobs?)$/ });
+    await expect(show).toBeVisible();
+    await show.click();
+    await expect(panel).toBeHidden();
+    expect(diagnostics.pageErrors).toEqual([]);
+});
+
 test("on a phone every bottom sheet opens under the same bar: a title and a Close above its content (filters, tracker)", { tag: ["@J-MOB-25"] }, async ({ page, diagnostics }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "a phone width");
     await returningVisitor(page);
