@@ -317,6 +317,7 @@ import { listCandidates } from "@/lib/jobs/for-you/list-rows";
 import { FOR_YOU_READ_DEPTH, fitApplication, fitRankUrlState, fitUrlState, urlHasOwnIntent, packContentPhrases, packFilters } from "@/lib/jobs/for-you/pack-filters";
 import { resolveCandidateSignals, omitsPastSenior, resumeDefaultLanguages, type CandidateSignals } from "@/lib/jobs/candidate-signals";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { FitIntentGuard } from "@/lib/jobs/fit-intent";
 import { viewerDefaults } from "@/lib/jobs/viewer-defaults";
 import { buildJobSearchPayload, resumeContentMark, resumeSearchMark, urlSortToBackendSort } from "@/lib/jobs/search-payload";
@@ -1684,7 +1685,8 @@ export function JobsContent({
     // reads: the pack filters, the chip scores, the hub probe and "Rank by fit". Explicit
     // preferences override the résumé; a signed-out visitor resolves from the résumé alone.
     const uid = user?.uid ?? null;
-    const { prefs: agentPrefs } = useAgentPreferences(uid);
+    const prefsRead = useAgentPreferences(uid);
+    const agentPrefs = scoringPreferences(prefsRead);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
     seniorityRef.current = signals?.seniority ?? null;
     // The résumé's pack as a `/jobs` filter state: the hub probe counts it, and a fit-ranked result is read against it.
@@ -2761,7 +2763,8 @@ export function JobsContent({
     // Nothing is said twice: a list with no role to count has its headline in the empty state below.
     const recommendedLine = recommendedReady && recommended.slots.length > 0 ? formatHubFitLine(recommended.summary, recommended.slots.length) : null;
     const language = useLanguageChoice(uid);
-    const readLanguages = signals?.languages?.value ?? null;
+    // Only once the saved preferences have been read: before that the résumé's language stands in, and a save from it replaces the stored one.
+    const readLanguages = prefsRead.status === "ready" ? (signals?.languages?.value ?? null) : null;
     // The languages postings are read in: a control where roles written in another were left out, and wherever the
     // person has changed them. Saved to the account, so only for a signed-in one.
     const languagesControl = (leftOut?: Record<string, number>) =>

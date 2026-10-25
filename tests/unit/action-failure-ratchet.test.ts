@@ -89,7 +89,7 @@ const REMAINING: Record<string, number> = {
     "src/components/settings/SourcesManager.tsx": 9,
     "src/components/settings/YourResumeSection.tsx": 1,
     "src/hooks/use-adopt-guest-resume.ts": 2,
-    "src/hooks/use-agent-preferences.ts": 2,
+    "src/hooks/use-agent-preferences.ts": 1,
     "src/hooks/use-onboarding.ts": 2,
     "src/lib/follows/use-company-email-verified.ts": 1,
     "src/lib/follows/use-follows.ts": 1,

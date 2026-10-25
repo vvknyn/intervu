@@ -32,6 +32,7 @@ import { classifySentinel } from "@/lib/llm/sentinels";
 import { resolveCandidateSignals } from "@/lib/jobs/candidate-signals";
 import { scoreJobAgainstResume } from "@/lib/match/score";
 import { useAgentPreferences } from "@/hooks/use-agent-preferences";
+import { scoringPreferences } from "@/lib/agent-preferences-read";
 import { listGuestPursuits } from "@/lib/pursuits/guest-store";
 import { hasReachedStage, type Pursuit } from "@/lib/pursuits/types";
 import {
@@ -187,11 +188,12 @@ export function PublicJobDetail({
         };
     }, [user, authReady]);
     // The saved preferences the lists and Today score with, so this page's label matches theirs.
-    const { prefs: agentPrefs, settled: prefsSettled } = useAgentPreferences(user?.uid ?? null);
+    const prefsRead = useAgentPreferences(user?.uid ?? null);
+    const agentPrefs = scoringPreferences(prefsRead);
     const signals = useMemo(() => (resume ? resolveCandidateSignals(resume, agentPrefs) : null), [resume, agentPrefs]);
     const matchScore = resume && signals ? scoreJobAgainstResume(resume, job, signals) : null;
     const matchScoreFor = (target: PublicJob) => (resume && signals ? scoreJobAgainstResume(resume, target, signals) : null);
-    const matchPending = !authReady || !resumeSettled || !prefsSettled;
+    const matchPending = !authReady || !resumeSettled || prefsRead.status === "pending";
 
     const [reportJobEnabled, setReportJobEnabled] = useState(false);
     useEffect(() => {

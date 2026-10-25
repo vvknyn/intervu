@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { fetchAgentPreferencesAction, saveAgentPreferencesAction, type AgentPreferences } from "@/actions/agent-preferences";
 import { normalizeLanguages } from "@/lib/match/posting-language";
+import { agentPreferencesRead, type AgentPreferencesRead, type HeldPreferences } from "@/lib/agent-preferences-read";
+import { settleAction } from "@/lib/load-result";
 
 /**
  * The signed-in candidate's saved preferences, for `resolveCandidateSignals(resume, prefs)`.
@@ -16,10 +18,8 @@ import { normalizeLanguages } from "@/lib/match/posting-language";
  * surface at once, rather than re-ranking the lists mid-visit.
  */
 
-interface Read {
-    uid: string;
-    prefs: AgentPreferences | null;
-}
+/** `failed`: the read never answered, so `prefs` is unknown, not "none saved". Not kept, so the next mount reads again. */
+type Read = HeldPreferences;
 
 let current: Read | null = null;
 let loading: string | null = null;
@@ -43,19 +43,19 @@ const ATTEMPTS = 4;
 const RETRY_MS = 400;
 
 async function load(uid: string) {
-    if (current?.uid === uid || loading === uid) return;
+    if ((current?.uid === uid && !current.failed) || loading === uid) return;
     loading = uid;
     let prefs: AgentPreferences | null = null;
     for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
-        const res = await fetchAgentPreferencesAction().catch(() => null);
-        if (res?.data) {
+        const res = await settleAction(fetchAgentPreferencesAction());
+        if (res.data) {
             prefs = res.data;
             break;
         }
         if (attempt < ATTEMPTS - 1) await new Promise((resolve) => setTimeout(resolve, RETRY_MS));
     }
     // A newer account (or a Settings save) took over while this read was out.
-    if (loading === uid) publish({ uid, prefs });
+    if (loading === uid) publish(prefs ? { uid, prefs } : { uid, prefs, failed: true });
 }
 
 /** Read the account's preferences again (a new résumé just rewrote what the old one filled). */
@@ -81,6 +81,8 @@ export function rememberAgentPreferences(uid: string, prefs: AgentPreferences) {
  * where the person looked.
  */
 export async function saveLanguageChoice(uid: string, languages: string[]): Promise<boolean> {
+    // Never save over preferences this visit has not read: the write would replace what is stored with a value it never held.
+    if (agentPreferencesRead(current, uid).status !== "ready") return false;
     const next = normalizeLanguages(languages);
     const before = current?.uid === uid ? current.prefs : null;
     const base: AgentPreferences = before ?? { configured: true, search: {}, answers: { custom: {} } };
@@ -99,11 +101,10 @@ export async function saveLanguageChoice(uid: string, languages: string[]): Prom
     return true;
 }
 
-export function useAgentPreferences(uid: string | null): { prefs: AgentPreferences | null; settled: boolean } {
-    const read = useSyncExternalStore(subscribe, () => current, () => null);
+export function useAgentPreferences(uid: string | null): AgentPreferencesRead {
+    const held = useSyncExternalStore(subscribe, () => current, () => null);
     useEffect(() => {
         if (uid) void load(uid);
     }, [uid]);
-    if (!uid) return { prefs: null, settled: true };
-    return read?.uid === uid ? { prefs: read.prefs, settled: true } : { prefs: null, settled: false };
+    return useMemo(() => agentPreferencesRead(held, uid), [held, uid]);
 }
