@@ -26,8 +26,11 @@ function sourceFiles(dir: string): string[] {
 }
 
 const COMMENTS = /\/\*[\s\S]*?\*\/|(?<![:"'`])\/\/[^\n]*/g;
-// A class list never has capitals or sentence punctuation; a literal that does is prose.
+// Prose is decided per token, never per literal: a capitalised token (`Add`, a `[&_.Foo]` variant) or a
+// bare `?`/`:` (a ternary) is ignored alone and its literal's other tokens are still checked. Only a
+// word with sentence punctuation after it (`items,`) proves the whole literal is a sentence.
 const PROSE_TOKEN = /[A-Z]|[.,;:!?)(]$/;
+const SENTENCE_WORD = /\w[.,;:!?]$/;
 // Not class lists: `=== "x"` comparisons and `"a" | "b"` type unions.
 const LITERAL = /(?<![=!]==?\s*|\|\s*)(["'`])((?:\\.|(?!\1)[^\\\n])*)\1(?!\s*\|)/g;
 
@@ -36,16 +39,19 @@ export function candidatesIn(source: string): { token: string; line: number }[] 
     const code = source.replace(COMMENTS, (c) => c.replace(/[^\n]/g, ' '));
     const out: { token: string; line: number }[] = [];
     for (const m of code.matchAll(LITERAL)) {
-        const tokens = m[2].split(/\s+/);
-        if (tokens.some((t) => PROSE_TOKEN.test(t))) continue;
+        const tokens = m[2].split(/[\s"'`]+/);
+        if (tokens.some((t) => SENTENCE_WORD.test(t))) continue;
         const line = code.slice(0, m.index).split('\n').length;
-        for (const token of tokens) if (CANDIDATE.test(token)) out.push({ token, line });
+        for (const token of tokens) {
+            if (!PROSE_TOKEN.test(token) && CANDIDATE.test(token)) out.push({ token, line });
+        }
     }
     return out;
 }
 
 describe('every colour utility in src names a theme token', () => {
     it('candidatesIn skips arbitrary values and plain words', () => {
+        assert.deepEqual(candidatesIn('`bg-x ${open ? "bg-a" : "p-2"}` "Foo bg-y [&_.Bar]:p-1"').map((c) => c.token), ['bg-x', 'bg-a', 'bg-y']);
         assert.deepEqual(candidatesIn(`"bg-[#fff] hover:bg-surface text-left foo"`).map((c) => c.token), ['hover:bg-surface', 'text-left']);
         assert.deepEqual(candidatesIn('x === \"text-only\"; // bg-nope\ntype T = \"a\" | \"text-only\" | \"b\";\n\"Add to-do items, now.\"'), []);
     });
