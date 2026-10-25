@@ -181,12 +181,13 @@ function buildPay(jobs: readonly PublicJob[]): CompanyFacts["pay"] {
   return roles === 0 ? null : { typical: typicalPayText(us), roles, scope: PAY_SCOPE };
 }
 
-/** An ISO 3166 region code as an English country name, or null for a code Intl does not know. */
-function countryName(code: string): string | null {
+/** THE HQ formatter, whatever the source: an ISO 3166 alpha-2 code becomes its English country name (kept as is when Intl does not know it); any other string passes through. */
+function countryName(value: string): string {
+  if (!/^[A-Z]{2}$/.test(value)) return value;
   try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? null;
+    return new Intl.DisplayNames(["en"], { type: "region" }).of(value) ?? value;
   } catch {
-    return null;
+    return value;
   }
 }
 
@@ -208,7 +209,7 @@ function buildIdentityFacts(exhaust: CompanyExhaust | null | undefined, wikidata
     yearFounded: p?.yearFounded ?? wdFounded?.value ?? null,
     employees: p?.nbEmployees || (wdEmployees ? formatCount(wdEmployees.value) : null),
     employeesAsOf: p?.nbEmployees ? null : (wdEmployees?.item.employeesAsOf ?? null),
-    hqCountry: p?.hqCountry || wdHq?.value || null,
+    hqCountry: countryName(p?.hqCountry || wdHq?.value || "") || null,
     industries: p?.industries ?? [],
   };
   const fromHiringCafe = !!p && !!(p.tagline || p.yearFounded != null || p.nbEmployees || p.hqCountry || p.industries.length > 0);
