@@ -2,7 +2,7 @@
 
 import * as React from "react"
 // dialog-primitive-exempt: this IS the dialog primitive
-import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { Dialog as DialogPrimitive } from "radix-ui"
 import { X } from "@phosphor-icons/react"
 
 import { cn } from "@/lib/utils"
