@@ -131,7 +131,7 @@ const seedGuestResume = (page: Page) =>
  * holds no paid month (nothing readable, nothing stored), as a new sign-up does. The page reloads, as it does after
  * an OAuth or passkey sign-up, so the queued click must survive the round trip in sessionStorage.
  */
-async function guestWhoSignsUpLater(page: Page) {
+async function guestWhoSignsUpLater(page: Page, paid?: { serverResume: () => unknown; saved: (args: string) => void }) {
   let signedUp = false;
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({ json: { user: signedUp ? { uid: "journey-new", email: "jane@example.com", displayName: "Jane Doe" } : null }, headers: { "cache-control": "no-store" } }),
@@ -143,6 +143,14 @@ async function guestWhoSignsUpLater(page: Page) {
       if (req.method() !== "POST" || !req.headers()["next-action"]) return route.fallback();
       const res = await route.fetch();
       const text = await res.text();
+      if (signedUp && paid) {
+        // A paid account whose stored résumé is older than the one on this device (hasUsableResumeOnFile / fetchPaidStatusAction / fetchResumeSummaryAction / saveResumeData).
+        const args = req.postData() ?? "";
+        if (args !== "[]") return (paid.saved(args), route.fulfill({ response: res, body: flight({ success: true }) }));
+        if (text.includes('"hasResume":false')) return route.fulfill({ response: res, body: flight({ hasResume: true, updatedAt: "2026-01-01T00:00:00.000Z" }) });
+        if (text.includes('"paid":false')) return route.fulfill({ response: res, body: flight({ paid: true }) });
+        if (text.includes('"Unauthorized"')) return route.fulfill({ response: res, body: flight({ data: paid.serverResume() }) });
+      }
       if (signedUp && req.postData() === "[]" && text.includes('"hasResume":false')) return route.fulfill({ response: res, body: flight({ hasResume: false, paywalled: true }) });
       if (signedUp && req.postData() === "[]" && text.includes('"Unauthorized"')) return route.fulfill({ response: res, body: flight({ data: { source: "none", updatedAt: null } }) });
       return route.fulfill({ response: res, body: text });
@@ -182,6 +190,24 @@ for (const [tag, button, name] of [
     }
   });
 }
+
+test("A paid account with an older saved résumé gets the guest's Edit on the device résumé, and the editor stays open once it is saved", { tag: ["@J-RESUME-59"] }, async ({ page }) => {
+  let saved = false;
+  const stored = { source: "resume_data", updatedAt: "2026-01-01T00:00:00.000Z", resume_data: { ...GUEST_RESUME.data, profile: { ...GUEST_RESUME.data.profile, name: "Old Saved Name" } } };
+  const adopted = { source: "resume_data", updatedAt: GUEST_RESUME.updatedAt, resume_data: GUEST_RESUME.data };
+  await seedGuestResume(page);
+  const signUp = await guestWhoSignsUpLater(page, { serverResume: () => (saved ? adopted : stored), saved: () => { saved = true; } });
+  await page.goto("/resume");
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  await signUp();
+  await expect.poll(() => saved, { timeout: 30_000 }).toBe(true);
+  // The device copy is now the account's: the editor opens on it and is still there, not opened on the older copy and then closed by the reload of the section.
+  await expect(page.getByTestId("resume-editor-back")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Jane Doe").first()).toBeVisible();
+  await expect(page.getByText("Old Saved Name")).toHaveCount(0);
+});
 
 test("A guest's Sign up on a device résumé opens sign-up, records the open and queues nothing", { tag: ["@J-RESUME-58"] }, async ({ page }) => {
   await seedGuestResume(page);
@@ -403,7 +429,7 @@ test.describe("signed in (dev-server only)", () => {
     const card = page.getByTestId("settings-resume-locked");
     await expect(card).toBeVisible({ timeout: 30_000 });
     await expect(card.getByText("Your résumé is saved to your account")).toBeVisible();
-    await expect(card.getByText("Opening or editing it needs a paid month.")).toBeVisible();
+    await expect(card.getByText("To open or edit it, you need a paid month.")).toBeVisible();
     await expect(card.getByText(/Saved .*2026/)).toBeVisible();
     await expect(card.getByRole("link", { name: "See pricing" })).toHaveAttribute("href", "/pricing");
     await expect(card.getByRole("button", { name: /or upload a PDF or Word file to use on this device/ })).toBeVisible();

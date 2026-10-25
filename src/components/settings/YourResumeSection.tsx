@@ -29,7 +29,7 @@ import { InlineConfirm } from "@/components/ui/inline-confirm";
 import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
 import { LOCKED_RESUME_DETAIL, LOCKED_RESUME_TITLE } from "@/lib/resume/locked-copy";
-import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastKeptOnDevice } from "@/lib/resume/payment-required";
+import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastFailure, toastKeptOnDevice } from "@/lib/resume/payment-required";
 
 interface YourResumeSectionProps {
     user: User | null;
@@ -49,6 +49,14 @@ function formatDate(iso: string | null): string | null {
 }
 
 async function downloadBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
+    try {
+        await buildBaseResumePdf(summary);
+    } catch (e) {
+        toastFailure(e, "Couldn't make the PDF. Try again.");
+    }
+}
+
+async function buildBaseResumePdf(summary: Extract<ResumeSummary, { source: "resume_text" | "resume_data" }>) {
     const name = summary.source === "resume_data" ? summary.resume_data.profile?.name : null;
     const filename = deriveResumePdfFilename({
         company: null,
@@ -203,11 +211,16 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
     const content = (
         <section className={embedded ? undefined : "pt-6 border-t border-border"}>
             <h2 className="text-base font-semibold leading-snug mb-1">Your résumé</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-                {embedded
-                    ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
-                    : "The resume your agent has on file."}
-            </p>
+            {/* The locked card says all there is to say; the usual subtitle talks of a template to edit. */}
+            {summary?.source === "locked" ? (
+                <div className="mb-4" />
+            ) : (
+                <p className="text-sm text-muted-foreground mb-4">
+                    {embedded
+                        ? "One base file. Edit the template in the browser, or upload a PDF or Word file."
+                        : "The resume your agent has on file."}
+                </p>
+            )}
 
             {status === "loading" && (
                 <WaitState label="Loading your résumé" className="py-2" />
@@ -225,7 +238,7 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             {status === "ready" && summary && (
                 viewMode === "upload" ? (
                     <ResumeUploadForm
-                        showCancel={summary.source !== "none" && summary.source !== "locked"}
+                        showCancel={summary.source !== "none"}
                         onCancel={() => setViewMode("summary")}
                         onSaved={() => {
                             setViewMode("summary");
@@ -298,7 +311,7 @@ function ResumeSummaryBody({
 
     const deleteControl = confirmingDelete ? (
         <InlineConfirm
-            prompt="Delete this résumé and its saved versions?"
+            prompt={summary.source === "locked" ? "Delete the résumé saved to your account, and any copy on this device?" : "Delete this résumé and its saved versions?"}
             busy={deleting}
             busyLabel="Deleting…"
             onConfirm={handleDelete}

@@ -145,7 +145,7 @@ function ResumeContent() {
     // A guest who uploads here and then creates an account (Edit, PDF and
     // Sign up to sync all open sign-up) used to land on "No resume on file":
     // only /jobs moved the browser copy into the account.
-    useAdoptGuestResume(user?.uid ?? null, "resume_page", () => setAdoptedToken((t) => t + 1));
+    const adoptionSettled = useAdoptGuestResume(user?.uid ?? null, "resume_page", () => setAdoptedToken((t) => t + 1));
 
     const removeLocalResume = () => {
         clearLocalAiResume();
@@ -287,7 +287,7 @@ function ResumeContent() {
                         onLoginClick={() => openResumeAuth()}
                         embedded
                         onEditorActiveChange={setEditorOpen}
-                        intent={resumeIntent}
+                        intent={adoptionSettled ? resumeIntent : null}
                         onIntentDone={() => setResumeIntent(null)}
                     />
                 )}

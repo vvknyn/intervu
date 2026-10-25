@@ -5,7 +5,6 @@ import { getServerUser } from "@/lib/auth/server-user";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { ResumeData } from "@/types/resume";
 import { migrateLegacyProfile } from "@/lib/resume/profile-migration";
-import { fetchBaseResumeDoc } from "@/lib/resume/base-resume";
 import { resumeIsOnFile } from "@/lib/resume/resume-usable";
 import { hasResumeContent } from "@/lib/resume/has-content";
 import { syncPreferencesFromResume } from "@/lib/agent/resume-preferences";
@@ -20,10 +19,10 @@ import { hasPaidAccess, type PAYMENT_REQUIRED } from "@/lib/billing/access";
  * `resumeIsOnFile` bar rather than a second usability check — the client
  * gets a boolean, never the document.
  */
-export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null; paywalled?: true; locked?: true }> {
-    const { data, text, updatedAt, paywalled, locked } = await fetchResumeData();
-    // No paid month: nothing usable on file, so clients take their on-device branch (and know not to try saving); `locked` says one is saved.
-    if (paywalled) return { hasResume: false, paywalled, ...(locked ? { locked } : {}) };
+export async function hasUsableResumeOnFile(): Promise<{ hasResume: boolean; updatedAt?: string | null; paywalled?: true }> {
+    const { data, text, updatedAt, paywalled } = await fetchResumeData();
+    // No paid month: none on file, so clients take their on-device branch (and know not to try saving).
+    if (paywalled) return { hasResume: false, paywalled };
     const hasResume = resumeIsOnFile({ data, text });
     // A text-only résumé counts as on file without reading it here: the
     // browser structures it (`storedResumeData`), never this server.
@@ -48,8 +47,6 @@ export async function fetchResumeData(): Promise<{
     error?: string;
     /** No paid month on the account: nothing is read, so the browser's own copy stands in, as for a guest. */
     paywalled?: true;
-    /** With `paywalled`: a résumé is saved on the account (its presence and date only, never its content). */
-    locked?: true;
 }> {
     try {
         const user = await getServerUser();
@@ -60,11 +57,7 @@ export async function fetchResumeData(): Promise<{
 
         // The one stored-résumé read for the web: presence (`hasUsableResumeOnFile`), /jobs seeding,
         // the extension and every client lookup come through here, so an unpaid account reads as "none".
-        if (!(await hasPaidAccess(user.uid))) {
-            // Same presence decision as the Settings card and the connected AI (`fetchBaseResumeDoc`): "saved", never the text.
-            const { base, updatedAt } = await fetchBaseResumeDoc(user.uid, async () => false);
-            return { data: undefined, paywalled: true, ...(base.source === "locked" ? { locked: true as const, updatedAt } : {}) };
-        }
+        if (!(await hasPaidAccess(user.uid))) return { data: undefined, paywalled: true };
 
         const db = getAdminDb();
         const doc = await db.collection("profiles").doc(user.uid).get();
