@@ -4,6 +4,7 @@ import { LOCAL_AI_ENABLED_KEY } from "../../../src/lib/local-ai/flag";
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { descriptionToBullets } from "../../../src/lib/resume/merge-bullet-lines";
 import { expect, test } from "./fixtures";
+import { settled } from "./overlay";
 
 /**
  * Journeys for the shared overlay primitive (ui/dialog + ui/sheet) — see tests/journeys/CATALOG.md (J-MODAL-*).
@@ -44,6 +45,7 @@ const dialogBody = (dialog: Locator) => dialog.locator('[data-slot="dialog-body"
 
 /** Box of the element sits fully inside the viewport (no pixel of it unreachable). */
 async function expectInViewport(page: Page, el: Locator) {
+  await settled(el);
   const box = await el.boundingBox();
   const vh = page.viewportSize()!.height;
   expect(box, "element has a box").not.toBeNull();
@@ -59,7 +61,7 @@ async function expectInViewport(page: Page, el: Locator) {
 async function wheelRevealsAboveFooter(page: Page, dialog: Locator, target: Locator, footer: Locator | null) {
   const vh = page.viewportSize()!.height;
   // Wheel events aimed at a still-animating dialog land on stale coordinates.
-  await dialog.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  await settled(dialog);
   const dialogBox = (await dialog.boundingBox())!;
   await page.mouse.move(dialogBox.x + dialogBox.width / 2, dialogBox.y + dialogBox.height / 2);
   const revealed = async () => {
@@ -165,11 +167,6 @@ const GUEST_RESUME = {
   education: [],
   generatedSummary: "Senior software engineer with 7 years of experience building backend systems.",
 };
-
-/** Wait out the open animation. A cancelled animation (the overlay re-renders as it opens) rejects `finished`; that one is done too. */
-async function settled(el: Locator) {
-  await el.evaluate((node) => Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined))));
-}
 
 /** The dialog is the topmost layer where `el` is drawn: its centre hits `el`, not a scrim stacked above. */
 async function isTopmost(el: Locator) {
