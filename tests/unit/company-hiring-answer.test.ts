@@ -138,7 +138,7 @@ describe("companies/presentation — the rail's hiring record reads the box data
   });
 
   it("never falls back to the sync aggregate a job document carries", () => {
-    const synced = [job({ id: "1", company_opened_90d: 237, company_closed_90d: 117 })];
+    const synced = [{ ...job({ id: "1" }), company_opened_90d: 237, company_closed_90d: 117 } as PublicJob];
     assert.equal(buildCompanyHiringAnswer(company({ jobs: synced }), NOW).trackRecord, null);
     const answer = buildCompanyHiringAnswer(
       company({ jobs: synced, exhaust: withIntegrity(136, 117, "2026-01-05T00:00:00Z") }),

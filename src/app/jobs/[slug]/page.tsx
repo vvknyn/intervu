@@ -52,10 +52,8 @@ export async function generateMetadata({
     const where = locationText(job);
     const jobTitle = titleCaseDisplay(decodeText(job.title));
     const title = `${jobTitle}${company ? ` at ${company}` : ""}`;
-    const description =
-        job.company_opened_90d != null && job.company_closed_90d != null && company
-            ? `${company} opened ${job.company_opened_90d} roles in 90 days and closed ${job.company_closed_90d}. See the hiring record before you apply.`
-            : `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
+    // No opened/closed numbers here: a count baked into a meta tag is cached by crawlers and goes stale.
+    const description = `${jobTitle}${company ? ` at ${company}` : ""} — checked against companies' own career pages.`;
 
     const { index, follow } = indexabilityFor(path);
 

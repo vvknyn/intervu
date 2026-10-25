@@ -57,6 +57,3 @@ export function firstNonNull<T>(
   }
   return null;
 }
-
-/** An employer's open/close history for the trailing 90 days, as one job document carries it (job pages only; company pages read `IntegrityFacts`). */
-export type TrackRecord = { opened90d: number; closed90d: number };

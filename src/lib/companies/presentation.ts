@@ -16,7 +16,7 @@ import type { CompanyPageData } from "./types";
 import type { OpenCount } from "./open-count";
 import { canonicalMetadata } from "@/lib/seo/page-metadata";
 import { robotsMetadataFor } from "@/lib/seo/indexability";
-import { hiringRecordSentence } from "./hiring-record";
+import { exhaustHiringRecord } from "./hiring-record";
 import { formatSalaryAmount, isAnnualSalaryPeriod, normalizeSalaryAmount } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 import { DEFAULT_URL_STATE, serializeJobsUrl } from "@/lib/jobs/url-state";
@@ -327,7 +327,6 @@ export function buildCompanyHiringAnswer(
   const roles = data.openCount === 1 ? "open role" : "open roles";
   // The box database's record (job_listings) is the only source of the
   // opened/closed record, the one the integrity band and "Hiring now" print.
-  const integrity = data.exhaust?.integrity?.data ?? null;
   return {
     hasOpenRoles,
     // No "No" on the empty branch: the page knows what Velai tracks, not
@@ -338,7 +337,7 @@ export function buildCompanyHiringAnswer(
       ? `${openCountText(data)} ${roles} live on Velai right now`
       : "Velai isn't tracking any live open roles right now",
     liveCheck: buildLiveCheckFact(data, nowMs),
-    trackRecord: integrity ? hiringRecordSentence(integrity, nowMs) : null,
+    trackRecord: exhaustHiringRecord(data.exhaust, nowMs),
     freshness: buildFreshnessFact(data, nowMs),
   };
 }
