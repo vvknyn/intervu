@@ -190,6 +190,10 @@ test.describe("search combobox on a phone: full-screen search view", () => {
         await back.tap();
         await expect(layer(page)).toHaveCount(0);
         await expect(input).not.toBeFocused();
+        // One state: the list is closed too, so no listbox or anchored popover is left over the page.
+        await collapsed(input);
+        await expect(page.locator("[role=listbox]")).toHaveCount(0);
+        await expect(page.locator("[data-slot=combobox-popover]")).toHaveCount(0);
         expect(await log(page)).toEqual([]);
     });
 
@@ -279,6 +283,40 @@ test.describe("search combobox on a phone: full-screen search view", () => {
         await expect(input).toBeFocused();
     });
 
+    // The layer is the only list surface below lg: wherever the field is touched, no anchored popover opens.
+    // A screen reader's double-tap is a touchend on the field's exact centre with no click (React Aria turns it
+    // into a toggle of the list), so it is sent as exactly that; a finger lands off-centre.
+    test.describe("a touch on the focused field", () => {
+        test.use({ isMobile: true });
+        const touch = {
+            "at its exact centre": async (input: Locator) => {
+                // React Aria ignores a touchend in the page's first 500 ms (it would be VoiceOver's doubled one).
+                await input.page().waitForFunction(() => performance.now() > 600);
+                await input.evaluate((el) => {
+                    const r = el.getBoundingClientRect();
+                    const t = new Touch({ identifier: 1, target: el, clientX: Math.ceil(r.left + r.width / 2), clientY: Math.ceil(r.top + r.height / 2) });
+                    el.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, changedTouches: [t] }));
+                });
+            },
+            // A mouse press: Playwright's synthetic tap does not always get its click delivered (see the tests above).
+            "off-centre": (input: Locator) => input.click({ position: { x: 24, y: 10 } }),
+        };
+        for (const [where, touchField] of Object.entries(touch)) {
+            test(`${where} opens the layer, never a popover`, async ({ page }) => {
+                const input = await open(page);
+                await input.tap();
+                await input.press("Escape");
+                await collapsed(input);
+                await expect(layer(page)).toHaveCount(0);
+                await touchField(input);
+                await expect(layer(page)).toBeVisible();
+                await expanded(input);
+                await expect(page.locator("[data-slot=combobox-popover]")).toHaveCount(0);
+                await expect(input).toBeFocused();
+            });
+        }
+    });
+
     test("an unfocused tap still opens the layer with focus", async ({ page }) => {
         const input = await open(page);
         await input.tap();
@@ -316,7 +354,7 @@ test.describe("search combobox: what a typed query lists", () => {
     test("an error: the Search row plus one muted line saying suggestions are unavailable", async ({ page }) => {
         const input = await open(page, "error");
         await input.fill("zzz");
-        await expect(page.getByText("Suggestions are unavailable right now.")).toBeVisible();
+        await expect(page.getByRole("status").filter({ hasText: "Suggestions are unavailable right now." })).toBeVisible();
         await expect(page.getByRole("option")).toHaveText(['Search “zzz”']);
     });
 
@@ -324,6 +362,44 @@ test.describe("search combobox: what a typed query lists", () => {
         const input = await open(page);
         await input.focus();
         await expect(page.getByRole("option")).toHaveText(["Nurse", "Engineer"]);
+    });
+});
+
+/** A pointer that travels onto the row, as a hand does (a single jump lands without a move event on the row). */
+async function hoverRow(page: Page, row: Locator) {
+    const b = (await row.boundingBox())!;
+    await page.mouse.move(b.x + 10, b.y + 2);
+    await page.mouse.move(b.x + 60, b.y + b.height / 2, { steps: 5 });
+}
+
+test.describe("search combobox: a hovering pointer never changes what Enter runs", () => {
+    test("hover a row, press Enter: the typed words are searched", async ({ page }) => {
+        const input = await open(page);
+        // A pointer user: the library focuses a hovered row only after a pointer press (not in keyboard mode).
+        await input.click();
+        await input.fill("account");
+        const options = page.getByRole("option");
+        await expect(options).toHaveCount(5);
+        await hoverRow(page, options.nth(3));
+        await expect(options.nth(3)).toHaveAttribute("data-hovered", "true");
+        await expect(input).not.toHaveAttribute("aria-activedescendant", /.+/);
+        await input.press("Enter");
+        expect(await log(page)).toEqual(["search:account"]);
+    });
+
+    test("hover a row, then arrow to another and press Enter: the arrowed row runs", async ({ page }) => {
+        const input = await open(page);
+        // A pointer user: the library focuses a hovered row only after a pointer press (not in keyboard mode).
+        await input.click();
+        await input.fill("account");
+        const options = page.getByRole("option");
+        await expect(options).toHaveCount(5);
+        await hoverRow(page, options.nth(3));
+        await input.press("ArrowDown");
+        await input.press("ArrowDown");
+        await expect(input).toHaveAttribute("aria-activedescendant", (await options.nth(1).getAttribute("id"))!);
+        await input.press("Enter");
+        await expect.poll(() => log(page)).toEqual(["search:Accountant"]);
     });
 });
 

@@ -119,10 +119,11 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const [suggestLoading, setSuggestLoading] = useState(false);
     // The source rejected: told apart from "no matches", which is an empty list.
     const [suggestFailed, setSuggestFailed] = useState(false);
-    // Whether the list is wanted open — the combobox's own open state, reported
-    // through `onOpenChange`. It stays true while the list has nothing to show
-    // (`allowsEmptyCollection`), so a typed query can fetch the suggestions that
-    // will fill it.
+    // Whether the list is open — the combobox's own open state, reported
+    // through `onOpenChange`, and the ONE state for "open": the phone layer below
+    // is derived from it, so no path can open or close one without the other.
+    // It stays true while the list has nothing to show (`allowsEmptyCollection`),
+    // so a typed query can fetch the suggestions that will fill it.
     const [isOpen, setIsOpen] = useState(false);
     // Below `lg` the focused field becomes the standard full-screen search view
     // (back arrow + field on top, full-width rows below). The layer is a CSS
@@ -130,8 +131,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     // only for focus that happens inside the tap, so the input that took the tap
     // must be the one that stays mounted and focused.
     const compact = !useMediaQuery(LG_UP_QUERY);
-    const [layerOpen, setLayerOpen] = useState(false);
-    const layer = compact && layerOpen;
+    const layer = compact && isOpen;
     const visible = useVisibleViewport(layer);
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
     // same store the jobs page's landing chips render, so the dropdown
@@ -196,10 +196,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     useImperativeHandle(
         ref,
         () => ({
-            close: () => {
-                comboboxStateRef.current?.close();
-                setLayerOpen(false);
-            },
+            close: () => comboboxStateRef.current?.close(),
             focus: () => inputRef.current?.focus(),
         }),
         [],
@@ -286,18 +283,19 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     }, [value, history, isOpen, Boolean(suggest), Boolean(seeds && seeds.length > 0)]);
 
     // The one rule for what Enter runs: the words in the box. The combobox
-    // highlights a row ONLY from the arrow keys (pointer hover just draws), and
-    // reports it as `aria-activedescendant`; so Enter runs a suggestion exactly
-    // when the person picked one with the arrow keys (the library selects it,
-    // `onSelectionChange` below runs it), and otherwise searches the free text.
-    // It used to be that hover set the row, so a pointer resting where the list
-    // opened made "accountant" + Enter search the old first suggestion.
+    // highlights a row ONLY from the arrow keys — the list sets
+    // `shouldFocusOnHover={false}`, so the pointer just paints `data-hovered` —
+    // and reports it as `aria-activedescendant`; so Enter runs a suggestion
+    // exactly when the person picked one with the arrow keys (the library selects
+    // it, `onSelectionChange` below runs it), and otherwise searches the free
+    // text. The library's default is to focus the hovered row, so a pointer
+    // resting where the list opened made "accountant" + Enter search whatever
+    // row was under it.
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Escape") setLayerOpen(false);
         if (e.key !== "Enter" || e.currentTarget.hasAttribute("aria-activedescendant")) return;
         // `onSearch` is the search; a surrounding form must not submit it a second time.
         e.preventDefault();
-        setLayerOpen(false);
+        comboboxStateRef.current?.close();
         // Full-screen search is done: the keyboard drops so the results show. The desktop box keeps the cursor.
         if (compact) e.currentTarget.blur();
         onSearchRef.current();
@@ -308,9 +306,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const pickedRef = useRef(false);
     const pressOnFocusedRef = useRef(false);
     const openLayer = () => {
-        if (!compact) return;
-        setLayerOpen(true);
-        comboboxStateRef.current?.open(null, "focus");
+        if (compact) comboboxStateRef.current?.open(null, "focus");
     };
 
     const handleSelect = (key: Key | null) => {
@@ -329,7 +325,6 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // The same tick closes the list: the library opens it on ANY change
         // of the controlled text while focused, including the one above, so a
         // close issued before the re-render would be undone by it.
-        setLayerOpen(false);
         pickedRef.current = true;
         setTimeout(() => {
             comboboxStateRef.current?.close();
@@ -339,7 +334,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const suggestionList = (
         <>
-                    <ComboboxList aria-label="Search suggestions" className={layer ? "max-h-none" : undefined}>
+                    <ComboboxList aria-label="Search suggestions" shouldFocusOnHover={false} className={layer ? "max-h-none" : undefined}>
                         {(section: SuggestionSection) => (
                             <ComboboxSection key={section.id} id={section.id} aria-label={section.label ?? "Suggestions"} heading={section.label} items={section.rows}>
                                 {(row: SuggestionRow) => (
@@ -380,7 +375,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                             Loading suggestions…
                         </div>
                     )}
-                    {showSuggestFailed && <p className="px-4 py-3 text-sm text-muted-foreground">Suggestions are unavailable right now.</p>}
+                    {showSuggestFailed && <p role="status" className="px-4 py-3 text-sm text-muted-foreground">Suggestions are unavailable right now.</p>}
         </>
     );
 
@@ -430,10 +425,14 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 <button
                     type="button"
                     aria-label="Close search"
-                    // Back leaves search, as in native full-screen search: the layer closes
+                    // Back leaves search, as in native full-screen search: the list closes
                     // and focus moves off the field to this button (Safari does not focus buttons on tap),
-                    // so the keyboard drops. (Escape keeps the focus.)
-                    onClick={(e) => e.currentTarget.focus()}
+                    // so the keyboard drops. (Escape keeps the focus.) The button sits inside
+                    // the list surface, so the library does not close on that blur by itself.
+                    onClick={(e) => {
+                        e.currentTarget.focus();
+                        comboboxStateRef.current?.close();
+                    }}
                     className={cn("flex size-11 shrink-0 items-center justify-center text-foreground", CONTROL_FOCUS_VISIBLE)}
                 >
                     <ArrowLeft size={20} aria-hidden />
@@ -485,7 +484,6 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     }}
                     onBlur={() => {
                         pickedRef.current = false;
-                        setLayerOpen(false);
                     }}
                     onKeyDown={handleKeyDown}
                     autoFocus={autoFocus}
