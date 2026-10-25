@@ -13,6 +13,7 @@ import {
     getRecentSearchesServerSnapshot,
 } from "@/lib/jobs/recent-searches";
 import { LG_UP_QUERY, useMediaQuery } from "@/hooks/use-media-query";
+import { useVisibleViewport } from "@/hooks/use-visual-viewport";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 
 interface SearchAutocompleteProps {
@@ -85,7 +86,7 @@ export interface SearchAutocompleteHandle {
     focus: () => void;
 }
 
-// Fixed to the visual viewport's full height; the padding keeps the top row clear of a notch.
+// Fixed to the screen (dvh); while open it follows the visible viewport instead, see `useVisibleViewport`; the padding keeps the top row clear of a notch.
 const LAYER_STYLE: CSSProperties = {
     position: "fixed",
     inset: 0,
@@ -126,6 +127,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
     const compact = !useMediaQuery(LG_UP_QUERY);
     const [layerOpen, setLayerOpen] = useState(false);
     const layer = compact && layerOpen;
+    const visible = useVisibleViewport(layer);
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
     // same store the jobs page's landing chips render, so the dropdown
     // history and the chips can never disagree. Read-only here: recording
@@ -404,7 +406,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
             <ComboboxLayer
                 active={layer}
                 data-search-layer={layer ? "" : undefined}
-                style={layer ? LAYER_STYLE : undefined}
+                style={layer ? { ...LAYER_STYLE, ...(visible && { top: visible.top, bottom: "auto", height: visible.height }) } : undefined}
                 className={layer ? "z-[var(--z-sheet)] flex flex-col bg-background animate-in fade-in motion-reduce:animate-none" : "contents"}
             >
             <div className={layer ? "flex shrink-0 items-center gap-1 px-2 py-2" : "contents"}>
@@ -412,9 +414,10 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 <button
                     type="button"
                     aria-label="Close search"
-                    // Keep the focus on the field: the layer closes, the field stays the trigger.
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setLayerOpen(false)}
+                    // Back leaves search, as in native full-screen search: the layer closes
+                    // and focus moves off the field to this button (Safari does not focus buttons on tap),
+                    // so the keyboard drops. (Escape keeps the focus.)
+                    onClick={(e) => e.currentTarget.focus()}
                     className={cn("flex size-11 shrink-0 items-center justify-center text-foreground", CONTROL_FOCUS_VISIBLE)}
                 >
                     <ArrowLeft size={20} aria-hidden />
@@ -448,12 +451,14 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                     )}
                     enterKeyHint="search"
                     onFocus={() => !pickedRef.current && openLayer()}
-                    // A press on a field that already has focus (after Escape or the back
-                    // arrow) fires no focus event. Pointer-DOWN, not click: a pick closes the
+                    // A press on a field that already has focus (after Escape) fires no focus
+                    // event. Pointer-DOWN, not click: a pick closes the
                     // layer on pointer-up, and the click that follows lands on the field below.
-                    onPointerDown={() => {
+                    // An unfocused field opens on its focus event instead: moving it before it
+                    // takes focus makes WebKit drop the focus (no keyboard).
+                    onPointerDown={(e) => {
                         pickedRef.current = false;
-                        openLayer();
+                        if (document.activeElement === e.currentTarget) openLayer();
                     }}
                     onBlur={() => {
                         pickedRef.current = false;

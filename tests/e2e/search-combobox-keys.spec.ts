@@ -179,15 +179,32 @@ test.describe("search combobox on a phone: full-screen search view", () => {
         await expect(layer(page)).toBeVisible();
     });
 
-    test("the back button closes the layer and focus is on the trigger", async ({ page }) => {
+    test("the back button closes the layer and blurs the field, so the keyboard drops", async ({ page }) => {
         const input = await open(page);
         await input.tap();
         const back = page.getByRole("button", { name: "Close search" });
         expect(Math.round((await back.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
         await back.tap();
         await expect(layer(page)).toHaveCount(0);
-        await expect(input).toBeFocused();
+        await expect(input).not.toBeFocused();
         expect(await log(page)).toEqual([]);
+    });
+
+    test("the layer follows the visible viewport when the keyboard shrinks it", async ({ page }) => {
+        const input = await open(page);
+        await input.tap();
+        await expect(layer(page)).toBeVisible();
+        // iOS: the keyboard shrinks only the VISUAL viewport; dvh does not follow.
+        await page.evaluate(() => {
+            Object.defineProperty(window.visualViewport!, "height", { configurable: true, value: 150 });
+            window.visualViewport!.dispatchEvent(new Event("resize"));
+        });
+        await expect.poll(async () => Math.round((await layer(page).boundingBox())!.height)).toBe(150);
+        // The last row can be scrolled fully into the part that is still visible.
+        const last = page.getByRole("option").last();
+        await last.scrollIntoViewIfNeeded();
+        const row = (await last.boundingBox())!;
+        expect(row.y + row.height).toBeLessThanOrEqual(150 + 0.5);
     });
 
     test("picking a suggestion submits and closes the layer", async ({ page }) => {
