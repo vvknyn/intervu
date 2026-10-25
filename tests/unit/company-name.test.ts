@@ -815,4 +815,38 @@ describe("companies/company-name — a minority group never names the company", 
     assert.equal(a.value, "Globex");
     assert.equal(b.value, a.value);
   });
+  // Rows below are verbatim (name: count) from the 2026-10 live evidence, top rows per domain.
+  const name = (tally: Record<string, number>, domain: string) => resolveCompanyName(rows(tally), domain).value;
+  const servpro = {
+    "SERVPRO of East Mahoning County": 15,
+    "SERVPRO Team Nichols": 8,
+    "SERVPRO of Pewaukee & Sussex": 6,
+    "SERVPRO of Southwest Raleigh/Holly Springs": 6,
+    "SERVPRO of Allentown": 5,
+    "SERVPRO of the Ohio/Kentucky/Indiana Tri-State Area": 5,
+    "SERVPRO Team Landers": 4,
+    "SERVPRO - Frankfort": 3,
+  };
+
+  it("the root is a prefix of a real row and never ends on a connector, so '&' survives and 'of' goes", () => {
+    assert.equal(name({ "The Goddard School of Auburn, MA": 3, "The Goddard School of Edina, MN": 2, "The Goddard School of Novi (Grand River), MI": 1 }, "goddardschool.com"), "The Goddard School");
+    assert.equal(name({ "Voda Cleaning & Restoration of Jersey City": 3, "Voda Cleaning & Restoration of Afton": 2, "Voda Cleaning & Restoration of Concord and Walnut Creek": 2 }, "myvoda.com"), "Voda Cleaning & Restoration");
+    // another domain, same class: "SERVPRO of ..." rows
+    const r = resolveCompanyName(rows(servpro), "servproofbirmingham.com");
+    assert.equal(siteSpelling(displayCompanyName(r.value), ["SERVPRO", "SERVPRO of Birmingham"], "servproofbirmingham.com", r.rowSpelling), "SERVPRO");
+    assert.equal(name({ "LOGISTICS INSIGHT CORP.": 51, "UNIVERSMICHIGAN LLC": 28, "UNIVERSCAROLINA LLC": 19, "UNIVERSAL DEDICATED OF SMYRNA, TN LLC": 12, "UNIVERSAL MANAGEMENT SERVICES, INC.": 9, "UNIVERSAL DEDICATED OF DETROIT, MI LLC": 8, "UNIVERSAL DEDICATED OF GREER, SC LLC": 7, "UNIVERSAL DEDICATED OF ROMULUS, MI LLC": 7, "UNIVERSCAL LLC": 6, "UACL LOGISTICS, LLC": 5, "UNIVERSAL INTERMODAL SERVICES, INC.": 5, "UNIVERSAL DEDICATED OF NEBRASKA & WISCONSIN LLC": 5 }, "universallogistics.com"), "Universal");
+  });
+
+  it("a leading legal form is skipped only when the name as written fails the domain test", () => {
+    assert.equal(name({ "JSC Management Group": 145 }, "jscmanagement.com"), "JSC Management Group");
+    assert.equal(name({ "PT Astra Motor": 3 }, "astra.co.id"), "Astra Motor");
+  });
+
+  it("one group spelling the label is the domain's entity only from word starts across 2+ words, never as a domain echo", () => {
+    assert.equal(name({ veho: 87, "Veho Tech Inc": 85, shipveho: 6 }, "shipveho.com"), "Veho");
+    const franklin = { "Benjamin Franklin Plumbing of Tampa": 7, "Benjamin Franklin Plumbing of In-Town Atlanta, GA": 6, "Benjamin Franklin Plumbing of St Louis MO": 5, "Benjamin Franklin Plumbing Corporate Store": 2 };
+    assert.equal(name(franklin, "benjaminfranklinplumbingiowa.com"), "Benjamin Franklin Plumbing");
+    // another domain, same class: letters picked from inside a word ("Frost" + "ank" of Bankers) do not spell the label
+    assert.equal(name({ "Cullen/Frost Bankers Inc": 154, "Frost Insurance Agency, Inc.": 16, "Frost Brokerage Services, Inc.": 14, "Frost Investment Services, LLC": 2 }, "frostbank.com"), "Frost");
+  });
 });

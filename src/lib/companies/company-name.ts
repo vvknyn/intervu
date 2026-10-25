@@ -639,9 +639,15 @@ function stripLeadingLegalForm(name: string): string {
  *      ("LPSC Ayvens" on ayvens.com).
  */
 export function nameAgreeingWithDomain(candidate: string, domain: string): string | null {
+  const spaced = candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  // A leading legal form is skipped only when the name as written fails the domain test ("JSC Management Group" on jscmanagement.com keeps its JSC).
+  const withoutForm = stripLeadingLegalForm(spaced);
+  return agreeingPart(spaced, domain) ?? (withoutForm !== spaced ? agreeingPart(withoutForm, domain) : null);
+}
+
+function agreeingPart(spaced: string, domain: string): string | null {
   const host = domainLabels(domain);
   const { labels } = host;
-  const spaced = stripLeadingLegalForm(candidate.replace(/_/g, " ").replace(/\s+/g, " ").trim());
   const identifier = LEADING_IDENTIFIER_RE.exec(spaced)?.[1];
   const keepsIdentifier = identifier !== undefined && labels.some((label) => label.startsWith(alnum(identifier)));
   const stripped = identifier && !keepsIdentifier ? spaced.slice(identifier.length).replace(/^[-_\s]+/, "") : spaced;
@@ -790,11 +796,17 @@ function hostSpelledStem(groups: readonly NameGroup[], labels: readonly string[]
   return stem ? shownSpelling(stem.spellings) : null;
 }
 
-/** A display name's words as (spelling, comparison key) pairs; words with no letter or digit ("&", "-") are not words. */
+/** Does `name` spell the whole `label` from the starts of its words, across 2+ words ("Alpha Systems Inc" for alphasys)? A one-word name that is the label is the domain echoed, and letters picked from inside a word ("iow" of "In-Town") are not a spelling. */
+const spellsLabelFromWordStarts = (label: string, name: string): boolean => {
+  const words = wordsOf(name);
+  return unspelledTrailingWords(label, name) < Infinity && !words[0]?.text.startsWith(label) && composedFromPrefixes(label, words);
+};
+
+/** A display name's words as (prefix as written, comparison key) pairs; words with no letter or digit ("&", "-") are not words but stay inside the prefixes. */
 function nameWords(display: string): { raw: string; key: string }[] {
   return [...display.matchAll(/\S+/g)]
-    .map(([raw]) => ({ raw: raw.replace(/[,.;:]+$/, ""), key: alnum(raw) }))
-    .filter((word) => word.key !== "");
+    .filter(([word]) => alnum(word) !== "")
+    .map(({ 0: word, index }) => ({ raw: display.slice(0, index + word.replace(/[,.;:]+$/, "").length), key: alnum(word) }));
 }
 
 /**
@@ -812,12 +824,12 @@ function majorityBrandRoot(groups: readonly NameGroup[], domain: string): string
   }
   const roots = [...prefixes]
     .map(([key, len]) => ({ key, len, members: grouped.filter((g) => g.words.slice(0, len).map((w) => w.key).join(" ") === key) }))
-    .filter(({ members }) => members.reduce((sum, g) => sum + g.count, 0) * 2 > total)
+    .filter(({ key, members }) => !CONNECTORS.has(key.split(" ").pop()!) && members.reduce((sum, g) => sum + g.count, 0) * 2 > total)
     .sort((a, b) => b.len - a.len);
   for (const { len, members } of roots) {
     const spellings = new Map<string, number>();
     for (const { words, count } of members) {
-      const spelling = words.slice(0, len).map((w) => w.raw).join(" ");
+      const spelling = words[len - 1]!.raw;
       spellings.set(spelling, (spellings.get(spelling) ?? 0) + count);
     }
     const root = nameAgreeingWithDomain(shownSpelling(spellings), domain);
@@ -894,7 +906,7 @@ export function resolveCompanyName(jobs: readonly Pick<PublicJob, "company">[], 
     // otherwise the brand root they share does, and with neither the domain stays unnamed.
     if (best && best.count * 2 <= candidates.reduce((sum, g) => sum + g.count, 0)) {
       // One group spelling the host's label from the starts of its words ("Alpha Systems Inc" on alphasys.com) is the domain's own entity.
-      const spelling = candidates.filter((g) => host.labels.some((label) => unspelledTrailingWords(label, g.display) < Infinity));
+      const spelling = candidates.filter((g) => host.labels.some((label) => spellsLabelFromWordStarts(label, g.display)));
       const root = spelling.length === 1 ? null : majorityBrandRoot(candidates, domain);
       best = spelling.length === 1 ? spelling[0]! : root ? { count: 0, display: root, tokens: brandTokens(root), extends: 0 } : null;
     }
