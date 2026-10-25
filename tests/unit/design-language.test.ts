@@ -1377,3 +1377,20 @@ test("calm pass R4: backdrop-filter exists only in the one `material-bar` utilit
     assert.equal(uses, inUtil, "backdrop-filter appears in globals.css outside @utility material-bar");
     assert.match(util, /@supports not \(backdrop-filter: blur\(1px\)\)/, "material-bar needs an opaque fallback");
 });
+
+/**
+ * Reading measure lives in one token (READING_MEASURE in ui/prose.tsx, rem-based).
+ * A `ch` width resolves against the declaring element's own font, so the same
+ * class gives different pixel widths under prose-sm vs text-base.
+ */
+const CH_MEASURE = /max-w-prose|max-w-\[\d+ch\]/;
+
+test("reading measure: no max-w-prose or max-w-[<n>ch] outside prose.tsx", () => {
+    const offenders = walkTsxFiles(path.join(ROOT, "src"))
+        .filter((f) => path.basename(f) !== "prose.tsx")
+        .filter((f) => CH_MEASURE.test(readFileSync(f, "utf8")))
+        .map((f) => path.relative(ROOT, f));
+    assert.deepEqual(offenders, [], `use READING_MEASURE from @/components/ui/prose: ${offenders.join("; ")}`);
+    assert.equal(CH_MEASURE.test('<p className="max-w-[60ch]">'), true, "positive control: a ch width must be flagged");
+    assert.equal(CH_MEASURE.test('<p className="max-w-prose">'), true, "positive control: max-w-prose must be flagged");
+});

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { READING_MEASURE } from "@/components/ui/prose";
 import { jobPath } from "@/lib/jobs/job-slug";
 import { ArrowSquareOut, Check, Minus, SignIn, Warning, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -1086,7 +1087,7 @@ export function JobDetail({
                     everyone — posting text is public; Apply stays gated. */}
                 {/* Rulebook item d: sections stack on page bg, separated by a
                     32px of space (no rule) — no card/panel
-                    per section. Body copy sits at a max-w-prose reading measure. */}
+                    per section. Body copy sits at the READING_MEASURE. */}
                 <div className="py-4">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">About this role</h3>
                     {(() => {
@@ -1096,7 +1097,7 @@ export function JobDetail({
                         // with a conditional lead sentence rather than two near-
                         // identical paragraphs.
                         const pendingNote = (previewLead: boolean) => (
-                            <p className="max-w-prose text-base leading-relaxed text-foreground">
+                            <p className={`${READING_MEASURE} text-base leading-relaxed text-foreground`}>
                                 {previewLead && "This is only a preview. "}
                                 The employer&apos;s site is taking a while to answer, so the full description isn&apos;t here yet.
                                 {job.apply_url ? " Open the posting to read it there, or " : " "}
@@ -1121,7 +1122,7 @@ export function JobDetail({
                                     <>
                                         <div
                                             data-testid="job-detail-description"
-                                            className={cn("relative max-w-prose", collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
+                                            className={cn("relative", READING_MEASURE, collapsible && !descExpanded && "max-h-[20rem] overflow-hidden")}
                                         >
                                             <FormattedJobDescription description={job.description} headingLevel={4} />
                                             {collapsible && !descExpanded && (
@@ -1168,7 +1169,7 @@ export function JobDetail({
                             case "empty":
                             default:
                                 return (
-                                    <p className="max-w-prose text-base leading-relaxed text-foreground">
+                                    <p className={`${READING_MEASURE} text-base leading-relaxed text-foreground`}>
                                         No description was captured for this role.{" "}
                                         {job.apply_url ? (
                                             <>

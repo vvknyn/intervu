@@ -67,7 +67,7 @@ test("detector: leaves primitives, look-alike tokens, comments and marked lines 
     none(`<div className="mx-auto max-w-md p-0">x</div>`);
     none(`<form className="mx-auto max-w-sm space-y-4">x</form>`);
     none(`<h2 className="text-xl text-2 font-semibold">x</h2>\n<h3 className="text-sm text-muted-foreground">y</h3>`);
-    none(`import { Prose } from "@/components/ui/prose";\n<p className="max-w-prose not-prose prose-sm:mt-2">x</p>`);
+    none(`import { Prose } from "@/components/ui/prose";\n<p className="not-prose prose-sm:mt-2">x</p>`);
     none(`// <h1 className="text-4xl">old</h1>\n<PageTitle>new</PageTitle>`);
     none(`{/* page-scale-allow: a fixed toast, not a page column */}\n<div className="mx-auto max-w-sm px-4">`);
 });

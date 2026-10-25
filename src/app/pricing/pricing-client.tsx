@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageTitle, SectionTitle } from "@/components/ui/heading";
-import { Prose } from "@/components/ui/prose";
+import { Prose, READING_MEASURE } from "@/components/ui/prose";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cn, CONTROL_FOCUS_VISIBLE } from "@/lib/utils";
 import { PAID_FEATURES } from "@/lib/jobs/resume-privacy-copy";
@@ -96,7 +96,7 @@ export function PricingClient({ signedIn, billingConfigured, paidUntil, paidStat
     <PageContainer data-testid="pricing-page" className="py-10">
       <p className="text-xs font-semibold text-muted-foreground">Pricing</p>
       <PageTitle className="mt-3">One plan, {PRO_MONTHLY_PRICE} a month.</PageTitle>
-      <p className="mt-1.5 max-w-prose text-base text-muted-foreground">
+      <p className={`mt-1.5 ${READING_MEASURE} text-base text-muted-foreground`}>
         Searching is free. A paid month covers the parts where Velai keeps or reads your résumé for you.
       </p>
 

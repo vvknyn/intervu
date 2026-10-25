@@ -1,5 +1,6 @@
 "use client";
 
+import { READING_MEASURE } from "@/components/ui/prose";
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -609,7 +610,7 @@ export default function PursuitDetailPage() {
                         <h2 id="pursuit-about" className="mb-3 text-xs font-semibold">
                             About this role
                         </h2>
-                        <div data-testid="pursuit-description" className="max-w-prose">
+                        <div data-testid="pursuit-description" className={READING_MEASURE}>
                             <FormattedJobDescription description={snapshot?.description} headingLevel={3} />
                         </div>
                     </section>
