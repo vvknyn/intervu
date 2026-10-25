@@ -28,6 +28,7 @@ import {
     RESUME_UPLOAD_PROMISE,
     paidFeaturesSentence,
 } from "@/lib/jobs/resume-privacy-copy";
+import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
 import { FileText, UploadSimple, ShieldCheck, PencilSimple, DownloadSimple } from "@phosphor-icons/react";
 import { posterInlinePanelClassName } from "@/components/layout/route-loading";
@@ -101,6 +102,7 @@ function ResumeContent() {
     const [localResume, setLocalResume] = useState<ResumeData | null>(null);
     const [editorOpen, setEditorOpen] = useState(false);
     const [confirmingRemove, setConfirmingRemove] = useState(false);
+    const [resumeIntent, setResumeIntent] = useState<ResumeIntent | null>(null);
     // Bumped when a guest résumé lands in the account, so the account view
     // mounts again and reads it.
     const [adoptedToken, setAdoptedToken] = useState(0);
@@ -127,6 +129,8 @@ function ResumeContent() {
             upload: () => {
                 setImportModalOpen(true);
             },
+            // Edit or PDF clicked on a device résumé before signing up: the signed-in view carries it out (`YourResumeSection`'s `intent`).
+            resume: (action) => setResumeIntent(action.payload),
         },
         user,
     });
@@ -150,7 +154,8 @@ function ResumeContent() {
         setConfirmingRemove(false);
     };
 
-    const openResumeAuth = () => {
+    // Edit and PDF queue what was clicked and finish it after sign-up; Sign up queues nothing.
+    const openResumeAuth = (intent?: ResumeIntent) => {
         setAuthTrigger("user");
         recordAuthGateOpen({
             storage: window.sessionStorage,
@@ -160,6 +165,8 @@ function ResumeContent() {
         });
         if (!localResume) {
             gate({ kind: "upload", payload: true }, { originSurface: "resume_page", gateReason: "resume" });
+        } else if (intent) {
+            gate({ kind: "resume", payload: intent }, { originSurface: "resume_page", gateReason: "resume" });
         } else {
             setAuthOpen(true);
         }
@@ -221,7 +228,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openResumeAuth()}
+                                        onClick={() => openResumeAuth("edit")}
                                     >
                                         <PencilSimple size={16} className="mr-1" />
                                         Edit
@@ -229,7 +236,7 @@ function ResumeContent() {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openResumeAuth()}
+                                        onClick={() => openResumeAuth("pdf")}
                                     >
                                         <DownloadSimple size={16} className="mr-1" />
                                         PDF
@@ -280,6 +287,8 @@ function ResumeContent() {
                         onLoginClick={() => openResumeAuth()}
                         embedded
                         onEditorActiveChange={setEditorOpen}
+                        intent={resumeIntent}
+                        onIntentDone={() => setResumeIntent(null)}
                     />
                 )}
 

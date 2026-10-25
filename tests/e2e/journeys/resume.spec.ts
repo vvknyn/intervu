@@ -6,6 +6,8 @@ import { WRAPPED_RESUME, buildWrappedResumePdf } from "../../fixtures/wrapped-re
 import { LOCAL_AI_RESUME_KEY } from "../../../src/lib/local-ai/resume-storage";
 import { LEGACY_DOC_MESSAGE } from "../../../src/lib/resume/extract-file-text";
 import { RESUME_PAGE_SUBCOPY_SIGNED_IN } from "../../../src/lib/jobs/resume-privacy-copy";
+import { GATE_ATTEMPT_STORAGE_KEY } from "../../../src/lib/auth/gate-attempt";
+import { PENDING_ACTION_STORAGE_KEY } from "../../../src/lib/jobs/pending-actions";
 import { ONBOARDING_COMPLETED_STORAGE_KEY } from "../../../src/lib/jobs/onboarding-first-paint";
 import { measureResumeLayout, type LayoutPage } from "../../../src/lib/resume/layout-profile";
 import { expect, test } from "./fixtures";
@@ -110,6 +112,84 @@ test("A guest résumé offers its ranked jobs and can be removed from this devic
 
   await page.reload();
   await expect(page.getByTestId("resume-signed-out-upload")).toBeVisible();
+});
+
+/** A guest with a résumé on this device. */
+const seedGuestResume = (page: Page) =>
+  page.addInitScript(
+    ([key, value]) => {
+      if (!sessionStorage.getItem("seeded")) {
+        localStorage.setItem(key, value);
+        sessionStorage.setItem("seeded", "1");
+      }
+    },
+    [LOCAL_AI_RESUME_KEY, JSON.stringify(GUEST_RESUME)],
+  );
+
+/**
+ * A visitor who signs up while the page is open: the session is empty until `signUp()`, then names an account that
+ * holds no paid month (nothing readable, nothing stored), as a new sign-up does. The page reloads, as it does after
+ * an OAuth or passkey sign-up, so the queued click must survive the round trip in sessionStorage.
+ */
+async function guestWhoSignsUpLater(page: Page) {
+  let signedUp = false;
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({ json: { user: signedUp ? { uid: "journey-new", email: "jane@example.com", displayName: "Jane Doe" } : null }, headers: { "cache-control": "no-store" } }),
+  );
+  await page.route(
+    () => true,
+    async (route) => {
+      const req = route.request();
+      if (req.method() !== "POST" || !req.headers()["next-action"]) return route.fallback();
+      const res = await route.fetch();
+      const text = await res.text();
+      if (signedUp && req.postData() === "[]" && text.includes('"hasResume":false')) return route.fulfill({ response: res, body: flight({ hasResume: false, paywalled: true }) });
+      if (signedUp && req.postData() === "[]" && text.includes('"Unauthorized"')) return route.fulfill({ response: res, body: flight({ data: { source: "none", updatedAt: null } }) });
+      return route.fulfill({ response: res, body: text });
+    },
+  );
+  return async () => {
+    signedUp = true;
+    await page.reload();
+  };
+}
+
+const stored = (page: Page, key: string) => page.evaluate((k) => sessionStorage.getItem(k), key);
+
+for (const [tag, button, name] of [
+  ["@J-RESUME-56", "Edit", "A guest's Edit on a device résumé asks them to sign up, then opens the editor on that résumé"],
+  ["@J-RESUME-57", "PDF", "A guest's PDF on a device résumé asks them to sign up, then downloads that résumé as a PDF"],
+] as const) {
+  test(name, { tag: [tag] }, async ({ page }) => {
+    await seedGuestResume(page);
+    const signUp = await guestWhoSignsUpLater(page);
+    await page.goto("/resume");
+    await expect(page.getByText("Local résumé on this device")).toBeVisible();
+
+    await page.getByRole("button", { name: button, exact: true }).click();
+    // The gate stays: the click opens sign-up and is recorded as an opened gate.
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(await stored(page, GATE_ATTEMPT_STORAGE_KEY), "the open is recorded").not.toBeNull();
+    expect(JSON.parse((await stored(page, PENDING_ACTION_STORAGE_KEY))!).action).toEqual({ kind: "resume", payload: button === "PDF" ? "pdf" : "edit" });
+
+    const download = button === "PDF" ? page.waitForEvent("download", { timeout: 45_000 }) : null;
+    await signUp();
+    if (download) {
+      expect((await download).suggestedFilename()).toMatch(/\.pdf$/i);
+    } else {
+      await expect(page.getByTestId("resume-editor-back")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText("Jane Doe").first()).toBeVisible();
+    }
+  });
+}
+
+test("A guest's Sign up on a device résumé opens sign-up, records the open and queues nothing", { tag: ["@J-RESUME-58"] }, async ({ page }) => {
+  await seedGuestResume(page);
+  await page.goto("/resume");
+  await page.getByRole("button", { name: "Sign up", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  expect(await stored(page, GATE_ATTEMPT_STORAGE_KEY), "the open is recorded").not.toBeNull();
+  expect(await stored(page, PENDING_ACTION_STORAGE_KEY)).toBeNull();
 });
 
 test("An old Word .doc file is refused with how to fix it, not a failed read", { tag: ["@J-RESUME-31"] }, async ({ page }) => {

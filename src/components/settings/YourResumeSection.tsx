@@ -26,6 +26,7 @@ import { SETTINGS_RESUME_PRIVACY_LINE } from "@/lib/jobs/resume-privacy-copy";
 import { ResumeEditor } from "@/components/resume-builder/ResumeEditor";
 import { LiveResumePreview } from "@/components/resume-builder/LiveResumePreview";
 import { InlineConfirm } from "@/components/ui/inline-confirm";
+import type { ResumeIntent } from "@/lib/jobs/pending-actions";
 import type { ResumeData } from "@/types/resume";
 import { LOCKED_RESUME_DETAIL, LOCKED_RESUME_TITLE } from "@/lib/resume/locked-copy";
 import { KEPT_ON_DEVICE_MESSAGE, PRICING_HREF, failureOf, isPaymentRequired, toastKeptOnDevice } from "@/lib/resume/payment-required";
@@ -35,6 +36,9 @@ interface YourResumeSectionProps {
     onLoginClick: () => void;
     embedded?: boolean;
     onEditorActiveChange?: (active: boolean) => void;
+    /** What the person asked for before signing up (/resume's Edit or PDF on a device résumé): done once, when the résumé is shown. */
+    intent?: ResumeIntent | null;
+    onIntentDone?: () => void;
 }
 
 function formatDate(iso: string | null): string | null {
@@ -107,7 +111,7 @@ function summaryToResumeData(summary: ResumeSummary | null, user?: User | null):
     return defaultResumeData(user?.email || undefined, user?.displayName || undefined);
 }
 
-export function YourResumeSection({ user, onLoginClick, embedded, onEditorActiveChange }: YourResumeSectionProps) {
+export function YourResumeSection({ user, onLoginClick, embedded, onEditorActiveChange, intent, onIntentDone }: YourResumeSectionProps) {
     const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
     const [summary, setSummary] = useState<EffectiveResumeSummary | null>(null);
     const [retryToken, setRetryToken] = useState(0);
@@ -138,6 +142,15 @@ export function YourResumeSection({ user, onLoginClick, embedded, onEditorActive
             cancelled = true;
         };
     }, [user, retryToken]);
+
+    // The queued Edit or PDF runs on the résumé as shown (the device copy for an account that can't open its own), then is dropped.
+    useEffect(() => {
+        if (!intent || status !== "ready" || !summary) return;
+        const shown = summary.source === "resume_data" || summary.source === "resume_text" ? summary : null;
+        if (shown && intent === "edit") setViewMode("live_editor");
+        if (shown && intent === "pdf") void downloadBaseResumePdf(shown);
+        onIntentDone?.();
+    }, [intent, status, summary, onIntentDone]);
 
     // Saving to the account is the paid month: an unpaid account's edit stays on this device, and nothing is sent.
     const handleSaveEditor = async (updatedData: ResumeData): Promise<string | void> => {
