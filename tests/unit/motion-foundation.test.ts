@@ -7,6 +7,7 @@ import {
   MOTION_DURATION_MS,
   MOTION_EASE,
   MOTION_SCALE,
+  MOTION_STAGGER_MS,
 } from "../../src/lib/motion/interaction-contract";
 
 const ROOT = join(__dirname, "..", "..");
@@ -39,6 +40,8 @@ describe("motion token contract in globals.css", () => {
     assert.equal(cssToken("--transition-page"), `${MOTION_DURATION_MS.page}ms`);
     assert.equal(cssToken("--transition-stack"), `${MOTION_DURATION_MS.stack}ms`);
     assert.equal(cssToken("--ease-stack"), MOTION_EASE.stack);
+    assert.equal(cssToken("--ease-enter"), MOTION_EASE.enter);
+    assert.equal(cssToken("--motion-stagger"), `${MOTION_STAGGER_MS}ms`);
     assert.equal(cssToken("--motion-press-scale"), String(MOTION_SCALE.press));
   });
 

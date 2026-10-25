@@ -89,7 +89,7 @@ export function MatchChip({ score, asOfDate, className, jobId, testId = "match-c
                 className={cn(
                     variant === "text"
                         ? cn("font-semibold", bandTextClass(band))
-                        : cn("mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none", bandChipClass(band)),
+                        : cn("mono-data inline-block rounded-pill border px-2 py-0.5 text-xs font-semibold leading-none group-aria-[current=true]:bg-surface-3", bandChipClass(band)),
                     className,
                 )}
             >

@@ -17,7 +17,8 @@ import {
     Question,
     LockSimple,
 } from "@phosphor-icons/react";
-import { InlineSpinner } from "@/components/ui/wait-state";
+import { InlineSpinner, WaitState } from "@/components/ui/wait-state";
+import { useResultSetEnter } from "@/lib/motion/result-set-enter";
 import { Button } from "@/components/ui/button";
 import { ConceptAEmptyPageSlot, ConceptAEmptyState } from "@/components/ui/concept-a-empty-state";
 import { LoadFailedState } from "@/components/ui/load-failed-state";
@@ -160,7 +161,7 @@ import { isKnownDeadApplyUrl, probeApplyUrl } from "@/lib/jobs/apply-url-health"
 import { shouldPromptApplyIntent } from "@/lib/jobs/apply-intent";
 import { FacetBar, facetBarRepresents } from "@/components/jobs/FacetBar";
 import { JobCard } from "@/components/jobs/JobCard";
-import { JobsListSplash } from "@/components/jobs/JobsListSplash";
+import { JobsListSplash, JobsListSkeletonRows } from "@/components/jobs/JobsListSplash";
 import type { ResumeFunnelReason } from "@/lib/analytics/resume-funnel";
 import {
     applyLocalAiSearchParam,
@@ -183,6 +184,7 @@ import { noteResumeOnFile } from "@/hooks/use-onboarding";
 import { FrontDoorReturnCard } from "@/components/jobs/front-door/FrontDoorReturnCard";
 import { FrontDoorWeekCount } from "@/components/jobs/front-door/FrontDoorWeekCount";
 import { FrontDoorMatchesCta } from "@/components/jobs/front-door/FrontDoorMatchesCta";
+
 // `loading: () => null` on each: without it a dynamic() component holds up
 // the first render of everything around it until its own chunk arrives, and
 // these only show once a job is opened or the importer is asked for.
@@ -4421,6 +4423,7 @@ export function JobsContent({
         loading,
         hitCount: hits.length,
     });
+    const resultSetEntering = useResultSetEnter(resultSearchKey);
     // The ONE "broaden this search" nudge — the same component the packs' thin state renders, so the
     // board's zero and thin results offer the same options with the same counts. Each option applies
     // in place through `applyFilterState`, the chokepoint every filter change goes through.
@@ -4690,7 +4693,7 @@ export function JobsContent({
                     reportJobEnabled={reportJobEnabled}
                     collapseDescription={collapseDescription}
                     actionBarBelow={!collapseDescription}
-                    className="border-0 bg-transparent"
+                    className="border-0 bg-transparent detail-crossfade"
                     descriptionPending={detailDescriptionPending}
                     onRetryDescription={retryDescription}
                     matchScore={matchScores?.get(detailJob.id) ?? undefined}
@@ -6182,7 +6185,7 @@ export function JobsContent({
                                             </h2>
                                         </div>
                                     )}
-                                    <div>
+                                    <div className={cn(resultSetEntering && "result-set-enter")}>
                                         {/* Deliverable 3 — one row (the best-ranked
                                             member) per cluster, its variants inserted
                                             right below only while expanded. The seam
@@ -6313,7 +6316,7 @@ export function JobsContent({
                                                     className="w-full"
                                                 />
                                             ) : loadingMore ? (
-                                                <span className="text-xs text-muted-foreground">Loading more roles…</span>
+                                                <WaitState label="Loading more roles" skeleton={<JobsListSkeletonRows count={2} />} className="w-full" />
                                             ) : (
                                                 <button
                                                     type="button"
