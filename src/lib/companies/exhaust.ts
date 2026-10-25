@@ -18,6 +18,7 @@ import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
+import { formatCount } from "@/lib/format";
 
 export type ExhaustSection<T> = { data: T; source: string; label: string; asOf: string } | null;
 
@@ -255,13 +256,13 @@ export function resolveFundingOrListingCell(input: {
 export function buildH1bSentence(data: H1bLcaFacts): string {
   const total = data.initialApprovals + data.continuingApprovals;
   const denials = data.initialDenials + data.continuingDenials;
-  const base = `${total} h-1b approval${total === 1 ? "" : "s"} in fy${data.fiscalYear} (${data.initialApprovals} initial, ${data.continuingApprovals} continuing).`;
-  return denials > 0 ? `${base} ${denials} denial${denials === 1 ? "" : "s"} in the same period.` : base;
+  const base = `${formatCount(total)} h-1b approval${total === 1 ? "" : "s"} in fy${data.fiscalYear} (${formatCount(data.initialApprovals)} initial, ${formatCount(data.continuingApprovals)} continuing).`;
+  return denials > 0 ? `${base} ${formatCount(denials)} denial${denials === 1 ? "" : "s"} in the same period.` : base;
 }
 
 /** "N layoff notice(s) filed — M employees affected." */
 export function buildWarnSentence(data: WarnNoticeFacts): string {
-  return `${data.noticeCount} layoff notice${data.noticeCount === 1 ? "" : "s"} filed — ${data.totalEmployeesAffected} employee${data.totalEmployeesAffected === 1 ? "" : "s"} affected.`;
+  return `${formatCount(data.noticeCount)} layoff notice${data.noticeCount === 1 ? "" : "s"} filed — ${formatCount(data.totalEmployeesAffected)} employee${data.totalEmployeesAffected === 1 ? "" : "s"} affected.`;
 }
 
 /**

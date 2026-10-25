@@ -1,4 +1,5 @@
 import type { CompanyExhaust, IntegrityFacts } from "./exhaust";
+import { formatCount } from "@/lib/format";
 
 /**
  * Pure helpers for the employer's opened/closed record. Kept apart from
@@ -49,9 +50,9 @@ function formatUtcDate(iso: string): string {
  * (see `IntegrityFacts.openedCount`).
  */
 export function hiringRecordSentence(facts: IntegrityFacts, nowMs: number): string {
-  const closed = facts.closedReasonCounts.reduce((sum, r) => sum + r.count, 0);
+  const closed = formatCount(facts.closedReasonCounts.reduce((sum, r) => sum + r.count, 0));
   const opened = facts.openedCount;
-  const roles = (n: number) => `${n} role${n === 1 ? "" : "s"}`;
+  const roles = (n: number) => `${formatCount(n)} role${n === 1 ? "" : "s"}`;
   if (trackingStartedInWindow(facts.trackedSinceIso, nowMs)) {
     const week = formatUtcDate(`${isoWeekStart(Date.parse(facts.trackedSinceIso as string))}T00:00:00Z`);
     return `Tracked since the week of ${week}: ${roles(opened)} opened after that first week, ${closed} closed.`;
