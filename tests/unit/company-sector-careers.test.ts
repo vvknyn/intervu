@@ -39,8 +39,12 @@ describe("resolveCareersUrl", () => {
       assert.equal(resolveCareersUrl({ careers_url: "https://acme.com/blog", last_scrape_outcome, listing_urls: [posting], domain: "stripe.com" }), "https://boards.greenhouse.io/stripe");
   });
   it("a stored ATS API endpoint is hidden; null when nothing derivable", () => {
-    for (const api of ["https://boards-api.greenhouse.io/v1/boards/stripe/jobs", "https://api.lever.co/v0/postings/netflix"])
+    for (const api of ["https://boards-api.greenhouse.io/v1/boards/stripe/jobs", "https://api.lever.co/v0/postings/netflix", "https://jobs.ashbyhq.com/api/non-user-graphql"])
       assert.equal(resolveCareersUrl({ careers_url: api, last_scrape_outcome: "EMPTY_BOARD", listing_urls: null, domain: "stripe.com" }), null);
+  });
+  it("a human careers page whose path merely has a version segment is shown", () => {
+    for (const url of ["https://phh.tbe.taleo.net/phh04/ats/careers/v2/jobSearch?org=DCSCORP2&cws=37", "https://careers.example.com/v3/openings"])
+      assert.equal(resolveCareersUrl({ careers_url: url, last_scrape_outcome: "EMPTY_BOARD", listing_urls: null, domain: "example.com" }), url);
   });
   it("no stored URL derives from the listing; an unknown host or a lone posting is never shown", () => {
     assert.equal(resolveCareersUrl({ careers_url: null, listing_urls: ["https://acme.bamboohr.com/careers/42"], domain: "acme.com" }), "https://acme.bamboohr.com/careers");

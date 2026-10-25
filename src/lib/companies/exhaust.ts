@@ -327,9 +327,10 @@ export function resolveSector(row: Partial<SectorRow> | null, industries: readon
   return null;
 }
 
-/** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x),
- *  which the pipeline can keep as career_page_url (subspace pipeline.ts:207 isPersistableDiscoveredUrl) but a person cannot browse. */
-const API_ENDPOINT = /^(?:[a-z0-9-]+-)?api\.|\/(?:api|v\d+)(?:\/|$)/i;
+/** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
+ *  jobs.ashbyhq.com/api/non-user-graphql): an `api.` / `<x>-api.` host or an `/api` path segment. A bare version
+ *  segment (/v2/) is not enough: Taleo TBE career centers live at .../careers/v2/jobSearch. The pipeline can keep as career_page_url (subspace pipeline.ts:207 isPersistableDiscoveredUrl) but a person cannot browse. */
+const API_ENDPOINT = /^(?:[a-z0-9-]+-)?api\.|\/api(?:\/|$)/i;
 
 /** `company_boards.last_scrape_outcome` values saying the kept URL is not a usable careers page
  *  (subspace src/lib/scrape-outcome.ts:12-45 union). Transient ERROR_* / DOMAIN_TIMEOUT and
