@@ -35,7 +35,7 @@ const TooltipContent = React.forwardRef<
       // Inline, so a site's `max-w-*` class cannot lift the cap past the screen.
       style={{ maxWidth: "min(20rem, var(--radix-tooltip-content-available-width))", ...style }}
       className={cn(
-        "z-[var(--z-popover)] overflow-hidden rounded-panel bg-foreground px-2 py-1 text-xs text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        "z-[var(--z-popover)] origin-(--radix-tooltip-content-transform-origin) duration-[var(--transition-base)] overflow-hidden rounded-panel bg-foreground px-2 py-1 text-xs text-background animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         className
       )}
       {...props}
