@@ -42,7 +42,6 @@
     "marketing:send": "npx tsx scripts/send-marketing-update.ts"
   },
   "dependencies": {
-    "@base-ui/react": "^1.8.0",
     "@google/generative-ai": "^0.24.1",
     "@modelcontextprotocol/server": "^2.0.0",
     "@monaco-editor/react": "^4.7.0",
@@ -77,13 +76,13 @@
     "markdown-it": "^14.1.0",
     "maxmind": "^5.0.7",
     "mcp-handler": "^2.1.0",
-    "motion": "^13.4.3",
     "next": "16.3.0",
     "openai": "^6.16.0",
     "pg": "^8.23.0",
     "posthog-js": "^1.414.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
+    "react-aria-components": "1.22.1",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.71.1",
     "resend": "^6.19.0",
