@@ -7,7 +7,7 @@ import { getDirectory, peekCountGeneration } from "@/lib/companies/directory-mod
 import { COMPANY_JOBS_FETCH_LIMIT, companyOpenCount, companyRolesParams, publicRoles } from "@/lib/companies/company-roles-query";
 import { buildCompanyFacts } from "@/lib/companies/company-facts";
 import { resolveCompanyIntelligence } from "@/lib/companies/enrichment";
-import { wikidataSector, type CompanyExhaust } from "@/lib/companies/exhaust";
+import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { getSharedCompanyExhaust } from "@/lib/companies/exhaust-cache";
 import { fetchCompanyEvents } from "@/lib/companies/events";
 import { fetchCompanyNews } from "@/lib/companies/news";
@@ -220,9 +220,6 @@ export async function getCompanyPageData(
   // A listed company shows the name the directory lists it under, so the page and the listing agree.
   const listed = directory.value?.companies.find((c) => c.domain === domain);
   const displayName = listed?.name ?? displayCompanyName(name.value);
-  // Wikidata's industry names a sector only where no other source does (the doc is the directory's own read: no new fetch).
-  const wikiSector = exhaust.value && !exhaust.value.sector && listed?.wikidataIndustries ? wikidataSector(listed.wikidataIndustries, displayName) : null;
-  const companyExhaust = wikiSector ? { ...exhaust.value!, sector: wikiSector } : exhaust.value;
 
   return {
     domain,
@@ -241,7 +238,7 @@ export async function getCompanyPageData(
     boards,
     intelligence,
     changeEvents: changeEvents.value,
-    exhaust: companyExhaust,
+    exhaust: exhaust.value,
     facts: buildCompanyFacts({
       name: displayName,
       domain,
@@ -250,7 +247,9 @@ export async function getCompanyPageData(
       postingTotal: resolveCorpusCount(result).value,
       ghostFlaggedPct: ghostPct,
       facetDistribution: result.facetDistribution,
-      exhaust: companyExhaust,
+      exhaust: exhaust.value,
+      wikidata: listed?.wikidataIndustries,
+      siteDescription: listed?.siteDescription,
     }),
     // Read here — the async I/O boundary — not in the page component's
     // render body. See `CompanyPageData.nowMs`.

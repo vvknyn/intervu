@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { deriveBoardRoot, pickBoardRoot } from "../../src/lib/companies/careers-board-root";
+import { categoryLabel } from "../../src/lib/companies/machine-token";
 import { resolveCareersUrl, resolveSector } from "../../src/lib/companies/exhaust";
 
 describe("deriveBoardRoot: one real posting URL per ATS", () => {
@@ -85,10 +86,38 @@ describe("pickBoardRoot", () => {
 describe("resolveSector with profile industries", () => {
   it("uses the first non-generic industry only when the columns are empty or generic", () => {
     assert.equal(resolveSector({ health_reviews: "general", fingerprints: "unknown", boards: null }, ["General", "Financial Services", "Software"]), "Financial Services");
-    assert.equal(resolveSector({ health_reviews: null, fingerprints: "fintech", boards: null }, ["Software"]), "fintech");
+    assert.equal(resolveSector({ health_reviews: null, fingerprints: "fintech", boards: null }, ["Software"]), "Fintech");
   });
   it("never shows general; null when nothing real remains", () => {
     assert.equal(resolveSector({ health_reviews: "general", fingerprints: "General", boards: null }, ["general", "unknown"]), null);
     assert.equal(resolveSector(null), null);
+  });
+});
+
+describe("categoryLabel: one display rule for every categorical company label", () => {
+  const cases: Array<[string, string]> = [
+    ["healthcare", "Healthcare"],
+    ["energy", "Energy"],
+    ["financial services", "Financial Services"],
+    ["big_tech", "Big Tech"],
+    ["ai-infra", "AI Infra"],
+    ["ai_ml", "AI ML"],
+    ["enterprise_saas", "Enterprise SaaS"],
+    ["ml_ops", "ML Ops"],
+    ["retail_chain", "Retail Chain"],
+    ["climate_energy", "Climate Energy"],
+    ["Industrial Automation", "Industrial Automation"],
+    ["IT Services", "IT Services"],
+    ["R&D", "R&D"],
+  ];
+  for (const [raw, shown] of cases) it(`${raw} -> ${shown}`, () => assert.equal(categoryLabel(raw), shown));
+
+  it("resolveSector shows a raw lowercase source value the same way", () => {
+    for (const [raw, shown] of cases) assert.equal(resolveSector({ health_reviews: raw, fingerprints: null, boards: null }), shown);
+  });
+
+  it("a profile industry dedupes against the sector through the same rule", () => {
+    const sector = resolveSector({ health_reviews: "healthcare", fingerprints: null, boards: null });
+    assert.deepEqual(["healthcare", "biotech"].map(categoryLabel).filter((x) => x !== sector), ["Biotech"]);
   });
 });

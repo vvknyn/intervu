@@ -15,10 +15,10 @@
  * database.
  */
 import { eventTypeLabel } from "@/lib/companies/events";
-import { machineTokenLabel } from "@/lib/companies/machine-token";
+import { categoryLabel } from "@/lib/companies/machine-token";
 import { siteKey } from "@/lib/companies/company-name";
 import type { WikidataItem } from "@/lib/companies/indexable";
-import { displayCompanyName, prettyEnum } from "@/lib/jobs/presentation";
+import { displayCompanyName } from "@/lib/jobs/presentation";
 import { isTenantlessVendorUrl, pickBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
@@ -317,7 +317,11 @@ function isoDate(v: unknown): string | null {
 /** health_reviews and fingerprints fill every domain, with a default bucket
  *  ('general', 'unknown') when they could not classify it. That bucket is not
  *  a sector, so it must not shadow a real one further down the chain. */
-const NON_SECTORS = new Set(["", "general", "unknown"]);
+const NON_SECTORS = new Set([
+  "", "general", "unknown",
+  // labels that classify the economy or a legal form, not the work
+  "service", "business-to-business", "business to business", "holding company", "holding company activities",
+]);
 
 /** THE sector resolver: health_reviews, then fingerprints, then boards, then the hiring.cafe
  *  profile's first non-generic industry (its own words); the first that names a real sector wins
@@ -325,23 +329,47 @@ const NON_SECTORS = new Set(["", "general", "unknown"]);
 export function resolveSector(row: Partial<SectorRow> | null, industries: readonly string[] = []): string | null {
   for (const candidate of [row?.health_reviews, row?.fingerprints, row?.boards, ...industries]) {
     const sector = str(candidate)?.trim();
-    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
+    if (sector && !NON_SECTORS.has(sector.toLowerCase())) return categoryLabel(sector);
   }
   return null;
 }
 
-/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the matched item whose
- *  label names the company as displayed (`displayName`); with none agreeing, of the items only when every one has the same industries. */
-export function wikidataSector(items: readonly WikidataItem[], displayName: string): string | null {
+/** A Wikidata industry as a sector name: a trailing whole word "industry" dropped ("software industry" -> "software"), null when
+ *  what remains names no sector (empty, a NON_SECTORS label, or a "... sector of the economy" tier). */
+function sectorForm(industry: string): string | null {
+  const raw = industry.trim();
+  const form = raw.replace(/\s*\bindustry$/i, "").trim();
+  const generic = [raw, form].some((x) => NON_SECTORS.has(x.toLowerCase())) || /sector of the economy$/i.test(form);
+  return generic ? null : form;
+}
+
+/** THE Wikidata fact selector: the value `read` finds on the items whose label names the company as displayed (`displayName`) and that state the fact;
+ *  with none of those, on all the items. A value only when every chosen item states the same one — a fact never comes from items that disagree.
+ *  `item` is the first chosen item (its QID is the fact's source). */
+export function pickWikidata<T>(items: readonly WikidataItem[], displayName: string, read: (item: WikidataItem) => T | null): { value: T; item: WikidataItem } | null {
   const key = (name: string) => siteKey(displayCompanyName(name));
-  const industriesKey = (item: WikidataItem) => JSON.stringify(item.industries);
-  const agreeing = items.filter((item) => item.industries.length > 0 && key(item.label) === key(displayName));
+  const agreeing = items.filter((item) => read(item) !== null && key(item.label) === key(displayName));
   const chosen = agreeing.length > 0 ? agreeing : items;
   const [first] = chosen;
-  if (!first || chosen.some((item) => industriesKey(item) !== industriesKey(first))) return null;
-  const industries = first.industries.filter((x) => !NON_SECTORS.has(x.trim().toLowerCase()));
-  return industries.length === 1 ? prettyEnum(machineTokenLabel(industries[0]!.trim())) : null;
+  const value = first && read(first);
+  if (value == null || chosen.some((item) => JSON.stringify(read(item)) !== JSON.stringify(value))) return null;
+  return { value, item: first };
 }
+
+/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the one industry (none when it has several) of the item
+ *  {@link pickWikidata} selects; null when the selected items' industries differ. */
+export function wikidataSectorPick(items: readonly WikidataItem[], displayName: string): { value: string; item: WikidataItem } | null {
+  const picked = pickWikidata(items, displayName, (item) => (item.industries.length > 0 ? item.industries : null));
+  if (!picked) return null;
+  const forms = new Map<string, string>();
+  for (const x of picked.value) {
+    const form = sectorForm(x);
+    if (form) forms.set(form.toLowerCase(), form);
+  }
+  return forms.size === 1 ? { value: categoryLabel([...forms.values()][0]!), item: picked.item } : null;
+}
+
+export const wikidataSector = (items: readonly WikidataItem[], displayName: string): string | null => wikidataSectorPick(items, displayName)?.value ?? null;
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,
  *  jobs.ashbyhq.com/api/non-user-graphql): an `api.` / `<x>-api.` host or an `/api` path segment. A bare version
