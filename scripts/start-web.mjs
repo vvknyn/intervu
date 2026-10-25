@@ -26,7 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { startEventLoopMonitor, upstreamErrorLine } from "./event-loop-delay.mjs";
-import { WORKER_HEAP_MB, clientKey, parseCpuMax, parseMemoryMax, pickWorker, resolveWorkerCount, withoutHopHeaders } from "./web-pool.mjs";
+import { WORKER_HEAP_MB, clientKey, parseCpuMax, parseMemoryMax, pickWorker, resolveWorkerCount, stampArrival, withoutHopHeaders } from "./web-pool.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const serverJs = path.join(here, "server.js");
@@ -113,7 +113,7 @@ function startPool(n) {
             return;
         }
         const w = workers[idx];
-        const arrivedAt = Date.now();
+        const arrivedAt = stampArrival(req);
         const upstream = http.request(
             { host: "127.0.0.1", port: w.port, method: req.method, path: req.url, headers: withoutHopHeaders(req.headers), agent },
             (upRes) => {

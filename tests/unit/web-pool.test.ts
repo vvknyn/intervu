@@ -70,3 +70,12 @@ test("hop-by-hop headers are not passed on; everything else is", () => {
     });
     assert.deepEqual(out, { host: "velai.app", "set-cookie": ["a=1", "b=2"], "cf-connecting-ip": "203.0.113.7" });
 });
+
+test("a retried request keeps its first arrival time; a new request gets its own", () => {
+    const retried = {};
+    assert.equal(pool.stampArrival(retried, 1000), 1000);
+    assert.equal(pool.stampArrival(retried, 1400), 1000, "retry: the logged elapsed covers every attempt");
+    const other = {};
+    assert.equal(pool.stampArrival(other, 1500), 1500, "not a retry: its own time, not the earlier request's");
+    assert.equal(pool.stampArrival(retried, 1600), 1000);
+});
