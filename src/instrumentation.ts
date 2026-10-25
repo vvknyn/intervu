@@ -14,6 +14,8 @@ export async function register() {
   const flags = globalThis as { __velaiWarmUpStarted?: boolean };
   if (flags.__velaiWarmUpStarted) return;
   flags.__velaiWarmUpStarted = true;
+  // The proxy samples its own loop in start-web.mjs; a pool worker samples here.
+  void import("../scripts/event-loop-delay.mjs").then(({ startEventLoopMonitor }) => startEventLoopMonitor(`worker-${process.env.PORT ?? "3000"}`));
   // The company directory takes minutes to build cold; start it now so the first visitors and the sitemap find it built.
   void import("@/lib/companies/directory-model")
     .then(async ({ getDirectory, peekCountGeneration }) => {

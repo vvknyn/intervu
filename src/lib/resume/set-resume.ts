@@ -204,7 +204,7 @@ export function planResumeUpload(
     // structured-only case, since ResumeVersionSnapshot.content is a plain
     // string field.
     const baselineEntry: ResumeVersionSnapshot | null =
-        prior.source !== "none" && historyIsEmpty
+        (prior.source === "resume_data" || prior.source === "resume_text") && historyIsEmpty
             ? {
                   content: prior.source === "resume_text" ? prior.resume_text : JSON.stringify(prior.resume_data),
                   label: BASELINE_HISTORY_LABEL,
