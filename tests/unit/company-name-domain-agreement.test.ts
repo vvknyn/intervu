@@ -113,6 +113,13 @@ describe("companies/company-name — a corpus name must agree with the domain", 
   });
 });
 
+describe("companies/company-name — ATS entity codes", () => {
+  it("a multi-underscore entity code never leaks into the resolved display name", () => {
+    const rows = Array(3).fill({ company: "US_XYZ_1000 Xyz Corporation" });
+    assert.equal(resolveCompanyName(rows, "xyzcorporation.com").value, "Xyz Corporation");
+  });
+});
+
 describe("companies/company-name — a leading legal form is skipped in the domain test", () => {
   it("skips PT., PJSC and Kabushiki Kaisha", () => {
     assert.ok(nameAgreeingWithDomain("PT. Initech Solutions Indonesia", "initech.co.id"));
