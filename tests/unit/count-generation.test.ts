@@ -66,6 +66,17 @@ describe("one count generation", () => {
     assert.equal(built.get(OTHER)?.value, 3);
   });
 
+  it("yields to the event loop while it counts a long list of domains", async () => {
+    // Each domain's rows cost 10 ms of CPU to read, so 40 of them are 400 ms: far past the yield budget.
+    const slowRead = async (d: readonly string[]): Promise<EachResult[]> =>
+      d.map(() => ({ get hits() { for (const end = performance.now() + 10; performance.now() < end;); return []; }, total: 0 }) as never);
+    let fired = false;
+    setTimeout(() => (fired = true), 0);
+    const built = await buildCountGeneration(async () => ({ companies: Array.from({ length: 40 }, (_, i) => ({ domain: `d${i}.com` })) }) as never, slowRead);
+    assert.equal(built.size, 40);
+    assert.equal(fired, true, "a timer set before the build fired before the build resolved");
+  });
+
   it("on a cold start serves fresh reads and starts the build without waiting for it", async () => {
     let builds = 0;
     const g = createCountGeneration(() => (builds++, new Promise<CountGeneration>(() => {})), {});
