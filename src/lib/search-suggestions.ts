@@ -24,6 +24,47 @@ export interface SearchSuggestion {
     type: 'company' | 'role' | 'history' | 'full' | 'seed';
 }
 
+/**
+ * Section header text for each suggestion type — single source of truth for
+ * the dropdown's group labels. Keyed off `SearchSuggestion['type']` itself, so
+ * a new type can't render without a labeling decision having been made for
+ * it. `undefined` = a type deliberately left unlabeled (`'full'`, compound
+ * one-off boosted rows, doesn't read as its own group).
+ */
+export const SECTION_LABELS: Record<SearchSuggestion['type'], string | undefined> = {
+    seed: "Popular searches",
+    history: "Recent searches",
+    role: "Roles",
+    company: "Companies",
+    full: undefined,
+};
+
+export interface SuggestionRow extends SearchSuggestion {
+    /** Position in the flat list, which is how a pick is mapped back to its row. */
+    id: number;
+}
+
+export interface SuggestionSection {
+    id: string;
+    /** Visible header; absent for an unlabeled type. */
+    label: string | undefined;
+    rows: SuggestionRow[];
+}
+
+/** Splits the flat, ordered list into runs of one type, each run one labeled section — the order the source ranked them in is kept. */
+export function groupSuggestions(suggestions: SearchSuggestion[]): SuggestionSection[] {
+    const sections: SuggestionSection[] = [];
+    suggestions.forEach((suggestion, id) => {
+        const last = sections[sections.length - 1];
+        if (last && last.rows[0].type === suggestion.type) {
+            last.rows.push({ ...suggestion, id });
+        } else {
+            sections.push({ id: `${suggestion.type}-${id}`, label: SECTION_LABELS[suggestion.type], rows: [{ ...suggestion, id }] });
+        }
+    });
+    return sections;
+}
+
 export function getSuggestions(query: string, history: string[] = []): SearchSuggestion[] {
     if (!query || query.trim().length === 0) return history.map(h => ({ text: h, type: 'history' }));
 

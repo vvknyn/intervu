@@ -172,9 +172,9 @@ describe("docked search: controlled input, not a scroll-to button", () => {
     });
 
     it("portals suggestion lists so clipped ancestors cannot hide them", () => {
-        const search = read("src/components/search/SearchAutocomplete.tsx");
-        assert.match(search, /createPortal[\s\S]*document\.body/);
-        assert.match(search, /useAnchoredOverlayRect/);
+        // React Aria's Popover portals to the body and anchors to `triggerRef`.
+        assert.match(read("src/components/search/SearchAutocomplete.tsx"), /<ComboboxPopover triggerRef=\{anchorRef\}/);
+        assert.match(read("src/components/ui/combobox.tsx"), /<Popover[\s\S]*placement="bottom start"/);
     });
 
     it("centers docked clear controls in the field row", () => {

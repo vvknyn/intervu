@@ -38,7 +38,7 @@ test.describe("the search box", () => {
     const seed = (await options.first().boundingBox())!;
     const parked = { x: seed.x + seed.width / 2, y: seed.y + seed.height / 2 };
     await page.mouse.move(parked.x, parked.y);
-    await expect(options.first(), "hovering a suggestion picks nothing").toHaveAttribute("aria-selected", "false");
+    await expect(input, "hovering a suggestion picks nothing").not.toHaveAttribute("aria-activedescendant", /.+/);
 
     // Type with the pointer still there. Enter at once, while the list still shows the old suggestions.
     await page.keyboard.press("Escape");
@@ -52,7 +52,7 @@ test.describe("the search box", () => {
     await input.fill(TYPED);
     await expect(options.first()).toContainText(/account/i);
     await page.mouse.move(parked.x, parked.y + 1);
-    await expect(options.first(), "a list drawn under the pointer picks nothing").toHaveAttribute("aria-selected", "false");
+    await expect(input, "a list drawn under the pointer picks nothing").not.toHaveAttribute("aria-activedescendant", /.+/);
     await input.press("Enter");
     await expect(page).toHaveURL(new RegExp(`q=${TYPED}(&|$)`));
     expect(searched(page), "Enter with the typed words' suggestions under the pointer").toBe(TYPED);
@@ -69,7 +69,7 @@ test.describe("the search box", () => {
     expect(first.toLowerCase(), "a suggestion is a longer title than the typed words").not.toBe(TYPED);
 
     await input.press("ArrowDown");
-    await expect(options.first()).toHaveAttribute("aria-selected", "true");
+    await expect(input).toHaveAttribute("aria-activedescendant", (await options.first().getAttribute("id"))!);
     await input.press("Enter");
     await expect(page).toHaveURL(/\/jobs\?(.+&)?q=/);
     expect(searched(page), "arrow key then Enter").toBe(first);

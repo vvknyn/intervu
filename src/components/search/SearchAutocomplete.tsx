@@ -1,12 +1,11 @@
 "use client";
 
-import { Fragment, useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, KeyboardEvent, useId } from "react";
-import { createPortal } from "react-dom";
-import { useAnchoredOverlayRect } from "@/lib/use-anchored-overlay-rect";
-import { Input } from "@/components/ui/input";
+import { useState, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore, useImperativeHandle, forwardRef, type KeyboardEvent, type Key } from "react";
+import type { ComboBoxState } from "react-aria-components";
+import { Combobox, ComboboxInput, ComboboxItem, ComboboxList, ComboboxPopover, ComboboxSection } from "@/components/ui/combobox";
 import { Clock, MagnifyingGlass, Buildings, CaretRight, X } from "@phosphor-icons/react";
 import { InlineSpinner } from "@/components/ui/wait-state";
-import { getSuggestions, SearchSuggestion } from "@/lib/search-suggestions";
+import { getSuggestions, groupSuggestions, SearchSuggestion, SuggestionRow, SuggestionSection } from "@/lib/search-suggestions";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
     subscribeRecentSearches,
@@ -85,26 +84,6 @@ export interface SearchAutocompleteHandle {
     focus: () => void;
 }
 
-/**
- * Section header text for each suggestion type — single source of truth for
- * the dropdown's group labels (item 6a, 2026-08-21 front-door audit: the
- * dropdown mixed roles, companies, and stray junk with no labels at all,
- * generalized from the one pre-existing 'seed' -> "Popular searches"
- * special case). Keyed off `SearchSuggestion['type']` itself — TypeScript
- * requires every member of that closed union to be handled below (`undefined`
- * for a type deliberately left unlabeled), so a new suggestion type can't
- * silently render without a labeling decision having been made for it.
- * A type omitted here (falls through to `undefined`) renders no header —
- * `'full'` (compound one-off boosted rows) doesn't read as its own group.
- */
-const SECTION_LABELS: Record<SearchSuggestion["type"], string | undefined> = {
-    seed: "Popular searches",
-    history: "Recent searches",
-    role: "Roles",
-    company: "Companies",
-    full: undefined,
-};
-
 export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAutocompleteProps>(function SearchAutocomplete({
     value,
     onChange,
@@ -123,8 +102,11 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 }, ref) {
     const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
     const [suggestLoading, setSuggestLoading] = useState(false);
+    // Whether the list is wanted open — the combobox's own open state, reported
+    // through `onOpenChange`. It stays true while the list has nothing to show
+    // (`allowsEmptyCollection`), so a typed query can fetch the suggestions that
+    // will fill it.
     const [isOpen, setIsOpen] = useState(false);
-    const [activeIndex, setActiveIndex] = useState(-1);
     // The SHARED recent-searches store (lib/jobs/recent-searches.ts) — the
     // same store the jobs page's landing chips render, so the dropdown
     // history and the chips can never disagree. Read-only here: recording
@@ -179,16 +161,14 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
 
     const inputRef = useRef<HTMLInputElement>(null);
     const anchorRef = useRef<HTMLDivElement>(null);
-    const listboxId = useId().replace(/:/g, "");
-    const optionId = (index: number) => `${listboxId}-option-${index}`;
+    const comboboxStateRef = useRef<ComboBoxState<SuggestionSection> | null>(null);
     const showSuggestLoading = Boolean(suggest) && isOpen && value.trim().length > 0 && suggestLoading;
     const showClear = Boolean(onClear) && value.length > 0;
-    const dropdownOpen = isOpen && (suggestions.length > 0 || showSuggestLoading);
-    const overlayRect = useAnchoredOverlayRect(anchorRef, dropdownOpen, 8);
+    const sections = useMemo(() => groupSuggestions(suggestions), [suggestions]);
     useImperativeHandle(
         ref,
         () => ({
-            close: () => setIsOpen(false),
+            close: () => comboboxStateRef.current?.close(),
             focus: () => inputRef.current?.focus(),
         }),
         [],
@@ -260,53 +240,24 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value, history, isOpen, Boolean(suggest), Boolean(seeds && seeds.length > 0)]);
 
-    // Reset the highlighted item whenever the suggestion LIST itself changes
-    // (a new debounced/async result set, or the sync source recomputing) —
-    // otherwise a stale index left over from a longer previous list can
-    // point past the end of a shorter new one, or land on a different item
-    // than what's rendered highlighted, and Enter would silently fall
-    // through to raw-text submit instead of selecting what's shown.
-    useEffect(() => {
-        setActiveIndex(-1);
-    }, [suggestions]);
-
-    // The one rule for what Enter runs: the words in the box. `activeIndex` is
-    // moved by the arrow keys ONLY (and cleared by typing and by a new list),
-    // so Enter runs a suggestion exactly when the person picked it with the
-    // arrow keys; a click or tap on a row runs it through `handleSelect`.
-    // Pointer hover never sets it — rows only DRAW hover (the `hover:` classes
-    // below). It used to (`onMouseEnter`), so a pointer resting where the list
-    // opened, such as the spot "Upload résumé" was clicked on a phone, made the
-    // row under it the Enter target and "accountant" + Enter searched the old
-    // first suggestion instead.
+    // The one rule for what Enter runs: the words in the box. The combobox
+    // highlights a row ONLY from the arrow keys (pointer hover just draws), and
+    // reports it as `aria-activedescendant`; so Enter runs a suggestion exactly
+    // when the person picked one with the arrow keys (the library selects it,
+    // `onSelectionChange` below runs it), and otherwise searches the free text.
+    // It used to be that hover set the row, so a pointer resting where the list
+    // opened made "accountant" + Enter search the old first suggestion.
     const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-        // Bubble up arrow keys only if dropdown is open and has items
-        if ((e.key === "ArrowDown" || e.key === "ArrowUp") && isOpen && suggestions.length > 0) {
-            e.preventDefault();
-            if (e.key === "ArrowDown") {
-                setActiveIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : prev));
-            } else {
-                setActiveIndex(prev => (prev > 0 ? prev - 1 : -1));
-            }
-        } else if (e.key === "Enter") {
-            if (isOpen && activeIndex >= 0 && suggestions[activeIndex]) {
-                e.preventDefault();
-                handleSelect(suggestions[activeIndex].text);
-            } else {
-                // `onSearch` is the search; a surrounding form must not
-                // submit it a second time.
-                e.preventDefault();
-                setIsOpen(false);
-                onSearchRef.current();
-            }
-        } else if (e.key === "Escape") {
-            setIsOpen(false);
-        }
+        if (e.key !== "Enter" || e.currentTarget.hasAttribute("aria-activedescendant")) return;
+        // `onSearch` is the search; a surrounding form must not submit it a second time.
+        e.preventDefault();
+        onSearchRef.current();
     };
 
-    const handleSelect = (text: string) => {
-        onChange(text);
-        setIsOpen(false);
+    const handleSelect = (key: Key | null) => {
+        const picked = key == null ? undefined : suggestions[Number(key)];
+        if (!picked) return;
+        onChange(picked.text);
 
         // No history bookkeeping here — the shared store (see the `history`
         // read above) is written once per COMMITTED search at the caller's
@@ -316,11 +267,35 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
         // Wait a tick so the parent's re-render (triggered by the `onChange`
         // above) lands before we search — `onSearchRef` always holds the
         // latest `onSearch` closure, so this reads the post-selection value.
-        setTimeout(() => onSearchRef.current(), 0);
+        // The same tick closes the list: the library opens it on ANY change
+        // of the controlled text while focused, including the one above, so a
+        // close issued before the re-render would be undone by it.
+        setTimeout(() => {
+            comboboxStateRef.current?.close();
+            onSearchRef.current();
+        }, 0);
     };
 
     return (
-        <div ref={anchorRef} className={cn("relative group", containerClassName)}>
+        <Combobox
+            ref={anchorRef}
+            stateRef={comboboxStateRef}
+            className={containerClassName}
+            aria-label={ariaLabel}
+            name={name}
+            isDisabled={disabled}
+            // Free text searches (Enter), a suggestion is only a shortcut to it.
+            // `selectedKey` stays null so picking the same row twice still
+            // fires: a pick is an action, not a value the field remembers.
+            selectedKey={null}
+            onSelectionChange={handleSelect}
+            inputValue={value}
+            onInputChange={onChange}
+            items={sections}
+            menuTrigger="focus"
+            allowsEmptyCollection
+            onOpenChange={setIsOpen}
+        >
             {/* The glyph is a FLEX SIBLING of the field, never an absolutely
                 positioned overlay with `pl-*` on the input holding the text
                 clear of it. That older shape coupled the component and its
@@ -337,19 +312,9 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         {leadingIcon}
                     </span>
                 )}
-                <Input
+                <ComboboxInput
                     ref={inputRef}
                     type="text"
-                    role="combobox"
-                    aria-haspopup="listbox"
-                    aria-expanded={dropdownOpen}
-                    aria-controls={dropdownOpen ? listboxId : undefined}
-                    aria-activedescendant={
-                        dropdownOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
-                    }
-                    aria-autocomplete="list"
-                    aria-label={ariaLabel}
-                    name={name}
                     placeholder={placeholder}
                     className={cn(
                         "relative z-20 overflow-hidden text-ellipsis transition-all",
@@ -364,24 +329,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         showClear && "pr-12 lg:pr-9",
                         className,
                     )}
-                    value={value}
-                    onChange={(e) => {
-                        onChange(e.target.value);
-                        setIsOpen(true);
-                        setActiveIndex(-1);
-                    }}
-                    onFocus={() => setIsOpen(true)}
-                    // Item 6e (2026-08-21): closes the dropdown on blur —
-                    // tab away, click elsewhere, or click a suggestion (each
-                    // `<li>` below prevents the mousedown that would
-                    // otherwise fire this BEFORE the click's own `onClick`
-                    // runs) — replacing the separate click-outside
-                    // listener this component used to carry: blur already
-                    // covers every case that did, and one source of truth
-                    // for "did focus leave the field" beats two.
-                    onBlur={() => setIsOpen(false)}
                     onKeyDown={handleKeyDown}
-                    disabled={disabled}
                     autoFocus={autoFocus}
                 />
                 {/* z-30, strictly above the Input's z-20 — a sibling with a
@@ -396,9 +344,7 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                         data-testid="search-input-clear"
                         aria-label="Clear search"
                         title="Clear search"
-                        // Same guard as the suggestion `<li>` items above and
-                        // this field's clear button:
-                        // without it, mousedown moves focus to this button
+                        // Without this, mousedown moves focus to this button
                         // before onClick fires, blurring the Input. Touch taps
                         // are unaffected — they fire their own click regardless
                         // of what a mousedown handler does.
@@ -414,81 +360,49 @@ export const SearchAutocomplete = forwardRef<SearchAutocompleteHandle, SearchAut
                 )}
             </div>
 
-            {/* Portaled so clipped ancestors (docked header `overflow-hidden`)
-                cannot hide suggestions. */}
-            {dropdownOpen &&
-                overlayRect &&
-                typeof document !== "undefined" &&
-                createPortal(
-                    <div
-                        className="fixed z-[var(--z-dropdown)] overflow-hidden rounded-ctl border border-border-strong bg-popover shadow-[var(--shadow-overlay)] animate-in fade-in slide-in-from-top-1"
-                        style={{
-                            top: overlayRect.top,
-                            left: overlayRect.left,
-                            width: overlayRect.width,
-                        }}
-                    >
-                        <ul
-                            id={listboxId}
-                            role="listbox"
-                            aria-label="Search suggestions"
-                            className="max-h-[300px] overflow-y-auto py-2"
-                        >
-                            {showSuggestLoading && (
-                                <li role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
-                                    <InlineSpinner size={16} className="shrink-0" />
-                                    Loading suggestions…
-                                </li>
-                            )}
-                            {suggestions.map((suggestion, index) => {
-                                const label = SECTION_LABELS[suggestion.type];
-                                const showLabel = label && (index === 0 || suggestions[index - 1]?.type !== suggestion.type);
-                                const segments = highlightMatch(suggestion.text, value);
-                                return (
-                                    <Fragment key={index}>
-                                        {showLabel && (
-                                            <li aria-hidden className="whitespace-nowrap px-4 pt-2.5 pb-1 text-xs font-semibold text-muted-foreground">
-                                                {label}
-                                            </li>
-                                        )}
-                                        <li
-                                            id={optionId(index)}
-                                            role="option"
-                                            aria-selected={index === activeIndex}
-                                            className={cn(
-                                                "flex cursor-pointer items-center gap-3 px-4 py-3 text-sm transition-colors",
-                                                index === activeIndex ? "bg-surface-3 text-foreground" : "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                                            )}
-                                            onClick={() => handleSelect(suggestion.text)}
-                                            onMouseDown={(e) => e.preventDefault()}
-                                        >
-                                            {suggestion.type === "history" ? (
-                                                <Clock size={16} className="shrink-0 opacity-70" />
-                                            ) : suggestion.type === "company" ? (
-                                                <Buildings size={16} className="shrink-0 opacity-70" />
-                                            ) : (
-                                                <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
-                                            )}
-                                            <span className="flex-1 truncate">
-                                                {segments.map((seg, i) =>
-                                                    seg.matched ? (
-                                                        <mark key={i} className="bg-transparent font-semibold text-foreground">
-                                                            {seg.text}
-                                                        </mark>
-                                                    ) : (
-                                                        <span key={i}>{seg.text}</span>
-                                                    ),
+            {(suggestions.length > 0 || showSuggestLoading) && (
+                <ComboboxPopover triggerRef={anchorRef}>
+                    {showSuggestLoading && (
+                        <div role="status" aria-busy="true" className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground">
+                            <InlineSpinner size={16} className="shrink-0" />
+                            Loading suggestions…
+                        </div>
+                    )}
+                    <ComboboxList aria-label="Search suggestions">
+                        {(section: SuggestionSection) => (
+                            <ComboboxSection key={section.id} id={section.id} aria-label={section.label ?? "Suggestions"} heading={section.label} items={section.rows}>
+                                {(row: SuggestionRow) => (
+                                    <ComboboxItem id={row.id} textValue={row.text}>
+                                        {({ isFocused }) => (
+                                            <>
+                                                {row.type === "history" ? (
+                                                    <Clock size={16} className="shrink-0 opacity-70" />
+                                                ) : row.type === "company" ? (
+                                                    <Buildings size={16} className="shrink-0 opacity-70" />
+                                                ) : (
+                                                    <MagnifyingGlass size={16} className="shrink-0 opacity-70" />
                                                 )}
-                                            </span>
-                                            {index === activeIndex && <CaretRight className="opacity-50" />}
-                                        </li>
-                                    </Fragment>
-                                );
-                            })}
-                        </ul>
-                    </div>,
-                    document.body,
-                )}
-        </div>
+                                                <span className="flex-1 truncate">
+                                                    {highlightMatch(row.text, value).map((seg, i) =>
+                                                        seg.matched ? (
+                                                            <mark key={i} className="bg-transparent font-semibold text-foreground">
+                                                                {seg.text}
+                                                            </mark>
+                                                        ) : (
+                                                            <span key={i}>{seg.text}</span>
+                                                        ),
+                                                    )}
+                                                </span>
+                                                {isFocused && <CaretRight className="opacity-50" />}
+                                            </>
+                                        )}
+                                    </ComboboxItem>
+                                )}
+                            </ComboboxSection>
+                        )}
+                    </ComboboxList>
+                </ComboboxPopover>
+            )}
+        </Combobox>
     );
 });
