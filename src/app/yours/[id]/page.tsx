@@ -377,6 +377,7 @@ export default function PursuitDetailPage() {
             // `AuthGateHandlers` is a mapped type over every `PendingAction`
             // kind, so every caller supplies both.
             upload: () => {},
+            resume: () => {},
         },
         user,
         // Titles the dialog for the click that opened it ("Sign in to apply");
