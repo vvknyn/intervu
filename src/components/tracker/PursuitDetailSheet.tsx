@@ -10,7 +10,6 @@ import { httpUrlOrNull } from "@/lib/jobs/http-url";
 import type { Pursuit, PursuitStage } from "@/lib/pursuits/types";
 import { orderResumeVersionsLatestFirst } from "@/lib/pursuits/types";
 import {
-    TRACKER_SHEET_BOTTOM,
     daysInTracker,
     daysSinceUpdate,
     isStalePursuit,
@@ -54,10 +53,7 @@ export function PursuitDetailSheet({
             <SheetContent
                 side="bottom"
                 hideCloseButton
-                className={cn(
-                    "mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0",
-                    TRACKER_SHEET_BOTTOM,
-                )}
+                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0"
             >
                 <PursuitDetailBody
                     // Not keyed on the note: each autosave changed the key, remounted

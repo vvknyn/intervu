@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InlineSpinner } from "@/components/ui/wait-state";
 import type { PursuitStage } from "@/lib/pursuits/types";
-import { TRACKER_STATUS_OPTIONS, TRACKER_SHEET_BOTTOM } from "@/lib/pursuits/tracker-display";
+import { TRACKER_STATUS_OPTIONS } from "@/lib/pursuits/tracker-display";
 import { TRACKER_FIELD_CLASS } from "@/components/tracker/field-class";
 import { APPLICATION_FIELD_MAX } from "@/lib/validation";
 
@@ -67,10 +67,7 @@ export function TrackRoleSheet({ open, onOpenChange, onSave, saving }: TrackRole
             <SheetContent
                 side="bottom"
                 hideCloseButton
-                className={cn(
-                    "mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0",
-                    TRACKER_SHEET_BOTTOM,
-                )}
+                className="mx-auto max-h-[min(760px,var(--overlay-max-h))] max-w-[720px] gap-0 rounded-t-panel border-b-0 p-0"
             >
                 <SheetBar title="Track a role" description="One step. Link the posting — skip the essay." />
                 <SheetBody className="space-y-3 px-4 py-4 pb-7">
