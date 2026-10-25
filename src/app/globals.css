@@ -612,6 +612,11 @@
 /* Base Styles */
 html {
   scroll-behavior: smooth;
+  /* Fixed chrome never covers an anchor or a scrolled-into-view field: the
+     sticky header (and /jobs' docked filter band, which --jobs-sticky-offset
+     already adds) clears the top; the bottom side is the tab bar, set where
+     its height is defined (compact width only). */
+  scroll-padding-top: calc(var(--jobs-sticky-offset) + var(--jobs-bar-content-gap));
 }
 
 html:has([data-testid="topbar-docked-filters-toggle"]) {
@@ -652,9 +657,37 @@ body {
 }
 
 @media (max-width: 1023px) {
-  body:has([data-mobile-tabbar]) {
+  /* The bar's height lives on <html> so the viewport scroller (scroll-padding
+     below) and the body's own clearance read the SAME token. */
+  html:has([data-mobile-tabbar]) {
     --mobile-tabbar-h: 56px;
+    scroll-padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  body:has([data-mobile-tabbar]) {
     padding-bottom: calc(var(--mobile-tabbar-h) + env(safe-area-inset-bottom, 0px));
+  }
+  /* A fixed bar must never cover the field being typed in or the keyboard
+     area: while a text-entry control has focus the tab bar steps aside
+     (iOS Safari / Android Chrome do the same with their own toolbars) and
+     returns on blur. No motion, so reduced-motion needs no carve-out. */
+  html:has(:is(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="hidden"]),
+    textarea,
+    [contenteditable]:not([contenteditable="false"])
+  ):focus) [data-mobile-tabbar] {
+    display: none;
+  }
+  /* iOS Safari zooms the page when a control under 16px takes focus. Every
+     form control computes >=16px at compact width, whatever class a call
+     site gives it. Unlayered on purpose: it must beat a `text-xs` utility on
+     a raw <input>. */
+  :where(
+    input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="hidden"]),
+    select,
+    textarea,
+    [contenteditable]:not([contenteditable="false"])
+  ) {
+    font-size: max(16px, 1em);
   }
 }
 
@@ -853,6 +886,19 @@ body:has([data-shell="bleed"]) {
   .wrap-row > :last-child {
     margin-inline-end: 0;
   }
+}
+
+/* The native search-field clear button is ~13px. Same glyph, 16px, padded to
+   the 44px touch floor (--hit-min) by its own padding box. */
+input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: content-box;
+  width: 1rem;
+  height: 1rem;
+  padding: calc((var(--hit-min) - 1rem) / 2);
+  margin-inline-end: calc((var(--hit-min) - 1rem) / -2);
+  background: no-repeat center / 1rem 1rem url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%23a1a1aa'%3E%3Cpath d='M205.66 194.34a8 8 0 0 1-11.32 11.32L128 139.31l-66.34 66.35a8 8 0 0 1-11.32-11.32L116.69 128 50.34 61.66a8 8 0 0 1 11.32-11.32L128 116.69l66.34-66.35a8 8 0 0 1 11.32 11.32L139.31 128Z'/%3E%3C/svg%3E");
 }
 
 /* Heading typography */

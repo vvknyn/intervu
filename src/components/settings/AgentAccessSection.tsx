@@ -233,7 +233,7 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
             </div>
 
             <div className="mb-6">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
@@ -244,9 +244,9 @@ export function AgentAccessSection({ user, onLoginClick }: AgentAccessSectionPro
                         aria-label="Token label"
                         maxLength={AGENT.MAX_TOKEN_LABEL_LENGTH}
                         disabled={generating}
-                        className="max-w-64"
+                        className="sm:max-w-64"
                     />
-                    <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0">
+                    <Button variant="outline" size="sm" onClick={handleGenerate} disabled={generating} className="shrink-0 self-start">
                         {generating ? <InlineSpinner /> : null}
                         {generating ? "Generating..." : "Generate manual token"}
                     </Button>

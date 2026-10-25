@@ -6281,7 +6281,7 @@ export function JobsContent({
                                                         key="ranked-lower"
                                                         id={RANKED_LOWER_ANCHOR}
                                                         data-testid="ranked-lower-divider"
-                                                        className="mt-2 scroll-mt-20 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
+                                                        className="mt-2 px-[var(--list-inset)] pt-4 pb-1 text-xs text-muted-foreground"
                                                     >
                                                         Ranked lower · {rankedLowerTotal(recommended.summary).toLocaleString()}
                                                     </p>,

@@ -61,7 +61,7 @@ export function FollowedCompaniesSection() {
     };
 
     return (
-        <section ref={sectionRef} id={FOLLOWED_COMPANIES_ANCHOR} data-testid="followed-companies" className="scroll-mt-20">
+        <section ref={sectionRef} id={FOLLOWED_COMPANIES_ANCHOR} data-testid="followed-companies">
             <h2 className="mb-1 text-base font-semibold leading-snug">Companies you follow</h2>
             <p className="mb-4 text-sm text-muted-foreground">
                 New roles at these companies show under the bell and in your weekly digest.

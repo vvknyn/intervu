@@ -121,10 +121,9 @@ export function SalaryCustomMinInput({
             <span className="flex min-w-0 items-center gap-1 rounded-ctl border border-border px-1.5 py-1">
                 <span className="text-muted-foreground">$</span>
                 <input
-                    type="number"
-                    min={0}
-                    step={1000}
+                    type="text"
                     inputMode="numeric"
+                    enterKeyHint="done"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     onBlur={commit}

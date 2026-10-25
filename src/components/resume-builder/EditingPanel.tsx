@@ -387,12 +387,12 @@ export function EditingPanel({
                         <div className="space-y-1.5">
                             <Label className="text-xs font-semibold">Years of Experience</Label>
                             <Input
-                                type="number"
-                                min={0}
-                                max={50}
+                                type="text"
+                                inputMode="numeric"
+                                enterKeyHint="done"
                                 value={data.profile?.yearsOfExperience || 0}
                                 onChange={(e) =>
-                                    updateProfile("yearsOfExperience", parseInt(e.target.value, 10) || 0)
+                                    updateProfile("yearsOfExperience", Math.min(50, parseInt(e.target.value.replace(/\D/g, ""), 10) || 0))
                                 }
                             />
                         </div>
