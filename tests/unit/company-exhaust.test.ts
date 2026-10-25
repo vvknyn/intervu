@@ -12,6 +12,7 @@ import {
   resolveCoverageLadder,
   resolveFundingOrListingCell,
   resolveSector,
+  wikidataSector,
   type FundingFacts,
   type H1bLcaFacts,
   type SecFacts,
@@ -504,5 +505,28 @@ describe("resolveSector — health_reviews, then fingerprints, then boards", () 
   it("is null when no source names one", () => {
     assert.equal(resolveSector({ health_reviews: "general", fingerprints: null, boards: null }), null);
     assert.equal(resolveSector(null), null);
+  });
+});
+
+describe("wikidataSector: the item that names the company decides", () => {
+  const item = (label: string, ...industries: string[]) => ({ label, industries });
+
+  it("takes the agreeing item over a subsidiary item, casing the label like other sectors", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry", "retail")], "Acme"), "Semiconductor Industry");
+    assert.equal(wikidataSector([item("Globex", "airline"), item("Globex Bank", "banking")], "Globex"), "Airline");
+  });
+
+  it("gives no sector when the items disagree and none agrees with the displayed name", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "retail")], "Acme"), null);
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme Bare")], "Acme"), null);
+  });
+
+  it("uses the shared industries when no item agrees but every item has the same ones", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "banking")], "Acme"), "Banking");
+  });
+
+  it("gives no sector for two agreeing items with different industries, or none at all", () => {
+    assert.equal(wikidataSector([item("Acme", "banking"), item("Acme", "retail")], "Acme"), null);
+    assert.equal(wikidataSector([], "Acme"), null);
   });
 });

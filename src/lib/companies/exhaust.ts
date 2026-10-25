@@ -16,6 +16,9 @@
  */
 import { eventTypeLabel } from "@/lib/companies/events";
 import { machineTokenLabel } from "@/lib/companies/machine-token";
+import { siteKey } from "@/lib/companies/company-name";
+import type { WikidataItem } from "@/lib/companies/indexable";
+import { displayCompanyName, prettyEnum } from "@/lib/jobs/presentation";
 import { isTenantlessVendorUrl, pickBoardRoot } from "@/lib/companies/careers-board-root";
 import { RECORD_WINDOW_WEEKS, isoWeekStart } from "@/lib/companies/hiring-record";
 import { getExhaustPg, type Queryable } from "@/lib/pg/pool";
@@ -325,6 +328,19 @@ export function resolveSector(row: Partial<SectorRow> | null, industries: readon
     if (sector && !NON_SECTORS.has(sector.toLowerCase())) return machineTokenLabel(sector);
   }
   return null;
+}
+
+/** The sector from Wikidata's industry (P452), the last resort after {@link resolveSector}: the first industry of the matched item whose
+ *  label names the company as displayed (`displayName`); with none agreeing, of the items only when every one has the same industries. */
+export function wikidataSector(items: readonly WikidataItem[], displayName: string): string | null {
+  const key = (name: string) => siteKey(displayCompanyName(name));
+  const industriesKey = (item: WikidataItem) => JSON.stringify(item.industries);
+  const agreeing = items.filter((item) => item.industries.length > 0 && key(item.label) === key(displayName));
+  const chosen = agreeing.length > 0 ? agreeing : items;
+  const [first] = chosen;
+  if (!first || chosen.some((item) => industriesKey(item) !== industriesKey(first))) return null;
+  const industry = first.industries.find((x) => !NON_SECTORS.has(x.trim().toLowerCase()));
+  return industry ? prettyEnum(machineTokenLabel(industry.trim())) : null;
 }
 
 /** A stored URL that is an ATS API endpoint (boards-api.greenhouse.io/v1/boards/x/jobs, api.lever.co/v0/postings/x,

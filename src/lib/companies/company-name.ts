@@ -216,7 +216,7 @@ function domainLabels(domain: string): { labels: string[]; brandTld: string | nu
 /** An all-capitals page title longer than this is a banner ("FIVE GUYS"), not a spelling; shorter is an acronym ("AAFF"). */
 const MAX_ACRONYM_LETTERS = 4;
 
-const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
+export const siteKey = (value: string): string => alnum(value.replace(/&/g, " and "));
 const isBanner = (c: string): boolean => !/\p{Ll}/u.test(c) && (c.match(/\p{L}/gu)?.length ?? 0) > MAX_ACRONYM_LETTERS;
 
 /** A site name that can expand a squashed label: 2 to 5 words of letters, digits, spaces and & . ' - only. */
