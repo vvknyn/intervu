@@ -226,6 +226,11 @@ describe("buildDirectory — M3 survivor", () => {
     assert.deepEqual(d.companies.map((c) => c.domain).sort(), ["acme.com", "widgetjobs.com"]);
   });
 
+  it("a glued-careers row name is listed under the name its site attests", async () => {
+    const d = await build([["bjak.my", 50, { Bjakcareer: 5 }, ["BJAK"]], ["acme.io", 40, { Acmejobs: 4 }, ["Acme"]]]);
+    assert.deepEqual(d.companies.map((c) => c.name).sort(), ["Acme", "BJAK"]);
+  });
+
   it("a jobs domain settles to the form of its site name the rows agree with, never adding a word the rows lack", async () => {
     const named = async (rows: string) => (await build([["widgetjobs.com", 50, { [rows]: 5 }, ["Widget Jobs"]]])).companies[0]?.name;
     assert.equal(await named("Widget Staffing Services"), "Widget Staffing Services");

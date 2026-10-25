@@ -176,6 +176,21 @@ export const PROCESSORS: readonly Processor[] = [
     packages: [],
   },
   {
+    // Server side, a scheduled batch outside src/ (interview-os repo, scripts/jobs-sync/push-company-site-names.mjs:85,133-148,493):
+    // POSTs SPARQL to query.wikidata.org carrying company website addresses, then the matched Wikidata ids; user agent
+    // VelaiSiteNames/1.0 with the operator's contact email (:86). Never run by a visitor's request; the result is stored
+    // on the company's search record and read from there (get-company.ts:251).
+    // Browser side: src/lib/companies/company-facts.ts:231 builds the "Wikidata" source link shown on a company page
+    // (CompanySections.tsx:111, target=_blank, noopener); the browser contacts wikidata.org only when you click it.
+    name: "Wikidata (public company facts)",
+    receives:
+      "On a schedule, not when you visit, our servers ask Wikidata (query.wikidata.org) for each company's public entry, sending a list of company website addresses and then the matching Wikidata ids, with a contact email for Velai's operator in the request header. No visitor data is involved. A company page that shows a Wikidata fact links to that entry; only if you click the link does your browser contact wikidata.org, and Wikidata then sees your IP address and browser details under its own policy.",
+    why: "Fills in a company's founding year, headquarters country, size, description and industry when we have no better source, and names Wikidata as the source.",
+    retention: "Set by Wikidata for what it logs. We keep the facts we read from it on the company's record and look them up again about every 30 days.",
+    hosts: ["wikidata.org"],
+    packages: [],
+  },
+  {
     // Optional, openclaw/scripts/viewer/tailnet.mjs:131-156 (install via brew or tailscale.com/install.sh, then `tailscale up`);
     // /watch/anywhere (src/app/watch/anywhere/page.tsx) tells you to install the app. Claims about encryption and what
     // Tailscale sees: https://tailscale.com/security ("All traffic is end-to-end encrypted, always"; "Tailscale does not

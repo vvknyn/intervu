@@ -80,6 +80,9 @@ export function SavedSearchesPanel({
     // Optimistic remove: a chip leaves at once and returns, with a toast, if the server refuses.
     const [removedIds, setRemovedIds] = useState<ReadonlySet<string>>(new Set());
     const saved = savedProp.filter((s) => !removedIds.has(s.id));
+    // The count effect keys on CONTENT: `saved` is a new array every render, and the effect's own
+    // setState re-renders, so keying on it refetched every count in a loop.
+    const countsKey = JSON.stringify(saved.map((s) => [s.id, s.href]));
     // A guest sees the signup gate instead of a name
     // field; the search they meant to save is saved once they sign in.
     const [gated, setGated] = useState<PendingSavedSearch | null>(null);
@@ -155,31 +158,32 @@ export function SavedSearchesPanel({
     // — deriving from the hash is what lets "new since I looked" progress
     // survive the guest→signed-in transition.
     useEffect(() => {
-        if (saved.length === 0) {
-            setNewCounts({});
+        const rows: [string, string][] = JSON.parse(countsKey);
+        if (rows.length === 0) {
+            setNewCounts((prev) => (Object.keys(prev).length === 0 ? prev : {}));
             return;
         }
         let cancelled = false;
         void (async () => {
             const counts = await Promise.all(
-                saved.map((s) =>
+                rows.map(([, href]) =>
                     countNewSinceAction(
-                        { scope: "saved", params: jobsUrlStateFromSavedHref(s.href) },
-                        readVisitCursor(`saved:${savedSearchId(s.href)}`),
+                        { scope: "saved", params: jobsUrlStateFromSavedHref(href) },
+                        readVisitCursor(`saved:${savedSearchId(href)}`),
                     ),
                 ),
             );
             if (cancelled) return;
             const next: Record<string, CorpusCount> = {};
-            saved.forEach((s, i) => {
-                next[s.id] = counts[i];
+            rows.forEach(([id], i) => {
+                next[id] = counts[i];
             });
             setNewCounts(next);
         })();
         return () => {
             cancelled = true;
         };
-    }, [saved]);
+    }, [countsKey]);
 
     if (!canSave && saved.length === 0) return null;
 
