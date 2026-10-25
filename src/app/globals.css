@@ -735,14 +735,20 @@ body:has([data-shell="bleed"]) {
 }
 /* Calm pass R4: the single sanctioned glass material. Only chrome that content
    scrolls UNDER (sticky top bar + /jobs filter band, mobile tab bar, sticky
-   action bar) uses it. Page colour at 85% alpha + blur(16px) saturate(140%),
-   no hairline. design-language.test.ts guards that backdrop-filter appears
-   nowhere else in src/. */
+   action bar) uses it. Page colour at 94% alpha + blur(16px) saturate(140%),
+   no hairline. The fill alone must hide what scrolls under it (worst-case
+   white text under the fill measures 1.13:1), because WebKit can report
+   backdrop-filter as supported and still not blur; the blur is only the
+   enhancement. design-language.test.ts guards the alpha floor and that
+   backdrop-filter appears nowhere else in src/. */
 @utility material-bar {
-  background-color: rgb(var(--background) / 0.85);
+  background-color: rgb(var(--background) / 0.94);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   backdrop-filter: blur(16px) saturate(140%);
   @supports not (backdrop-filter: blur(1px)) {
+    background-color: rgb(var(--background));
+  }
+  @media (prefers-reduced-transparency: reduce) {
     background-color: rgb(var(--background));
   }
 }
