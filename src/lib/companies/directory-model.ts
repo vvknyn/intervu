@@ -14,8 +14,8 @@
  *   M3  two domains showing one name: the higher agreement share keeps it, then the apex over a
  *       subdomain, then more live roles — unless their legal names tell them apart (`distinctLegalNames`),
  *       when each is listed under its own.
- * Each listed company's `openRoleCount` is that number as of the memo build (up to 6h old): it ranks,
- * thresholds and caps only, and is never displayed. A displayed count of a listed company comes from
+ * Each listed company's `openRoleCount` is that number as of the memo build (up to 6h old): it
+ * thresholds only, and is never displayed. M3-STABLE-RANK: M3 and the cap rank by the candidate's published count, not by it. A displayed count of a listed company comes from
  * ONE count generation (below), rebuilt every 30 min with the company page's own count function, so the
  * letter rows, the related rows and the company page itself show the same number. A domain no built
  * generation holds is read fresh with `fetchOpenCounts` (listed-names.ts), the same query the page uses.
@@ -84,10 +84,16 @@ function listUnderLegalNames(claims: readonly Claim[]): Claim[] {
   return claims.map((c) => (told.has(c.company.domain) ? { ...c, unsettled: c.legal, identity: c.legal, company: { ...c.company, name: c.legal, letter: letterOf(c.legal) } } : c));
 }
 
-const byRoles = (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number => b.openRoleCount - a.openRoleCount || a.domain.localeCompare(b.domain);
+/**
+ * The busier by the candidate's PUBLISHED count (`company_directory.open_role_count`, `published` by domain), then the domain.
+ * Rank and membership read this, never the displayed window count: the 200-row job window changes between builds,
+ * the published whole-company figure does not, so neither the cap's edge nor an M3 winner moves with the window.
+ */
+const busierBy = (published: ReadonlyMap<string, number>) => (a: IndexableCompanyDomain, b: IndexableCompanyDomain): number =>
+  published.get(b.domain)! - published.get(a.domain)! || a.domain.localeCompare(b.domain);
 
 /** Who keeps a name two domains show: a majority of rows carrying it, a host label that is the name, fewer host labels, the busier. */
-const byClaim = (a: Claim, b: Claim): number =>
+const byClaim = (byRoles: ReturnType<typeof busierBy>) => (a: Claim, b: Claim): number =>
   Number(b.majority) - Number(a.majority) ||
   Number(b.hostIsName) - Number(a.hostIsName) ||
   a.company.domain.split(".").length - b.company.domain.split(".").length ||
@@ -95,10 +101,11 @@ const byClaim = (a: Claim, b: Claim): number =>
 
 /**
  * Pure: the directory over `candidates` (most raw live roles first), `reads` being each one's roles
- * read in the same order. Lists at most `cap`, by open-roles number, those with at least `minRoles`.
+ * read in the same order. Lists at most `cap`, by published open-roles number (stable across builds), those with at least `minRoles`.
  */
 export function buildDirectory(candidates: readonly IndexableCompanyDomain[], reads: readonly EachResult[], cap: number = SITEMAP_COMPANY_CAP, minRoles: number = MIN_SITEMAP_ROLES): Directory {
   const excluded: Exclusion[] = [];
+  const byRoles = busierBy(new Map(candidates.map((c) => [c.domain, c.openRoleCount])));
   const claims: Claim[] = [];
   candidates.forEach((raw, i) => {
     if (ATS_PORTAL_HOSTNAME_RE.test(raw.domain)) return void excluded.push({ domain: raw.domain, rule: "M1" });
@@ -115,7 +122,7 @@ export function buildDirectory(candidates: readonly IndexableCompanyDomain[], re
   // A name owns both its listed fold and its unsettled one: refining the display must not change who a duplicate is.
   const owners = new Map<string, number>();
   const kept: DirectoryCompany[] = [];
-  for (const { company, unsettled, identity } of listUnderLegalNames(claims).sort(byClaim)) {
+  for (const { company, unsettled, identity } of listUnderLegalNames(claims).sort(byClaim(byRoles))) {
     // A careers-purpose domain is its company: the names are also compared without a trailing site-purpose word.
     const keys = [company.name, unsettled, identity].flatMap((own) => [own, withoutSitePurpose(own)]).map(nameKey);
     const at = keys.map((key) => owners.get(key)).find((i) => i !== undefined);

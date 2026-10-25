@@ -347,12 +347,40 @@ describe("buildDirectory — one open-roles number", () => {
     assert.deepEqual(d.excluded, [{ domain: "thin.com", rule: "T1" }]);
   });
 
-  it("sorts by the canonical number, not the raw one", () => {
+  it("ranks by the published count, not the window count: the order is fixed while the displayed window count is not", () => {
     const d = buildDirectory(
       [candidate("padded.com", 90), candidate("honest.com", 60)],
       [readOf(mixedRows("Padded Co", 30, 40, 20)), readOf(mixedRows("Honest Co", 60, 0, 0))],
     );
-    assert.deepEqual(d.companies.map((c) => c.domain), ["honest.com", "padded.com"]);
+    assert.deepEqual(d.companies.map((c) => [c.domain, c.openRoleCount]), [["padded.com", 30], ["honest.com", 60]]);
+  });
+
+  it("M3 winner and cap membership do not move when the window counts cross and the published counts stay", () => {
+    // Pairs share a name key and tie on majority / host-label / depth; each pair is built twice with its window counts swapped.
+    const pairs = [
+      ["bluefin.io", "bluefin.net", "Bluefin"],
+      ["northwind.io", "northwind.net", "Northwind"],
+    ] as const;
+    for (const [hi, lo, name] of pairs) {
+      const run = (hiWindow: number, loWindow: number) =>
+        buildDirectory([candidate(hi, 500), candidate(lo, 400)], [readOf(rowsOf({ [name]: hiWindow })), readOf(rowsOf({ [name]: loWindow }))], 10, 1);
+      const [one, two] = [run(30, 20), run(20, 30)];
+      assert.deepEqual(one.companies.map((c) => c.domain), [hi], name);
+      assert.deepEqual(two.companies.map((c) => c.domain), [hi], name);
+      assert.deepEqual(two.excluded, [{ domain: lo, rule: "M3", owner: hi }], name);
+      assert.equal(two.companies[0]!.openRoleCount, 20, "displayed window count unchanged");
+    }
+    // Cap edge: window counts cross, published counts do not: the same company is cut.
+    const edge = (aWindow: number, bWindow: number) =>
+      buildDirectory(
+        [candidate("alpha.com", 300), candidate("bravo.com", 200)],
+        [readOf(rowsOf({ "Alpha Works": aWindow })), readOf(rowsOf({ "Bravo Works": bWindow }))],
+        1,
+        1,
+      );
+    assert.deepEqual(edge(40, 10).companies.map((c) => c.domain), ["alpha.com"]);
+    assert.deepEqual(edge(10, 40).companies.map((c) => c.domain), ["alpha.com"]);
+    assert.deepEqual(edge(10, 40).companies.map((c) => c.openRoleCount), [10]);
   });
 
   it("(d) conservation: page facts, directory row, related entry and job-detail rail give one number for one fixture", () => {
