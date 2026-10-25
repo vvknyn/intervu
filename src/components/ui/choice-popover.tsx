@@ -2,7 +2,6 @@
 
 import * as React from "react"
 
-import { cn } from "@/lib/utils"
 import { useIsCompact } from "@/hooks/use-media-query"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Sheet, SheetBar, SheetBody, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -12,17 +11,14 @@ import { Sheet, SheetBar, SheetBody, SheetContent, SheetTrigger } from "@/compon
  * compact width the house bottom sheet with 44px rows (the standard phone
  * pattern; a 224px popover over the chips was a thumb-sized miss). Every
  * popover that presents a choice list mounts this, not Popover directly.
- * `popoverClassName` styles the desktop popover only.
  */
 function ChoicePopover({
     title,
     trigger,
-    popoverClassName,
     children,
 }: {
     title: string
     trigger: React.ReactElement
-    popoverClassName?: string
     children: React.ReactNode
 }) {
     const compact = useIsCompact()
@@ -44,7 +40,7 @@ function ChoicePopover({
     return (
         <Popover>
             <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-            <PopoverContent align="start" sideOffset={6} className={cn(popoverClassName)}>
+            <PopoverContent align="start" sideOffset={6} className="flex w-56 flex-col gap-0.5 rounded-panel border border-border bg-surface p-2">
                 {children}
             </PopoverContent>
         </Popover>

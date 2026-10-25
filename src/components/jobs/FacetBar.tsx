@@ -121,7 +121,6 @@ function FacetChip({
     return (
         <ChoicePopover
             title={label}
-            popoverClassName="flex w-56 flex-col gap-0.5 rounded-panel border border-border bg-surface p-2"
             trigger={
                 <button
                     type="button"

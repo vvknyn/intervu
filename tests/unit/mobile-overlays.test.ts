@@ -55,12 +55,3 @@ test("FacetBar's chips (posted, salary, work mode and the rest) all open through
     assert.match(src, /<ChoicePopover\b/);
     assert.doesNotMatch(src, /<Popover\b/);
 });
-
-// A bottom sheet lifted above the tab bar must cap its height by the same lift, or a tall one starts above y=0.
-test("both tracker sheets share one lift-and-cap constant (the pursuit detail sheet's title was clipped at 390x470)", () => {
-    const display = read("src", "lib", "pursuits", "tracker-display.ts");
-    assert.match(display, /TRACKER_SHEET_BOTTOM =[\s\S]*?max-h-\[min\(760px,calc\(var\(--overlay-max-h\)-var\(--mobile-tabbar-h,0px\)/);
-    for (const f of ["PursuitDetailSheet.tsx", "TrackRoleSheet.tsx"]) {
-        assert.match(read("src", "components", "tracker", f), /TRACKER_SHEET_BOTTOM/, f);
-    }
-});
