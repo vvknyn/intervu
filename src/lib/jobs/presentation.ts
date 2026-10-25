@@ -312,14 +312,27 @@ export function prettyEnum(s: string | null | undefined): string {
     return capitalizeWords(s.replace(/_/g, " "));
 }
 
-/** Decode URL-encoded source data (e.g. "Wisdom%20AI" → "Wisdom AI") safely. */
+/**
+ * Unicode format characters (category Cf: LRM/RLM, zero-width space, BOM, soft hyphen, ...) render as
+ * nothing or as stray marks. Kept: ZWNJ/ZWJ (Persian and Indic shaping, emoji sequences) and the
+ * U+E0020-E007F tag characters (emoji subdivision flags), which carry meaning.
+ */
+const FORMAT_CHAR_RE = /(?![\u200C\u200D\u{E0020}-\u{E007F}])\p{Cf}/gu;
+
+/** `s` without invisible format characters, and, only if some were removed, without the doubled or edge spaces that leaves. */
+export function stripFormatChars(s: string): string {
+    const out = s.replace(FORMAT_CHAR_RE, "");
+    return out === s ? s : out.replace(/\s{2,}/g, " ").trim();
+}
+
+/** Decode URL-encoded source data (e.g. "Wisdom%20AI" → "Wisdom AI") safely, and strip invisible format characters. */
 export function decodeText(s: string | null | undefined): string {
     if (!s) return "";
-    if (!s.includes("%")) return s;
+    if (!s.includes("%")) return stripFormatChars(s);
     try {
-        return decodeURIComponent(s);
+        return stripFormatChars(decodeURIComponent(s));
     } catch {
-        return s.replace(/%20/g, " ");
+        return stripFormatChars(s.replace(/%20/g, " "));
     }
 }
 
