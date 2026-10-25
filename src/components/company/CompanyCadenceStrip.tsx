@@ -1,6 +1,7 @@
 import { eventDate } from "@/components/company/CompanyChangeEvents";
 import type { CadenceFacts, ExhaustSection, WeeklyCadence } from "@/lib/companies/exhaust";
 import { cn } from "@/lib/utils";
+import { formatCount } from "@/lib/format";
 
 /** Bar heights as literal classes so Tailwind emits them; a week's bar takes
  *  the step nearest its share of the tallest week. */
@@ -75,11 +76,11 @@ export function CompanyCadenceStrip({ cadence }: { cadence: ExhaustSection<Caden
               data-testid="company-cadence-week"
               data-first-tracked={w.firstTracked || undefined}
               data-in-progress={w.inProgress || undefined}
-              title={`${w.newListings} new ${w.newListings === 1 ? "posting" : "postings"}, week of ${date}${w.inProgress ? " (so far)" : ""}`}
+              title={`${formatCount(w.newListings)} new ${w.newListings === 1 ? "posting" : "postings"}, week of ${date}${w.inProgress ? " (so far)" : ""}`}
               className="flex min-w-5 flex-1 flex-col items-center justify-end gap-1"
             >
               <span className="mono-data text-xs leading-none text-muted-foreground">
-                {w.newListings > 0 || w.inProgress ? w.newListings : ""}
+                {w.newListings > 0 || w.inProgress ? formatCount(w.newListings) : ""}
               </span>
               <span className={cn("w-full", barHeight(w.newListings, max), barTone(w))} aria-hidden />
             </li>
