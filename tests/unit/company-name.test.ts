@@ -882,6 +882,19 @@ describe("companies/company-name — host label arbitrates a word-prefix pair", 
     assert.equal(siteSpelling("Frost", ["Frost Bank", "A Texas bank where people matter most"], "frostbank.com", undefined, ["Frost Bank"], ["Cullen/Frost Bankers Inc", "Frost Bank"]), "Frost Bank");
   });
 
+  it("a one-word name that is an attested site name plus a glued careers word shows the attested name", () => {
+    assert.equal(siteSpelling("Bjakcareer", ["BJAK", "Bjak Berhad"], "bjak.my"), "BJAK");
+    assert.equal(siteSpelling("Acmejobs", ["Acme"], "acme.io"), "Acme");
+    assert.equal(siteSpelling("Widgetkarriere", ["Widget"], "widget.de"), "Widget");
+    assert.equal(siteSpelling("Foonccarri\u00e8res", ["Foonc"], "foonc.fr"), "Foonc");
+    // not a careers word, not a strict prefix, a spaced name, or the same letters (the spaced path is settledByHost's, unchanged)
+    assert.equal(siteSpelling("Trimacjobs", ["Trimac Transportation Careers"], "trimacjobs.com"), "Trimacjobs");
+    assert.equal(siteSpelling("Careersource", ["Careers"], "careersource.com"), "Careersource");
+    assert.equal(siteSpelling("Catalent", ["Cat"], "catalent.com"), "Catalent");
+    assert.equal(siteSpelling("Velvetjobs", ["VelvetJobs"], "velvetjobs.com"), "VelvetJobs");
+    assert.equal(siteSpelling("Acme Careers", ["Acme"], "acme.io"), "Acme");
+  });
+
   it("adopts the site name without its legal form or site-purpose word, never with it", () => {
     assert.equal(siteSpelling("Continental", ["Continental Societies Inc.®"], "continentalsocietiesinc.org", undefined, [], ["Continental Societies Inc."]), "Continental Societies");
     assert.equal(siteSpelling("Audacy", ["Audacy Inc.", "Audacy Inc: An Audio Universe"], "audacyinc.com"), "Audacy");

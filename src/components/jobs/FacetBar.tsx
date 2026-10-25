@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import { CaretDown } from "@phosphor-icons/react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChoicePopover } from "@/components/ui/choice-popover";
 import { chipVariants } from "@/components/ui/chip";
 import { toolbarControlHeight } from "@/lib/jobs/toolbar-control-height";
 import { cn } from "@/lib/utils";
@@ -119,33 +119,32 @@ function FacetChip({
     children: React.ReactNode;
 }) {
     return (
-        <Popover>
-            <PopoverTrigger
-                data-testid={testId}
-                className={cn(
-                    chipVariants({ active: activeValue != null, interactive: true }),
-                    toolbarControlHeight,
-                    "ctl-button inline-flex box-border items-center justify-center leading-none px-3 lg:px-2",
-                )}
-            >
-                {activeValue ? (
-                    <span>
-                        <span className={valueStandsAlone ? "max-[399px]:sr-only" : undefined}>{label} · </span>
-                        {activeValue}
-                    </span>
-                ) : (
-                    label
-                )}
-                <CaretDown size={16} weight="bold" aria-hidden className="opacity-60" />
-            </PopoverTrigger>
-            <PopoverContent
-                align="start"
-                sideOffset={6}
-                className="flex w-56 flex-col gap-0.5 rounded-panel border border-border bg-surface p-2"
-            >
-                {children}
-            </PopoverContent>
-        </Popover>
+        <ChoicePopover
+            title={label}
+            trigger={
+                <button
+                    type="button"
+                    data-testid={testId}
+                    className={cn(
+                        chipVariants({ active: activeValue != null, interactive: true }),
+                        toolbarControlHeight,
+                        "ctl-button inline-flex box-border items-center justify-center leading-none px-3 lg:px-2",
+                    )}
+                >
+                    {activeValue ? (
+                        <span>
+                            <span className={valueStandsAlone ? "max-[399px]:sr-only" : undefined}>{label} · </span>
+                            {activeValue}
+                        </span>
+                    ) : (
+                        label
+                    )}
+                    <CaretDown size={16} weight="bold" aria-hidden className="opacity-60" />
+                </button>
+            }
+        >
+            {children}
+        </ChoicePopover>
     );
 }
 

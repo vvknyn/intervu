@@ -34,3 +34,12 @@ export function useMediaQuery(query: string): boolean {
 
     return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
+
+/** The phone width: where Tailwind's `max-sm:` applies and where overlays take
+ *  their compact form (Dialog and choice lists as bottom sheets, tooltips kept
+ *  on the screen). One query so the CSS and JS sides cannot drift. */
+export const COMPACT_QUERY = "(max-width: 639px)";
+
+export function useIsCompact(): boolean {
+    return useMediaQuery(COMPACT_QUERY);
+}

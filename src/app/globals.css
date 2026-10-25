@@ -844,16 +844,18 @@ body:has([data-shell="bleed"]) {
    ::before (`before:*` utilities) is skipped rather than half-overridden.
    @layer base + :where() keep this at zero specificity, so an explicit
    `absolute`/`fixed` utility on a control still wins over `position:relative`.
-   Text-entry controls (text-like and number inputs, select, textarea) cannot
-   carry a pseudo-element (measured in Chromium and WebKit; checkbox, radio,
-   file, range, color and date-likes do), so they sit on the `lg` step (44px)
-   themselves and are NOT positioned here: `position: relative` on them only
-   re-orders paint, hiding an absolute leading icon (z-index auto) that
-   precedes them under their opaque fill. A plain link (the header logo) is
-   not a control by tag; `hit-band` opts it in. */
+   Measured with a ::before drawn outside the control, in WebKit (iPhone 13)
+   and Chromium: it paints on buttons, checkbox and radio in both engines;
+   on range only in Chromium; on file and color only in WebKit; on every
+   other input (text-like, number, date, time, datetime-local, month, week),
+   select and textarea in neither. Controls that cannot host it sit on the
+   `lg` step (44px) themselves and are NOT positioned here: `position:
+   relative` on them only re-orders paint, hiding an absolute leading icon
+   (z-index auto) that precedes them under their opaque fill. Inputs other
+   than checkbox and radio are excluded as a class, not by a name list. */
 @layer base {
   @media (pointer: coarse) {
-    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="date"], [type="time"], [type="datetime-local"], [type="month"], [type="week"]))) {
+    :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"], textarea, select, input:not([type="checkbox"], [type="radio"]))) {
       position: relative;
     }
     :where(button, [role="button"], [role="tab"], [role="switch"], [role="menuitem"], summary, .ctl-sm, .ctl-md, .ctl-lg, .hit-band):where(:not([class*="before:"]))::before {
@@ -876,8 +878,10 @@ body:has([data-shell="bleed"]) {
    band needs, as block padding sized to the md control step, cancelled by an
    equal negative block margin so the row occupies the space it did and nothing
    around it moves. A control shorter than the md step needs a larger pad. Put
-   it on every element that clips overflow and holds controls; the /jobs
-   journey tap-band.spec.ts probes the result. */
+   it on every element that clips overflow and holds controls. A margin
+   utility on the same element replaces the negative margin and grows the
+   layout: put spacing on a wrapper or the parent's gap. Journey J-MOB-29
+   (tap-band.spec.ts) fails on any scroll-hit element that lost it. */
 @utility scroll-hit {
   @media (pointer: coarse) {
     --scroll-hit-pad: calc((var(--hit-min) - var(--control-h-md)) / 2);

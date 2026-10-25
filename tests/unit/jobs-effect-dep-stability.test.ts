@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -61,6 +61,52 @@ function depsOfCallAt(source: string, at: number): string[] | null {
         .filter(Boolean);
 }
 
+
+/** The statement starting at `at`: up to the first `;` outside any bracket. */
+function statementAt(source: string, at: number): string {
+    let depth = 0;
+    for (let i = at; i < source.length; i++) {
+        const ch = source[i];
+        if (ch === "(" || ch === "[" || ch === "{") depth++;
+        else if (ch === ")" || ch === "]" || ch === "}") depth--;
+        else if ((ch === ";" || (ch === "\n" && depth === 0 && !/[,.?:&|+(=]\s*$|^\s*[.?:&|]/.test(source.slice(source.lastIndexOf("\n", i - 1) + 1, i) + source.slice(i + 1, source.indexOf("\n", i + 1))))) && depth <= 0) return source.slice(at, i);
+    }
+    return source.slice(at);
+}
+
+/** A call whose result is a new array/object on every call. */
+const FRESH_CALL =
+    /\.(filter|map|slice|concat|sort|toSorted|toSpliced|toReversed|reverse|flat|flatMap|reduce)\(|\bObject\.(entries|keys|values|fromEntries|assign)\(|\bArray\.(from|of)\(|\bstructuredClone\(|\bnew (Set|Map|Date)\(|\.\.\.|=>|^\s*function\b/;
+/** The method name of the outermost (last top-level) call in a chain, or the property read. */
+function chainTail(v: string): string {
+    let depth = 0;
+    let tail = "";
+    for (let i = 0; i < v.length; i++) {
+        const ch = v[i]!;
+        if (ch === "(" || ch === "[" || ch === "{") depth++;
+        else if (ch === ")" || ch === "]" || ch === "}") depth--;
+        else if (ch === "." && depth === 0) tail = /^\.(\w+)/.exec(v.slice(i))?.[1] ?? "";
+    }
+    return tail;
+}
+/** Chain ends that yield a primitive: `x.filter(f).length` and `.map(f).join(",")` are stable. */
+const PRIMITIVE_TAILS = new Set(["length", "size", "join", "some", "every", "includes", "indexOf", "findIndex", "find", "at", "toString", "toLocaleString", "getTime"]);
+
+/**
+ * Does this declaration's value get a new identity on every render? Judged by
+ * MEANING, not spelling: a literal, a conditional that yields one, a spread, an
+ * array/object-building call (filter, map, slice, Object.entries, Array.from, ...), a
+ * new Set/Map, or an inline function. A primitive derived from any of these
+ * (`.length`, `.join(...)`, `.some(...)`) is stable.
+ */
+export function isFreshValue(rhs: string): boolean {
+    const v = rhs.trim();
+    if (/^(JSON\.stringify|String|Number|Boolean)\(|^`/.test(v)) return false;
+    if (/^[\[{]/.test(v) || /\?\?\s*(\[\s*\]|\{\s*\})$/.test(v)) return true;
+    if (/(\?|:)\s*[\[{]/.test(v) && !/\?\.|\?\?/.test(v.replace(/\?\?\s*[\[{]/, ""))) return true;
+    return FRESH_CALL.test(v) && !PRIMITIVE_TAILS.has(chainTail(v));
+}
+
 /**
  * Names declared at component scope whose value is a NEW reference each render.
  *
@@ -87,17 +133,15 @@ export function unstableDeclarations(source: string): Set<string> {
     for (const m of source.matchAll(decl)) {
         const name = m[1]!;
         const rhs = m[2]!.trim();
-        const hook = /^(useMemo|useCallback)\s*\(/.exec(rhs);
+        const hook = /^(?:React\.)?(useMemo|useCallback)\s*\(/.exec(rhs);
         if (hook) {
             const deps = depsOfCallAt(source, m.index! + m[0]!.indexOf(rhs));
             if (deps) memos.push({ name, deps });
             continue;
         }
         // Remaining hook results are referentially stable across renders.
-        if (/^(useRef|useState|useSyncExternalStore)\s*\(/.test(rhs)) continue;
-        const isFreshLiteral = rhs.startsWith("{") || rhs.startsWith("[");
-        const isNullishToLiteral = /\?\?\s*(\[\s*\]|\{\s*\})\s*;?$/.test(rhs);
-        if (isFreshLiteral || isNullishToLiteral) names.add(name);
+        if (/^(?:React\.)?(useRef|useState|useSyncExternalStore|useContext|useReducer)\s*\(/.test(rhs)) continue;
+        if (isFreshValue(statementAt(source, m.index! + m[0]!.indexOf(rhs)))) names.add(name);
     }
     // A memo keyed on something unstable is itself unstable — to a fixpoint,
     // since one such memo can be the key of the next.
@@ -117,9 +161,8 @@ export function unstableDeclarations(source: string): Set<string> {
 /** Every `useEffect(...)` dependency array in `source`, as arrays of identifiers. */
 export function effectDependencyLists(source: string): string[][] {
     const lists: string[][] = [];
-    const marker = "useEffect(";
-    for (let at = source.indexOf(marker); at !== -1; at = source.indexOf(marker, at + 1)) {
-        const deps = depsOfCallAt(source, at);
+    for (const m of source.matchAll(/\buse(?:Layout)?Effect\(/g)) {
+        const deps = depsOfCallAt(source, m.index!);
         if (deps) lists.push(deps);
     }
     return lists;
@@ -225,28 +268,64 @@ test("does NOT flag a useMemo keyed only on stable values", () => {
 // ---------------------------------------------------------------------------
 
 // The incident was in page.tsx, but nothing about the defect is particular to
-// that file — a sibling component holding the same shape loops just as hard.
-// Scanning the whole jobs surface costs nothing (it was clean on the day this
-// widened) and is the difference between a gate on one bug and a gate on the
-// class.
-const JOBS_SOURCE_DIRS = ["src/app/jobs", "src/components/jobs"];
+// that file or that folder: SavedSearchesPanel (components/jobs, 2026-10-25)
+// looped on `savedProp.filter(...)` while this gate still read only literals.
+// The whole of src/ is scanned.
+function sourceFiles(dir: string): string[] {
+    return readdirSync(dir).flatMap((name) => {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) return sourceFiles(path);
+        return /\.tsx?$/.test(name) ? [path] : [];
+    });
+}
 
-test("no jobs component has a per-render value in a useEffect dep array", () => {
+test("isFreshValue reads meaning: calls that build arrays/objects, spreads, conditionals, functions", () => {
+    for (const rhs of [
+        "savedProp.filter((s) => !removed.has(s.id))",
+        "rows\n  .map((r) => r.id)",
+        "Object.entries(map)",
+        "Array.from(set)",
+        "{ ...a, b }",
+        "cond ? [a] : []",
+        "new Set(ids)",
+        "(id: string) => go(id)",
+        "structuredClone(x)",
+    ]) assert.equal(isFreshValue(rhs), true, rhs);
+    for (const rhs of ["rows.filter(f).length", "rows.map(f).join(',')", "rows.some(f)", "useFoo()", "a?.b", "x ?? y"]) {
+        assert.equal(isFreshValue(rhs), false, rhs);
+    }
+});
+
+test("flags a filtered copy of a prop as an effect dep (the SavedSearchesPanel shape)", () => {
+    const src = `
+    const saved = savedProp.filter((s) => !removedIds.has(s.id));
+    useEffect(() => { void load(saved); }, [saved]);
+`;
+    assert.deepEqual(violations(src).map((v) => v.dep), ["saved"]);
+});
+
+test("flags a layout effect keyed on a multi-line Object.fromEntries", () => {
+    const src = `
+    const byId = Object.fromEntries(
+        rows.map((r) => [r.id, r]),
+    );
+    useLayoutEffect(() => { measure(byId); }, [byId]);
+`;
+    assert.deepEqual(violations(src).map((v) => v.dep), ["byId"]);
+});
+
+test("no component in src/ has a per-render value in an effect dep array", () => {
     const found: string[] = [];
-    for (const dir of JOBS_SOURCE_DIRS) {
-        const root = join(process.cwd(), dir);
-        for (const file of readdirSync(root)) {
-            if (!file.endsWith(".ts") && !file.endsWith(".tsx")) continue;
-            const source = readFileSync(join(root, file), "utf8");
-            for (const v of violations(source)) {
-                found.push(`  - ${dir}/${file}: "${v.dep}" in [${v.deps.join(", ")}]`);
-            }
+    for (const file of sourceFiles(join(process.cwd(), "src"))) {
+        const source = readFileSync(file, "utf8");
+        for (const v of violations(source)) {
+            found.push(`  - ${file.slice(process.cwd().length + 1)}: "${v.dep}" in [${v.deps.join(", ")}]`);
         }
     }
     assert.deepEqual(
         found,
         [],
-        `useEffect depends on a value rebuilt every render — this is React #185 waiting to happen:\n` +
+        `an effect depends on a value rebuilt every render — this is React #185 waiting to happen:\n` +
             found.join("\n"),
     );
 });

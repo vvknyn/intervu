@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
+import postcss from "postcss";
 
 const ROOT = path.resolve(__dirname, "../..");
 const GLOBALS_RAW = readFileSync(path.join(ROOT, "src/app/globals.css"), "utf8");
@@ -55,21 +56,29 @@ const CONTROL =
 const ANY_JSX_TAG = /<[A-Za-z][A-Za-z.]*\b(?:"[^"]*"|'[^']*'|=>|[^>])*?\/?>/g;
 
 /** The compact-width 16px floor in globals.css, as the rule that decides it:
- *  its selector and whether it sits at top level (unlayered). Unlayered is what
- *  makes it beat a `text-xs` utility on a raw <input>; moved into @layer it
- *  would lose to that utility and the page would zoom again. */
-function compactFontFloor(): { selector: string; unlayered: boolean } | null {
-    const m = /@media \(max-width: 1023px\) \{/.exec(GLOBALS);
-    if (!m) return null;
-    const depth = [...GLOBALS.slice(0, m.index)].reduce((d, c) => d + (c === "{" ? 1 : c === "}" ? -1 : 0), 0);
-    const rule = /(:where\([^{}]*?\))\s*\{\s*font-size:\s*max\(16px,\s*1em\);\s*\}/.exec(GLOBALS.slice(m.index));
-    return rule ? { selector: rule[1], unlayered: depth === 0 } : null;
+ *  its selector and every at-rule it sits inside. Unlayered is what makes it
+ *  beat a `text-xs` utility on a raw <input>; inside ANY `@layer`, at any
+ *  depth (a layer wrapped around the whole media block, or around the rule
+ *  inside it), it would lose to that utility and the page would zoom again.
+ *  Read from a parsed tree, not by counting braces at the `@media` opener:
+ *  that check passed with the rule itself wrapped in `@layer base`. */
+function compactFontFloor(): { selector: string; atRules: string[] } | null {
+    let found: { selector: string; atRules: string[] } | null = null;
+    postcss.parse(GLOBALS_RAW).walkRules((rule) => {
+        if (found || !rule.some((n) => n.type === "decl" && n.prop === "font-size" && /^max\(16px,\s*1em\)$/.test(n.value))) return;
+        const atRules: string[] = [];
+        for (let p = rule.parent; p && p.type === "atrule"; p = p.parent) atRules.push(`@${(p as postcss.AtRule).name} ${(p as postcss.AtRule).params}`.trim());
+        found = { selector: rule.selector, atRules };
+    });
+    return found;
 }
 
 test("every native text-entry control computes 16px on a phone through one unlayered rule", () => {
     const floor = compactFontFloor();
     assert.ok(floor, "the `font-size: max(16px, 1em)` compact-width rule is gone from globals.css");
-    assert.ok(floor.unlayered, "the 16px floor is inside an @layer, so a `text-xs` utility on a raw <input> beats it");
+    const layers = floor.atRules.filter((r) => r.startsWith("@layer"));
+    assert.deepEqual(layers, [], `the 16px floor is inside ${layers.join(" > ")}, so a \`text-xs\` utility on a raw <input> beats it`);
+    assert.ok(floor.atRules.includes("@media (max-width: 1023px)"), "the 16px floor is no longer scoped to compact width");
     for (const part of ["input:not(", "select", "textarea", "[contenteditable]"]) {
         assert.ok(floor.selector.includes(part), `the 16px floor no longer covers ${part}`);
     }

@@ -75,6 +75,8 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           dialogContentClass,
+          // Compact width: a full-width sheet on the bottom edge, clear of the home indicator. Only Dialog does this; AlertDialog shares dialogContentClass and stays centred.
+          "max-sm:inset-x-0 max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-b-none max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] max-sm:data-[state=open]:zoom-in-100 max-sm:data-[state=closed]:zoom-out-100 max-sm:data-[state=open]:slide-in-from-bottom max-sm:data-[state=closed]:slide-out-to-bottom",
           className
         )}
         onFocusCapture={(event) => {
