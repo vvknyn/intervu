@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildDirectory, fetchCompanyInSitemapSet, fetchDirectory, singleFlight, type Directory } from "@/lib/companies/directory-model";
+import { nameKey } from "@/lib/companies/company-name";
 import { ATS_PORTAL_HOSTNAME_RE } from "@/lib/jobs/presentation";
 import type { IndexableCompanyDomain } from "@/lib/companies/indexable";
 import { companyOpenCount, companyRolesParams, COMPANY_JOBS_FETCH_LIMIT, publicRoles } from "@/lib/companies/company-roles-query";
@@ -132,7 +133,7 @@ describe("buildDirectory — SP: the listed name is the company's own spelling",
       ["aaff.com", 50, { aaff: 5 }, ["AAFF"]],
       ["acme.com", 40, { "Acme Robotics": 5 }],
     ]);
-    assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott Laboratories", "fiveguys.com": "FIVE GUYS", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
+    assert.deepEqual(listed(d), { "aspendental.com": "Aspen Dental", "airliquide.com": "Air Liquide", "abbott.com": "Abbott", "fiveguys.com": "FIVE GUYS", "aaff.com": "AAFF", "acme.com": "Acme Robotics" });
     assert.equal(d.companies.find((c) => c.domain === "aspendental.com")?.letter, "A");
   });
 
@@ -142,6 +143,118 @@ describe("buildDirectory — SP: the listed name is the company's own spelling",
       ["qorvanta.com", 80, { QORVANTA: 5 }, ["QORVANTA"]],
     ]);
     assert.deepEqual(listed(d), { "zentrova.com": "Zentrova", "qorvanta.com": "QORVANTA" });
+  });
+});
+
+describe("buildDirectory — M3 folds names the way a site name is folded", () => {
+  it("lists one of Basic-Fit / Basic Fit and one of Domino's / Dominos, owners kept by the usual order", () => {
+    const d = build([
+      ["basic-fit.com", 310, { "Basic-Fit": 5 }],
+      ["basic-fit.nl", 106, { "Basic Fit": 5 }],
+      ["dominos.de", 50, { "Domino's": 5 }],
+      ["ominos.com", 40, { Dominos: 5 }],
+      ["acme.com", 30, { "Acme & Co": 5 }],
+    ]);
+    assert.deepEqual(Object.keys(listed(d)).sort(), ["acme.com", "basic-fit.com", "dominos.de"]);
+    assert.deepEqual(excluded(d, "M3").map((e) => [e.domain, e.owner]).sort(), [["basic-fit.nl", "basic-fit.com"], ["ominos.com", "dominos.de"]]);
+  });
+});
+
+describe("buildDirectory — M3 also compares the name before the host label settled it", () => {
+  it("lists one of two domains whose rows name one company although the host label settled one of them differently; keeps an unrelated company", () => {
+    const d = build([
+      ["foobarbaz.com", 90, { "Foo Bar Baz": 9 }],
+      ["foobar.com", 50, { "Foo Bar Baz": 5 }, ["Foo Bar"]],
+      ["quxxon.com", 40, { Quxxon: 5 }],
+    ]);
+    assert.equal(d.companies.length, 2);
+    assert.ok(d.companies.some((c) => c.domain === "quxxon.com"));
+    // the survivor ranks on the unsettled name: foobarbaz.com's host IS that name, foobar.com's only is the settled one
+    assert.deepEqual(excluded(d, "M3").map((e) => [e.domain, e.owner]), [["foobar.com", "foobarbaz.com"]]);
+  });
+});
+
+describe("buildDirectory — M3 keeps names that differ by '&' versus 'and'", () => {
+  it("lists both Goodwill domains (rows carry the Arizona name on both) and both Smith domains", () => {
+    const d = build([
+      ["goodwillaz.org", 520, { "Goodwill of Central and Northern Arizona": 5 }],
+      ["sfgoodwill.org", 550, { "Goodwill of Central & Northern Arizona": 5 }],
+      ["smithsons.com", 40, { "Smith & Sons": 5 }],
+      ["smithandsons.com", 30, { "Smith and Sons": 5 }],
+    ]);
+    assert.equal(d.companies.length, 4);
+    assert.equal(excluded(d, "M3").length, 0);
+  });
+});
+
+describe("buildDirectory — M3 survivor", () => {
+  it("shows the better-spelled name of a same-key group; the survivor's own name stands for an unsettled-key collision", () => {
+    const d = build([
+      ["tranetechnologies.com", 90, { Tranetechnologies: 5 }],
+      ["trane.com", 50, { "Trane Technologies": 5 }],
+      ["uvahealth.org", 80, { Uvahealth: 5 }],
+      ["uva.edu", 40, { "UVA Health": 5 }],
+      ["foobarbaz.com", 70, { "Foo Bar Baz": 9 }],
+      ["foobar.com", 30, { "Foo Bar Baz": 5 }, ["Foo Bar"]],
+    ]);
+    assert.equal(d.companies.find((c) => c.domain === "tranetechnologies.com")?.name, "Trane Technologies");
+    assert.equal(d.companies.find((c) => c.domain === "uvahealth.org")?.name, "UVA Health");
+    assert.equal(d.companies.find((c) => c.domain === "foobarbaz.com")?.name, "Foo Bar Baz");
+  });
+
+  it("a careers-purpose domain is its company: it merges into the main domain; the busier jobs domain survives a country domain", () => {
+    const d = build([
+      ["acme.com", 90, { Acme: 9 }],
+      ["acmecareers.com", 50, { "Acme Studios": 5 }, ["Acme Careers"]],
+      ["widget.de", 20, { Widget: 5 }],
+      ["widgetjobs.com", 60, { Widget: 9 }],
+    ]);
+    assert.deepEqual(excluded(d, "M3").map((e) => [e.domain, e.owner]).sort(), [["acmecareers.com", "acme.com"], ["widget.de", "widgetjobs.com"]]);
+    assert.deepEqual(d.companies.map((c) => c.domain).sort(), ["acme.com", "widgetjobs.com"]);
+  });
+
+  it("a jobs domain settles to the form of its site name the rows agree with, never adding a word the rows lack", () => {
+    const named = (rows: string) => build([["widgetjobs.com", 50, { [rows]: 5 }, ["Widget Jobs"]]]).companies[0]?.name;
+    assert.equal(named("Widget Staffing Services"), "Widget Staffing Services");
+    assert.equal(named("Widget Jobs Network"), "Widget Jobs");
+  });
+
+  it("a jobs-purpose domain whose rows name a longer company keeps that name and is still a duplicate of the main domain", () => {
+    const d = build([
+      ["widget.com", 90, { Widget: 9 }],
+      ["widgetjobs.com", 50, { "Widget Staffing Services": 5 }, ["Widget Jobs"]],
+    ]);
+    assert.deepEqual(excluded(d, "M3").map((e) => [e.domain, e.owner]), [["widgetjobs.com", "widget.com"]]);
+    assert.deepEqual(d.companies.map((c) => c.name), ["Widget"]);
+  });
+
+  it("a hyphen is word structure: the survivor keeps its own hyphenated spelling", () => {
+    const d = build([
+      ["basic-fit.com", 90, { "Basic-Fit": 5 }],
+      ["basic-fit.nl", 50, { "Basic Fit": 5 }],
+      ["pearce-services.com", 80, { "Pearce-Services": 5 }],
+      ["pearceservices.com", 40, { "Pearce Services": 5 }],
+    ]);
+    assert.equal(d.companies.find((c) => c.domain === "basic-fit.com")?.name, "Basic-Fit");
+    assert.equal(d.companies.find((c) => c.domain === "pearce-services.com")?.name, "Pearce-Services");
+  });
+
+  it("a host label matching the settled name counts: the busier main domain survives", () => {
+    const d = build([
+      ["otis.com", 969, { "Otis Worldwide": 6, Otis: 3 }, ["Otis"]],
+      ["otis.ch", 847, { Otis: 5 }],
+    ]);
+    assert.deepEqual(d.companies.map((c) => c.domain), ["otis.com"]);
+  });
+});
+
+describe("nameKey — the M3 fold", () => {
+  it("keeps distinct non-Latin names apart and folds spellings of one Latin name together", () => {
+    assert.notEqual(nameKey("トヨタ自動車"), nameKey("Яндекс"));
+    assert.notEqual(nameKey("トヨタ自動車"), "");
+    assert.equal(nameKey("Яндекс"), nameKey("ЯНДЕКС"));
+    assert.equal(nameKey("Société-Fils"), nameKey("Societe Fils"));
+    assert.notEqual(nameKey("Smith & Sons"), nameKey("Smith and Sons"));
   });
 });
 

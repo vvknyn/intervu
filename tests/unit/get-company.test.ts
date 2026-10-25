@@ -11,6 +11,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { COMPANY_JOBS_FETCH_LIMIT, getCompanyPageData } from "@/lib/companies/get-company";
+import type { CompanyExhaust } from "@/lib/companies/exhaust";
 import { CORPUS_COUNT_CAP } from "@/lib/jobs/corpus-count";
 import { SEARCH_UNAVAILABLE_MESSAGE } from "@/lib/jobs/result-state";
 import type { JobSearchParams, JobSearchResult, PublicJob } from "@/lib/jobs/types";
@@ -370,5 +371,34 @@ describe("getCompanyPageData — internal-only postings never reach the public p
 
         const result = await getCompanyPageData("animana--com", search);
         assert.equal(result, null);
+    });
+});
+
+describe("getCompanyPageData: Wikidata industry sector", () => {
+    const search = ok({ hits: [job({ id: "1", company: "Acme", company_domain: "acme.com" })], total: 1 });
+    const wikidataIndustries = [
+        { label: "Acme Germany", industries: ["banking"] },
+        { label: "Acme", industries: ["financial services"] },
+    ];
+    const page = (sector: string | null, listed = true) =>
+        getCompanyPageData("acme--com", search, {
+            news: async () => [],
+            events: async () => [],
+            exhaust: async () => ({ sector }) as CompanyExhaust,
+            directory: async () => ({ companies: listed ? [{ domain: "acme.com", name: "Acme", wikidataIndustries }] : [], excluded: [] }) as never,
+        });
+
+    it("fills an empty sector from the agreeing item, in the other sector labels' casing", async () => {
+        const result = await page(null);
+        assert.equal(result?.exhaust?.sector, "Financial Services");
+        assert.equal(result?.facts.identity.sector, "Financial Services");
+    });
+
+    it("never replaces a sector another source named", async () => {
+        assert.equal((await page("Fintech"))?.exhaust?.sector, "Fintech");
+    });
+
+    it("leaves the sector empty for a company the directory does not list", async () => {
+        assert.equal((await page(null, false))?.exhaust?.sector, null);
     });
 });

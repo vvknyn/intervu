@@ -116,6 +116,14 @@ export interface IndexableCompanyDomain {
   siteNames?: string[];
   /** `wikidata_names` then `row_names`, deduped: spellings that may only space or case a glued domain label (`labelSpelling`), never rename a name. Absent when empty. */
   labelSpellings?: string[];
+  /** `wikidata_industries`: one entry per Wikidata item whose official site is this domain, with its English industry (P452) labels. Absent when the doc has none. */
+  wikidataIndustries?: WikidataItem[];
+}
+
+/** One Wikidata item matched to a domain: its English label and its industry labels (may be empty). */
+export interface WikidataItem {
+  label: string;
+  industries: string[];
 }
 
 const COMPANY_DIRECTORY_INDEX = "company_directory";
@@ -148,6 +156,14 @@ function isoDate(v: unknown): string | null {
 const stringsOf = (v: unknown): string[] | null =>
   Array.isArray(v) ? v.filter((n): n is string => typeof n === "string").map(stripFormatChars).filter(Boolean) : null;
 
+/** The well-formed `wikidata_industries` entries of a doc field (a labelled item with string industries), or [] when it is not an array. */
+const wikidataItemsOf = (v: unknown): WikidataItem[] =>
+  (Array.isArray(v) ? v : []).flatMap((e: unknown) => {
+    const { label, industries } = (e ?? {}) as Record<string, unknown>;
+    const name = typeof label === "string" ? stripFormatChars(label) : "";
+    return name && Array.isArray(industries) ? [{ label: name, industries: stringsOf(industries) ?? [] }] : [];
+  });
+
 /**
  * Pure: shape one `company_directory` hit, or `null` if it can't be trusted.
  * Isolated from the fetch so a malformed doc's handling is unit-testable
@@ -164,7 +180,8 @@ export function parseCompanyDirectoryHit(hit: unknown): IndexableCompanyDomain |
   const homepageNames = stringsOf(h.site_names);
   const siteNames = homepageNames?.length ? homepageNames : null;
   const labelSpellings = [...new Set([...(stringsOf(h.wikidata_names) ?? []), ...(stringsOf(h.row_names) ?? [])])];
-  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }) };
+  const wikidataIndustries = wikidataItemsOf(h.wikidata_industries);
+  return { domain, openRoleCount, computedAt: isoDate(h.computed_at), ...(siteNames && { siteNames }), ...(labelSpellings.length > 0 && { labelSpellings }), ...(wikidataIndustries.length > 0 && { wikidataIndustries }) };
 }
 
 /** One `company_directory` `/search` request body — pulled out as its own

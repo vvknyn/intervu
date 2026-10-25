@@ -251,6 +251,14 @@ describe("parseCompanyDirectoryHit — one company_directory doc", () => {
     assert.ok(!("labelSpellings" in parseCompanyDirectoryHit({ ...hit, wikidata_names: [] })!));
   });
 
+  it("carries wikidata_industries items, dropping malformed entries; absent when none remain", () => {
+    const hit = { domain: "acme.com", open_role_count: 40 };
+    const parsed = parseCompanyDirectoryHit({ ...hit, wikidata_industries: [{ label: "Acme", industries: ["retail", 3] }, { label: "", industries: [] }, { label: "Bad" }, null] });
+    assert.deepEqual(parsed?.wikidataIndustries, [{ label: "Acme", industries: ["retail"] }]);
+    assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit({ ...hit, wikidata_industries: [] })!));
+    assert.ok(!("wikidataIndustries" in parseCompanyDirectoryHit(hit)!));
+  });
+
   it("siteNames is non-empty site_names only (any source); wikidata_names never become siteNames", () => {
     const hit = { domain: "acme.com", open_role_count: 40 };
     assert.deepEqual(parseCompanyDirectoryHit({ ...hit, site_names: ["Rocket Lab"], wikidata_names: ["Rocket Lab USA"] })?.siteNames, ["Rocket Lab"]);

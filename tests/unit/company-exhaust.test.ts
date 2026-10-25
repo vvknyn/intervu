@@ -12,6 +12,7 @@ import {
   resolveCoverageLadder,
   resolveFundingOrListingCell,
   resolveSector,
+  wikidataSector,
   type FundingFacts,
   type H1bLcaFacts,
   type SecFacts,
@@ -352,10 +353,10 @@ describe("getCompanyExhaust — section isolation", () => {
       // A whole-row reference (`j.*`) detoasts every row's description.
       assert.doesNotMatch(sql, /\b\w+\.\*/);
       // Every scan is bounded by the window start on the indexed domain, bar
-      // the one MIN(first_seen_at), an index read that never touches row bodies.
+      // the one MIN(first_seen_at) and the one latest-posting LIMIT 1, index reads that never touch row bodies.
       const scans = sql.split(/FROM job_listings/).slice(1);
       for (const scan of scans)
-        assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) >= \(date_trunc\('week', now\(\)|company_domain = \$1\) AS first_day/);
+        assert.match(scan, /company_domain = \$1 AND (first_seen_at|closed_at) >= \(date_trunc\('week', now\(\)|company_domain = \$1\) AS first_day|company_domain = \$1 ORDER BY first_seen_at DESC LIMIT 20\) recent\) AS listing_urls/);
     }
   });
 
@@ -504,5 +505,34 @@ describe("resolveSector — health_reviews, then fingerprints, then boards", () 
   it("is null when no source names one", () => {
     assert.equal(resolveSector({ health_reviews: "general", fingerprints: null, boards: null }), null);
     assert.equal(resolveSector(null), null);
+  });
+});
+
+describe("wikidataSector: the item that names the company decides", () => {
+  const item = (label: string, ...industries: string[]) => ({ label, industries });
+
+  it("takes the agreeing item over a subsidiary item, casing the label like other sectors", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme, Inc.", "semiconductor industry")], "Acme"), "Semiconductor Industry");
+    assert.equal(wikidataSector([item("Globex", "airline"), item("Globex Bank", "banking")], "Globex"), "Airline");
+  });
+
+  it("gives no sector when the items disagree and none agrees with the displayed name", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "retail")], "Acme"), null);
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme Bare")], "Acme"), null);
+  });
+
+  it("uses the shared industries when no item agrees but every item has the same ones", () => {
+    assert.equal(wikidataSector([item("Acme Germany", "banking"), item("Acme France", "banking")], "Acme"), "Banking");
+  });
+
+  it("shows a sector only when exactly one industry remains after the generic filter", () => {
+    assert.equal(wikidataSector([item("Siemens", "electrical engineering", "electronics industry")], "Siemens"), null);
+    assert.equal(wikidataSector([item("Acme", "general", "retail")], "Acme"), "Retail");
+    assert.equal(wikidataSector([item("Acme", "general", "unknown")], "Acme"), null);
+  });
+
+  it("gives no sector for two agreeing items with different industries, or none at all", () => {
+    assert.equal(wikidataSector([item("Acme", "banking"), item("Acme", "retail")], "Acme"), null);
+    assert.equal(wikidataSector([], "Acme"), null);
   });
 });

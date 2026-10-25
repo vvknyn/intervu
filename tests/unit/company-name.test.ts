@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { brandTokens, displayNameFromDomain, dropCountryQualifier, resolveCompanyName, siteSpelling } from "@/lib/companies/company-name";
+import { brandTokens, displayNameFromDomain, dropCountryQualifier, resolveCompanyName, siteSpelling, siteSpellings } from "@/lib/companies/company-name";
 import { displayCompanyName } from "@/lib/jobs/presentation";
 import type { PublicJob } from "@/lib/jobs/types";
 
@@ -870,5 +870,76 @@ describe("companies/company-name — a minority group never names the company", 
 
   it("a tie at the fewest words falls through to the brand root", () => {
     assert.equal(name({ "Zeta Analytics": 4, "Zeta Labs": 4, "Zeta Cloud": 4 }, "zeta.com"), "Zeta");
+  });
+});
+
+// Fixtures: the live directory records of 2026-10-24 (display = the listed name before this rule; site/label spellings as recorded).
+describe("companies/company-name — host label arbitrates a word-prefix pair", () => {
+  it("a regional tail or a cut-short name becomes the homepage name whose key is the label", () => {
+    assert.equal(siteSpelling("Champion Petfoods (Shanghai)", ["Champion Petfoods", "World's Best Pet Food"], "championpetfoods.com"), "Champion Petfoods");
+    assert.equal(siteSpelling("Vanderlande Industries", ["Vanderlande", "Home"], "vanderlande.com", undefined, ["Vanderlande"]), "Vanderlande");
+    assert.equal(siteSpelling("Dentalcorp Health Services", ["Dentalcorp", "Network of Dental Practices in Canada"], "dentalcorp.ca"), "Dentalcorp");
+    assert.equal(siteSpelling("Frost", ["Frost Bank", "A Texas bank where people matter most"], "frostbank.com", undefined, ["Frost Bank"], ["Cullen/Frost Bankers Inc", "Frost Bank"]), "Frost Bank");
+  });
+
+  it("adopts the site name without its legal form or site-purpose word, never with it", () => {
+    assert.equal(siteSpelling("Continental", ["Continental Societies Inc.®"], "continentalsocietiesinc.org", undefined, [], ["Continental Societies Inc."]), "Continental Societies");
+    assert.equal(siteSpelling("Audacy", ["Audacy Inc.", "Audacy Inc: An Audio Universe"], "audacyinc.com"), "Audacy");
+    assert.equal(siteSpelling("Rogers Group", ["Rogers Group Inc."], "rogersgroupinc.com"), "Rogers Group");
+    assert.equal(siteSpelling("Terrestris", ["Terrestris LLC"], "terrestrisllc.com"), "Terrestris");
+    assert.equal(siteSpelling("Pinterest", ["Pinterest Careers"], "pinterestcareers.com"), "Pinterest");
+    assert.equal(siteSpelling("Zeta", ["Zeta Inc"], "zetainc.com"), "Zeta");
+    // group / holdings are name words and stay
+    assert.equal(siteSpelling("Toll", ["Toll Group"], "tollgroup.com", undefined, [], ["Toll Group"]), "Toll Group");
+    assert.equal(siteSpelling("Acme", ["Acme Holdings"], "acmeholdings.com", undefined, [], ["Acme Holdings Ltd"]), "Acme Holdings");
+  });
+
+  it("a site name adds words only when the job rows carry them", () => {
+    assert.equal(siteSpelling("Accor", ["Accor Plus", "Accor Plus Loyalty"], "accorplus.com", undefined, [], ["Accor", "Accor Hospitality"]), "Accor");
+    assert.equal(siteSpelling("Frost", ["Frost Bank"], "frostbank.com", undefined, [], ["Cullen/Frost Bankers Inc", "Frost Insurance Agency, Inc."]), "Frost");
+    assert.equal(siteSpelling("Champion Petfoods (Shanghai)", ["Champion Petfoods"], "championpetfoods.com", undefined, [], []), "Champion Petfoods");
+  });
+
+  it("a site-purpose word the host label itself ends with is part of the name; one that is only the page's is cut", () => {
+    assert.equal(siteSpelling("NB Health Jobs Canada", ["NB Health Jobs"], "nbhealthjobs.ca"), "NB Health Jobs");
+    assert.equal(siteSpelling("Asda Stores", ["Asda Jobs"], "asda.jobs"), "Asda");
+  });
+
+  it("a shortening to the host-label name stands whatever the rows say", () => {
+    assert.equal(siteSpelling("Abbott Laboratories", ["Abbott"], "abbott.com", undefined, [], ["Abbott Laboratories"]), "Abbott");
+  });
+
+  it("a non-Latin display is left alone even when a label-keyed site name exists", () => {
+    assert.equal(siteSpelling("トヨタ自動車", ["Toyota"], "toyota.com"), "トヨタ自動車");
+    assert.equal(siteSpelling("Яндекс", ["Yandex"], "yandex.ru"), "Яндекс");
+  });
+
+  it("changes nothing when the site name's key is not the label, the words are not a prefix, or the name is the label", () => {
+    assert.equal(siteSpelling("Acme Robotics Canada", ["Acme Robotics"], "acmeglobal.com"), "Acme Robotics Canada");
+    assert.equal(siteSpelling("Zeta Analytics", ["Zeta Labs"], "zetaanalytics.com"), "Zeta Analytics");
+    assert.equal(siteSpelling("Zetaanalytics", ["Zeta"], "zetaanalytics.com"), "Zetaanalytics");
+  });
+});
+
+describe("companies/company-name — a tail-less glued name takes its label spelling", () => {
+  it("'Kraftheinz' on kraftheinzcompany.com is spaced by the label spelling", () => {
+    assert.equal(siteSpelling("Kraftheinz", ["The Kraft Heinz Company"], "kraftheinzcompany.com", undefined, ["Kraft Heinz"]), "Kraft Heinz");
+  });
+
+  it("a tail-less name takes only a spelling of its own letters, never one that adds the tail", () => {
+    assert.equal(siteSpelling("Trilon", [], "trilongroup.com", undefined, ["Trilon Group"]), "Trilon");
+    assert.equal(siteSpelling("Homedepot", [], "homedepot.com", undefined, ["Home Depot"]), "Home Depot");
+  });
+});
+
+describe("siteSpellings — a form we built by cutting the purpose word sets identity, never the display", () => {
+  const settle = (rows: string, site: string, domain: string) => siteSpellings(rows, [site], domain, undefined, [], [rows]);
+  it("shows the rows' name and settles the identity to the agreeing cut form", () => {
+    assert.deepEqual(settle("Widget Staffing Services", "Widget Jobs", "widgetjobs.com"), { name: "Widget Staffing Services", unsettled: "Widget Staffing Services", identity: "Widget" });
+    assert.deepEqual(settle("Acme Studios", "Acme Careers", "acmecareers.com"), { name: "Acme Studios", unsettled: "Acme Studios", identity: "Acme" });
+  });
+  it("shows a form the site writes", () => {
+    assert.equal(settle("Widget Jobs Network", "Widget Jobs", "widgetjobs.com").name, "Widget Jobs");
+    assert.equal(settle("Asda Stores", "Asda Jobs", "asda.jobs").name, "Asda");
   });
 });
