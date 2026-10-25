@@ -1100,6 +1100,8 @@ export function displayCompanyBrand(
     return titleCaseDisplay(preferBrandSegment(brand, domain, title));
 }
 
+const STRINGIFIED_OBJECT = "[object Object]";
+
 /**
  * The corpus's raw `location` strings sometimes hold serialization accidents
  * rather than prose — seen live on production rows 2026-07-26:
@@ -1114,8 +1116,14 @@ export function displayCompanyBrand(
  * fields exactly as if `location` were absent.
  */
 export function humanizeRawLocation(raw: string): string | null {
-    const s = raw.trim();
-    if (!s || s === "[object Object]") return null;
+    // A stringified object can also arrive as ONE comma segment of a
+    // readable location ("Amsterdam, NH,NL, [object Object]") — drop it
+    // wherever it sits, keep the rest.
+    const s = (raw.includes(STRINGIFIED_OBJECT)
+        ? raw.split(",").filter((part) => part.trim() !== STRINGIFIED_OBJECT).join(",")
+        : raw
+    ).trim();
+    if (!s) return null;
     if (s.startsWith("{") || s.startsWith("[")) {
         try {
             const parsed: unknown = JSON.parse(s);
