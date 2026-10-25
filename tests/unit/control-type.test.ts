@@ -11,7 +11,8 @@ import path from "node:path";
  * 24px → 12px, 32px → 14px, 44px → 16px, all at weight 500, painted by
  * `.ctl-button` on the control corner. The Button primitive carries it; a raw
  * <button> on a step adds it. The 44px step is for fields and the /jobs Search
- * submit. The detector lives in scripts/design/control-type.cjs; exemptions
+ * submit, and phone action buttons via `size="touch"` (32px on desktop, 44px
+ * below lg). The detector lives in scripts/design/control-type.cjs; exemptions
  * are an on-line `control-type-allow: <reason>` marker, never a file list.
  */
 

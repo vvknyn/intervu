@@ -1,3 +1,4 @@
+import { buttonVariants } from "../../src/components/ui/button";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -29,9 +30,16 @@ test("menu content keeps 16px from the viewport edges and never outgrows the spa
   assert.match(MENU, /max-w-\(--radix-dropdown-menu-content-available-width\)/);
 });
 
-test("alert dialog buttons step to the 44px control at compact width", () => {
-  assert.equal((ALERT.match(/"max-lg:ctl-lg"/g) ?? []).length, 1);
-  assert.equal((ALERT.match(/cn\(PHONE_TAP_TARGET, props\.className\)/g) ?? []).length, 2);
+test("size=touch is 32px on desktop and the 44px step below lg, for any Button (not only dialogs)", () => {
+  const cls = buttonVariants({ size: "touch" });
+  assert.match(cls, /(?:^|\s)ctl-md(?:\s|$)/);
+  assert.match(cls, /max-lg:ctl-lg/);
+});
+
+test("alert dialog actions default to size=touch and let a caller's size win", () => {
+  assert.equal((ALERT.match(/size = "touch"/g) ?? []).length, 2);
+  assert.equal((ALERT.match(/size=\{size\} \{\.\.\.props\}/g) ?? []).length, 2);
+  assert.doesNotMatch(ALERT, /control-type-allow|PHONE_TAP_TARGET/);
 });
 
 test("no call site fixes a menu row's height, so the primitive's floor reaches all of them", () => {

@@ -39,17 +39,15 @@ function AlertDialogContent({
   )
 }
 
-// control-type-allow: dialog actions are the only buttons that must reach the 44px tap minimum on phone; type still comes from the step
-const PHONE_TAP_TARGET = "max-lg:ctl-lg"
-
 /** Dismisses with no action. Closing by Esc or Cancel both reach the root's `onOpenChange(false)`. */
 function AlertDialogCancel({
   variant = "outline",
+  size = "touch",
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> & Pick<React.ComponentProps<typeof Button>, "variant">) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> & Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
   return (
     <AlertDialogPrimitive.Cancel asChild>
-      <Button variant={variant} {...props} className={cn(PHONE_TAP_TARGET, props.className)} />
+      <Button variant={variant} size={size} {...props} />
     </AlertDialogPrimitive.Cancel>
   )
 }
@@ -57,11 +55,12 @@ function AlertDialogCancel({
 /** The confirming action. It closes the dialog on click; `event.preventDefault()` in `onClick` keeps it open (async work that can fail). */
 function AlertDialogAction({
   variant,
+  size = "touch",
   ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action> & Pick<React.ComponentProps<typeof Button>, "variant">) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action> & Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
   return (
     <AlertDialogPrimitive.Action asChild>
-      <Button variant={variant} {...props} className={cn(PHONE_TAP_TARGET, props.className)} />
+      <Button variant={variant} size={size} {...props} />
     </AlertDialogPrimitive.Action>
   )
 }
